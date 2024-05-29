@@ -88,7 +88,8 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///     `true` by default
   ///   - initializationOptions: Initialization options to pass to the SourceKit-LSP server.
   ///   - capabilities: The test client's capabilities.
-  ///   - usePullDiagnostics: Whether to use push diagnostics or use push-based diagnostics
+  ///   - usePullDiagnostics: Whether to use push diagnostics or use push-based diagnostics.
+  ///   - enableBackgroundIndexing: Whether background indexing should be enabled in the project.
   ///   - workspaceFolders: Workspace folders to open.
   ///   - preInitialization: A closure that is called after the test client is created but before SourceKit-LSP is
   ///     initialized. This can be used to eg. register request handlers.
@@ -102,6 +103,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
     usePullDiagnostics: Bool = true,
+    enableBackgroundIndexing: Bool = false,
     workspaceFolders: [WorkspaceFolder]? = nil,
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
     cleanUp: @Sendable @escaping () -> Void = {}
@@ -115,6 +117,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
     if let moduleCache {
       serverOptions.buildSetup.flags.swiftCompilerFlags += ["-module-cache-path", moduleCache.path]
     }
+    serverOptions.indexOptions.enableBackgroundIndexing = enableBackgroundIndexing
 
     var notificationYielder: AsyncStream<any NotificationType>.Continuation!
     self.notifications = AsyncStream { continuation in
@@ -155,8 +158,8 @@ public final class TestSourceKitLSPClient: MessageHandler {
         XCTAssertEqual(request.registrations.only?.method, DocumentDiagnosticsRequest.method)
         return VoidResponse()
       }
-      preInitialization?(self)
     }
+    preInitialization?(self)
     if initialize {
       _ = try await self.send(
         InitializeRequest(
@@ -193,9 +196,19 @@ public final class TestSourceKitLSPClient: MessageHandler {
   /// Send the request to `server` and return the request result.
   public func send<R: RequestType>(_ request: R) async throws -> R.Response {
     return try await withCheckedThrowingContinuation { continuation in
-      server.handle(request, id: .number(Int(nextRequestID.fetchAndIncrement()))) { result in
+      self.send(request) { result in
         continuation.resume(with: result)
       }
+    }
+  }
+
+  /// Send the request to `server` and return the result via a completion handler.
+  ///
+  /// This version of the `send` function should only be used if some action needs to be performed after the request is
+  /// sent but before it returns a result.
+  public func send<R: RequestType>(_ request: R, completionHandler: @escaping (LSPResult<R.Response>) -> Void) {
+    server.handle(request, id: .number(Int(nextRequestID.fetchAndIncrement()))) { result in
+      completionHandler(result)
     }
   }
 
@@ -248,15 +261,16 @@ public final class TestSourceKitLSPClient: MessageHandler {
     return try await nextNotification(ofType: PublishDiagnosticsNotification.self, timeout: timeout)
   }
 
-  /// Waits for the next notification of the given type to be sent to the client. Ignores any notifications that are of
-  /// a different type.
+  /// Waits for the next notification of the given type to be sent to the client that satisfies the given predicate.
+  /// Ignores any notifications that are of a different type or that don't satisfy the predicate.
   public func nextNotification<ExpectedNotificationType: NotificationType>(
     ofType: ExpectedNotificationType.Type,
+    satisfying predicate: (ExpectedNotificationType) -> Bool = { _ in true },
     timeout: TimeInterval = defaultTimeout
   ) async throws -> ExpectedNotificationType {
     while true {
       let nextNotification = try await nextNotification(timeout: timeout)
-      if let notification = nextNotification as? ExpectedNotificationType {
+      if let notification = nextNotification as? ExpectedNotificationType, predicate(notification) {
         return notification
       }
     }

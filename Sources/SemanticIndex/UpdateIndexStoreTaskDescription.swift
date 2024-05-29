@@ -76,6 +76,22 @@ public struct FileAndTarget: Sendable {
   public let target: ConfiguredTarget
 }
 
+private enum IndexKind {
+  case clang
+  case swift
+
+  init?(language: Language) {
+    switch language {
+    case .swift:
+      self = .swift
+    case .c, .cpp, .objective_c, .objective_cpp:
+      self = .clang
+    default:
+      return nil
+    }
+  }
+}
+
 /// Describes a task to index a set of source files.
 ///
 /// This task description can be scheduled in a `TaskScheduler`.
@@ -114,6 +130,10 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     return "update-indexstore-\(id)"
   }
 
+  static func canIndex(language: Language) -> Bool {
+    return IndexKind(language: language) != nil
+  }
+
   init(
     filesToIndex: [FileAndTarget],
     buildSystemManager: BuildSystemManager,
@@ -134,10 +154,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     // Only use the last two digits of the indexing ID for the logging scope to avoid creating too many scopes.
     // See comment in `withLoggingScope`.
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running indexing operation.
-    await withLoggingSubsystemAndScope(
-      subsystem: "org.swift.sourcekit-lsp.indexing",
-      scope: "update-indexstore-\(id % 100)"
-    ) {
+    await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "update-indexstore-\(id % 100)") {
       let startDate = Date()
 
       await testHooks.updateIndexStoreTaskDidStart?(self)
@@ -219,7 +236,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       return
     }
     let startDate = Date()
-    switch language {
+    switch IndexKind(language: language) {
     case .swift:
       do {
         try await updateIndexStore(
@@ -231,7 +248,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         logger.error("Updating index store for \(file.forLogging) failed: \(error.forLogging)")
         BuildSettingsLogger.log(settings: buildSettings, for: file.mainFile)
       }
-    case .c, .cpp, .objective_c, .objective_cpp:
+    case .clang:
       do {
         try await updateIndexStore(
           forClangFile: file.mainFile,
@@ -242,7 +259,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         logger.error("Updating index store for \(file) failed: \(error.forLogging)")
         BuildSettingsLogger.log(settings: buildSettings, for: file.mainFile)
       }
-    default:
+    case nil:
       logger.error(
         "Not updating index store for \(file) because it is a language that is not supported by background indexing"
       )
@@ -324,7 +341,13 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       arguments: processArguments,
       workingDirectory: workingDirectory
     )
-    let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+    // Time out updating of the index store after 2 minutes. We don't expect any single file compilation to take longer
+    // than 2 minutes in practice, so this indicates that the compiler has entered a loop and we probably won't make any
+    // progress here. We will try indexing the file again when it is edited or when the project is re-opened.
+    // 2 minutes have been chosen arbitrarily.
+    let result = try await withTimeout(.seconds(120)) {
+      try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+    }
 
     indexProcessDidProduceResult(
       IndexProcessResult(

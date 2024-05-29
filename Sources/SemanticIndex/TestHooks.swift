@@ -12,6 +12,10 @@
 
 /// Callbacks that allow inspection of internal state modifications during testing.
 public struct IndexTestHooks: Sendable {
+  public var buildGraphGenerationDidStart: (@Sendable () async -> Void)?
+
+  public var buildGraphGenerationDidFinish: (@Sendable () async -> Void)?
+
   public var preparationTaskDidStart: (@Sendable (PreparationTaskDescription) async -> Void)?
 
   public var preparationTaskDidFinish: (@Sendable (PreparationTaskDescription) async -> Void)?
@@ -22,11 +26,15 @@ public struct IndexTestHooks: Sendable {
   public var updateIndexStoreTaskDidFinish: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)?
 
   public init(
+    buildGraphGenerationDidStart: (@Sendable () async -> Void)? = nil,
+    buildGraphGenerationDidFinish: (@Sendable () async -> Void)? = nil,
     preparationTaskDidStart: (@Sendable (PreparationTaskDescription) async -> Void)? = nil,
     preparationTaskDidFinish: (@Sendable (PreparationTaskDescription) async -> Void)? = nil,
     updateIndexStoreTaskDidStart: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)? = nil,
     updateIndexStoreTaskDidFinish: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)? = nil
   ) {
+    self.buildGraphGenerationDidStart = buildGraphGenerationDidStart
+    self.buildGraphGenerationDidFinish = buildGraphGenerationDidFinish
     self.preparationTaskDidStart = preparationTaskDidStart
     self.preparationTaskDidFinish = preparationTaskDidFinish
     self.updateIndexStoreTaskDidStart = updateIndexStoreTaskDidStart

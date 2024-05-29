@@ -178,7 +178,9 @@ public actor SwiftPMBuildSystem {
       forRootPackage: AbsolutePath(packageRoot),
       fileSystem: fileSystem
     )
-    if let scratchDirectory = buildSetup.path {
+    if isForIndexBuild {
+      location.scratchDirectory = AbsolutePath(packageRoot.appending(component: ".index-build"))
+    } else if let scratchDirectory = buildSetup.path {
       location.scratchDirectory = AbsolutePath(scratchDirectory)
     }
 
@@ -226,7 +228,6 @@ public actor SwiftPMBuildSystem {
       }
       await delegate.filesDependenciesUpdated(filesWithUpdatedDependencies)
     }
-    try await reloadPackage()
   }
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
@@ -260,13 +261,9 @@ public actor SwiftPMBuildSystem {
 }
 
 extension SwiftPMBuildSystem {
-  public func generateBuildGraph() async throws {
-    try await self.reloadPackage()
-  }
-
   /// (Re-)load the package settings by parsing the manifest and resolving all the targets and
   /// dependencies.
-  func reloadPackage() async throws {
+  public func reloadPackage(forceResolvedVersions: Bool) async throws {
     await reloadPackageStatusCallback(.start)
     defer {
       Task {
@@ -276,7 +273,7 @@ extension SwiftPMBuildSystem {
 
     let modulesGraph = try self.workspace.loadPackageGraph(
       rootInput: PackageGraphRootInput(packages: [AbsolutePath(projectRoot)]),
-      forceResolvedVersions: !isForIndexBuild,
+      forceResolvedVersions: forceResolvedVersions,
       availableLibraries: self.buildParameters.toolchain.providedLibraries,
       observabilityScope: observabilitySystem.topScope
     )
@@ -428,6 +425,10 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     }
 
     return []
+  }
+
+  public func generateBuildGraph(allowFileSystemWrites: Bool) async throws {
+    try await self.reloadPackage(forceResolvedVersions: !isForIndexBuild || !allowFileSystemWrites)
   }
 
   public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
@@ -590,7 +591,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       logger.log("Reloading package because of file change")
       await orLog("Reloading package") {
         // TODO: It should not be necessary to reload the entire package just to get build settings for one file.
-        try await self.reloadPackage()
+        try await self.reloadPackage(forceResolvedVersions: !isForIndexBuild)
       }
     }
 

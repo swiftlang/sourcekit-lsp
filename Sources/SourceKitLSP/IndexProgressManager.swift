@@ -18,11 +18,11 @@ import SemanticIndex
 /// Listens for index status updates from `SemanticIndexManagers`. From that information, it manages a
 /// `WorkDoneProgress` that communicates the index progress to the editor.
 actor IndexProgressManager {
-  /// A queue on which `indexTaskWasQueued` and `indexStatusDidChange` are handled.
+  /// A queue on which `indexTaskWasQueued` and `indexProgressStatusDidChange` are handled.
   ///
-  /// This allows the two functions two be `nonisolated` (and eg. the caller of `indexStatusDidChange` doesn't have to
+  /// This allows the two functions two be `nonisolated` (and eg. the caller of `indexProgressStatusDidChange` doesn't have to
   /// wait for the work done progress to be updated) while still guaranteeing that there is only one
-  /// `indexStatusDidChangeImpl` running at a time, preventing race conditions that would cause two
+  /// `indexProgressStatusDidChangeImpl` running at a time, preventing race conditions that would cause two
   /// `WorkDoneProgressManager`s to be created.
   private let queue = AsyncQueue<Serial>()
 
@@ -64,64 +64,64 @@ actor IndexProgressManager {
 
   private func indexTasksWereScheduledImpl(count: Int) async {
     queuedIndexTasks += count
-    await indexStatusDidChangeImpl()
+    await indexProgressStatusDidChangeImpl()
   }
 
   /// Called when a `SemanticIndexManager` finishes indexing a file. Adjusts the done index count, eg. the 1 in `1/3`.
-  nonisolated func indexStatusDidChange() {
+  nonisolated func indexProgressStatusDidChange() {
     queue.async {
-      await self.indexStatusDidChangeImpl()
+      await self.indexProgressStatusDidChangeImpl()
     }
   }
 
-  private func indexStatusDidChangeImpl() async {
+  private func indexProgressStatusDidChangeImpl() async {
     guard let sourceKitLSPServer else {
       workDoneProgress = nil
       return
     }
-    var isGeneratingBuildGraph = false
-    var indexTasks: [DocumentURI: IndexTaskStatus] = [:]
-    var preparationTasks: [ConfiguredTarget: IndexTaskStatus] = [:]
+    var status = IndexProgressStatus.upToDate
     for indexManager in await sourceKitLSPServer.workspaces.compactMap({ $0.semanticIndexManager }) {
-      let inProgress = await indexManager.inProgressTasks
-      isGeneratingBuildGraph = isGeneratingBuildGraph || inProgress.isGeneratingBuildGraph
-      indexTasks.merge(inProgress.indexTasks) { lhs, rhs in
-        return max(lhs, rhs)
-      }
-      preparationTasks.merge(inProgress.preparationTasks) { lhs, rhs in
-        return max(lhs, rhs)
-      }
+      status = status.merging(with: await indexManager.progressStatus)
     }
 
-    if indexTasks.isEmpty {
+    var message: String
+    let percentage: Int
+    switch status {
+    case .preparingFileForEditorFunctionality:
+      message = "Preparing current file"
+      percentage = 0
+    case .generatingBuildGraph:
+      message = "Generating build graph"
+      percentage = 0
+    case .indexing(preparationTasks: let preparationTasks, indexTasks: let indexTasks):
+      // We can get into a situation where queuedIndexTasks < indexTasks.count if we haven't processed all
+      // `indexTasksWereScheduled` calls yet but the semantic index managers already track them in their in-progress tasks.
+      // Clip the finished tasks to 0 because showing a negative number there looks stupid.
+      let finishedTasks = max(queuedIndexTasks - indexTasks.count, 0)
+      message = "\(finishedTasks) / \(queuedIndexTasks)"
+      if await sourceKitLSPServer.options.indexOptions.showActivePreparationTasksInProgress {
+        var inProgressTasks: [String] = []
+        inProgressTasks += preparationTasks.filter { $0.value == .executing }
+          .map { "- Preparing \($0.key.targetID)" }
+          .sorted()
+        inProgressTasks += indexTasks.filter { $0.value == .executing }
+          .map { "- Indexing \($0.key.fileURL?.lastPathComponent ?? $0.key.pseudoPath)" }
+          .sorted()
+
+        message += "\n\n" + inProgressTasks.joined(separator: "\n")
+      }
+      if queuedIndexTasks != 0 {
+        percentage = Int(Double(finishedTasks) / Double(queuedIndexTasks) * 100)
+      } else {
+        percentage = 0
+      }
+    case .upToDate:
       // Nothing left to index. Reset the target count and dismiss the work done progress.
       queuedIndexTasks = 0
       workDoneProgress = nil
       return
     }
 
-    // We can get into a situation where queuedIndexTasks < indexTasks.count if we haven't processed all
-    // `indexTasksWereScheduled` calls yet but the semantic index managers already track them in their in-progress tasks.
-    // Clip the finished tasks to 0 because showing a negative number there looks stupid.
-    let finishedTasks = max(queuedIndexTasks - indexTasks.count, 0)
-    var message = "\(finishedTasks) / \(queuedIndexTasks)"
-
-    if await sourceKitLSPServer.options.indexOptions.showActivePreparationTasksInProgress {
-      var inProgressTasks: [String] = []
-      if isGeneratingBuildGraph {
-        inProgressTasks.append("- Generating build graph")
-      }
-      inProgressTasks += preparationTasks.filter { $0.value == .executing }
-        .map { "- Preparing \($0.key.targetID)" }
-        .sorted()
-      inProgressTasks += indexTasks.filter { $0.value == .executing }
-        .map { "- Indexing \($0.key.fileURL?.lastPathComponent ?? $0.key.pseudoPath)" }
-        .sorted()
-
-      message += "\n\n" + inProgressTasks.joined(separator: "\n")
-    }
-
-    let percentage = Int(Double(finishedTasks) / Double(queuedIndexTasks) * 100)
     if let workDoneProgress {
       workDoneProgress.update(message: message, percentage: percentage)
     } else {
