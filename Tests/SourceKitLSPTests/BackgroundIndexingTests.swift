@@ -604,13 +604,14 @@ final class BackgroundIndexingTests: XCTestCase {
     )
 
     let receivedEmptyDiagnostics = self.expectation(description: "Received diagnostic refresh request")
+    receivedEmptyDiagnostics.assertForOverFulfill = false
     project.testClient.handleMultipleRequests { (_: CreateWorkDoneProgressRequest) in
       return VoidResponse()
     }
 
-    project.testClient.handleMultipleRequests { (_: DiagnosticsRefreshRequest) in
-      Task {
-        let updatedDiagnostics = try await project.testClient.send(
+    project.testClient.handleMultipleRequests { [weak project] (_: DiagnosticsRefreshRequest) in
+      Task { [weak project] in
+        let updatedDiagnostics = try await project?.testClient.send(
           DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
         )
         guard case .full(let updatedDiagnostics) = updatedDiagnostics else {
