@@ -455,6 +455,8 @@ class ManualBuildSystem: BuildSystem {
     self.delegate = delegate
   }
 
+  public nonisolated var supportsPreparation: Bool { false }
+
   func buildSettings(for uri: DocumentURI, in buildTarget: ConfiguredTarget, language: Language) -> FileBuildSettings? {
     return map[uri]
   }
@@ -474,7 +476,7 @@ class ManualBuildSystem: BuildSystem {
     throw PrepareNotSupportedError()
   }
 
-  public func generateBuildGraph() {}
+  public func generateBuildGraph(allowFileSystemWrites: Bool) {}
 
   public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil

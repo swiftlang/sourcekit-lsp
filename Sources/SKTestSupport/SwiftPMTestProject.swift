@@ -44,9 +44,10 @@ public class SwiftPMTestProject: MultiFileTestProject {
     allowBuildFailure: Bool = false,
     capabilities: ClientCapabilities = ClientCapabilities(),
     serverOptions: SourceKitLSPServer.Options = .testDefault,
+    enableBackgroundIndexing: Bool = false,
+    usePullDiagnostics: Bool = true,
     pollIndex: Bool = true,
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
-    usePullDiagnostics: Bool = true,
     cleanUp: (() -> Void)? = nil,
     testName: String = #function
   ) async throws {
@@ -71,6 +72,7 @@ public class SwiftPMTestProject: MultiFileTestProject {
       workspaces: workspaces,
       capabilities: capabilities,
       serverOptions: serverOptions,
+      enableBackgroundIndexing: enableBackgroundIndexing,
       usePullDiagnostics: usePullDiagnostics,
       preInitialization: preInitialization,
       cleanUp: cleanUp,

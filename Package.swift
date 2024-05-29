@@ -367,6 +367,7 @@ let package = Package(
       name: "SourceKitLSPTests",
       dependencies: [
         "BuildServerProtocol",
+        "CAtomics",
         "LSPLogging",
         "LSPTestSupport",
         "LanguageServerProtocol",

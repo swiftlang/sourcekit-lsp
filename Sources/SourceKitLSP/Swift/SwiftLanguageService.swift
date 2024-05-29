@@ -17,6 +17,7 @@ import LSPLogging
 import LanguageServerProtocol
 import SKCore
 import SKSupport
+import SemanticIndex
 import SourceKitD
 import SwiftParser
 import SwiftParserDiagnostics
@@ -123,6 +124,9 @@ public actor SwiftLanguageService: LanguageService, Sendable {
 
   let syntaxTreeManager = SyntaxTreeManager()
 
+  /// The `semanticIndexManager` of the workspace this language service was created for.
+  private let semanticIndexManager: SemanticIndexManager?
+
   nonisolated var keys: sourcekitd_api_keys { return sourcekitd.keys }
   nonisolated var requests: sourcekitd_api_requests { return sourcekitd.requests }
   nonisolated var values: sourcekitd_api_values { return sourcekitd.values }
@@ -192,6 +196,7 @@ public actor SwiftLanguageService: LanguageService, Sendable {
     self.swiftFormat = toolchain.swiftFormat
     self.sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(dylibPath: sourcekitd)
     self.capabilityRegistry = workspace.capabilityRegistry
+    self.semanticIndexManager = workspace.semanticIndexManager
     self.serverOptions = options
     self.documentManager = DocumentManager()
     self.state = .connected
@@ -400,7 +405,7 @@ extension SwiftLanguageService {
     if buildSettings == nil || buildSettings!.isFallback, let fileUrl = note.textDocument.uri.fileURL {
       // Do not show this notification for non-file URIs to make sure we don't see this notificaiton for newly created
       // files (which get opened as with a `untitled:Unitled-1` URI by VS Code.
-      await sourceKitLSPServer?.sendNotificationToClient(
+      sourceKitLSPServer?.sendNotificationToClient(
         ShowMessageNotification(
           type: .warning,
           message: """
@@ -875,6 +880,7 @@ extension SwiftLanguageService {
 
   public func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
     do {
+      await semanticIndexManager?.prepareFileForEditorFunctionality(req.textDocument.uri)
       let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
       let buildSettings = await self.buildSettings(for: req.textDocument.uri)
       let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(

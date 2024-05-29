@@ -105,7 +105,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
 
-  private let indexStoreUpToDateStatus: IndexUpToDateStatusManager<DocumentURI>
+  private let indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>
 
   /// A reference to the underlying index store. Used to check if the index is already up-to-date for a file, in which
   /// case we don't need to index it again.
@@ -138,14 +138,14 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     filesToIndex: [FileAndTarget],
     buildSystemManager: BuildSystemManager,
     index: UncheckedIndex,
-    indexStoreUpToDateStatus: IndexUpToDateStatusManager<DocumentURI>,
+    indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>,
     indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
     testHooks: IndexTestHooks
   ) {
     self.filesToIndex = filesToIndex
     self.buildSystemManager = buildSystemManager
     self.index = index
-    self.indexStoreUpToDateStatus = indexStoreUpToDateStatus
+    self.indexStoreUpToDateTracker = indexStoreUpToDateTracker
     self.indexProcessDidProduceResult = indexProcessDidProduceResult
     self.testHooks = testHooks
   }
@@ -202,7 +202,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   }
 
   private func updateIndexStore(forSingleFile file: FileToIndex, in target: ConfiguredTarget) async {
-    guard await !indexStoreUpToDateStatus.isUpToDate(file.sourceFile) else {
+    guard await !indexStoreUpToDateTracker.isUpToDate(file.sourceFile) else {
       // If we know that the file is up-to-date without having ot hit the index, do that because it's fastest.
       return
     }
@@ -264,7 +264,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         "Not updating index store for \(file) because it is a language that is not supported by background indexing"
       )
     }
-    await indexStoreUpToDateStatus.markUpToDate([file.sourceFile], updateOperationStartDate: startDate)
+    await indexStoreUpToDateTracker.markUpToDate([file.sourceFile], updateOperationStartDate: startDate)
   }
 
   private func updateIndexStore(
@@ -341,7 +341,13 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       arguments: processArguments,
       workingDirectory: workingDirectory
     )
-    let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+    // Time out updating of the index store after 2 minutes. We don't expect any single file compilation to take longer
+    // than 2 minutes in practice, so this indicates that the compiler has entered a loop and we probably won't make any
+    // progress here. We will try indexing the file again when it is edited or when the project is re-opened.
+    // 2 minutes have been chosen arbitrarily.
+    let result = try await withTimeout(.seconds(120)) {
+      try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+    }
 
     indexProcessDidProduceResult(
       IndexProcessResult(

@@ -121,6 +121,10 @@ public protocol BuildSystem: AnyObject, Sendable {
   ///   context.
   func setDelegate(_ delegate: BuildSystemDelegate?) async
 
+  /// Whether the build system is capable of preparing a target for indexing, ie. if the `prepare` methods has been
+  /// implemented.
+  var supportsPreparation: Bool { get }
+
   /// Retrieve build settings for the given document with the given source
   /// language.
   ///
@@ -135,9 +139,14 @@ public protocol BuildSystem: AnyObject, Sendable {
   /// Return the list of targets and run destinations that the given document can be built for.
   func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget]
 
-  /// Re-generate the build graph including all the tasks that are necessary for building the entire build graph, like
-  /// resolving package versions.
-  func generateBuildGraph() async throws
+  /// Re-generate the build graph.
+  ///
+  /// If `allowFileSystemWrites` is `true`, this should include all the tasks that are necessary for building the entire
+  /// build graph, like resolving package versions.
+  ///
+  /// If `allowFileSystemWrites` is `false`, no files must be written to disk. This mode is used to determine whether
+  /// the build system can handle a source file, and decide whether a workspace should be opened with this build system
+  func generateBuildGraph(allowFileSystemWrites: Bool) async throws
 
   /// Sort the targets so that low-level targets occur before high-level targets.
   ///

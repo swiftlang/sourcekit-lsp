@@ -43,6 +43,8 @@ actor TestBuildSystem: BuildSystem {
     buildSettingsByFile[uri] = buildSettings
   }
 
+  public nonisolated var supportsPreparation: Bool { false }
+
   func buildSettings(
     for document: DocumentURI,
     in buildTarget: ConfiguredTarget,
@@ -66,7 +68,7 @@ actor TestBuildSystem: BuildSystem {
     throw PrepareNotSupportedError()
   }
 
-  public func generateBuildGraph() {}
+  public func generateBuildGraph(allowFileSystemWrites: Bool) {}
 
   public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
@@ -141,7 +143,7 @@ final class BuildSystemTests: XCTestCase {
       indexTaskScheduler: .forTesting,
       indexProcessDidProduceResult: { _ in },
       indexTasksWereScheduled: { _ in },
-      indexStatusDidChange: {}
+      indexProgressStatusDidChange: {}
     )
 
     await server.setWorkspaces([(workspace: workspace, isImplicit: false)])
@@ -159,7 +161,7 @@ final class BuildSystemTests: XCTestCase {
   func testClangdDocumentUpdatedBuildSettings() async throws {
     guard haveClangd else { return }
 
-    let doc = DocumentURI.for(.objective_c)
+    let doc = DocumentURI(for: .objective_c)
     let args = [doc.pseudoPath, "-DDEBUG"]
     let text = """
       #ifdef FOO
@@ -201,7 +203,7 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testSwiftDocumentUpdatedBuildSettings() async throws {
-    let doc = DocumentURI.for(.swift)
+    let doc = DocumentURI(for: .swift)
     let args = await FallbackBuildSystem(buildSetup: .default)
       .buildSettings(for: doc, language: .swift)!
       .compilerArguments
@@ -236,7 +238,7 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testClangdDocumentFallbackWithholdsDiagnostics() async throws {
-    let doc = DocumentURI.for(.objective_c)
+    let doc = DocumentURI(for: .objective_c)
     let args = [doc.pseudoPath, "-DDEBUG"]
     let text = """
         #ifdef FOO
@@ -270,7 +272,7 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testSwiftDocumentFallbackWithholdsSemanticDiagnostics() async throws {
-    let doc = DocumentURI.for(.swift)
+    let doc = DocumentURI(for: .swift)
 
     // Primary settings must be different than the fallback settings.
     var primarySettings = await FallbackBuildSystem(buildSetup: .default).buildSettings(for: doc, language: .swift)!

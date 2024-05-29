@@ -626,7 +626,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
 
   func testInMemoryFileWithFallbackBuildSystem() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """

@@ -35,7 +35,7 @@ final class LocalSwiftTests: XCTestCase {
 
   func testEditing() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let documentManager = await testClient.server._documentManager
 

@@ -93,6 +93,8 @@ public actor CompilationDatabaseBuildSystem {
 }
 
 extension CompilationDatabaseBuildSystem: BuildSystem {
+  public nonisolated var supportsPreparation: Bool { false }
+
   public var indexDatabasePath: AbsolutePath? {
     indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
   }
@@ -132,7 +134,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     throw PrepareNotSupportedError()
   }
 
-  public func generateBuildGraph() {}
+  public func generateBuildGraph(allowFileSystemWrites: Bool) {}
 
   public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil

@@ -68,6 +68,10 @@ public actor BuildSystemManager {
     }
   }
 
+  public var supportsPreparation: Bool {
+    return buildSystem?.supportsPreparation ?? false
+  }
+
   /// Create a BuildSystemManager that wraps the given build system. The new
   /// manager will modify the delegate of the underlying build system.
   public init(
@@ -219,8 +223,8 @@ extension BuildSystemManager {
     return settings
   }
 
-  public func generateBuildGraph() async throws {
-    try await self.buildSystem?.generateBuildGraph()
+  public func generateBuildGraph(allowFileSystemWrites: Bool) async throws {
+    try await self.buildSystem?.generateBuildGraph(allowFileSystemWrites: allowFileSystemWrites)
   }
 
   public func topologicalSort(of targets: [ConfiguredTarget]) async throws -> [ConfiguredTarget]? {
