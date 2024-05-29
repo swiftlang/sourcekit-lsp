@@ -121,6 +121,10 @@ public protocol BuildSystem: AnyObject, Sendable {
   ///   context.
   func setDelegate(_ delegate: BuildSystemDelegate?) async
 
+  /// Whether the build system is capable of preparing a target for indexing, ie. if the `prepare` methods has been
+  /// implemented.
+  var supportsPreparation: Bool { get }
+
   /// Retrieve build settings for the given document with the given source
   /// language.
   ///

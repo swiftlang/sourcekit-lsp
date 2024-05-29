@@ -342,6 +342,7 @@ extension SwiftPMBuildSystem {
 }
 
 extension SwiftPMBuildSystem: SKCore.BuildSystem {
+  public nonisolated var supportsPreparation: Bool { true }
 
   public var buildPath: TSCAbsolutePath {
     return TSCAbsolutePath(buildParameters.buildPath)

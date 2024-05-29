@@ -99,6 +99,12 @@ public actor SourceKitLSPServer {
   /// Initialization can be awaited using `waitUntilInitialized`.
   private var initialized: Bool = false
 
+  /// Set to `true` after the user has opened a project that doesn't support background indexing while having background
+  /// indexing enabled.
+  ///
+  /// This ensures that we only inform the user about background indexing not being supported for these projects once.
+  private var didSendBackgroundIndexingNotSupportedNotification = false
+
   var options: Options
 
   let toolchainRegistry: ToolchainRegistry
@@ -916,7 +922,7 @@ extension SourceKitLSPServer {
       "Created workspace at \(workspaceFolder.uri.forLogging) as \(type(of: buildSystem)) with project root \(projectRoot ?? "<nil>")"
     )
 
-    return try? await Workspace(
+    let workspace = try? await Workspace(
       documentManager: self.documentManager,
       rootUri: workspaceFolder.uri,
       capabilityRegistry: capabilityRegistry,
@@ -935,6 +941,21 @@ extension SourceKitLSPServer {
         self?.indexProgressManager.indexProgressStatusDidChange()
       }
     )
+    if let workspace, options.indexOptions.enableBackgroundIndexing, workspace.semanticIndexManager == nil,
+      !self.didSendBackgroundIndexingNotSupportedNotification
+    {
+      self.sendNotificationToClient(
+        ShowMessageNotification(
+          type: .info,
+          message: """
+            Background indexing is currently only supported for SwiftPM projects. \
+            For all other project types, please run a build to update the index.
+            """
+        )
+      )
+      self.didSendBackgroundIndexingNotSupportedNotification = true
+    }
+    return workspace
   }
 
   func initialize(_ req: InitializeRequest) async throws -> InitializeResult {

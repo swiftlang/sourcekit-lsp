@@ -108,7 +108,10 @@ public final class Workspace: Sendable {
       mainFilesProvider: uncheckedIndex,
       toolchainRegistry: toolchainRegistry
     )
-    if let uncheckedIndex, options.indexOptions.enableBackgroundIndexing {
+    if options.indexOptions.enableBackgroundIndexing,
+      let uncheckedIndex,
+      await buildSystemManager.supportsPreparation
+    {
       self.semanticIndexManager = SemanticIndexManager(
         index: uncheckedIndex,
         buildSystemManager: buildSystemManager,

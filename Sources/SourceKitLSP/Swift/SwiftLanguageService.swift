@@ -405,7 +405,7 @@ extension SwiftLanguageService {
     if buildSettings == nil || buildSettings!.isFallback, let fileUrl = note.textDocument.uri.fileURL {
       // Do not show this notification for non-file URIs to make sure we don't see this notificaiton for newly created
       // files (which get opened as with a `untitled:Unitled-1` URI by VS Code.
-      await sourceKitLSPServer?.sendNotificationToClient(
+      sourceKitLSPServer?.sendNotificationToClient(
         ShowMessageNotification(
           type: .warning,
           message: """

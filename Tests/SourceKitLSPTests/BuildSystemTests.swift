@@ -43,6 +43,8 @@ actor TestBuildSystem: BuildSystem {
     buildSettingsByFile[uri] = buildSettings
   }
 
+  public nonisolated var supportsPreparation: Bool { false }
+
   func buildSettings(
     for document: DocumentURI,
     in buildTarget: ConfiguredTarget,
