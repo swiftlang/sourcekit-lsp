@@ -834,7 +834,7 @@ extension SourceKitLSPServer {
   nonisolated func indexTaskDidProduceResult(_ result: IndexProcessResult) {
     self.sendNotificationToClient(
       LogMessageNotification(
-        type: result.failed ? .info : .warning,
+        type: result.failed ? .warning : .info,
         message: """
           \(result.taskDescription) finished in \(result.duration)
           \(result.command)
