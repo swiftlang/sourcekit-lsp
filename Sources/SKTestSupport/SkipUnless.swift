@@ -170,10 +170,6 @@ public actor SkipUnless {
 
   /// SwiftPM moved the location where it stores Swift modules to a subdirectory in
   /// https://github.com/apple/swift-package-manager/pull/7103.
-  ///
-  /// sourcekit-lsp uses the built-in SwiftPM to synthesize compiler arguments and cross-module tests fail if the host
-  /// toolchain’s SwiftPM stores the Swift modules on the top level but we synthesize compiler arguments expecting the
-  /// modules to be in a `Modules` subdirectory.
   public static func swiftpmStoresModulesInSubdirectory(
     file: StaticString = #filePath,
     line: UInt = #line

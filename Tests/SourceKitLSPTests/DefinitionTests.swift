@@ -440,7 +440,6 @@ class DefinitionTests: XCTestCase {
 
   func testDependentModuleGotBuilt() async throws {
     try SkipUnless.longTestsEnabled()
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
