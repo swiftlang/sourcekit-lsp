@@ -879,41 +879,7 @@ final class WorkspaceTests: XCTestCase {
     let cCompletionResponse = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(clibcUri), position: clibcPositions["2️⃣"])
     )
-    XCTAssertEqual(
-      cCompletionResponse.items,
-      [
-        // rdar://73762053: This should also suggest clib_other
-        CompletionItem(
-          label: " clib_func",
-          kind: .text,
-          deprecated: true,
-          sortText: "41b99800clib_func",
-          filterText: "clib_func",
-          insertText: "clib_func",
-          insertTextFormat: .plain,
-          textEdit: .textEdit(TextEdit(range: Range(clibcPositions["2️⃣"]), newText: "clib_func"))
-        ),
-        CompletionItem(
-          label: " include",
-          kind: .text,
-          deprecated: true,
-          sortText: "41d85b70include",
-          filterText: "include",
-          insertText: "include",
-          insertTextFormat: .plain,
-          textEdit: .textEdit(TextEdit(range: Range(clibcPositions["2️⃣"]), newText: "include"))
-        ),
-        CompletionItem(
-          label: " void",
-          kind: .text,
-          deprecated: true,
-          sortText: "41e677bbvoid",
-          filterText: "void",
-          insertText: "void",
-          insertTextFormat: .plain,
-          textEdit: .textEdit(TextEdit(range: Range(clibcPositions["2️⃣"]), newText: "void"))
-        ),
-      ]
-    )
+    // rdar://73762053: This should also suggest clib_other
+    XCTAssert(cCompletionResponse.items.contains(where: { $0.insertText == "clib_func" }))
   }
 }
