@@ -16,6 +16,8 @@ import LanguageServerProtocol
 import SourceKitLSP
 import TSCBasic
 
+private struct SwiftSyntaxCShimsModulemapNotFoundError: Error {}
+
 public class SwiftPMTestProject: MultiFileTestProject {
   enum Error: Swift.Error {
     /// The `swift` executable could not be found.
@@ -32,6 +34,114 @@ public class SwiftPMTestProject: MultiFileTestProject {
       targets: [.target(name: "MyLibrary")]
     )
     """
+
+  /// A manifest that defines two targets:
+  ///  - A macro target named `MyMacro`
+  ///  - And executable target named `MyMacroClient`
+  ///
+  /// It builds the macro using the swift-syntax that was already built as part of the SourceKit-LSP build.
+  /// Re-using the SwiftSyntax modules that are already built is significantly faster than building swift-syntax in
+  /// each test case run and does not require internet access.
+  public static var macroPackageManifest: String {
+    get async throws {
+      // Directories that we should search for the swift-syntax package.
+      // We prefer a checkout in the build folder. If that doesn't exist, we are probably using local dependencies
+      // (SWIFTCI_USE_LOCAL_DEPS), so search next to the sourcekit-lsp source repo
+      let swiftSyntaxSearchPaths = [
+        productsDirectory
+          .deletingLastPathComponent()  // arm64-apple-macosx
+          .deletingLastPathComponent()  // debug
+          .appendingPathComponent("checkouts"),
+        URL(fileURLWithPath: #filePath)
+          .deletingLastPathComponent()  // SwiftPMTestProject.swift
+          .deletingLastPathComponent()  // SKTestSupport
+          .deletingLastPathComponent()  // Sources
+          .deletingLastPathComponent(),  // sourcekit-lsp
+      ]
+
+      let swiftSyntaxCShimsModulemap =
+        swiftSyntaxSearchPaths.map { swiftSyntaxSearchPath in
+          swiftSyntaxSearchPath
+            .appendingPathComponent("swift-syntax")
+            .appendingPathComponent("Sources")
+            .appendingPathComponent("_SwiftSyntaxCShims")
+            .appendingPathComponent("include")
+            .appendingPathComponent("module.modulemap")
+        }
+        .first { FileManager.default.fileExists(atPath: $0.path) }
+
+      guard let swiftSyntaxCShimsModulemap else {
+        throw SwiftSyntaxCShimsModulemapNotFoundError()
+      }
+
+      let swiftSyntaxModulesToLink = [
+        "SwiftBasicFormat",
+        "SwiftCompilerPlugin",
+        "SwiftCompilerPluginMessageHandling",
+        "SwiftDiagnostics",
+        "SwiftOperators",
+        "SwiftParser",
+        "SwiftParserDiagnostics",
+        "SwiftSyntax",
+        "SwiftSyntaxBuilder",
+        "SwiftSyntaxMacroExpansion",
+        "SwiftSyntaxMacros",
+      ]
+
+      var objectFiles: [String] = []
+      for moduleName in swiftSyntaxModulesToLink {
+        let dir = productsDirectory.appendingPathComponent("\(moduleName).build")
+        let enumerator = FileManager.default.enumerator(at: dir, includingPropertiesForKeys: nil)
+        while let file = enumerator?.nextObject() as? URL {
+          if file.pathExtension == "o" {
+            objectFiles.append(file.path)
+          }
+        }
+      }
+
+      let linkerFlags = objectFiles.map {
+        """
+        "-l", "\($0)",
+        """
+      }.joined(separator: "\n")
+
+      let moduleSearchPath: String
+      if let toolchainVersion = try await ToolchainRegistry.forTesting.default?.swiftVersion,
+        toolchainVersion < SwiftVersion(6, 0)
+      {
+        moduleSearchPath = productsDirectory.path
+      } else {
+        moduleSearchPath = "\(productsDirectory.path)/Modules"
+      }
+
+      return """
+        // swift-tools-version: 5.10
+
+        import PackageDescription
+        import CompilerPluginSupport
+
+        let package = Package(
+          name: "MyMacro",
+          platforms: [.macOS(.v10_15)],
+          targets: [
+            .macro(
+              name: "MyMacros",
+              swiftSettings: [.unsafeFlags([
+                "-I", "\(moduleSearchPath)",
+                "-Xcc", "-fmodule-map-file=\(swiftSyntaxCShimsModulemap.path)"
+              ])],
+              linkerSettings: [
+                .unsafeFlags([
+                  \(linkerFlags)
+                ])
+              ]
+            ),
+            .executableTarget(name: "MyMacroClient", dependencies: ["MyMacros"]),
+          ]
+        )
+        """
+    }
+  }
 
   /// Create a new SwiftPM package with the given files.
   ///
