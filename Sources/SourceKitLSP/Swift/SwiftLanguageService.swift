@@ -392,17 +392,17 @@ extension SwiftLanguageService {
     ])
   }
 
-  public func openDocument(_ note: DidOpenTextDocumentNotification) async {
-    cancelInFlightPublishDiagnosticsTask(for: note.textDocument.uri)
-    await diagnosticReportManager.removeItemsFromCache(with: note.textDocument.uri)
+  public func openDocument(_ notification: DidOpenTextDocumentNotification) async {
+    cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
+    await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
 
-    guard let snapshot = self.documentManager.open(note) else {
+    guard let snapshot = self.documentManager.open(notification) else {
       // Already logged failure.
       return
     }
 
     let buildSettings = await self.buildSettings(for: snapshot.uri)
-    if buildSettings == nil || buildSettings!.isFallback, let fileUrl = note.textDocument.uri.fileURL {
+    if buildSettings == nil || buildSettings!.isFallback, let fileUrl = notification.textDocument.uri.fileURL {
       // Do not show this notification for non-file URIs to make sure we don't see this notificaiton for newly created
       // files (which get opened as with a `untitled:Unitled-1` URI by VS Code.
       sourceKitLSPServer?.sendNotificationToClient(
@@ -419,17 +419,17 @@ extension SwiftLanguageService {
 
     let req = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: buildSettings)
     _ = try? await self.sourcekitd.send(req, fileContents: snapshot.text)
-    await publishDiagnosticsIfNeeded(for: note.textDocument.uri)
+    await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
   }
 
-  public func closeDocument(_ note: DidCloseTextDocumentNotification) async {
-    cancelInFlightPublishDiagnosticsTask(for: note.textDocument.uri)
-    inFlightPublishDiagnosticsTasks[note.textDocument.uri] = nil
-    await diagnosticReportManager.removeItemsFromCache(with: note.textDocument.uri)
+  public func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
+    cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
+    inFlightPublishDiagnosticsTasks[notification.textDocument.uri] = nil
+    await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
 
-    self.documentManager.close(note)
+    self.documentManager.close(notification)
 
-    let req = closeDocumentSourcekitdRequest(uri: note.textDocument.uri)
+    let req = closeDocumentSourcekitdRequest(uri: notification.textDocument.uri)
     _ = try? await self.sourcekitd.send(req, fileContents: nil)
   }
 
@@ -511,8 +511,8 @@ extension SwiftLanguageService {
     }
   }
 
-  public func changeDocument(_ note: DidChangeTextDocumentNotification) async {
-    cancelInFlightPublishDiagnosticsTask(for: note.textDocument.uri)
+  public func changeDocument(_ notification: DidChangeTextDocumentNotification) async {
+    cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
 
     let keys = self.keys
     struct Edit {
@@ -521,14 +521,14 @@ extension SwiftLanguageService {
       let replacement: String
     }
 
-    guard let (preEditSnapshot, postEditSnapshot, edits) = self.documentManager.edit(note) else {
+    guard let (preEditSnapshot, postEditSnapshot, edits) = self.documentManager.edit(notification) else {
       return
     }
 
     for edit in edits {
       let req = sourcekitd.dictionary([
         keys.request: self.requests.editorReplaceText,
-        keys.name: note.textDocument.uri.pseudoPath,
+        keys.name: notification.textDocument.uri.pseudoPath,
         keys.enableSyntaxMap: 0,
         keys.enableStructure: 0,
         keys.enableDiagnostics: 0,
@@ -558,14 +558,14 @@ extension SwiftLanguageService {
       edits: concurrentEdits
     )
 
-    await publishDiagnosticsIfNeeded(for: note.textDocument.uri)
+    await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
   }
 
-  public func willSaveDocument(_ note: WillSaveTextDocumentNotification) {
+  public func willSaveDocument(_ notification: WillSaveTextDocumentNotification) {
 
   }
 
-  public func didSaveDocument(_ note: DidSaveTextDocumentNotification) {
+  public func didSaveDocument(_ notification: DidSaveTextDocumentNotification) {
 
   }
 

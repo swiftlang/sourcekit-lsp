@@ -98,13 +98,13 @@ public protocol LanguageService: AnyObject, Sendable {
   /// Sent to open up a document on the Language Server.
   /// This may be called before or after a corresponding
   /// `documentUpdatedBuildSettings` call for the same document.
-  func openDocument(_ note: DidOpenTextDocumentNotification) async
+  func openDocument(_ notification: DidOpenTextDocumentNotification) async
 
   /// Sent to close a document on the Language Server.
-  func closeDocument(_ note: DidCloseTextDocumentNotification) async
-  func changeDocument(_ note: DidChangeTextDocumentNotification) async
-  func willSaveDocument(_ note: WillSaveTextDocumentNotification) async
-  func didSaveDocument(_ note: DidSaveTextDocumentNotification) async
+  func closeDocument(_ notification: DidCloseTextDocumentNotification) async
+  func changeDocument(_ notification: DidChangeTextDocumentNotification) async
+  func willSaveDocument(_ notification: WillSaveTextDocumentNotification) async
+  func didSaveDocument(_ notification: DidSaveTextDocumentNotification) async
 
   // MARK: - Build System Integration
 
