@@ -358,11 +358,30 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
 
   public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
+  /// Return the compiler arguments for the given source file within a target, making any necessary adjustments to
+  /// account for differences in the SwiftPM versions being linked into SwiftPM and being installed in the toolchain.
+  private func compilerArguments(for file: URL, in buildTarget: any SwiftBuildTarget) async throws -> [String] {
+    let compileArguments = try buildTarget.compileArguments(for: file)
+
+    // Fix up compiler arguments that point to a `/Modules` subdirectory if the Swift version in the toolchain is less
+    // than 6.0 because it places the modules one level higher up.
+    let toolchainVersion = await orLog("Getting Swift version") { try await toolchainRegistry.default?.swiftVersion }
+    guard let toolchainVersion, toolchainVersion < SwiftVersion(6, 0) else {
+      return compileArguments
+    }
+    return compileArguments.map { argument in
+      if argument.hasSuffix("/Modules"), argument.contains(self.workspace.location.scratchDirectory.pathString) {
+        return String(argument.dropLast(8))
+      }
+      return argument
+    }
+  }
+
   public func buildSettings(
     for uri: DocumentURI,
     in configuredTarget: ConfiguredTarget,
     language: Language
-  ) throws -> FileBuildSettings? {
+  ) async throws -> FileBuildSettings? {
     guard let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
       // We can't determine build settings for non-file URIs.
       return nil
@@ -388,13 +407,13 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       // getting its compiler arguments and then patching up the compiler arguments by replacing the substitute file
       // with the `.cpp` file.
       return FileBuildSettings(
-        compilerArguments: try buildTarget.compileArguments(for: substituteFile),
+        compilerArguments: try await compilerArguments(for: substituteFile, in: buildTarget),
         workingDirectory: workspacePath.pathString
       ).patching(newFile: try resolveSymlinks(path).pathString, originalFile: substituteFile.absoluteString)
     }
 
     return FileBuildSettings(
-      compilerArguments: try buildTarget.compileArguments(for: url),
+      compilerArguments: try await compilerArguments(for: url, in: buildTarget),
       workingDirectory: workspacePath.pathString
     )
   }

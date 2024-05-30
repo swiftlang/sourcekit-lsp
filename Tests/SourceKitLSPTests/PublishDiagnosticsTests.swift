@@ -154,7 +154,6 @@ final class PublishDiagnosticsTests: XCTestCase {
 
   func testDiagnosticUpdatedAfterDependentModuleIsBuilt() async throws {
     try SkipUnless.longTestsEnabled()
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
 
     let project = try await SwiftPMTestProject(
       files: [

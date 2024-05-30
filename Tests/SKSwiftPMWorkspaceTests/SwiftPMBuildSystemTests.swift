@@ -28,11 +28,11 @@ import struct PackageModel.BuildFlags
 #endif
 
 fileprivate extension SwiftPMBuildSystem {
-  func buildSettings(for uri: DocumentURI, language: Language) throws -> FileBuildSettings? {
+  func buildSettings(for uri: DocumentURI, language: Language) async throws -> FileBuildSettings? {
     guard let target = self.configuredTargets(for: uri).only else {
       return nil
     }
-    return try buildSettings(for: uri, in: target, language: language)
+    return try await buildSettings(for: uri, in: target, language: language)
   }
 }
 
@@ -116,6 +116,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testBasicSwiftArgs() async throws {
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let fs = localFileSystem
     try await withTestScratchDir { tempDir in
       try fs.createFiles(
