@@ -200,7 +200,7 @@ final class CallHierarchyTests: XCTestCase {
         void FilePathIndex::2️⃣foo() {}
         """,
       ],
-      build: true
+      enableBackgroundIndexing: true
     )
     let (uri, positions) = try project.openDocument("lib.h", language: .cpp)
     let result = try await project.testClient.send(

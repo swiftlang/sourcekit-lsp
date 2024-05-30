@@ -45,7 +45,6 @@ final class MainFilesProviderTests: XCTestCase {
           ]
         )
         """,
-      build: false,
       usePullDiagnostics: false
     )
 
@@ -86,7 +85,6 @@ final class MainFilesProviderTests: XCTestCase {
           ]
         )
         """,
-      build: false,
       usePullDiagnostics: false
     )
 
@@ -143,7 +141,7 @@ final class MainFilesProviderTests: XCTestCase {
           ]
         )
         """,
-      build: true,
+      enableBackgroundIndexing: true,
       usePullDiagnostics: false
     )
 
@@ -192,7 +190,7 @@ final class MainFilesProviderTests: XCTestCase {
           ]
         )
         """,
-      build: true,
+      enableBackgroundIndexing: true,
       usePullDiagnostics: false
     )
 
@@ -208,10 +206,11 @@ final class MainFilesProviderTests: XCTestCase {
     let newFancyLibraryContents = """
       #include "\(project.scratchDirectory.path)/Sources/shared.h"
       """
-    let fancyLibraryURL = try project.uri(for: "MyFancyLibrary.c").fileURL!
-    try newFancyLibraryContents.write(to: fancyLibraryURL, atomically: false, encoding: .utf8)
-
-    try await SwiftPMTestProject.build(at: project.scratchDirectory)
+    let fancyLibraryUri = try project.uri(for: "MyFancyLibrary.c")
+    try newFancyLibraryContents.write(to: try XCTUnwrap(fancyLibraryUri.fileURL), atomically: false, encoding: .utf8)
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: fancyLibraryUri, type: .changed)])
+    )
 
     // 'MyFancyLibrary.c' now also includes 'shared.h'. Since it lexicographically preceeds MyLibrary, we should use its
     // build settings.

@@ -126,7 +126,7 @@ class DefinitionTests: XCTestCase {
         }
         """,
       ],
-      build: true
+      enableBackgroundIndexing: true
     )
     let (uri, positions) = try project.openDocument("test.cpp")
 
@@ -177,7 +177,7 @@ class DefinitionTests: XCTestCase {
           ]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (uri, positions) = try project.openDocument("main.swift")
@@ -391,8 +391,7 @@ class DefinitionTests: XCTestCase {
         }
         """,
       ],
-      build: true,
-      allowBuildFailure: true
+      enableBackgroundIndexing: true
     )
 
     let (bUri, bPositions) = try project.openDocument("FileB.swift")
@@ -428,12 +427,11 @@ class DefinitionTests: XCTestCase {
       .locations([Location(uri: aUri, range: Range(updatedAPositions["2️⃣"]))])
     )
 
-    try await SwiftPMTestProject.build(at: project.scratchDirectory)
-    let afterBuilding = try await project.testClient.send(
+    let afterChange = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(bUri), position: bPositions["1️⃣"])
     )
     XCTAssertEqual(
-      afterBuilding,
+      afterChange,
       .locations([Location(uri: aUri, range: Range(updatedAPositions["2️⃣"]))])
     )
   }
@@ -517,7 +515,7 @@ class DefinitionTests: XCTestCase {
         }
         """,
       ],
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let definitionUri = try project.uri(for: "definition.swift")
@@ -548,8 +546,6 @@ class DefinitionTests: XCTestCase {
         FileEvent(uri: definitionUri, type: .deleted), FileEvent(uri: movedDefinitionUri, type: .created),
       ])
     )
-
-    try await SwiftPMTestProject.build(at: project.scratchDirectory)
 
     let resultAfterFileMove = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(callerUri), position: callerPositions["2️⃣"])

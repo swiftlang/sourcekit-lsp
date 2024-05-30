@@ -46,7 +46,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         """
       ],
       manifest: packageManifestWithTestTarget,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let tests = try await project.testClient.send(WorkspaceTestsRequest())
@@ -141,7 +141,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         """
       ],
       manifest: packageManifestWithTestTarget,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let myTestsUri = try project.uri(for: "MyTests.swift")
@@ -304,8 +304,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         """
       ],
       manifest: packageManifestWithTestTarget,
-      build: true,
-      allowBuildFailure: true
+      enableBackgroundIndexing: true
     )
 
     let tests = try await project.testClient.send(WorkspaceTestsRequest())
@@ -371,7 +370,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         """
       ],
       manifest: packageManifestWithTestTarget,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (uri, positions) = try project.openDocument("MyTests.swift")
@@ -464,7 +463,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         """,
       ],
       manifest: packageManifestWithTestTarget,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (uri, positions) = try project.openDocument("MyFirstTests.swift")
@@ -536,7 +535,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         """
       ],
       manifest: packageManifestWithTestTarget,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let uri = try project.uri(for: "MyTests.swift")
@@ -935,7 +934,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
           targets: [.testTarget(name: "MyLibraryTests")]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let tests = try await project.testClient.send(WorkspaceTestsRequest())
@@ -992,7 +991,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
           targets: [.testTarget(name: "MyLibraryTests")]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (uri, positions) = try project.openDocument("Test.m")

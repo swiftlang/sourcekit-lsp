@@ -74,11 +74,10 @@ final class WorkspaceTests: XCTestCase {
           WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageA"))),
           WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageB"))),
         ]
-      }
+      },
+      enableBackgroundIndexing: true
     )
-
-    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("PackageA"))
-    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("PackageB"))
+    _ = try await project.testClient.send(PollIndexRequest())
 
     let (bUri, bPositions) = try project.openDocument("execB.swift")
 
@@ -224,11 +223,13 @@ final class WorkspaceTests: XCTestCase {
         """,
 
         "PackageA/Package.swift": packageManifest,
-      ]
+      ],
+      enableBackgroundIndexing: true
     )
-    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("PackageA"))
 
     let (uri, positions) = try project.openDocument("execA.swift")
+
+    _ = try await project.testClient.send(PollIndexRequest())
 
     let otherCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
@@ -315,11 +316,11 @@ final class WorkspaceTests: XCTestCase {
         Lib().2️⃣foo()
         """,
         "Package.swift": packageManifest,
-      ]
+      ],
+      enableBackgroundIndexing: true
     )
 
-    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("PackageA"))
-    try await SwiftPMTestProject.build(at: project.scratchDirectory)
+    _ = try await project.testClient.send(PollIndexRequest())
 
     let (bUri, bPositions) = try project.openDocument("execB.swift")
 
@@ -360,6 +361,8 @@ final class WorkspaceTests: XCTestCase {
     )
 
     let (aUri, aPositions) = try project.openDocument("execA.swift")
+
+    _ = try await project.testClient.send(PollIndexRequest())
 
     let otherCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(aUri), position: aPositions["1️⃣"])
@@ -810,10 +813,9 @@ final class WorkspaceTests: XCTestCase {
           ]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
     let (mainUri, mainPositions) = try project.openDocument("main.swift")
-    _ = try await project.testClient.send(PollIndexRequest())
 
     let fooDefinitionResponse = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(mainUri), position: mainPositions["3️⃣"])

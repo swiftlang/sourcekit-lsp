@@ -175,10 +175,8 @@ public actor SkipUnless {
     line: UInt = #line
   ) async throws {
     try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
-      let workspace = try await SwiftPMTestProject(
-        files: ["test.swift": ""],
-        build: true
-      )
+      let workspace = try await SwiftPMTestProject(files: ["test.swift": ""])
+      try await SwiftPMTestProject.build(at: workspace.scratchDirectory)
       let modulesDirectory = workspace.scratchDirectory
         .appendingPathComponent(".build")
         .appendingPathComponent("debug")

@@ -296,7 +296,7 @@ final class ImplementationTests: XCTestCase {
         struct MyStruct: 2️⃣MyProto {}
         """,
       ],
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (aUri, aPositions) = try project.openDocument("a.swift")

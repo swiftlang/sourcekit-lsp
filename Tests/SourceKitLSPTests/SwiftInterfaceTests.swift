@@ -78,7 +78,7 @@ final class SwiftInterfaceTests: XCTestCase {
           ]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (mainUri, _) = try project.openDocument("main.swift")
@@ -174,7 +174,7 @@ final class SwiftInterfaceTests: XCTestCase {
           ]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (mainUri, mainPositions) = try project.openDocument("main.swift")
