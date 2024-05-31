@@ -206,10 +206,16 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///
   /// This version of the `send` function should only be used if some action needs to be performed after the request is
   /// sent but before it returns a result.
-  public func send<R: RequestType>(_ request: R, completionHandler: @escaping (LSPResult<R.Response>) -> Void) {
-    server.handle(request, id: .number(Int(nextRequestID.fetchAndIncrement()))) { result in
+  @discardableResult
+  public func send<R: RequestType>(
+    _ request: R,
+    completionHandler: @escaping (LSPResult<R.Response>) -> Void
+  ) -> RequestID {
+    let requestID = RequestID.number(Int(nextRequestID.fetchAndIncrement()))
+    server.handle(request, id: requestID) { result in
       completionHandler(result)
     }
+    return requestID
   }
 
   /// Send the notification to `server`.

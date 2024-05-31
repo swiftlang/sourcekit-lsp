@@ -309,4 +309,32 @@ final class PullDiagnosticsTests: XCTestCase {
     diagnosticRequestSent.value = true
     try await fulfillmentOfOrThrow([receivedDiagnostics])
   }
+
+  func testDontReturnEmptyDiagnosticsIfDiagnosticRequestIsCancelled() async throws {
+    let diagnosticRequestCancelled = self.expectation(description: "diagnostic request cancelled")
+    var serverOptions = SourceKitLSPServer.Options.testDefault
+    serverOptions.indexTestHooks.preparationTaskDidStart = { _ in
+      await self.fulfillment(of: [diagnosticRequestCancelled], timeout: defaultTimeout)
+    }
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib.swift": "let x: String = 1"
+      ],
+      serverOptions: serverOptions,
+      enableBackgroundIndexing: true,
+      pollIndex: false
+    )
+    let (uri, _) = try project.openDocument("Lib.swift")
+
+    let diagnosticResponseReceived = self.expectation(description: "Received diagnostic response")
+    let requestID = project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    ) { result in
+      XCTAssertEqual(result.failure?.code, .cancelled)
+      diagnosticResponseReceived.fulfill()
+    }
+    project.testClient.send(CancelRequestNotification(id: requestID))
+    diagnosticRequestCancelled.fulfill()
+    try await fulfillmentOfOrThrow([diagnosticResponseReceived])
+  }
 }

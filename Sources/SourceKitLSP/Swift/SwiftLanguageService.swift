@@ -888,6 +888,8 @@ extension SwiftLanguageService {
         buildSettings: buildSettings
       )
       return .full(diagnosticReport)
+    } catch let error as CancellationError {
+      throw error
     } catch {
       // VS Code does not request diagnostics again for a document if the diagnostics request failed.
       // Since sourcekit-lsp usually recovers from failures (e.g. after sourcekitd crashes), this is undesirable.
