@@ -12,12 +12,13 @@
 
 import ArgumentParser
 import Foundation
+import SKCore
 import SKSupport
 import SourceKitD
 
 import struct TSCBasic.AbsolutePath
 
-public struct SourceKitdRequestCommand: AsyncParsableCommand {
+public struct RunSourceKitdRequestCommand: AsyncParsableCommand {
   public static let configuration = CommandConfiguration(
     commandName: "run-sourcekitd-request",
     abstract: "Run a sourcekitd request and print its result",
@@ -28,7 +29,7 @@ public struct SourceKitdRequestCommand: AsyncParsableCommand {
     name: .customLong("sourcekitd"),
     help: "Path to sourcekitd.framework/sourcekitd"
   )
-  var sourcekitdPath: String
+  var sourcekitdPath: String?
 
   @Option(
     name: .customLong("request-file"),
@@ -44,6 +45,16 @@ public struct SourceKitdRequestCommand: AsyncParsableCommand {
   public func run() async throws {
     var requestString = try String(contentsOf: URL(fileURLWithPath: sourcekitdRequestPath))
 
+    let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
+    let sourcekitdPath =
+      if let sourcekitdPath {
+        sourcekitdPath
+      } else if let path = await ToolchainRegistry(installPath: installPath).default?.sourcekitd?.pathString {
+        path
+      } else {
+        print("Did not find sourcekitd in the toolchain. Specify path to sourcekitd manually by passing --sourcekitd")
+        throw ExitCode(1)
+      }
     let sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
       dylibPath: try! AbsolutePath(validating: sourcekitdPath)
     )
