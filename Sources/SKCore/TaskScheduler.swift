@@ -144,7 +144,7 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Whether `cancelToBeRescheduled` has been called on this `QueuedTask`.
   ///
   /// Gets reset every time `executionTask` finishes.
-  nonisolated(unsafe) private var cancelledToBeRescheduled: AtomicBool = .init(initialValue: false)
+  private var cancelledToBeRescheduled: Bool = false
 
   /// Whether `resultTask` has been cancelled.
   private nonisolated(unsafe) var resultTaskCancelled: AtomicBool = .init(initialValue: false)
@@ -246,9 +246,9 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   private func finalizeExecution() async -> ExecutionTaskFinishStatus {
     self.executionTask = nil
     _isExecuting.value = false
-    if Task.isCancelled && self.cancelledToBeRescheduled.value {
+    if Task.isCancelled && self.cancelledToBeRescheduled {
       await executionStateChangedCallback?(self, .cancelledToBeRescheduled)
-      self.cancelledToBeRescheduled.value = false
+      self.cancelledToBeRescheduled = false
       return ExecutionTaskFinishStatus.cancelledToBeRescheduled
     } else {
       await executionStateChangedCallback?(self, .finished)
@@ -263,7 +263,7 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
     guard let executionTask else {
       return
     }
-    self.cancelledToBeRescheduled.value = true
+    self.cancelledToBeRescheduled = true
     executionTask.cancel()
     self.executionTask = nil
   }
