@@ -96,6 +96,26 @@ public enum IndexProgressStatus {
   }
 }
 
+/// See `SemanticIndexManager.inProgressPrepareForEditorTask`.
+fileprivate struct InProgressPrepareForEditorTask {
+  fileprivate enum State {
+    case determiningCanonicalConfiguredTarget
+    case preparingTarget
+  }
+  /// A unique ID that identifies the preparation task and is used to set
+  /// `SemanticIndexManager.inProgressPrepareForEditorTask` to `nil`  when the current in progress task finishes.
+  let id: UUID
+
+  /// The document that is being prepared.
+  let document: DocumentURI
+
+  /// The task that prepares the document. Should never be awaited and only be used to cancel the task.
+  let task: Task<Void, Never>
+
+  /// Whether the task is currently determining the file's target or actually preparing the document.
+  var state: State
+}
+
 /// Schedules index tasks and keeps track of the index status of files.
 public final actor SemanticIndexManager {
   /// The underlying index. This is used to check if the index of a file is already up-to-date, in which case it doesn't
@@ -133,10 +153,7 @@ public final actor SemanticIndexManager {
   /// avoid the following scenario: The user browses through documents from targets A, B, and C in quick succession. We
   /// don't want stack preparation of A, B, and C. Instead we want to only prepare target C - and also finish
   /// preparation of A if it has already started when the user opens C.
-  ///
-  /// `id` is a unique ID that identifies the preparation task and is used to set `inProgressPrepareForEditorTask` to
-  /// `nil` when the current in progress task finishes.
-  private var inProgressPrepareForEditorTask: (id: UUID, document: DocumentURI, task: Task<Void, Never>)? = nil
+  private var inProgressPrepareForEditorTask: InProgressPrepareForEditorTask? = nil
 
   /// The `TaskScheduler` that manages the scheduling of index tasks. This is shared among all `SemanticIndexManager`s
   /// in the process, to ensure that we don't schedule more index operations than processor cores from multiple
@@ -161,7 +178,7 @@ public final actor SemanticIndexManager {
 
   /// A summary of the tasks that this `SemanticIndexManager` has currently scheduled or is currently indexing.
   public var progressStatus: IndexProgressStatus {
-    if inProgressPrepareForEditorTask != nil {
+    if let inProgressPrepareForEditorTask, inProgressPrepareForEditorTask.state == .preparingTarget {
       return .preparingFileForEditorFunctionality
     }
     if generateBuildGraphTask != nil {
@@ -370,7 +387,20 @@ public final actor SemanticIndexManager {
     let id = UUID()
     let task = Task(priority: priority) {
       await withLoggingScope("preparation") {
-        await self.prepareFileForEditorFunctionality(uri)
+        // Should be kept in sync with `prepareFileForEditorFunctionality`
+        guard let target = await buildSystemManager.canonicalConfiguredTarget(for: uri) else {
+          return
+        }
+        if Task.isCancelled {
+          return
+        }
+        if inProgressPrepareForEditorTask?.id == id {
+          if inProgressPrepareForEditorTask?.state != .determiningCanonicalConfiguredTarget {
+            logger.fault("inProgressPrepareForEditorTask is in unexpected state")
+          }
+          inProgressPrepareForEditorTask?.state = .preparingTarget
+        }
+        await self.prepare(targets: [target], priority: nil)
         if inProgressPrepareForEditorTask?.id == id {
           inProgressPrepareForEditorTask = nil
           self.indexProgressStatusDidChange()
@@ -378,7 +408,12 @@ public final actor SemanticIndexManager {
       }
     }
     inProgressPrepareForEditorTask?.task.cancel()
-    inProgressPrepareForEditorTask = (id, uri, task)
+    inProgressPrepareForEditorTask = InProgressPrepareForEditorTask(
+      id: id,
+      document: uri,
+      task: task,
+      state: .determiningCanonicalConfiguredTarget
+    )
     self.indexProgressStatusDidChange()
   }
 
@@ -387,6 +422,7 @@ public final actor SemanticIndexManager {
   ///
   /// If file's target is known to be up-to-date, this returns almost immediately.
   public func prepareFileForEditorFunctionality(_ uri: DocumentURI) async {
+    // Should be kept in sync with `schedulePreparationForEditorFunctionality`.
     guard let target = await buildSystemManager.canonicalConfiguredTarget(for: uri) else {
       return
     }

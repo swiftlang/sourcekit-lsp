@@ -868,4 +868,23 @@ final class BackgroundIndexingTests: XCTestCase {
     let message = try await project.testClient.nextNotification(ofType: ShowMessageNotification.self)
     XCTAssert(message.message.contains("Background indexing"), "Received unexpected message: \(message.message)")
   }
+
+  func testNoPreparationStatusIfTargetIsUpToDate() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib.swift": ""
+      ],
+      capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
+      enableBackgroundIndexing: true
+    )
+
+    // Opening the document prepares it for editor functionality. Its target is already prepared, so we shouldn't show
+    // a work done progress for it.
+    project.testClient.handleSingleRequest { (request: CreateWorkDoneProgressRequest) in
+      XCTFail("Received unexpected create work done progress: \(request)")
+      return VoidResponse()
+    }
+    _ = try project.openDocument("Lib.swift")
+    _ = try await project.testClient.send(BarrierRequest())
+  }
 }
