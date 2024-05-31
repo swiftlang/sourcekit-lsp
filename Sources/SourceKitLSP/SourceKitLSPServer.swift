@@ -541,7 +541,7 @@ extension SourceKitLSPServer: MessageHandler {
 
     let notificationID = notificationIDForLogging.fetchAndIncrement()
 
-    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "notification-\(notificationID)")
+    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "message-handling")
       .makeSignposter()
     let signpostID = signposter.makeSignpostID()
     let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: params))")
@@ -591,7 +591,7 @@ extension SourceKitLSPServer: MessageHandler {
     id: RequestID,
     reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) {
-    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "request-\(id)").makeSignposter()
+    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "message-handling").makeSignposter()
     let signpostID = signposter.makeSignpostID()
     let state = signposter.beginInterval("Request", id: signpostID, "\(R.self)")
 
