@@ -120,6 +120,7 @@ final class IndexTests: XCTestCase {
           2️⃣foo()
         }
         """,
+        workspaceDirectory: workspaceDirectory,
         cleanUp: cleanUp
       )
 

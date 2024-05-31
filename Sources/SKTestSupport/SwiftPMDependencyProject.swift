@@ -22,8 +22,13 @@ import struct TSCBasic.ProcessResult
 /// A SwiftPM package that gets written to disk and for which a Git repository is initialized with a commit tagged
 /// `1.0.0`. This repository can then be used as a dependency for another package, usually a `SwiftPMTestProject`.
 public class SwiftPMDependencyProject {
+  /// The scratch directory created for the dependency project.
+  public let scratchDirectory: URL
+
   /// The directory in which the repository lives.
-  public let packageDirectory: URL
+  public var packageDirectory: URL {
+    return scratchDirectory.appendingPathComponent("MyDependency")
+  }
 
   private func runGitCommand(_ arguments: [String], workingDirectory: URL) async throws {
     enum Error: Swift.Error {
@@ -66,7 +71,7 @@ public class SwiftPMDependencyProject {
     manifest: String = defaultPackageManifest,
     testName: String = #function
   ) async throws {
-    packageDirectory = try testScratchDir(testName: testName).appendingPathComponent("MyDependency")
+    scratchDirectory = try testScratchDir(testName: testName)
 
     var files = files
     files["Package.swift"] = manifest
@@ -94,7 +99,7 @@ public class SwiftPMDependencyProject {
 
   deinit {
     if cleanScratchDirectories {
-      try? FileManager.default.removeItem(at: packageDirectory)
+      try? FileManager.default.removeItem(at: scratchDirectory)
     }
   }
 
