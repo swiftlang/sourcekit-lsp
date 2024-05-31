@@ -12,8 +12,8 @@ add_library(Diagnose STATIC
   ReductionError.swift
   ReproducerBundle.swift
   RequestInfo.swift
+  RunSourcekitdRequestCommand.swift
   SourceKitD+RunWithYaml.swift
-  SourcekitdRequestCommand.swift
   SourceKitDRequestExecutor.swift
   SourceReducer.swift
   StderrStreamConcurrencySafe.swift

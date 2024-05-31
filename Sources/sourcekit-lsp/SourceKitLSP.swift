@@ -108,7 +108,7 @@ struct SourceKitLSP: AsyncParsableCommand {
       IndexCommand.self,
       ReduceCommand.self,
       ReduceFrontendCommand.self,
-      SourceKitdRequestCommand.self,
+      RunSourceKitdRequestCommand.self,
     ]
   )
 
