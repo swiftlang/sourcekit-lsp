@@ -37,8 +37,8 @@ public struct PreparationTaskDescription: IndexTaskDescription {
 
   private let preparationUpToDateTracker: UpToDateTracker<ConfiguredTarget>
 
-  /// See `SemanticIndexManager.indexProcessDidProduceResult`
-  private let indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+  /// See `SemanticIndexManager.logMessageToIndexLog`.
+  private let logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
 
   /// Test hooks that should be called when the preparation task finishes.
   private let testHooks: IndexTestHooks
@@ -60,13 +60,13 @@ public struct PreparationTaskDescription: IndexTaskDescription {
     targetsToPrepare: [ConfiguredTarget],
     buildSystemManager: BuildSystemManager,
     preparationUpToDateTracker: UpToDateTracker<ConfiguredTarget>,
-    indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     testHooks: IndexTestHooks
   ) {
     self.targetsToPrepare = targetsToPrepare
     self.buildSystemManager = buildSystemManager
     self.preparationUpToDateTracker = preparationUpToDateTracker
-    self.indexProcessDidProduceResult = indexProcessDidProduceResult
+    self.logMessageToIndexLog = logMessageToIndexLog
     self.testHooks = testHooks
   }
 
@@ -105,7 +105,7 @@ public struct PreparationTaskDescription: IndexTaskDescription {
       do {
         try await buildSystemManager.prepare(
           targets: targetsToPrepare,
-          indexProcessDidProduceResult: indexProcessDidProduceResult
+          logMessageToIndexLog: logMessageToIndexLog
         )
       } catch {
         logger.error(

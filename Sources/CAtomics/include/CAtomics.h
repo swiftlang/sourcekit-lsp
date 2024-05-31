@@ -70,7 +70,7 @@ typedef struct {
 } AtomicUInt32;
 
 __attribute__((swift_name("AtomicUInt32.init(initialValue:)")))
-static inline AtomicUInt32 atomic_int_create(uint8_t initialValue) {
+static inline AtomicUInt32 atomic_int_create(uint32_t initialValue) {
   AtomicUInt32 atomic;
   atomic.value = initialValue;
   return atomic;

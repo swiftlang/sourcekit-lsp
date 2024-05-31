@@ -93,7 +93,7 @@ public final class Workspace: Sendable {
     index uncheckedIndex: UncheckedIndex?,
     indexDelegate: SourceKitIndexDelegate?,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
-    indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
     indexProgressStatusDidChange: @escaping @Sendable () -> Void
   ) async {
@@ -117,7 +117,7 @@ public final class Workspace: Sendable {
         buildSystemManager: buildSystemManager,
         testHooks: options.indexTestHooks,
         indexTaskScheduler: indexTaskScheduler,
-        indexProcessDidProduceResult: indexProcessDidProduceResult,
+        logMessageToIndexLog: logMessageToIndexLog,
         indexTasksWereScheduled: indexTasksWereScheduled,
         indexProgressStatusDidChange: indexProgressStatusDidChange
       )
@@ -155,7 +155,7 @@ public final class Workspace: Sendable {
     options: SourceKitLSPServer.Options,
     indexOptions: IndexOptions = IndexOptions(),
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
-    indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     indexTasksWereScheduled: @Sendable @escaping (Int) -> Void,
     indexProgressStatusDidChange: @Sendable @escaping () -> Void
   ) async throws {
@@ -196,7 +196,7 @@ public final class Workspace: Sendable {
       index: UncheckedIndex(index),
       indexDelegate: indexDelegate,
       indexTaskScheduler: indexTaskScheduler,
-      indexProcessDidProduceResult: indexProcessDidProduceResult,
+      logMessageToIndexLog: logMessageToIndexLog,
       indexTasksWereScheduled: indexTasksWereScheduled,
       indexProgressStatusDidChange: indexProgressStatusDidChange
     )

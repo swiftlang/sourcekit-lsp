@@ -273,12 +273,12 @@ public final class TestSourceKitLSPClient: MessageHandler {
   /// Ignores any notifications that are of a different type or that don't satisfy the predicate.
   public func nextNotification<ExpectedNotificationType: NotificationType>(
     ofType: ExpectedNotificationType.Type,
-    satisfying predicate: (ExpectedNotificationType) -> Bool = { _ in true },
+    satisfying predicate: (ExpectedNotificationType) throws -> Bool = { _ in true },
     timeout: Duration = .seconds(defaultTimeout)
   ) async throws -> ExpectedNotificationType {
     while true {
       let nextNotification = try await nextNotification(timeout: timeout)
-      if let notification = nextNotification as? ExpectedNotificationType, predicate(notification) {
+      if let notification = nextNotification as? ExpectedNotificationType, try predicate(notification) {
         return notification
       }
     }

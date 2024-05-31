@@ -63,7 +63,7 @@ actor TestBuildSystem: BuildSystem {
 
   public func prepare(
     targets: [ConfiguredTarget],
-    indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     throw PrepareNotSupportedError()
   }
@@ -141,7 +141,7 @@ final class BuildSystemTests: XCTestCase {
       index: nil,
       indexDelegate: nil,
       indexTaskScheduler: .forTesting,
-      indexProcessDidProduceResult: { _ in },
+      logMessageToIndexLog: { _, _ in },
       indexTasksWereScheduled: { _ in },
       indexProgressStatusDidChange: {}
     )
