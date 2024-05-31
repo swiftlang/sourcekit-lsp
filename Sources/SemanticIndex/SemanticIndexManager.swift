@@ -312,8 +312,15 @@ public final actor SemanticIndexManager {
     // configured for macOS but not in target T configured for iOS.
     let targets = await changedFiles.asyncMap { await buildSystemManager.configuredTargets(for: $0) }.flatMap { $0 }
     if let dependentTargets = await buildSystemManager.targets(dependingOn: targets) {
+      logger.info(
+        """
+        Marking targets as out-of-date: \
+        \(String(dependentTargets.map(\.description).joined(separator: ", ")))
+        """
+      )
       await preparationUpToDateTracker.markOutOfDate(dependentTargets)
     } else {
+      logger.info("Marking all targets as out-of-date")
       await preparationUpToDateTracker.markAllKnownOutOfDate()
       // `markAllOutOfDate` only marks targets out-of-date that have been indexed before. Also mark all targets with
       // in-progress preparation out of date. So we don't get into the following situation, which would result in an
