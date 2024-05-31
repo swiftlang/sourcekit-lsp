@@ -363,6 +363,9 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
   private func compilerArguments(for file: URL, in buildTarget: any SwiftBuildTarget) async throws -> [String] {
     let compileArguments = try buildTarget.compileArguments(for: file)
 
+    #if compiler(>=6.1)
+    #warning("When we drop support for Swift 5.10 we no longer need to adjust compiler arguments for the Modules move")
+    #endif
     // Fix up compiler arguments that point to a `/Modules` subdirectory if the Swift version in the toolchain is less
     // than 6.0 because it places the modules one level higher up.
     let toolchainVersion = await orLog("Getting Swift version") { try await toolchainRegistry.default?.swiftVersion }
