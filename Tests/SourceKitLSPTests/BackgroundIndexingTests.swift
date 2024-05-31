@@ -887,4 +887,47 @@ final class BackgroundIndexingTests: XCTestCase {
     _ = try project.openDocument("Lib.swift")
     _ = try await project.testClient.send(BarrierRequest())
   }
+
+  func testImportPreparedModuleWithFunctionBodiesSkipped() async throws {
+    // This test case was crashing the indexing compiler invocation for Client if Lib was built for index preparation
+    // (using `-enable-library-evolution -experimental-skip-all-function-bodies -experimental-lazy-typecheck`) but x
+    // Client was not indexed with `-experimental-allow-module-with-compiler-errors`. rdar://129071600
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib/Lib.swift": """
+        public class TerminalController {
+          public var 1️⃣width: Int { 1 }
+        }
+        """,
+        "Client/Client.swift": """
+        import Lib
+
+        func test(terminal: TerminalController) {
+          let width = terminal.width
+        }
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "Lib"),
+            .target(name: "Client", dependencies: ["Lib"]),
+          ]
+        )
+        """,
+      enableBackgroundIndexing: true
+    )
+    let (uri, positions) = try project.openDocument("Lib.swift")
+
+    // Check that we indexed `Client.swift` by checking that we return a rename location within it.
+    let result = try await project.testClient.send(
+      RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"], newName: "height")
+    )
+    XCTAssertEqual((result?.changes?.keys).map(Set.init), [uri, try project.uri(for: "Client.swift")])
+  }
 }

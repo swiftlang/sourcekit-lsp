@@ -430,11 +430,6 @@ private func adjustSwiftCompilerArgumentsForIndexStoreUpdate(
     .option("output-file-map", [.singleDash], [.separatedBySpace, .separatedByEqualSign]),
   ]
 
-  let removeFrontendFlags = [
-    "-experimental-skip-non-inlinable-function-bodies",
-    "-experimental-skip-all-function-bodies",
-  ]
-
   var result: [String] = []
   result.reserveCapacity(compilerArguments.count)
   var iterator = compilerArguments.makeIterator()
@@ -448,18 +443,14 @@ private func adjustSwiftCompilerArgumentsForIndexStoreUpdate(
     case nil:
       break
     }
-    if argument == "-Xfrontend" {
-      if let nextArgument = iterator.next() {
-        if removeFrontendFlags.contains(nextArgument) {
-          continue
-        }
-        result += [argument, nextArgument]
-        continue
-      }
-    }
     result.append(argument)
   }
+  result += supplementalClangIndexingArgs.flatMap { ["-Xcc", $0] }
   result += [
+    // Preparation produces modules with errors. We should allow reading them.
+    "-Xfrontend", "-experimental-allow-module-with-compiler-errors",
+    // Avoid emitting the ABI descriptor, we don't need it
+    "-Xfrontend", "-empty-abi-descriptor",
     "-index-file",
     "-index-file-path", fileToIndex.pseudoPath,
     // batch mode is not compatible with -index-file
@@ -520,11 +511,39 @@ private func adjustClangCompilerArgumentsForIndexStoreUpdate(
     }
     result.append(argument)
   }
+  result += supplementalClangIndexingArgs
   result.append(
     "-fsyntax-only"
   )
   return result
 }
+
+#if compiler(>=6.1)
+#warning(
+  "Remove -fmodules-validate-system-headers from supplementalClangIndexingArgs once all supported Swift compilers have https://github.com/apple/swift/pull/74063"
+)
+#endif
+
+fileprivate let supplementalClangIndexingArgs: [String] = [
+  // Retain extra information for indexing
+  "-fretain-comments-from-system-headers",
+  // Pick up macro definitions during indexing
+  "-Xclang", "-detailed-preprocessing-record",
+
+  // libclang uses 'raw' module-format. Match it so we can reuse the module cache and PCHs that libclang uses.
+  "-Xclang", "-fmodule-format=raw",
+
+  // Be less strict - we want to continue and typecheck/index as much as possible
+  "-Xclang", "-fallow-pch-with-compiler-errors",
+  "-Xclang", "-fallow-pcm-with-compiler-errors",
+  "-Wno-non-modular-include-in-framework-module",
+  "-Wno-incomplete-umbrella",
+
+  // sourcekitd adds `-fno-modules-validate-system-headers` before https://github.com/apple/swift/pull/74063.
+  // This completely disables system module validation and never re-builds pcm for system modules. The intended behavior
+  // is to only re-build those PCMs once per sourcekitd session.
+  "-fmodules-validate-system-headers",
+]
 
 fileprivate extension Sequence {
   /// Returns `true` if this sequence contains an element that is equal to an element in `otherSequence` when
