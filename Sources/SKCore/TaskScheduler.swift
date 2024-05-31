@@ -228,6 +228,15 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Execution might be canceled to be rescheduled, in which case this returns  `.cancelledToBeRescheduled`. In that
   /// case the `TaskScheduler` is expected to call `execute` again.
   func execute() async -> ExecutionTaskFinishStatus {
+    if cancelledToBeRescheduled {
+      // `QueuedTask.execute` is called from a detached task in `TaskScheduler.poke` but we insert it into the
+      // `currentlyExecutingTasks` queue beforehand. This leaves a short windows in which we could cancel the task to
+      // reschedule it before it actually starts executing.
+      // If this happens, we don't have to do anything in `execute` and can immediately return. `execute` will be called
+      // again when the task gets rescheduled.
+      cancelledToBeRescheduled = false
+      return .cancelledToBeRescheduled
+    }
     precondition(executionTask == nil, "Task started twice")
     let task = Task.detached(priority: self.priority) {
       if !Task.isCancelled && !self.resultTaskCancelled.value {
@@ -260,10 +269,10 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   ///
   /// If the task has not been started yet or has already finished execution, this is a no-op.
   func cancelToBeRescheduled() {
+    self.cancelledToBeRescheduled = true
     guard let executionTask else {
       return
     }
-    self.cancelledToBeRescheduled = true
     executionTask.cancel()
     self.executionTask = nil
   }
