@@ -550,6 +550,11 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     singleTarget target: ConfiguredTarget,
     indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
   ) async throws {
+    if target == .forPackageManifest {
+      // Nothing to prepare for package manifests.
+      return
+    }
+
     // TODO (indexing): Add a proper 'prepare' job in SwiftPM instead of building the target.
     // https://github.com/apple/sourcekit-lsp/issues/1254
     guard let toolchain = await toolchainRegistry.default else {

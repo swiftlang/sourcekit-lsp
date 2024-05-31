@@ -219,7 +219,7 @@ final class MainFilesProviderTests: XCTestCase {
     // diagnostics.
     var receivedCorrectDiagnostic = false
     for _ in 0..<Int(defaultTimeout) {
-      let refreshedDiags = try await project.testClient.nextDiagnosticsNotification(timeout: 1)
+      let refreshedDiags = try await project.testClient.nextDiagnosticsNotification(timeout: .seconds(1))
       if let diagnostic = refreshedDiags.diagnostics.only,
         diagnostic.message == "Unused variable 'fromMyFancyLibrary'"
       {
