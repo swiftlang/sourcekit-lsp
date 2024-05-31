@@ -16,7 +16,6 @@ import XCTest
 
 final class DependencyTrackingTests: XCTestCase {
   func testDependenciesUpdatedSwift() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
@@ -51,8 +50,6 @@ final class DependencyTrackingTests: XCTestCase {
     // Semantic analysis: expect module import error.
     XCTAssertEqual(initialDiags.diagnostics.count, 1)
     if let diagnostic = initialDiags.diagnostics.first {
-      // FIXME: The error message for the missing module is misleading on Darwin
-      // https://github.com/apple/swift-package-manager/issues/5925
       XCTAssert(
         diagnostic.message.contains("Could not build Objective-C module")
           || diagnostic.message.contains("No such module"),

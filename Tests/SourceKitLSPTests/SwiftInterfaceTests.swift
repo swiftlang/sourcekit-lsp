@@ -55,7 +55,6 @@ final class SwiftInterfaceTests: XCTestCase {
   }
 
   func testOpenInterface() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let project = try await SwiftPMTestProject(
       files: [
         "MyLibrary/MyLibrary.swift": """
@@ -79,7 +78,7 @@ final class SwiftInterfaceTests: XCTestCase {
           ]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (mainUri, _) = try project.openDocument("main.swift")
@@ -152,7 +151,6 @@ final class SwiftInterfaceTests: XCTestCase {
   }
 
   func testSwiftInterfaceAcrossModules() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let project = try await SwiftPMTestProject(
       files: [
         "MyLibrary/MyLibrary.swift": """
@@ -176,7 +174,7 @@ final class SwiftInterfaceTests: XCTestCase {
           ]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (mainUri, mainPositions) = try project.openDocument("main.swift")

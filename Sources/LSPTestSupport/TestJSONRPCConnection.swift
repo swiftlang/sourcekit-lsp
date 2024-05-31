@@ -111,11 +111,11 @@ public actor TestClient: MessageHandler {
   }
 
   public func appendOneShotNotificationHandler<N: NotificationType>(_ handler: @escaping (N) -> Void) {
-    oneShotNotificationHandlers.append({ anyNote in
-      guard let note = anyNote as? N else {
-        fatalError("received notification of the wrong type \(anyNote); expected \(N.self)")
+    oneShotNotificationHandlers.append({ anyNotification in
+      guard let notification = anyNotification as? N else {
+        fatalError("received notification of the wrong type \(anyNotification); expected \(N.self)")
       }
-      handler(note)
+      handler(notification)
     })
   }
 

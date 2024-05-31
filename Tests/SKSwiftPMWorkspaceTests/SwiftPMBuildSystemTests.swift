@@ -28,11 +28,11 @@ import struct PackageModel.BuildFlags
 #endif
 
 fileprivate extension SwiftPMBuildSystem {
-  func buildSettings(for uri: DocumentURI, language: Language) throws -> FileBuildSettings? {
+  func buildSettings(for uri: DocumentURI, language: Language) async throws -> FileBuildSettings? {
     guard let target = self.configuredTargets(for: uri).only else {
       return nil
     }
-    return try buildSettings(for: uri, in: target, language: language)
+    return try await buildSettings(for: uri, in: target, language: language)
   }
 }
 
@@ -116,6 +116,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testBasicSwiftArgs() async throws {
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let fs = localFileSystem
     try await withTestScratchDir { tempDir in
       try fs.createFiles(
@@ -142,7 +143,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
       let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
@@ -213,7 +214,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
       let build = buildPath(root: packageRoot, config: config, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
@@ -445,7 +446,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
       let header = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
-      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
       let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
@@ -527,7 +528,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
         .compilerArguments
       assertArgumentsContain("-target", arguments: arguments)  // Only one!
-      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
 
       #if os(macOS)
       assertArgumentsContain(
@@ -758,7 +759,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Plugins", "MyPlugin", "a.swift")
-      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
       let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)

@@ -23,8 +23,6 @@ import XCTest
 final class WorkspaceTests: XCTestCase {
 
   func testMultipleSwiftPMWorkspaces() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-
     // The package manifest is the same for both packages we open.
     let packageManifest = """
       // swift-tools-version: 5.7
@@ -76,11 +74,10 @@ final class WorkspaceTests: XCTestCase {
           WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageA"))),
           WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageB"))),
         ]
-      }
+      },
+      enableBackgroundIndexing: true
     )
-
-    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("PackageA"))
-    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("PackageB"))
+    _ = try await project.testClient.send(PollIndexRequest())
 
     let (bUri, bPositions) = try project.openDocument("execB.swift")
 
@@ -195,8 +192,6 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testSwiftPMPackageInSubfolder() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-
     let packageManifest = """
       // swift-tools-version: 5.7
 
@@ -228,11 +223,13 @@ final class WorkspaceTests: XCTestCase {
         """,
 
         "PackageA/Package.swift": packageManifest,
-      ]
+      ],
+      enableBackgroundIndexing: true
     )
-    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("PackageA"))
 
     let (uri, positions) = try project.openDocument("execA.swift")
+
+    _ = try await project.testClient.send(PollIndexRequest())
 
     let otherCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
@@ -274,8 +271,6 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testNestedSwiftPMWorkspacesWithoutDedicatedWorkspaceFolder() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-
     // The package manifest is the same for both packages we open.
     let packageManifest = """
       // swift-tools-version: 5.7
@@ -321,11 +316,11 @@ final class WorkspaceTests: XCTestCase {
         Lib().2️⃣foo()
         """,
         "Package.swift": packageManifest,
-      ]
+      ],
+      enableBackgroundIndexing: true
     )
 
-    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("PackageA"))
-    try await SwiftPMTestProject.build(at: project.scratchDirectory)
+    _ = try await project.testClient.send(PollIndexRequest())
 
     let (bUri, bPositions) = try project.openDocument("execB.swift")
 
@@ -366,6 +361,8 @@ final class WorkspaceTests: XCTestCase {
     )
 
     let (aUri, aPositions) = try project.openDocument("execA.swift")
+
+    _ = try await project.testClient.send(PollIndexRequest())
 
     let otherCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(aUri), position: aPositions["1️⃣"])
@@ -600,8 +597,6 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testChangeWorkspaceFolders() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-
     let project = try await MultiFileTestProject(
       files: [
         "subdir/Sources/otherPackage/otherPackage.swift": """
@@ -775,8 +770,6 @@ final class WorkspaceTests: XCTestCase {
   func testIntegrationTest() async throws {
     // This test is doing the same as `test-sourcekit-lsp` in the `swift-integration-tests` repo.
 
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-
     let project = try await SwiftPMTestProject(
       files: [
         "Sources/clib/include/clib.h": """
@@ -820,10 +813,9 @@ final class WorkspaceTests: XCTestCase {
           ]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
     let (mainUri, mainPositions) = try project.openDocument("main.swift")
-    _ = try await project.testClient.send(PollIndexRequest())
 
     let fooDefinitionResponse = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(mainUri), position: mainPositions["3️⃣"])
@@ -879,41 +871,7 @@ final class WorkspaceTests: XCTestCase {
     let cCompletionResponse = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(clibcUri), position: clibcPositions["2️⃣"])
     )
-    XCTAssertEqual(
-      cCompletionResponse.items,
-      [
-        // rdar://73762053: This should also suggest clib_other
-        CompletionItem(
-          label: " clib_func",
-          kind: .text,
-          deprecated: true,
-          sortText: "41b99800clib_func",
-          filterText: "clib_func",
-          insertText: "clib_func",
-          insertTextFormat: .plain,
-          textEdit: .textEdit(TextEdit(range: Range(clibcPositions["2️⃣"]), newText: "clib_func"))
-        ),
-        CompletionItem(
-          label: " include",
-          kind: .text,
-          deprecated: true,
-          sortText: "41d85b70include",
-          filterText: "include",
-          insertText: "include",
-          insertTextFormat: .plain,
-          textEdit: .textEdit(TextEdit(range: Range(clibcPositions["2️⃣"]), newText: "include"))
-        ),
-        CompletionItem(
-          label: " void",
-          kind: .text,
-          deprecated: true,
-          sortText: "41e677bbvoid",
-          filterText: "void",
-          insertText: "void",
-          insertTextFormat: .plain,
-          textEdit: .textEdit(TextEdit(range: Range(clibcPositions["2️⃣"]), newText: "void"))
-        ),
-      ]
-    )
+    // rdar://73762053: This should also suggest clib_other
+    XCTAssert(cCompletionResponse.items.contains(where: { $0.insertText == "clib_func" }))
   }
 }

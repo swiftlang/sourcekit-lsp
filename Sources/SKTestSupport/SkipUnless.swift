@@ -65,11 +65,7 @@ public actor SkipUnless {
       // Never skip tests in CI. Toolchain should be up-to-date
       checkResult = .featureSupported
     } else {
-      guard let swiftc = await ToolchainRegistry.forTesting.default?.swiftc else {
-        throw SwiftVersionParsingError.failedToFindSwiftc
-      }
-
-      let toolchainSwiftVersion = try await getSwiftVersion(swiftc)
+      let toolchainSwiftVersion = try await unwrap(ToolchainRegistry.forTesting.default).swiftVersion
       let requiredSwiftVersion = SwiftVersion(swiftVersion.major, swiftVersion.minor)
       if toolchainSwiftVersion < requiredSwiftVersion {
         checkResult = .featureUnsupported(
@@ -174,19 +170,13 @@ public actor SkipUnless {
 
   /// SwiftPM moved the location where it stores Swift modules to a subdirectory in
   /// https://github.com/apple/swift-package-manager/pull/7103.
-  ///
-  /// sourcekit-lsp uses the built-in SwiftPM to synthesize compiler arguments and cross-module tests fail if the host
-  /// toolchain’s SwiftPM stores the Swift modules on the top level but we synthesize compiler arguments expecting the
-  /// modules to be in a `Modules` subdirectory.
   public static func swiftpmStoresModulesInSubdirectory(
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
     try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
-      let workspace = try await SwiftPMTestProject(
-        files: ["test.swift": ""],
-        build: true
-      )
+      let workspace = try await SwiftPMTestProject(files: ["test.swift": ""])
+      try await SwiftPMTestProject.build(at: workspace.scratchDirectory)
       let modulesDirectory = workspace.scratchDirectory
         .appendingPathComponent(".build")
         .appendingPathComponent("debug")
@@ -296,61 +286,4 @@ fileprivate extension String {
       return String(data: data, encoding: encoding)!
     }
   }
-}
-
-/// A Swift version consisting of the major and minor component.
-fileprivate struct SwiftVersion: Comparable, CustomStringConvertible {
-  let major: Int
-  let minor: Int
-
-  static func < (lhs: SwiftVersion, rhs: SwiftVersion) -> Bool {
-    return (lhs.major, lhs.minor) < (rhs.major, rhs.minor)
-  }
-
-  init(_ major: Int, _ minor: Int) {
-    self.major = major
-    self.minor = minor
-  }
-
-  var description: String {
-    return "\(major).\(minor)"
-  }
-}
-
-fileprivate enum SwiftVersionParsingError: Error, CustomStringConvertible {
-  case failedToFindSwiftc
-  case failedToParseOutput(output: String?)
-
-  var description: String {
-    switch self {
-    case .failedToFindSwiftc:
-      return "Default toolchain does not contain a swiftc executable"
-    case .failedToParseOutput(let output):
-      return """
-        Failed to parse Swift version. Output of swift --version:
-        \(output ?? "<empty>")
-        """
-    }
-  }
-}
-
-/// Return the major and minor version of Swift for a `swiftc` compiler at `swiftcPath`.
-private func getSwiftVersion(_ swiftcPath: AbsolutePath) async throws -> SwiftVersion {
-  let process = Process(args: swiftcPath.pathString, "--version")
-  try process.launch()
-  let result = try await process.waitUntilExit()
-  let output = String(bytes: try result.output.get(), encoding: .utf8)
-  let regex = Regex {
-    "Swift version "
-    Capture { OneOrMore(.digit) }
-    "."
-    Capture { OneOrMore(.digit) }
-  }
-  guard let match = output?.firstMatch(of: regex) else {
-    throw SwiftVersionParsingError.failedToParseOutput(output: output)
-  }
-  guard let major = Int(match.1), let minor = Int(match.2) else {
-    throw SwiftVersionParsingError.failedToParseOutput(output: output)
-  }
-  return SwiftVersion(major, minor)
 }

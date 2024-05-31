@@ -185,7 +185,6 @@ final class PullDiagnosticsTests: XCTestCase {
 
   func testDiagnosticUpdatedAfterDependentModuleIsBuilt() async throws {
     try SkipUnless.longTestsEnabled()
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
 
     let project = try await SwiftPMTestProject(
       files: [
@@ -251,8 +250,6 @@ final class PullDiagnosticsTests: XCTestCase {
   }
 
   func testDiagnosticsWaitForDocumentToBePrepared() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-
     nonisolated(unsafe) var diagnosticRequestSent = AtomicBool(initialValue: false)
     var serverOptions = SourceKitLSPServer.Options.testDefault
     serverOptions.indexTestHooks.preparationTaskDidStart = { @Sendable taskDescription in

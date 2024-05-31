@@ -104,7 +104,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testBackgroundIndexingOfMultiModuleProject() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/MyFile.swift": """
@@ -212,7 +211,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testBackgroundIndexingOfPackageDependency() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let dependencyContents = """
       public func 1️⃣doSomething() {}
       """
@@ -541,7 +539,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testPrepareTargetAfterEditToDependency() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     var serverOptions = SourceKitLSPServer.Options.testDefault
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       [
@@ -652,7 +649,6 @@ final class BackgroundIndexingTests: XCTestCase {
     let libBStartedPreparation = self.expectation(description: "LibB started preparing")
     let libDPreparedForEditing = self.expectation(description: "LibD prepared for editing")
 
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     var serverOptions = SourceKitLSPServer.Options.testDefault
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       // Preparation of targets during the initial of the target
@@ -750,8 +746,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testIndexingHappensInParallel() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-
     let fileAIndexingStarted = self.expectation(description: "FileA indexing started")
     let fileBIndexingStarted = self.expectation(description: "FileB indexing started")
 

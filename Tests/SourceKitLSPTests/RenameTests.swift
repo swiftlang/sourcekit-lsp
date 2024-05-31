@@ -1114,7 +1114,7 @@ final class RenameTests: XCTestCase {
         }
         """,
       ],
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let definitionUri = try project.uri(for: "definition.swift")
@@ -1157,7 +1157,6 @@ final class RenameTests: XCTestCase {
       ])
     )
 
-    try await SwiftPMTestProject.build(at: project.scratchDirectory)
     _ = try await project.testClient.send(PollIndexRequest())
 
     let resultAfterFileMove = try await project.testClient.send(
@@ -1250,7 +1249,7 @@ final class RenameTests: XCTestCase {
         }
         """,
       ],
-      build: true
+      enableBackgroundIndexing: true
     )
     let (uri, positions) = try project.openDocument("FileA.swift")
     let result = try await project.testClient.send(
