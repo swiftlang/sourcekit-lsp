@@ -70,12 +70,14 @@ public actor SkipUnless {
         )
       } else if toolchainSwiftVersion == requiredSwiftVersion {
         logger.info("Checking if feature '\(featureName)' is supported")
+        defer {
+          logger.info("Done checking if feature '\(featureName)' is supported")
+        }
         if try await !featureCheck() {
           return .featureUnsupported(skipMessage: "Skipping because toolchain doesn't contain \(featureName)")
         } else {
           return .featureSupported
         }
-        logger.info("Done checking if feature '\(featureName)' is supported")
       } else {
         return .featureSupported
       }

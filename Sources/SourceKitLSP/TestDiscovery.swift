@@ -204,12 +204,9 @@ extension SourceKitLSPServer {
     let index = workspace.index(checkedFor: .inMemoryModifiedFiles(documentManager))
 
     let filesWithInMemoryState = documentManager.documents.keys.filter { uri in
-      guard let url = uri.fileURL else {
-        return true
-      }
       // Use the index to check for in-memory modifications so we can re-use its cache. If no index exits, ask the
       // document manager directly.
-      return index?.fileHasInMemoryModifications(url) ?? documentManager.fileHasInMemoryModifications(url)
+      return index?.fileHasInMemoryModifications(uri) ?? documentManager.fileHasInMemoryModifications(uri)
     }
 
     let testsFromFilesWithInMemoryState = await filesWithInMemoryState.concurrentMap { (uri) -> [AnnotatedTestItem] in
@@ -254,7 +251,7 @@ extension SourceKitLSPServer {
           // up-to-date. Include the tests from `testsFromFilesWithInMemoryState`.
           return nil
         }
-        if let fileUrl = testItem.location.uri.fileURL, index?.hasUpToDateUnit(for: fileUrl) ?? false {
+        if index?.hasUpToDateUnit(for: testItem.location.uri) ?? false {
           // We don't have a test for this file in the semantic index but an up-to-date unit file. This means that the
           // index is up-to-date and has more knowledge that identifies a `TestItem` as not actually being a test, eg.
           // because it starts with `test` but doesn't appear in a class inheriting from `XCTestCase`.
@@ -341,7 +338,7 @@ extension SourceKitLSPServer {
           }
         ) + syntacticSwiftTestingTests
       }
-      if let fileURL = mainFileUri.fileURL, index.hasUpToDateUnit(for: fileURL) {
+      if index.hasUpToDateUnit(for: mainFileUri) {
         // The semantic index is up-to-date and doesn't contain any tests. We don't need to do a syntactic fallback for
         // XCTest. We do still need to return swift-testing tests which don't have a semantic index.
         return syntacticSwiftTestingTests
