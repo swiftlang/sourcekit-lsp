@@ -24,6 +24,22 @@ public enum LanguageServerState {
   case semanticFunctionalityDisabled
 }
 
+public struct AnnotatedTestItem: Sendable {
+  /// The test item to be annotated
+  public var testItem: TestItem
+
+  /// Whether the `TestItem` is an extension.
+  public var isExtension: Bool
+
+  public init(
+    testItem: TestItem,
+    isExtension: Bool
+  ) {
+    self.testItem = testItem
+    self.isExtension = isExtension
+  }
+}
+
 public struct RenameLocation: Sendable {
   /// How the identifier at a given location is being used.
   ///
