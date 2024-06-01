@@ -107,6 +107,45 @@ public actor SwiftPMBuildSystem {
   let fileSystem: FileSystem
   private let toolchainRegistry: ToolchainRegistry
 
+  private let swiftBuildSupportsPrepareForIndexingTask = SKSupport.ThreadSafeBox<Task<Bool, Never>?>(initialValue: nil)
+
+  #if compiler(>=6.1)
+  #warning(
+    "Remove swiftBuildSupportsPrepareForIndexing when we no longer need to support SwiftPM versions that don't have support for `--experimental-prepare-for-indexing`"
+  )
+  #endif
+  /// Whether `swift build` supports the `--experimental-prepare-for-indexing` flag.
+  private var swiftBuildSupportsPrepareForIndexing: Bool {
+    get async {
+      let task = swiftBuildSupportsPrepareForIndexingTask.withLock { task in
+        if let task {
+          return task
+        }
+        let newTask = Task { () -> Bool in
+          guard let swift = await toolchainRegistry.default?.swift else {
+            return false
+          }
+
+          do {
+            let process = Process(args: swift.pathString, "build", "--help-hidden")
+            try process.launch()
+            let result = try await process.waitUntilExit()
+            guard let output = String(bytes: try result.output.get(), encoding: .utf8) else {
+              return false
+            }
+            return output.contains("--experimental-prepare-for-indexing")
+          } catch {
+            return false
+          }
+        }
+        task = newTask
+        return newTask
+      }
+
+      return await task.value
+    }
+  }
+
   var fileToTarget: [AbsolutePath: SwiftBuildTarget] = [:]
   var sourceDirToTarget: [AbsolutePath: SwiftBuildTarget] = [:]
 
@@ -523,13 +562,16 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       )
       return
     }
-    let arguments = [
+    var arguments = [
       swift.pathString, "build",
       "--package-path", workspacePath.pathString,
       "--scratch-path", self.workspace.location.scratchDirectory.pathString,
       "--disable-index-store",
       "--target", target.targetID,
     ]
+    if await swiftBuildSupportsPrepareForIndexing {
+      arguments.append("--experimental-prepare-for-indexing")
+    }
     if Task.isCancelled {
       return
     }
