@@ -64,7 +64,7 @@ public final class CheckedIndex {
   public func forEachSymbolOccurrence(
     byUSR usr: String,
     roles: SymbolRole,
-    _ body: @escaping (SymbolOccurrence) -> Bool
+    _ body: (SymbolOccurrence) -> Bool
   ) -> Bool {
     index.forEachSymbolOccurrence(byUSR: usr, roles: roles) { occurrence in
       guard self.checker.isUpToDate(occurrence.location) else {
@@ -88,7 +88,7 @@ public final class CheckedIndex {
     anchorEnd: Bool,
     subsequence: Bool,
     ignoreCase: Bool,
-    body: @escaping (SymbolOccurrence) -> Bool
+    body: (SymbolOccurrence) -> Bool
   ) -> Bool {
     index.forEachCanonicalSymbolOccurrence(
       containing: pattern,
