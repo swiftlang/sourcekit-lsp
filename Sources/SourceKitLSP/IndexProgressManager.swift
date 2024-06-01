@@ -99,7 +99,7 @@ actor IndexProgressManager {
       // Clip the finished tasks to 0 because showing a negative number there looks stupid.
       let finishedTasks = max(queuedIndexTasks - indexTasks.count, 0)
       message = "\(finishedTasks) / \(queuedIndexTasks)"
-      if await sourceKitLSPServer.options.indexOptions.showActivePreparationTasksInProgress {
+      if await sourceKitLSPServer.options.experimentalFeatures.contains(.showActivePreparationTasksInProgress) {
         var inProgressTasks: [String] = []
         inProgressTasks += preparationTasks.filter { $0.value == .executing }
           .map { "- Preparing \($0.key.targetID)" }

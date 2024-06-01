@@ -201,18 +201,14 @@ struct SourceKitLSP: AsyncParsableCommand {
   )
   var completionMaxResults = 200
 
-  @Flag(
-    help: "Enable background indexing. This feature is still under active development and may be incomplete."
-  )
-  var experimentalEnableBackgroundIndexing = false
-
-  @Flag(
+  @Option(
+    name: .customLong("experimental-feature"),
     help: """
-      When reporting index progress, show the currently running index tasks in addition to the task's count. \
-      This produces a multi-line work done progress, which might render incorrectly, depending on the editor.
+      Enable an experimental sourcekit-lsp feature.
+      Available features are: \(ExperimentalFeature.allCases.map(\.rawValue).joined(separator: ", "))
       """
   )
-  var experimentalShowActivePreparationTasksInProgress = false
+  var experimentalFeatures: [ExperimentalFeature]
 
   func mapOptions() -> SourceKitLSPServer.Options {
     var serverOptions = SourceKitLSPServer.Options()
@@ -229,8 +225,6 @@ struct SourceKitLSP: AsyncParsableCommand {
     serverOptions.indexOptions.indexStorePath = indexStorePath
     serverOptions.indexOptions.indexDatabasePath = indexDatabasePath
     serverOptions.indexOptions.indexPrefixMappings = indexPrefixMappings
-    serverOptions.indexOptions.enableBackgroundIndexing = experimentalEnableBackgroundIndexing
-    serverOptions.indexOptions.showActivePreparationTasksInProgress = experimentalShowActivePreparationTasksInProgress
     serverOptions.completionOptions.maxResults = completionMaxResults
     serverOptions.generatedInterfacesPath = generatedInterfacesPath
 
@@ -285,3 +279,9 @@ struct SourceKitLSP: AsyncParsableCommand {
     try await Task.sleep(for: .seconds(60 * 60 * 24 * 365 * 10))
   }
 }
+
+#if compiler(>=6)
+extension ExperimentalFeature: @retroactive ExpressibleByArgument {}
+#else
+extension ExperimentalFeature: ExpressibleByArgument {}
+#endif

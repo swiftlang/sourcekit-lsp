@@ -75,7 +75,7 @@ public struct IndexCommand: AsyncParsableCommand {
 
   public func run() async throws {
     var serverOptions = SourceKitLSPServer.Options()
-    serverOptions.indexOptions.enableBackgroundIndexing = true
+    serverOptions.experimentalFeatures.append(.backgroundIndexing)
 
     let installPath =
       if let toolchainOverride, let toolchain = Toolchain(try AbsolutePath(validating: toolchainOverride)) {

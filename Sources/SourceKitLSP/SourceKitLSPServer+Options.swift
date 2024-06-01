@@ -49,6 +49,9 @@ extension SourceKitLSPServer {
     /// notification when running unit tests.
     public var swiftPublishDiagnosticsDebounceDuration: TimeInterval
 
+    /// Experimental features that are enabled.
+    public var experimentalFeatures: [ExperimentalFeature]
+
     public var indexTestHooks: IndexTestHooks
 
     public init(
@@ -59,6 +62,7 @@ extension SourceKitLSPServer {
       completionOptions: SKCompletionOptions = .init(),
       generatedInterfacesPath: AbsolutePath = defaultDirectoryForGeneratedInterfaces,
       swiftPublishDiagnosticsDebounceDuration: TimeInterval = 2, /* 2s */
+      experimentalFeatures: [ExperimentalFeature] = [],
       indexTestHooks: IndexTestHooks = IndexTestHooks()
     ) {
       self.buildSetup = buildSetup
@@ -68,6 +72,7 @@ extension SourceKitLSPServer {
       self.completionOptions = completionOptions
       self.generatedInterfacesPath = generatedInterfacesPath
       self.swiftPublishDiagnosticsDebounceDuration = swiftPublishDiagnosticsDebounceDuration
+      self.experimentalFeatures = experimentalFeatures
       self.indexTestHooks = indexTestHooks
     }
   }
