@@ -39,10 +39,6 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [.testTarget(name: "MyLibraryTests")]
@@ -142,10 +138,6 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         """
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [.testTarget(name: "MyLibraryTests")]
@@ -1295,10 +1287,6 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         """
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [.testTarget(name: "MyLibraryTests")]
@@ -1354,10 +1342,6 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         """
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [.testTarget(name: "MyLibraryTests")]

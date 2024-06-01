@@ -19,10 +19,6 @@ import SKTestSupport
 import XCTest
 
 private let packageManifestWithTestTarget = """
-  // swift-tools-version: 5.7
-
-  import PackageDescription
-
   let package = Package(
     name: "MyLibrary",
     targets: [.testTarget(name: "MyLibraryTests")]
@@ -844,10 +840,6 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         "Test.swift": ""
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           dependencies: [.package(url: "\(dependencyProject.packageDirectory)", from: "1.0.0")],
@@ -925,10 +917,6 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         """
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [.testTarget(name: "MyLibraryTests")]
@@ -982,10 +970,6 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         """
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [.testTarget(name: "MyLibraryTests")]

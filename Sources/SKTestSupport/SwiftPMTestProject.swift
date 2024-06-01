@@ -173,6 +173,17 @@ public class SwiftPMTestProject: MultiFileTestProject {
 
       filesByPath[RelativeFileLocation(directories: directories, fileLocation.fileName)] = contents
     }
+    var manifest = manifest
+    if !manifest.contains("swift-tools-version") {
+      // Tests specify a shorthand package manifest that doesn't contain the tools version boilerplate.
+      manifest = """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        \(manifest)
+        """
+    }
     filesByPath["Package.swift"] = manifest
 
     try await super.init(

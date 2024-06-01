@@ -14,10 +14,6 @@ import SKTestSupport
 import XCTest
 
 private let libAlibBPackageManifest = """
-  // swift-tools-version: 5.7
-
-  import PackageDescription
-
   let package = Package(
     name: "MyLibrary",
     targets: [
@@ -564,10 +560,6 @@ final class CrossLanguageRenameTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -622,10 +614,6 @@ final class CrossLanguageRenameTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -680,10 +668,6 @@ final class CrossLanguageRenameTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
