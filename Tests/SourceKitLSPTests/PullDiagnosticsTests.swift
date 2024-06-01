@@ -337,7 +337,7 @@ final class PullDiagnosticsTests: XCTestCase {
     let requestID = project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     ) { result in
-      XCTAssertEqual(result.failure?.code, .cancelled)
+      XCTAssertEqual(result, .failure(ResponseError.cancelled))
       diagnosticResponseReceived.fulfill()
     }
     project.testClient.send(CancelRequestNotification(id: requestID))
