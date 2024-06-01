@@ -730,24 +730,27 @@ extension SourceKitLSPServer {
 
     // If we have a USR + old name, perform an index lookup to find workspace-wide symbols to rename.
     // First, group all occurrences of that USR by the files they occur in.
-    var locationsByFile: [URL: [RenameLocation]] = [:]
+    var locationsByFile: [DocumentURI: [RenameLocation]] = [:]
 
     actor LanguageServerTypesCache {
       let index: UncheckedIndex
-      var languageServerTypesCache: [URL: LanguageServerType?] = [:]
+      var languageServerTypesCache: [DocumentURI: LanguageServerType?] = [:]
 
       init(index: UncheckedIndex) {
         self.index = index
       }
 
-      func languageServerType(for url: URL) -> LanguageServerType? {
-        if let cachedValue = languageServerTypesCache[url] {
+      func languageServerType(for uri: DocumentURI) -> LanguageServerType? {
+        if let cachedValue = languageServerTypesCache[uri] {
           return cachedValue
         }
-        let serverType = LanguageServerType(
-          symbolProvider: index.symbolProvider(for: url.path)
-        )
-        languageServerTypesCache[url] = serverType
+        let serverType: LanguageServerType? =
+          if let fileURL = uri.fileURL {
+            LanguageServerType(symbolProvider: index.symbolProvider(for: fileURL.path))
+          } else {
+            nil
+          }
+        languageServerTypesCache[uri] = serverType
         return serverType
       }
     }
@@ -757,17 +760,17 @@ extension SourceKitLSPServer {
     let usrsToRename = overridingAndOverriddenUsrs(of: usr, index: index)
     let occurrencesToRename = usrsToRename.flatMap { index.occurrences(ofUSR: $0, roles: renameRoles) }
     for occurrence in occurrencesToRename {
-      let url = URL(fileURLWithPath: occurrence.location.path)
+      let uri = occurrence.location.documentUri
 
       // Determine whether we should add the location produced by the index to those that will be renamed, or if it has
       // already been handled by the set provided by the AST.
-      if changes[DocumentURI(url)] != nil {
+      if changes[uri] != nil {
         if occurrence.symbol.usr == usr {
           // If the language server's rename function already produced AST-based locations for this symbol, no need to
           // perform an indexed rename for it.
           continue
         }
-        switch await languageServerTypesCache.languageServerType(for: url) {
+        switch await languageServerTypesCache.languageServerType(for: uri) {
         case .swift:
           // sourcekitd only produces AST-based results for the direct calls to this USR. This is because the Swift
           // AST only has upwards references to superclasses and overridden methods, not the other way round. It is
@@ -788,17 +791,16 @@ extension SourceKitLSPServer {
         utf8Column: occurrence.location.utf8Column,
         usage: RenameLocation.Usage(roles: occurrence.roles)
       )
-      locationsByFile[url, default: []].append(renameLocation)
+      locationsByFile[uri, default: []].append(renameLocation)
     }
 
     // Now, call `editsToRename(locations:in:oldName:newName:)` on the language service to convert these ranges into
     // edits.
     let urisAndEdits =
       await locationsByFile
-      .concurrentMap { (url: URL, renameLocations: [RenameLocation]) -> (DocumentURI, [TextEdit])? in
-        let uri = DocumentURI(url)
+      .concurrentMap { (uri: DocumentURI, renameLocations: [RenameLocation]) -> (DocumentURI, [TextEdit])? in
         let language: Language
-        switch await languageServerTypesCache.languageServerType(for: url) {
+        switch await languageServerTypesCache.languageServerType(for: uri) {
         case .clangd:
           // Technically, we still don't know the language of the source file but defaulting to C is sufficient to
           // ensure we get the clang toolchain language server, which is all we care about.

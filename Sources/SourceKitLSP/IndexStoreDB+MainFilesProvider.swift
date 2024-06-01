@@ -24,7 +24,7 @@ extension UncheckedIndex {
       mainFiles = Set(
         mainFilePaths
           .filter { FileManager.default.fileExists(atPath: $0) }
-          .map({ DocumentURI(URL(fileURLWithPath: $0, isDirectory: false)) })
+          .map({ DocumentURI(filePath: $0, isDirectory: false) })
       )
     } else {
       mainFiles = []
