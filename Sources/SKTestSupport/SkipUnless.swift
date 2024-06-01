@@ -58,17 +58,11 @@ public actor SkipUnless {
     line: UInt,
     featureCheck: () async throws -> Bool
   ) async throws {
-    let checkResult: FeatureCheckResult
-    if let cachedResult = checkCache[featureName] {
-      checkResult = cachedResult
-    } else if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] != nil {
-      // Never skip tests in CI. Toolchain should be up-to-date
-      checkResult = .featureSupported
-    } else {
+    return try await skipUnlessSupported(featureName: featureName, file: file, line: line) {
       let toolchainSwiftVersion = try await unwrap(ToolchainRegistry.forTesting.default).swiftVersion
       let requiredSwiftVersion = SwiftVersion(swiftVersion.major, swiftVersion.minor)
       if toolchainSwiftVersion < requiredSwiftVersion {
-        checkResult = .featureUnsupported(
+        return .featureUnsupported(
           skipMessage: """
             Skipping because toolchain has Swift version \(toolchainSwiftVersion) \
             but test requires at least \(requiredSwiftVersion)
@@ -77,14 +71,31 @@ public actor SkipUnless {
       } else if toolchainSwiftVersion == requiredSwiftVersion {
         logger.info("Checking if feature '\(featureName)' is supported")
         if try await !featureCheck() {
-          checkResult = .featureUnsupported(skipMessage: "Skipping because toolchain doesn't contain \(featureName)")
+          return .featureUnsupported(skipMessage: "Skipping because toolchain doesn't contain \(featureName)")
         } else {
-          checkResult = .featureSupported
+          return .featureSupported
         }
         logger.info("Done checking if feature '\(featureName)' is supported")
       } else {
-        checkResult = .featureSupported
+        return .featureSupported
       }
+    }
+  }
+
+  private func skipUnlessSupported(
+    featureName: String = #function,
+    file: StaticString,
+    line: UInt,
+    featureCheck: () async throws -> FeatureCheckResult
+  ) async throws {
+    let checkResult: FeatureCheckResult
+    if let cachedResult = checkCache[featureName] {
+      checkResult = cachedResult
+    } else if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] != nil {
+      // Never skip tests in CI. Toolchain should be up-to-date
+      checkResult = .featureSupported
+    } else {
+      checkResult = try await featureCheck()
     }
     checkCache[featureName] = checkResult
 
@@ -271,6 +282,40 @@ public actor SkipUnless {
       throw XCTSkip("Priority elevation of tasks is only supported on macOS 14 and above")
     }
     #endif
+  }
+
+  /// Check if we can use the build artifacts in the sourcekit-lsp build directory to build a macro package without
+  /// re-building swift-syntax.
+  public static func canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    return try await shared.skipUnlessSupported(file: file, line: line) {
+      do {
+        let project = try await SwiftPMTestProject(
+          files: [
+            "MyMacros/MyMacros.swift": #"""
+            import SwiftCompilerPlugin
+            import SwiftSyntax
+            import SwiftSyntaxBuilder
+            import SwiftSyntaxMacros
+            """#,
+            "MyMacroClient/MyMacroClient.swift": """
+            """,
+          ],
+          manifest: SwiftPMTestProject.macroPackageManifest
+        )
+        try await SwiftPMTestProject.build(at: project.scratchDirectory)
+        return .featureSupported
+      } catch {
+        return .featureUnsupported(
+          skipMessage: """
+            Skipping because macro could not be built using build artifacts in the sourcekit-lsp build directory. \
+            This usually happens if sourcekit-lsp was built using a different toolchain than the one used at test-time.
+            """
+        )
+      }
+    }
   }
 }
 

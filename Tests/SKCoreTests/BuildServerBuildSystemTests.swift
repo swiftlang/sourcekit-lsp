@@ -20,27 +20,6 @@ import SKTestSupport
 import TSCBasic
 import XCTest
 
-/// The bundle of the currently executing test.
-private let testBundle: Bundle = {
-  #if os(macOS)
-  if let bundle = Bundle.allBundles.first(where: { $0.bundlePath.hasSuffix(".xctest") }) {
-    return bundle
-  }
-  fatalError("couldn't find the test bundle")
-  #else
-  return Bundle.main
-  #endif
-}()
-
-/// The path to the built products directory.
-private let productsDirectory: URL = {
-  #if os(macOS)
-  return testBundle.bundleURL.deletingLastPathComponent()
-  #else
-  return testBundle.bundleURL
-  #endif
-}()
-
 /// The path to the INPUTS directory of shared test projects.
 private let skTestSupportInputsDirectory: URL = {
   #if os(macOS)
