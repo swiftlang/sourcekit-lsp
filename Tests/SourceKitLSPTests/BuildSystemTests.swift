@@ -193,7 +193,7 @@ final class BuildSystemTests: XCTestCase {
 
     var receivedCorrectDiagnostic = false
     for _ in 0..<Int(defaultTimeout) {
-      let refreshedDiags = try await testClient.nextDiagnosticsNotification(timeout: 1)
+      let refreshedDiags = try await testClient.nextDiagnosticsNotification(timeout: .seconds(1))
       if refreshedDiags.diagnostics.count == 0, try text == documentManager.latestSnapshot(doc).text {
         receivedCorrectDiagnostic = true
         break

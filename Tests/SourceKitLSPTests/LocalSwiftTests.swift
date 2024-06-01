@@ -1427,6 +1427,6 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertEqual(diag.message, "Cannot find 'bar' in scope")
 
     // Ensure that we don't get a second `PublishDiagnosticsNotification`
-    await assertThrowsError(try await testClient.nextDiagnosticsNotification(timeout: 2))
+    await assertThrowsError(try await testClient.nextDiagnosticsNotification(timeout: .seconds(2)))
   }
 }

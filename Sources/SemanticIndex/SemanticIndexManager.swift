@@ -394,11 +394,21 @@ public final actor SemanticIndexManager {
     let id = UUID()
     let task = Task(priority: priority) {
       await withLoggingScope("preparation") {
+        defer {
+          if inProgressPrepareForEditorTask?.id == id {
+            inProgressPrepareForEditorTask = nil
+            self.indexProgressStatusDidChange()
+          }
+        }
         // Should be kept in sync with `prepareFileForEditorFunctionality`
         guard let target = await buildSystemManager.canonicalConfiguredTarget(for: uri) else {
           return
         }
         if Task.isCancelled {
+          return
+        }
+        if await preparationUpToDateTracker.isUpToDate(target) {
+          // If the target is up-to-date, there is nothing to prepare.
           return
         }
         if inProgressPrepareForEditorTask?.id == id {
@@ -408,10 +418,6 @@ public final actor SemanticIndexManager {
           inProgressPrepareForEditorTask?.state = .preparingTarget
         }
         await self.prepare(targets: [target], priority: nil)
-        if inProgressPrepareForEditorTask?.id == id {
-          inProgressPrepareForEditorTask = nil
-          self.indexProgressStatusDidChange()
-        }
       }
     }
     inProgressPrepareForEditorTask?.task.cancel()

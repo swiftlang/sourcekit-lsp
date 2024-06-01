@@ -27,6 +27,10 @@ extension SourceKitLSPServer.Options {
   public static let testDefault = Self(swiftPublishDiagnosticsDebounceDuration: 0)
 }
 
+fileprivate struct NotificationTimeoutError: Error, CustomStringConvertible {
+  var description: String = "Failed to receive next notification within timeout"
+}
+
 /// A mock SourceKit-LSP client (aka. a mock editor) that behaves like an editor
 /// for testing purposes.
 ///
@@ -229,21 +233,17 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///
   /// - Note: This also returns any notifications sent before the call to
   ///   `nextNotification`.
-  public func nextNotification(timeout: TimeInterval = defaultTimeout) async throws -> any NotificationType {
-    struct TimeoutError: Error, CustomStringConvertible {
-      var description: String = "Failed to receive next notification within timeout"
-    }
-
+  public func nextNotification(timeout: Duration = .seconds(defaultTimeout)) async throws -> any NotificationType {
     return try await withThrowingTaskGroup(of: (any NotificationType).self) { taskGroup in
       taskGroup.addTask {
         for await notification in self.notifications {
           return notification
         }
-        throw TimeoutError()
+        throw NotificationTimeoutError()
       }
       taskGroup.addTask {
-        try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-        throw TimeoutError()
+        try await Task.sleep(for: timeout)
+        throw NotificationTimeoutError()
       }
       let result = try await taskGroup.next()!
       taskGroup.cancelAll()
@@ -256,7 +256,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   /// If the next notification is not a `PublishDiagnosticsNotification`, this
   /// methods throws.
   public func nextDiagnosticsNotification(
-    timeout: TimeInterval = defaultTimeout
+    timeout: Duration = .seconds(defaultTimeout)
   ) async throws -> PublishDiagnosticsNotification {
     guard !usePullDiagnostics else {
       struct PushDiagnosticsError: Error, CustomStringConvertible {
@@ -272,7 +272,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   public func nextNotification<ExpectedNotificationType: NotificationType>(
     ofType: ExpectedNotificationType.Type,
     satisfying predicate: (ExpectedNotificationType) -> Bool = { _ in true },
-    timeout: TimeInterval = defaultTimeout
+    timeout: Duration = .seconds(defaultTimeout)
   ) async throws -> ExpectedNotificationType {
     while true {
       let nextNotification = try await nextNotification(timeout: timeout)
@@ -280,6 +280,29 @@ public final class TestSourceKitLSPClient: MessageHandler {
         return notification
       }
     }
+  }
+
+  /// Asserts that the test client does not receive a notification of the given type and satisfying the given predicate
+  /// within the given duration.
+  ///
+  /// For stable tests, the code that triggered the notification should be run before this assertion instead of relying
+  /// on the duration.
+  ///
+  /// The duration should not be 0 because we need to allow `nextNotification` some time to get the notification out of
+  /// the `notifications` `AsyncStream`.
+  public func assertDoesNotReceiveNotification<ExpectedNotificationType: NotificationType>(
+    ofType: ExpectedNotificationType.Type,
+    satisfying predicate: (ExpectedNotificationType) -> Bool = { _ in true },
+    within duration: Duration = .seconds(0.2)
+  ) async throws {
+    do {
+      let notification = try await nextNotification(
+        ofType: ExpectedNotificationType.self,
+        satisfying: predicate,
+        timeout: duration
+      )
+      XCTFail("Did not expect to receive notification but received \(notification)")
+    } catch is NotificationTimeoutError {}
   }
 
   /// Handle the next request of the given type that is sent to the client.

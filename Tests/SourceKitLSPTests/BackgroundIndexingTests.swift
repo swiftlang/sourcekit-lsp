@@ -931,4 +931,27 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     XCTAssertEqual((result?.changes?.keys).map(Set.init), [uri, try project.uri(for: "Client.swift")])
   }
+
+  func testDontPreparePackageManifest() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib.swift": ""
+      ],
+      enableBackgroundIndexing: true
+    )
+
+    _ = try await project.testClient.nextNotification(
+      ofType: LogMessageNotification.self,
+      satisfying: { $0.message.contains("Preparing MyLibrary") }
+    )
+
+    // Opening the package manifest shouldn't cause any `swift build` calls to prepare them because they are not part of
+    // a target that can be prepared.
+    let (uri, _) = try project.openDocument("Package.swift")
+    _ = try await project.testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri)))
+    try await project.testClient.assertDoesNotReceiveNotification(
+      ofType: LogMessageNotification.self,
+      satisfying: { $0.message.contains("Preparing") }
+    )
+  }
 }
