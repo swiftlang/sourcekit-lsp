@@ -12,6 +12,7 @@
 
 import LSPLogging
 import LanguageServerProtocol
+import SKSupport
 import SwiftSyntax
 
 fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
@@ -210,9 +211,21 @@ fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
     let end = snapshot.positionOf(utf8Offset: end.utf8Offset)
     let range: FoldingRange
     if lineFoldingOnly {
+      // If the folding range doesn't end at the end of the last line, exclude that line from the folding range since
+      // the end line gets folded away. This means if we reported `end.line`, we would eg. fold away the `}` that
+      // matches a `{`, which looks surprising.
+      // If the folding range does end at the end of the line we are in cases that don't have a closing indicator (like
+      // comments), so we can fold the last line as well.
+      let endLine: Int
+      if snapshot.lineTable.isAtEndOfLine(end) {
+        endLine = end.line
+      } else {
+        endLine = end.line - 1
+      }
+
       // Since the client cannot fold less than a single line, if the
       // fold would span 1 line there's no point in reporting it.
-      guard end.line > start.line else {
+      guard endLine > start.line else {
         return .visitChildren
       }
 
@@ -221,7 +234,7 @@ fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
       range = FoldingRange(
         startLine: start.line,
         startUTF16Index: nil,
-        endLine: end.line,
+        endLine: endLine,
         endUTF16Index: nil,
         kind: kind
       )
@@ -262,5 +275,16 @@ extension SwiftLanguageService {
     let ranges = rangeFinder.finalize()
 
     return ranges.sorted()
+  }
+}
+
+fileprivate extension LineTable {
+  func isAtEndOfLine(_ position: Position) -> Bool {
+    guard position.line >= 0, position.line < self.count else {
+      return false
+    }
+    let line = self[position.line]
+    let suffixAfterPositionColumn = line[line.utf16.index(line.startIndex, offsetBy: position.utf16index)...]
+    return suffixAfterPositionColumn.allSatisfy(\.isNewline)
   }
 }
