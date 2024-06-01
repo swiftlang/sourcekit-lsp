@@ -33,9 +33,9 @@ func createBuildSystem(
     )
     return nil
   }
-  func createSwiftPMBuildSystem(rootUrl: URL) async -> SwiftPMBuildSystem? {
+  func createSwiftPMBuildSystem(rootUri: DocumentURI) async -> SwiftPMBuildSystem? {
     return await SwiftPMBuildSystem(
-      url: rootUrl,
+      uri: rootUri,
       toolchainRegistry: toolchainRegistry,
       buildSetup: options.buildSetup,
       isForIndexBuild: options.indexOptions.enableBackgroundIndexing,
@@ -58,14 +58,14 @@ func createBuildSystem(
     switch options.buildSetup.defaultWorkspaceType {
     case .buildServer: await createBuildServerBuildSystem(rootPath: rootPath)
     case .compilationDatabase: createCompilationDatabaseBuildSystem(rootPath: rootPath)
-    case .swiftPM: await createSwiftPMBuildSystem(rootUrl: rootUrl)
+    case .swiftPM: await createSwiftPMBuildSystem(rootUri: rootUri)
     case nil: nil
     }
   if let defaultBuildSystem {
     return defaultBuildSystem
   } else if let buildServer = await createBuildServerBuildSystem(rootPath: rootPath) {
     return buildServer
-  } else if let swiftpm = await createSwiftPMBuildSystem(rootUrl: rootUrl) {
+  } else if let swiftpm = await createSwiftPMBuildSystem(rootUri: rootUri) {
     return swiftpm
   } else if let compdb = createCompilationDatabaseBuildSystem(rootPath: rootPath) {
     return compdb
