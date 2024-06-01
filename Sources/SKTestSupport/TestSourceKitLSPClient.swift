@@ -34,7 +34,7 @@ extension SourceKitLSPServer.Options {
 /// that the server sends to the client.
 public final class TestSourceKitLSPClient: MessageHandler {
   /// A function that takes a request and returns the request's response.
-  public typealias RequestHandler<Request: RequestType> = (Request) -> Request.Response
+  public typealias RequestHandler<Request: RequestType> = @Sendable (Request) -> Request.Response
 
   /// The ID that should be assigned to the next request sent to the `server`.
   /// `nonisolated(unsafe)` is fine because `nextRequestID` is atomic.
@@ -72,7 +72,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///
   /// `isOneShort` if the request handler should only serve a single request and should be removed from
   /// `requestHandlers` after it has been called.
-  private nonisolated(unsafe) var requestHandlers: ThreadSafeBox<[(requestHandler: Any, isOneShot: Bool)]> =
+  private nonisolated(unsafe) var requestHandlers: ThreadSafeBox<[(requestHandler: Sendable, isOneShot: Bool)]> =
     ThreadSafeBox(initialValue: [])
 
   /// A closure that is called when the `TestSourceKitLSPClient` is destructed.

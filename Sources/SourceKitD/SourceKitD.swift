@@ -15,6 +15,12 @@ import Dispatch
 import Foundation
 import SKSupport
 
+#if compiler(>=6)
+extension sourcekitd_api_request_handle_t: @retroactive @unchecked Sendable {}
+#else
+extension sourcekitd_api_request_handle_t: @unchecked Sendable {}
+#endif
+
 /// Access to sourcekitd API, taking care of initialization, shutdown, and notification handler
 /// multiplexing.
 ///

@@ -98,7 +98,7 @@ public extension Task where Failure == Never {
 ///
 /// If the task executing `withCancellableCheckedThrowingContinuation` gets
 /// cancelled, `cancel` is invoked with the handle that `operation` provided.
-public func withCancellableCheckedThrowingContinuation<Handle, Result>(
+public func withCancellableCheckedThrowingContinuation<Handle: Sendable, Result>(
   _ operation: (_ continuation: CheckedContinuation<Result, any Error>) -> Handle,
   cancel: @Sendable (Handle) -> Void
 ) async throws -> Result {
