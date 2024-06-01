@@ -140,7 +140,7 @@ public final class Workspace: Sendable {
     }
   }
 
-  /// Creates a workspace for a given root `URL`, inferring the `ExternalWorkspace` if possible.
+  /// Creates a workspace for a given root `DocumentURI`, inferring the `ExternalWorkspace` if possible.
   ///
   /// - Parameters:
   ///   - url: The root directory of the workspace, which must be a valid path.
