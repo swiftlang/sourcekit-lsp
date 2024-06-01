@@ -200,7 +200,7 @@ public protocol LanguageService: AnyObject, Sendable {
   /// This is used as a fallback to show the test cases in a file if the index for a given file is not up-to-date.
   ///
   /// A return value of `nil` indicates that this language service does not support syntactic test discovery.
-  func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [TestItem]?
+  func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [AnnotatedTestItem]?
 
   /// Crash the language server. Should be used for crash recovery testing only.
   func _crash() async
