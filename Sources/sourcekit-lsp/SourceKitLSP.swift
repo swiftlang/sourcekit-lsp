@@ -205,7 +205,7 @@ struct SourceKitLSP: AsyncParsableCommand {
       Available features are: \(ExperimentalFeature.allCases.map(\.rawValue).joined(separator: ", "))
       """
   )
-  var experimentalFeatures: [ExperimentalFeature]
+  var experimentalFeatures: [ExperimentalFeature] = []
 
   func mapOptions() -> SourceKitLSPServer.Options {
     var serverOptions = SourceKitLSPServer.Options()
