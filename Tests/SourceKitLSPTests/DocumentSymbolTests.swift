@@ -729,6 +729,35 @@ final class DocumentSymbolTests: XCTestCase {
       ]
     }
   }
+
+  func testShowDeinit() async throws {
+    try await assertDocumentSymbols(
+      """
+      1️⃣class 2️⃣Foo3️⃣ {
+        4️⃣deinit5️⃣ {
+        }6️⃣
+      }7️⃣
+      """
+    ) { positions in
+      [
+        DocumentSymbol(
+          name: "Foo",
+          kind: .class,
+          range: positions["1️⃣"]..<positions["7️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
+          children: [
+            DocumentSymbol(
+              name: "deinit",
+              kind: .null,
+              range: positions["4️⃣"]..<positions["6️⃣"],
+              selectionRange: positions["4️⃣"]..<positions["5️⃣"],
+              children: []
+            )
+          ]
+        )
+      ]
+    }
+  }
 }
 
 fileprivate func assertDocumentSymbols(
