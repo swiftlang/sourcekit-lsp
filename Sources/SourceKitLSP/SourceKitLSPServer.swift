@@ -845,7 +845,8 @@ extension SourceKitLSPServer {
           \(result.taskDescription) finished in \(result.duration)
           \(result.command)
           \(result.output)
-          """
+          """,
+        logName: "SourceKit-LSP: Indexing"
       )
     )
   }
