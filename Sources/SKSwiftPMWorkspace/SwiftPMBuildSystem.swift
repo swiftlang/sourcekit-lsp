@@ -574,6 +574,30 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       "--disable-index-store",
       "--target", target.targetID,
     ]
+    if self.toolsBuildParameters.configuration != self.destinationBuildParameters.configuration {
+      logger.fault(
+        """
+        Preparation is assuming that tools and destination are built using the same configuration, \
+        got tools: \(String(describing: self.toolsBuildParameters.configuration), privacy: .public), \
+        destination: \(String(describing: self.destinationBuildParameters.configuration), privacy: .public)
+        """
+      )
+    }
+    arguments += ["-c", self.destinationBuildParameters.configuration.rawValue]
+    if self.toolsBuildParameters.flags != self.destinationBuildParameters.flags {
+      logger.fault(
+        """
+        Preparation is assuming that tools and destination are built using the same build flags, \
+        got tools: \(String(describing: self.toolsBuildParameters.flags)), \
+        destination: \(String(describing: self.destinationBuildParameters.configuration))
+        """
+      )
+    }
+    arguments += self.destinationBuildParameters.flags.cCompilerFlags.flatMap { ["-Xcc", $0] }
+    arguments += self.destinationBuildParameters.flags.cxxCompilerFlags.flatMap { ["-Xcxx", $0] }
+    arguments += self.destinationBuildParameters.flags.swiftCompilerFlags.flatMap { ["-Xswiftc", $0] }
+    arguments += self.destinationBuildParameters.flags.linkerFlags.flatMap { ["-Xlinker", $0] }
+    arguments += self.destinationBuildParameters.flags.xcbuildFlags?.flatMap { ["-Xxcbuild", $0] } ?? []
     if await swiftBuildSupportsPrepareForIndexing {
       arguments.append("--experimental-prepare-for-indexing")
     }

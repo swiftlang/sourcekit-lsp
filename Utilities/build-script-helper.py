@@ -7,6 +7,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 from typing import Dict, List
 
 
@@ -228,15 +229,17 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
         '--test-product', 'SourceKitLSPPackageTests'
     ] + swiftpm_args
 
-    # Try running tests in parallel. If that fails, run tests in serial to get capture more readable output.
-    try:
-        check_call(cmd + ['--parallel'], additional_env=additional_env, verbose=args.verbose)
-    except:
-        print('--- Running tests in parallel failed. Re-running tests serially to capture more actionable output.')
-        sys.stdout.flush()
-        check_call(cmd, additional_env=additional_env, verbose=args.verbose)
-        # Return with non-zero exit code even if serial test execution succeeds.
-        raise SystemExit(1)
+    with tempfile.TemporaryDirectory() as test_module_cache:
+        additional_env['SOURCEKIT_LSP_TEST_MODULE_CACHE'] = f"{test_module_cache}/module-cache"
+        # Try running tests in parallel. If that fails, run tests in serial to get capture more readable output.
+        try:
+            check_call(cmd + ['--parallel'], additional_env=additional_env, verbose=args.verbose)
+        except:
+            print('--- Running tests in parallel failed. Re-running tests serially to capture more actionable output.')
+            sys.stdout.flush()
+            check_call(cmd, additional_env=additional_env, verbose=args.verbose)
+            # Return with non-zero exit code even if serial test execution succeeds.
+            raise SystemExit(1)
 
 
 def install_binary(exe: str, source_dir: str, install_dir: str, verbose: bool) -> None:
