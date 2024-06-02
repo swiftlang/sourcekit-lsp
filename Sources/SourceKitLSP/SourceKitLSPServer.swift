@@ -941,7 +941,7 @@ extension SourceKitLSPServer {
         self?.indexProgressManager.indexProgressStatusDidChange()
       }
     )
-    if let workspace, options.indexOptions.enableBackgroundIndexing, workspace.semanticIndexManager == nil,
+    if let workspace, options.experimentalFeatures.contains(.backgroundIndexing), workspace.semanticIndexManager == nil,
       !self.didSendBackgroundIndexingNotSupportedNotification
     {
       self.sendNotificationToClient(

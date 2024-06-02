@@ -121,7 +121,9 @@ public final class TestSourceKitLSPClient: MessageHandler {
     if let moduleCache {
       serverOptions.buildSetup.flags.swiftCompilerFlags += ["-module-cache-path", moduleCache.path]
     }
-    serverOptions.indexOptions.enableBackgroundIndexing = enableBackgroundIndexing
+    if enableBackgroundIndexing {
+      serverOptions.experimentalFeatures.append(.backgroundIndexing)
+    }
 
     var notificationYielder: AsyncStream<any NotificationType>.Continuation!
     self.notifications = AsyncStream { continuation in

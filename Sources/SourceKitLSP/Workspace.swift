@@ -108,7 +108,7 @@ public final class Workspace: Sendable {
       mainFilesProvider: uncheckedIndex,
       toolchainRegistry: toolchainRegistry
     )
-    if options.indexOptions.enableBackgroundIndexing,
+    if options.experimentalFeatures.contains(.backgroundIndexing),
       let uncheckedIndex,
       await buildSystemManager.supportsPreparation
     {
@@ -247,37 +247,22 @@ public struct IndexOptions: Sendable {
   /// explicit calls to pollForUnitChangesAndWait().
   public var listenToUnitEvents: Bool
 
-  /// Whether background indexing should be enabled.
-  public var enableBackgroundIndexing: Bool
-
   /// The percentage of the machine's cores that should at most be used for background indexing.
   ///
   /// Setting this to a value < 1 ensures that background indexing doesn't use all CPU resources.
   public var maxCoresPercentageToUseForBackgroundIndexing: Double
-
-  /// Whether to show the files that are currently being indexed / the targets that are currently being prepared in the
-  /// work done progress.
-  ///
-  /// This is an option because VS Code tries to render a multi-line work done progress into a single line text field in
-  /// the status bar, which looks broken. But at the same time, it is very useful to get a feeling about what's
-  /// currently happening indexing-wise.
-  public var showActivePreparationTasksInProgress: Bool
 
   public init(
     indexStorePath: AbsolutePath? = nil,
     indexDatabasePath: AbsolutePath? = nil,
     indexPrefixMappings: [PathPrefixMapping]? = nil,
     listenToUnitEvents: Bool = true,
-    enableBackgroundIndexing: Bool = false,
-    maxCoresPercentageToUseForBackgroundIndexing: Double = 1,
-    showActivePreparationTasksInProgress: Bool = false
+    maxCoresPercentageToUseForBackgroundIndexing: Double = 1
   ) {
     self.indexStorePath = indexStorePath
     self.indexDatabasePath = indexDatabasePath
     self.indexPrefixMappings = indexPrefixMappings
     self.listenToUnitEvents = listenToUnitEvents
-    self.enableBackgroundIndexing = enableBackgroundIndexing
     self.maxCoresPercentageToUseForBackgroundIndexing = maxCoresPercentageToUseForBackgroundIndexing
-    self.showActivePreparationTasksInProgress = showActivePreparationTasksInProgress
   }
 }
