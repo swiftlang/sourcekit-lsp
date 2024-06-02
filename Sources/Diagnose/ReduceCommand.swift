@@ -22,8 +22,7 @@ import class TSCUtility.PercentProgressAnimation
 public struct ReduceCommand: AsyncParsableCommand {
   public static let configuration: CommandConfiguration = CommandConfiguration(
     commandName: "reduce",
-    abstract: "Reduce a single sourcekitd crash",
-    shouldDisplay: false
+    abstract: "Reduce a single sourcekitd crash"
   )
 
   @Option(name: .customLong("request-file"), help: "Path to a sourcekitd request to reduce.")

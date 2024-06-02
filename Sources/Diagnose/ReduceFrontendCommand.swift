@@ -22,8 +22,7 @@ import class TSCUtility.PercentProgressAnimation
 public struct ReduceFrontendCommand: AsyncParsableCommand {
   public static let configuration: CommandConfiguration = CommandConfiguration(
     commandName: "reduce-frontend",
-    abstract: "Reduce a single swift-frontend crash",
-    shouldDisplay: false
+    abstract: "Reduce a single swift-frontend crash"
   )
 
   #if canImport(Darwin)

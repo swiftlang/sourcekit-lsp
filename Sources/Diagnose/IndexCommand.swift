@@ -55,8 +55,7 @@ private actor IndexLogMessageHandler: MessageHandler {
 public struct IndexCommand: AsyncParsableCommand {
   public static let configuration: CommandConfiguration = CommandConfiguration(
     commandName: "index",
-    abstract: "Index a project and print all the processes executed for it as well as their outputs",
-    shouldDisplay: false
+    abstract: "Index a project and print all the processes executed for it as well as their outputs"
   )
 
   @Option(
