@@ -98,7 +98,11 @@ actor IndexProgressManager {
       // `indexTasksWereScheduled` calls yet but the semantic index managers already track them in their in-progress tasks.
       // Clip the finished tasks to 0 because showing a negative number there looks stupid.
       let finishedTasks = max(queuedIndexTasks - indexTasks.count, 0)
-      message = "\(finishedTasks) / \(queuedIndexTasks)"
+      if indexTasks.isEmpty {
+        message = "Preparing targets"
+      } else {
+        message = "\(finishedTasks) / \(queuedIndexTasks)"
+      }
       if await sourceKitLSPServer.options.experimentalFeatures.contains(.showActivePreparationTasksInProgress) {
         var inProgressTasks: [String] = []
         inProgressTasks += preparationTasks.filter { $0.value == .executing }
