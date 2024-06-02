@@ -31,10 +31,6 @@ final class MainFilesProviderTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -71,10 +67,6 @@ final class MainFilesProviderTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -123,10 +115,6 @@ final class MainFilesProviderTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -172,10 +160,6 @@ final class MainFilesProviderTests: XCTestCase {
         "Sources/MyFancyLibrary/MyFancyLibrary.c": "",
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [

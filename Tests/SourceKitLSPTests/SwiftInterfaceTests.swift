@@ -66,10 +66,6 @@ final class SwiftInterfaceTests: XCTestCase {
         "Exec/main.swift": "import MyLibrary",
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -162,10 +158,6 @@ final class SwiftInterfaceTests: XCTestCase {
         "Exec/main.swift": "import 1️⃣MyLibrary",
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [

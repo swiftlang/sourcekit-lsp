@@ -117,10 +117,6 @@ final class BackgroundIndexingTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -181,10 +177,6 @@ final class BackgroundIndexingTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -231,8 +223,6 @@ final class BackgroundIndexingTests: XCTestCase {
         """
       ],
       manifest: """
-        // swift-tools-version: 5.7
-        import PackageDescription
         let package = Package(
           name: "MyLibrary",
           dependencies: [.package(url: "\(dependencyProject.packageDirectory)", from: "1.0.0")],
@@ -562,10 +552,6 @@ final class BackgroundIndexingTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -686,10 +672,6 @@ final class BackgroundIndexingTests: XCTestCase {
         "LibD/LibD.swift": "",
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -801,10 +783,6 @@ final class BackgroundIndexingTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -909,10 +887,6 @@ final class BackgroundIndexingTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
