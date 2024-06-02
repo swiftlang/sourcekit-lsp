@@ -24,8 +24,15 @@ public struct LogMessageNotification: NotificationType, Hashable {
   /// The contents of the message.
   public var message: String
 
-  public init(type: WindowMessageType, message: String) {
+  /// If specified, the client should log the message to a log with this name instead of the standard log for this LSP
+  /// server.
+  ///
+  /// **(LSP Extension)**
+  public var logName: String?
+
+  public init(type: WindowMessageType, message: String, logName: String?) {
     self.type = type
     self.message = message
+    self.logName = logName
   }
 }
