@@ -177,7 +177,7 @@ public class SwiftPMTestProject: MultiFileTestProject {
     if !manifest.contains("swift-tools-version") {
       // Tests specify a shorthand package manifest that doesn't contain the tools version boilerplate.
       manifest = """
-        // swift-tools-version: 5.7
+        // swift-tools-version: 5.10
 
         import PackageDescription
 

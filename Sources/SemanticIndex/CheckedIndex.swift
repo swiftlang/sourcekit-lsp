@@ -176,10 +176,6 @@ public struct UncheckedIndex: Sendable {
     return CheckedIndex(index: underlyingIndexStoreDB, checkLevel: checkLevel)
   }
 
-  public func symbolProvider(for sourceFilePath: String) -> SymbolProviderKind? {
-    return underlyingIndexStoreDB.symbolProvider(for: sourceFilePath)
-  }
-
   /// Wait for IndexStoreDB to be updated based on new unit files written to disk.
   public func pollForUnitChangesAndWait() {
     self.underlyingIndexStoreDB.pollForUnitChangesAndWait()
