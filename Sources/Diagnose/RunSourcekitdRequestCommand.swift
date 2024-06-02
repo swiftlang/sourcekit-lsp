@@ -21,8 +21,7 @@ import struct TSCBasic.AbsolutePath
 public struct RunSourceKitdRequestCommand: AsyncParsableCommand {
   public static let configuration = CommandConfiguration(
     commandName: "run-sourcekitd-request",
-    abstract: "Run a sourcekitd request and print its result",
-    shouldDisplay: false
+    abstract: "Run a sourcekitd request and print its result"
   )
 
   @Option(
