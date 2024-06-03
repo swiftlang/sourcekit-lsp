@@ -15,12 +15,4 @@
 public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
   /// Enable background indexing.
   case backgroundIndexing = "background-indexing"
-
-  /// Show the files that are currently being indexed / the targets that are currently being prepared in the work done
-  /// progress.
-  ///
-  /// This is an option because VS Code tries to render a multi-line work done progress into a single line text field in
-  /// the status bar, which looks broken. But at the same time, it is very useful to get a feeling about what's
-  /// currently happening indexing-wise.
-  case showActivePreparationTasksInProgress = "show-active-preparation-tasks-in-progress"
 }
