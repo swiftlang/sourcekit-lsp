@@ -106,12 +106,8 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     in buildTarget: ConfiguredTarget,
     language: Language
   ) async -> FileBuildSettings? {
-    guard let url = document.fileURL else {
-      // We can't determine build settings for non-file URIs.
-      return nil
-    }
-    guard let db = database(for: url),
-      let cmd = db[url].first
+    guard let db = database(for: document),
+      let cmd = db[document].first
     else { return nil }
     return FileBuildSettings(
       compilerArguments: Array(cmd.commandLine.dropFirst()),
@@ -153,8 +149,8 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     self.watchedFiles.remove(uri)
   }
 
-  private func database(for url: URL) -> CompilationDatabase? {
-    if let path = try? AbsolutePath(validating: url.path) {
+  private func database(for uri: DocumentURI) -> CompilationDatabase? {
+    if let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) {
       return database(for: path)
     }
     return compdb
@@ -212,10 +208,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
   }
 
   public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    guard let fileUrl = uri.fileURL else {
-      return .unhandled
-    }
-    if database(for: fileUrl) != nil {
+    if database(for: uri) != nil {
       return .handled
     } else {
       return .unhandled
@@ -227,7 +220,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
       return []
     }
     return compdb.allCommands.map {
-      SourceFileInfo(uri: DocumentURI($0.url), isPartOfRootProject: true, mayContainTests: true)
+      SourceFileInfo(uri: $0.uri, isPartOfRootProject: true, mayContainTests: true)
     }
   }
 

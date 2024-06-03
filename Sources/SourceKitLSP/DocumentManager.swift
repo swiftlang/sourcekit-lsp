@@ -191,12 +191,12 @@ public final class DocumentManager: InMemoryDocumentManager, Sendable {
     }
   }
 
-  public func fileHasInMemoryModifications(_ url: URL) -> Bool {
-    guard let document = try? latestSnapshot(DocumentURI(url)) else {
+  public func fileHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
+    guard let document = try? latestSnapshot(uri), let fileURL = uri.fileURL else {
       return false
     }
 
-    guard let onDiskFileContents = try? String(contentsOf: url, encoding: .utf8) else {
+    guard let onDiskFileContents = try? String(contentsOf: fileURL, encoding: .utf8) else {
       // If we can't read the file on disk, it can't match any on-disk state, so it's in-memory state
       return true
     }

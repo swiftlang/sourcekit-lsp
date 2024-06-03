@@ -97,8 +97,10 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [.target(name: "lib", dependencies: [])])
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
           """,
         ]
       )
@@ -126,8 +128,10 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [.target(name: "lib", dependencies: [])])
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
           """,
         ]
       )
@@ -179,6 +183,61 @@ final class SwiftPMBuildSystemTests: XCTestCase {
     }
   }
 
+  func testCompilerArgumentsForFileThatContainsPlusCharacterURLEncoded() async throws {
+    try await withTestScratchDir { tempDir in
+      try localFileSystem.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Sources/lib/a+something.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
+          """,
+        ]
+      )
+      let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
+      let tr = ToolchainRegistry.forTesting
+      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
+        workspacePath: packageRoot,
+        toolchainRegistry: tr,
+        fileSystem: localFileSystem,
+        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+        isForIndexBuild: false
+      )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
+
+      let aPlusSomething = packageRoot.appending(components: "Sources", "lib", "a+something.swift")
+      let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
+      let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
+
+      assertEqual(await swiftpmBuildSystem.buildPath, build)
+      assertNotNil(await swiftpmBuildSystem.indexStorePath)
+      let arguments = try await unwrap(
+        swiftpmBuildSystem.buildSettings(
+          for: DocumentURI(URL(string: "file://\(aPlusSomething.asURL.path.replacing("+", with: "%2B"))")!),
+          language: .swift
+        )
+      )
+      .compilerArguments
+
+      // Check that we have both source files in the compiler arguments, which means that we didn't compute the compiler
+      // arguments for a+something.swift using substitute arguments from a.swift.
+      XCTAssert(
+        arguments.contains(aPlusSomething.pathString),
+        "Compiler arguments do not contain a+something.swift: \(arguments)"
+      )
+      XCTAssert(
+        arguments.contains(packageRoot.appending(components: "Sources", "lib", "a.swift").pathString),
+        "Compiler arguments do not contain a.swift: \(arguments)"
+      )
+    }
+  }
+
   func testBuildSetup() async throws {
     let fs = localFileSystem
     try await withTestScratchDir { tempDir in
@@ -189,8 +248,10 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [.target(name: "lib", dependencies: [])])
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
           """,
         ]
       )
@@ -237,8 +298,10 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [.target(name: "lib", dependencies: [])])
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
           """,
         ]
       )
@@ -273,8 +336,9 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [.target(name: "lib", dependencies: [])])
+          let package = Package(name: "a",
+            targets: [.target(name: "lib")]
+          )
           """,
         ]
       )
@@ -316,12 +380,14 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
+          let package = Package(
+            name: "a",
             targets: [
               .target(name: "libA", dependencies: ["libB", "libC"]),
-              .target(name: "libB", dependencies: []),
-              .target(name: "libC", dependencies: []),
-            ])
+              .target(name: "libB"),
+              .target(name: "libC"),
+            ]
+          )
           """,
         ]
       )
@@ -383,10 +449,10 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [
-              .target(name: "libA", dependencies: []),
-            ])
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "libA")]
+          )
           """,
         ]
       )
@@ -426,9 +492,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [.target(name: "lib", dependencies: [])],
-            cxxLanguageStandard: .cxx14)
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")],
+            cxxLanguageStandard: .cxx14
+          )
           """,
         ]
       )
@@ -509,8 +577,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           import PackageDescription
           let package = Package(name: "a",
             platforms: [.macOS(.v10_13)],
-            products: [], dependencies: [],
-            targets: [.target(name: "lib", dependencies: [])])
+            targets: [.target(name: "lib")]
+          )
           """,
         ]
       )
@@ -552,8 +620,10 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           "pkg_real/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-          targets: [.target(name: "lib", dependencies: [])])
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
           """,
         ]
       )
@@ -613,9 +683,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           "pkg_real/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [.target(name: "lib", dependencies: [])],
-            cxxLanguageStandard: .cxx14)
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")],
+            cxxLanguageStandard: .cxx14
+          )
           """,
         ]
       )
@@ -662,12 +734,10 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:5.3
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [
-              .target(
-                name: "lib",
-                dependencies: [],
-                resources: [.copy("a.txt")])])
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib", resources: [.copy("a.txt")])]
+          )
           """,
         ]
       )
@@ -705,8 +775,10 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-          targets: [.target(name: "lib", dependencies: [])])
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
           """,
         ]
       )
@@ -737,8 +809,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           import PackageDescription
           let package = Package(
             name: "a",
-            products: [],
-            dependencies: [],
             targets: [
               .target(name: "lib"),
               .plugin(name: "MyPlugin", capability: .buildTool)

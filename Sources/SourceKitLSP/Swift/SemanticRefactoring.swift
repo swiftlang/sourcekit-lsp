@@ -33,7 +33,7 @@ struct SemanticRefactoring {
   /// - Parameters:
   ///   - title: The title of the refactoring action.
   ///   - dict: Response dictionary to extract information from.
-  ///   - url: The client URL that triggered the `semantic_refactoring` request.
+  ///   - snapshot: The snapshot that triggered the `semantic_refactoring` request.
   ///   - keys: The sourcekitd key set to use for looking up into `dict`.
   init?(_ title: String, _ dict: SKDResponseDictionary, _ snapshot: DocumentSnapshot, _ keys: sourcekitd_api_keys) {
     guard let categorizedEdits: SKDResponseArray = dict[keys.categorizedEdits] else {
@@ -108,9 +108,7 @@ extension SwiftLanguageService {
   /// Wraps the information returned by sourcekitd's `semantic_refactoring` request, such as the necessary edits and placeholder locations.
   ///
   /// - Parameters:
-  ///   - url: Document URL in which to perform the request. Must be an open document.
-  ///   - command: The semantic refactor `Command` that triggered this request.
-  ///   - completion: Completion block to asynchronously receive the SemanticRefactoring data, or error.
+  ///   - refactorCommand: The semantic refactor `Command` that triggered this request.
   func semanticRefactoring(
     _ refactorCommand: SemanticRefactorCommand
   ) async throws -> SemanticRefactoring {

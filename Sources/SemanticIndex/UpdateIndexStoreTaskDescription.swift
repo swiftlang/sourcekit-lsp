@@ -206,11 +206,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       // If we know that the file is up-to-date without having ot hit the index, do that because it's fastest.
       return
     }
-    guard let sourceFileUrl = file.sourceFile.fileURL else {
-      // The URI is not a file, so there's nothing we can index.
-      return
-    }
-    guard !index.checked(for: .modifiedFiles).hasUpToDateUnit(for: sourceFileUrl, mainFile: file.mainFile.fileURL)
+    guard !index.checked(for: .modifiedFiles).hasUpToDateUnit(for: file.sourceFile, mainFile: file.mainFile)
     else {
       logger.debug("Not indexing \(file.forLogging) because index has an up-to-date unit")
       // We consider a file's index up-to-date if we have any up-to-date unit. Changing build settings does not

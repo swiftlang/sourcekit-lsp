@@ -146,8 +146,8 @@ public actor SwiftPMBuildSystem {
     }
   }
 
-  var fileToTarget: [AbsolutePath: SwiftBuildTarget] = [:]
-  var sourceDirToTarget: [AbsolutePath: SwiftBuildTarget] = [:]
+  var fileToTarget: [DocumentURI: SwiftBuildTarget] = [:]
+  var sourceDirToTarget: [DocumentURI: SwiftBuildTarget] = [:]
 
   /// Maps configured targets ids to their SwiftPM build target as well as an index in their topological sorting.
   ///
@@ -286,15 +286,18 @@ public actor SwiftPMBuildSystem {
   ///   - reloadPackageStatusCallback: Will be informed when `reloadPackage` starts and ends executing.
   /// - Returns: nil if `workspacePath` is not part of a package or there is an error.
   public init?(
-    url: URL,
+    uri: DocumentURI,
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
     isForIndexBuild: Bool,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void
   ) async {
+    guard let fileURL = uri.fileURL else {
+      return nil
+    }
     do {
       try await self.init(
-        workspacePath: try TSCAbsolutePath(validating: url.path),
+        workspacePath: try TSCAbsolutePath(validating: fileURL.path),
         toolchainRegistry: toolchainRegistry,
         fileSystem: localFileSystem,
         buildSetup: buildSetup,
@@ -304,7 +307,7 @@ public actor SwiftPMBuildSystem {
     } catch Error.noManifest {
       return nil
     } catch {
-      logger.error("failed to create SwiftPMWorkspace at \(url.path): \(error.forLogging)")
+      logger.error("failed to create SwiftPMWorkspace at \(uri.forLogging): \(error.forLogging)")
       return nil
     }
   }
@@ -351,13 +354,13 @@ extension SwiftPMBuildSystem {
       }
     )
 
-    self.fileToTarget = [AbsolutePath: SwiftBuildTarget](
+    self.fileToTarget = [DocumentURI: SwiftBuildTarget](
       modulesGraph.allTargets.flatMap { target in
         return target.sources.paths.compactMap {
           guard let buildTarget = buildDescription.getBuildTarget(for: target, in: modulesGraph) else {
             return nil
           }
-          return (key: $0, value: buildTarget)
+          return (key: DocumentURI($0.asURL), value: buildTarget)
         }
       },
       uniquingKeysWith: { td, _ in
@@ -366,12 +369,12 @@ extension SwiftPMBuildSystem {
       }
     )
 
-    self.sourceDirToTarget = [AbsolutePath: SwiftBuildTarget](
-      modulesGraph.allTargets.compactMap { (target) -> (AbsolutePath, SwiftBuildTarget)? in
+    self.sourceDirToTarget = [DocumentURI: SwiftBuildTarget](
+      modulesGraph.allTargets.compactMap { (target) -> (DocumentURI, SwiftBuildTarget)? in
         guard let buildTarget = buildDescription.getBuildTarget(for: target, in: modulesGraph) else {
           return nil
         }
-        return (key: target.sources.root, value: buildTarget)
+        return (key: DocumentURI(target.sources.root.asURL), value: buildTarget)
       },
       uniquingKeysWith: { td, _ in
         // FIXME: is there  a preferred target?
@@ -387,6 +390,13 @@ extension SwiftPMBuildSystem {
     for testFilesDidChangeCallback in testFilesDidChangeCallbacks {
       await testFilesDidChangeCallback()
     }
+  }
+}
+
+fileprivate struct NonFileURIError: Error, CustomStringConvertible {
+  let uri: DocumentURI
+  var description: String {
+    "Trying to get build settings for non-file URI: \(uri)"
   }
 }
 
@@ -410,8 +420,11 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
 
   /// Return the compiler arguments for the given source file within a target, making any necessary adjustments to
   /// account for differences in the SwiftPM versions being linked into SwiftPM and being installed in the toolchain.
-  private func compilerArguments(for file: URL, in buildTarget: any SwiftBuildTarget) async throws -> [String] {
-    let compileArguments = try buildTarget.compileArguments(for: file)
+  private func compilerArguments(for file: DocumentURI, in buildTarget: any SwiftBuildTarget) async throws -> [String] {
+    guard let fileURL = file.fileURL else {
+      throw NonFileURIError(uri: file)
+    }
+    let compileArguments = try buildTarget.compileArguments(for: fileURL)
 
     #if compiler(>=6.1)
     #warning("When we drop support for Swift 5.10 we no longer need to adjust compiler arguments for the Modules move")
@@ -449,9 +462,10 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       return nil
     }
 
-    if !buildTarget.sources.contains(url),
+    if !buildTarget.sources.lazy.map(DocumentURI.init).contains(uri),
       let substituteFile = buildTarget.sources.sorted(by: { $0.path < $1.path }).first
     {
+      logger.info("Getting compiler arguments for \(url) using substitute file \(substituteFile)")
       // If `url` is not part of the target's source, it's most likely a header file. Fake compiler arguments for it
       // from a substitute file within the target.
       // Even if the file is not a header, this should give reasonable results: Say, there was a new `.cpp` file in a
@@ -460,13 +474,13 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       // getting its compiler arguments and then patching up the compiler arguments by replacing the substitute file
       // with the `.cpp` file.
       return FileBuildSettings(
-        compilerArguments: try await compilerArguments(for: substituteFile, in: buildTarget),
+        compilerArguments: try await compilerArguments(for: DocumentURI(substituteFile), in: buildTarget),
         workingDirectory: workspacePath.pathString
       ).patching(newFile: try resolveSymlinks(path).pathString, originalFile: substituteFile.absoluteString)
     }
 
     return FileBuildSettings(
-      compilerArguments: try await compilerArguments(for: url, in: buildTarget),
+      compilerArguments: try await compilerArguments(for: uri, in: buildTarget),
       workingDirectory: workspacePath.pathString
     )
   }
@@ -483,7 +497,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       return []
     }
 
-    if let target = try? buildTarget(for: path) {
+    if let target = buildTarget(for: uri) {
       return [ConfiguredTarget(target)]
     }
 
@@ -655,13 +669,15 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
   }
 
   /// Returns the resolved target description for the given file, if one is known.
-  private func buildTarget(for file: AbsolutePath) throws -> SwiftBuildTarget? {
+  private func buildTarget(for file: DocumentURI) -> SwiftBuildTarget? {
     if let td = fileToTarget[file] {
       return td
     }
 
-    let realpath = try resolveSymlinks(file)
-    if realpath != file, let td = fileToTarget[realpath] {
+    if let fileURL = file.fileURL,
+      let realpath = try? resolveSymlinks(AbsolutePath(validating: fileURL.path)),
+      let td = fileToTarget[DocumentURI(realpath.asURL)]
+    {
       fileToTarget[file] = td
       return td
     }
@@ -704,11 +720,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     // If a Swift file within a target is updated, reload all the other files within the target since they might be
     // referring to a function in the updated file.
     for event in events {
-      guard let url = event.uri.fileURL,
-        url.pathExtension == "swift",
-        let absolutePath = try? AbsolutePath(validating: url.path),
-        let target = fileToTarget[absolutePath]
-      else {
+      guard event.uri.fileURL?.pathExtension == "swift", let target = fileToTarget[event.uri] else {
         continue
       }
       filesWithUpdatedDependencies.formUnion(target.sources.map { DocumentURI($0) })
@@ -724,7 +736,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     // If we have background indexing enabled, this is not necessary because we call `fileDependenciesUpdated` when
     // preparation of a target finishes.
     if !isForIndexBuild, events.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" }) {
-      filesWithUpdatedDependencies.formUnion(self.fileToTarget.keys.map { DocumentURI($0.asURL) })
+      filesWithUpdatedDependencies.formUnion(self.fileToTarget.keys)
     }
     await self.fileDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
   }
@@ -737,11 +749,11 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
   }
 
   public func sourceFiles() -> [SourceFileInfo] {
-    return fileToTarget.compactMap { (path, target) -> SourceFileInfo? in
+    return fileToTarget.compactMap { (uri, target) -> SourceFileInfo? in
       // We should only set mayContainTests to `true` for files from test targets
       // (https://github.com/apple/sourcekit-lsp/issues/1174).
       return SourceFileInfo(
-        uri: DocumentURI(path.asURL),
+        uri: uri,
         isPartOfRootProject: target.isPartOfRootPackage,
         mayContainTests: true
       )
@@ -782,7 +794,7 @@ extension SwiftPMBuildSystem {
     func impl(_ path: AbsolutePath) throws -> ConfiguredTarget? {
       var dir = path.parentDirectory
       while !dir.isRoot {
-        if let buildTarget = sourceDirToTarget[dir] {
+        if let buildTarget = sourceDirToTarget[DocumentURI(dir.asURL)] {
           return ConfiguredTarget(buildTarget)
         }
         dir = dir.parentDirectory

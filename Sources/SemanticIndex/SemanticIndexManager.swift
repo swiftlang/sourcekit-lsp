@@ -260,13 +260,7 @@ public final actor SemanticIndexManager {
         await testHooks.buildGraphGenerationDidFinish?()
         let index = index.checked(for: .modifiedFiles)
         let filesToIndex = await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
-          .filter { uri in
-            guard let url = uri.fileURL else {
-              // The URI is not a file, so there's nothing we can index.
-              return false
-            }
-            return !index.hasUpToDateUnit(for: url)
-          }
+          .filter { !index.hasUpToDateUnit(for: $0) }
         await scheduleBackgroundIndex(files: filesToIndex)
         generateBuildGraphTask = nil
       }
