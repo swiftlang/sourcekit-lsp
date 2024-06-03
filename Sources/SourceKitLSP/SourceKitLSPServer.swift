@@ -532,26 +532,25 @@ private nonisolated(unsafe) var notificationIDForLogging = AtomicUInt32(initialV
 
 extension SourceKitLSPServer: MessageHandler {
   public nonisolated func handle(_ params: some NotificationType) {
-    if let params = params as? CancelRequestNotification {
-      // Request cancellation needs to be able to overtake any other message we
-      // are currently handling. Ordering is not important here. We thus don't
-      // need to execute it on `messageHandlingQueue`.
-      self.cancelRequest(params)
-    }
-
     let notificationID = notificationIDForLogging.fetchAndIncrement()
+    withLoggingScope("notification-\(notificationID % 100)") {
+      if let params = params as? CancelRequestNotification {
+        // Request cancellation needs to be able to overtake any other message we
+        // are currently handling. Ordering is not important here. We thus don't
+        // need to execute it on `messageHandlingQueue`.
+        self.cancelRequest(params)
+      }
 
-    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "message-handling")
-      .makeSignposter()
-    let signpostID = signposter.makeSignpostID()
-    let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: params))")
-    messageHandlingQueue.async(metadata: MessageHandlingDependencyTracker(params)) {
-      signposter.emitEvent("Start handling", id: signpostID)
+      let signposter = Logger(subsystem: LoggingScope.subsystem, category: "message-handling")
+        .makeSignposter()
+      let signpostID = signposter.makeSignpostID()
+      let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: params))")
+      messageHandlingQueue.async(metadata: MessageHandlingDependencyTracker(params)) {
+        signposter.emitEvent("Start handling", id: signpostID)
 
-      // Only use the last two digits of the notification ID for the logging scope to avoid creating too many scopes.
-      // See comment in `withLoggingScope`.
-      // The last 2 digits should be sufficient to differentiate between multiple concurrently running notifications.
-      await withLoggingScope("notification-\(notificationID % 100)") {
+        // Only use the last two digits of the notification ID for the logging scope to avoid creating too many scopes.
+        // See comment in `withLoggingScope`.
+        // The last 2 digits should be sufficient to differentiate between multiple concurrently running notifications.
         await self.handleImpl(params)
         signposter.endInterval("Notification", state, "Done")
       }
@@ -2406,7 +2405,7 @@ fileprivate extension RequestID {
   var numericValue: Int {
     switch self {
     case .number(let number): return number
-    case .string(let string): return Int(string) ?? string.hashValue
+    case .string(let string): return Int(string) ?? abs(string.hashValue)
     }
   }
 }
