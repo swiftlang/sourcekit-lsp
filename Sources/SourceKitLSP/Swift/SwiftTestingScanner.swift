@@ -317,8 +317,10 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
       return .skipChildren
     }
 
-    let name =
-      identifier.name + "(" + node.signature.parameterClause.parameters.map { "\($0.firstName.identifier?.name ?? $0.firstName.text):" }.joined() + ")"
+    let parameters = node.signature.parameterClause.parameters.map {
+      "\($0.firstName.identifier?.name ?? $0.firstName.text):"
+    }.joined()
+    let name = "\(identifier.name)(\(parameters))"
 
     let range = snapshot.absolutePositionRange(
       of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia
