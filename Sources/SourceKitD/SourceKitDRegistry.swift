@@ -35,10 +35,10 @@ extension NSLock {
 public actor SourceKitDRegistry {
 
   /// Mapping from path to active SourceKitD instance.
-  var active: [AbsolutePath: SourceKitD] = [:]
+  private var active: [AbsolutePath: SourceKitD] = [:]
 
   /// Instances that have been unregistered, but may be resurrected if accessed before destruction.
-  var cemetary: [AbsolutePath: WeakSourceKitD] = [:]
+  private var cemetary: [AbsolutePath: WeakSourceKitD] = [:]
 
   /// Initialize an empty registry.
   public init() {}
@@ -79,14 +79,8 @@ public actor SourceKitDRegistry {
     }
     return existing
   }
-
-  /// Remove all SourceKitD instances, including weak ones.
-  public func clear() {
-    active.removeAll()
-    cemetary.removeAll()
-  }
 }
 
-struct WeakSourceKitD {
+fileprivate struct WeakSourceKitD {
   weak var value: SourceKitD?
 }
