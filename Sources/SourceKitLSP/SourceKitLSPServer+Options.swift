@@ -50,7 +50,7 @@ extension SourceKitLSPServer {
     public var swiftPublishDiagnosticsDebounceDuration: TimeInterval
 
     /// Experimental features that are enabled.
-    public var experimentalFeatures: [ExperimentalFeature]
+    public var experimentalFeatures: Set<ExperimentalFeature>
 
     public var indexTestHooks: IndexTestHooks
 
@@ -62,7 +62,7 @@ extension SourceKitLSPServer {
       completionOptions: SKCompletionOptions = .init(),
       generatedInterfacesPath: AbsolutePath = defaultDirectoryForGeneratedInterfaces,
       swiftPublishDiagnosticsDebounceDuration: TimeInterval = 2, /* 2s */
-      experimentalFeatures: [ExperimentalFeature] = [],
+      experimentalFeatures: Set<ExperimentalFeature> = [],
       indexTestHooks: IndexTestHooks = IndexTestHooks()
     ) {
       self.buildSetup = buildSetup

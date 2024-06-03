@@ -38,7 +38,7 @@ func createBuildSystem(
       uri: rootUri,
       toolchainRegistry: toolchainRegistry,
       buildSetup: options.buildSetup,
-      isForIndexBuild: options.experimentalFeatures.contains(.backgroundIndexing),
+      experimentalFeatures: options.experimentalFeatures,
       reloadPackageStatusCallback: reloadPackageStatusCallback
     )
   }
