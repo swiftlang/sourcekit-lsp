@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SwiftExtensions
 
 // MARK: - Log settings
 
@@ -261,22 +262,34 @@ private let dateFormatter = {
   return dateFormatter
 }()
 
+/// Actor that protects `logHandler`
+@globalActor
+actor LogHandlerActor {
+  static var shared: LogHandlerActor = LogHandlerActor()
+}
+
+/// The handler that is called to log a message from `NonDarwinLogger` unless `overrideLogHandler` is set on the logger.
+@LogHandlerActor
+var logHandler: @Sendable (String) async -> Void = { fputs($0 + "\n", stderr) }
+
 /// The queue on which we log messages.
 ///
 /// A global queue since we create and discard loggers all the time.
-private let loggingQueue: DispatchQueue = DispatchQueue(label: "loggingQueue", qos: .utility)
+private let loggingQueue = AsyncQueue<Serial>()
 
 /// A logger that is designed to be API-compatible with `os.Logger` for all uses
 /// in sourcekit-lsp.
 ///
 /// This logger is used to log messages to stderr on platforms where OSLog is
 /// not available.
+///
+/// `overrideLogHandler` allows capturing of the logged messages for testing purposes.
 public struct NonDarwinLogger: Sendable {
   private let subsystem: String
   private let category: String
   private let logLevel: NonDarwinLogLevel
   private let privacyLevel: NonDarwinLogPrivacy
-  private let logHandler: @Sendable (String) -> Void
+  private let overrideLogHandler: (@Sendable (String) -> Void)?
 
   /// - Parameters:
   ///   - subsystem: See os.Logger
@@ -291,13 +304,13 @@ public struct NonDarwinLogger: Sendable {
     category: String,
     logLevel: NonDarwinLogLevel? = nil,
     privacyLevel: NonDarwinLogPrivacy? = nil,
-    logHandler: @escaping @Sendable (String) -> Void = { fputs($0 + "\n", stderr) }
+    overrideLogHandler: (@Sendable (String) -> Void)? = nil
   ) {
     self.subsystem = subsystem
     self.category = category
     self.logLevel = logLevel ?? LogConfig.logLevel
     self.privacyLevel = privacyLevel ?? LogConfig.privacyLevel
-    self.logHandler = logHandler
+    self.overrideLogHandler = overrideLogHandler
   }
 
   /// Logs the given message at the given level.
@@ -310,7 +323,7 @@ public struct NonDarwinLogger: Sendable {
   ) {
     guard level >= self.logLevel else { return }
     let date = Date()
-    loggingQueue.async {
+    loggingQueue.async(priority: .utility) { @LogHandlerActor in
       // Truncate log message after 10.000 characters to avoid flooding the log with huge log messages (eg. from a
       // sourcekitd response). 10.000 characters was chosen because it seems to fit the result of most sourcekitd
       // responses that are not generated interface or global completion results (which are a lot bigger).
@@ -321,7 +334,7 @@ public struct NonDarwinLogger: Sendable {
         message = message.prefix(10_000) + "..."
       }
       // Start each log message with `[org.swift.sourcekit-lsp` so that it’s easy to split the log to the different messages
-      logHandler(
+      await (overrideLogHandler ?? logHandler)(
         """
         [\(subsystem):\(category)] \(level) \(dateFormatter.string(from: date))
         \(message)
@@ -361,8 +374,8 @@ public struct NonDarwinLogger: Sendable {
   /// Useful for testing to make sure all asynchronous log calls have actually
   /// written their data.
   @_spi(Testing)
-  public static func flush() {
-    loggingQueue.sync {}
+  public static func flush() async {
+    await loggingQueue.async {}.value
   }
 
   public func makeSignposter() -> NonDarwinSignposter {

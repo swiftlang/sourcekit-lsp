@@ -161,7 +161,8 @@ let package = Package(
     .target(
       name: "LSPLogging",
       dependencies: [
-        .product(name: "Crypto", package: "swift-crypto")
+        "SwiftExtensions",
+        .product(name: "Crypto", package: "swift-crypto"),
       ],
       exclude: ["CMakeLists.txt"],
       swiftSettings: lspLoggingSwiftSettings + [.enableExperimentalFeature("StrictConcurrency")]

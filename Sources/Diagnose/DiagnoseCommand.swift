@@ -233,6 +233,32 @@ public struct DiagnoseCommand: AsyncParsableCommand {
   }
 
   @MainActor
+  private func addNonDarwinLogs(toBundle bundlePath: URL) async throws {
+    reportProgress(.collectingLogMessages(progress: 0), message: "Collecting log files")
+
+    let destinationDir = bundlePath.appendingPathComponent("logs")
+    try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true)
+
+    let logFileDirectoryURL = URL(fileURLWithPath: ("~/.sourcekit-lsp/logs" as NSString).expandingTildeInPath)
+    let enumerator = FileManager.default.enumerator(at: logFileDirectoryURL, includingPropertiesForKeys: nil)
+    while let fileUrl = enumerator?.nextObject() as? URL {
+      guard fileUrl.lastPathComponent.hasPrefix("sourcekit-lsp") else {
+        continue
+      }
+      try? FileManager.default.copyItem(
+        at: fileUrl,
+        to: destinationDir.appendingPathComponent(fileUrl.lastPathComponent)
+      )
+    }
+  }
+
+  @MainActor
+  private func addLogs(toBundle bundlePath: URL) async throws {
+    try await addNonDarwinLogs(toBundle: bundlePath)
+    try await addOsLog(toBundle: bundlePath)
+  }
+
+  @MainActor
   private func addCrashLogs(toBundle bundlePath: URL) throws {
     #if os(macOS)
     reportProgress(.collectingCrashReports, message: "Collecting crash reports")
@@ -328,7 +354,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
       await orPrintError { try addCrashLogs(toBundle: bundlePath) }
     }
     if components.isEmpty || components.contains(.logs) {
-      await orPrintError { try await addOsLog(toBundle: bundlePath) }
+      await orPrintError { try await addLogs(toBundle: bundlePath) }
     }
     if components.isEmpty || components.contains(.swiftVersions) {
       await orPrintError { try await addSwiftVersion(toBundle: bundlePath) }
