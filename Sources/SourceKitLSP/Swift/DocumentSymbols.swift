@@ -171,10 +171,11 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
   }
 
   override func visit(_ node: DeinitializerDeclSyntax) -> SyntaxVisitorContinueKind {
+    // LSP doesn't have a destructor kind. constructor is the closest match and also what clangd for destructors.
     return record(
       node: node,
       name: node.deinitKeyword.text,
-      symbolKind: .null,
+      symbolKind: .constructor,
       range: node.rangeWithoutTrivia,
       selection: node.deinitKeyword.rangeWithoutTrivia
     )

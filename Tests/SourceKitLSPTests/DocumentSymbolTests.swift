@@ -748,7 +748,7 @@ final class DocumentSymbolTests: XCTestCase {
           children: [
             DocumentSymbol(
               name: "deinit",
-              kind: .null,
+              kind: .constructor,
               range: positions["4️⃣"]..<positions["6️⃣"],
               selectionRange: positions["4️⃣"]..<positions["5️⃣"],
               children: []
