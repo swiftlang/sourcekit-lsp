@@ -224,6 +224,7 @@ struct SourceKitLSP: AsyncParsableCommand {
     serverOptions.indexOptions.indexPrefixMappings = indexPrefixMappings
     serverOptions.completionOptions.maxResults = completionMaxResults
     serverOptions.generatedInterfacesPath = generatedInterfacesPath
+    serverOptions.experimentalFeatures = experimentalFeatures
 
     return serverOptions
   }
