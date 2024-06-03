@@ -112,3 +112,15 @@ fileprivate extension URL {
     #endif
   }
 }
+
+var globalModuleCache: URL? = {
+  if let customModuleCache = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_TEST_MODULE_CACHE"] {
+    if customModuleCache.isEmpty {
+      return nil
+    }
+    return URL(fileURLWithPath: customModuleCache)
+  }
+  return FileManager.default.temporaryDirectory.realpath
+    .appendingPathComponent("sourcekit-lsp-test-scratch")
+    .appendingPathComponent("shared-module-cache")
+}()

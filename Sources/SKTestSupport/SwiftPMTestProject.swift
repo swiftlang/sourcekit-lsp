@@ -209,7 +209,7 @@ public class SwiftPMTestProject: MultiFileTestProject {
     guard let swift = await ToolchainRegistry.forTesting.default?.swift?.asURL else {
       throw Error.swiftNotFound
     }
-    let arguments = [
+    var arguments = [
       swift.path,
       "build",
       "--package-path", path.path,
@@ -217,6 +217,11 @@ public class SwiftPMTestProject: MultiFileTestProject {
       "-Xswiftc", "-index-ignore-system-modules",
       "-Xcc", "-index-ignore-system-symbols",
     ]
+    if let globalModuleCache {
+      arguments += [
+        "-Xswiftc", "-module-cache-path", "-Xswiftc", globalModuleCache.path,
+      ]
+    }
     var environment = ProcessEnv.block
     // FIXME: SwiftPM does not index-while-building on non-Darwin platforms for C-family files (rdar://117744039).
     // Force-enable index-while-building with the environment variable.

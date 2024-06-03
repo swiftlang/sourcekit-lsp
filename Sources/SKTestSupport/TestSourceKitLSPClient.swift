@@ -44,12 +44,6 @@ public final class TestSourceKitLSPClient: MessageHandler {
   /// `nonisolated(unsafe)` is fine because `nextRequestID` is atomic.
   private nonisolated(unsafe) var nextRequestID = AtomicUInt32(initialValue: 0)
 
-  /// If the server is not using the global module cache, the path of the local
-  /// module cache.
-  ///
-  /// This module cache will be deleted when the test server is destroyed.
-  private let moduleCache: URL?
-
   /// The server that handles the requests.
   public let server: SourceKitLSPServer
 
@@ -102,7 +96,6 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///     needed.
   public init(
     serverOptions: SourceKitLSPServer.Options = .testDefault,
-    useGlobalModuleCache: Bool = true,
     initialize: Bool = true,
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
@@ -112,14 +105,9 @@ public final class TestSourceKitLSPClient: MessageHandler {
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
     cleanUp: @Sendable @escaping () -> Void = {}
   ) async throws {
-    if !useGlobalModuleCache {
-      moduleCache = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
-    } else {
-      moduleCache = nil
-    }
     var serverOptions = serverOptions
-    if let moduleCache {
-      serverOptions.buildSetup.flags.swiftCompilerFlags += ["-module-cache-path", moduleCache.path]
+    if let globalModuleCache {
+      serverOptions.buildSetup.flags.swiftCompilerFlags += ["-module-cache-path", globalModuleCache.path]
     }
     if enableBackgroundIndexing {
       serverOptions.experimentalFeatures.append(.backgroundIndexing)
@@ -191,9 +179,6 @@ public final class TestSourceKitLSPClient: MessageHandler {
     sema.wait()
     self.send(ExitNotification())
 
-    if let moduleCache {
-      try? FileManager.default.removeItem(at: moduleCache)
-    }
     cleanUp()
   }
 

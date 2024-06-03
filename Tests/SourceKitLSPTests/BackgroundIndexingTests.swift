@@ -928,4 +928,53 @@ final class BackgroundIndexingTests: XCTestCase {
       satisfying: { $0.message.contains("Preparing") }
     )
   }
+
+  func testUseBuildFlagsDuringPreparation() async throws {
+    var serverOptions = SourceKitLSPServer.Options.testDefault
+    serverOptions.buildSetup.flags.swiftCompilerFlags += ["-D", "MY_FLAG"]
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib/Lib.swift": """
+        #if MY_FLAG
+        public func foo() -> Int { 1 }
+        #endif
+        """,
+        "Client/Client.swift": """
+        import Lib
+
+        func test() -> String {
+          return foo()
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "Lib"),
+            .target(name: "Client", dependencies: ["Lib"]),
+          ]
+        )
+        """,
+      serverOptions: serverOptions,
+      enableBackgroundIndexing: true
+    )
+
+    // Check that we get an error about the return type of `foo` (`Int`) not being convertible to the return type of
+    // `test` (`String`), which indicates that `Lib` had `foo` and was thus compiled with `-D MY_FLAG`
+    let (uri, _) = try project.openDocument("Client.swift")
+    let diagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    guard case .full(let diagnostics) = diagnostics else {
+      XCTFail("Expected full diagnostics report")
+      return
+    }
+    XCTAssert(
+      diagnostics.items.contains(where: {
+        $0.message == "Cannot convert return expression of type 'Int' to return type 'String'"
+      }),
+      "Did not get expected diagnostic: \(diagnostics)"
+    )
+  }
 }
