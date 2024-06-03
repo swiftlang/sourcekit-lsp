@@ -170,6 +170,16 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
     return .skipChildren
   }
 
+  override func visit(_ node: DeinitializerDeclSyntax) -> SyntaxVisitorContinueKind {
+    return record(
+      node: node,
+      name: node.deinitKeyword.text,
+      symbolKind: .null,
+      range: node.rangeWithoutTrivia,
+      selection: node.deinitKeyword.rangeWithoutTrivia
+    )
+  }
+
   override func visit(_ node: EnumCaseElementSyntax) -> SyntaxVisitorContinueKind {
     let rangeEnd =
       if let parameterClause = node.parameterClause {
