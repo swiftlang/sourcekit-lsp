@@ -1852,11 +1852,28 @@ extension SourceKitLSPServer {
     containerName: String?,
     location: Location
   ) -> CallHierarchyItem {
-    CallHierarchyItem(
-      name: symbol.name,
+    let name: String
+    if let containerName {
+      switch symbol.language {
+      case .objc where symbol.kind == .instanceMethod || symbol.kind == .instanceProperty:
+        name = "-[\(containerName) \(symbol.name)]"
+      case .objc where symbol.kind == .classMethod || symbol.kind == .classProperty:
+        name = "+[\(containerName) \(symbol.name)]"
+      case .cxx, .c, .objc:
+        // C shouldn't have container names for call hierarchy and Objective-C should be covered above.
+        // Fall back to using the C++ notation using `::`.
+        name = "\(containerName)::\(symbol.name)"
+      case .swift:
+        name = "\(containerName).\(symbol.name)"
+      }
+    } else {
+      name = symbol.name
+    }
+    return CallHierarchyItem(
+      name: name,
       kind: symbol.kind.asLspSymbolKind(),
       tags: nil,
-      detail: containerName,
+      detail: nil,
       uri: location.uri,
       range: location.range,
       selectionRange: location.range,
@@ -2290,8 +2307,15 @@ extension IndexSymbolKind {
       return .struct
     case .parameter:
       return .typeParameter
-
-    default:
+    case .module, .namespace:
+      return .namespace
+    case .field:
+      return .property
+    case .constructor:
+      return .constructor
+    case .destructor:
+      return .null
+    case .commentTag, .concept, .extension, .macro, .namespaceAlias, .typealias, .union, .unknown, .using:
       return .null
     }
   }
