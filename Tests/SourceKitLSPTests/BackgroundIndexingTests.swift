@@ -869,7 +869,7 @@ final class BackgroundIndexingTests: XCTestCase {
   func testImportPreparedModuleWithFunctionBodiesSkipped() async throws {
     try await SkipUnless.sourcekitdSupportsRename()
     // This test case was crashing the indexing compiler invocation for Client if Lib was built for index preparation
-    // (using `-enable-library-evolution -experimental-skip-all-function-bodies -experimental-lazy-typecheck`) but x
+    // (using `-enable-library-evolution -experimental-skip-all-function-bodies -experimental-lazy-typecheck`) but the
     // Client was not indexed with `-experimental-allow-module-with-compiler-errors`. rdar://129071600
     let project = try await SwiftPMTestProject(
       files: [
