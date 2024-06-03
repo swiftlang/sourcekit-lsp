@@ -15,6 +15,7 @@ import IndexStoreDB
 import LSPLogging
 import SKCore
 import SKSupport
+import SwiftExtensions
 
 /// `IndexDelegate` for the SourceKit workspace.
 ///

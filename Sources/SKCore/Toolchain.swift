@@ -14,6 +14,7 @@ import LSPLogging
 import LanguageServerProtocol
 import RegexBuilder
 import SKSupport
+import SwiftExtensions
 
 import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath

@@ -16,6 +16,7 @@ import LanguageServerProtocol
 import SKCore
 import SKSupport
 import SemanticIndex
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath

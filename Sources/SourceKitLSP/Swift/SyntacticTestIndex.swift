@@ -14,6 +14,7 @@ import Foundation
 import LSPLogging
 import LanguageServerProtocol
 import SKSupport
+import SwiftExtensions
 
 /// Task metadata for `SyntacticTestIndexer.indexingQueue`
 fileprivate enum TaskMetadata: DependencyTracker, Equatable {

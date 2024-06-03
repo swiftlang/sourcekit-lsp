@@ -19,6 +19,7 @@ import SKCore
 import SKSupport
 import SemanticIndex
 import SourceKitD
+import SwiftExtensions
 import SwiftParser
 import SwiftParserDiagnostics
 import SwiftSyntax

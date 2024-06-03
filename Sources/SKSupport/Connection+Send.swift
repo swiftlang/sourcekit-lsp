@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import SwiftExtensions
 
 extension Connection {
   /// Send the given request to the connection and await its result.

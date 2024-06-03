@@ -14,6 +14,7 @@ import LSPLogging
 import LanguageServerProtocol
 import SKSupport
 import SourceKitD
+import SwiftExtensions
 import SwiftParserDiagnostics
 
 actor DiagnosticReportManager {

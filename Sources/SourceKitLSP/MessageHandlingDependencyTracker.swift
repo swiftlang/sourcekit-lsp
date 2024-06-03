@@ -13,6 +13,7 @@
 import LSPLogging
 import LanguageServerProtocol
 import SKSupport
+import SwiftExtensions
 
 /// A lightweight way of describing tasks that are created from handling LSP
 /// requests or notifications for the purpose of dependency tracking.

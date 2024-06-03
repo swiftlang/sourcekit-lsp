@@ -74,6 +74,7 @@ target_link_libraries(SourceKitLSP PUBLIC
   SKSupport
   SKSwiftPMWorkspace
   SourceKitD
+  SwiftExtensions
   IndexStoreDB
   SwiftSyntax::SwiftBasicFormat
   SwiftSyntax::SwiftDiagnostics

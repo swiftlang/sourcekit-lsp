@@ -80,6 +80,7 @@ let package = Package(
         "SKSupport",
         "SourceKitD",
         "SourceKitLSP",
+        "SwiftExtensions",
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
         .product(name: "SwiftIDEUtils", package: "swift-syntax"),
         .product(name: "SwiftSyntax", package: "swift-syntax"),
@@ -183,6 +184,7 @@ let package = Package(
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
         "SKSupport",
+        "SwiftExtensions",
       ]
     ),
 
@@ -195,6 +197,7 @@ let package = Package(
         "LanguageServerProtocol",
         "LSPLogging",
         "SKCore",
+        "SwiftExtensions",
         .product(name: "IndexStoreDB", package: "indexstore-db"),
       ],
       exclude: ["CMakeLists.txt"]
@@ -221,6 +224,7 @@ let package = Package(
         "LSPLogging",
         "SKSupport",
         "SourceKitD",
+        "SwiftExtensions",
         .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
@@ -246,6 +250,7 @@ let package = Package(
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         "LanguageServerProtocol",
         "LSPLogging",
+        "SwiftExtensions",
       ],
       exclude: ["CMakeLists.txt"],
       swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
@@ -257,6 +262,7 @@ let package = Package(
         "LSPTestSupport",
         "SKSupport",
         "SKTestSupport",
+        "SwiftExtensions",
       ]
     ),
 
@@ -269,6 +275,7 @@ let package = Package(
         "LanguageServerProtocol",
         "LSPLogging",
         "SKCore",
+        "SwiftExtensions",
         .product(name: "SwiftPM-auto", package: "swift-package-manager"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
@@ -302,6 +309,7 @@ let package = Package(
         "LSPLogging",
         "SKCore",
         "SourceKitLSP",
+        "SwiftExtensions",
         .product(name: "ISDBTestSupport", package: "indexstore-db"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
@@ -319,6 +327,7 @@ let package = Package(
         "Csourcekitd",
         "LSPLogging",
         "SKSupport",
+        "SwiftExtensions",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
       exclude: ["CMakeLists.txt", "sourcekitd_uids.swift.gyb"],
@@ -331,6 +340,7 @@ let package = Package(
         "SourceKitD",
         "SKCore",
         "SKTestSupport",
+        "SwiftExtensions",
       ]
     ),
 
@@ -349,6 +359,7 @@ let package = Package(
         "SKSupport",
         "SKSwiftPMWorkspace",
         "SourceKitD",
+        "SwiftExtensions",
         .product(name: "IndexStoreDB", package: "indexstore-db"),
         .product(name: "SwiftBasicFormat", package: "swift-syntax"),
         .product(name: "SwiftDiagnostics", package: "swift-syntax"),
@@ -386,6 +397,13 @@ let package = Package(
         .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
         .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
       ]
+    ),
+
+    // MARK: SwiftExtensions
+
+    .target(
+      name: "SwiftExtensions",
+      exclude: ["CMakeLists.txt"]
     ),
   ]
 )

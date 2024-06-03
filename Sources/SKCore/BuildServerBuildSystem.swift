@@ -16,6 +16,7 @@ import LSPLogging
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKSupport
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem

@@ -13,6 +13,7 @@
 import Foundation
 import LSPLogging
 import SKSupport
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 

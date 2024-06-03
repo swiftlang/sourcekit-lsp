@@ -15,6 +15,7 @@ import LanguageServerProtocol
 import SKCore
 import SKSupport
 import SemanticIndex
+import SwiftExtensions
 
 /// Listens for index status updates from `SemanticIndexManagers`. From that information, it manages a
 /// `WorkDoneProgress` that communicates the index progress to the editor.

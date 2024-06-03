@@ -14,6 +14,7 @@
 import Dispatch
 import Foundation
 import SKSupport
+import SwiftExtensions
 
 #if compiler(>=6)
 extension sourcekitd_api_request_handle_t: @retroactive @unchecked Sendable {}

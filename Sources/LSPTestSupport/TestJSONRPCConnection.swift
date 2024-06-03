@@ -14,6 +14,7 @@ import InProcessClient
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKSupport
+import SwiftExtensions
 import XCTest
 
 import class Foundation.Pipe
