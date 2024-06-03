@@ -59,6 +59,9 @@ public protocol SourceKitD: AnyObject, Sendable {
   /// This log call is issued during normal operation. It is acceptable for the logger to truncate the log message
   /// to achieve good performance.
   func log(response: SKDResponse)
+
+  /// Log that the given request has been cancelled.
+  func logRequestCancellation(request: SKDRequestDictionary)
 }
 
 public enum SKDError: Error, Equatable {
@@ -97,6 +100,7 @@ extension SourceKitD {
       return handle
     } cancel: { handle in
       if let handle {
+        logRequestCancellation(request: req)
         api.cancel_request(handle)
       }
     }
