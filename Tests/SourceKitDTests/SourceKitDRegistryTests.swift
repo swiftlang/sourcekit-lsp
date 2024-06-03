@@ -80,4 +80,5 @@ final class FakeSourceKitD: SourceKitD {
   public func log(request: SKDRequestDictionary) {}
   public func log(response: SKDResponse) {}
   public func log(crashedRequest: SKDRequestDictionary, fileContents: String?) {}
+  public func logRequestCancellation(request: SKDRequestDictionary) {}
 }
