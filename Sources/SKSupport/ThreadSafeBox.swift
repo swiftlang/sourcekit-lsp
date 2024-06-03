@@ -24,7 +24,7 @@ extension NSLock {
 /// A thread safe container that contains a value of type `T`.
 ///
 /// - Note: Unchecked sendable conformance because value is guarded by a lock.
-public class ThreadSafeBox<T>: @unchecked Sendable {
+public class ThreadSafeBox<T: Sendable>: @unchecked Sendable {
   /// Lock guarding `_value`.
   private let lock = NSLock()
 
@@ -40,6 +40,11 @@ public class ThreadSafeBox<T>: @unchecked Sendable {
       lock.withLock {
         _value = newValue
       }
+    }
+    _modify {
+      lock.lock()
+      defer { lock.unlock() }
+      yield &_value
     }
   }
 
