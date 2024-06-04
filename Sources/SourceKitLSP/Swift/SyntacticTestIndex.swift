@@ -179,6 +179,11 @@ actor SyntacticTestIndex {
     guard !removedFiles.contains(uri) else {
       return
     }
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      // File no longer exists. Probably deleted since we scheduled it for indexing. Nothing to worry about.
+      logger.info("Not indexing \(uri.forLogging) for tests because it does not exist")
+      return
+    }
     guard
       let fileModificationDate = try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate]
         as? Date
