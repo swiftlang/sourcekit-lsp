@@ -12,15 +12,6 @@
 
 import Foundation
 
-extension NSLock {
-  /// NOTE: Keep in sync with SwiftPM's 'Sources/Basics/NSLock+Extensions.swift'
-  fileprivate func withLock<T>(_ body: () throws -> T) rethrows -> T {
-    lock()
-    defer { unlock() }
-    return try body()
-  }
-}
-
 /// A thread safe container that contains a value of type `T`.
 ///
 /// - Note: Unchecked sendable conformance because value is guarded by a lock.

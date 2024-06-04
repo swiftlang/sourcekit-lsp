@@ -14,15 +14,6 @@ import Foundation
 
 import struct TSCBasic.AbsolutePath
 
-extension NSLock {
-  /// NOTE: Keep in sync with SwiftPM's 'Sources/Basics/NSLock+Extensions.swift'
-  internal func withLock<T>(_ body: () throws -> T) rethrows -> T {
-    lock()
-    defer { unlock() }
-    return try body()
-  }
-}
-
 /// The set of known SourceKitD instances, uniqued by path.
 ///
 /// It is not generally safe to have two instances of SourceKitD for the same libsourcekitd, so

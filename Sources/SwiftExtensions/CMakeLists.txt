@@ -4,6 +4,7 @@ add_library(SwiftExtensions STATIC
   AsyncUtils.swift
   Collection+Only.swift
   Collection+PartitionIntoBatches.swift
+  NSLock+WithLock.swift
   Sequence+AsyncMap.swift
   Task+WithPriorityChangedHandler.swift
   ThreadSafeBox.swift
