@@ -126,6 +126,8 @@ enum MessageHandlingDependencyTracker: DependencyTracker {
       self = .freestanding
     case is PublishDiagnosticsNotification:
       self = .freestanding
+    case let notification as ReopenTextDocumentNotification:
+      self = .documentUpdate(notification.textDocument.uri)
     case is SetTraceNotification:
       self = .globalConfigurationChange
     case is ShowMessageNotification:

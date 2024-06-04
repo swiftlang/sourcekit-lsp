@@ -327,15 +327,24 @@ extension SwiftLanguageService {
 
   // MARK: - Build System Integration
 
-  private func reopenDocument(_ snapshot: DocumentSnapshot, _ compileCmd: SwiftCompileCommand?) async {
+  public func reopenDocument(_ notification: ReopenTextDocumentNotification) async {
+    let snapshot = orLog("Getting snapshot to re-open document") {
+      try documentManager.latestSnapshot(notification.textDocument.uri)
+    }
+    guard let snapshot else {
+      return
+    }
     cancelInFlightPublishDiagnosticsTask(for: snapshot.uri)
     await diagnosticReportManager.removeItemsFromCache(with: snapshot.uri)
 
     let closeReq = closeDocumentSourcekitdRequest(uri: snapshot.uri)
-    _ = try? await self.sourcekitd.send(closeReq, fileContents: nil)
+    _ = await orLog("Closing document to re-open it") { try await self.sourcekitd.send(closeReq, fileContents: nil) }
 
-    let openReq = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: compileCmd)
-    _ = try? await self.sourcekitd.send(openReq, fileContents: snapshot.text)
+    let openReq = openDocumentSourcekitdRequest(
+      snapshot: snapshot,
+      compileCommand: await buildSettings(for: snapshot.uri)
+    )
+    _ = await orLog("Re-opening document") { try await self.sourcekitd.send(openReq, fileContents: snapshot.text) }
 
     if await capabilityRegistry.clientSupportsPullDiagnostics(for: .swift) {
       await self.refreshDiagnosticsDebouncer.scheduleCall()
@@ -345,14 +354,11 @@ extension SwiftLanguageService {
   }
 
   public func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
-    // We may not have a snapshot if this is called just before `openDocument`.
-    guard let snapshot = try? self.documentManager.latestSnapshot(uri) else {
-      return
-    }
-
-    // Close and re-open the document internally to inform sourcekitd to update the compile
-    // command. At the moment there's no better way to do this.
-    await self.reopenDocument(snapshot, await self.buildSettings(for: uri))
+    // Close and re-open the document internally to inform sourcekitd to update the compile command. At the moment
+    // there's no better way to do this.
+    // Schedule the document re-open in the SourceKit-LSP server. This ensures that the re-open happens exclusively with
+    // no other request running at the same time.
+    sourceKitLSPServer?.handle(ReopenTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
   }
 
   public func documentDependenciesUpdated(_ uri: DocumentURI) async {
