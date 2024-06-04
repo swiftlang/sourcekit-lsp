@@ -55,7 +55,8 @@ public struct RunSourceKitdRequestCommand: AsyncParsableCommand {
         throw ExitCode(1)
       }
     let sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
-      dylibPath: try! AbsolutePath(validating: sourcekitdPath)
+      dylibPath: try! AbsolutePath(validating: sourcekitdPath),
+      testHooks: SourceKitDTestHooks()
     )
 
     if let lineColumn = position?.split(separator: ":", maxSplits: 2).map(Int.init),

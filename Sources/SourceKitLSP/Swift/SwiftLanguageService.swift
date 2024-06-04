@@ -195,7 +195,10 @@ public actor SwiftLanguageService: LanguageService, Sendable {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
     self.sourceKitLSPServer = sourceKitLSPServer
     self.swiftFormat = toolchain.swiftFormat
-    self.sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(dylibPath: sourcekitd)
+    self.sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
+      dylibPath: sourcekitd,
+      testHooks: options.sourcekitdTestHooks
+    )
     self.capabilityRegistry = workspace.capabilityRegistry
     self.semanticIndexManager = workspace.semanticIndexManager
     self.serverOptions = options
