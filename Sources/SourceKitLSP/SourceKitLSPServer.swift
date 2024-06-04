@@ -1764,7 +1764,7 @@ extension SourceKitLSPServer {
     // `SwiftLanguageService` will always respond with `unsupported method`. Thus, only log such a failure instead of
     // returning it to the client.
     if indexBasedResponse.isEmpty {
-      return await orLog("Fallback definition request") {
+      return await orLog("Fallback definition request", level: .info) {
         return try await languageService.definition(req)
       }
     }
