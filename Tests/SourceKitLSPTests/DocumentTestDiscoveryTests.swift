@@ -565,6 +565,67 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
+  func testSwiftTestingTestWithBackticksInName() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      1️⃣struct `MyTests` {
+        2️⃣@Test
+        func `oneIsTwo`(`foo`: Int) {
+          #expect(1 == 2)
+        }3️⃣
+      }4️⃣
+
+      5️⃣extension `MyTests` {
+        6️⃣@Test
+        func `twoIsThree`() {
+          #expect(2 == 3)
+        }7️⃣
+      }8️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          disabled: false,
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/oneIsTwo(foo:)",
+              label: "oneIsTwo(foo:)",
+              disabled: false,
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
+              children: [],
+              tags: []
+            ),
+            TestItem(
+              id: "MyTests/twoIsThree()",
+              label: "twoIsThree()",
+              disabled: false,
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["6️⃣"]..<positions["7️⃣"]),
+              children: [],
+              tags: []
+            ),
+          ],
+          tags: []
+        )
+      ]
+    )
+  }
+
   func testDisabledSwiftTestingTest() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
