@@ -181,7 +181,7 @@ private func assertHover(
   line: UInt = #line
 ) async throws {
   let testClient = try await TestSourceKitLSPClient()
-  let uri = DocumentURI.for(.swift)
+  let uri = DocumentURI(for: .swift)
 
   let positions = testClient.openDocument(markedSource, uri: uri)
 

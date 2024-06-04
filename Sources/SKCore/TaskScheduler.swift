@@ -14,6 +14,7 @@ import CAtomics
 import Foundation
 import LSPLogging
 import SKSupport
+import SwiftExtensions
 
 /// See comment on ``TaskDescriptionProtocol/dependencies(to:taskPriority:)``
 public enum TaskDependencyAction<TaskDescription: TaskDescriptionProtocol> {
@@ -144,7 +145,7 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Whether `cancelToBeRescheduled` has been called on this `QueuedTask`.
   ///
   /// Gets reset every time `executionTask` finishes.
-  nonisolated(unsafe) private var cancelledToBeRescheduled: AtomicBool = .init(initialValue: false)
+  private var cancelledToBeRescheduled: Bool = false
 
   /// Whether `resultTask` has been cancelled.
   private nonisolated(unsafe) var resultTaskCancelled: AtomicBool = .init(initialValue: false)
@@ -228,6 +229,15 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Execution might be canceled to be rescheduled, in which case this returns  `.cancelledToBeRescheduled`. In that
   /// case the `TaskScheduler` is expected to call `execute` again.
   func execute() async -> ExecutionTaskFinishStatus {
+    if cancelledToBeRescheduled {
+      // `QueuedTask.execute` is called from a detached task in `TaskScheduler.poke` but we insert it into the
+      // `currentlyExecutingTasks` queue beforehand. This leaves a short windows in which we could cancel the task to
+      // reschedule it before it actually starts executing.
+      // If this happens, we don't have to do anything in `execute` and can immediately return. `execute` will be called
+      // again when the task gets rescheduled.
+      cancelledToBeRescheduled = false
+      return .cancelledToBeRescheduled
+    }
     precondition(executionTask == nil, "Task started twice")
     let task = Task.detached(priority: self.priority) {
       if !Task.isCancelled && !self.resultTaskCancelled.value {
@@ -246,9 +256,9 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   private func finalizeExecution() async -> ExecutionTaskFinishStatus {
     self.executionTask = nil
     _isExecuting.value = false
-    if Task.isCancelled && self.cancelledToBeRescheduled.value {
+    if Task.isCancelled && self.cancelledToBeRescheduled {
       await executionStateChangedCallback?(self, .cancelledToBeRescheduled)
-      self.cancelledToBeRescheduled.value = false
+      self.cancelledToBeRescheduled = false
       return ExecutionTaskFinishStatus.cancelledToBeRescheduled
     } else {
       await executionStateChangedCallback?(self, .finished)
@@ -260,10 +270,10 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   ///
   /// If the task has not been started yet or has already finished execution, this is a no-op.
   func cancelToBeRescheduled() {
+    self.cancelledToBeRescheduled = true
     guard let executionTask else {
       return
     }
-    self.cancelledToBeRescheduled.value = true
     executionTask.cancel()
     self.executionTask = nil
   }

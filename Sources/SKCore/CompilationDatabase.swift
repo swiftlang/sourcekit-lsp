@@ -12,6 +12,7 @@
 
 import Foundation
 import LSPLogging
+import LanguageServerProtocol
 import SKSupport
 
 import struct TSCBasic.AbsolutePath
@@ -47,15 +48,15 @@ public struct CompilationDatabaseCompileCommand: Equatable {
 
 extension CompilationDatabase.Command {
 
-  /// The `URL` for this file. If `filename` is relative and `directory` is
+  /// The `DocumentURI` for this file. If `filename` is relative and `directory` is
   /// absolute, returns the concatenation. However, if both paths are relative,
   /// it falls back to `filename`, which is more likely to be the identifier
   /// that a caller will be looking for.
-  public var url: URL {
+  public var uri: DocumentURI {
     if filename.hasPrefix("/") || !directory.hasPrefix("/") {
-      return URL(fileURLWithPath: filename)
+      return DocumentURI(filePath: filename, isDirectory: false)
     } else {
-      return URL(fileURLWithPath: directory).appendingPathComponent(filename, isDirectory: false)
+      return DocumentURI(URL(fileURLWithPath: directory).appendingPathComponent(filename, isDirectory: false))
     }
   }
 }
@@ -65,7 +66,7 @@ extension CompilationDatabase.Command {
 /// See https://clang.llvm.org/docs/JSONCompilationDatabase.html
 public protocol CompilationDatabase {
   typealias Command = CompilationDatabaseCompileCommand
-  subscript(_ path: URL) -> [Command] { get }
+  subscript(_ uri: DocumentURI) -> [Command] { get }
   var allCommands: AnySequence<Command> { get }
 }
 
@@ -110,13 +111,13 @@ public func tryLoadCompilationDatabase(
 ///
 /// See https://clang.llvm.org/docs/JSONCompilationDatabase.html under Alternatives
 public struct FixedCompilationDatabase: CompilationDatabase, Equatable {
-  public var allCommands: AnySequence<Command> { AnySequence([]) }
+  public var allCommands: AnySequence<CompilationDatabaseCompileCommand> { AnySequence([]) }
 
   private let fixedArgs: [String]
   private let directory: String
 
-  public subscript(path: URL) -> [Command] {
-    [Command(directory: directory, filename: path.path, commandLine: fixedArgs + [path.path])]
+  public subscript(path: DocumentURI) -> [CompilationDatabaseCompileCommand] {
+    [Command(directory: directory, filename: path.pseudoPath, commandLine: fixedArgs + [path.pseudoPath])]
   }
 }
 
@@ -168,32 +169,38 @@ extension FixedCompilationDatabase {
 ///
 /// See https://clang.llvm.org/docs/JSONCompilationDatabase.html
 public struct JSONCompilationDatabase: CompilationDatabase, Equatable {
-  var pathToCommands: [URL: [Int]] = [:]
-  var commands: [Command] = []
+  var pathToCommands: [DocumentURI: [Int]] = [:]
+  var commands: [CompilationDatabaseCompileCommand] = []
 
-  public init(_ commands: [Command] = []) {
-    commands.forEach { try! add($0) }
+  public init(_ commands: [CompilationDatabaseCompileCommand] = []) {
+    for command in commands {
+      add(command)
+    }
   }
 
-  public subscript(_ url: URL) -> [Command] {
-    if let indices = pathToCommands[url] {
+  public subscript(_ uri: DocumentURI) -> [CompilationDatabaseCompileCommand] {
+    if let indices = pathToCommands[uri] {
       return indices.map { commands[$0] }
     }
-    if let indices = pathToCommands[url.resolvingSymlinksInPath()] {
+    if let fileURL = uri.fileURL, let indices = pathToCommands[DocumentURI(fileURL.resolvingSymlinksInPath())] {
       return indices.map { commands[$0] }
     }
     return []
   }
 
-  public var allCommands: AnySequence<Command> { AnySequence(commands) }
+  public var allCommands: AnySequence<CompilationDatabaseCompileCommand> { AnySequence(commands) }
 
-  public mutating func add(_ command: Command) throws {
-    let url = command.url
-    pathToCommands[url, default: []].append(commands.count)
+  public mutating func add(_ command: CompilationDatabaseCompileCommand) {
+    let uri = command.uri
+    pathToCommands[uri, default: []].append(commands.count)
 
-    let canonical = URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: url.path)).pathString)
-    if canonical != url {
-      pathToCommands[canonical, default: []].append(commands.count)
+    if let fileURL = uri.fileURL,
+      let symlinksResolved = try? resolveSymlinks(AbsolutePath(validating: fileURL.path))
+    {
+      let canonical = DocumentURI(filePath: symlinksResolved.pathString, isDirectory: false)
+      if canonical != uri {
+        pathToCommands[canonical, default: []].append(commands.count)
+      }
     }
 
     commands.append(command)
@@ -204,7 +211,7 @@ extension JSONCompilationDatabase: Codable {
   public init(from decoder: Decoder) throws {
     var container = try decoder.unkeyedContainer()
     while !container.isAtEnd {
-      try self.add(try container.decode(Command.self))
+      self.add(try container.decode(Command.self))
     }
   }
 

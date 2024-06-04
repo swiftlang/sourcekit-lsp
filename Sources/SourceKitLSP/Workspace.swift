@@ -16,6 +16,7 @@ import LanguageServerProtocol
 import SKCore
 import SKSupport
 import SemanticIndex
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
@@ -93,7 +94,7 @@ public final class Workspace: Sendable {
     index uncheckedIndex: UncheckedIndex?,
     indexDelegate: SourceKitIndexDelegate?,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
-    indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
     indexProgressStatusDidChange: @escaping @Sendable () -> Void
   ) async {
@@ -108,13 +109,16 @@ public final class Workspace: Sendable {
       mainFilesProvider: uncheckedIndex,
       toolchainRegistry: toolchainRegistry
     )
-    if let uncheckedIndex, options.indexOptions.enableBackgroundIndexing {
+    if options.experimentalFeatures.contains(.backgroundIndexing),
+      let uncheckedIndex,
+      await buildSystemManager.supportsPreparation
+    {
       self.semanticIndexManager = SemanticIndexManager(
         index: uncheckedIndex,
         buildSystemManager: buildSystemManager,
         testHooks: options.indexTestHooks,
         indexTaskScheduler: indexTaskScheduler,
-        indexProcessDidProduceResult: indexProcessDidProduceResult,
+        logMessageToIndexLog: logMessageToIndexLog,
         indexTasksWereScheduled: indexTasksWereScheduled,
         indexProgressStatusDidChange: indexProgressStatusDidChange
       )
@@ -137,7 +141,7 @@ public final class Workspace: Sendable {
     }
   }
 
-  /// Creates a workspace for a given root `URL`, inferring the `ExternalWorkspace` if possible.
+  /// Creates a workspace for a given root `DocumentURI`, inferring the `ExternalWorkspace` if possible.
   ///
   /// - Parameters:
   ///   - url: The root directory of the workspace, which must be a valid path.
@@ -152,7 +156,7 @@ public final class Workspace: Sendable {
     options: SourceKitLSPServer.Options,
     indexOptions: IndexOptions = IndexOptions(),
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
-    indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     indexTasksWereScheduled: @Sendable @escaping (Int) -> Void,
     indexProgressStatusDidChange: @Sendable @escaping () -> Void
   ) async throws {
@@ -193,7 +197,7 @@ public final class Workspace: Sendable {
       index: UncheckedIndex(index),
       indexDelegate: indexDelegate,
       indexTaskScheduler: indexTaskScheduler,
-      indexProcessDidProduceResult: indexProcessDidProduceResult,
+      logMessageToIndexLog: logMessageToIndexLog,
       indexTasksWereScheduled: indexTasksWereScheduled,
       indexProgressStatusDidChange: indexProgressStatusDidChange
     )
@@ -244,37 +248,22 @@ public struct IndexOptions: Sendable {
   /// explicit calls to pollForUnitChangesAndWait().
   public var listenToUnitEvents: Bool
 
-  /// Whether background indexing should be enabled.
-  public var enableBackgroundIndexing: Bool
-
   /// The percentage of the machine's cores that should at most be used for background indexing.
   ///
   /// Setting this to a value < 1 ensures that background indexing doesn't use all CPU resources.
   public var maxCoresPercentageToUseForBackgroundIndexing: Double
-
-  /// Whether to show the files that are currently being indexed / the targets that are currently being prepared in the
-  /// work done progress.
-  ///
-  /// This is an option because VS Code tries to render a multi-line work done progress into a single line text field in
-  /// the status bar, which looks broken. But at the same time, it is very useful to get a feeling about what's
-  /// currently happening indexing-wise.
-  public var showActivePreparationTasksInProgress: Bool
 
   public init(
     indexStorePath: AbsolutePath? = nil,
     indexDatabasePath: AbsolutePath? = nil,
     indexPrefixMappings: [PathPrefixMapping]? = nil,
     listenToUnitEvents: Bool = true,
-    enableBackgroundIndexing: Bool = false,
-    maxCoresPercentageToUseForBackgroundIndexing: Double = 1,
-    showActivePreparationTasksInProgress: Bool = false
+    maxCoresPercentageToUseForBackgroundIndexing: Double = 1
   ) {
     self.indexStorePath = indexStorePath
     self.indexDatabasePath = indexDatabasePath
     self.indexPrefixMappings = indexPrefixMappings
     self.listenToUnitEvents = listenToUnitEvents
-    self.enableBackgroundIndexing = enableBackgroundIndexing
     self.maxCoresPercentageToUseForBackgroundIndexing = maxCoresPercentageToUseForBackgroundIndexing
-    self.showActivePreparationTasksInProgress = showActivePreparationTasksInProgress
   }
 }

@@ -63,6 +63,7 @@ private nonisolated(unsafe) var nextToken = AtomicUInt32(initialValue: 0)
 
 final class FakeSourceKitD: SourceKitD {
   let token: UInt32
+  var testHooks: SourceKitDTestHooks { SourceKitDTestHooks() }
   var api: sourcekitd_api_functions_t { fatalError() }
   var keys: sourcekitd_api_keys { fatalError() }
   var requests: sourcekitd_api_requests { fatalError() }
@@ -80,4 +81,5 @@ final class FakeSourceKitD: SourceKitD {
   public func log(request: SKDRequestDictionary) {}
   public func log(response: SKDResponse) {}
   public func log(crashedRequest: SKDRequestDictionary, fileContents: String?) {}
+  public func logRequestCancellation(request: SKDRequestDictionary) {}
 }

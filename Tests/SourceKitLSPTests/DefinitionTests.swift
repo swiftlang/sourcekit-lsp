@@ -19,7 +19,7 @@ import enum PackageLoading.Platform
 class DefinitionTests: XCTestCase {
   func testJumpToDefinitionAtEndOfIdentifier() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -126,7 +126,7 @@ class DefinitionTests: XCTestCase {
         }
         """,
       ],
-      build: true
+      enableBackgroundIndexing: true
     )
     let (uri, positions) = try project.openDocument("test.cpp")
 
@@ -165,10 +165,6 @@ class DefinitionTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -177,7 +173,7 @@ class DefinitionTests: XCTestCase {
           ]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (uri, positions) = try project.openDocument("main.swift")
@@ -200,7 +196,7 @@ class DefinitionTests: XCTestCase {
 
   func testReportInitializerOnDefinitionForType() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
       struct 1️⃣Foo {
@@ -272,10 +268,6 @@ class DefinitionTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -323,10 +315,6 @@ class DefinitionTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -353,7 +341,7 @@ class DefinitionTests: XCTestCase {
 
   func testDefinitionOfImplicitInitializer() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -391,8 +379,7 @@ class DefinitionTests: XCTestCase {
         }
         """,
       ],
-      build: true,
-      allowBuildFailure: true
+      enableBackgroundIndexing: true
     )
 
     let (bUri, bPositions) = try project.openDocument("FileB.swift")
@@ -428,19 +415,17 @@ class DefinitionTests: XCTestCase {
       .locations([Location(uri: aUri, range: Range(updatedAPositions["2️⃣"]))])
     )
 
-    try await SwiftPMTestProject.build(at: project.scratchDirectory)
-    let afterBuilding = try await project.testClient.send(
+    let afterChange = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(bUri), position: bPositions["1️⃣"])
     )
     XCTAssertEqual(
-      afterBuilding,
+      afterChange,
       .locations([Location(uri: aUri, range: Range(updatedAPositions["2️⃣"]))])
     )
   }
 
   func testDependentModuleGotBuilt() async throws {
     try SkipUnless.longTestsEnabled()
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
@@ -455,10 +440,6 @@ class DefinitionTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -518,7 +499,7 @@ class DefinitionTests: XCTestCase {
         }
         """,
       ],
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let definitionUri = try project.uri(for: "definition.swift")
@@ -549,8 +530,6 @@ class DefinitionTests: XCTestCase {
         FileEvent(uri: definitionUri, type: .deleted), FileEvent(uri: movedDefinitionUri, type: .created),
       ])
     )
-
-    try await SwiftPMTestProject.build(at: project.scratchDirectory)
 
     let resultAfterFileMove = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(callerUri), position: callerPositions["2️⃣"])

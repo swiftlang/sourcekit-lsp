@@ -104,7 +104,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testBackgroundIndexingOfMultiModuleProject() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/MyFile.swift": """
@@ -118,10 +117,6 @@ final class BackgroundIndexingTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -182,10 +177,6 @@ final class BackgroundIndexingTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -212,7 +203,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testBackgroundIndexingOfPackageDependency() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let dependencyContents = """
       public func 1️⃣doSomething() {}
       """
@@ -233,8 +223,6 @@ final class BackgroundIndexingTests: XCTestCase {
         """
       ],
       manifest: """
-        // swift-tools-version: 5.7
-        import PackageDescription
         let package = Package(
           name: "MyLibrary",
           dependencies: [.package(url: "\(dependencyProject.packageDirectory)", from: "1.0.0")],
@@ -541,7 +529,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testPrepareTargetAfterEditToDependency() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     var serverOptions = SourceKitLSPServer.Options.testDefault
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       [
@@ -565,10 +552,6 @@ final class BackgroundIndexingTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -604,13 +587,14 @@ final class BackgroundIndexingTests: XCTestCase {
     )
 
     let receivedEmptyDiagnostics = self.expectation(description: "Received diagnostic refresh request")
+    receivedEmptyDiagnostics.assertForOverFulfill = false
     project.testClient.handleMultipleRequests { (_: CreateWorkDoneProgressRequest) in
       return VoidResponse()
     }
 
-    project.testClient.handleMultipleRequests { (_: DiagnosticsRefreshRequest) in
-      Task {
-        let updatedDiagnostics = try await project.testClient.send(
+    project.testClient.handleMultipleRequests { [weak project] (_: DiagnosticsRefreshRequest) in
+      Task { [weak project] in
+        let updatedDiagnostics = try await project?.testClient.send(
           DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
         )
         guard case .full(let updatedDiagnostics) = updatedDiagnostics else {
@@ -651,7 +635,6 @@ final class BackgroundIndexingTests: XCTestCase {
     let libBStartedPreparation = self.expectation(description: "LibB started preparing")
     let libDPreparedForEditing = self.expectation(description: "LibD prepared for editing")
 
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     var serverOptions = SourceKitLSPServer.Options.testDefault
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       // Preparation of targets during the initial of the target
@@ -689,10 +672,6 @@ final class BackgroundIndexingTests: XCTestCase {
         "LibD/LibD.swift": "",
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -730,27 +709,47 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   public func testProduceIndexLog() async throws {
+    let didReceivePreparationIndexLogMessage = self.expectation(description: "Did receive preparation log message")
+    let didReceiveIndexingLogMessage = self.expectation(description: "Did receive indexing log message")
+    let updateIndexStoreTaskDidFinish = self.expectation(description: "Update index store task did finish")
+
+    // Block the index tasks until we have received a log notification to make sure we stream out results as they come
+    // in and not only when the indexing task has finished
+    var serverOptions = SourceKitLSPServer.Options.testDefault
+    serverOptions.indexTestHooks.preparationTaskDidFinish = { _ in
+      await self.fulfillment(of: [didReceivePreparationIndexLogMessage], timeout: defaultTimeout)
+    }
+    serverOptions.indexTestHooks.updateIndexStoreTaskDidFinish = { _ in
+      await self.fulfillment(of: [didReceiveIndexingLogMessage], timeout: defaultTimeout)
+      updateIndexStoreTaskDidFinish.fulfill()
+    }
+
     let project = try await SwiftPMTestProject(
       files: [
         "MyFile.swift": ""
       ],
-      enableBackgroundIndexing: true
+      serverOptions: serverOptions,
+      enableBackgroundIndexing: true,
+      pollIndex: false
     )
-    let targetPrepareNotification = try await project.testClient.nextNotification(ofType: LogMessageNotification.self)
-    XCTAssert(
-      targetPrepareNotification.message.hasPrefix("Preparing MyLibrary"),
-      "\(targetPrepareNotification.message) does not have the expected prefix"
+    _ = try await project.testClient.nextNotification(
+      ofType: LogMessageNotification.self,
+      satisfying: { notification in
+        return notification.message.contains("Preparing MyLibrary")
+      }
     )
-    let indexFileNotification = try await project.testClient.nextNotification(ofType: LogMessageNotification.self)
-    XCTAssert(
-      indexFileNotification.message.hasPrefix("Indexing \(try project.uri(for: "MyFile.swift").pseudoPath)"),
-      "\(indexFileNotification.message) does not have the expected prefix"
+    didReceivePreparationIndexLogMessage.fulfill()
+    _ = try await project.testClient.nextNotification(
+      ofType: LogMessageNotification.self,
+      satisfying: { notification in
+        notification.message.contains("Indexing \(try project.uri(for: "MyFile.swift").pseudoPath)")
+      }
     )
+    didReceiveIndexingLogMessage.fulfill()
+    try await fulfillmentOfOrThrow([updateIndexStoreTaskDidFinish])
   }
 
   func testIndexingHappensInParallel() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-
     let fileAIndexingStarted = self.expectation(description: "FileA indexing started")
     let fileBIndexingStarted = self.expectation(description: "FileB indexing started")
 
@@ -806,10 +805,6 @@ final class BackgroundIndexingTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -860,6 +855,148 @@ final class BackgroundIndexingTests: XCTestCase {
     XCTAssertFalse(
       FileManager.default.fileExists(atPath: nestedIndexBuildURL.path),
       "No file should exist at \(nestedIndexBuildURL)"
+    )
+  }
+
+  func testShowMessageWhenOpeningAProjectThatDoesntSupportBackgroundIndexing() async throws {
+    let project = try await MultiFileTestProject(
+      files: [
+        "compile_commands.json": ""
+      ],
+      enableBackgroundIndexing: true
+    )
+    let message = try await project.testClient.nextNotification(ofType: ShowMessageNotification.self)
+    XCTAssert(message.message.contains("Background indexing"), "Received unexpected message: \(message.message)")
+  }
+
+  func testNoPreparationStatusIfTargetIsUpToDate() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib.swift": ""
+      ],
+      capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
+      enableBackgroundIndexing: true
+    )
+
+    // Opening the document prepares it for editor functionality. Its target is already prepared, so we shouldn't show
+    // a work done progress for it.
+    project.testClient.handleSingleRequest { (request: CreateWorkDoneProgressRequest) in
+      XCTFail("Received unexpected create work done progress: \(request)")
+      return VoidResponse()
+    }
+    _ = try project.openDocument("Lib.swift")
+    _ = try await project.testClient.send(BarrierRequest())
+  }
+
+  func testImportPreparedModuleWithFunctionBodiesSkipped() async throws {
+    try await SkipUnless.sourcekitdSupportsRename()
+    // This test case was crashing the indexing compiler invocation for Client if Lib was built for index preparation
+    // (using `-enable-library-evolution -experimental-skip-all-function-bodies -experimental-lazy-typecheck`) but the
+    // Client was not indexed with `-experimental-allow-module-with-compiler-errors`. rdar://129071600
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib/Lib.swift": """
+        public class TerminalController {
+          public var 1️⃣width: Int { 1 }
+        }
+        """,
+        "Client/Client.swift": """
+        import Lib
+
+        func test(terminal: TerminalController) {
+          let width = terminal.width
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "Lib"),
+            .target(name: "Client", dependencies: ["Lib"]),
+          ]
+        )
+        """,
+      enableBackgroundIndexing: true
+    )
+    let (uri, positions) = try project.openDocument("Lib.swift")
+
+    // Check that we indexed `Client.swift` by checking that we return a rename location within it.
+    let result = try await project.testClient.send(
+      RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"], newName: "height")
+    )
+    XCTAssertEqual((result?.changes?.keys).map(Set.init), [uri, try project.uri(for: "Client.swift")])
+  }
+
+  func testDontPreparePackageManifest() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib.swift": ""
+      ],
+      enableBackgroundIndexing: true
+    )
+
+    _ = try await project.testClient.nextNotification(
+      ofType: LogMessageNotification.self,
+      satisfying: { $0.message.contains("Preparing MyLibrary") }
+    )
+
+    // Opening the package manifest shouldn't cause any `swift build` calls to prepare them because they are not part of
+    // a target that can be prepared.
+    let (uri, _) = try project.openDocument("Package.swift")
+    _ = try await project.testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri)))
+    try await project.testClient.assertDoesNotReceiveNotification(
+      ofType: LogMessageNotification.self,
+      satisfying: { $0.message.contains("Preparing") }
+    )
+  }
+
+  func testUseBuildFlagsDuringPreparation() async throws {
+    var serverOptions = SourceKitLSPServer.Options.testDefault
+    serverOptions.buildSetup.flags.swiftCompilerFlags += ["-D", "MY_FLAG"]
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib/Lib.swift": """
+        #if MY_FLAG
+        public func foo() -> Int { 1 }
+        #endif
+        """,
+        "Client/Client.swift": """
+        import Lib
+
+        func test() -> String {
+          return foo()
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "Lib"),
+            .target(name: "Client", dependencies: ["Lib"]),
+          ]
+        )
+        """,
+      serverOptions: serverOptions,
+      enableBackgroundIndexing: true
+    )
+
+    // Check that we get an error about the return type of `foo` (`Int`) not being convertible to the return type of
+    // `test` (`String`), which indicates that `Lib` had `foo` and was thus compiled with `-D MY_FLAG`
+    let (uri, _) = try project.openDocument("Client.swift")
+    let diagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    guard case .full(let diagnostics) = diagnostics else {
+      XCTFail("Expected full diagnostics report")
+      return
+    }
+    XCTAssert(
+      diagnostics.items.contains(where: {
+        $0.message == "Cannot convert return expression of type 'Int' to return type 'String'"
+      }),
+      "Did not get expected diagnostic: \(diagnostics)"
     )
   }
 }

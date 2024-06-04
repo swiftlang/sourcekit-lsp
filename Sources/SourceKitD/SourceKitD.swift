@@ -14,6 +14,13 @@
 import Dispatch
 import Foundation
 import SKSupport
+import SwiftExtensions
+
+#if compiler(>=6)
+extension sourcekitd_api_request_handle_t: @retroactive @unchecked Sendable {}
+#else
+extension sourcekitd_api_request_handle_t: @unchecked Sendable {}
+#endif
 
 /// Access to sourcekitd API, taking care of initialization, shutdown, and notification handler
 /// multiplexing.
@@ -24,6 +31,8 @@ import SKSupport
 /// *Implementors* are expected to handle initialization and shutdown, e.g. during `init` and
 /// `deinit` or by wrapping an existing sourcekitd session that outlives this object.
 public protocol SourceKitD: AnyObject, Sendable {
+  var testHooks: SourceKitDTestHooks { get }
+
   /// The sourcekitd API functions.
   var api: sourcekitd_api_functions_t { get }
 
@@ -59,6 +68,9 @@ public protocol SourceKitD: AnyObject, Sendable {
   /// This log call is issued during normal operation. It is acceptable for the logger to truncate the log message
   /// to achieve good performance.
   func log(response: SKDResponse)
+
+  /// Log that the given request has been cancelled.
+  func logRequestCancellation(request: SKDRequestDictionary)
 }
 
 public enum SKDError: Error, Equatable {
@@ -86,17 +98,20 @@ extension SourceKitD {
   ///   - req: The request to send to sourcekitd.
   ///   - fileContents: The contents of the file that the request operates on. If sourcekitd crashes, the file contents
   ///     will be logged.
-  public func send(_ req: SKDRequestDictionary, fileContents: String?) async throws -> SKDResponseDictionary {
-    log(request: req)
+  public func send(_ request: SKDRequestDictionary, fileContents: String?) async throws -> SKDResponseDictionary {
+    log(request: request)
+
+    testHooks.sourcekitdRequestDidStart?(request)
 
     let sourcekitdResponse: SKDResponse = try await withCancellableCheckedThrowingContinuation { continuation in
       var handle: sourcekitd_api_request_handle_t? = nil
-      api.send_request(req.dict, &handle) { response in
+      api.send_request(request.dict, &handle) { response in
         continuation.resume(returning: SKDResponse(response!, sourcekitd: self))
       }
       return handle
     } cancel: { handle in
       if let handle {
+        logRequestCancellation(request: request)
         api.cancel_request(handle)
       }
     }
@@ -105,7 +120,7 @@ extension SourceKitD {
 
     guard let dict = sourcekitdResponse.value else {
       if sourcekitdResponse.error == .connectionInterrupted {
-        log(crashedRequest: req, fileContents: fileContents)
+        log(crashedRequest: request, fileContents: fileContents)
       }
       throw sourcekitdResponse.error!
     }

@@ -13,6 +13,7 @@
 import Foundation
 import LanguageServerProtocol
 import SKSupport
+import SwiftExtensions
 
 /// Represents a single `WorkDoneProgress` task that gets communicated with the client.
 ///

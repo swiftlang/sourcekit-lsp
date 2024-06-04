@@ -15,6 +15,6 @@ import LanguageServerProtocol
 
 extension SymbolLocation {
   var documentUri: DocumentURI {
-    return DocumentURI(URL(fileURLWithPath: self.path))
+    return DocumentURI(filePath: self.path, isDirectory: false)
   }
 }

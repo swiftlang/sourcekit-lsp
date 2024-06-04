@@ -14,15 +14,6 @@ import Foundation
 
 import struct TSCBasic.AbsolutePath
 
-extension NSLock {
-  /// NOTE: Keep in sync with SwiftPM's 'Sources/Basics/NSLock+Extensions.swift'
-  internal func withLock<T>(_ body: () throws -> T) rethrows -> T {
-    lock()
-    defer { unlock() }
-    return try body()
-  }
-}
-
 /// The set of known SourceKitD instances, uniqued by path.
 ///
 /// It is not generally safe to have two instances of SourceKitD for the same libsourcekitd, so
@@ -35,10 +26,10 @@ extension NSLock {
 public actor SourceKitDRegistry {
 
   /// Mapping from path to active SourceKitD instance.
-  var active: [AbsolutePath: SourceKitD] = [:]
+  private var active: [AbsolutePath: SourceKitD] = [:]
 
   /// Instances that have been unregistered, but may be resurrected if accessed before destruction.
-  var cemetary: [AbsolutePath: WeakSourceKitD] = [:]
+  private var cemetary: [AbsolutePath: WeakSourceKitD] = [:]
 
   /// Initialize an empty registry.
   public init() {}
@@ -79,14 +70,8 @@ public actor SourceKitDRegistry {
     }
     return existing
   }
-
-  /// Remove all SourceKitD instances, including weak ones.
-  public func clear() {
-    active.removeAll()
-    cemetary.removeAll()
-  }
 }
 
-struct WeakSourceKitD {
+fileprivate struct WeakSourceKitD {
   weak var value: SourceKitD?
 }

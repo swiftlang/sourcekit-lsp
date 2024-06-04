@@ -75,7 +75,7 @@ struct CursorInfo {
         // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
         utf16index: column - 1
       )
-      location = Location(uri: DocumentURI(URL(fileURLWithPath: filepath)), range: Range(position))
+      location = Location(uri: DocumentURI(filePath: filepath, isDirectory: false), range: Range(position))
     } else {
       location = nil
     }
@@ -134,7 +134,7 @@ extension SwiftLanguageService {
   /// USR, and declaration location. This request does minimal processing of the result.
   ///
   /// - Parameters:
-  ///   - url: Document URL in which to perform the request. Must be an open document.
+  ///   - url: Document URI in which to perform the request. Must be an open document.
   ///   - range: The position range within the document to lookup the symbol at.
   ///   - completion: Completion block to asynchronously receive the CursorInfo, or error.
   func cursorInfo(

@@ -16,6 +16,7 @@ import LSPLogging
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKSupport
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
@@ -259,6 +260,8 @@ private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
 }
 
 extension BuildServerBuildSystem: BuildSystem {
+  public nonisolated var supportsPreparation: Bool { false }
+
   /// The build settings for the given file.
   ///
   /// Returns `nil` if no build settings have been received from the build
@@ -291,7 +294,7 @@ extension BuildServerBuildSystem: BuildSystem {
 
   public func prepare(
     targets: [ConfiguredTarget],
-    indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+    logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     throw PrepareNotSupportedError()
   }

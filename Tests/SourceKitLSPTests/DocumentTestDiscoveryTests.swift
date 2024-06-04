@@ -39,16 +39,12 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [.testTarget(name: "MyLibraryTests")]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (uri, positions) = try project.openDocument("MyTests.swift")
@@ -81,7 +77,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testSyntacticDocumentTestsSwift() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -142,10 +138,6 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         """
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [.testTarget(name: "MyLibraryTests")]
@@ -197,7 +189,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testSwiftTestingDocumentTests() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -286,7 +278,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testNestedSwiftTestingSuites() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -343,7 +335,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testParameterizedSwiftTestingTest() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -388,7 +380,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testParameterizedSwiftTestingTestWithAnonymousArgument() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -433,7 +425,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testParameterizedSwiftTestingTestWithCommentInSignature() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -478,7 +470,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testSwiftTestingSuiteWithNoTests() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -510,7 +502,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testSwiftTestingSuiteWithCustomName() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -542,7 +534,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testSwiftTestingTestWithCustomName() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -575,7 +567,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testDisabledSwiftTestingTest() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -608,7 +600,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testSwiftTestingTestInDisabledSuite() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -654,7 +646,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testHiddenSwiftTestingTest() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     testClient.openDocument(
       """
@@ -677,7 +669,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testSwiftTestingTestWithTags() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -723,7 +715,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testSwiftTestingTestWithCustomTags() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -785,7 +777,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testSwiftTestingTestsWithExtension() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -846,7 +838,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testSwiftTestingTestSuitesWithExtension() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -901,7 +893,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testXCTestTestsWithExtension() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -945,7 +937,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testSwiftTestingNestedTestSuiteWithExtension() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -1012,7 +1004,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testSwiftTestingExtensionOfTypeInAnotherFile() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -1057,7 +1049,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testSwiftTestingExtensionOfNestedType() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -1106,7 +1098,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testSwiftTestingTwoExtensionsNoDeclaration() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -1161,7 +1153,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
   func testFullyQualifySwiftTestingTestAttribute() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -1295,16 +1287,12 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         """
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [.testTarget(name: "MyLibraryTests")]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (uri, positions) = try project.openDocument("Test.m")
@@ -1354,16 +1342,12 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         """
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [.testTarget(name: "MyLibraryTests")]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (uri, positions) = try project.openDocument("Test.m")

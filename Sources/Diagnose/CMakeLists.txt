@@ -1,6 +1,7 @@
 add_library(Diagnose STATIC
   CommandConfiguration+Sendable.swift
   CommandLineArgumentsReducer.swift
+  DebugCommand.swift
   DiagnoseCommand.swift
   IndexCommand.swift
   MergeSwiftFiles.swift
@@ -12,8 +13,8 @@ add_library(Diagnose STATIC
   ReductionError.swift
   ReproducerBundle.swift
   RequestInfo.swift
+  RunSourcekitdRequestCommand.swift
   SourceKitD+RunWithYaml.swift
-  SourcekitdRequestCommand.swift
   SourceKitDRequestExecutor.swift
   SourceReducer.swift
   StderrStreamConcurrencySafe.swift
@@ -28,6 +29,7 @@ target_link_libraries(Diagnose PUBLIC
   LSPLogging
   SKCore
   SourceKitD
+  SwiftExtensions
   ArgumentParser
   SwiftSyntax::SwiftIDEUtils
   SwiftSyntax::SwiftSyntax

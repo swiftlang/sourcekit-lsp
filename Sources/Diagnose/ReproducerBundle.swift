@@ -47,14 +47,20 @@ func makeReproducerBundle(for requestInfo: RequestInfo, toolchain: Toolchain, bu
     )
   }
   for compilerArg in requestInfo.compilerArgs {
-    // Copy all files from the compiler arguments into the reproducer bundle.
-    // Don't include files in Xcode (.app), Xcode toolchains or usr because they are most likely binary files that aren't user specific and would bloat the reproducer bundle.
-    if compilerArg.hasPrefix("/"), !compilerArg.contains(".app"), !compilerArg.contains(".xctoolchain"),
-      !compilerArg.contains("/usr/")
-    {
-      let dest = URL(fileURLWithPath: bundlePath.path + compilerArg)
-      try? FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
-      try? FileManager.default.copyItem(at: URL(fileURLWithPath: compilerArg), to: dest)
+    // Find the first slash so we are also able to copy files from eg.
+    // `-fmodule-map-file=/path/to/module.modulemap`
+    // `-I/foo/bar`
+    guard let firstSlash = compilerArg.firstIndex(of: "/") else {
+      continue
     }
+    let path = compilerArg[firstSlash...]
+    guard !path.contains(".app"), !path.contains(".xctoolchain"), !path.contains("/usr/") else {
+      // Don't include files in Xcode (.app), Xcode toolchains or usr because they are most likely binary files that
+      // aren't user specific and would bloat the reproducer bundle.
+      continue
+    }
+    let dest = URL(fileURLWithPath: bundlePath.path + path)
+    try? FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try? FileManager.default.copyItem(at: URL(fileURLWithPath: String(path)), to: dest)
   }
 }

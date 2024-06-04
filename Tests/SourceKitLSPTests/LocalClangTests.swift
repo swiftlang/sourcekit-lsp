@@ -21,7 +21,7 @@ final class LocalClangTests: XCTestCase {
 
   func testSymbolInfo() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.cpp)
+    let uri = DocumentURI(for: .cpp)
 
     let locations = testClient.openDocument(
       """
@@ -96,7 +96,7 @@ final class LocalClangTests: XCTestCase {
 
   func testFoldingRange() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.cpp)
+    let uri = DocumentURI(for: .cpp)
 
     testClient.openDocument(
       """
@@ -133,7 +133,7 @@ final class LocalClangTests: XCTestCase {
         )
       )
     )
-    let uri = DocumentURI.for(.cpp)
+    let uri = DocumentURI(for: .cpp)
 
     testClient.openDocument(
       """
@@ -161,7 +161,7 @@ final class LocalClangTests: XCTestCase {
 
   func testCodeAction() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
-    let uri = DocumentURI.for(.cpp)
+    let uri = DocumentURI(for: .cpp)
     let positions = testClient.openDocument(
       """
       enum Color { RED, GREEN, BLUE };
@@ -284,7 +284,7 @@ final class LocalClangTests: XCTestCase {
 
   func testSemanticHighlighting() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
-    let uri = DocumentURI.for(.c)
+    let uri = DocumentURI(for: .c)
 
     testClient.openDocument(
       """

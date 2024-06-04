@@ -21,7 +21,7 @@ final class FormattingTests: XCTestCase {
   func testFormatting() async throws {
     try await SkipUnless.toolchainContainsSwiftFormat()
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -55,7 +55,7 @@ final class FormattingTests: XCTestCase {
   func testFormattingNoEdits() async throws {
     try await SkipUnless.toolchainContainsSwiftFormat()
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     testClient.openDocument(
       """
@@ -219,7 +219,7 @@ final class FormattingTests: XCTestCase {
   func testInsertAndRemove() async throws {
     try await SkipUnless.toolchainContainsSwiftFormat()
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -251,7 +251,7 @@ final class FormattingTests: XCTestCase {
   func testMultiLineStringInsertion() async throws {
     try await SkipUnless.toolchainContainsSwiftFormat()
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       #"""

@@ -10,8 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LSPLogging
 import LanguageServerProtocol
 import SKSupport
+import SwiftExtensions
 
 /// Keeps track of the state to send work done progress updates to the client
 final actor WorkDoneProgressState {
@@ -108,7 +110,10 @@ final actor WorkDoneProgressState {
   }
 
   func endProgressImpl(server: SourceKitLSPServer) async {
-    assert(activeTasks > 0, "Unbalanced startProgress/endProgress calls")
+    guard activeTasks > 0 else {
+      logger.fault("Unbalanced startProgress/endProgress calls")
+      return
+    }
     activeTasks -= 1
     guard await server.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false else {
       return

@@ -18,6 +18,7 @@ import SKSupport
 import SKTestSupport
 import SourceKitD
 import SourceKitLSP
+import SwiftExtensions
 import XCTest
 
 import enum PackageLoading.Platform
@@ -52,7 +53,7 @@ final class CrashRecoveryTests: XCTestCase {
       capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
       usePullDiagnostics: false
     )
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -90,7 +91,7 @@ final class CrashRecoveryTests: XCTestCase {
 
     await swiftLanguageService._crash()
 
-    let crashedNotification = try await testClient.nextNotification(ofType: WorkDoneProgress.self, timeout: 5)
+    let crashedNotification = try await testClient.nextNotification(ofType: WorkDoneProgress.self, timeout: .seconds(5))
     XCTAssertEqual(
       crashedNotification.value,
       .begin(
@@ -107,7 +108,7 @@ final class CrashRecoveryTests: XCTestCase {
     _ = try? await testClient.send(hoverRequest)
     let semanticFunctionalityRestoredNotification = try await testClient.nextNotification(
       ofType: WorkDoneProgress.self,
-      timeout: 30
+      timeout: .seconds(30)
     )
     XCTAssertEqual(semanticFunctionalityRestoredNotification.value, .end(WorkDoneProgressEnd()))
 
@@ -150,7 +151,7 @@ final class CrashRecoveryTests: XCTestCase {
     try SkipUnless.longTestsEnabled()
 
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.cpp)
+    let uri = DocumentURI(for: .cpp)
 
     let positions = testClient.openDocument("1️⃣", uri: uri)
 
@@ -256,7 +257,7 @@ final class CrashRecoveryTests: XCTestCase {
     try SkipUnless.longTestsEnabled()
 
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.cpp)
+    let uri = DocumentURI(for: .cpp)
 
     let positions = testClient.openDocument("1️⃣", uri: uri)
 

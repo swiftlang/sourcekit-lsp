@@ -8,9 +8,10 @@ add_library(SKCore STATIC
   CompilationDatabase.swift
   CompilationDatabaseBuildSystem.swift
   Debouncer.swift
+  ExperimentalFeatures.swift
   FallbackBuildSystem.swift
   FileBuildSettings.swift
-  IndexProcessResult.swift
+  IndexTaskID.swift
   MainFilesProvider.swift
   PathPrefixMapping.swift
   SplitShellCommand.swift
@@ -28,5 +29,6 @@ target_link_libraries(SKCore PUBLIC
   LSPLogging
   SKSupport
   SourceKitD
+  SwiftExtensions
   PackageModel
   TSCBasic)

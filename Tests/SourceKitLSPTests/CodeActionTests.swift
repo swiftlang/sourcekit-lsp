@@ -191,7 +191,7 @@ final class CodeActionTests: XCTestCase {
 
   func testEmptyCodeActionResult() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
       func foo() -> String {
@@ -214,7 +214,7 @@ final class CodeActionTests: XCTestCase {
 
   func testSemanticRefactorLocalRenameResult() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
       func localRename() {
@@ -240,7 +240,7 @@ final class CodeActionTests: XCTestCase {
 
   func testSemanticRefactorLocationCodeActionResult() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
       func foo() -> String {
@@ -297,7 +297,7 @@ final class CodeActionTests: XCTestCase {
 
   func testJSONCodableCodeActionResult() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
          1️⃣{
@@ -339,7 +339,7 @@ final class CodeActionTests: XCTestCase {
 
   func testSemanticRefactorRangeCodeActionResult() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
       func foo() -> String {
@@ -410,7 +410,7 @@ final class CodeActionTests: XCTestCase {
       capabilities: clientCapabilitiesWithCodeActionSupport,
       usePullDiagnostics: false
     )
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -497,7 +497,7 @@ final class CodeActionTests: XCTestCase {
 
   func testAddDocumentationCodeActionResult() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
       2️⃣func refacto1️⃣r(syntax: DeclSyntax, in context: Void) -> DeclSyntax? { }3️⃣
@@ -576,7 +576,7 @@ final class CodeActionTests: XCTestCase {
 
   func testPackageManifestEditingCodeActionResult() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
       // swift-tools-version: 5.5
@@ -650,7 +650,7 @@ final class CodeActionTests: XCTestCase {
 
   func testPackageManifestEditingCodeActionNoTestResult() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
       // swift-tools-version: 5.5
@@ -1014,7 +1014,7 @@ final class CodeActionTests: XCTestCase {
     line: UInt = #line
   ) async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(markedText, uri: uri)
 
     var ranges = ranges

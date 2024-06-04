@@ -35,10 +35,10 @@ public struct PreparationTaskDescription: IndexTaskDescription {
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
 
-  private let preparationUpToDateStatus: IndexUpToDateStatusManager<ConfiguredTarget>
+  private let preparationUpToDateTracker: UpToDateTracker<ConfiguredTarget>
 
-  /// See `SemanticIndexManager.indexProcessDidProduceResult`
-  private let indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+  /// See `SemanticIndexManager.logMessageToIndexLog`.
+  private let logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
 
   /// Test hooks that should be called when the preparation task finishes.
   private let testHooks: IndexTestHooks
@@ -59,14 +59,14 @@ public struct PreparationTaskDescription: IndexTaskDescription {
   init(
     targetsToPrepare: [ConfiguredTarget],
     buildSystemManager: BuildSystemManager,
-    preparationUpToDateStatus: IndexUpToDateStatusManager<ConfiguredTarget>,
-    indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
+    preparationUpToDateTracker: UpToDateTracker<ConfiguredTarget>,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     testHooks: IndexTestHooks
   ) {
     self.targetsToPrepare = targetsToPrepare
     self.buildSystemManager = buildSystemManager
-    self.preparationUpToDateStatus = preparationUpToDateStatus
-    self.indexProcessDidProduceResult = indexProcessDidProduceResult
+    self.preparationUpToDateTracker = preparationUpToDateTracker
+    self.logMessageToIndexLog = logMessageToIndexLog
     self.testHooks = testHooks
   }
 
@@ -76,7 +76,7 @@ public struct PreparationTaskDescription: IndexTaskDescription {
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running preparation operations
     await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "preparation-\(id % 100)") {
       let targetsToPrepare = await targetsToPrepare.asyncFilter {
-        await !preparationUpToDateStatus.isUpToDate($0)
+        await !preparationUpToDateTracker.isUpToDate($0)
       }.sorted(by: {
         ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID)
       })
@@ -105,7 +105,7 @@ public struct PreparationTaskDescription: IndexTaskDescription {
       do {
         try await buildSystemManager.prepare(
           targets: targetsToPrepare,
-          indexProcessDidProduceResult: indexProcessDidProduceResult
+          logMessageToIndexLog: logMessageToIndexLog
         )
       } catch {
         logger.error(
@@ -114,7 +114,7 @@ public struct PreparationTaskDescription: IndexTaskDescription {
       }
       await testHooks.preparationTaskDidFinish?(self)
       if !Task.isCancelled {
-        await preparationUpToDateStatus.markUpToDate(targetsToPrepare, updateOperationStartDate: startDate)
+        await preparationUpToDateTracker.markUpToDate(targetsToPrepare, updateOperationStartDate: startDate)
       }
     }
   }

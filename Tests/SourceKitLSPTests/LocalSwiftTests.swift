@@ -35,7 +35,7 @@ final class LocalSwiftTests: XCTestCase {
 
   func testEditing() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let documentManager = await testClient.server._documentManager
 
@@ -419,7 +419,7 @@ final class LocalSwiftTests: XCTestCase {
     )
   }
 
-  func testFixitsAreIncludedInPublishDiagnosticsNotes() async throws {
+  func testFixitsAreIncludedInPublishDiagnosticsNotifications() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
@@ -585,7 +585,7 @@ final class LocalSwiftTests: XCTestCase {
     )
   }
 
-  func testFixitsAreReturnedFromCodeActionsNotes() async throws {
+  func testFixitsAreReturnedFromCodeActionsNotifications() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: quickFixCapabilities, usePullDiagnostics: false)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
@@ -691,7 +691,7 @@ final class LocalSwiftTests: XCTestCase {
     )
   }
 
-  func testMuliEditFixitCodeActionNote() async throws {
+  func testMuliEditFixitCodeActionNotifications() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: quickFixCapabilities, usePullDiagnostics: false)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
@@ -1427,6 +1427,6 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertEqual(diag.message, "Cannot find 'bar' in scope")
 
     // Ensure that we don't get a second `PublishDiagnosticsNotification`
-    await assertThrowsError(try await testClient.nextDiagnosticsNotification(timeout: 2))
+    await assertThrowsError(try await testClient.nextDiagnosticsNotification(timeout: .seconds(2)))
   }
 }

@@ -19,6 +19,7 @@ import SKCore
 import SKSupport
 import SemanticIndex
 import SourceKitD
+import SwiftExtensions
 import SwiftParser
 import SwiftParserDiagnostics
 import SwiftSyntax
@@ -194,7 +195,10 @@ public actor SwiftLanguageService: LanguageService, Sendable {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
     self.sourceKitLSPServer = sourceKitLSPServer
     self.swiftFormat = toolchain.swiftFormat
-    self.sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(dylibPath: sourcekitd)
+    self.sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
+      dylibPath: sourcekitd,
+      testHooks: options.sourcekitdTestHooks
+    )
     self.capabilityRegistry = workspace.capabilityRegistry
     self.semanticIndexManager = workspace.semanticIndexManager
     self.serverOptions = options
@@ -327,15 +331,24 @@ extension SwiftLanguageService {
 
   // MARK: - Build System Integration
 
-  private func reopenDocument(_ snapshot: DocumentSnapshot, _ compileCmd: SwiftCompileCommand?) async {
+  public func reopenDocument(_ notification: ReopenTextDocumentNotification) async {
+    let snapshot = orLog("Getting snapshot to re-open document") {
+      try documentManager.latestSnapshot(notification.textDocument.uri)
+    }
+    guard let snapshot else {
+      return
+    }
     cancelInFlightPublishDiagnosticsTask(for: snapshot.uri)
     await diagnosticReportManager.removeItemsFromCache(with: snapshot.uri)
 
     let closeReq = closeDocumentSourcekitdRequest(uri: snapshot.uri)
-    _ = try? await self.sourcekitd.send(closeReq, fileContents: nil)
+    _ = await orLog("Closing document to re-open it") { try await self.sourcekitd.send(closeReq, fileContents: nil) }
 
-    let openReq = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: compileCmd)
-    _ = try? await self.sourcekitd.send(openReq, fileContents: snapshot.text)
+    let openReq = openDocumentSourcekitdRequest(
+      snapshot: snapshot,
+      compileCommand: await buildSettings(for: snapshot.uri)
+    )
+    _ = await orLog("Re-opening document") { try await self.sourcekitd.send(openReq, fileContents: snapshot.text) }
 
     if await capabilityRegistry.clientSupportsPullDiagnostics(for: .swift) {
       await self.refreshDiagnosticsDebouncer.scheduleCall()
@@ -345,14 +358,11 @@ extension SwiftLanguageService {
   }
 
   public func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
-    // We may not have a snapshot if this is called just before `openDocument`.
-    guard let snapshot = try? self.documentManager.latestSnapshot(uri) else {
-      return
-    }
-
-    // Close and re-open the document internally to inform sourcekitd to update the compile
-    // command. At the moment there's no better way to do this.
-    await self.reopenDocument(snapshot, await self.buildSettings(for: uri))
+    // Close and re-open the document internally to inform sourcekitd to update the compile command. At the moment
+    // there's no better way to do this.
+    // Schedule the document re-open in the SourceKit-LSP server. This ensures that the re-open happens exclusively with
+    // no other request running at the same time.
+    sourceKitLSPServer?.handle(ReopenTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
   }
 
   public func documentDependenciesUpdated(_ uri: DocumentURI) async {
@@ -392,20 +402,20 @@ extension SwiftLanguageService {
     ])
   }
 
-  public func openDocument(_ note: DidOpenTextDocumentNotification) async {
-    cancelInFlightPublishDiagnosticsTask(for: note.textDocument.uri)
-    await diagnosticReportManager.removeItemsFromCache(with: note.textDocument.uri)
+  public func openDocument(_ notification: DidOpenTextDocumentNotification) async {
+    cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
+    await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
 
-    guard let snapshot = self.documentManager.open(note) else {
+    guard let snapshot = self.documentManager.open(notification) else {
       // Already logged failure.
       return
     }
 
     let buildSettings = await self.buildSettings(for: snapshot.uri)
-    if buildSettings == nil || buildSettings!.isFallback, let fileUrl = note.textDocument.uri.fileURL {
+    if buildSettings == nil || buildSettings!.isFallback, let fileUrl = notification.textDocument.uri.fileURL {
       // Do not show this notification for non-file URIs to make sure we don't see this notificaiton for newly created
       // files (which get opened as with a `untitled:Unitled-1` URI by VS Code.
-      await sourceKitLSPServer?.sendNotificationToClient(
+      sourceKitLSPServer?.sendNotificationToClient(
         ShowMessageNotification(
           type: .warning,
           message: """
@@ -419,17 +429,17 @@ extension SwiftLanguageService {
 
     let req = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: buildSettings)
     _ = try? await self.sourcekitd.send(req, fileContents: snapshot.text)
-    await publishDiagnosticsIfNeeded(for: note.textDocument.uri)
+    await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
   }
 
-  public func closeDocument(_ note: DidCloseTextDocumentNotification) async {
-    cancelInFlightPublishDiagnosticsTask(for: note.textDocument.uri)
-    inFlightPublishDiagnosticsTasks[note.textDocument.uri] = nil
-    await diagnosticReportManager.removeItemsFromCache(with: note.textDocument.uri)
+  public func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
+    cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
+    inFlightPublishDiagnosticsTasks[notification.textDocument.uri] = nil
+    await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
 
-    self.documentManager.close(note)
+    self.documentManager.close(notification)
 
-    let req = closeDocumentSourcekitdRequest(uri: note.textDocument.uri)
+    let req = closeDocumentSourcekitdRequest(uri: notification.textDocument.uri)
     _ = try? await self.sourcekitd.send(req, fileContents: nil)
   }
 
@@ -511,8 +521,8 @@ extension SwiftLanguageService {
     }
   }
 
-  public func changeDocument(_ note: DidChangeTextDocumentNotification) async {
-    cancelInFlightPublishDiagnosticsTask(for: note.textDocument.uri)
+  public func changeDocument(_ notification: DidChangeTextDocumentNotification) async {
+    cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
 
     let keys = self.keys
     struct Edit {
@@ -521,14 +531,14 @@ extension SwiftLanguageService {
       let replacement: String
     }
 
-    guard let (preEditSnapshot, postEditSnapshot, edits) = self.documentManager.edit(note) else {
+    guard let (preEditSnapshot, postEditSnapshot, edits) = self.documentManager.edit(notification) else {
       return
     }
 
     for edit in edits {
       let req = sourcekitd.dictionary([
         keys.request: self.requests.editorReplaceText,
-        keys.name: note.textDocument.uri.pseudoPath,
+        keys.name: notification.textDocument.uri.pseudoPath,
         keys.enableSyntaxMap: 0,
         keys.enableStructure: 0,
         keys.enableDiagnostics: 0,
@@ -564,14 +574,14 @@ extension SwiftLanguageService {
       edits: concurrentEdits
     )
 
-    await publishDiagnosticsIfNeeded(for: note.textDocument.uri)
+    await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
   }
 
-  public func willSaveDocument(_ note: WillSaveTextDocumentNotification) {
+  public func willSaveDocument(_ notification: WillSaveTextDocumentNotification) {
 
   }
 
-  public func didSaveDocument(_ note: DidSaveTextDocumentNotification) {
+  public func didSaveDocument(_ notification: DidSaveTextDocumentNotification) {
 
   }
 
@@ -898,6 +908,11 @@ extension SwiftLanguageService {
       // VS Code does not request diagnostics again for a document if the diagnostics request failed.
       // Since sourcekit-lsp usually recovers from failures (e.g. after sourcekitd crashes), this is undesirable.
       // Instead of returning an error, return empty results.
+      // Do forward cancellation because we don't want to clear diagnostics in the client if they cancel the diagnostic
+      // request.
+      if ResponseError(error) == .cancelled {
+        throw error
+      }
       logger.error(
         """
         Loading diagnostic failed with the following error. Returning empty diagnostics.

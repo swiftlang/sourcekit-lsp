@@ -15,12 +15,12 @@ import LanguageServerProtocol
 import SKCore
 import SKSupport
 import SemanticIndex
+import SourceKitD
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 
 extension SourceKitLSPServer {
-
   /// Configuration options for the SourceKitServer.
   public struct Options: Sendable {
     /// Additional compiler flags (e.g. `-Xswiftc` for SwiftPM projects) and other build-related
@@ -49,6 +49,11 @@ extension SourceKitLSPServer {
     /// notification when running unit tests.
     public var swiftPublishDiagnosticsDebounceDuration: TimeInterval
 
+    /// Experimental features that are enabled.
+    public var experimentalFeatures: Set<ExperimentalFeature>
+
+    public var sourcekitdTestHooks: SourceKitDTestHooks
+
     public var indexTestHooks: IndexTestHooks
 
     public init(
@@ -59,6 +64,8 @@ extension SourceKitLSPServer {
       completionOptions: SKCompletionOptions = .init(),
       generatedInterfacesPath: AbsolutePath = defaultDirectoryForGeneratedInterfaces,
       swiftPublishDiagnosticsDebounceDuration: TimeInterval = 2, /* 2s */
+      experimentalFeatures: Set<ExperimentalFeature> = [],
+      sourcekitdTestHooks: SourceKitDTestHooks = SourceKitDTestHooks(),
       indexTestHooks: IndexTestHooks = IndexTestHooks()
     ) {
       self.buildSetup = buildSetup
@@ -68,6 +75,8 @@ extension SourceKitLSPServer {
       self.completionOptions = completionOptions
       self.generatedInterfacesPath = generatedInterfacesPath
       self.swiftPublishDiagnosticsDebounceDuration = swiftPublishDiagnosticsDebounceDuration
+      self.experimentalFeatures = experimentalFeatures
+      self.sourcekitdTestHooks = sourcekitdTestHooks
       self.indexTestHooks = indexTestHooks
     }
   }

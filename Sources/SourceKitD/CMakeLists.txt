@@ -17,5 +17,6 @@ target_link_libraries(SourceKitD PUBLIC
 target_link_libraries(SourceKitD PRIVATE
   LSPLogging
   SKSupport
+  SwiftExtensions
   TSCBasic
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)

@@ -21,22 +21,6 @@ public enum TestStyle {
   public static let swiftTesting = "swift-testing"
 }
 
-public struct AnnotatedTestItem: Sendable {
-  /// The test item to be annotated
-  public var testItem: TestItem
-
-  /// Whether the `TestItem` is an extension.
-  public var isExtension: Bool
-
-  public init(
-    testItem: TestItem,
-    isExtension: Bool
-  ) {
-    self.testItem = testItem
-    self.isExtension = isExtension
-  }
-}
-
 fileprivate extension SymbolOccurrence {
   /// Assuming that this is a symbol occurrence returned by the index, return whether it can constitute the definition
   /// of a test case.
@@ -204,12 +188,9 @@ extension SourceKitLSPServer {
     let index = workspace.index(checkedFor: .inMemoryModifiedFiles(documentManager))
 
     let filesWithInMemoryState = documentManager.documents.keys.filter { uri in
-      guard let url = uri.fileURL else {
-        return true
-      }
       // Use the index to check for in-memory modifications so we can re-use its cache. If no index exits, ask the
       // document manager directly.
-      return index?.fileHasInMemoryModifications(url) ?? documentManager.fileHasInMemoryModifications(url)
+      return index?.fileHasInMemoryModifications(uri) ?? documentManager.fileHasInMemoryModifications(uri)
     }
 
     let testsFromFilesWithInMemoryState = await filesWithInMemoryState.concurrentMap { (uri) -> [AnnotatedTestItem] in
@@ -254,7 +235,7 @@ extension SourceKitLSPServer {
           // up-to-date. Include the tests from `testsFromFilesWithInMemoryState`.
           return nil
         }
-        if let fileUrl = testItem.location.uri.fileURL, index?.hasUpToDateUnit(for: fileUrl) ?? false {
+        if index?.hasUpToDateUnit(for: testItem.location.uri) ?? false {
           // We don't have a test for this file in the semantic index but an up-to-date unit file. This means that the
           // index is up-to-date and has more knowledge that identifies a `TestItem` as not actually being a test, eg.
           // because it starts with `test` but doesn't appear in a class inheriting from `XCTestCase`.
@@ -341,7 +322,7 @@ extension SourceKitLSPServer {
           }
         ) + syntacticSwiftTestingTests
       }
-      if let fileURL = mainFileUri.fileURL, index.hasUpToDateUnit(for: fileURL) {
+      if index.hasUpToDateUnit(for: mainFileUri) {
         // The semantic index is up-to-date and doesn't contain any tests. We don't need to do a syntactic fallback for
         // XCTest. We do still need to return swift-testing tests which don't have a semantic index.
         return syntacticSwiftTestingTests
@@ -349,115 +330,6 @@ extension SourceKitLSPServer {
     }
     // We don't have any up-to-date semantic index entries for this file. Syntactically look for tests.
     return syntacticTests ?? []
-  }
-}
-
-/// Scans a source file for `XCTestCase` classes and test methods.
-///
-/// The syntax visitor scans from class and extension declarations that could be `XCTestCase` classes or extensions
-/// thereof. It then calls into `findTestMethods` to find the actual test methods.
-final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
-  /// The document snapshot of the syntax tree that is being walked.
-  private var snapshot: DocumentSnapshot
-
-  /// The workspace symbols representing the found `XCTestCase` subclasses and test methods.
-  private var result: [AnnotatedTestItem] = []
-
-  private init(snapshot: DocumentSnapshot) {
-    self.snapshot = snapshot
-    super.init(viewMode: .fixedUp)
-  }
-
-  public static func findTestSymbols(
-    in snapshot: DocumentSnapshot,
-    syntaxTreeManager: SyntaxTreeManager
-  ) async -> [AnnotatedTestItem] {
-    guard snapshot.text.contains("XCTestCase") || snapshot.text.contains("test") else {
-      // If the file contains tests that can be discovered syntactically, it needs to have a class inheriting from
-      // `XCTestCase` or a function starting with `test`.
-      // This is intended to filter out files that obviously do not contain tests.
-      return []
-    }
-    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    let visitor = SyntacticSwiftXCTestScanner(snapshot: snapshot)
-    visitor.walk(syntaxTree)
-    return visitor.result
-  }
-
-  private func findTestMethods(in members: MemberBlockItemListSyntax, containerName: String) -> [TestItem] {
-    return members.compactMap { (member) -> TestItem? in
-      guard let function = member.decl.as(FunctionDeclSyntax.self) else {
-        return nil
-      }
-      guard function.name.text.starts(with: "test") else {
-        return nil
-      }
-      guard function.modifiers.map(\.name.tokenKind).allSatisfy({ $0 != .keyword(.static) && $0 != .keyword(.class) })
-      else {
-        // Test methods can't be static.
-        return nil
-      }
-      guard function.signature.returnClause == nil, function.signature.parameterClause.parameters.isEmpty else {
-        // Test methods can't have a return type or have parameters.
-        // Technically we are also filtering out functions that have an explicit `Void` return type here but such
-        // declarations are probably less common than helper functions that start with `test` and have a return type.
-        return nil
-      }
-      let range = snapshot.range(
-        of: function.positionAfterSkippingLeadingTrivia..<function.endPositionBeforeTrailingTrivia
-      )
-
-      return TestItem(
-        id: "\(containerName)/\(function.name.text)()",
-        label: "\(function.name.text)()",
-        disabled: false,
-        style: TestStyle.xcTest,
-        location: Location(uri: snapshot.uri, range: range),
-        children: [],
-        tags: []
-      )
-    }
-  }
-
-  override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
-    guard let inheritedTypes = node.inheritanceClause?.inheritedTypes, let superclass = inheritedTypes.first else {
-      // The class has no superclass and thus can't inherit from XCTestCase.
-      // Continue scanning its children in case it has a nested subclass that inherits from XCTestCase.
-      return .visitChildren
-    }
-    let superclassName = superclass.type.as(IdentifierTypeSyntax.self)?.name.text
-    if superclassName == "NSObject" {
-      // We know that the class can't be an subclass of `XCTestCase` so don't visit it.
-      // We can't explicitly check for the `XCTestCase` superclass because the class might inherit from a class that in
-      // turn inherits from `XCTestCase`. Resolving that inheritance hierarchy would be semantic.
-      return .visitChildren
-    }
-    let testMethods = findTestMethods(in: node.memberBlock.members, containerName: node.name.text)
-    guard !testMethods.isEmpty || superclassName == "XCTestCase" else {
-      // Don't report a test class if it doesn't contain any test methods.
-      return .visitChildren
-    }
-    let range = snapshot.range(of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia)
-    let testItem = AnnotatedTestItem(
-      testItem: TestItem(
-        id: node.name.text,
-        label: node.name.text,
-        disabled: false,
-        style: TestStyle.xcTest,
-        location: Location(uri: snapshot.uri, range: range),
-        children: testMethods,
-        tags: []
-      ),
-      isExtension: false
-    )
-    result.append(testItem)
-    return .visitChildren
-  }
-
-  override func visit(_ node: ExtensionDeclSyntax) -> SyntaxVisitorContinueKind {
-    result += findTestMethods(in: node.memberBlock.members, containerName: node.extendedType.trimmedDescription)
-      .map { AnnotatedTestItem(testItem: $0, isExtension: true) }
-    return .visitChildren
   }
 }
 
@@ -504,7 +376,7 @@ extension AnnotatedTestItem {
   }
 }
 
-extension Array<AnnotatedTestItem> {
+fileprivate extension Array<AnnotatedTestItem> {
   /// When the test scanners discover tests in extensions they are captured in their own parent `TestItem`, not the
   /// `TestItem` generated from the class/struct's definition. This is largely because of the syntatic nature of the
   /// test scanners as they are today, which only know about tests within the context of the current file. Extensions
