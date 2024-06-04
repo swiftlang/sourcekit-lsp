@@ -8,6 +8,7 @@ add_library(SKCore STATIC
   CompilationDatabase.swift
   CompilationDatabaseBuildSystem.swift
   Debouncer.swift
+  ExperimentalFeatures.swift
   FallbackBuildSystem.swift
   FileBuildSettings.swift
   IndexProcessResult.swift

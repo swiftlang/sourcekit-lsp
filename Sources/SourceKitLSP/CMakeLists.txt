@@ -4,7 +4,6 @@ add_library(SourceKitLSP STATIC
   CreateBuildSystem.swift
   DocumentManager.swift
   DocumentSnapshot+FromFileContents.swift
-  ExperimentalFeatures.swift
   IndexProgressManager.swift
   IndexStoreDB+MainFilesProvider.swift
   LanguageServerType.swift

@@ -15,7 +15,7 @@ import LSPTestSupport
 import LanguageServerProtocol
 import PackageModel
 @_spi(Testing) import SKCore
-import SKSwiftPMWorkspace
+@_spi(Testing) import SKSwiftPMWorkspace
 import SKTestSupport
 import SourceKitLSP
 import TSCBasic
@@ -54,7 +54,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           toolchainRegistry: tr,
           fileSystem: fs,
           buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
-          isForIndexBuild: false
+          experimentalFeatures: []
         )
       )
     }
@@ -81,7 +81,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
-        isForIndexBuild: false
+        experimentalFeatures: []
       )
       await assertThrowsError(try await buildSystem.generateBuildGraph(allowFileSystemWrites: false))
     }
@@ -111,7 +111,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           toolchainRegistry: ToolchainRegistry(toolchains: []),
           fileSystem: fs,
           buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
-          isForIndexBuild: false
+          experimentalFeatures: []
         )
       )
     }
@@ -142,7 +142,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
-        isForIndexBuild: false
+        experimentalFeatures: []
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
@@ -207,7 +207,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: localFileSystem,
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
-        isForIndexBuild: false
+        experimentalFeatures: []
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
@@ -270,7 +270,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         buildSetup: config,
-        isForIndexBuild: false
+        experimentalFeatures: []
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
@@ -312,7 +312,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
-        isForIndexBuild: false
+        experimentalFeatures: []
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
@@ -349,7 +349,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
-        isForIndexBuild: false
+        experimentalFeatures: []
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
@@ -398,7 +398,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
-        isForIndexBuild: false
+        experimentalFeatures: []
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
@@ -463,7 +463,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
-        isForIndexBuild: false
+        experimentalFeatures: []
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
@@ -507,7 +507,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
-        isForIndexBuild: false
+        experimentalFeatures: []
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
@@ -588,7 +588,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: ToolchainRegistry.forTesting,
         fileSystem: fs,
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
-        isForIndexBuild: false
+        experimentalFeatures: []
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
@@ -640,7 +640,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
-        isForIndexBuild: false
+        experimentalFeatures: []
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
@@ -708,7 +708,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: ToolchainRegistry.forTesting,
         fileSystem: fs,
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
-        isForIndexBuild: false
+        experimentalFeatures: []
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
@@ -748,7 +748,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
-        isForIndexBuild: false
+        experimentalFeatures: []
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
@@ -789,7 +789,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
-        isForIndexBuild: false
+        experimentalFeatures: []
       )
 
       assertEqual(await swiftpmBuildSystem.projectRoot, try resolveSymlinks(tempDir.appending(component: "pkg")))
@@ -824,7 +824,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
-        isForIndexBuild: false
+        experimentalFeatures: []
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 

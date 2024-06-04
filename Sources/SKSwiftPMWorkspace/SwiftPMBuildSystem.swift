@@ -95,71 +95,35 @@ public actor SwiftPMBuildSystem {
   }
 
   /// Callbacks that should be called if the list of possible test files has changed.
-  public var testFilesDidChangeCallbacks: [() async -> Void] = []
+  private var testFilesDidChangeCallbacks: [() async -> Void] = []
 
-  let workspacePath: TSCAbsolutePath
+  private let workspacePath: TSCAbsolutePath
   /// The directory containing `Package.swift`.
+  @_spi(Testing)
   public var projectRoot: TSCAbsolutePath
-  var modulesGraph: ModulesGraph
-  let workspace: Workspace
-  public let toolsBuildParameters: BuildParameters
-  public let destinationBuildParameters: BuildParameters
-  let fileSystem: FileSystem
+  private var modulesGraph: ModulesGraph
+  private let workspace: Workspace
+  @_spi(Testing) public let toolsBuildParameters: BuildParameters
+  @_spi(Testing) public let destinationBuildParameters: BuildParameters
+  private let fileSystem: FileSystem
   private let toolchainRegistry: ToolchainRegistry
 
   private let swiftBuildSupportsPrepareForIndexingTask = SKSupport.ThreadSafeBox<Task<Bool, Never>?>(initialValue: nil)
 
-  #if compiler(>=6.1)
-  #warning(
-    "Remove swiftBuildSupportsPrepareForIndexing when we no longer need to support SwiftPM versions that don't have support for `--experimental-prepare-for-indexing`"
-  )
-  #endif
-  /// Whether `swift build` supports the `--experimental-prepare-for-indexing` flag.
-  private var swiftBuildSupportsPrepareForIndexing: Bool {
-    get async {
-      let task = swiftBuildSupportsPrepareForIndexingTask.withLock { task in
-        if let task {
-          return task
-        }
-        let newTask = Task { () -> Bool in
-          guard let swift = await toolchainRegistry.default?.swift else {
-            return false
-          }
-
-          do {
-            let process = Process(args: swift.pathString, "build", "--help-hidden")
-            try process.launch()
-            let result = try await process.waitUntilExit()
-            guard let output = String(bytes: try result.output.get(), encoding: .utf8) else {
-              return false
-            }
-            return output.contains("--experimental-prepare-for-indexing")
-          } catch {
-            return false
-          }
-        }
-        task = newTask
-        return newTask
-      }
-
-      return await task.value
-    }
-  }
-
-  var fileToTarget: [DocumentURI: SwiftBuildTarget] = [:]
-  var sourceDirToTarget: [DocumentURI: SwiftBuildTarget] = [:]
+  private var fileToTarget: [DocumentURI: SwiftBuildTarget] = [:]
+  private var sourceDirToTarget: [DocumentURI: SwiftBuildTarget] = [:]
 
   /// Maps configured targets ids to their SwiftPM build target as well as an index in their topological sorting.
   ///
   /// Targets with lower index are more low level, ie. targets with higher indices depend on targets with lower indices.
-  var targets: [ConfiguredTarget: (index: Int, buildTarget: SwiftBuildTarget)] = [:]
+  private var targets: [ConfiguredTarget: (index: Int, buildTarget: SwiftBuildTarget)] = [:]
 
   /// The URIs for which the delegate has registered for change notifications,
   /// mapped to the language the delegate specified when registering for change notifications.
-  var watchedFiles: Set<DocumentURI> = []
+  private var watchedFiles: Set<DocumentURI> = []
 
   /// This callback is informed when `reloadPackage` starts and ends executing.
-  var reloadPackageStatusCallback: (ReloadPackageStatus) async -> Void
+  private var reloadPackageStatusCallback: (ReloadPackageStatus) async -> Void
 
   /// Debounces calls to `delegate.filesDependenciesUpdated`.
   ///
@@ -169,16 +133,19 @@ public actor SwiftPMBuildSystem {
   /// `fileDependenciesUpdated` call once for every updated file within the target.
   ///
   /// Force-unwrapped optional because initializing it requires access to `self`.
-  var fileDependenciesUpdatedDebouncer: Debouncer<Set<DocumentURI>>! = nil
+  private var fileDependenciesUpdatedDebouncer: Debouncer<Set<DocumentURI>>! = nil
 
   /// A `ObservabilitySystem` from `SwiftPM` that logs.
   private let observabilitySystem = ObservabilitySystem({ scope, diagnostic in
     logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
   })
 
+  /// Whether to pass `--experimental-prepare-for-indexing` to `swift build` as part of preparation.
+  private let experimentalFeatures: Set<ExperimentalFeature>
+
   /// Whether the `SwiftPMBuildSystem` is pointed at a `.index-build` directory that's independent of the
   /// user's build.
-  private let isForIndexBuild: Bool
+  private var isForIndexBuild: Bool { experimentalFeatures.contains(.backgroundIndexing) }
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
@@ -193,13 +160,13 @@ public actor SwiftPMBuildSystem {
     toolchainRegistry: ToolchainRegistry,
     fileSystem: FileSystem = localFileSystem,
     buildSetup: BuildSetup,
-    isForIndexBuild: Bool,
+    experimentalFeatures: Set<ExperimentalFeature>,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void = { _ in }
   ) async throws {
     self.workspacePath = workspacePath
     self.fileSystem = fileSystem
     self.toolchainRegistry = toolchainRegistry
-    self.isForIndexBuild = isForIndexBuild
+    self.experimentalFeatures = experimentalFeatures
 
     guard let packageRoot = findPackageDirectory(containing: workspacePath, fileSystem) else {
       throw Error.noManifest(workspacePath: workspacePath)
@@ -218,7 +185,7 @@ public actor SwiftPMBuildSystem {
       forRootPackage: AbsolutePath(packageRoot),
       fileSystem: fileSystem
     )
-    if isForIndexBuild {
+    if experimentalFeatures.contains(.backgroundIndexing) {
       location.scratchDirectory = AbsolutePath(packageRoot.appending(component: ".index-build"))
     } else if let scratchDirectory = buildSetup.path {
       location.scratchDirectory = AbsolutePath(scratchDirectory)
@@ -289,7 +256,7 @@ public actor SwiftPMBuildSystem {
     uri: DocumentURI,
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
-    isForIndexBuild: Bool,
+    experimentalFeatures: Set<ExperimentalFeature>,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void
   ) async {
     guard let fileURL = uri.fileURL else {
@@ -301,7 +268,7 @@ public actor SwiftPMBuildSystem {
         toolchainRegistry: toolchainRegistry,
         fileSystem: localFileSystem,
         buildSetup: buildSetup,
-        isForIndexBuild: isForIndexBuild,
+        experimentalFeatures: experimentalFeatures,
         reloadPackageStatusCallback: reloadPackageStatusCallback
       )
     } catch Error.noManifest {
@@ -612,7 +579,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     arguments += self.destinationBuildParameters.flags.swiftCompilerFlags.flatMap { ["-Xswiftc", $0] }
     arguments += self.destinationBuildParameters.flags.linkerFlags.flatMap { ["-Xlinker", $0] }
     arguments += self.destinationBuildParameters.flags.xcbuildFlags?.flatMap { ["-Xxcbuild", $0] } ?? []
-    if await swiftBuildSupportsPrepareForIndexing {
+    if experimentalFeatures.contains(.swiftpmPrepareForIndexing) {
       arguments.append("--experimental-prepare-for-indexing")
     }
     if Task.isCancelled {

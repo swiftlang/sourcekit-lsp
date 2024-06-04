@@ -15,4 +15,7 @@
 public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
   /// Enable background indexing.
   case backgroundIndexing = "background-indexing"
+
+  /// Add `--experimental-prepare-for-indexing` to the `swift build` command run to prepare a target for indexing.
+  case swiftpmPrepareForIndexing = "swiftpm-prepare-for-indexing"
 }
