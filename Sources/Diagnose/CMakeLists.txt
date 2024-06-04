@@ -29,6 +29,7 @@ target_link_libraries(Diagnose PUBLIC
   LSPLogging
   SKCore
   SourceKitD
+  SwiftExtensions
   ArgumentParser
   SwiftSyntax::SwiftIDEUtils
   SwiftSyntax::SwiftSyntax

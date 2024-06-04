@@ -14,5 +14,6 @@ set_target_properties(SemanticIndex PROPERTIES
 target_link_libraries(SemanticIndex PRIVATE
   LSPLogging
   SKCore
+  SwiftExtensions
   IndexStoreDB
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)

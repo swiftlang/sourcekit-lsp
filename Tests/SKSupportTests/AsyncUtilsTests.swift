@@ -12,6 +12,7 @@
 
 import LSPTestSupport
 import SKSupport
+import SwiftExtensions
 import XCTest
 
 final class AsyncUtilsTests: XCTestCase {

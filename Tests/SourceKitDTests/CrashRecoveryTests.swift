@@ -18,6 +18,7 @@ import SKSupport
 import SKTestSupport
 import SourceKitD
 import SourceKitLSP
+import SwiftExtensions
 import XCTest
 
 import enum PackageLoading.Platform

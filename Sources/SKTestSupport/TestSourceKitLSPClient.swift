@@ -19,6 +19,7 @@ import LanguageServerProtocolJSONRPC
 @_spi(Testing) import SKCore
 import SKSupport
 import SourceKitLSP
+import SwiftExtensions
 import SwiftSyntax
 import XCTest
 

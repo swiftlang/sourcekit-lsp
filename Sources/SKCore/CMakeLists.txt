@@ -29,5 +29,6 @@ target_link_libraries(SKCore PUBLIC
   LSPLogging
   SKSupport
   SourceKitD
+  SwiftExtensions
   PackageModel
   TSCBasic)

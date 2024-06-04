@@ -13,6 +13,7 @@
 import LSPLogging
 import LanguageServerProtocol
 import SKSupport
+import SwiftExtensions
 
 /// Keeps track of the state to send work done progress updates to the client
 final actor WorkDoneProgressState {

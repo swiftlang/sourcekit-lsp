@@ -25,6 +25,7 @@ import SKCore
 import SKSupport
 import SourceControl
 import SourceKitLSPAPI
+import SwiftExtensions
 import Workspace
 
 import struct Basics.AbsolutePath
@@ -113,7 +114,9 @@ public actor SwiftPMBuildSystem {
   private let fileSystem: FileSystem
   private let toolchainRegistry: ToolchainRegistry
 
-  private let swiftBuildSupportsPrepareForIndexingTask = SKSupport.ThreadSafeBox<Task<Bool, Never>?>(initialValue: nil)
+  private let swiftBuildSupportsPrepareForIndexingTask = SwiftExtensions.ThreadSafeBox<Task<Bool, Never>?>(
+    initialValue: nil
+  )
 
   private var fileToTarget: [DocumentURI: SwiftBuildTarget] = [:]
   private var sourceDirToTarget: [DocumentURI: SwiftBuildTarget] = [:]

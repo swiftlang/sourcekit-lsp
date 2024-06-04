@@ -14,6 +14,7 @@ import CAtomics
 import Foundation
 import LSPLogging
 import SKSupport
+import SwiftExtensions
 
 /// See comment on ``TaskDescriptionProtocol/dependencies(to:taskPriority:)``
 public enum TaskDependencyAction<TaskDescription: TaskDescriptionProtocol> {
