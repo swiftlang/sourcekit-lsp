@@ -13,7 +13,9 @@
 import Basics
 import Build
 import BuildServerProtocol
+import CAtomics
 import Dispatch
+import Foundation
 import LSPLogging
 import LanguageServerProtocol
 import PackageGraph
@@ -70,6 +72,9 @@ fileprivate extension ConfiguredTarget {
 
   static let forPackageManifest = ConfiguredTarget(targetID: "", runDestinationID: "")
 }
+
+/// `nonisolated(unsafe)` is fine because `preparationTaskID` is atomic.
+fileprivate nonisolated(unsafe) var preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
 
 /// Swift Package Manager build system and workspace support.
 ///
@@ -516,12 +521,12 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
 
   public func prepare(
     targets: [ConfiguredTarget],
-    indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     // TODO (indexing): Support preparation of multiple targets at once.
     // https://github.com/apple/sourcekit-lsp/issues/1262
     for target in targets {
-      try await prepare(singleTarget: target, indexProcessDidProduceResult: indexProcessDidProduceResult)
+      try await prepare(singleTarget: target, logMessageToIndexLog: logMessageToIndexLog)
     }
     let filesInPreparedTargets = targets.flatMap { self.targets[$0]?.buildTarget.sources ?? [] }
     await fileDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets.map(DocumentURI.init)))
@@ -529,7 +534,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
 
   private func prepare(
     singleTarget target: ConfiguredTarget,
-    indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     if target == .forPackageManifest {
       // Nothing to prepare for package manifests.
@@ -586,15 +591,28 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       return
     }
     let start = ContinuousClock.now
-    let process = try Process.launch(arguments: arguments, workingDirectory: nil)
-    let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
-    indexProcessDidProduceResult(
-      IndexProcessResult(
-        taskDescription: "Preparing \(target.targetID) for \(target.runDestinationID)",
-        processResult: result,
-        start: start
+
+    let logID = IndexTaskID.preparation(id: preparationTaskID.fetchAndIncrement())
+    logMessageToIndexLog(
+      logID,
+      """
+      Preparing \(target.targetID) for \(target.runDestinationID)
+      \(arguments.joined(separator: " "))
+      """
+    )
+    let stdoutHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
+    let stderrHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
+
+    let process = try Process.launch(
+      arguments: arguments,
+      workingDirectory: nil,
+      outputRedirection: .stream(
+        stdout: { stdoutHandler.handleDataFromPipe(Data($0)) },
+        stderr: { stderrHandler.handleDataFromPipe(Data($0)) }
       )
     )
+    let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+    logMessageToIndexLog(logID, "Finished in \(start.duration(to: .now))")
     switch result.exitStatus.exhaustivelySwitchable {
     case .terminated(code: 0):
       break

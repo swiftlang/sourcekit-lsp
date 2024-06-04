@@ -11,7 +11,7 @@ add_library(SKCore STATIC
   ExperimentalFeatures.swift
   FallbackBuildSystem.swift
   FileBuildSettings.swift
-  IndexProcessResult.swift
+  IndexTaskID.swift
   MainFilesProvider.swift
   PathPrefixMapping.swift
   SplitShellCommand.swift

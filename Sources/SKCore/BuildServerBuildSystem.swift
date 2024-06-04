@@ -293,7 +293,7 @@ extension BuildServerBuildSystem: BuildSystem {
 
   public func prepare(
     targets: [ConfiguredTarget],
-    indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+    logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     throw PrepareNotSupportedError()
   }

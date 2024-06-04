@@ -169,7 +169,7 @@ public protocol BuildSystem: AnyObject, Sendable {
   /// dependencies.
   func prepare(
     targets: [ConfiguredTarget],
-    indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws
 
   /// If the build system has knowledge about the language that this document should be compiled in, return it.

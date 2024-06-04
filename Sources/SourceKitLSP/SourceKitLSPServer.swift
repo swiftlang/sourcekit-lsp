@@ -836,15 +836,18 @@ private extension LanguageServerProtocol.WorkspaceType {
 }
 
 extension SourceKitLSPServer {
-  nonisolated func indexTaskDidProduceResult(_ result: IndexProcessResult) {
+  nonisolated func logMessageToIndexLog(taskID: IndexTaskID, message: String) {
+    var message: Substring = message[...]
+    while message.last?.isNewline ?? false {
+      message = message.dropLast(1)
+    }
+    let messageWithEmojiLinePrefixes = message.split(separator: "\n", omittingEmptySubsequences: false).map {
+      "\(taskID.emojiRepresentation) \($0)"
+    }.joined(separator: "\n")
     self.sendNotificationToClient(
       LogMessageNotification(
-        type: result.failed ? .warning : .info,
-        message: """
-          \(result.taskDescription) finished in \(result.duration)
-          \(result.command)
-          \(result.output)
-          """,
+        type: .info,
+        message: messageWithEmojiLinePrefixes,
         logName: "SourceKit-LSP: Indexing"
       )
     )
@@ -931,8 +934,8 @@ extension SourceKitLSPServer {
       options: options,
       indexOptions: self.options.indexOptions,
       indexTaskScheduler: indexTaskScheduler,
-      indexProcessDidProduceResult: { [weak self] in
-        self?.indexTaskDidProduceResult($0)
+      logMessageToIndexLog: { [weak self] taskID, message in
+        self?.logMessageToIndexLog(taskID: taskID, message: message)
       },
       indexTasksWereScheduled: { [weak self] count in
         self?.indexProgressManager.indexTasksWereScheduled(count: count)
@@ -1012,8 +1015,8 @@ extension SourceKitLSPServer {
           index: nil,
           indexDelegate: nil,
           indexTaskScheduler: self.indexTaskScheduler,
-          indexProcessDidProduceResult: { [weak self] in
-            self?.indexTaskDidProduceResult($0)
+          logMessageToIndexLog: { [weak self] taskID, message in
+            self?.logMessageToIndexLog(taskID: taskID, message: message)
           },
           indexTasksWereScheduled: { [weak self] count in
             self?.indexProgressManager.indexTasksWereScheduled(count: count)

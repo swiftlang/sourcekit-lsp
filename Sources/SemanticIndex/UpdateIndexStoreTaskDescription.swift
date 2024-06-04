@@ -111,8 +111,8 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   /// case we don't need to index it again.
   private let index: UncheckedIndex
 
-  /// See `SemanticIndexManager.indexProcessDidProduceResult`
-  private let indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+  /// See `SemanticIndexManager.logMessageToIndexLog`.
+  private let logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
 
   /// Test hooks that should be called when the index task finishes.
   private let testHooks: IndexTestHooks
@@ -139,14 +139,14 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     buildSystemManager: BuildSystemManager,
     index: UncheckedIndex,
     indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>,
-    indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     testHooks: IndexTestHooks
   ) {
     self.filesToIndex = filesToIndex
     self.buildSystemManager = buildSystemManager
     self.index = index
     self.indexStoreUpToDateTracker = indexStoreUpToDateTracker
-    self.indexProcessDidProduceResult = indexProcessDidProduceResult
+    self.logMessageToIndexLog = logMessageToIndexLog
     self.testHooks = testHooks
   }
 
@@ -333,9 +333,25 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     defer {
       signposter.endInterval("Indexing", state)
     }
+    let logID = IndexTaskID.updateIndexStore(id: id)
+    logMessageToIndexLog(
+      logID,
+      """
+      Indexing \(indexFile.pseudoPath)
+      \(processArguments.joined(separator: " "))
+      """
+    )
+
+    let stdoutHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
+    let stderrHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
+
     let process = try Process.launch(
       arguments: processArguments,
-      workingDirectory: workingDirectory
+      workingDirectory: workingDirectory,
+      outputRedirection: .stream(
+        stdout: { stdoutHandler.handleDataFromPipe(Data($0)) },
+        stderr: { stderrHandler.handleDataFromPipe(Data($0)) }
+      )
     )
     // Time out updating of the index store after 2 minutes. We don't expect any single file compilation to take longer
     // than 2 minutes in practice, so this indicates that the compiler has entered a loop and we probably won't make any
@@ -345,13 +361,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       try await process.waitUntilExitSendingSigIntOnTaskCancellation()
     }
 
-    indexProcessDidProduceResult(
-      IndexProcessResult(
-        taskDescription: "Indexing \(indexFile.pseudoPath)",
-        processResult: result,
-        start: start
-      )
-    )
+    logMessageToIndexLog(logID, "Finished in \(start.duration(to: .now))")
 
     switch result.exitStatus.exhaustivelySwitchable {
     case .terminated(code: 0):

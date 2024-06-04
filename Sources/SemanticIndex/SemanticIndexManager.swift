@@ -160,11 +160,8 @@ public final actor SemanticIndexManager {
   /// workspaces.
   private let indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
 
-  /// Callback to be called when the process to prepare a target finishes.
-  ///
-  /// Allows an index log to be displayed to the user that includes the command line invocations of all index-related
-  /// process launches, as well as their output.
-  private let indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+  /// Callback that is called when an indexing task produces output it wants to log to the index log.
+  private let logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
 
   /// Called when files are scheduled to be indexed.
   ///
@@ -206,7 +203,7 @@ public final actor SemanticIndexManager {
     buildSystemManager: BuildSystemManager,
     testHooks: IndexTestHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
-    indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
     indexProgressStatusDidChange: @escaping @Sendable () -> Void
   ) {
@@ -214,7 +211,7 @@ public final actor SemanticIndexManager {
     self.buildSystemManager = buildSystemManager
     self.testHooks = testHooks
     self.indexTaskScheduler = indexTaskScheduler
-    self.indexProcessDidProduceResult = indexProcessDidProduceResult
+    self.logMessageToIndexLog = logMessageToIndexLog
     self.indexTasksWereScheduled = indexTasksWereScheduled
     self.indexProgressStatusDidChange = indexProgressStatusDidChange
   }
@@ -461,7 +458,7 @@ public final actor SemanticIndexManager {
         targetsToPrepare: targetsToPrepare,
         buildSystemManager: self.buildSystemManager,
         preparationUpToDateTracker: preparationUpToDateTracker,
-        indexProcessDidProduceResult: indexProcessDidProduceResult,
+        logMessageToIndexLog: logMessageToIndexLog,
         testHooks: testHooks
       )
     )
@@ -508,7 +505,7 @@ public final actor SemanticIndexManager {
         buildSystemManager: self.buildSystemManager,
         index: index,
         indexStoreUpToDateTracker: indexStoreUpToDateTracker,
-        indexProcessDidProduceResult: indexProcessDidProduceResult,
+        logMessageToIndexLog: logMessageToIndexLog,
         testHooks: testHooks
       )
     )

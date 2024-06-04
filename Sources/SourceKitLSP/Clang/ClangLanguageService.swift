@@ -32,35 +32,6 @@ extension NSLock {
   }
 }
 
-/// Gathers data from clangd's stderr pipe. When it has accumulated a full line, writes the the line to the logger.
-fileprivate actor ClangdStderrLogForwarder {
-  /// Queue on which all data from `clangd`’s stderr will be forwarded to `stderr`. This allows us to have a
-  /// nonisolated `handle` function but ensure that data gets processed in order.
-  private let queue = AsyncQueue<Serial>()
-  private var buffer = Data()
-
-  private func handleImpl(_ newData: Data) {
-    self.buffer += newData
-    while let newlineIndex = self.buffer.firstIndex(of: UInt8(ascii: "\n")) {
-      // Output a separate log message for every line in clangd's stderr.
-      // The reason why we don't output multiple lines in a single log message is that
-      //  a) os_log truncates log messages at about 1000 bytes. The assumption is that a single line is usually less
-      //     than 1000 bytes long but if we merge multiple lines into one message, we might easily exceed this limit.
-      //  b) It might be confusing why sometimes a single log message contains one line while sometimes it contains
-      //     multiple.
-      let logger = Logger(subsystem: LoggingScope.subsystem, category: "clangd-stderr")
-      logger.info("\(String(data: self.buffer[...newlineIndex], encoding: .utf8) ?? "<invalid UTF-8>")")
-      buffer = buffer[buffer.index(after: newlineIndex)...]
-    }
-  }
-
-  nonisolated func handle(_ newData: Data) {
-    queue.async {
-      await self.handleImpl(newData)
-    }
-  }
-}
-
 /// A thin wrapper over a connection to a clangd server providing build setting handling.
 ///
 /// In addition, it also intercepts notifications and replies from clangd in order to do things
@@ -233,14 +204,16 @@ actor ClangLanguageService: LanguageService, MessageHandler {
 
     process.standardOutput = clangdToUs
     process.standardInput = usToClangd
-    let logForwarder = ClangdStderrLogForwarder()
+    let logForwarder = PipeAsStringHandler {
+      Logger(subsystem: LoggingScope.subsystem, category: "clangd-stderr").info("\($0)")
+    }
     let stderrHandler = Pipe()
     stderrHandler.fileHandleForReading.readabilityHandler = { fileHandle in
       let newData = fileHandle.availableData
       if newData.count == 0 {
         stderrHandler.fileHandleForReading.readabilityHandler = nil
       } else {
-        logForwarder.handle(newData)
+        logForwarder.handleDataFromPipe(newData)
       }
     }
     process.standardError = stderrHandler

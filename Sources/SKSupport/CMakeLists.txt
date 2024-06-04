@@ -11,6 +11,7 @@ add_library(SKSupport STATIC
   DocumentURI+CustomLogStringConvertible.swift
   FileSystem.swift
   LineTable.swift
+  PipeAsStringHandler.swift
   Process+LaunchWithWorkingDirectoryIfPossible.swift
   Process+WaitUntilExitWithCancellation.swift
   Random.swift

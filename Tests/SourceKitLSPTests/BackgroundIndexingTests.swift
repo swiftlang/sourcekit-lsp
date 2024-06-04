@@ -709,22 +709,44 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   public func testProduceIndexLog() async throws {
+    let didReceivePreparationIndexLogMessage = self.expectation(description: "Did receive preparation log message")
+    let didReceiveIndexingLogMessage = self.expectation(description: "Did receive indexing log message")
+    let updateIndexStoreTaskDidFinish = self.expectation(description: "Update index store task did finish")
+
+    // Block the index tasks until we have received a log notification to make sure we stream out results as they come
+    // in and not only when the indexing task has finished
+    var serverOptions = SourceKitLSPServer.Options.testDefault
+    serverOptions.indexTestHooks.preparationTaskDidFinish = { _ in
+      await self.fulfillment(of: [didReceivePreparationIndexLogMessage], timeout: defaultTimeout)
+    }
+    serverOptions.indexTestHooks.updateIndexStoreTaskDidFinish = { _ in
+      await self.fulfillment(of: [didReceiveIndexingLogMessage], timeout: defaultTimeout)
+      updateIndexStoreTaskDidFinish.fulfill()
+    }
+
     let project = try await SwiftPMTestProject(
       files: [
         "MyFile.swift": ""
       ],
-      enableBackgroundIndexing: true
+      serverOptions: serverOptions,
+      enableBackgroundIndexing: true,
+      pollIndex: false
     )
-    let targetPrepareNotification = try await project.testClient.nextNotification(ofType: LogMessageNotification.self)
-    XCTAssert(
-      targetPrepareNotification.message.hasPrefix("Preparing MyLibrary"),
-      "\(targetPrepareNotification.message) does not have the expected prefix"
+    _ = try await project.testClient.nextNotification(
+      ofType: LogMessageNotification.self,
+      satisfying: { notification in
+        return notification.message.contains("Preparing MyLibrary")
+      }
     )
-    let indexFileNotification = try await project.testClient.nextNotification(ofType: LogMessageNotification.self)
-    XCTAssert(
-      indexFileNotification.message.hasPrefix("Indexing \(try project.uri(for: "MyFile.swift").pseudoPath)"),
-      "\(indexFileNotification.message) does not have the expected prefix"
+    didReceivePreparationIndexLogMessage.fulfill()
+    _ = try await project.testClient.nextNotification(
+      ofType: LogMessageNotification.self,
+      satisfying: { notification in
+        notification.message.contains("Indexing \(try project.uri(for: "MyFile.swift").pseudoPath)")
+      }
     )
+    didReceiveIndexingLogMessage.fulfill()
+    try await fulfillmentOfOrThrow([updateIndexStoreTaskDidFinish])
   }
 
   func testIndexingHappensInParallel() async throws {
