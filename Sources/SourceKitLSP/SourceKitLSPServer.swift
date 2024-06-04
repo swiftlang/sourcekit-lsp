@@ -612,7 +612,7 @@ extension SourceKitLSPServer: MessageHandler {
     // Keep track of the ID -> Task management with low priority. Once we cancel
     // a request, the cancellation task runs with a high priority and depends on
     // this task, which will elevate this task's priority.
-    cancellationMessageHandlingQueue.async(priority: .background) {
+    cancellationMessageHandlingQueue.async(priority: .high) {
       await self.setInProgressRequest(for: id, task: task)
     }
   }
