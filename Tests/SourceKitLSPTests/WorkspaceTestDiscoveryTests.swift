@@ -1039,4 +1039,64 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       ]
     )
   }
+
+  func testSwiftTestingExtensionAcrossMultipleFiles() async throws {
+    let fileAContents = """
+      extension MyTests {
+        5️⃣@Test func inExtension() {}6️⃣
+      }
+      """
+
+    let fileBContents = """
+      1️⃣@Suite struct MyTests {
+        3️⃣@Test func inStruct() {}4️⃣
+      }2️⃣
+      """
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/MyLibraryTests/FileA.swift": fileAContents,
+        "Tests/MyLibraryTests/FileB.swift": fileBContents,
+      ],
+      manifest: packageManifestWithTestTarget
+    )
+
+    let (fileAURI, fileAPositions) = try project.openDocument("FileA.swift")
+    let (fileBURI, fileBPositions) = try project.openDocument("FileB.swift")
+
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          disabled: false,
+          style: TestStyle.swiftTesting,
+          location: Location(uri: fileBURI, range: fileBPositions["1️⃣"]..<fileBPositions["2️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/inStruct()",
+              label: "inStruct()",
+              disabled: false,
+              style: TestStyle.swiftTesting,
+              location: Location(uri: fileBURI, range: fileBPositions["3️⃣"]..<fileBPositions["4️⃣"]),
+              children: [],
+              tags: []
+            ),
+            TestItem(
+              id: "MyTests/inExtension()",
+              label: "inExtension()",
+              disabled: false,
+              style: TestStyle.swiftTesting,
+              location: Location(uri: fileAURI, range: fileAPositions["5️⃣"]..<fileAPositions["6️⃣"]),
+              children: [],
+              tags: []
+            ),
+          ],
+          tags: []
+        )
+      ]
+    )
+  }
 }

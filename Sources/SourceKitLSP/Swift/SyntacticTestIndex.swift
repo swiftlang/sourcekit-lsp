@@ -51,7 +51,7 @@ fileprivate enum TaskMetadata: DependencyTracker, Equatable {
 /// Data from a syntactic scan of a source file for tests.
 fileprivate struct IndexedTests {
   /// The tests within the source file.
-  let tests: [TestItem]
+  let tests: [AnnotatedTestItem]
 
   /// The modification date of the source file when it was scanned. A file won't get re-scanned if its modification date
   /// is older or the same as this date.
@@ -63,7 +63,7 @@ fileprivate struct IndexedTests {
 /// Does not write the results to the index.
 ///
 /// The order of the returned tests is not defined. The results should be sorted before being returned to the editor.
-fileprivate func testItems(in url: URL) async -> [TestItem] {
+fileprivate func testItems(in url: URL) async -> [AnnotatedTestItem] {
   guard url.pathExtension == "swift" else {
     return []
   }
@@ -79,6 +79,7 @@ fileprivate func testItems(in url: URL) async -> [TestItem] {
     syntaxTreeManager: syntaxTreeManager
   )
   async let xcTests = SyntacticSwiftXCTestScanner.findTestSymbols(in: snapshot, syntaxTreeManager: syntaxTreeManager)
+
   return await swiftTestingTests + xcTests
 }
 
@@ -206,7 +207,7 @@ actor SyntacticTestIndex {
   /// Gets all the tests in the syntactic index.
   ///
   /// This waits for any pending document updates to be indexed before returning a result.
-  nonisolated func tests() async -> [TestItem] {
+  nonisolated func tests() async -> [AnnotatedTestItem] {
     let readTask = indexingQueue.async(metadata: .read) {
       return await self.indexedTests.values.flatMap { $0.tests }
     }
