@@ -24,15 +24,6 @@ import struct TSCBasic.AbsolutePath
 import WinSDK
 #endif
 
-extension NSLock {
-  /// NOTE: Keep in sync with SwiftPM's 'Sources/Basics/NSLock+Extensions.swift'
-  fileprivate func withLock<T>(_ body: () throws -> T) rethrows -> T {
-    lock()
-    defer { unlock() }
-    return try body()
-  }
-}
-
 /// A thin wrapper over a connection to a clangd server providing build setting handling.
 ///
 /// In addition, it also intercepts notifications and replies from clangd in order to do things
