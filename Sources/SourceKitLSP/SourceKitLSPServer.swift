@@ -569,6 +569,8 @@ extension SourceKitLSPServer: MessageHandler {
       await self.openDocument(notification)
     case let notification as DidCloseTextDocumentNotification:
       await self.closeDocument(notification)
+    case let notification as ReopenTextDocumentNotification:
+      await self.reopenDocument(notification)
     case let notification as DidChangeTextDocumentNotification:
       await self.changeDocument(notification)
     case let notification as DidChangeWorkspaceFoldersNotification:
@@ -1301,6 +1303,17 @@ extension SourceKitLSPServer {
       return
     }
     await self.closeDocument(notification, workspace: workspace)
+  }
+
+  func reopenDocument(_ notification: ReopenTextDocumentNotification) async {
+    let uri = notification.textDocument.uri
+    guard let workspace = await workspaceForDocument(uri: uri) else {
+      logger.error(
+        "received reopen notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
+      )
+      return
+    }
+    await workspace.documentService.value[uri]?.reopenDocument(notification)
   }
 
   func closeDocument(_ notification: DidCloseTextDocumentNotification, workspace: Workspace) async {

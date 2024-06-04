@@ -118,6 +118,14 @@ public protocol LanguageService: AnyObject, Sendable {
 
   /// Sent to close a document on the Language Server.
   func closeDocument(_ notification: DidCloseTextDocumentNotification) async
+
+  /// Re-open the given document, discarding any in-memory state and forcing an AST to be re-built after build settings
+  /// have been changed. This needs to be handled via a notification to ensure that no other request for this document
+  /// is executing at the same time.
+  ///
+  /// Only intended for `SwiftLanguageService`.
+  func reopenDocument(_ notification: ReopenTextDocumentNotification) async
+
   func changeDocument(_ notification: DidChangeTextDocumentNotification) async
   func willSaveDocument(_ notification: WillSaveTextDocumentNotification) async
   func didSaveDocument(_ notification: DidSaveTextDocumentNotification) async

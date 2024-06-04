@@ -451,6 +451,8 @@ extension ClangLanguageService {
     clangd.send(notification)
   }
 
+  func reopenDocument(_ notification: ReopenTextDocumentNotification) {}
+
   public func changeDocument(_ notification: DidChangeTextDocumentNotification) {
     clangd.send(notification)
   }
