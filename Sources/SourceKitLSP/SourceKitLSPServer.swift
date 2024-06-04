@@ -177,10 +177,22 @@ public actor SourceKitLSPServer {
   /// Used to cancel the tasks if the client requests cancellation.
   private var inProgressRequests: [RequestID: Task<(), Never>] = [:]
 
+  /// Up to 10 request IDs that have recently finished.
+  ///
+  /// This is only used so we don't log an error when receiving a `CancelRequestNotification` for a request that has
+  /// just returned a response.
+  private var recentlyFinishedRequests: [RequestID] = []
+
   /// - Note: Needed so we can set an in-progress request from a different
   ///   isolation context.
   private func setInProgressRequest(for id: RequestID, task: Task<(), Never>?) {
     self.inProgressRequests[id] = task
+    if task == nil {
+      recentlyFinishedRequests.append(id)
+      while recentlyFinishedRequests.count > 10 {
+        recentlyFinishedRequests.removeFirst()
+      }
+    }
   }
 
   var onExit: () -> Void
@@ -1194,16 +1206,15 @@ extension SourceKitLSPServer {
     // Since the request is very cheap to execute and stops other requests
     // from performing more work, we execute it with a high priority.
     cancellationMessageHandlingQueue.async(priority: .high) {
-      guard let task = await self.inProgressRequests[notification.id] else {
-        logger.error(
-          """
-          Cannot cancel request \(notification.id, privacy: .public) because it hasn't been scheduled for execution \
-          yet or because the request already returned a response
-          """
-        )
+      if let task = await self.inProgressRequests[notification.id] {
+        task.cancel()
         return
       }
-      task.cancel()
+      if await !self.recentlyFinishedRequests.contains(notification.id) {
+        logger.error(
+          "Cannot cancel request \(notification.id, privacy: .public) because it hasn't been scheduled for execution yet"
+        )
+      }
     }
   }
 
