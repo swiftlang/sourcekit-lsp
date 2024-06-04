@@ -225,6 +225,17 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       logger.error("Not indexing \(file.forLogging) because it has no compiler arguments")
       return
     }
+    if buildSettings.isFallback {
+      // Fallback build settings don’t even have an indexstore path set, so they can't generate index data that we would
+      // pick up. Also, indexing with fallback args has some other problems:
+      // - If it did generate a unit file, we would consider the file’s index up-to-date even if the compiler arguments
+      //   change, which means that we wouldn't get any up-to-date-index even when we have build settings for the file.
+      // - It's unlikely that the index from a single file with fallback arguments will be very useful as it can't tie
+      //   into the rest of the project.
+      // So, don't index the file.
+      logger.error("Not indexing \(file.forLogging) because it has fallback compiler arguments")
+      return
+    }
     guard let toolchain = await buildSystemManager.toolchain(for: file.mainFile, language) else {
       logger.error(
         "Not updating index store for \(file.forLogging) because no toolchain could be determined for the document"
