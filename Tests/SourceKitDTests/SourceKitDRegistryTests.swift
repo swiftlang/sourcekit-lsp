@@ -63,7 +63,6 @@ private nonisolated(unsafe) var nextToken = AtomicUInt32(initialValue: 0)
 
 final class FakeSourceKitD: SourceKitD {
   let token: UInt32
-  var testHooks: SourceKitDTestHooks { SourceKitDTestHooks() }
   var api: sourcekitd_api_functions_t { fatalError() }
   var keys: sourcekitd_api_keys { fatalError() }
   var requests: sourcekitd_api_requests { fatalError() }

@@ -31,8 +31,6 @@ extension sourcekitd_api_request_handle_t: @unchecked Sendable {}
 /// *Implementors* are expected to handle initialization and shutdown, e.g. during `init` and
 /// `deinit` or by wrapping an existing sourcekitd session that outlives this object.
 public protocol SourceKitD: AnyObject, Sendable {
-  var testHooks: SourceKitDTestHooks { get }
-
   /// The sourcekitd API functions.
   var api: sourcekitd_api_functions_t { get }
 
@@ -100,8 +98,6 @@ extension SourceKitD {
   ///     will be logged.
   public func send(_ request: SKDRequestDictionary, fileContents: String?) async throws -> SKDResponseDictionary {
     log(request: request)
-
-    testHooks.sourcekitdRequestDidStart?(request)
 
     let sourcekitdResponse: SKDResponse = try await withCancellableCheckedThrowingContinuation { continuation in
       var handle: sourcekitd_api_request_handle_t? = nil
