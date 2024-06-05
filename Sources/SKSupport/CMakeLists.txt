@@ -8,8 +8,7 @@ add_library(SKSupport STATIC
   FileSystem.swift
   LineTable.swift
   PipeAsStringHandler.swift
-  Process+LaunchWithWorkingDirectoryIfPossible.swift
-  Process+WaitUntilExitWithCancellation.swift
+  Process+Run.swift
   Random.swift
   Result.swift
   SwitchableProcessResultExitStatus.swift
