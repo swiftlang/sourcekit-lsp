@@ -68,6 +68,10 @@ public actor BuildSystemManager {
     }
   }
 
+  public var supportsPreparation: Bool {
+    return buildSystem?.supportsPreparation ?? false
+  }
+
   /// Create a BuildSystemManager that wraps the given build system. The new
   /// manager will modify the delegate of the underlying build system.
   public init(
@@ -233,9 +237,9 @@ extension BuildSystemManager {
 
   public func prepare(
     targets: [ConfiguredTarget],
-    indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
-    try await buildSystem?.prepare(targets: targets, indexProcessDidProduceResult: indexProcessDidProduceResult)
+    try await buildSystem?.prepare(targets: targets, logMessageToIndexLog: logMessageToIndexLog)
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {

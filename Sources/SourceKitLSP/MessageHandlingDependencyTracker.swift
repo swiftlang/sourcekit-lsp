@@ -13,6 +13,7 @@
 import LSPLogging
 import LanguageServerProtocol
 import SKSupport
+import SwiftExtensions
 
 /// A lightweight way of describing tasks that are created from handling LSP
 /// requests or notifications for the purpose of dependency tracking.
@@ -126,6 +127,8 @@ enum MessageHandlingDependencyTracker: DependencyTracker {
       self = .freestanding
     case is PublishDiagnosticsNotification:
       self = .freestanding
+    case let notification as ReopenTextDocumentNotification:
+      self = .documentUpdate(notification.textDocument.uri)
     case is SetTraceNotification:
       self = .globalConfigurationChange
     case is ShowMessageNotification:

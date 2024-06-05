@@ -31,7 +31,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
         }
         """,
       ],
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (otherUri, otherPositions) = try project.openDocument("Other.swift")
@@ -101,7 +101,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
         }
         """
       ],
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let newFileUrl = project.scratchDirectory

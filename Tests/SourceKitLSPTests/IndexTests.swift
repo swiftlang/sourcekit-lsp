@@ -16,7 +16,6 @@ import XCTest
 
 final class IndexTests: XCTestCase {
   func testIndexSwiftModules() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
@@ -36,10 +35,6 @@ final class IndexTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -49,7 +44,7 @@ final class IndexTests: XCTestCase {
           ]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (libAUri, libAPositions) = try project.openDocument("LibA.swift")
@@ -121,6 +116,7 @@ final class IndexTests: XCTestCase {
           2️⃣foo()
         }
         """,
+        workspaceDirectory: workspaceDirectory,
         cleanUp: cleanUp
       )
 

@@ -19,12 +19,17 @@ import LanguageServerProtocolJSONRPC
 @_spi(Testing) import SKCore
 import SKSupport
 import SourceKitLSP
+import SwiftExtensions
 import SwiftSyntax
 import XCTest
 
 extension SourceKitLSPServer.Options {
   /// The default SourceKitLSPServer options for testing.
   public static let testDefault = Self(swiftPublishDiagnosticsDebounceDuration: 0)
+}
+
+fileprivate struct NotificationTimeoutError: Error, CustomStringConvertible {
+  var description: String = "Failed to receive next notification within timeout"
 }
 
 /// A mock SourceKit-LSP client (aka. a mock editor) that behaves like an editor
@@ -34,17 +39,11 @@ extension SourceKitLSPServer.Options {
 /// that the server sends to the client.
 public final class TestSourceKitLSPClient: MessageHandler {
   /// A function that takes a request and returns the request's response.
-  public typealias RequestHandler<Request: RequestType> = (Request) -> Request.Response
+  public typealias RequestHandler<Request: RequestType> = @Sendable (Request) -> Request.Response
 
   /// The ID that should be assigned to the next request sent to the `server`.
   /// `nonisolated(unsafe)` is fine because `nextRequestID` is atomic.
   private nonisolated(unsafe) var nextRequestID = AtomicUInt32(initialValue: 0)
-
-  /// If the server is not using the global module cache, the path of the local
-  /// module cache.
-  ///
-  /// This module cache will be deleted when the test server is destroyed.
-  private let moduleCache: URL?
 
   /// The server that handles the requests.
   public let server: SourceKitLSPServer
@@ -72,7 +71,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///
   /// `isOneShort` if the request handler should only serve a single request and should be removed from
   /// `requestHandlers` after it has been called.
-  private nonisolated(unsafe) var requestHandlers: ThreadSafeBox<[(requestHandler: Any, isOneShot: Bool)]> =
+  private nonisolated(unsafe) var requestHandlers: ThreadSafeBox<[(requestHandler: Sendable, isOneShot: Bool)]> =
     ThreadSafeBox(initialValue: [])
 
   /// A closure that is called when the `TestSourceKitLSPClient` is destructed.
@@ -98,7 +97,6 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///     needed.
   public init(
     serverOptions: SourceKitLSPServer.Options = .testDefault,
-    useGlobalModuleCache: Bool = true,
     initialize: Bool = true,
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
@@ -108,16 +106,13 @@ public final class TestSourceKitLSPClient: MessageHandler {
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
     cleanUp: @Sendable @escaping () -> Void = {}
   ) async throws {
-    if !useGlobalModuleCache {
-      moduleCache = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
-    } else {
-      moduleCache = nil
-    }
     var serverOptions = serverOptions
-    if let moduleCache {
-      serverOptions.buildSetup.flags.swiftCompilerFlags += ["-module-cache-path", moduleCache.path]
+    if let globalModuleCache {
+      serverOptions.buildSetup.flags.swiftCompilerFlags += ["-module-cache-path", globalModuleCache.path]
     }
-    serverOptions.indexOptions.enableBackgroundIndexing = enableBackgroundIndexing
+    if enableBackgroundIndexing {
+      serverOptions.experimentalFeatures.insert(.backgroundIndexing)
+    }
 
     var notificationYielder: AsyncStream<any NotificationType>.Continuation!
     self.notifications = AsyncStream { continuation in
@@ -185,9 +180,6 @@ public final class TestSourceKitLSPClient: MessageHandler {
     sema.wait()
     self.send(ExitNotification())
 
-    if let moduleCache {
-      try? FileManager.default.removeItem(at: moduleCache)
-    }
     cleanUp()
   }
 
@@ -206,10 +198,16 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///
   /// This version of the `send` function should only be used if some action needs to be performed after the request is
   /// sent but before it returns a result.
-  public func send<R: RequestType>(_ request: R, completionHandler: @escaping (LSPResult<R.Response>) -> Void) {
-    server.handle(request, id: .number(Int(nextRequestID.fetchAndIncrement()))) { result in
+  @discardableResult
+  public func send<R: RequestType>(
+    _ request: R,
+    completionHandler: @escaping (LSPResult<R.Response>) -> Void
+  ) -> RequestID {
+    let requestID = RequestID.number(Int(nextRequestID.fetchAndIncrement()))
+    server.handle(request, id: requestID) { result in
       completionHandler(result)
     }
+    return requestID
   }
 
   /// Send the notification to `server`.
@@ -223,21 +221,17 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///
   /// - Note: This also returns any notifications sent before the call to
   ///   `nextNotification`.
-  public func nextNotification(timeout: TimeInterval = defaultTimeout) async throws -> any NotificationType {
-    struct TimeoutError: Error, CustomStringConvertible {
-      var description: String = "Failed to receive next notification within timeout"
-    }
-
+  public func nextNotification(timeout: Duration = .seconds(defaultTimeout)) async throws -> any NotificationType {
     return try await withThrowingTaskGroup(of: (any NotificationType).self) { taskGroup in
       taskGroup.addTask {
         for await notification in self.notifications {
           return notification
         }
-        throw TimeoutError()
+        throw NotificationTimeoutError()
       }
       taskGroup.addTask {
-        try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-        throw TimeoutError()
+        try await Task.sleep(for: timeout)
+        throw NotificationTimeoutError()
       }
       let result = try await taskGroup.next()!
       taskGroup.cancelAll()
@@ -250,7 +244,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   /// If the next notification is not a `PublishDiagnosticsNotification`, this
   /// methods throws.
   public func nextDiagnosticsNotification(
-    timeout: TimeInterval = defaultTimeout
+    timeout: Duration = .seconds(defaultTimeout)
   ) async throws -> PublishDiagnosticsNotification {
     guard !usePullDiagnostics else {
       struct PushDiagnosticsError: Error, CustomStringConvertible {
@@ -265,15 +259,38 @@ public final class TestSourceKitLSPClient: MessageHandler {
   /// Ignores any notifications that are of a different type or that don't satisfy the predicate.
   public func nextNotification<ExpectedNotificationType: NotificationType>(
     ofType: ExpectedNotificationType.Type,
-    satisfying predicate: (ExpectedNotificationType) -> Bool = { _ in true },
-    timeout: TimeInterval = defaultTimeout
+    satisfying predicate: (ExpectedNotificationType) throws -> Bool = { _ in true },
+    timeout: Duration = .seconds(defaultTimeout)
   ) async throws -> ExpectedNotificationType {
     while true {
       let nextNotification = try await nextNotification(timeout: timeout)
-      if let notification = nextNotification as? ExpectedNotificationType, predicate(notification) {
+      if let notification = nextNotification as? ExpectedNotificationType, try predicate(notification) {
         return notification
       }
     }
+  }
+
+  /// Asserts that the test client does not receive a notification of the given type and satisfying the given predicate
+  /// within the given duration.
+  ///
+  /// For stable tests, the code that triggered the notification should be run before this assertion instead of relying
+  /// on the duration.
+  ///
+  /// The duration should not be 0 because we need to allow `nextNotification` some time to get the notification out of
+  /// the `notifications` `AsyncStream`.
+  public func assertDoesNotReceiveNotification<ExpectedNotificationType: NotificationType>(
+    ofType: ExpectedNotificationType.Type,
+    satisfying predicate: (ExpectedNotificationType) -> Bool = { _ in true },
+    within duration: Duration = .seconds(0.2)
+  ) async throws {
+    do {
+      let notification = try await nextNotification(
+        ofType: ExpectedNotificationType.self,
+        satisfying: predicate,
+        timeout: duration
+      )
+      XCTFail("Did not expect to receive notification but received \(notification)")
+    } catch is NotificationTimeoutError {}
   }
 
   /// Handle the next request of the given type that is sent to the client.

@@ -44,7 +44,7 @@ func assertSingleFileRename(
 ) async throws {
   try await SkipUnless.sourcekitdSupportsRename()
   let testClient = try await TestSourceKitLSPClient()
-  let uri = DocumentURI.for(language, testName: testName)
+  let uri = DocumentURI(for: language, testName: testName)
   let positions = testClient.openDocument(markedSource, uri: uri, language: language)
   guard !positions.allMarkers.isEmpty else {
     XCTFail("Test case did not contain any markers at which to invoke the rename", file: file, line: line)
@@ -145,7 +145,7 @@ func assertMultiFileRename(
   let project = try await SwiftPMTestProject(
     files: files,
     manifest: manifest,
-    build: true,
+    enableBackgroundIndexing: true,
     testName: testName
   )
   try preRenameActions(project)

@@ -536,10 +536,6 @@ final class RenameTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -576,10 +572,6 @@ final class RenameTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -627,10 +619,6 @@ final class RenameTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -658,7 +646,7 @@ final class RenameTests: XCTestCase {
   func testPrepeareRenameOnDefinition() async throws {
     try await SkipUnless.sourcekitdSupportsRename()
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
       func 1️⃣foo2️⃣(3️⃣a: Int) {}
@@ -677,7 +665,7 @@ final class RenameTests: XCTestCase {
   func testPrepeareRenameOnReference() async throws {
     try await SkipUnless.sourcekitdSupportsRename()
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
       func foo(a: Int, b: Int = 1) {}
@@ -1114,7 +1102,7 @@ final class RenameTests: XCTestCase {
         }
         """,
       ],
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let definitionUri = try project.uri(for: "definition.swift")
@@ -1157,7 +1145,6 @@ final class RenameTests: XCTestCase {
       ])
     )
 
-    try await SwiftPMTestProject.build(at: project.scratchDirectory)
     _ = try await project.testClient.send(PollIndexRequest())
 
     let resultAfterFileMove = try await project.testClient.send(
@@ -1250,7 +1237,7 @@ final class RenameTests: XCTestCase {
         }
         """,
       ],
-      build: true
+      enableBackgroundIndexing: true
     )
     let (uri, positions) = try project.openDocument("FileA.swift")
     let result = try await project.testClient.send(

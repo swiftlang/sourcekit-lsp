@@ -14,15 +14,21 @@ import SKTestSupport
 import XCTest
 
 private let libAlibBPackageManifest = """
-  // swift-tools-version: 5.7
-
-  import PackageDescription
-
   let package = Package(
     name: "MyLibrary",
     targets: [
      .target(name: "LibA"),
      .target(name: "LibB", dependencies: ["LibA"]),
+    ]
+  )
+  """
+
+private let libAlibBCxxInteropPackageManifest = """
+  let package = Package(
+    name: "MyLibrary",
+    targets: [
+    .target(name: "LibA"),
+    .target(name: "LibB", dependencies: ["LibA"], swiftSettings: [.interoperabilityMode(.Cxx)]),
     ]
   )
   """
@@ -564,10 +570,6 @@ final class CrossLanguageRenameTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -622,10 +624,6 @@ final class CrossLanguageRenameTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -680,10 +678,6 @@ final class CrossLanguageRenameTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -747,6 +741,142 @@ final class CrossLanguageRenameTests: XCTestCase {
         """,
       ],
       manifest: libAlibBPackageManifest
+    )
+  }
+
+  func testRenameCxxClassExposedToSwift() async throws {
+    try await SkipUnless.clangdSupportsIndexBasedRename()
+    try await assertMultiFileRename(
+      files: [
+        "LibA/include/LibA.h": """
+        struct 1️⃣Foo {};
+        """,
+        "LibA/LibA.cpp": "",
+        "LibB/LibB.swift": """
+        import LibA
+
+        func test(foo: 2️⃣Foo) {}
+        """,
+      ],
+      headerFileLanguage: .cpp,
+      newName: "Bar",
+      expectedPrepareRenamePlaceholder: "Foo",
+      expected: [
+        "LibA/include/LibA.h": """
+        struct Bar {};
+        """,
+        "LibA/LibA.cpp": "",
+        "LibB/LibB.swift": """
+        import LibA
+
+        func test(foo: Bar) {}
+        """,
+      ],
+      manifest: libAlibBCxxInteropPackageManifest
+    )
+  }
+
+  func testRenameCxxMethodExposedToSwift() async throws {
+    try await SkipUnless.clangdSupportsIndexBasedRename()
+    try await assertMultiFileRename(
+      files: [
+        "LibA/include/LibA.h": """
+        struct Foo {
+          int 1️⃣doStuff() const;
+        };
+        """,
+        "LibA/LibA.cpp": """
+        #include "LibA.h"
+
+        int Foo::2️⃣doStuff() const {
+          return 42;
+        }
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+
+        func test(foo: Foo) {
+          foo.3️⃣doStuff()
+        }
+        """,
+      ],
+      headerFileLanguage: .cpp,
+      newName: "doNewStuff",
+      expectedPrepareRenamePlaceholder: "doStuff",
+      expected: [
+        "LibA/include/LibA.h": """
+        struct Foo {
+          int doNewStuff() const;
+        };
+        """,
+        "LibA/LibA.cpp": """
+        #include "LibA.h"
+
+        int Foo::doNewStuff() const {
+          return 42;
+        }
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+
+        func test(foo: Foo) {
+          foo.doNewStuff()
+        }
+        """,
+      ],
+      manifest: libAlibBCxxInteropPackageManifest
+    )
+  }
+
+  func testRenameSwiftMethodExposedToSwift() async throws {
+    try await SkipUnless.clangdSupportsIndexBasedRename()
+    try await assertMultiFileRename(
+      files: [
+        "LibA/include/LibA.h": """
+        struct Foo {
+          int 1️⃣doStuff() const;
+        };
+        """,
+        "LibA/LibA.cpp": """
+        #include "LibA.h"
+
+        int Foo::2️⃣doStuff() const {
+          return 42;
+        }
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+
+        func test(foo: Foo) {
+          foo.3️⃣doStuff()
+        }
+        """,
+      ],
+      headerFileLanguage: .cpp,
+      newName: "doNewStuff",
+      expectedPrepareRenamePlaceholder: "doStuff",
+      expected: [
+        "LibA/include/LibA.h": """
+        struct Foo {
+          int doNewStuff() const;
+        };
+        """,
+        "LibA/LibA.cpp": """
+        #include "LibA.h"
+
+        int Foo::doNewStuff() const {
+          return 42;
+        }
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+
+        func test(foo: Foo) {
+          foo.doNewStuff()
+        }
+        """,
+      ],
+      manifest: libAlibBCxxInteropPackageManifest
     )
   }
 }

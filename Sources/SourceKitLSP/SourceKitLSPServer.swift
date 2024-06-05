@@ -23,6 +23,7 @@ import SKSupport
 import SKSwiftPMWorkspace
 import SemanticIndex
 import SourceKitD
+import SwiftExtensions
 
 import struct PackageModel.BuildFlags
 import struct TSCBasic.AbsolutePath
@@ -99,6 +100,12 @@ public actor SourceKitLSPServer {
   /// Initialization can be awaited using `waitUntilInitialized`.
   private var initialized: Bool = false
 
+  /// Set to `true` after the user has opened a project that doesn't support background indexing while having background
+  /// indexing enabled.
+  ///
+  /// This ensures that we only inform the user about background indexing not being supported for these projects once.
+  private var didSendBackgroundIndexingNotSupportedNotification = false
+
   var options: Options
 
   let toolchainRegistry: ToolchainRegistry
@@ -170,10 +177,22 @@ public actor SourceKitLSPServer {
   /// Used to cancel the tasks if the client requests cancellation.
   private var inProgressRequests: [RequestID: Task<(), Never>] = [:]
 
+  /// Up to 10 request IDs that have recently finished.
+  ///
+  /// This is only used so we don't log an error when receiving a `CancelRequestNotification` for a request that has
+  /// just returned a response.
+  private var recentlyFinishedRequests: [RequestID] = []
+
   /// - Note: Needed so we can set an in-progress request from a different
   ///   isolation context.
   private func setInProgressRequest(for id: RequestID, task: Task<(), Never>?) {
     self.inProgressRequests[id] = task
+    if task == nil {
+      recentlyFinishedRequests.append(id)
+      while recentlyFinishedRequests.count > 10 {
+        recentlyFinishedRequests.removeFirst()
+      }
+    }
   }
 
   var onExit: () -> Void
@@ -526,26 +545,25 @@ private nonisolated(unsafe) var notificationIDForLogging = AtomicUInt32(initialV
 
 extension SourceKitLSPServer: MessageHandler {
   public nonisolated func handle(_ params: some NotificationType) {
-    if let params = params as? CancelRequestNotification {
-      // Request cancellation needs to be able to overtake any other message we
-      // are currently handling. Ordering is not important here. We thus don't
-      // need to execute it on `messageHandlingQueue`.
-      self.cancelRequest(params)
-    }
-
     let notificationID = notificationIDForLogging.fetchAndIncrement()
+    withLoggingScope("notification-\(notificationID % 100)") {
+      if let params = params as? CancelRequestNotification {
+        // Request cancellation needs to be able to overtake any other message we
+        // are currently handling. Ordering is not important here. We thus don't
+        // need to execute it on `messageHandlingQueue`.
+        self.cancelRequest(params)
+      }
 
-    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "notification-\(notificationID)")
-      .makeSignposter()
-    let signpostID = signposter.makeSignpostID()
-    let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: params))")
-    messageHandlingQueue.async(metadata: MessageHandlingDependencyTracker(params)) {
-      signposter.emitEvent("Start handling", id: signpostID)
+      let signposter = Logger(subsystem: LoggingScope.subsystem, category: "message-handling")
+        .makeSignposter()
+      let signpostID = signposter.makeSignpostID()
+      let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: params))")
+      messageHandlingQueue.async(metadata: MessageHandlingDependencyTracker(params)) {
+        signposter.emitEvent("Start handling", id: signpostID)
 
-      // Only use the last two digits of the notification ID for the logging scope to avoid creating too many scopes.
-      // See comment in `withLoggingScope`.
-      // The last 2 digits should be sufficient to differentiate between multiple concurrently running notifications.
-      await withLoggingScope("notification-\(notificationID % 100)") {
+        // Only use the last two digits of the notification ID for the logging scope to avoid creating too many scopes.
+        // See comment in `withLoggingScope`.
+        // The last 2 digits should be sufficient to differentiate between multiple concurrently running notifications.
         await self.handleImpl(params)
         signposter.endInterval("Notification", state, "Done")
       }
@@ -564,6 +582,8 @@ extension SourceKitLSPServer: MessageHandler {
       await self.openDocument(notification)
     case let notification as DidCloseTextDocumentNotification:
       await self.closeDocument(notification)
+    case let notification as ReopenTextDocumentNotification:
+      await self.reopenDocument(notification)
     case let notification as DidChangeTextDocumentNotification:
       await self.changeDocument(notification)
     case let notification as DidChangeWorkspaceFoldersNotification:
@@ -585,7 +605,7 @@ extension SourceKitLSPServer: MessageHandler {
     id: RequestID,
     reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) {
-    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "request-\(id)").makeSignposter()
+    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "message-handling").makeSignposter()
     let signpostID = signposter.makeSignpostID()
     let state = signposter.beginInterval("Request", id: signpostID, "\(R.self)")
 
@@ -831,15 +851,19 @@ private extension LanguageServerProtocol.WorkspaceType {
 }
 
 extension SourceKitLSPServer {
-  nonisolated func indexTaskDidProduceResult(_ result: IndexProcessResult) {
+  nonisolated func logMessageToIndexLog(taskID: IndexTaskID, message: String) {
+    var message: Substring = message[...]
+    while message.last?.isNewline ?? false {
+      message = message.dropLast(1)
+    }
+    let messageWithEmojiLinePrefixes = message.split(separator: "\n", omittingEmptySubsequences: false).map {
+      "\(taskID.emojiRepresentation) \($0)"
+    }.joined(separator: "\n")
     self.sendNotificationToClient(
       LogMessageNotification(
-        type: result.failed ? .info : .warning,
-        message: """
-          \(result.taskDescription) finished in \(result.duration)
-          \(result.command)
-          \(result.output)
-          """
+        type: .info,
+        message: messageWithEmojiLinePrefixes,
+        logName: "SourceKit-LSP: Indexing"
       )
     )
   }
@@ -916,7 +940,7 @@ extension SourceKitLSPServer {
       "Created workspace at \(workspaceFolder.uri.forLogging) as \(type(of: buildSystem)) with project root \(projectRoot ?? "<nil>")"
     )
 
-    return try? await Workspace(
+    let workspace = try? await Workspace(
       documentManager: self.documentManager,
       rootUri: workspaceFolder.uri,
       capabilityRegistry: capabilityRegistry,
@@ -925,8 +949,8 @@ extension SourceKitLSPServer {
       options: options,
       indexOptions: self.options.indexOptions,
       indexTaskScheduler: indexTaskScheduler,
-      indexProcessDidProduceResult: { [weak self] in
-        self?.indexTaskDidProduceResult($0)
+      logMessageToIndexLog: { [weak self] taskID, message in
+        self?.logMessageToIndexLog(taskID: taskID, message: message)
       },
       indexTasksWereScheduled: { [weak self] count in
         self?.indexProgressManager.indexTasksWereScheduled(count: count)
@@ -935,6 +959,21 @@ extension SourceKitLSPServer {
         self?.indexProgressManager.indexProgressStatusDidChange()
       }
     )
+    if let workspace, options.experimentalFeatures.contains(.backgroundIndexing), workspace.semanticIndexManager == nil,
+      !self.didSendBackgroundIndexingNotSupportedNotification
+    {
+      self.sendNotificationToClient(
+        ShowMessageNotification(
+          type: .info,
+          message: """
+            Background indexing is currently only supported for SwiftPM projects. \
+            For all other project types, please run a build to update the index.
+            """
+        )
+      )
+      self.didSendBackgroundIndexingNotSupportedNotification = true
+    }
+    return workspace
   }
 
   func initialize(_ req: InitializeRequest) async throws -> InitializeResult {
@@ -991,8 +1030,8 @@ extension SourceKitLSPServer {
           index: nil,
           indexDelegate: nil,
           indexTaskScheduler: self.indexTaskScheduler,
-          indexProcessDidProduceResult: { [weak self] in
-            self?.indexTaskDidProduceResult($0)
+          logMessageToIndexLog: { [weak self] taskID, message in
+            self?.logMessageToIndexLog(taskID: taskID, message: message)
           },
           indexTasksWereScheduled: { [weak self] count in
             self?.indexProgressManager.indexTasksWereScheduled(count: count)
@@ -1167,16 +1206,15 @@ extension SourceKitLSPServer {
     // Since the request is very cheap to execute and stops other requests
     // from performing more work, we execute it with a high priority.
     cancellationMessageHandlingQueue.async(priority: .high) {
-      guard let task = await self.inProgressRequests[notification.id] else {
-        logger.error(
-          """
-          Cannot cancel request \(notification.id, privacy: .public) because it hasn't been scheduled for execution \
-          yet or because the request already returned a response
-          """
-        )
+      if let task = await self.inProgressRequests[notification.id] {
+        task.cancel()
         return
       }
-      task.cancel()
+      if await !self.recentlyFinishedRequests.contains(notification.id) {
+        logger.error(
+          "Cannot cancel request \(notification.id, privacy: .public) because it hasn't been scheduled for execution yet"
+        )
+      }
     }
   }
 
@@ -1248,12 +1286,12 @@ extension SourceKitLSPServer {
     await openDocument(notification, workspace: workspace)
   }
 
-  private func openDocument(_ note: DidOpenTextDocumentNotification, workspace: Workspace) async {
+  private func openDocument(_ notification: DidOpenTextDocumentNotification, workspace: Workspace) async {
     // Immediately open the document even if the build system isn't ready. This is important since
     // we check that the document is open when we receive messages from the build system.
-    documentManager.open(note)
+    documentManager.open(notification)
 
-    let textDocument = note.textDocument
+    let textDocument = notification.textDocument
     let uri = textDocument.uri
     let language = textDocument.language
 
@@ -1265,7 +1303,7 @@ extension SourceKitLSPServer {
     await workspace.buildSystemManager.registerForChangeNotifications(for: uri, language: language)
 
     // If the document is ready, we can immediately send the notification.
-    await service.openDocument(note)
+    await service.openDocument(notification)
   }
 
   func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
@@ -1279,16 +1317,27 @@ extension SourceKitLSPServer {
     await self.closeDocument(notification, workspace: workspace)
   }
 
-  func closeDocument(_ note: DidCloseTextDocumentNotification, workspace: Workspace) async {
+  func reopenDocument(_ notification: ReopenTextDocumentNotification) async {
+    let uri = notification.textDocument.uri
+    guard let workspace = await workspaceForDocument(uri: uri) else {
+      logger.error(
+        "received reopen notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
+      )
+      return
+    }
+    await workspace.documentService.value[uri]?.reopenDocument(notification)
+  }
+
+  func closeDocument(_ notification: DidCloseTextDocumentNotification, workspace: Workspace) async {
     // Immediately close the document. We need to be sure to clear our pending work queue in case
     // the build system still isn't ready.
-    documentManager.close(note)
+    documentManager.close(notification)
 
-    let uri = note.textDocument.uri
+    let uri = notification.textDocument.uri
 
     await workspace.buildSystemManager.unregisterForChangeNotifications(for: uri)
 
-    await workspace.documentService.value[uri]?.closeDocument(note)
+    await workspace.documentService.value[uri]?.closeDocument(notification)
   }
 
   func changeDocument(_ notification: DidChangeTextDocumentNotification) async {
@@ -1315,10 +1364,10 @@ extension SourceKitLSPServer {
   }
 
   func didSaveDocument(
-    _ note: DidSaveTextDocumentNotification,
+    _ notification: DidSaveTextDocumentNotification,
     languageService: LanguageService
   ) async {
-    await languageService.didSaveDocument(note)
+    await languageService.didSaveDocument(notification)
   }
 
   func didChangeWorkspaceFolders(_ notification: DidChangeWorkspaceFoldersNotification) async {
@@ -1740,7 +1789,7 @@ extension SourceKitLSPServer {
     // `SwiftLanguageService` will always respond with `unsupported method`. Thus, only log such a failure instead of
     // returning it to the client.
     if indexBasedResponse.isEmpty {
-      return await orLog("Fallback definition request") {
+      return await orLog("Fallback definition request", level: .info) {
         return try await languageService.definition(req)
       }
     }
@@ -1830,11 +1879,28 @@ extension SourceKitLSPServer {
     containerName: String?,
     location: Location
   ) -> CallHierarchyItem {
-    CallHierarchyItem(
-      name: symbol.name,
+    let name: String
+    if let containerName {
+      switch symbol.language {
+      case .objc where symbol.kind == .instanceMethod || symbol.kind == .instanceProperty:
+        name = "-[\(containerName) \(symbol.name)]"
+      case .objc where symbol.kind == .classMethod || symbol.kind == .classProperty:
+        name = "+[\(containerName) \(symbol.name)]"
+      case .cxx, .c, .objc:
+        // C shouldn't have container names for call hierarchy and Objective-C should be covered above.
+        // Fall back to using the C++ notation using `::`.
+        name = "\(containerName)::\(symbol.name)"
+      case .swift:
+        name = "\(containerName).\(symbol.name)"
+      }
+    } else {
+      name = symbol.name
+    }
+    return CallHierarchyItem(
+      name: name,
       kind: symbol.kind.asLspSymbolKind(),
       tags: nil,
-      detail: containerName,
+      detail: nil,
       uri: location.uri,
       range: location.range,
       selectionRange: location.range,
@@ -2268,8 +2334,15 @@ extension IndexSymbolKind {
       return .struct
     case .parameter:
       return .typeParameter
-
-    default:
+    case .module, .namespace:
+      return .namespace
+    case .field:
+      return .property
+    case .constructor:
+      return .constructor
+    case .destructor:
+      return .null
+    case .commentTag, .concept, .extension, .macro, .namespaceAlias, .typealias, .union, .unknown, .using:
       return .null
     }
   }
@@ -2384,7 +2457,7 @@ fileprivate extension RequestID {
   var numericValue: Int {
     switch self {
     case .number(let number): return number
-    case .string(let string): return Int(string) ?? string.hashValue
+    case .string(let string): return Int(string) ?? abs(string.hashValue)
     }
   }
 }

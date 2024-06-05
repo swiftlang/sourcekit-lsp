@@ -61,6 +61,11 @@ public struct IndexedSingleSwiftFileTestProject {
       "-index-store-path", indexURL.path,
       "-typecheck",
     ]
+    if let globalModuleCache {
+      compilerArguments += [
+        "-module-cache-path", globalModuleCache.path,
+      ]
+    }
     if !indexSystemModules {
       compilerArguments.append("-index-ignore-system-modules")
     }

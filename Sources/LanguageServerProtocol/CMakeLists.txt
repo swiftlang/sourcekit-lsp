@@ -19,6 +19,7 @@ add_library(LanguageServerProtocol STATIC
   Notifications/LogMessageNotification.swift
   Notifications/LogTraceNotification.swift
   Notifications/PublishDiagnosticsNotification.swift
+  Notifications/ReopenTextDocumentNotifications.swift
   Notifications/SetTraceNotification.swift
   Notifications/ShowMessageNotification.swift
   Notifications/TextSynchronizationNotifications.swift

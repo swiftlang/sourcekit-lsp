@@ -12,12 +12,51 @@
 
 import LSPLogging
 import LanguageServerProtocol
+import RegexBuilder
 import SKSupport
+import SwiftExtensions
 
 import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
+import class TSCBasic.Process
 import var TSCBasic.localFileSystem
+
+/// A Swift version consisting of the major and minor component.
+public struct SwiftVersion: Sendable, Comparable, CustomStringConvertible {
+  public let major: Int
+  public let minor: Int
+
+  public static func < (lhs: SwiftVersion, rhs: SwiftVersion) -> Bool {
+    return (lhs.major, lhs.minor) < (rhs.major, rhs.minor)
+  }
+
+  public init(_ major: Int, _ minor: Int) {
+    self.major = major
+    self.minor = minor
+  }
+
+  public var description: String {
+    return "\(major).\(minor)"
+  }
+}
+
+fileprivate enum SwiftVersionParsingError: Error, CustomStringConvertible {
+  case failedToFindSwiftc
+  case failedToParseOutput(output: String?)
+
+  var description: String {
+    switch self {
+    case .failedToFindSwiftc:
+      return "Default toolchain does not contain a swiftc executable"
+    case .failedToParseOutput(let output):
+      return """
+        Failed to parse Swift version. Output of swift --version:
+        \(output ?? "<empty>")
+        """
+    }
+  }
+}
 
 /// A Toolchain is a collection of related compilers and libraries meant to be used together to
 /// build and edit source code.
@@ -62,6 +101,47 @@ public final class Toolchain: Sendable {
 
   /// The path to the indexstore library if available.
   public let libIndexStore: AbsolutePath?
+
+  private let swiftVersionTask = ThreadSafeBox<Task<SwiftVersion, any Error>?>(initialValue: nil)
+
+  /// The Swift version installed in the toolchain. Throws an error if the version could not be parsed or if no Swift
+  /// compiler is installed in the toolchain.
+  public var swiftVersion: SwiftVersion {
+    get async throws {
+      let task = swiftVersionTask.withLock { task in
+        if let task {
+          return task
+        }
+        let newTask = Task { () -> SwiftVersion in
+          guard let swiftc else {
+            throw SwiftVersionParsingError.failedToFindSwiftc
+          }
+
+          let process = Process(args: swiftc.pathString, "--version")
+          try process.launch()
+          let result = try await process.waitUntilExit()
+          let output = String(bytes: try result.output.get(), encoding: .utf8)
+          let regex = Regex {
+            "Swift version "
+            Capture { OneOrMore(.digit) }
+            "."
+            Capture { OneOrMore(.digit) }
+          }
+          guard let match = output?.firstMatch(of: regex) else {
+            throw SwiftVersionParsingError.failedToParseOutput(output: output)
+          }
+          guard let major = Int(match.1), let minor = Int(match.2) else {
+            throw SwiftVersionParsingError.failedToParseOutput(output: output)
+          }
+          return SwiftVersion(major, minor)
+        }
+        task = newTask
+        return newTask
+      }
+
+      return try await task.value
+    }
+  }
 
   public init(
     identifier: String,

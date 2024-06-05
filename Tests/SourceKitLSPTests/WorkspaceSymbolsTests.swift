@@ -60,10 +60,9 @@ class WorkspaceSymbolsTests: XCTestCase {
       ],
       workspaces: {
         return [WorkspaceFolder(uri: DocumentURI($0.appendingPathComponent("packageB")))]
-      }
+      },
+      enableBackgroundIndexing: true
     )
-
-    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("packageB"))
 
     _ = try await project.testClient.send(PollIndexRequest())
     let response = try await project.testClient.send(WorkspaceSymbolsRequest(query: "funcFrom"))

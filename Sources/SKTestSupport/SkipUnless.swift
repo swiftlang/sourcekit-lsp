@@ -58,21 +58,11 @@ public actor SkipUnless {
     line: UInt,
     featureCheck: () async throws -> Bool
   ) async throws {
-    let checkResult: FeatureCheckResult
-    if let cachedResult = checkCache[featureName] {
-      checkResult = cachedResult
-    } else if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] != nil {
-      // Never skip tests in CI. Toolchain should be up-to-date
-      checkResult = .featureSupported
-    } else {
-      guard let swiftc = await ToolchainRegistry.forTesting.default?.swiftc else {
-        throw SwiftVersionParsingError.failedToFindSwiftc
-      }
-
-      let toolchainSwiftVersion = try await getSwiftVersion(swiftc)
+    return try await skipUnlessSupported(featureName: featureName, file: file, line: line) {
+      let toolchainSwiftVersion = try await unwrap(ToolchainRegistry.forTesting.default).swiftVersion
       let requiredSwiftVersion = SwiftVersion(swiftVersion.major, swiftVersion.minor)
       if toolchainSwiftVersion < requiredSwiftVersion {
-        checkResult = .featureUnsupported(
+        return .featureUnsupported(
           skipMessage: """
             Skipping because toolchain has Swift version \(toolchainSwiftVersion) \
             but test requires at least \(requiredSwiftVersion)
@@ -80,15 +70,34 @@ public actor SkipUnless {
         )
       } else if toolchainSwiftVersion == requiredSwiftVersion {
         logger.info("Checking if feature '\(featureName)' is supported")
-        if try await !featureCheck() {
-          checkResult = .featureUnsupported(skipMessage: "Skipping because toolchain doesn't contain \(featureName)")
-        } else {
-          checkResult = .featureSupported
+        defer {
+          logger.info("Done checking if feature '\(featureName)' is supported")
         }
-        logger.info("Done checking if feature '\(featureName)' is supported")
+        if try await !featureCheck() {
+          return .featureUnsupported(skipMessage: "Skipping because toolchain doesn't contain \(featureName)")
+        } else {
+          return .featureSupported
+        }
       } else {
-        checkResult = .featureSupported
+        return .featureSupported
       }
+    }
+  }
+
+  private func skipUnlessSupported(
+    featureName: String = #function,
+    file: StaticString,
+    line: UInt,
+    featureCheck: () async throws -> FeatureCheckResult
+  ) async throws {
+    let checkResult: FeatureCheckResult
+    if let cachedResult = checkCache[featureName] {
+      checkResult = cachedResult
+    } else if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] != nil {
+      // Never skip tests in CI. Toolchain should be up-to-date
+      checkResult = .featureSupported
+    } else {
+      checkResult = try await featureCheck()
     }
     checkCache[featureName] = checkResult
 
@@ -103,7 +112,7 @@ public actor SkipUnless {
   ) async throws {
     try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
       let testClient = try await TestSourceKitLSPClient()
-      let uri = DocumentURI.for(.swift)
+      let uri = DocumentURI(for: .swift)
       testClient.openDocument("0.bitPattern", uri: uri)
       let response = try unwrap(
         await testClient.send(DocumentSemanticTokensRequest(textDocument: TextDocumentIdentifier(uri)))
@@ -134,7 +143,7 @@ public actor SkipUnless {
   ) async throws {
     try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
       let testClient = try await TestSourceKitLSPClient()
-      let uri = DocumentURI.for(.swift)
+      let uri = DocumentURI(for: .swift)
       let positions = testClient.openDocument("func 1️⃣test() {}", uri: uri)
       do {
         _ = try await testClient.send(
@@ -154,7 +163,7 @@ public actor SkipUnless {
   ) async throws {
     try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
       let testClient = try await TestSourceKitLSPClient()
-      let uri = DocumentURI.for(.c)
+      let uri = DocumentURI(for: .c)
       let positions = testClient.openDocument("void 1️⃣test() {}", uri: uri)
       do {
         _ = try await testClient.send(
@@ -174,19 +183,13 @@ public actor SkipUnless {
 
   /// SwiftPM moved the location where it stores Swift modules to a subdirectory in
   /// https://github.com/apple/swift-package-manager/pull/7103.
-  ///
-  /// sourcekit-lsp uses the built-in SwiftPM to synthesize compiler arguments and cross-module tests fail if the host
-  /// toolchain’s SwiftPM stores the Swift modules on the top level but we synthesize compiler arguments expecting the
-  /// modules to be in a `Modules` subdirectory.
   public static func swiftpmStoresModulesInSubdirectory(
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
     try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
-      let workspace = try await SwiftPMTestProject(
-        files: ["test.swift": ""],
-        build: true
-      )
+      let workspace = try await SwiftPMTestProject(files: ["test.swift": ""])
+      try await SwiftPMTestProject.build(at: workspace.scratchDirectory)
       let modulesDirectory = workspace.scratchDirectory
         .appendingPathComponent(".build")
         .appendingPathComponent("debug")
@@ -214,7 +217,7 @@ public actor SkipUnless {
     return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
       // The XML-based doc comment conversion did not preserve `Precondition`.
       let testClient = try await TestSourceKitLSPClient()
-      let uri = DocumentURI.for(.swift)
+      let uri = DocumentURI(for: .swift)
       let positions = testClient.openDocument(
         """
         /// - Precondition: Must have an apple
@@ -282,6 +285,40 @@ public actor SkipUnless {
     }
     #endif
   }
+
+  /// Check if we can use the build artifacts in the sourcekit-lsp build directory to build a macro package without
+  /// re-building swift-syntax.
+  public static func canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    return try await shared.skipUnlessSupported(file: file, line: line) {
+      do {
+        let project = try await SwiftPMTestProject(
+          files: [
+            "MyMacros/MyMacros.swift": #"""
+            import SwiftCompilerPlugin
+            import SwiftSyntax
+            import SwiftSyntaxBuilder
+            import SwiftSyntaxMacros
+            """#,
+            "MyMacroClient/MyMacroClient.swift": """
+            """,
+          ],
+          manifest: SwiftPMTestProject.macroPackageManifest
+        )
+        try await SwiftPMTestProject.build(at: project.scratchDirectory)
+        return .featureSupported
+      } catch {
+        return .featureUnsupported(
+          skipMessage: """
+            Skipping because macro could not be built using build artifacts in the sourcekit-lsp build directory. \
+            This usually happens if sourcekit-lsp was built using a different toolchain than the one used at test-time.
+            """
+        )
+      }
+    }
+  }
 }
 
 // MARK: - Parsing Swift compiler version
@@ -296,61 +333,4 @@ fileprivate extension String {
       return String(data: data, encoding: encoding)!
     }
   }
-}
-
-/// A Swift version consisting of the major and minor component.
-fileprivate struct SwiftVersion: Comparable, CustomStringConvertible {
-  let major: Int
-  let minor: Int
-
-  static func < (lhs: SwiftVersion, rhs: SwiftVersion) -> Bool {
-    return (lhs.major, lhs.minor) < (rhs.major, rhs.minor)
-  }
-
-  init(_ major: Int, _ minor: Int) {
-    self.major = major
-    self.minor = minor
-  }
-
-  var description: String {
-    return "\(major).\(minor)"
-  }
-}
-
-fileprivate enum SwiftVersionParsingError: Error, CustomStringConvertible {
-  case failedToFindSwiftc
-  case failedToParseOutput(output: String?)
-
-  var description: String {
-    switch self {
-    case .failedToFindSwiftc:
-      return "Default toolchain does not contain a swiftc executable"
-    case .failedToParseOutput(let output):
-      return """
-        Failed to parse Swift version. Output of swift --version:
-        \(output ?? "<empty>")
-        """
-    }
-  }
-}
-
-/// Return the major and minor version of Swift for a `swiftc` compiler at `swiftcPath`.
-private func getSwiftVersion(_ swiftcPath: AbsolutePath) async throws -> SwiftVersion {
-  let process = Process(args: swiftcPath.pathString, "--version")
-  try process.launch()
-  let result = try await process.waitUntilExit()
-  let output = String(bytes: try result.output.get(), encoding: .utf8)
-  let regex = Regex {
-    "Swift version "
-    Capture { OneOrMore(.digit) }
-    "."
-    Capture { OneOrMore(.digit) }
-  }
-  guard let match = output?.firstMatch(of: regex) else {
-    throw SwiftVersionParsingError.failedToParseOutput(output: output)
-  }
-  guard let major = Int(match.1), let minor = Int(match.2) else {
-    throw SwiftVersionParsingError.failedToParseOutput(output: output)
-  }
-  return SwiftVersion(major, minor)
 }

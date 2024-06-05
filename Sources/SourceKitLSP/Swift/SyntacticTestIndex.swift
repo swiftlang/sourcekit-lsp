@@ -14,6 +14,7 @@ import Foundation
 import LSPLogging
 import LanguageServerProtocol
 import SKSupport
+import SwiftExtensions
 
 /// Task metadata for `SyntacticTestIndexer.indexingQueue`
 fileprivate enum TaskMetadata: DependencyTracker, Equatable {
@@ -176,6 +177,11 @@ actor SyntacticTestIndex {
       return
     }
     guard !removedFiles.contains(uri) else {
+      return
+    }
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      // File no longer exists. Probably deleted since we scheduled it for indexing. Nothing to worry about.
+      logger.info("Not indexing \(uri.forLogging) for tests because it does not exist")
       return
     }
     guard

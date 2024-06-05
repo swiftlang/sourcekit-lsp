@@ -18,7 +18,7 @@ import XCTest
 final class PublishDiagnosticsTests: XCTestCase {
   func testUnknownIdentifierDiagnostic() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     testClient.openDocument(
       """
@@ -39,7 +39,7 @@ final class PublishDiagnosticsTests: XCTestCase {
 
   func testRangeShiftAfterNewlineAdded() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     testClient.openDocument(
       """
@@ -80,7 +80,7 @@ final class PublishDiagnosticsTests: XCTestCase {
 
   func testRangeShiftAfterNewlineRemoved() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     testClient.openDocument(
       """
@@ -154,7 +154,6 @@ final class PublishDiagnosticsTests: XCTestCase {
 
   func testDiagnosticUpdatedAfterDependentModuleIsBuilt() async throws {
     try SkipUnless.longTestsEnabled()
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
 
     let project = try await SwiftPMTestProject(
       files: [
@@ -170,10 +169,6 @@ final class PublishDiagnosticsTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -187,7 +182,14 @@ final class PublishDiagnosticsTests: XCTestCase {
 
     _ = try project.openDocument("LibB.swift")
     let diagnosticsBeforeBuilding = try await project.testClient.nextDiagnosticsNotification()
-    XCTAssert(diagnosticsBeforeBuilding.diagnostics.contains(where: { $0.message == "No such module 'LibA'" }))
+    XCTAssert(
+      diagnosticsBeforeBuilding.diagnostics.contains(where: {
+        #if compiler(>=6.1)
+        #warning("When we drop support for Swift 5.10 we no longer need to check for the Objective-C error message")
+        #endif
+        return $0.message == "No such module 'LibA'" || $0.message == "Could not build Objective-C module 'LibA'"
+      })
+    )
 
     try await SwiftPMTestProject.build(at: project.scratchDirectory)
 

@@ -16,6 +16,7 @@ import LSPLogging
 import LanguageServerProtocol
 import SKCore
 import SKSupport
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
@@ -105,14 +106,14 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
 
-  private let indexStoreUpToDateStatus: IndexUpToDateStatusManager<DocumentURI>
+  private let indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>
 
   /// A reference to the underlying index store. Used to check if the index is already up-to-date for a file, in which
   /// case we don't need to index it again.
   private let index: UncheckedIndex
 
-  /// See `SemanticIndexManager.indexProcessDidProduceResult`
-  private let indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+  /// See `SemanticIndexManager.logMessageToIndexLog`.
+  private let logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
 
   /// Test hooks that should be called when the index task finishes.
   private let testHooks: IndexTestHooks
@@ -138,15 +139,15 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     filesToIndex: [FileAndTarget],
     buildSystemManager: BuildSystemManager,
     index: UncheckedIndex,
-    indexStoreUpToDateStatus: IndexUpToDateStatusManager<DocumentURI>,
-    indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
+    indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     testHooks: IndexTestHooks
   ) {
     self.filesToIndex = filesToIndex
     self.buildSystemManager = buildSystemManager
     self.index = index
-    self.indexStoreUpToDateStatus = indexStoreUpToDateStatus
-    self.indexProcessDidProduceResult = indexProcessDidProduceResult
+    self.indexStoreUpToDateTracker = indexStoreUpToDateTracker
+    self.logMessageToIndexLog = logMessageToIndexLog
     self.testHooks = testHooks
   }
 
@@ -202,15 +203,11 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   }
 
   private func updateIndexStore(forSingleFile file: FileToIndex, in target: ConfiguredTarget) async {
-    guard await !indexStoreUpToDateStatus.isUpToDate(file.sourceFile) else {
+    guard await !indexStoreUpToDateTracker.isUpToDate(file.sourceFile) else {
       // If we know that the file is up-to-date without having ot hit the index, do that because it's fastest.
       return
     }
-    guard let sourceFileUrl = file.sourceFile.fileURL else {
-      // The URI is not a file, so there's nothing we can index.
-      return
-    }
-    guard !index.checked(for: .modifiedFiles).hasUpToDateUnit(for: sourceFileUrl, mainFile: file.mainFile.fileURL)
+    guard !index.checked(for: .modifiedFiles).hasUpToDateUnit(for: file.sourceFile, mainFile: file.mainFile)
     else {
       logger.debug("Not indexing \(file.forLogging) because index has an up-to-date unit")
       // We consider a file's index up-to-date if we have any up-to-date unit. Changing build settings does not
@@ -227,6 +224,17 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     let buildSettings = await buildSystemManager.buildSettings(for: file.mainFile, in: target, language: language)
     guard let buildSettings else {
       logger.error("Not indexing \(file.forLogging) because it has no compiler arguments")
+      return
+    }
+    if buildSettings.isFallback {
+      // Fallback build settings don’t even have an indexstore path set, so they can't generate index data that we would
+      // pick up. Also, indexing with fallback args has some other problems:
+      // - If it did generate a unit file, we would consider the file’s index up-to-date even if the compiler arguments
+      //   change, which means that we wouldn't get any up-to-date-index even when we have build settings for the file.
+      // - It's unlikely that the index from a single file with fallback arguments will be very useful as it can't tie
+      //   into the rest of the project.
+      // So, don't index the file.
+      logger.error("Not indexing \(file.forLogging) because it has fallback compiler arguments")
       return
     }
     guard let toolchain = await buildSystemManager.toolchain(for: file.mainFile, language) else {
@@ -264,7 +272,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         "Not updating index store for \(file) because it is a language that is not supported by background indexing"
       )
     }
-    await indexStoreUpToDateStatus.markUpToDate([file.sourceFile], updateOperationStartDate: startDate)
+    await indexStoreUpToDateTracker.markUpToDate([file.sourceFile], updateOperationStartDate: startDate)
   }
 
   private func updateIndexStore(
@@ -337,9 +345,25 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     defer {
       signposter.endInterval("Indexing", state)
     }
+    let logID = IndexTaskID.updateIndexStore(id: id)
+    logMessageToIndexLog(
+      logID,
+      """
+      Indexing \(indexFile.pseudoPath)
+      \(processArguments.joined(separator: " "))
+      """
+    )
+
+    let stdoutHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
+    let stderrHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
+
     let process = try Process.launch(
       arguments: processArguments,
-      workingDirectory: workingDirectory
+      workingDirectory: workingDirectory,
+      outputRedirection: .stream(
+        stdout: { stdoutHandler.handleDataFromPipe(Data($0)) },
+        stderr: { stderrHandler.handleDataFromPipe(Data($0)) }
+      )
     )
     // Time out updating of the index store after 2 minutes. We don't expect any single file compilation to take longer
     // than 2 minutes in practice, so this indicates that the compiler has entered a loop and we probably won't make any
@@ -349,13 +373,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       try await process.waitUntilExitSendingSigIntOnTaskCancellation()
     }
 
-    indexProcessDidProduceResult(
-      IndexProcessResult(
-        taskDescription: "Indexing \(indexFile.pseudoPath)",
-        processResult: result,
-        start: start
-      )
-    )
+    logMessageToIndexLog(logID, "Finished in \(start.duration(to: .now))")
 
     switch result.exitStatus.exhaustivelySwitchable {
     case .terminated(code: 0):
@@ -430,11 +448,6 @@ private func adjustSwiftCompilerArgumentsForIndexStoreUpdate(
     .option("output-file-map", [.singleDash], [.separatedBySpace, .separatedByEqualSign]),
   ]
 
-  let removeFrontendFlags = [
-    "-experimental-skip-non-inlinable-function-bodies",
-    "-experimental-skip-all-function-bodies",
-  ]
-
   var result: [String] = []
   result.reserveCapacity(compilerArguments.count)
   var iterator = compilerArguments.makeIterator()
@@ -448,18 +461,14 @@ private func adjustSwiftCompilerArgumentsForIndexStoreUpdate(
     case nil:
       break
     }
-    if argument == "-Xfrontend" {
-      if let nextArgument = iterator.next() {
-        if removeFrontendFlags.contains(nextArgument) {
-          continue
-        }
-        result += [argument, nextArgument]
-        continue
-      }
-    }
     result.append(argument)
   }
+  result += supplementalClangIndexingArgs.flatMap { ["-Xcc", $0] }
   result += [
+    // Preparation produces modules with errors. We should allow reading them.
+    "-Xfrontend", "-experimental-allow-module-with-compiler-errors",
+    // Avoid emitting the ABI descriptor, we don't need it
+    "-Xfrontend", "-empty-abi-descriptor",
     "-index-file",
     "-index-file-path", fileToIndex.pseudoPath,
     // batch mode is not compatible with -index-file
@@ -520,11 +529,39 @@ private func adjustClangCompilerArgumentsForIndexStoreUpdate(
     }
     result.append(argument)
   }
+  result += supplementalClangIndexingArgs
   result.append(
     "-fsyntax-only"
   )
   return result
 }
+
+#if compiler(>=6.1)
+#warning(
+  "Remove -fmodules-validate-system-headers from supplementalClangIndexingArgs once all supported Swift compilers have https://github.com/apple/swift/pull/74063"
+)
+#endif
+
+fileprivate let supplementalClangIndexingArgs: [String] = [
+  // Retain extra information for indexing
+  "-fretain-comments-from-system-headers",
+  // Pick up macro definitions during indexing
+  "-Xclang", "-detailed-preprocessing-record",
+
+  // libclang uses 'raw' module-format. Match it so we can reuse the module cache and PCHs that libclang uses.
+  "-Xclang", "-fmodule-format=raw",
+
+  // Be less strict - we want to continue and typecheck/index as much as possible
+  "-Xclang", "-fallow-pch-with-compiler-errors",
+  "-Xclang", "-fallow-pcm-with-compiler-errors",
+  "-Wno-non-modular-include-in-framework-module",
+  "-Wno-incomplete-umbrella",
+
+  // sourcekitd adds `-fno-modules-validate-system-headers` before https://github.com/apple/swift/pull/74063.
+  // This completely disables system module validation and never re-builds pcm for system modules. The intended behavior
+  // is to only re-build those PCMs once per sourcekitd session.
+  "-fmodules-validate-system-headers",
+]
 
 fileprivate extension Sequence {
   /// Returns `true` if this sequence contains an element that is equal to an element in `otherSequence` when

@@ -43,6 +43,8 @@ actor TestBuildSystem: BuildSystem {
     buildSettingsByFile[uri] = buildSettings
   }
 
+  public nonisolated var supportsPreparation: Bool { false }
+
   func buildSettings(
     for document: DocumentURI,
     in buildTarget: ConfiguredTarget,
@@ -61,7 +63,7 @@ actor TestBuildSystem: BuildSystem {
 
   public func prepare(
     targets: [ConfiguredTarget],
-    indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     throw PrepareNotSupportedError()
   }
@@ -139,7 +141,7 @@ final class BuildSystemTests: XCTestCase {
       index: nil,
       indexDelegate: nil,
       indexTaskScheduler: .forTesting,
-      indexProcessDidProduceResult: { _ in },
+      logMessageToIndexLog: { _, _ in },
       indexTasksWereScheduled: { _ in },
       indexProgressStatusDidChange: {}
     )
@@ -159,7 +161,7 @@ final class BuildSystemTests: XCTestCase {
   func testClangdDocumentUpdatedBuildSettings() async throws {
     guard haveClangd else { return }
 
-    let doc = DocumentURI.for(.objective_c)
+    let doc = DocumentURI(for: .objective_c)
     let args = [doc.pseudoPath, "-DDEBUG"]
     let text = """
       #ifdef FOO
@@ -191,7 +193,7 @@ final class BuildSystemTests: XCTestCase {
 
     var receivedCorrectDiagnostic = false
     for _ in 0..<Int(defaultTimeout) {
-      let refreshedDiags = try await testClient.nextDiagnosticsNotification(timeout: 1)
+      let refreshedDiags = try await testClient.nextDiagnosticsNotification(timeout: .seconds(1))
       if refreshedDiags.diagnostics.count == 0, try text == documentManager.latestSnapshot(doc).text {
         receivedCorrectDiagnostic = true
         break
@@ -201,7 +203,7 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testSwiftDocumentUpdatedBuildSettings() async throws {
-    let doc = DocumentURI.for(.swift)
+    let doc = DocumentURI(for: .swift)
     let args = await FallbackBuildSystem(buildSetup: .default)
       .buildSettings(for: doc, language: .swift)!
       .compilerArguments
@@ -236,7 +238,7 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testClangdDocumentFallbackWithholdsDiagnostics() async throws {
-    let doc = DocumentURI.for(.objective_c)
+    let doc = DocumentURI(for: .objective_c)
     let args = [doc.pseudoPath, "-DDEBUG"]
     let text = """
         #ifdef FOO
@@ -270,7 +272,7 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testSwiftDocumentFallbackWithholdsSemanticDiagnostics() async throws {
-    let doc = DocumentURI.for(.swift)
+    let doc = DocumentURI(for: .swift)
 
     // Primary settings must be different than the fallback settings.
     var primarySettings = await FallbackBuildSystem(buildSetup: .default).buildSettings(for: doc, language: .swift)!

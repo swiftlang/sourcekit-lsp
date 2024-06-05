@@ -10,10 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LSPLogging
 import LanguageServerProtocol
 import SKCore
 import SKSupport
 import SemanticIndex
+import SwiftExtensions
 
 /// Listens for index status updates from `SemanticIndexManagers`. From that information, it manages a
 /// `WorkDoneProgress` that communicates the index progress to the editor.
@@ -98,17 +100,13 @@ actor IndexProgressManager {
       // `indexTasksWereScheduled` calls yet but the semantic index managers already track them in their in-progress tasks.
       // Clip the finished tasks to 0 because showing a negative number there looks stupid.
       let finishedTasks = max(queuedIndexTasks - indexTasks.count, 0)
-      message = "\(finishedTasks) / \(queuedIndexTasks)"
-      if await sourceKitLSPServer.options.indexOptions.showActivePreparationTasksInProgress {
-        var inProgressTasks: [String] = []
-        inProgressTasks += preparationTasks.filter { $0.value == .executing }
-          .map { "- Preparing \($0.key.targetID)" }
-          .sorted()
-        inProgressTasks += indexTasks.filter { $0.value == .executing }
-          .map { "- Indexing \($0.key.fileURL?.lastPathComponent ?? $0.key.pseudoPath)" }
-          .sorted()
-
-        message += "\n\n" + inProgressTasks.joined(separator: "\n")
+      if indexTasks.isEmpty {
+        message = "Preparing targets"
+        if preparationTasks.isEmpty {
+          logger.fault("Indexer status is 'indexing' but there is no update indexstore or preparation task")
+        }
+      } else {
+        message = "\(finishedTasks) / \(queuedIndexTasks)"
       }
       if queuedIndexTasks != 0 {
         percentage = Int(Double(finishedTasks) / Double(queuedIndexTasks) * 100)

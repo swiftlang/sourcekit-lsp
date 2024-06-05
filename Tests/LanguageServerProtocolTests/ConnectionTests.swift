@@ -60,12 +60,12 @@ class ConnectionTests: XCTestCase {
     try await fulfillmentOfOrThrow([expectation, expectation2])
   }
 
-  func testEchoNote() async throws {
+  func testEchoNotification() async throws {
     let client = connection.client
-    let expectation = self.expectation(description: "note received")
+    let expectation = self.expectation(description: "notification received")
 
-    await client.appendOneShotNotificationHandler { (note: EchoNotification) in
-      XCTAssertEqual(note.string, "hello!")
+    await client.appendOneShotNotificationHandler { (notification: EchoNotification) in
+      XCTAssertEqual(notification.string, "hello!")
       expectation.fulfill()
     }
 

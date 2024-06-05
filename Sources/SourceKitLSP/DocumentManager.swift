@@ -191,12 +191,12 @@ public final class DocumentManager: InMemoryDocumentManager, Sendable {
     }
   }
 
-  public func fileHasInMemoryModifications(_ url: URL) -> Bool {
-    guard let document = try? latestSnapshot(DocumentURI(url)) else {
+  public func fileHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
+    guard let document = try? latestSnapshot(uri), let fileURL = uri.fileURL else {
       return false
     }
 
-    guard let onDiskFileContents = try? String(contentsOf: url, encoding: .utf8) else {
+    guard let onDiskFileContents = try? String(contentsOf: fileURL, encoding: .utf8) else {
       // If we can't read the file on disk, it can't match any on-disk state, so it's in-memory state
       return true
     }
@@ -210,17 +210,17 @@ extension DocumentManager {
 
   /// Convenience wrapper for `open(_:language:version:text:)` that logs on failure.
   @discardableResult
-  func open(_ note: DidOpenTextDocumentNotification) -> DocumentSnapshot? {
-    let doc = note.textDocument
+  func open(_ notification: DidOpenTextDocumentNotification) -> DocumentSnapshot? {
+    let doc = notification.textDocument
     return orLog("failed to open document", level: .error) {
       try open(doc.uri, language: doc.language, version: doc.version, text: doc.text)
     }
   }
 
   /// Convenience wrapper for `close(_:)` that logs on failure.
-  func close(_ note: DidCloseTextDocumentNotification) {
+  func close(_ notification: DidCloseTextDocumentNotification) {
     orLog("failed to close document", level: .error) {
-      try close(note.textDocument.uri)
+      try close(notification.textDocument.uri)
     }
   }
 
@@ -228,13 +228,13 @@ extension DocumentManager {
   /// that logs on failure.
   @discardableResult
   func edit(
-    _ note: DidChangeTextDocumentNotification
+    _ notification: DidChangeTextDocumentNotification
   ) -> (preEditSnapshot: DocumentSnapshot, postEditSnapshot: DocumentSnapshot, edits: [SourceEdit])? {
     return orLog("failed to edit document", level: .error) {
       return try edit(
-        note.textDocument.uri,
-        newVersion: note.textDocument.version,
-        edits: note.contentChanges
+        notification.textDocument.uri,
+        newVersion: notification.textDocument.version,
+        edits: notification.contentChanges
       )
     }
   }

@@ -7,6 +7,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 from typing import Dict, List
 
 
@@ -206,8 +207,8 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
     """
     swiftpm_args = get_swiftpm_options(swift_exec, args, suppress_verbose=True)
     additional_env = get_swiftpm_environment_variables(swift_exec, args)
-    # 'swift test' doesn't print os_log output to the command line. Use the 
-    # `NonDarwinLogger` that prints to stderr so we can view the log output in CI test 
+    # 'swift test' doesn't print os_log output to the command line. Use the
+    # `NonDarwinLogger` that prints to stderr so we can view the log output in CI test
     # runs.
     additional_env['SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER'] = '1'
 
@@ -228,14 +229,17 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
         '--test-product', 'SourceKitLSPPackageTests'
     ] + swiftpm_args
 
-    # Try running tests in parallel. If that fails, run tests in serial to get capture more readable output.
-    try:
-        check_call(cmd + ['--parallel'], additional_env=additional_env, verbose=args.verbose)
-    except:
-        print('--- Running tests in parallel failed. Re-running tests serially to capture more actionable output.')
-        check_call(cmd, additional_env=additional_env, verbose=args.verbose)
-        # Return with non-zero exit code even if serial test execution succeeds.
-        raise SystemExit(1)
+    with tempfile.TemporaryDirectory() as test_module_cache:
+        additional_env['SOURCEKIT_LSP_TEST_MODULE_CACHE'] = f"{test_module_cache}/module-cache"
+        # Try running tests in parallel. If that fails, run tests in serial to get capture more readable output.
+        try:
+            check_call(cmd + ['--parallel'], additional_env=additional_env, verbose=args.verbose)
+        except:
+            print('--- Running tests in parallel failed. Re-running tests serially to capture more actionable output.')
+            sys.stdout.flush()
+            check_call(cmd, additional_env=additional_env, verbose=args.verbose)
+            # Return with non-zero exit code even if serial test execution succeeds.
+            raise SystemExit(1)
 
 
 def install_binary(exe: str, source_dir: str, install_dir: str, verbose: bool) -> None:
@@ -249,7 +253,7 @@ def install(swift_exec: str, args: argparse.Namespace) -> None:
     swiftpm_args = get_swiftpm_options(swift_exec, args)
     additional_env = get_swiftpm_environment_variables(swift_exec, args)
     bin_path = swiftpm_bin_path(swift_exec, swiftpm_args=swiftpm_args, additional_env=additional_env)
-    
+
     for prefix in args.install_prefixes:
         install_binary('sourcekit-lsp', bin_path, os.path.join(prefix, 'bin'), verbose=args.verbose)
 

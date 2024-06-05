@@ -31,10 +31,6 @@ final class MainFilesProviderTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -45,7 +41,6 @@ final class MainFilesProviderTests: XCTestCase {
           ]
         )
         """,
-      build: false,
       usePullDiagnostics: false
     )
 
@@ -72,10 +67,6 @@ final class MainFilesProviderTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -86,7 +77,6 @@ final class MainFilesProviderTests: XCTestCase {
           ]
         )
         """,
-      build: false,
       usePullDiagnostics: false
     )
 
@@ -125,10 +115,6 @@ final class MainFilesProviderTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -143,7 +129,7 @@ final class MainFilesProviderTests: XCTestCase {
           ]
         )
         """,
-      build: true,
+      enableBackgroundIndexing: true,
       usePullDiagnostics: false
     )
 
@@ -174,10 +160,6 @@ final class MainFilesProviderTests: XCTestCase {
         "Sources/MyFancyLibrary/MyFancyLibrary.c": "",
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -192,7 +174,7 @@ final class MainFilesProviderTests: XCTestCase {
           ]
         )
         """,
-      build: true,
+      enableBackgroundIndexing: true,
       usePullDiagnostics: false
     )
 
@@ -208,16 +190,27 @@ final class MainFilesProviderTests: XCTestCase {
     let newFancyLibraryContents = """
       #include "\(project.scratchDirectory.path)/Sources/shared.h"
       """
-    let fancyLibraryURL = try project.uri(for: "MyFancyLibrary.c").fileURL!
-    try newFancyLibraryContents.write(to: fancyLibraryURL, atomically: false, encoding: .utf8)
-
-    try await SwiftPMTestProject.build(at: project.scratchDirectory)
+    let fancyLibraryUri = try project.uri(for: "MyFancyLibrary.c")
+    try newFancyLibraryContents.write(to: try XCTUnwrap(fancyLibraryUri.fileURL), atomically: false, encoding: .utf8)
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: fancyLibraryUri, type: .changed)])
+    )
 
     // 'MyFancyLibrary.c' now also includes 'shared.h'. Since it lexicographically preceeds MyLibrary, we should use its
     // build settings.
-    let postEditDiags = try await project.testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(postEditDiags.diagnostics.count, 1)
-    let postEditDiag = try XCTUnwrap(postEditDiags.diagnostics.first)
-    XCTAssertEqual(postEditDiag.message, "Unused variable 'fromMyFancyLibrary'")
+    // `clangd` may return diagnostics from the old build settings sometimes (I believe when it's still building the
+    // preamble for shared.h when the new build settings come in). Check that it eventually returns the correct
+    // diagnostics.
+    var receivedCorrectDiagnostic = false
+    for _ in 0..<Int(defaultTimeout) {
+      let refreshedDiags = try await project.testClient.nextDiagnosticsNotification(timeout: .seconds(1))
+      if let diagnostic = refreshedDiags.diagnostics.only,
+        diagnostic.message == "Unused variable 'fromMyFancyLibrary'"
+      {
+        receivedCorrectDiagnostic = true
+        break
+      }
+    }
+    XCTAssert(receivedCorrectDiagnostic)
   }
 }

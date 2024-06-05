@@ -121,6 +121,10 @@ public protocol BuildSystem: AnyObject, Sendable {
   ///   context.
   func setDelegate(_ delegate: BuildSystemDelegate?) async
 
+  /// Whether the build system is capable of preparing a target for indexing, ie. if the `prepare` methods has been
+  /// implemented.
+  var supportsPreparation: Bool { get }
+
   /// Retrieve build settings for the given document with the given source
   /// language.
   ///
@@ -165,7 +169,7 @@ public protocol BuildSystem: AnyObject, Sendable {
   /// dependencies.
   func prepare(
     targets: [ConfiguredTarget],
-    indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws
 
   /// If the build system has knowledge about the language that this document should be compiled in, return it.

@@ -22,7 +22,7 @@ final class DocumentColorTests: XCTestCase {
   private func performDocumentColorRequest(text: String) async throws -> [ColorInformation] {
     let testClient = try await TestSourceKitLSPClient()
 
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     testClient.openDocument(text, uri: uri)
 
@@ -37,7 +37,7 @@ final class DocumentColorTests: XCTestCase {
   ) async throws -> [ColorPresentation] {
     let testClient = try await TestSourceKitLSPClient()
 
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     testClient.openDocument(text, uri: uri)
 

@@ -24,6 +24,22 @@ public enum LanguageServerState {
   case semanticFunctionalityDisabled
 }
 
+public struct AnnotatedTestItem: Sendable {
+  /// The test item to be annotated
+  public var testItem: TestItem
+
+  /// Whether the `TestItem` is an extension.
+  public var isExtension: Bool
+
+  public init(
+    testItem: TestItem,
+    isExtension: Bool
+  ) {
+    self.testItem = testItem
+    self.isExtension = isExtension
+  }
+}
+
 public struct RenameLocation: Sendable {
   /// How the identifier at a given location is being used.
   ///
@@ -98,13 +114,21 @@ public protocol LanguageService: AnyObject, Sendable {
   /// Sent to open up a document on the Language Server.
   /// This may be called before or after a corresponding
   /// `documentUpdatedBuildSettings` call for the same document.
-  func openDocument(_ note: DidOpenTextDocumentNotification) async
+  func openDocument(_ notification: DidOpenTextDocumentNotification) async
 
   /// Sent to close a document on the Language Server.
-  func closeDocument(_ note: DidCloseTextDocumentNotification) async
-  func changeDocument(_ note: DidChangeTextDocumentNotification) async
-  func willSaveDocument(_ note: WillSaveTextDocumentNotification) async
-  func didSaveDocument(_ note: DidSaveTextDocumentNotification) async
+  func closeDocument(_ notification: DidCloseTextDocumentNotification) async
+
+  /// Re-open the given document, discarding any in-memory state and forcing an AST to be re-built after build settings
+  /// have been changed. This needs to be handled via a notification to ensure that no other request for this document
+  /// is executing at the same time.
+  ///
+  /// Only intended for `SwiftLanguageService`.
+  func reopenDocument(_ notification: ReopenTextDocumentNotification) async
+
+  func changeDocument(_ notification: DidChangeTextDocumentNotification) async
+  func willSaveDocument(_ notification: WillSaveTextDocumentNotification) async
+  func didSaveDocument(_ notification: DidSaveTextDocumentNotification) async
 
   // MARK: - Build System Integration
 
