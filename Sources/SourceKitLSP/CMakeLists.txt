@@ -53,6 +53,7 @@ target_sources(SourceKitLSP PRIVATE
   Swift/SwiftLanguageService.swift
   Swift/SwiftTestingScanner.swift
   Swift/SymbolInfo.swift
+  Swift/SyntacticSwiftXCTestScanner.swift
   Swift/SyntacticTestIndex.swift
   Swift/SyntaxHighlightingToken.swift
   Swift/SyntaxHighlightingTokenParser.swift
@@ -73,6 +74,7 @@ target_link_libraries(SourceKitLSP PUBLIC
   SKSupport
   SKSwiftPMWorkspace
   SourceKitD
+  SwiftExtensions
   IndexStoreDB
   SwiftSyntax::SwiftBasicFormat
   SwiftSyntax::SwiftDiagnostics

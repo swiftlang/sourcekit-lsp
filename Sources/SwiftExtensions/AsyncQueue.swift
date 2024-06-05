@@ -26,15 +26,6 @@ extension Task: AnyTask {
   }
 }
 
-fileprivate extension NSLock {
-  /// NOTE: Keep in sync with SwiftPM's 'Sources/Basics/NSLock+Extensions.swift'
-  func withLock<T>(_ body: () throws -> T) rethrows -> T {
-    lock()
-    defer { unlock() }
-    return try body()
-  }
-}
-
 /// A type that is able to track dependencies between tasks.
 public protocol DependencyTracker: Sendable {
   /// Whether the task described by `self` needs to finish executing before

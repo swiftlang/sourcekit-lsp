@@ -29,10 +29,6 @@ final class DependencyTrackingTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -50,6 +46,9 @@ final class DependencyTrackingTests: XCTestCase {
     // Semantic analysis: expect module import error.
     XCTAssertEqual(initialDiags.diagnostics.count, 1)
     if let diagnostic = initialDiags.diagnostics.first {
+      #if compiler(>=6.1)
+      #warning("When we drop support for Swift 5.10 we no longer need to check for the Objective-C error message")
+      #endif
       XCTAssert(
         diagnostic.message.contains("Could not build Objective-C module")
           || diagnostic.message.contains("No such module"),

@@ -22,12 +22,7 @@ import XCTest
 
 final class SwiftInterfaceTests: XCTestCase {
   func testSystemModuleInterface() async throws {
-    // This is the only test that references modules from the SDK (Foundation).
-    // `testSystemModuleInterface` has been flaky for a long while and a
-    // hypothesis is that it was failing because of a malformed global module
-    // cache that might still be present from previous CI runs. If we use a
-    // local module cache, we define away that source of bugs.
-    let testClient = try await TestSourceKitLSPClient(useGlobalModuleCache: false)
+    let testClient = try await TestSourceKitLSPClient()
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
@@ -66,10 +61,6 @@ final class SwiftInterfaceTests: XCTestCase {
         "Exec/main.swift": "import MyLibrary",
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -162,10 +153,6 @@ final class SwiftInterfaceTests: XCTestCase {
         "Exec/main.swift": "import 1️⃣MyLibrary",
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [

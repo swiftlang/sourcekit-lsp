@@ -14,6 +14,7 @@ import LSPLogging
 import LanguageServerProtocol
 import SKSupport
 import SourceKitD
+import SwiftExtensions
 import SwiftParserDiagnostics
 
 actor DiagnosticReportManager {
@@ -86,11 +87,7 @@ actor DiagnosticReportManager {
   }
 
   func removeItemsFromCache(with uri: DocumentURI) async {
-    let tasksToCancel = reportTaskCache.filter { $0.snapshotID.uri == uri }
     reportTaskCache.removeAll(where: { $0.snapshotID.uri == uri })
-    for task in tasksToCancel {
-      await task.reportTask.cancel()
-    }
   }
 
   private func requestReport(

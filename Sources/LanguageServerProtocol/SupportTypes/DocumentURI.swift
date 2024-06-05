@@ -75,6 +75,10 @@ public struct DocumentURI: Codable, Hashable, Sendable {
     assert(self.storage.scheme != nil, "Received invalid URI without a scheme '\(self.storage.absoluteString)'")
   }
 
+  public init(filePath: String, isDirectory: Bool) {
+    self.init(URL(fileURLWithPath: filePath, isDirectory: isDirectory))
+  }
+
   public init(from decoder: Decoder) throws {
     try self.init(string: decoder.singleValueContainer().decode(String.self))
   }

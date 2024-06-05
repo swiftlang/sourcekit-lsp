@@ -31,10 +31,6 @@ final class MainFilesProviderTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -71,10 +67,6 @@ final class MainFilesProviderTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -123,10 +115,6 @@ final class MainFilesProviderTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -172,10 +160,6 @@ final class MainFilesProviderTests: XCTestCase {
         "Sources/MyFancyLibrary/MyFancyLibrary.c": "",
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -214,9 +198,19 @@ final class MainFilesProviderTests: XCTestCase {
 
     // 'MyFancyLibrary.c' now also includes 'shared.h'. Since it lexicographically preceeds MyLibrary, we should use its
     // build settings.
-    let postEditDiags = try await project.testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(postEditDiags.diagnostics.count, 1)
-    let postEditDiag = try XCTUnwrap(postEditDiags.diagnostics.first)
-    XCTAssertEqual(postEditDiag.message, "Unused variable 'fromMyFancyLibrary'")
+    // `clangd` may return diagnostics from the old build settings sometimes (I believe when it's still building the
+    // preamble for shared.h when the new build settings come in). Check that it eventually returns the correct
+    // diagnostics.
+    var receivedCorrectDiagnostic = false
+    for _ in 0..<Int(defaultTimeout) {
+      let refreshedDiags = try await project.testClient.nextDiagnosticsNotification(timeout: .seconds(1))
+      if let diagnostic = refreshedDiags.diagnostics.only,
+        diagnostic.message == "Unused variable 'fromMyFancyLibrary'"
+      {
+        receivedCorrectDiagnostic = true
+        break
+      }
+    }
+    XCTAssert(receivedCorrectDiagnostic)
   }
 }

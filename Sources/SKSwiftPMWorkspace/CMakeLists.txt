@@ -8,6 +8,7 @@ target_link_libraries(SKSwiftPMWorkspace PRIVATE
   LanguageServerProtocol
   LSPLogging
   SKCore
+  SwiftExtensions
   TSCBasic)
 target_link_libraries(SKSwiftPMWorkspace PUBLIC
   Build

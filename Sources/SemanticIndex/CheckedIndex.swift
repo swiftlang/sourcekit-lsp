@@ -19,9 +19,9 @@ import LanguageServerProtocol
 ///
 /// Protocol is needed because the `SemanticIndex` module is lower-level than the `SourceKitLSP` module.
 public protocol InMemoryDocumentManager {
-  /// Returns true if the file at the given URL has a different content in the document manager than on-disk. This is
+  /// Returns true if the file at the given URI has a different content in the document manager than on-disk. This is
   /// the case if the user made edits to the file but didn't save them yet.
-  func fileHasInMemoryModifications(_ url: URL) -> Bool
+  func fileHasInMemoryModifications(_ uri: DocumentURI) -> Bool
 }
 
 public enum IndexCheckLevel {
@@ -64,7 +64,7 @@ public final class CheckedIndex {
   public func forEachSymbolOccurrence(
     byUSR usr: String,
     roles: SymbolRole,
-    _ body: @escaping (SymbolOccurrence) -> Bool
+    _ body: (SymbolOccurrence) -> Bool
   ) -> Bool {
     index.forEachSymbolOccurrence(byUSR: usr, roles: roles) { occurrence in
       guard self.checker.isUpToDate(occurrence.location) else {
@@ -88,7 +88,7 @@ public final class CheckedIndex {
     anchorEnd: Bool,
     subsequence: Bool,
     ignoreCase: Bool,
-    body: @escaping (SymbolOccurrence) -> Bool
+    body: (SymbolOccurrence) -> Bool
   ) -> Bool {
     index.forEachCanonicalSymbolOccurrence(
       containing: pattern,
@@ -105,7 +105,7 @@ public final class CheckedIndex {
   }
 
   public func symbols(inFilePath path: String) -> [Symbol] {
-    guard self.hasUpToDateUnit(for: URL(fileURLWithPath: path, isDirectory: false)) else {
+    guard self.hasUpToDateUnit(for: DocumentURI(filePath: path, isDirectory: false)) else {
       return []
     }
     return index.symbols(inFilePath: path)
@@ -121,11 +121,11 @@ public final class CheckedIndex {
   /// If `crossLanguage` is set to `true`, Swift files that import a header through a module will also be reported.
   public func mainFilesContainingFile(uri: DocumentURI, crossLanguage: Bool = false) -> [DocumentURI] {
     return index.mainFilesContainingFile(path: uri.pseudoPath, crossLanguage: crossLanguage).compactMap {
-      let url = URL(fileURLWithPath: $0)
-      guard checker.indexHasUpToDateUnit(for: url, mainFile: nil, index: self.index) else {
+      let uri = DocumentURI(filePath: $0, isDirectory: false)
+      guard checker.indexHasUpToDateUnit(for: uri, mainFile: nil, index: self.index) else {
         return nil
       }
-      return DocumentURI(url)
+      return uri
     }
   }
 
@@ -141,16 +141,16 @@ public final class CheckedIndex {
   /// If `mainFile` is passed, then `url` is a header file that won't have a unit associated with it. `mainFile` is
   /// assumed to be a file that imports `url`. To check that `url` has an up-to-date unit, check that the latest unit
   /// for `mainFile` is newer than the mtime of the header file at `url`.
-  public func hasUpToDateUnit(for url: URL, mainFile: URL? = nil) -> Bool {
-    return checker.indexHasUpToDateUnit(for: url, mainFile: mainFile, index: index)
+  public func hasUpToDateUnit(for uri: DocumentURI, mainFile: DocumentURI? = nil) -> Bool {
+    return checker.indexHasUpToDateUnit(for: uri, mainFile: mainFile, index: index)
   }
 
-  /// Returns true if the file at the given URL has a different content in the document manager than on-disk. This is
+  /// Returns true if the file at the given URI has a different content in the document manager than on-disk. This is
   /// the case if the user made edits to the file but didn't save them yet.
   ///
   /// - Important: This must only be called on a `CheckedIndex` with a `checkLevel` of `inMemoryModifiedFiles`
-  public func fileHasInMemoryModifications(_ url: URL) -> Bool {
-    return checker.fileHasInMemoryModifications(url)
+  public func fileHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
+    return checker.fileHasInMemoryModifications(uri)
   }
 }
 
@@ -174,10 +174,6 @@ public struct UncheckedIndex: Sendable {
 
   public func checked(for checkLevel: IndexCheckLevel) -> CheckedIndex {
     return CheckedIndex(index: underlyingIndexStoreDB, checkLevel: checkLevel)
-  }
-
-  public func symbolProvider(for sourceFilePath: String) -> SymbolProviderKind? {
-    return underlyingIndexStoreDB.symbolProvider(for: sourceFilePath)
   }
 
   /// Wait for IndexStoreDB to be updated based on new unit files written to disk.
@@ -212,14 +208,14 @@ private struct IndexOutOfDateChecker {
     }
   }
 
-  /// Caches whether a file URL has modifications in `documentManager` that haven't been saved to disk yet.
-  private var fileHasInMemoryModificationsCache: [URL: Bool] = [:]
+  /// Caches whether a document has modifications in `documentManager` that haven't been saved to disk yet.
+  private var fileHasInMemoryModificationsCache: [DocumentURI: Bool] = [:]
 
-  /// File URLs to modification times that have already been computed.
-  private var modTimeCache: [URL: ModificationTime] = [:]
+  /// Document URIs to modification times that have already been computed.
+  private var modTimeCache: [DocumentURI: ModificationTime] = [:]
 
-  /// File URLs to whether they exist on the file system
-  private var fileExistsCache: [URL: Bool] = [:]
+  /// Document URIs to whether they exist on the file system
+  private var fileExistsCache: [DocumentURI: Bool] = [:]
 
   init(checkLevel: IndexCheckLevel) {
     self.checkLevel = checkLevel
@@ -230,16 +226,16 @@ private struct IndexOutOfDateChecker {
   /// Returns `true` if the source file for the given symbol location exists and has not been modified after it has been
   /// indexed.
   mutating func isUpToDate(_ symbolLocation: SymbolLocation) -> Bool {
-    let url = URL(fileURLWithPath: symbolLocation.path, isDirectory: false)
+    let uri = DocumentURI(filePath: symbolLocation.path, isDirectory: false)
     switch checkLevel {
     case .inMemoryModifiedFiles(let documentManager):
-      if fileHasInMemoryModifications(url, documentManager: documentManager) {
+      if fileHasInMemoryModifications(uri, documentManager: documentManager) {
         return false
       }
       fallthrough
     case .modifiedFiles:
       do {
-        let sourceFileModificationDate = try modificationDate(of: url)
+        let sourceFileModificationDate = try modificationDate(of: uri)
         switch sourceFileModificationDate {
         case .fileDoesNotExist:
           return false
@@ -251,7 +247,7 @@ private struct IndexOutOfDateChecker {
         return true
       }
     case .deletedFiles:
-      return fileExists(at: url)
+      return fileExists(at: uri)
     }
   }
 
@@ -262,7 +258,7 @@ private struct IndexOutOfDateChecker {
   /// If `mainFile` is passed, then `filePath` is a header file that won't have a unit associated with it. `mainFile` is
   /// assumed to be a file that imports `url`. To check that `url` has an up-to-date unit, check that the latest unit
   /// for `mainFile` is newer than the mtime of the header file at `url`.
-  mutating func indexHasUpToDateUnit(for filePath: URL, mainFile: URL?, index: IndexStoreDB) -> Bool {
+  mutating func indexHasUpToDateUnit(for filePath: DocumentURI, mainFile: DocumentURI?, index: IndexStoreDB) -> Bool {
     switch checkLevel {
     case .inMemoryModifiedFiles(let documentManager):
       if fileHasInMemoryModifications(filePath, documentManager: documentManager) {
@@ -273,7 +269,9 @@ private struct IndexOutOfDateChecker {
       // If there are no in-memory modifications check if there are on-disk modifications.
       fallthrough
     case .modifiedFiles:
-      guard let lastUnitDate = index.dateOfLatestUnitFor(filePath: (mainFile ?? filePath).path) else {
+      guard let fileURL = (mainFile ?? filePath).fileURL,
+        let lastUnitDate = index.dateOfLatestUnitFor(filePath: fileURL.path)
+      else {
         return false
       }
       do {
@@ -300,23 +298,25 @@ private struct IndexOutOfDateChecker {
   /// `documentManager` must always be the same between calls to `hasFileInMemoryModifications` since it is not part of
   /// the cache key. This is fine because we always assume the `documentManager` to come from the associated value of
   /// `CheckLevel.imMemoryModifiedFiles`, which is constant.
-  private mutating func fileHasInMemoryModifications(_ url: URL, documentManager: InMemoryDocumentManager) -> Bool {
-    if let cached = fileHasInMemoryModificationsCache[url] {
+  private mutating func fileHasInMemoryModifications(_ uri: DocumentURI, documentManager: InMemoryDocumentManager)
+    -> Bool
+  {
+    if let cached = fileHasInMemoryModificationsCache[uri] {
       return cached
     }
-    let hasInMemoryModifications = documentManager.fileHasInMemoryModifications(url)
-    fileHasInMemoryModificationsCache[url] = hasInMemoryModifications
+    let hasInMemoryModifications = documentManager.fileHasInMemoryModifications(uri)
+    fileHasInMemoryModificationsCache[uri] = hasInMemoryModifications
     return hasInMemoryModifications
   }
 
-  /// Returns true if the file at the given URL has a different content in the document manager than on-disk. This is
+  /// Returns true if the file at the given URI has a different content in the document manager than on-disk. This is
   /// the case if the user made edits to the file but didn't save them yet.
   ///
   /// - Important: This must only be called on an `IndexOutOfDateChecker` with a `checkLevel` of `inMemoryModifiedFiles`
-  mutating func fileHasInMemoryModifications(_ url: URL) -> Bool {
+  mutating func fileHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
     switch checkLevel {
     case .inMemoryModifiedFiles(let documentManager):
-      return fileHasInMemoryModifications(url, documentManager: documentManager)
+      return fileHasInMemoryModifications(uri, documentManager: documentManager)
     case .modifiedFiles, .deletedFiles:
       logger.fault(
         "fileHasInMemoryModifications(at:) must only be called on an `IndexOutOfDateChecker` with check level .inMemoryModifiedFiles"
@@ -325,9 +325,12 @@ private struct IndexOutOfDateChecker {
     }
   }
 
-  private func modificationDateUncached(of url: URL) throws -> ModificationTime {
+  private func modificationDateUncached(of uri: DocumentURI) throws -> ModificationTime {
     do {
-      let attributes = try FileManager.default.attributesOfItem(atPath: url.resolvingSymlinksInPath().path)
+      guard let fileURL = uri.fileURL else {
+        return .fileDoesNotExist
+      }
+      let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.resolvingSymlinksInPath().path)
       guard let modificationDate = attributes[FileAttributeKey.modificationDate] as? Date else {
         throw Error.fileAttributesDontHaveModificationDate
       }
@@ -337,21 +340,26 @@ private struct IndexOutOfDateChecker {
     }
   }
 
-  private mutating func modificationDate(of url: URL) throws -> ModificationTime {
-    if let cached = modTimeCache[url] {
+  private mutating func modificationDate(of uri: DocumentURI) throws -> ModificationTime {
+    if let cached = modTimeCache[uri] {
       return cached
     }
-    let modTime = try modificationDateUncached(of: url)
-    modTimeCache[url] = modTime
+    let modTime = try modificationDateUncached(of: uri)
+    modTimeCache[uri] = modTime
     return modTime
   }
 
-  private mutating func fileExists(at url: URL) -> Bool {
-    if let cached = fileExistsCache[url] {
+  private mutating func fileExists(at uri: DocumentURI) -> Bool {
+    if let cached = fileExistsCache[uri] {
       return cached
     }
-    let fileExists = FileManager.default.fileExists(atPath: url.path)
-    fileExistsCache[url] = fileExists
+    let fileExists =
+      if let fileUrl = uri.fileURL {
+        FileManager.default.fileExists(atPath: fileUrl.path)
+      } else {
+        false
+      }
+    fileExistsCache[uri] = fileExists
     return fileExists
   }
 }

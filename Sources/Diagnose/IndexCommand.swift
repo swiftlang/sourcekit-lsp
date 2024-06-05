@@ -17,6 +17,7 @@ import LanguageServerProtocol
 import SKCore
 import SKSupport
 import SourceKitLSP
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
@@ -55,8 +56,7 @@ private actor IndexLogMessageHandler: MessageHandler {
 public struct IndexCommand: AsyncParsableCommand {
   public static let configuration: CommandConfiguration = CommandConfiguration(
     commandName: "index",
-    abstract: "Index a project and print all the processes executed for it as well as their outputs",
-    shouldDisplay: false
+    abstract: "Index a project and print all the processes executed for it as well as their outputs"
   )
 
   @Option(
@@ -75,7 +75,7 @@ public struct IndexCommand: AsyncParsableCommand {
 
   public func run() async throws {
     var serverOptions = SourceKitLSPServer.Options()
-    serverOptions.indexOptions.enableBackgroundIndexing = true
+    serverOptions.experimentalFeatures.insert(.backgroundIndexing)
 
     let installPath =
       if let toolchainOverride, let toolchain = Toolchain(try AbsolutePath(validating: toolchainOverride)) {

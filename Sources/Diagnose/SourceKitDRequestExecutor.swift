@@ -161,6 +161,7 @@ public class OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
     let process = Process(
       arguments: [
         ProcessInfo.processInfo.arguments[0],
+        "debug",
         "run-sourcekitd-request",
         "--sourcekitd",
         sourcekitd.path,

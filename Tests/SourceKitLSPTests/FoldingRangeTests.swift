@@ -96,12 +96,58 @@ final class FoldingRangeTests: XCTestCase {
     try await assertFoldingRanges(
       markedSource: """
         1️⃣func foo() {
-
-        2️⃣}
-        """
-      ,
+        2️⃣
+        }
+        """,
       expectedRanges: [
         FoldingRangeSpec(from: "1️⃣", to: "2️⃣")
+      ],
+      lineFoldingOnly: true
+    )
+  }
+
+  func testLineFoldingOfFunctionWithMultiLineParameters() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        1️⃣func foo(
+        2️⃣  param: Int
+        3️⃣) {
+          print(param)
+        4️⃣
+        }
+        """,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣"),
+        FoldingRangeSpec(from: "3️⃣", to: "4️⃣"),
+      ],
+      lineFoldingOnly: true
+    )
+  }
+
+  func testLineFoldingOfComment() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        1️⃣// abc
+        // def
+        2️⃣// ghi
+
+        """,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣", kind: .comment)
+      ],
+      lineFoldingOnly: true
+    )
+  }
+
+  func testLineFoldingOfCommentAtEndOfFile() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        1️⃣// abc
+        // def
+        2️⃣// ghi
+        """,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣", kind: .comment)
       ],
       lineFoldingOnly: true
     )
@@ -272,8 +318,8 @@ final class FoldingRangeTests: XCTestCase {
     try await assertFoldingRanges(
       markedSource: """
         let x = [1️⃣
-          1: "one", 
-          2: "two", 
+          1: "one",
+          2: "two",
           3: "three"
         2️⃣]
         """,

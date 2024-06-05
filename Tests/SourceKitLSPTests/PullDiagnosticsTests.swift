@@ -200,10 +200,6 @@ final class PullDiagnosticsTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -222,7 +218,14 @@ final class PullDiagnosticsTests: XCTestCase {
       XCTFail("Expected full diagnostics report")
       return
     }
-    XCTAssert(fullReportBeforeBuilding.items.contains(where: { $0.message == "No such module 'LibA'" }))
+    XCTAssert(
+      fullReportBeforeBuilding.items.contains(where: {
+        #if compiler(>=6.1)
+        #warning("When we drop support for Swift 5.10 we no longer need to check for the Objective-C error message")
+        #endif
+        return $0.message == "No such module 'LibA'" || $0.message == "Could not build Objective-C module 'LibA'"
+      })
+    )
 
     let diagnosticsRefreshRequestReceived = self.expectation(description: "DiagnosticsRefreshRequest received")
     project.testClient.handleSingleRequest { (request: DiagnosticsRefreshRequest) in
@@ -280,10 +283,6 @@ final class PullDiagnosticsTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -308,5 +307,44 @@ final class PullDiagnosticsTests: XCTestCase {
     }
     diagnosticRequestSent.value = true
     try await fulfillmentOfOrThrow([receivedDiagnostics])
+  }
+
+  func testDontReturnEmptyDiagnosticsIfDiagnosticRequestIsCancelled() async throws {
+    let diagnosticSourcekitdRequestDidStart = self.expectation(description: "diagnostic sourcekitd request did start")
+    let diagnosticRequestCancelled = self.expectation(description: "diagnostic request cancelled")
+    var serverOptions = SourceKitLSPServer.Options.testDefault
+    serverOptions.sourcekitdTestHooks.sourcekitdRequestDidStart = { request in
+      guard request.description.contains("source.request.diagnostics") else {
+        return
+      }
+      diagnosticSourcekitdRequestDidStart.fulfill()
+      self.wait(for: [diagnosticRequestCancelled], timeout: defaultTimeout)
+      // Poll until the `CancelRequestNotification` has been propagated to the request handling.
+      for _ in 0..<Int(defaultTimeout * 100) {
+        if Task.isCancelled {
+          break
+        }
+        usleep(10_000)
+      }
+    }
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib.swift": "let x: String = 1"
+      ],
+      serverOptions: serverOptions
+    )
+    let (uri, _) = try project.openDocument("Lib.swift")
+
+    let diagnosticResponseReceived = self.expectation(description: "Received diagnostic response")
+    let requestID = project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    ) { result in
+      XCTAssertEqual(result, .failure(ResponseError.cancelled))
+      diagnosticResponseReceived.fulfill()
+    }
+    try await fulfillmentOfOrThrow([diagnosticSourcekitdRequestDidStart])
+    project.testClient.send(CancelRequestNotification(id: requestID))
+    diagnosticRequestCancelled.fulfill()
+    try await fulfillmentOfOrThrow([diagnosticResponseReceived])
   }
 }

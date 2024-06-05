@@ -63,7 +63,7 @@ actor TestBuildSystem: BuildSystem {
 
   public func prepare(
     targets: [ConfiguredTarget],
-    indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     throw PrepareNotSupportedError()
   }
@@ -141,7 +141,7 @@ final class BuildSystemTests: XCTestCase {
       index: nil,
       indexDelegate: nil,
       indexTaskScheduler: .forTesting,
-      indexProcessDidProduceResult: { _ in },
+      logMessageToIndexLog: { _, _ in },
       indexTasksWereScheduled: { _ in },
       indexProgressStatusDidChange: {}
     )
@@ -193,7 +193,7 @@ final class BuildSystemTests: XCTestCase {
 
     var receivedCorrectDiagnostic = false
     for _ in 0..<Int(defaultTimeout) {
-      let refreshedDiags = try await testClient.nextDiagnosticsNotification(timeout: 1)
+      let refreshedDiags = try await testClient.nextDiagnosticsNotification(timeout: .seconds(1))
       if refreshedDiags.diagnostics.count == 0, try text == documentManager.latestSnapshot(doc).text {
         receivedCorrectDiagnostic = true
         break

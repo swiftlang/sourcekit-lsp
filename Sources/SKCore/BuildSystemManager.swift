@@ -237,9 +237,9 @@ extension BuildSystemManager {
 
   public func prepare(
     targets: [ConfiguredTarget],
-    indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
-    try await buildSystem?.prepare(targets: targets, indexProcessDidProduceResult: indexProcessDidProduceResult)
+    try await buildSystem?.prepare(targets: targets, logMessageToIndexLog: logMessageToIndexLog)
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {

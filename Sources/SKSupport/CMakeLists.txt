@@ -1,24 +1,18 @@
 
 add_library(SKSupport STATIC
-  AsyncQueue.swift
-  AsyncUtils.swift
   BuildConfiguration.swift
   ByteString.swift
-  Collection+Only.swift
-  Collection+PartitionIntoBatches.swift
   Connection+Send.swift
   dlopen.swift
   DocumentURI+CustomLogStringConvertible.swift
   FileSystem.swift
   LineTable.swift
+  PipeAsStringHandler.swift
   Process+LaunchWithWorkingDirectoryIfPossible.swift
   Process+WaitUntilExitWithCancellation.swift
   Random.swift
   Result.swift
-  Sequence+AsyncMap.swift
   SwitchableProcessResultExitStatus.swift
-  Task+WithPriorityChangedHandler.swift
-  ThreadSafeBox.swift
   WorkspaceType.swift
 )
 set_target_properties(SKSupport PROPERTIES
@@ -26,5 +20,6 @@ set_target_properties(SKSupport PROPERTIES
 target_link_libraries(SKSupport PRIVATE
   LanguageServerProtocol
   LSPLogging
+  SwiftExtensions
   TSCBasic
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)

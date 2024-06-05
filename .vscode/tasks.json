@@ -10,6 +10,11 @@
 			"disableTaskQueue": true,
 			"group": "test",
 			"label": "Run all tests (parallel)",
+			"options": {
+				"env": {
+					"SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER": "1"
+				}
+			},
 			"problemMatcher": [
 				"$swiftc"
 			],
@@ -30,7 +35,8 @@
 			"label": "Run fast tests (parallel)",
 			"options": {
 				"env": {
-					"SKIP_LONG_TESTS": "1"
+					"SKIP_LONG_TESTS": "1",
+					"SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER": "1"
 				}
 			},
 			"problemMatcher": [

@@ -15,6 +15,7 @@ import LSPLogging
 import LanguageServerProtocol
 import SKSupport
 import SourceKitD
+import SwiftExtensions
 import SwiftParser
 @_spi(SourceKitLSP) import SwiftRefactor
 import SwiftSyntax

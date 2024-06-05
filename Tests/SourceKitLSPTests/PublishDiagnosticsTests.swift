@@ -169,10 +169,6 @@ final class PublishDiagnosticsTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -186,7 +182,14 @@ final class PublishDiagnosticsTests: XCTestCase {
 
     _ = try project.openDocument("LibB.swift")
     let diagnosticsBeforeBuilding = try await project.testClient.nextDiagnosticsNotification()
-    XCTAssert(diagnosticsBeforeBuilding.diagnostics.contains(where: { $0.message == "No such module 'LibA'" }))
+    XCTAssert(
+      diagnosticsBeforeBuilding.diagnostics.contains(where: {
+        #if compiler(>=6.1)
+        #warning("When we drop support for Swift 5.10 we no longer need to check for the Objective-C error message")
+        #endif
+        return $0.message == "No such module 'LibA'" || $0.message == "Could not build Objective-C module 'LibA'"
+      })
+    )
 
     try await SwiftPMTestProject.build(at: project.scratchDirectory)
 
