@@ -65,6 +65,14 @@ public struct DiagnoseCommand: AsyncParsableCommand {
   )
   private var components: [BundleComponent] = BundleComponent.allCases
 
+  @Option(
+    help: """
+      The directory to which the diagnostic bundle should be written. No file or directory should exist at this path. \
+      After sourcekit-lsp diagnose runs, a directory will exist at this path that contains the diagnostic bundle.
+      """
+  )
+  var bundleOutputPath: String? = nil
+
   var toolchainRegistry: ToolchainRegistry {
     get throws {
       let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
@@ -320,8 +328,12 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     let dateFormatter = ISO8601DateFormatter()
     dateFormatter.timeZone = NSTimeZone.local
     let date = dateFormatter.string(from: Date()).replacingOccurrences(of: ":", with: "-")
-    let bundlePath = FileManager.default.temporaryDirectory
-      .appendingPathComponent("sourcekit-lsp-diagnose-\(date)")
+    let bundlePath =
+      if let bundleOutputPath = self.bundleOutputPath {
+        URL(fileURLWithPath: bundleOutputPath)
+      } else {
+        FileManager.default.temporaryDirectory.appendingPathComponent("sourcekit-lsp-diagnose-\(date)")
+      }
     try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
 
     if components.isEmpty || components.contains(.crashReports) {
@@ -353,12 +365,17 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     )
 
     #if os(macOS)
-    // Reveal the bundle in Finder on macOS
-    do {
-      let process = try Process.launch(arguments: ["open", "-R", bundlePath.path], workingDirectory: nil)
-      try await process.waitUntilExitSendingSigIntOnTaskCancellation()
-    } catch {
-      // If revealing the bundle in Finder should fail, we don't care. We still printed the bundle path to stdout.
+    // Reveal the bundle in Finder on macOS.
+    // Don't open the bundle in Finder if the user manually specified a log output path. In that case they are running
+    // `sourcekit-lsp diagnose` as part of a larger logging script (like the Swift for VS Code extension) and the caller
+    // is responsible for showing the diagnose bundle location to the user
+    if self.bundleOutputPath == nil {
+      do {
+        let process = try Process.launch(arguments: ["open", "-R", bundlePath.path], workingDirectory: nil)
+        try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+      } catch {
+        // If revealing the bundle in Finder should fail, we don't care. We still printed the bundle path to stdout.
+      }
     }
     #endif
   }
