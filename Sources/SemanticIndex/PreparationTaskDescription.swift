@@ -10,11 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import CAtomics
 import Foundation
 import LSPLogging
 import LanguageServerProtocol
 import SKCore
+import SKSupport
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process

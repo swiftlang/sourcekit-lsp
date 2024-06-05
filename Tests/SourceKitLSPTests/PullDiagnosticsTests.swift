@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import CAtomics
 import LSPTestSupport
 import LanguageServerProtocol
+import SKSupport
 import SKTestSupport
 import SourceKitLSP
 import XCTest

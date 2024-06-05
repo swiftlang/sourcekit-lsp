@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import CAtomics
 import Foundation
 import LSPLogging
 import LanguageServerProtocol

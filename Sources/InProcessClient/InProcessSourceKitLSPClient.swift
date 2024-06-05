@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import CAtomics
 import LanguageServerProtocol
 import SKCore
+import SKSupport
 import SourceKitLSP
 
 /// Launches a `SourceKitLSPServer` in-process and allows sending messages to it.

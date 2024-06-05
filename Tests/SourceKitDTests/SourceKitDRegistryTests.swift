@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import CAtomics
 import LSPTestSupport
+import SKSupport
 import SourceKitD
 import TSCBasic
 import XCTest

@@ -13,7 +13,6 @@
 import Basics
 import Build
 import BuildServerProtocol
-import CAtomics
 import Dispatch
 import Foundation
 import LSPLogging
