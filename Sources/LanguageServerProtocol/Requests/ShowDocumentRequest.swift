@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Request from the server to the client to show a document on the client side.
-///
-/// - Parameters:
-///  - uri: The uri to show.
-///  - external: An optional boolean indicates to show the resource in an external program.
-///  - takeFocus: An optional boolean to indicate whether the editor showing the document should take focus or not.
-///  - selection: An optional selection range if the document is a text document.
+/// Request from the server to the client to show a document on the client
+/// side.
 public struct ShowDocumentRequest: RequestType {
   public static let method: String = "window/showDocument"
   public typealias Response = ShowDocumentResponse

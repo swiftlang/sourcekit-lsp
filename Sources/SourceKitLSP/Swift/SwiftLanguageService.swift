@@ -109,8 +109,18 @@ public actor SwiftLanguageService: LanguageService, Sendable {
 
   let serverOptions: SourceKitLSPServer.Options
 
+  /// Directory where generated Files will be stored.
+  let generatedFilesPath: URL
+
   /// Directory where generated Swift interfaces will be stored.
-  let generatedInterfacesPath: URL
+  var generatedInterfacesPath: URL {
+    generatedFilesPath.appendingPathComponent("GeneratedInterfaces")
+  }
+
+  /// Directory where generated Macro expansions  will be stored.
+  var generatedMacroExpansionsPath: URL {
+    generatedFilesPath.appendingPathComponent("GeneratedMacroExpansions")
+  }
 
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
   var documentManager: DocumentManager
@@ -207,8 +217,6 @@ public actor SwiftLanguageService: LanguageService, Sendable {
     self.serverOptions = options
     self.documentManager = DocumentManager()
     self.state = .connected
-    self.generatedInterfacesPath = options.generatedInterfacesPath.asURL
-    try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
     self.diagnosticReportManager = nil  // Needed to work around rdar://116221716
 
     // The debounce duration of 500ms was chosen arbitrarily without scientific research.
@@ -221,12 +229,20 @@ public actor SwiftLanguageService: LanguageService, Sendable {
         try await sourceKitLSPServer.sendRequestToClient(DiagnosticsRefreshRequest())
       }
     }
+
+    self.generatedFilesPath = options.generatedFilesPath.asURL
+    try FileManager.default.createDirectory(at: generatedFilesPath, withIntermediateDirectories: true)
+
     self.diagnosticReportManager = DiagnosticReportManager(
       sourcekitd: self.sourcekitd,
       syntaxTreeManager: syntaxTreeManager,
       documentManager: documentManager,
       clientHasDiagnosticsCodeDescriptionSupport: await self.clientHasDiagnosticsCodeDescriptionSupport
     )
+
+    // Create sub-directories for each type of generated file
+    try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: generatedMacroExpansionsPath, withIntermediateDirectories: true)
   }
 
   /// - Important: For testing only
@@ -507,7 +523,7 @@ extension SwiftLanguageService {
           throw CancellationError()
         }
 
-        await sourceKitLSPServer.sendNotificationToClient(
+        sourceKitLSPServer.sendNotificationToClient(
           PublishDiagnosticsNotification(
             uri: document,
             diagnostics: diagnosticReport.items
@@ -801,15 +817,29 @@ extension SwiftLanguageService {
       additionalParameters: additionalCursorInfoParameters
     )
 
-    return cursorInfoResponse.refactorActions.compactMap {
-      do {
-        let lspCommand = try $0.asCommand()
-        return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
-      } catch {
-        logger.log("Failed to convert SwiftCommand to Command type: \(error.forLogging)")
-        return nil
+    var canInlineMacro = false
+
+    let showMacroExpansionsIsEnabled =
+      await self.sourceKitLSPServer?.options.experimentalFeatures
+      .contains(.showMacroExpansions) ?? false
+
+    var refactorActions = cursorInfoResponse.refactorActions.compactMap {
+      let lspCommand = $0.asCommand()
+      if !canInlineMacro, showMacroExpansionsIsEnabled {
+        canInlineMacro = $0.actionString == "source.refactoring.kind.inline.macro"
       }
+
+      return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
     }
+
+    if canInlineMacro {
+      let expandMacroCommand = ExpandMacroCommand(positionRange: params.range, textDocument: params.textDocument)
+        .asCommand()
+
+      refactorActions.append(CodeAction(title: expandMacroCommand.title, kind: .refactor, command: expandMacroCommand))
+    }
+
+    return refactorActions
   }
 
   func retrieveQuickFixCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
@@ -926,29 +956,16 @@ extension SwiftLanguageService {
   }
 
   public func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
-    // TODO: If there's support for several types of commands, we might need to structure this similarly to the code actions request.
-    guard let sourceKitLSPServer else {
-      // `SourceKitLSPServer` has been destructed. We are tearing down the language
-      // server. Nothing left to do.
-      throw ResponseError.unknown("Connection to the editor closed")
+    if let command = req.swiftCommand(ofType: SemanticRefactorCommand.self) {
+      return try await semanticRefactoring(command)
+    } else if let command = req.swiftCommand(ofType: ExpandMacroCommand.self),
+      let experimentalFeatures = await self.sourceKitLSPServer?.options.experimentalFeatures,
+      experimentalFeatures.contains(.showMacroExpansions)
+    {
+      return try await expandMacro(command)
+    } else {
+      throw ResponseError.unknown("unknown command \(req.command)")
     }
-    guard let swiftCommand = req.swiftCommand(ofType: SemanticRefactorCommand.self) else {
-      throw ResponseError.unknown("semantic refactoring: unknown command \(req.command)")
-    }
-    let refactor = try await semanticRefactoring(swiftCommand)
-    let edit = refactor.edit
-    let req = ApplyEditRequest(label: refactor.title, edit: edit)
-    let response = try await sourceKitLSPServer.sendRequestToClient(req)
-    if !response.applied {
-      let reason: String
-      if let failureReason = response.failureReason {
-        reason = " reason: \(failureReason)"
-      } else {
-        reason = ""
-      }
-      logger.error("Client refused to apply edit for \(refactor.title, privacy: .public)!\(reason)")
-    }
-    return edit.encodeToLSPAny()
   }
 }
 

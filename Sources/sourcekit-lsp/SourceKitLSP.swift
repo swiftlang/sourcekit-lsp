@@ -189,9 +189,9 @@ struct SourceKitLSP: AsyncParsableCommand {
   var compilationDatabaseSearchPaths = [RelativePath]()
 
   @Option(
-    help: "Specify the directory where generated interfaces will be stored"
+    help: "Specify the directory where generated files will be stored"
   )
-  var generatedInterfacesPath = defaultDirectoryForGeneratedInterfaces
+  var generatedFilesPath = defaultDirectoryForGeneratedFiles
 
   @Option(
     name: .customLong("experimental-feature"),
@@ -225,7 +225,8 @@ struct SourceKitLSP: AsyncParsableCommand {
     serverOptions.indexOptions.indexStorePath = indexStorePath
     serverOptions.indexOptions.indexDatabasePath = indexDatabasePath
     serverOptions.indexOptions.indexPrefixMappings = indexPrefixMappings
-    serverOptions.generatedInterfacesPath = generatedInterfacesPath
+    serverOptions.completionOptions.maxResults = completionMaxResults
+    serverOptions.generatedFilesPath = generatedFilesPath
     serverOptions.experimentalFeatures = Set(experimentalFeatures)
     serverOptions.completionOptions.maxResults = completionMaxResults
     serverOptions.workDoneProgressDebounceDuration = .milliseconds(workDoneProgressDebounceDuration)

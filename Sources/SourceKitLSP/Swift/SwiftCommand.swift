@@ -15,8 +15,11 @@ import LanguageServerProtocol
 ///
 /// All commands from the Swift LSP should be listed here.
 public let builtinSwiftCommands: [String] = [
-  SemanticRefactorCommand.self
-].map { $0.identifier }
+  SemanticRefactorCommand.self,
+  ExpandMacroCommand.self,
+].map { (command: any SwiftCommand.Type) in
+  command.identifier
+}
 
 /// A `Command` that should be executed by Swift's language server.
 public protocol SwiftCommand: Codable, Hashable, LSPAnyCodable {
@@ -26,7 +29,7 @@ public protocol SwiftCommand: Codable, Hashable, LSPAnyCodable {
 
 extension SwiftCommand {
   /// Converts this `SwiftCommand` to a generic LSP `Command` object.
-  public func asCommand() throws -> Command {
+  public func asCommand() -> Command {
     let argument = encodeToLSPAny()
     return Command(title: title, command: Self.identifier, arguments: [argument])
   }

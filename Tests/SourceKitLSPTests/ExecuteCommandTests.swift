@@ -13,7 +13,8 @@
 import LSPTestSupport
 import LanguageServerProtocol
 import SKTestSupport
-import SourceKitLSP
+@_spi(Testing) import SourceKitLSP
+import SwiftExtensions
 import XCTest
 
 final class ExecuteCommandTests: XCTestCase {
@@ -39,7 +40,7 @@ final class ExecuteCommandTests: XCTestCase {
 
     let metadata = SourceKitLSPCommandMetadata(textDocument: TextDocumentIdentifier(uri))
 
-    var command = try args.asCommand()
+    var command = args.asCommand()
     command.arguments?.append(metadata.encodeToLSPAny())
 
     let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
@@ -95,7 +96,7 @@ final class ExecuteCommandTests: XCTestCase {
 
     let metadata = SourceKitLSPCommandMetadata(textDocument: TextDocumentIdentifier(uri))
 
-    var command = try args.asCommand()
+    var command = args.asCommand()
     command.arguments?.append(metadata.encodeToLSPAny())
 
     let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
@@ -134,6 +135,127 @@ final class ExecuteCommandTests: XCTestCase {
         ]
       ])
     )
+  }
+
+  func testFreestandingMacroExpansion() async throws {
+    try await SkipUnless.canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild()
+
+    var serverOptions = SourceKitLSPServer.Options.testDefault
+    serverOptions.experimentalFeatures.insert(.showMacroExpansions)
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyMacros/MyMacros.swift": #"""
+        import SwiftCompilerPlugin
+        import SwiftSyntax
+        import SwiftSyntaxBuilder
+        import SwiftSyntaxMacros
+
+        public struct StringifyMacro: ExpressionMacro {
+          public static func expansion(
+            of node: some FreestandingMacroExpansionSyntax,
+            in context: some MacroExpansionContext
+          ) -> ExprSyntax {
+            guard let argument = node.argumentList.first?.expression else {
+              fatalError("compiler bug: the macro does not have any arguments")
+            }
+
+            return "(\(argument), \(literal: argument.description))"
+          }
+        }
+
+        @main
+        struct MyMacroPlugin: CompilerPlugin {
+          let providingMacros: [Macro.Type] = [
+            StringifyMacro.self,
+          ]
+        }
+        """#,
+        "MyMacroClient/MyMacroClient.swift": """
+        @freestanding(expression)
+        public macro stringify<T>(_ value: T) -> (T, String) = #externalMacro(module: "MyMacros", type: "StringifyMacro")
+
+        func test() {
+          1️⃣#2️⃣stringify3️⃣(1 + 2)
+        }
+        """,
+      ],
+      manifest: SwiftPMTestProject.macroPackageManifest,
+      serverOptions: serverOptions
+    )
+    try await SwiftPMTestProject.build(at: project.scratchDirectory)
+
+    let (uri, positions) = try project.openDocument("MyMacroClient.swift")
+
+    let positionMarkersToBeTested = [
+      (start: "1️⃣", end: "1️⃣"),
+      (start: "2️⃣", end: "2️⃣"),
+      (start: "1️⃣", end: "3️⃣"),
+      (start: "2️⃣", end: "3️⃣"),
+    ]
+
+    for positionMarker in positionMarkersToBeTested {
+      let args = ExpandMacroCommand(
+        positionRange: positions[positionMarker.start]..<positions[positionMarker.end],
+        textDocument: TextDocumentIdentifier(uri)
+      )
+
+      let metadata = SourceKitLSPCommandMetadata(textDocument: TextDocumentIdentifier(uri))
+
+      var command = args.asCommand()
+      command.arguments?.append(metadata.encodeToLSPAny())
+
+      let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
+
+      let expectation = self.expectation(description: "Handle Show Document Request")
+      let showDocumentRequestURI = ThreadSafeBox<DocumentURI?>(initialValue: nil)
+
+      project.testClient.handleSingleRequest { (req: ShowDocumentRequest) in
+        showDocumentRequestURI.value = req.uri
+        expectation.fulfill()
+        return ShowDocumentResponse(success: true)
+      }
+
+      let result = try await project.testClient.send(request)
+
+      guard let resultArray: [RefactoringEdit] = Array(fromLSPArray: result ?? .null) else {
+        XCTFail(
+          "Result is not an array. Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+        )
+        return
+      }
+
+      XCTAssertEqual(
+        resultArray.count,
+        1,
+        "resultArray is empty. Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+      )
+      XCTAssertEqual(
+        resultArray.only?.newText,
+        "(1 + 2, \"1 + 2\")",
+        "Wrong macro expansion. Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+      )
+
+      try await fulfillmentOfOrThrow([expectation])
+
+      let url = try XCTUnwrap(
+        showDocumentRequestURI.value?.fileURL,
+        "Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+      )
+
+      let fileContents = try String(contentsOf: url, encoding: .utf8)
+
+      XCTAssert(
+        fileContents.contains("(1 + 2, \"1 + 2\")"),
+        "File doesn't contain macro expansion. Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+      )
+
+      XCTAssertEqual(
+        url.lastPathComponent,
+        "MyMacroClient_L4C2-L4C19.swift",
+        "Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+      )
+    }
   }
 
   func testLSPCommandMetadataRetrieval() {
