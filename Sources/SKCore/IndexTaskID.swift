@@ -19,7 +19,7 @@ public enum IndexTaskID: Sendable {
   case updateIndexStore(id: UInt32)
 
   private static func numberToEmojis(_ number: Int, numEmojis: Int) -> String {
-    let emojis = ["🟥", "🟩", "🟦", "🟧", "⬜️", "🟪", "⬛️", "🟨", "🟫"]
+    let emojis = ["🟥", "🟩", "🟦", "⬜️", "🟪", "⬛️", "🟨", "🟫"]
     var number = abs(number)
     var result = ""
     for _ in 0..<numEmojis {
