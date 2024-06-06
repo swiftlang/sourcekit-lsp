@@ -21,6 +21,18 @@ public enum SwitchableProcessResultExitStatus {
   case abnormal(exception: UInt32)
   /// The process was terminated due to a signal.
   case signalled(signal: Int32)
+
+  /// A description of the exit status that can be used in sentences like `Finished with <exit status description>`.
+  public var description: String {
+    switch self {
+    case .terminated(code: let code):
+      "exit code \(code)"
+    case .abnormal(exception: let exception):
+      "exception \(exception)"
+    case .signalled(signal: let signal):
+      "signal \(signal)"
+    }
+  }
 }
 
 extension ProcessResult.ExitStatus {

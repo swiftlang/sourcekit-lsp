@@ -631,8 +631,9 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
         stderr: { stderrHandler.handleDataFromPipe(Data($0)) }
       )
     )
-    logMessageToIndexLog(logID, "Finished in \(start.duration(to: .now))")
-    switch result.exitStatus.exhaustivelySwitchable {
+    let exitStatus = result.exitStatus.exhaustivelySwitchable
+    logMessageToIndexLog(logID, "Finished with \(exitStatus.description) in \(start.duration(to: .now))")
+    switch exitStatus {
     case .terminated(code: 0):
       break
     case .terminated(code: let code):
