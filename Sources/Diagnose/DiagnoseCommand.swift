@@ -25,6 +25,12 @@ import class TSCUtility.PercentProgressAnimation
 @MainActor
 private var progressBar: PercentProgressAnimation? = nil
 
+/// The last progress that was reported on the progress bar. This ensures that when the progress indicator uses the
+/// `MultiLinePercentProgressAnimation` (eg. because stderr is redirected to a file) we don't emit status updates
+/// without making any real progress.
+@MainActor
+private var lastProgress: (Int, String)? = nil
+
 /// A component of the diagnostic bundle that's collected in independent stages.
 fileprivate enum BundleComponent: String, CaseIterable, ExpressibleByArgument {
   case crashReports = "crash-reports"
@@ -326,7 +332,11 @@ public struct DiagnoseCommand: AsyncParsableCommand {
 
   @MainActor
   private func reportProgress(_ state: DiagnoseProgressState, message: String) {
-    progressBar?.update(step: Int(state.progress * 100), total: 100, text: message)
+    let progress: (step: Int, message: String) = (Int(state.progress * 100), message)
+    if lastProgress == nil || progress != lastProgress! {
+      progressBar?.update(step: Int(state.progress * 100), total: 100, text: message)
+      lastProgress = progress
+    }
   }
 
   @MainActor
