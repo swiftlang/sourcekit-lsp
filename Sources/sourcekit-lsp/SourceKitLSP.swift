@@ -242,6 +242,15 @@ struct SourceKitLSP: AsyncParsableCommand {
 
     let realStdoutHandle = FileHandle(fileDescriptor: realStdout, closeOnDealloc: false)
 
+    // Directory should match the directory we are searching for logs in `DiagnoseCommand.addNonDarwinLogs`.
+    let logFileDirectoryURL = URL(fileURLWithPath: ("~/.sourcekit-lsp/logs" as NSString).expandingTildeInPath)
+    await setUpGlobalLogFileHandler(
+      logFileDirectory: logFileDirectoryURL,
+      logFileMaxBytes: 5_000_000,
+      logRotateCount: 10
+    )
+    cleanOldLogFiles(logFileDirectory: logFileDirectoryURL, maxAge: 60 * 60 /* 1h */)
+
     let clientConnection = JSONRPCConnection(
       name: "client",
       protocol: MessageRegistry.lspProtocol,

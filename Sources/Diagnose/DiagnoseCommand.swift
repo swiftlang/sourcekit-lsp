@@ -25,6 +25,12 @@ import class TSCUtility.PercentProgressAnimation
 @MainActor
 private var progressBar: PercentProgressAnimation? = nil
 
+/// The last progress that was reported on the progress bar. This ensures that when the progress indicator uses the
+/// `MultiLinePercentProgressAnimation` (eg. because stderr is redirected to a file) we don't emit status updates
+/// without making any real progress.
+@MainActor
+private var lastProgress: (Int, String)? = nil
+
 /// A component of the diagnostic bundle that's collected in independent stages.
 fileprivate enum BundleComponent: String, CaseIterable, ExpressibleByArgument {
   case crashReports = "crash-reports"
@@ -64,6 +70,14 @@ public struct DiagnoseCommand: AsyncParsableCommand {
       """
   )
   private var components: [BundleComponent] = BundleComponent.allCases
+
+  @Option(
+    help: """
+      The directory to which the diagnostic bundle should be written. No file or directory should exist at this path. \
+      After sourcekit-lsp diagnose runs, a directory will exist at this path that contains the diagnostic bundle.
+      """
+  )
+  var bundleOutputPath: String? = nil
 
   var toolchainRegistry: ToolchainRegistry {
     get throws {
@@ -233,6 +247,32 @@ public struct DiagnoseCommand: AsyncParsableCommand {
   }
 
   @MainActor
+  private func addNonDarwinLogs(toBundle bundlePath: URL) async throws {
+    reportProgress(.collectingLogMessages(progress: 0), message: "Collecting log files")
+
+    let destinationDir = bundlePath.appendingPathComponent("logs")
+    try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true)
+
+    let logFileDirectoryURL = URL(fileURLWithPath: ("~/.sourcekit-lsp/logs" as NSString).expandingTildeInPath)
+    let enumerator = FileManager.default.enumerator(at: logFileDirectoryURL, includingPropertiesForKeys: nil)
+    while let fileUrl = enumerator?.nextObject() as? URL {
+      guard fileUrl.lastPathComponent.hasPrefix("sourcekit-lsp") else {
+        continue
+      }
+      try? FileManager.default.copyItem(
+        at: fileUrl,
+        to: destinationDir.appendingPathComponent(fileUrl.lastPathComponent)
+      )
+    }
+  }
+
+  @MainActor
+  private func addLogs(toBundle bundlePath: URL) async throws {
+    try await addNonDarwinLogs(toBundle: bundlePath)
+    try await addOsLog(toBundle: bundlePath)
+  }
+
+  @MainActor
   private func addCrashLogs(toBundle bundlePath: URL) throws {
     #if os(macOS)
     reportProgress(.collectingCrashReports, message: "Collecting crash reports")
@@ -292,7 +332,11 @@ public struct DiagnoseCommand: AsyncParsableCommand {
 
   @MainActor
   private func reportProgress(_ state: DiagnoseProgressState, message: String) {
-    progressBar?.update(step: Int(state.progress * 100), total: 100, text: message)
+    let progress: (step: Int, message: String) = (Int(state.progress * 100), message)
+    if lastProgress == nil || progress != lastProgress! {
+      progressBar?.update(step: Int(state.progress * 100), total: 100, text: message)
+      lastProgress = progress
+    }
   }
 
   @MainActor
@@ -320,15 +364,19 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     let dateFormatter = ISO8601DateFormatter()
     dateFormatter.timeZone = NSTimeZone.local
     let date = dateFormatter.string(from: Date()).replacingOccurrences(of: ":", with: "-")
-    let bundlePath = FileManager.default.temporaryDirectory
-      .appendingPathComponent("sourcekit-lsp-diagnose-\(date)")
+    let bundlePath =
+      if let bundleOutputPath = self.bundleOutputPath {
+        URL(fileURLWithPath: bundleOutputPath)
+      } else {
+        FileManager.default.temporaryDirectory.appendingPathComponent("sourcekit-lsp-diagnose-\(date)")
+      }
     try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
 
     if components.isEmpty || components.contains(.crashReports) {
       await orPrintError { try addCrashLogs(toBundle: bundlePath) }
     }
     if components.isEmpty || components.contains(.logs) {
-      await orPrintError { try await addOsLog(toBundle: bundlePath) }
+      await orPrintError { try await addLogs(toBundle: bundlePath) }
     }
     if components.isEmpty || components.contains(.swiftVersions) {
       await orPrintError { try await addSwiftVersion(toBundle: bundlePath) }
@@ -353,12 +401,17 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     )
 
     #if os(macOS)
-    // Reveal the bundle in Finder on macOS
-    do {
-      let process = try Process.launch(arguments: ["open", "-R", bundlePath.path], workingDirectory: nil)
-      try await process.waitUntilExitSendingSigIntOnTaskCancellation()
-    } catch {
-      // If revealing the bundle in Finder should fail, we don't care. We still printed the bundle path to stdout.
+    // Reveal the bundle in Finder on macOS.
+    // Don't open the bundle in Finder if the user manually specified a log output path. In that case they are running
+    // `sourcekit-lsp diagnose` as part of a larger logging script (like the Swift for VS Code extension) and the caller
+    // is responsible for showing the diagnose bundle location to the user
+    if self.bundleOutputPath == nil {
+      do {
+        let process = try Process.launch(arguments: ["open", "-R", bundlePath.path], workingDirectory: nil)
+        try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+      } catch {
+        // If revealing the bundle in Finder should fail, we don't care. We still printed the bundle path to stdout.
+      }
     }
     #endif
   }

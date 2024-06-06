@@ -318,8 +318,7 @@ private class InProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
     logger.info("Sending request: \(requestString)")
 
     let sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
-      dylibPath: try! AbsolutePath(validating: sourcekitd.path),
-      testHooks: SourceKitDTestHooks()
+      dylibPath: try! AbsolutePath(validating: sourcekitd.path)
     )
     let response = try await sourcekitd.run(requestYaml: requestString)
 

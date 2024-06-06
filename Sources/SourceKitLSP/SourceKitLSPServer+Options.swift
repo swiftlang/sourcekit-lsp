@@ -15,7 +15,6 @@ import LanguageServerProtocol
 import SKCore
 import SKSupport
 import SemanticIndex
-import SourceKitD
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
@@ -52,8 +51,6 @@ extension SourceKitLSPServer {
     /// Experimental features that are enabled.
     public var experimentalFeatures: Set<ExperimentalFeature>
 
-    public var sourcekitdTestHooks: SourceKitDTestHooks
-
     public var indexTestHooks: IndexTestHooks
 
     public init(
@@ -65,7 +62,6 @@ extension SourceKitLSPServer {
       generatedInterfacesPath: AbsolutePath = defaultDirectoryForGeneratedInterfaces,
       swiftPublishDiagnosticsDebounceDuration: TimeInterval = 2, /* 2s */
       experimentalFeatures: Set<ExperimentalFeature> = [],
-      sourcekitdTestHooks: SourceKitDTestHooks = SourceKitDTestHooks(),
       indexTestHooks: IndexTestHooks = IndexTestHooks()
     ) {
       self.buildSetup = buildSetup
@@ -76,7 +72,6 @@ extension SourceKitLSPServer {
       self.generatedInterfacesPath = generatedInterfacesPath
       self.swiftPublishDiagnosticsDebounceDuration = swiftPublishDiagnosticsDebounceDuration
       self.experimentalFeatures = experimentalFeatures
-      self.sourcekitdTestHooks = sourcekitdTestHooks
       self.indexTestHooks = indexTestHooks
     }
   }

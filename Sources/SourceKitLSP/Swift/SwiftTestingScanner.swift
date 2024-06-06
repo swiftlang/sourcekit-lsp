@@ -267,15 +267,24 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
   }
 
   override func visit(_ node: ActorDeclSyntax) -> SyntaxVisitorContinueKind {
-    return visitTypeOrExtensionDecl(node, typeNames: [node.name.text])
+    guard let identifier = node.name.identifier else {
+      return .skipChildren
+    }
+    return visitTypeOrExtensionDecl(node, typeNames: [identifier.name])
   }
 
   override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
-    return visitTypeOrExtensionDecl(node, typeNames: [node.name.text])
+    guard let identifier = node.name.identifier else {
+      return .skipChildren
+    }
+    return visitTypeOrExtensionDecl(node, typeNames: [identifier.name])
   }
 
   override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind {
-    return visitTypeOrExtensionDecl(node, typeNames: [node.name.text])
+    guard let identifier = node.name.identifier else {
+      return .skipChildren
+    }
+    return visitTypeOrExtensionDecl(node, typeNames: [identifier.name])
   }
 
   override func visit(_ node: ExtensionDeclSyntax) -> SyntaxVisitorContinueKind {
@@ -287,7 +296,10 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
   }
 
   override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
-    return visitTypeOrExtensionDecl(node, typeNames: [node.name.text])
+    guard let identifier = node.name.identifier else {
+      return .skipChildren
+    }
+    return visitTypeOrExtensionDecl(node, typeNames: [identifier.name])
   }
 
   override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
@@ -295,7 +307,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
       .compactMap { $0.as(AttributeSyntax.self) }
       .first { $0.isNamed("Test", inModuleNamed: "Testing") }
 
-    guard let testAttribute else {
+    guard let testAttribute, let identifier = node.name.identifier else {
       return .skipChildren
     }
     let attributeData = TestingAttributeData(attribute: testAttribute)
@@ -303,8 +315,10 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
       return .skipChildren
     }
 
-    let name =
-      node.name.text + "(" + node.signature.parameterClause.parameters.map { "\($0.firstName.text):" }.joined() + ")"
+    let parameters = node.signature.parameterClause.parameters.map {
+      "\($0.firstName.identifier?.name ?? $0.firstName.text):"
+    }.joined()
+    let name = "\(identifier.name)(\(parameters))"
 
     let range = snapshot.range(of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia)
     let testItem = AnnotatedTestItem(
@@ -394,12 +408,12 @@ fileprivate extension TypeSyntax {
   var components: [String]? {
     switch self.as(TypeSyntaxEnum.self) {
     case .identifierType(let identifierType):
-      return [identifierType.name.text]
+      return [identifierType.name.identifier?.name ?? identifierType.name.text]
     case .memberType(let memberType):
       guard let baseComponents = memberType.baseType.components else {
         return nil
       }
-      return baseComponents + [memberType.name.text]
+      return baseComponents + [memberType.name.identifier?.name ?? memberType.name.text]
     default:
       return nil
     }
