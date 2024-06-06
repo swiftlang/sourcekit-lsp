@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import CAtomics
 import LSPTestSupport
 import LanguageServerProtocol
+import SKSupport
 import SKTestSupport
 import SourceKitLSP
 import XCTest
@@ -310,15 +310,10 @@ final class PullDiagnosticsTests: XCTestCase {
   }
 
   func testDontReturnEmptyDiagnosticsIfDiagnosticRequestIsCancelled() async throws {
-    let diagnosticSourcekitdRequestDidStart = self.expectation(description: "diagnostic sourcekitd request did start")
     let diagnosticRequestCancelled = self.expectation(description: "diagnostic request cancelled")
     var serverOptions = SourceKitLSPServer.Options.testDefault
-    serverOptions.sourcekitdTestHooks.sourcekitdRequestDidStart = { request in
-      guard request.description.contains("source.request.diagnostics") else {
-        return
-      }
-      diagnosticSourcekitdRequestDidStart.fulfill()
-      self.wait(for: [diagnosticRequestCancelled], timeout: defaultTimeout)
+    serverOptions.indexTestHooks.preparationTaskDidStart = { _ in
+      await self.fulfillment(of: [diagnosticRequestCancelled], timeout: defaultTimeout)
       // Poll until the `CancelRequestNotification` has been propagated to the request handling.
       for _ in 0..<Int(defaultTimeout * 100) {
         if Task.isCancelled {
@@ -331,7 +326,9 @@ final class PullDiagnosticsTests: XCTestCase {
       files: [
         "Lib.swift": "let x: String = 1"
       ],
-      serverOptions: serverOptions
+      serverOptions: serverOptions,
+      enableBackgroundIndexing: true,
+      pollIndex: false
     )
     let (uri, _) = try project.openDocument("Lib.swift")
 
@@ -342,7 +339,6 @@ final class PullDiagnosticsTests: XCTestCase {
       XCTAssertEqual(result, .failure(ResponseError.cancelled))
       diagnosticResponseReceived.fulfill()
     }
-    try await fulfillmentOfOrThrow([diagnosticSourcekitdRequestDidStart])
     project.testClient.send(CancelRequestNotification(id: requestID))
     diagnosticRequestCancelled.fulfill()
     try await fulfillmentOfOrThrow([diagnosticResponseReceived])

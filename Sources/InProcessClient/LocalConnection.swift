@@ -26,10 +26,8 @@ import LanguageServerProtocol
 /// conn.send(...) // handled by server
 /// conn.close()
 /// ```
-///
-/// - Note: Unchecked sendable conformance because shared state is guarded by `queue`.
-public final class LocalConnection: Connection, @unchecked Sendable {
-  enum State {
+public final class LocalConnection: Connection, Sendable {
+  private enum State {
     case ready, started, closed
   }
 
@@ -37,34 +35,49 @@ public final class LocalConnection: Connection, @unchecked Sendable {
   private let name: String
 
   /// The queue guarding `_nextRequestID`.
-  let queue: DispatchQueue = DispatchQueue(label: "local-connection-queue")
+  private let queue: DispatchQueue = DispatchQueue(label: "local-connection-queue")
 
-  var _nextRequestID: Int = 0
+  /// - Important: Must only be accessed from `queue`
+  nonisolated(unsafe) private var _nextRequestID: Int = 0
 
-  var state: State = .ready
+  /// - Important: Must only be accessed from `queue`
+  nonisolated(unsafe) private var state: State = .ready
 
-  var handler: MessageHandler? = nil
+  /// - Important: Must only be accessed from `queue`
+  nonisolated(unsafe) private var handler: MessageHandler? = nil
 
   public init(name: String) {
     self.name = name
   }
 
   deinit {
-    if state != .closed {
-      close()
+    queue.sync {
+      if state != .closed {
+        closeAssumingOnQueue()
+      }
     }
   }
 
   public func start(handler: MessageHandler) {
-    precondition(state == .ready)
-    state = .started
-    self.handler = handler
+    queue.sync {
+      precondition(state == .ready)
+      state = .started
+      self.handler = handler
+    }
   }
 
-  public func close() {
+  /// - Important: Must only be called from `queue`
+  private func closeAssumingOnQueue() {
+    dispatchPrecondition(condition: .onQueue(queue))
     precondition(state != .closed)
     handler = nil
     state = .closed
+  }
+
+  public func close() {
+    queue.sync {
+      closeAssumingOnQueue()
+    }
   }
 
   func nextRequestID() -> RequestID {
@@ -81,7 +94,10 @@ public final class LocalConnection: Connection, @unchecked Sendable {
       \(notification.forLogging)
       """
     )
-    self.handler?.handle(notification)
+    guard let handler = queue.sync(execute: { handler }) else {
+      return
+    }
+    handler.handle(notification)
   }
 
   public func send<Request: RequestType>(
@@ -97,7 +113,7 @@ public final class LocalConnection: Connection, @unchecked Sendable {
       """
     )
 
-    guard let handler = self.handler else {
+    guard let handler = queue.sync(execute: { handler }) else {
       logger.info(
         """
         Replying to request \(id, privacy: .public) with .serverCancelled because no handler is specified in \(self.name, privacy: .public)

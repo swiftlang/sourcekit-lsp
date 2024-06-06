@@ -26,14 +26,6 @@ extension sourcekitd_api_keys: @unchecked Sendable {}
 extension sourcekitd_api_requests: @unchecked Sendable {}
 extension sourcekitd_api_values: @unchecked Sendable {}
 
-public struct SourceKitDTestHooks: Sendable {
-  public var sourcekitdRequestDidStart: (@Sendable (SKDRequestDictionary) -> Void)?
-
-  public init(sourcekitdRequestDidStart: (@Sendable (SKDRequestDictionary) -> Void)? = nil) {
-    self.sourcekitdRequestDidStart = sourcekitdRequestDidStart
-  }
-}
-
 /// Wrapper for sourcekitd, taking care of initialization, shutdown, and notification handler
 /// multiplexing.
 ///
@@ -41,12 +33,10 @@ public struct SourceKitDTestHooks: Sendable {
 /// `set_notification_handler`, which are global state managed internally by this class.
 public actor DynamicallyLoadedSourceKitD: SourceKitD {
   /// The path to the sourcekitd dylib.
-  private let path: AbsolutePath
+  public let path: AbsolutePath
 
   /// The handle to the dylib.
-  private let dylib: DLHandle
-
-  public let testHooks: SourceKitDTestHooks
+  let dylib: DLHandle
 
   /// The sourcekitd API functions.
   public let api: sourcekitd_api_functions_t
@@ -65,23 +55,18 @@ public actor DynamicallyLoadedSourceKitD: SourceKitD {
   /// List of notification handlers that will be called for each notification.
   private var notificationHandlers: [WeakSKDNotificationHandler] = []
 
-  /// If there is already a `sourcekitd` instance from the given return it, otherwise create a new one.
-  ///
-  /// `testHooks` are only considered when an instance is being created. If a sourcekitd instance at the given path
-  /// already exists, its test hooks will be used.
-  public static func getOrCreate(dylibPath: AbsolutePath, testHooks: SourceKitDTestHooks) async throws -> SourceKitD {
+  public static func getOrCreate(dylibPath: AbsolutePath) async throws -> SourceKitD {
     try await SourceKitDRegistry.shared
-      .getOrAdd(dylibPath, create: { try DynamicallyLoadedSourceKitD(dylib: dylibPath, testHooks: testHooks) })
+      .getOrAdd(dylibPath, create: { try DynamicallyLoadedSourceKitD(dylib: dylibPath) })
   }
 
-  init(dylib path: AbsolutePath, testHooks: SourceKitDTestHooks) throws {
+  init(dylib path: AbsolutePath) throws {
     self.path = path
     #if os(Windows)
     self.dylib = try dlopen(path.pathString, mode: [])
     #else
     self.dylib = try dlopen(path.pathString, mode: [.lazy, .local, .first])
     #endif
-    self.testHooks = testHooks
     self.api = try sourcekitd_api_functions_t(self.dylib)
     self.keys = sourcekitd_api_keys(api: self.api)
     self.requests = sourcekitd_api_requests(api: self.api)
