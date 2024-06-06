@@ -16,18 +16,18 @@
 /// `pollingInterval`.
 /// The function assumes that the original priority of the task is `initialPriority`. If the task priority changed
 /// compared to `initialPriority`, the `taskPriorityChanged` will be called.
-public func withTaskPriorityChangedHandler(
+public func withTaskPriorityChangedHandler<T: Sendable>(
   initialPriority: TaskPriority = Task.currentPriority,
   pollingInterval: Duration = .seconds(0.1),
-  @_inheritActorContext operation: @escaping @Sendable () async -> Void,
+  @_inheritActorContext operation: @escaping @Sendable () async throws -> T,
   taskPriorityChanged: @escaping @Sendable () -> Void
-) async {
+) async throws -> T {
   let lastPriority = ThreadSafeBox(initialValue: initialPriority)
-  await withTaskGroup(of: Void.self) { taskGroup in
+  let result: T? = try await withThrowingTaskGroup(of: Optional<T>.self) { taskGroup in
     taskGroup.addTask {
       while true {
         if Task.isCancelled {
-          return
+          break
         }
         let newPriority = Task.currentPriority
         let didChange = lastPriority.withLock { lastPriority in
@@ -46,15 +46,22 @@ public func withTaskPriorityChangedHandler(
           break
         }
       }
+      return nil
     }
     taskGroup.addTask {
-      await operation()
+      try await operation()
     }
     // The first task that watches the priority never finishes, so we are effectively await the `operation` task here
     // and cancelling the priority observation task once the operation task is done.
     // We do need to await the observation task as well so that priority escalation also affects the observation task.
-    for await _ in taskGroup {
+    for try await case let value? in taskGroup {
       taskGroup.cancelAll()
+      return value
     }
+    return nil
   }
+  guard let result else {
+    throw CancellationError()
+  }
+  return result
 }

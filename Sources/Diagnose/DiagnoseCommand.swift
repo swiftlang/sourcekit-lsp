@@ -407,8 +407,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     // is responsible for showing the diagnose bundle location to the user
     if self.bundleOutputPath == nil {
       do {
-        let process = try Process.launch(arguments: ["open", "-R", bundlePath.path], workingDirectory: nil)
-        try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+        _ = try await Process.run(arguments: ["open", "-R", bundlePath.path], workingDirectory: nil)
       } catch {
         // If revealing the bundle in Finder should fail, we don't care. We still printed the bundle path to stdout.
       }

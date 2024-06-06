@@ -356,20 +356,19 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     let stdoutHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
     let stderrHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
 
-    let process = try Process.launch(
-      arguments: processArguments,
-      workingDirectory: workingDirectory,
-      outputRedirection: .stream(
-        stdout: { stdoutHandler.handleDataFromPipe(Data($0)) },
-        stderr: { stderrHandler.handleDataFromPipe(Data($0)) }
-      )
-    )
     // Time out updating of the index store after 2 minutes. We don't expect any single file compilation to take longer
     // than 2 minutes in practice, so this indicates that the compiler has entered a loop and we probably won't make any
     // progress here. We will try indexing the file again when it is edited or when the project is re-opened.
     // 2 minutes have been chosen arbitrarily.
     let result = try await withTimeout(.seconds(120)) {
-      try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+      try await Process.run(
+        arguments: processArguments,
+        workingDirectory: workingDirectory,
+        outputRedirection: .stream(
+          stdout: { stdoutHandler.handleDataFromPipe(Data($0)) },
+          stderr: { stderrHandler.handleDataFromPipe(Data($0)) }
+        )
+      )
     }
 
     logMessageToIndexLog(logID, "Finished in \(start.duration(to: .now))")

@@ -623,7 +623,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     let stdoutHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
     let stderrHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
 
-    let process = try Process.launch(
+    let result = try await Process.run(
       arguments: arguments,
       workingDirectory: nil,
       outputRedirection: .stream(
@@ -631,7 +631,6 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
         stderr: { stderrHandler.handleDataFromPipe(Data($0)) }
       )
     )
-    let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
     logMessageToIndexLog(logID, "Finished in \(start.duration(to: .now))")
     switch result.exitStatus.exhaustivelySwitchable {
     case .terminated(code: 0):
