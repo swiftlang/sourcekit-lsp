@@ -117,19 +117,20 @@ public actor SwiftPMBuildSystem {
   private var testFilesDidChangeCallbacks: [() async -> Void] = []
 
   private let workspacePath: TSCAbsolutePath
+
+  /// The build setup that allows the user to pass extra compiler flags.
+  private let buildSetup: BuildSetup
+
   /// The directory containing `Package.swift`.
   @_spi(Testing)
   public var projectRoot: TSCAbsolutePath
+
   private var modulesGraph: ModulesGraph
   private let workspace: Workspace
   @_spi(Testing) public let toolsBuildParameters: BuildParameters
   @_spi(Testing) public let destinationBuildParameters: BuildParameters
   private let fileSystem: FileSystem
   private let toolchain: SKCore.Toolchain
-
-  private let swiftBuildSupportsPrepareForIndexingTask = SwiftExtensions.ThreadSafeBox<Task<Bool, Never>?>(
-    initialValue: nil
-  )
 
   private var fileToTargets: [DocumentURI: [SwiftBuildTarget]] = [:]
   private var sourceDirToTargets: [DocumentURI: [SwiftBuildTarget]] = [:]
@@ -185,6 +186,7 @@ public actor SwiftPMBuildSystem {
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void = { _ in }
   ) async throws {
     self.workspacePath = workspacePath
+    self.buildSetup = buildSetup
     self.fileSystem = fileSystem
     guard let toolchain = await preferredToolchain(toolchainRegistry) else {
       throw Error.cannotDetermineHostToolchain
@@ -580,30 +582,14 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       "--disable-index-store",
       "--target", target.targetID,
     ]
-    if self.toolsBuildParameters.configuration != self.destinationBuildParameters.configuration {
-      logger.fault(
-        """
-        Preparation is assuming that tools and destination are built using the same configuration, \
-        got tools: \(String(describing: self.toolsBuildParameters.configuration), privacy: .public), \
-        destination: \(String(describing: self.destinationBuildParameters.configuration), privacy: .public)
-        """
-      )
+    if let configuration = buildSetup.configuration {
+      arguments += ["-c", configuration.rawValue]
     }
-    arguments += ["-c", self.destinationBuildParameters.configuration.rawValue]
-    if self.toolsBuildParameters.flags != self.destinationBuildParameters.flags {
-      logger.fault(
-        """
-        Preparation is assuming that tools and destination are built using the same build flags, \
-        got tools: \(String(describing: self.toolsBuildParameters.flags)), \
-        destination: \(String(describing: self.destinationBuildParameters.configuration))
-        """
-      )
-    }
-    arguments += self.destinationBuildParameters.flags.cCompilerFlags.flatMap { ["-Xcc", $0] }
-    arguments += self.destinationBuildParameters.flags.cxxCompilerFlags.flatMap { ["-Xcxx", $0] }
-    arguments += self.destinationBuildParameters.flags.swiftCompilerFlags.flatMap { ["-Xswiftc", $0] }
-    arguments += self.destinationBuildParameters.flags.linkerFlags.flatMap { ["-Xlinker", $0] }
-    arguments += self.destinationBuildParameters.flags.xcbuildFlags?.flatMap { ["-Xxcbuild", $0] } ?? []
+    arguments += buildSetup.flags.cCompilerFlags.flatMap { ["-Xcc", $0] }
+    arguments += buildSetup.flags.cxxCompilerFlags.flatMap { ["-Xcxx", $0] }
+    arguments += buildSetup.flags.swiftCompilerFlags.flatMap { ["-Xswiftc", $0] }
+    arguments += buildSetup.flags.linkerFlags.flatMap { ["-Xlinker", $0] }
+    arguments += buildSetup.flags.xcbuildFlags?.flatMap { ["-Xxcbuild", $0] } ?? []
     if experimentalFeatures.contains(.swiftpmPrepareForIndexing) {
       arguments.append("--experimental-prepare-for-indexing")
     }
