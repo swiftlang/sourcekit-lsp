@@ -179,6 +179,11 @@ public protocol BuildSystem: AnyObject, Sendable {
   /// If `nil` is returned, the language based on the file's extension.
   func defaultLanguage(for document: DocumentURI) async -> Language?
 
+  /// The toolchain that should be used to open the given document.
+  ///
+  /// If `nil` is returned, then the default toolchain for the given language is used.
+  func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain?
+
   /// Register the given file for build-system level change notifications, such
   /// as command line flag changes, dependency changes, etc.
   ///

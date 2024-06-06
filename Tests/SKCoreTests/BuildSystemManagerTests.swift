@@ -465,6 +465,10 @@ class ManualBuildSystem: BuildSystem {
     return nil
   }
 
+  public func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+    return nil
+  }
+
   public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
     return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }

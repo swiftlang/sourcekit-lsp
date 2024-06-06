@@ -59,15 +59,29 @@ public typealias BuildServerTarget = BuildServerProtocol.BuildTarget
 
 /// Same as `toolchainRegistry.default`.
 ///
-/// Needed to work around a compiler crash that prevents us from accessing `toolchainRegistry.default` in
+/// Needed to work around a compiler crash that prevents us from accessing `toolchainRegistry.preferredToolchain` in
 /// `SwiftPMWorkspace.init`.
-private func getDefaultToolchain(_ toolchainRegistry: ToolchainRegistry) async -> SKCore.Toolchain? {
-  return await toolchainRegistry.default
+private func preferredToolchain(_ toolchainRegistry: ToolchainRegistry) async -> SKCore.Toolchain? {
+  return await toolchainRegistry.preferredToolchain(containing: [
+    \.clang, \.clangd, \.sourcekitd, \.swift, \.swiftc,
+  ])
+}
+
+fileprivate extension BuildTriple {
+  /// A string that can be used to identify the build triple in `ConfiguredTarget.runDestinationID`.
+  var id: String {
+    switch self {
+    case .tools:
+      return "tools"
+    case .destination:
+      return "destination"
+    }
+  }
 }
 
 fileprivate extension ConfiguredTarget {
   init(_ buildTarget: any SwiftBuildTarget) {
-    self.init(targetID: buildTarget.name, runDestinationID: "dummy")
+    self.init(targetID: buildTarget.name, runDestinationID: buildTarget.buildTriple.id)
   }
 
   static let forPackageManifest = ConfiguredTarget(targetID: "", runDestinationID: "")
@@ -111,14 +125,14 @@ public actor SwiftPMBuildSystem {
   @_spi(Testing) public let toolsBuildParameters: BuildParameters
   @_spi(Testing) public let destinationBuildParameters: BuildParameters
   private let fileSystem: FileSystem
-  private let toolchainRegistry: ToolchainRegistry
+  private let toolchain: SKCore.Toolchain
 
   private let swiftBuildSupportsPrepareForIndexingTask = SwiftExtensions.ThreadSafeBox<Task<Bool, Never>?>(
     initialValue: nil
   )
 
-  private var fileToTarget: [DocumentURI: SwiftBuildTarget] = [:]
-  private var sourceDirToTarget: [DocumentURI: SwiftBuildTarget] = [:]
+  private var fileToTargets: [DocumentURI: [SwiftBuildTarget]] = [:]
+  private var sourceDirToTargets: [DocumentURI: [SwiftBuildTarget]] = [:]
 
   /// Maps configured targets ids to their SwiftPM build target as well as an index in their topological sorting.
   ///
@@ -172,7 +186,11 @@ public actor SwiftPMBuildSystem {
   ) async throws {
     self.workspacePath = workspacePath
     self.fileSystem = fileSystem
-    self.toolchainRegistry = toolchainRegistry
+    guard let toolchain = await preferredToolchain(toolchainRegistry) else {
+      throw Error.cannotDetermineHostToolchain
+    }
+
+    self.toolchain = toolchain
     self.experimentalFeatures = experimentalFeatures
 
     guard let packageRoot = findPackageDirectory(containing: workspacePath, fileSystem) else {
@@ -181,12 +199,12 @@ public actor SwiftPMBuildSystem {
 
     self.projectRoot = try resolveSymlinks(packageRoot)
 
-    guard let destinationToolchainBinDir = await getDefaultToolchain(toolchainRegistry)?.swiftc?.parentDirectory else {
+    guard let destinationToolchainBinDir = toolchain.swiftc?.parentDirectory else {
       throw Error.cannotDetermineHostToolchain
     }
 
     let swiftSDK = try SwiftSDK.hostSwiftSDK(AbsolutePath(destinationToolchainBinDir))
-    let toolchain = try UserToolchain(swiftSDK: swiftSDK)
+    let swiftPMToolchain = try UserToolchain(swiftSDK: swiftSDK)
 
     var location = try Workspace.Location(
       forRootPackage: AbsolutePath(packageRoot),
@@ -205,7 +223,7 @@ public actor SwiftPMBuildSystem {
       fileSystem: fileSystem,
       location: location,
       configuration: configuration,
-      customHostToolchain: toolchain
+      customHostToolchain: swiftPMToolchain
     )
 
     let buildConfiguration: PackageModel.BuildConfiguration
@@ -218,17 +236,21 @@ public actor SwiftPMBuildSystem {
 
     self.toolsBuildParameters = try BuildParameters(
       destination: .host,
-      dataPath: location.scratchDirectory.appending(component: toolchain.targetTriple.platformBuildPathComponent),
+      dataPath: location.scratchDirectory.appending(
+        component: swiftPMToolchain.targetTriple.platformBuildPathComponent
+      ),
       configuration: buildConfiguration,
-      toolchain: toolchain,
+      toolchain: swiftPMToolchain,
       flags: buildSetup.flags
     )
 
     self.destinationBuildParameters = try BuildParameters(
       destination: .target,
-      dataPath: location.scratchDirectory.appending(component: toolchain.targetTriple.platformBuildPathComponent),
+      dataPath: location.scratchDirectory.appending(
+        component: swiftPMToolchain.targetTriple.platformBuildPathComponent
+      ),
       configuration: buildConfiguration,
-      toolchain: toolchain,
+      toolchain: swiftPMToolchain,
       flags: buildSetup.flags
     )
 
@@ -320,7 +342,7 @@ extension SwiftPMBuildSystem {
 
     self.targets = Dictionary(
       try buildDescription.allTargetsInTopologicalOrder(in: modulesGraph).enumerated().map { (index, target) in
-        return (key: ConfiguredTarget(target), (index, target))
+        return (key: ConfiguredTarget(target), value: (index, target))
       },
       uniquingKeysWith: { first, second in
         logger.fault("Found two targets with the same name \(first.buildTarget.name)")
@@ -328,32 +350,26 @@ extension SwiftPMBuildSystem {
       }
     )
 
-    self.fileToTarget = [DocumentURI: SwiftBuildTarget](
+    self.fileToTargets = [DocumentURI: [SwiftBuildTarget]](
       modulesGraph.allTargets.flatMap { target in
-        return target.sources.paths.compactMap {
+        return target.sources.paths.compactMap { (filePath) -> (key: DocumentURI, value: [SwiftBuildTarget])? in
           guard let buildTarget = buildDescription.getBuildTarget(for: target, in: modulesGraph) else {
             return nil
           }
-          return (key: DocumentURI($0.asURL), value: buildTarget)
+          return (key: DocumentURI(filePath.asURL), value: [buildTarget])
         }
       },
-      uniquingKeysWith: { td, _ in
-        // FIXME: is there  a preferred target?
-        return td
-      }
+      uniquingKeysWith: { $0 + $1 }
     )
 
-    self.sourceDirToTarget = [DocumentURI: SwiftBuildTarget](
-      modulesGraph.allTargets.compactMap { (target) -> (DocumentURI, SwiftBuildTarget)? in
+    self.sourceDirToTargets = [DocumentURI: [SwiftBuildTarget]](
+      modulesGraph.allTargets.compactMap { (target) -> (DocumentURI, [SwiftBuildTarget])? in
         guard let buildTarget = buildDescription.getBuildTarget(for: target, in: modulesGraph) else {
           return nil
         }
-        return (key: DocumentURI(target.sources.root.asURL), value: buildTarget)
+        return (key: DocumentURI(target.sources.root.asURL), value: [buildTarget])
       },
-      uniquingKeysWith: { td, _ in
-        // FIXME: is there  a preferred target?
-        return td
-      }
+      uniquingKeysWith: { $0 + $1 }
     )
 
     guard let delegate = self.delegate else {
@@ -405,7 +421,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     #endif
     // Fix up compiler arguments that point to a `/Modules` subdirectory if the Swift version in the toolchain is less
     // than 6.0 because it places the modules one level higher up.
-    let toolchainVersion = await orLog("Getting Swift version") { try await toolchainRegistry.default?.swiftVersion }
+    let toolchainVersion = await orLog("Getting Swift version") { try await toolchain.swiftVersion }
     guard let toolchainVersion, toolchainVersion < SwiftVersion(6, 0) else {
       return compileArguments
     }
@@ -465,14 +481,19 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     return nil
   }
 
+  public func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+    return toolchain
+  }
+
   public func configuredTargets(for uri: DocumentURI) -> [ConfiguredTarget] {
     guard let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
       // We can't determine targets for non-file URIs.
       return []
     }
 
-    if let target = buildTarget(for: uri) {
-      return [ConfiguredTarget(target)]
+    let targets = buildTargets(for: uri)
+    if !targets.isEmpty {
+      return targets.map(ConfiguredTarget.init)
     }
 
     if path.basename == "Package.swift" {
@@ -481,8 +502,8 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       return [ConfiguredTarget.forPackageManifest]
     }
 
-    if let target = try? inferredTarget(for: path) {
-      return [target]
+    if let targets = try? inferredTargets(for: path) {
+      return targets
     }
 
     return []
@@ -528,7 +549,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     // TODO (indexing): Support preparation of multiple targets at once.
     // https://github.com/apple/sourcekit-lsp/issues/1262
     for target in targets {
-      try await prepare(singleTarget: target, logMessageToIndexLog: logMessageToIndexLog)
+      await orLog("Preparing") { try await prepare(singleTarget: target, logMessageToIndexLog: logMessageToIndexLog) }
     }
     let filesInPreparedTargets = targets.flatMap { self.targets[$0]?.buildTarget.sources ?? [] }
     await fileDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets.map(DocumentURI.init)))
@@ -545,16 +566,13 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
 
     // TODO (indexing): Add a proper 'prepare' job in SwiftPM instead of building the target.
     // https://github.com/apple/sourcekit-lsp/issues/1254
-    guard let toolchain = await toolchainRegistry.default else {
-      logger.error("Not preparing because not toolchain exists")
-      return
-    }
     guard let swift = toolchain.swift else {
       logger.error(
-        "Not preparing because toolchain at \(toolchain.identifier) does not contain a Swift compiler"
+        "Not preparing because toolchain at \(self.toolchain.identifier) does not contain a Swift compiler"
       )
       return
     }
+    logger.debug("Preparing '\(target.targetID)' using \(self.toolchain.identifier)")
     var arguments = [
       swift.pathString, "build",
       "--package-path", workspacePath.pathString,
@@ -655,21 +673,21 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     self.watchedFiles.remove(uri)
   }
 
-  /// Returns the resolved target description for the given file, if one is known.
-  private func buildTarget(for file: DocumentURI) -> SwiftBuildTarget? {
-    if let td = fileToTarget[file] {
-      return td
+  /// Returns the resolved target descriptions for the given file, if one is known.
+  private func buildTargets(for file: DocumentURI) -> [SwiftBuildTarget] {
+    if let targets = fileToTargets[file] {
+      return targets
     }
 
     if let fileURL = file.fileURL,
       let realpath = try? resolveSymlinks(AbsolutePath(validating: fileURL.path)),
-      let td = fileToTarget[DocumentURI(realpath.asURL)]
+      let targets = fileToTargets[DocumentURI(realpath.asURL)]
     {
-      fileToTarget[file] = td
-      return td
+      fileToTargets[file] = targets
+      return targets
     }
 
-    return nil
+    return []
   }
 
   /// An event is relevant if it modifies a file that matches one of the file rules used by the SwiftPM workspace.
@@ -707,10 +725,10 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     // If a Swift file within a target is updated, reload all the other files within the target since they might be
     // referring to a function in the updated file.
     for event in events {
-      guard event.uri.fileURL?.pathExtension == "swift", let target = fileToTarget[event.uri] else {
+      guard event.uri.fileURL?.pathExtension == "swift", let targets = fileToTargets[event.uri] else {
         continue
       }
-      filesWithUpdatedDependencies.formUnion(target.sources.map { DocumentURI($0) })
+      filesWithUpdatedDependencies.formUnion(targets.flatMap(\.sources).map(DocumentURI.init))
     }
 
     // If a `.swiftmodule` file is updated, this means that we have performed a build / are
@@ -723,7 +741,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     // If we have background indexing enabled, this is not necessary because we call `fileDependenciesUpdated` when
     // preparation of a target finishes.
     if !isForIndexBuild, events.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" }) {
-      filesWithUpdatedDependencies.formUnion(self.fileToTarget.keys)
+      filesWithUpdatedDependencies.formUnion(self.fileToTargets.keys)
     }
     await self.fileDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
   }
@@ -736,12 +754,12 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
   }
 
   public func sourceFiles() -> [SourceFileInfo] {
-    return fileToTarget.compactMap { (uri, target) -> SourceFileInfo? in
+    return fileToTargets.compactMap { (uri, targets) -> SourceFileInfo? in
       // We should only set mayContainTests to `true` for files from test targets
       // (https://github.com/apple/sourcekit-lsp/issues/1174).
       return SourceFileInfo(
         uri: uri,
-        isPartOfRootProject: target.isPartOfRootPackage,
+        isPartOfRootProject: targets.contains(where: \.isPartOfRootPackage),
         mayContainTests: true
       )
     }
@@ -777,24 +795,25 @@ extension SwiftPMBuildSystem {
   /// This finds the target a file belongs to based on its location in the file system.
   ///
   /// This is primarily intended to find the target a header belongs to.
-  private func inferredTarget(for path: AbsolutePath) throws -> ConfiguredTarget? {
-    func impl(_ path: AbsolutePath) throws -> ConfiguredTarget? {
+  private func inferredTargets(for path: AbsolutePath) throws -> [ConfiguredTarget] {
+    func impl(_ path: AbsolutePath) throws -> [ConfiguredTarget] {
       var dir = path.parentDirectory
       while !dir.isRoot {
-        if let buildTarget = sourceDirToTarget[DocumentURI(dir.asURL)] {
-          return ConfiguredTarget(buildTarget)
+        if let buildTargets = sourceDirToTargets[DocumentURI(dir.asURL)] {
+          return buildTargets.map(ConfiguredTarget.init)
         }
         dir = dir.parentDirectory
       }
-      return nil
+      return []
     }
 
-    if let result = try impl(path) {
+    let result = try impl(path)
+    if !result.isEmpty {
       return result
     }
 
     let canonicalPath = try resolveSymlinks(path)
-    return try canonicalPath == path ? nil : impl(canonicalPath)
+    return try canonicalPath == path ? [] : impl(canonicalPath)
   }
 }
 
