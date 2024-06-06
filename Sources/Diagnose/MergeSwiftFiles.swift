@@ -27,10 +27,11 @@ extension RequestInfo {
 
     progressUpdate(0, "Merging all .swift files into a single file")
 
+    let compilerArgs = compilerArgs.filter { $0 != "-primary-file" && !$0.hasSuffix(".swift") } + ["$FILE"]
     let mergedRequestInfo = RequestInfo(
       requestTemplate: requestTemplate,
       offset: offset,
-      compilerArgs: compilerArgs.filter { !$0.hasSuffix(".swift") } + ["$FILE"],
+      compilerArgs: compilerArgs,
       fileContents: mergedFile
     )
 
