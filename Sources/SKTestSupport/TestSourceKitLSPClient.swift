@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import CAtomics
 import Foundation
 import InProcessClient
 import LSPTestSupport

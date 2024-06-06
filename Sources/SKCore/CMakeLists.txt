@@ -23,7 +23,6 @@ set_target_properties(SKCore PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 target_link_libraries(SKCore PUBLIC
   BuildServerProtocol
-  CAtomics
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
   LSPLogging

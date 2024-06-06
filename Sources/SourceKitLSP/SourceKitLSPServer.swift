@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
-import CAtomics
 import Dispatch
 import Foundation
 import IndexStoreDB

@@ -108,7 +108,6 @@ let package = Package(
     .target(
       name: "InProcessClient",
       dependencies: [
-        "CAtomics",
         "LanguageServerProtocol",
         "LSPLogging",
         "SKCore",
@@ -194,7 +193,6 @@ let package = Package(
     .target(
       name: "SemanticIndex",
       dependencies: [
-        "CAtomics",
         "LanguageServerProtocol",
         "LSPLogging",
         "SKCore",
@@ -219,7 +217,6 @@ let package = Package(
       name: "SKCore",
       dependencies: [
         "BuildServerProtocol",
-        "CAtomics",
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
         "LSPLogging",
@@ -248,10 +245,11 @@ let package = Package(
     .target(
       name: "SKSupport",
       dependencies: [
-        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+        "CAtomics",
         "LanguageServerProtocol",
         "LSPLogging",
         "SwiftExtensions",
+        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
       exclude: ["CMakeLists.txt"],
       swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
@@ -351,7 +349,6 @@ let package = Package(
       name: "SourceKitLSP",
       dependencies: [
         "BuildServerProtocol",
-        "CAtomics",
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
         "LSPLogging",
@@ -379,7 +376,6 @@ let package = Package(
       name: "SourceKitLSPTests",
       dependencies: [
         "BuildServerProtocol",
-        "CAtomics",
         "LSPLogging",
         "LSPTestSupport",
         "LanguageServerProtocol",
