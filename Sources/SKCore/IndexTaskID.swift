@@ -19,7 +19,7 @@ public enum IndexTaskID: Sendable {
   case updateIndexStore(id: UInt32)
 
   private static func numberToEmojis(_ number: Int, numEmojis: Int) -> String {
-    let emojis = ["🟥", "🟩", "🟦", "🟧", "⬜️", "🟪", "⬛️", "🟨", "🟫"]
+    let emojis = ["🟥", "🟩", "🟦", "⬜️", "🟪", "⬛️", "🟨", "🟫"]
     var number = abs(number)
     var result = ""
     for _ in 0..<numEmojis {
@@ -36,11 +36,12 @@ public enum IndexTaskID: Sendable {
   public var emojiRepresentation: String {
     // Multiply by 2 and optionally add 1 to make sure preparation and update index store have distinct IDs.
     // Run .hashValue to make sure we semi-randomly pick new emoji markers for new tasks
+    let numEmojis = 3
     switch self {
     case .preparation(id: let id):
-      return Self.numberToEmojis((id * 2).hashValue, numEmojis: 2)
+      return Self.numberToEmojis((id * 2).hashValue, numEmojis: numEmojis)
     case .updateIndexStore(id: let id):
-      return Self.numberToEmojis((id * 2 + 1).hashValue, numEmojis: 2)
+      return Self.numberToEmojis((id * 2 + 1).hashValue, numEmojis: numEmojis)
     }
   }
 }

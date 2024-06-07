@@ -246,26 +246,14 @@ public final actor ToolchainRegistry {
     return darwinToolchainOverride ?? ToolchainRegistry.darwinDefaultToolchainIdentifier
   }
 
-  /// The toolchain to use for a document in the given language if the build system doesn't override it.
-  func defaultToolchain(for language: Language) -> Toolchain? {
-    let supportsLang = { (toolchain: Toolchain) -> Bool in
-      // FIXME: the fact that we're looking at clangd/sourcekitd instead of the compiler indicates this method needs a parameter stating what kind of tool we're looking for.
-      switch language {
-      case .swift:
-        return toolchain.sourcekitd != nil
-      case .c, .cpp, .objective_c, .objective_cpp:
-        return toolchain.clangd != nil
-      default:
-        return false
-      }
-    }
-
-    if let toolchain = self.default, supportsLang(toolchain) {
+  /// Returns the preferred toolchain that contains all the tools at the given key paths.
+  public func preferredToolchain(containing requiredTools: [KeyPath<Toolchain, AbsolutePath?>]) -> Toolchain? {
+    if let toolchain = self.default, requiredTools.allSatisfy({ toolchain[keyPath: $0] != nil }) {
       return toolchain
     }
 
     for toolchain in toolchains {
-      if supportsLang(toolchain) {
+      if requiredTools.allSatisfy({ toolchain[keyPath: $0] != nil }) {
         return toolchain
       }
     }

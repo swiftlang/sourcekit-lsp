@@ -104,9 +104,18 @@ extension BuildSystemManager {
 
   /// Returns the toolchain that should be used to process the given document.
   public func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
-    // To support multiple toolchains within a single workspace, we need to ask the build system which toolchain to use
-    // for this document.
-    return await toolchainRegistry.defaultToolchain(for: language)
+    if let toolchain = await buildSystem?.toolchain(for: uri, language) {
+      return toolchain
+    }
+
+    switch language {
+    case .swift:
+      return await toolchainRegistry.preferredToolchain(containing: [\.sourcekitd, \.swift, \.swiftc])
+    case .c, .cpp, .objective_c, .objective_cpp:
+      return await toolchainRegistry.preferredToolchain(containing: [\.clang, \.clangd])
+    default:
+      return nil
+    }
   }
 
   /// - Note: Needed so we can set the delegate from a different isolation context.
