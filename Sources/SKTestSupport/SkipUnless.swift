@@ -265,6 +265,27 @@ public actor SkipUnless {
     }
   }
 
+  public static func swiftPMSupportsExperimentalPrepareForIndexing(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    struct NoSwiftInToolchain: Error {}
+
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+      guard let swift = await ToolchainRegistry.forTesting.default?.swift else {
+        throw NoSwiftInToolchain()
+      }
+
+      let process = Process(args: swift.pathString, "build", "--help-hidden")
+      try process.launch()
+      let result = try await process.waitUntilExit()
+      guard let output = String(bytes: try result.output.get(), encoding: .utf8) else {
+        return false
+      }
+      return output.contains("--experimental-prepare-for-indexing")
+    }
+  }
+
   /// A long test is a test that takes longer than 1-2s to execute.
   public static func longTestsEnabled() throws {
     if let value = ProcessInfo.processInfo.environment["SKIP_LONG_TESTS"], value == "1" || value == "YES" {
