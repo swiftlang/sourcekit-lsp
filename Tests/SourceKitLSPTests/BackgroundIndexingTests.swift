@@ -1001,6 +1001,7 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testLibraryUsedByExecutableTargetAndPackagePlugin() async throws {
+    try await SkipUnless.swiftPMStoresModulesForTargetAndHostInSeparateFolders()
     let project = try await SwiftPMTestProject(
       files: [
         "Lib/MyFile.swift": """
