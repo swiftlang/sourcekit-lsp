@@ -1001,7 +1001,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testLibraryUsedByExecutableTargetAndPackagePlugin() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let project = try await SwiftPMTestProject(
       files: [
         "Lib/MyFile.swift": """
@@ -1022,8 +1021,6 @@ final class BackgroundIndexingTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-        import PackageDescription
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -1048,5 +1045,52 @@ final class BackgroundIndexingTests: XCTestCase {
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
     XCTAssertEqual(definition, .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "MyFile.swift")]))
+  }
+
+  func testCrossModuleFunctionalityEvenIfLowLevelModuleHasErrors() async throws {
+    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
+    var serverOptions = SourceKitLSPServer.Options.testDefault
+    serverOptions.experimentalFeatures.insert(.swiftpmPrepareForIndexing)
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": """
+        public func test() -> Invalid {
+          return ""
+        }
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+
+        public func 1️⃣libBTest() -> Int {
+          return libATest()
+        }
+        """,
+        "MyExec/MyExec.swift": """
+        import LibB
+
+        func test() -> Int {
+          return 2️⃣libBTest()
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+           .executableTarget(name: "MyExec", dependencies: ["LibB"]),
+          ]
+        )
+        """,
+      serverOptions: serverOptions,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("MyExec.swift")
+    let response = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "LibB.swift")]))
   }
 }
