@@ -40,8 +40,7 @@ fileprivate final class RequestAndReply<Params: RequestType>: Sendable {
   private let replyBlock: @Sendable (LSPResult<Params.Response>) -> Void
 
   /// Whether a reply has been made. Every request must reply exactly once.
-  /// `nonisolated(unsafe)` is fine because `replied` is atomic.
-  private nonisolated(unsafe) var replied: AtomicBool = AtomicBool(initialValue: false)
+  private let replied: AtomicBool = AtomicBool(initialValue: false)
 
   public init(_ request: Params, reply: @escaping @Sendable (LSPResult<Params.Response>) -> Void) {
     self.params = request
@@ -539,8 +538,7 @@ public actor SourceKitLSPServer {
 
 // MARK: - MessageHandler
 
-// nonisolated(unsafe) is fine because `notificationIDForLogging` is atomic.
-private nonisolated(unsafe) var notificationIDForLogging = AtomicUInt32(initialValue: 1)
+private let notificationIDForLogging = AtomicUInt32(initialValue: 1)
 
 extension SourceKitLSPServer: MessageHandler {
   public nonisolated func handle(_ params: some NotificationType) {

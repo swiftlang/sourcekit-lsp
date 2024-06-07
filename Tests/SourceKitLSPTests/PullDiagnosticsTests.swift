@@ -253,7 +253,7 @@ final class PullDiagnosticsTests: XCTestCase {
   }
 
   func testDiagnosticsWaitForDocumentToBePrepared() async throws {
-    nonisolated(unsafe) var diagnosticRequestSent = AtomicBool(initialValue: false)
+    let diagnosticRequestSent = AtomicBool(initialValue: false)
     var serverOptions = SourceKitLSPServer.Options.testDefault
     serverOptions.indexTestHooks.preparationTaskDidStart = { @Sendable taskDescription in
       // Only start preparation after we sent the diagnostic request. In almost all cases, this should not give
