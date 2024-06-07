@@ -163,7 +163,7 @@ public class SwiftPMTestProject: MultiFileTestProject {
     for (fileLocation, contents) in files {
       let directories =
         switch fileLocation.directories.first {
-        case "Sources", "Tests":
+        case "Sources", "Tests", "Plugins":
           fileLocation.directories
         case nil:
           ["Sources", "MyLibrary"]

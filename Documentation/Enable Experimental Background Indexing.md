@@ -22,9 +22,10 @@ Next, point your editor to use the just-built copy of SourceKit-LSP and enable b
 "swift.sourcekit-lsp.serverArguments": [ "--experimental-feature", "background-indexing" ],
 ```
 
+Background indexing requires a Swift 6 toolchain. You can download Swift 6 nightly toolchains from https://www.swift.org/download/#swift-60-development.
+
 ## Known issues
 
-- The only supported toolchain for background indexing are currently [Swift 6.0 nightly toolchain snapshots](https://www.swift.org/download/#swift-60-development). Older toolchains are not supported and the nightly toolchains from `main` are having issues because building a target non-deterministically builds for tools or the destination [#1288](https://github.com/apple/sourcekit-lsp/pull/1288#issuecomment-2111400459) [rdar://128100158](rdar://128100158)
 - Not really a background indexing related issue but Swift nightly toolchain snapshots are crashing on macOS 14.4 and 14.5 (swift#73327)[https://github.com/apple/swift/issues/73327]
   - Workaround: Run the toolchains on an older version of macOS, if possible
 - Background Indexing is only supported for SwiftPM projects [#1269](https://github.com/apple/sourcekit-lsp/issues/1269), [#1271](https://github.com/apple/sourcekit-lsp/issues/1271)

@@ -96,6 +96,9 @@ public struct ReduceFrontendCommand: AsyncParsableCommand {
       reproducerPredicate: nsPredicate
     )
 
+    defer {
+      progressBar.complete(success: true)
+    }
     let reducedRequestInfo = try await reduceFrontendIssue(
       frontendArgs: frontendArgs,
       using: executor
@@ -103,10 +106,8 @@ public struct ReduceFrontendCommand: AsyncParsableCommand {
       progressBar.update(step: Int(progress * 100), total: 100, text: message)
     }
 
-    progressBar.complete(success: true)
-
     print("Reduced compiler arguments:")
-    print(reducedRequestInfo.compilerArgs)
+    print(reducedRequestInfo.compilerArgs.joined(separator: " "))
 
     print("")
     print("Reduced file contents:")

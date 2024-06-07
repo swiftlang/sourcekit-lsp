@@ -541,3 +541,25 @@ fileprivate extension Collection<Int> {
     return result
   }
 }
+
+/// Version of the `withTaskPriorityChangedHandler` where the body doesn't throw.
+fileprivate func withTaskPriorityChangedHandler(
+  initialPriority: TaskPriority = Task.currentPriority,
+  pollingInterval: Duration = .seconds(0.1),
+  @_inheritActorContext operation: @escaping @Sendable () async -> Void,
+  taskPriorityChanged: @escaping @Sendable () -> Void
+) async {
+  do {
+    try await withTaskPriorityChangedHandler(
+      initialPriority: initialPriority,
+      pollingInterval: pollingInterval,
+      operation: operation as @Sendable () async throws -> Void,
+      taskPriorityChanged: taskPriorityChanged
+    )
+  } catch is CancellationError {
+  } catch {
+    // Since `operation` does not throw, the only error we expect `withTaskPriorityChangedHandler` to throw is a
+    // `CancellationError`, in which case we can just return.
+    logger.fault("Unexpected error thrown from withTaskPriorityChangedHandler: \(error.forLogging)")
+  }
+}

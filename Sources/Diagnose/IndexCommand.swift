@@ -68,6 +68,15 @@ public struct IndexCommand: AsyncParsableCommand {
   )
   var toolchainOverride: String?
 
+  @Option(
+    name: .customLong("experimental-index-feature"),
+    help: """
+      Enable an experimental sourcekit-lsp feature.
+      Available features are: \(ExperimentalFeature.allCases.map(\.rawValue).joined(separator: ", "))
+      """
+  )
+  var experimentalFeatures: [ExperimentalFeature] = []
+
   @Option(help: "The path to the project that should be indexed")
   var project: String
 
@@ -75,6 +84,7 @@ public struct IndexCommand: AsyncParsableCommand {
 
   public func run() async throws {
     var serverOptions = SourceKitLSPServer.Options()
+    serverOptions.experimentalFeatures = Set(experimentalFeatures)
     serverOptions.experimentalFeatures.insert(.backgroundIndexing)
 
     let installPath =
@@ -109,3 +119,9 @@ fileprivate extension SourceKitLSPServer {
     }
   }
 }
+
+#if compiler(>=6)
+extension ExperimentalFeature: @retroactive ExpressibleByArgument {}
+#else
+extension ExperimentalFeature: ExpressibleByArgument {}
+#endif

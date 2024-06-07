@@ -121,10 +121,12 @@ public struct RequestInfo: Sendable {
 
     // Inline the file list so we can reduce the compiler arguments by removing individual source files.
     // A couple `output-filelist`-related compiler arguments don't work with the file list inlined. Remove them as they
-    // are unlikely to be responsible for the swift-frontend cache
+    // are unlikely to be responsible for the swift-frontend cache.
+    // `-index-system-modules` is invalid when no output file lists are specified.
     while let frontendArg = iterator.next() {
       switch frontendArg {
-      case "-supplementary-output-file-map", "-output-filelist", "-index-unit-output-path-filelist":
+      case "-supplementary-output-file-map", "-output-filelist", "-index-unit-output-path-filelist",
+        "-index-system-modules":
         _ = iterator.next()
       case "-filelist":
         guard let fileList = iterator.next() else {
