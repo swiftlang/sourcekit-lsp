@@ -551,6 +551,7 @@ extension SourceKitLSPServer: MessageHandler {
         // are currently handling. Ordering is not important here. We thus don't
         // need to execute it on `messageHandlingQueue`.
         self.cancelRequest(params)
+        return
       }
 
       let signposter = Logger(subsystem: LoggingScope.subsystem, category: "message-handling")
