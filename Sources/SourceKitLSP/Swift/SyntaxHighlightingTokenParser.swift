@@ -205,7 +205,7 @@ struct SyntaxHighlightingTokenParser {
 
 extension Range<Position> {
   /// Splits a potentially multi-line range to multiple single-line ranges.
-  func splitToSingleLineRanges(in snapshot: DocumentSnapshot) -> [Self] {
+  @_spi(Testing) public func splitToSingleLineRanges(in snapshot: DocumentSnapshot) -> [Self] {
     if isEmpty {
       return []
     }
@@ -233,10 +233,5 @@ extension Range<Position> {
         return start..<end
       }
       .filter { !$0.isEmpty }
-  }
-
-  /// **Public for testing**
-  public func _splitToSingleLineRanges(in snapshot: DocumentSnapshot) -> [Self] {
-    splitToSingleLineRanges(in: snapshot)
   }
 }

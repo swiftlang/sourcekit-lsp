@@ -224,7 +224,7 @@ public actor SwiftLanguageService: LanguageService, Sendable {
   }
 
   /// - Important: For testing only
-  public func setReusedNodeCallback(_ callback: (@Sendable (_ node: Syntax) -> ())?) async {
+  @_spi(Testing) public func setReusedNodeCallback(_ callback: (@Sendable (_ node: Syntax) -> ())?) async {
     await self.syntaxTreeManager.setReusedNodeCallback(callback)
   }
 
@@ -334,7 +334,7 @@ extension SwiftLanguageService {
   }
 
   /// Tell sourcekitd to crash itself. For testing purposes only.
-  public func _crash() async {
+  public func crash() async {
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.crashWithExit
     ])

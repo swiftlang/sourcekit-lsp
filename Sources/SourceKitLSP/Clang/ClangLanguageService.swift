@@ -342,7 +342,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     return nil
   }
 
-  func _crash() {
+  func crash() {
     // Since `clangd` doesn't have a method to crash it, kill it.
     #if os(Windows)
     if self.hClangd != INVALID_HANDLE_VALUE {
