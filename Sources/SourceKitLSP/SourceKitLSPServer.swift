@@ -127,10 +127,10 @@ public actor SourceKitLSPServer {
   /// initializer.
   private nonisolated(unsafe) var indexProgressManager: IndexProgressManager!
 
-  private var packageLoadingWorkDoneProgress = WorkDoneProgressState(
-    "SourceKitLSP.SourceKitLSPServer.reloadPackage",
-    title: "SourceKit-LSP: Reloading Package"
-  )
+  /// Number of workspaces that are currently reloading swift package. When this is not 0, a
+  /// `packageLoadingWorkDoneProgress` is created to show a work done progress indicator in the client.
+  private var inProgressPackageLoadingOperations = 0
+  private var packageLoadingWorkDoneProgress: WorkDoneProgressManager?
 
   /// **Public for testing**
   public var _documentManager: DocumentManager {
@@ -898,6 +898,27 @@ extension SourceKitLSPServer {
     )
   }
 
+  private func reloadPackageStatusCallback(_ status: ReloadPackageStatus) async {
+    switch status {
+    case .start:
+      inProgressPackageLoadingOperations += 1
+      if let capabilityRegistry, packageLoadingWorkDoneProgress == nil {
+        packageLoadingWorkDoneProgress = WorkDoneProgressManager(
+          server: self,
+          capabilityRegistry: capabilityRegistry,
+          initialDebounce: options.workDoneProgressDebounceDuration,
+          title: "SourceKit-LSP: Reloading Package"
+        )
+      }
+    case .end:
+      inProgressPackageLoadingOperations -= 1
+      if inProgressPackageLoadingOperations == 0, let packageLoadingWorkDoneProgress {
+        self.packageLoadingWorkDoneProgress = nil
+        await packageLoadingWorkDoneProgress.end()
+      }
+    }
+  }
+
   /// Creates a workspace at the given `uri`.
   ///
   /// If the build system that was determined for the workspace does not satisfy `condition`, `nil` is returned.
@@ -916,13 +937,7 @@ extension SourceKitLSPServer {
       options: options,
       toolchainRegistry: toolchainRegistry,
       reloadPackageStatusCallback: { [weak self] status in
-        guard let self else { return }
-        switch status {
-        case .start:
-          await self.packageLoadingWorkDoneProgress.startProgress(server: self)
-        case .end:
-          await self.packageLoadingWorkDoneProgress.endProgress(server: self)
-        }
+        await self?.reloadPackageStatusCallback(status)
       }
     )
     guard await condition(buildSystem) else {

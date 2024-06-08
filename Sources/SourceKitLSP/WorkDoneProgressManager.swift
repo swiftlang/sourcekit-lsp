@@ -61,7 +61,14 @@ final actor WorkDoneProgressManager {
     guard let capabilityRegistry = await server.capabilityRegistry else {
       return nil
     }
-    self.init(server: server, capabilityRegistry: capabilityRegistry, title: title, message: message)
+    self.init(
+      server: server,
+      capabilityRegistry: capabilityRegistry,
+      initialDebounce: initialDebounce,
+      title: title,
+      message: message,
+      percentage: percentage
+    )
   }
 
   init?(
@@ -109,7 +116,7 @@ final actor WorkDoneProgressManager {
           )
         )
       } else {
-        let token = ProgressToken.string("WorkDoneProgress-\(UUID())")
+        let token = ProgressToken.string(UUID().uuidString)
         do {
           _ = try await server.client.send(CreateWorkDoneProgressRequest(token: token))
         } catch {

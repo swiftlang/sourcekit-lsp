@@ -48,9 +48,10 @@ extension SourceKitLSPServer {
     /// notification when running unit tests.
     public var swiftPublishDiagnosticsDebounceDuration: TimeInterval
 
-    /// When an index task is started, how many milliseconds to wait before sending a work done progress to the client.
-    // This prevents flickering of the work done progress in the client for short-lived index tasks
-    public var indexProgressDebounceDuration: Duration
+    /// When a task is started that should be displayed to the client as a work done progress, how many milliseconds to
+    /// wait before actually starting the work done progress. This prevents flickering of the work done progress in the
+    /// client for short-lived index tasks which end within this duration.
+    public var workDoneProgressDebounceDuration: Duration
 
     /// Experimental features that are enabled.
     public var experimentalFeatures: Set<ExperimentalFeature>
@@ -65,7 +66,7 @@ extension SourceKitLSPServer {
       completionOptions: SKCompletionOptions = .init(),
       generatedInterfacesPath: AbsolutePath = defaultDirectoryForGeneratedInterfaces,
       swiftPublishDiagnosticsDebounceDuration: TimeInterval = 2, /* 2s */
-      indexProgressDebounceDuration: Duration = .seconds(0),
+      workDoneProgressDebounceDuration: Duration = .seconds(0),
       experimentalFeatures: Set<ExperimentalFeature> = [],
       indexTestHooks: IndexTestHooks = IndexTestHooks()
     ) {
@@ -77,7 +78,7 @@ extension SourceKitLSPServer {
       self.generatedInterfacesPath = generatedInterfacesPath
       self.swiftPublishDiagnosticsDebounceDuration = swiftPublishDiagnosticsDebounceDuration
       self.experimentalFeatures = experimentalFeatures
-      self.indexProgressDebounceDuration = indexProgressDebounceDuration
+      self.workDoneProgressDebounceDuration = workDoneProgressDebounceDuration
       self.indexTestHooks = indexTestHooks
     }
   }

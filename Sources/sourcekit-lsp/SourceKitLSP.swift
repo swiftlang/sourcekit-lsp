@@ -207,8 +207,8 @@ struct SourceKitLSP: AsyncParsableCommand {
   @Option(help: .hidden)
   var completionMaxResults = 200
 
-  @Option(help: .hidden)
-  var indexProgressDebounceDuration: Int = 1_000
+  @Option(name: .customLong("progress-debounce-duration"), help: .hidden)
+  var workDoneProgressDebounceDuration: Int = 1_000
 
   func mapOptions() -> SourceKitLSPServer.Options {
     var serverOptions = SourceKitLSPServer.Options()
@@ -228,7 +228,7 @@ struct SourceKitLSP: AsyncParsableCommand {
     serverOptions.generatedInterfacesPath = generatedInterfacesPath
     serverOptions.experimentalFeatures = Set(experimentalFeatures)
     serverOptions.completionOptions.maxResults = completionMaxResults
-    serverOptions.indexProgressDebounceDuration = .milliseconds(indexProgressDebounceDuration)
+    serverOptions.workDoneProgressDebounceDuration = .milliseconds(workDoneProgressDebounceDuration)
 
     return serverOptions
   }
