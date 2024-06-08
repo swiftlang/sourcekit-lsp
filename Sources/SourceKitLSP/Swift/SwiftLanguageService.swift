@@ -142,11 +142,17 @@ public actor SwiftLanguageService: LanguageService, Sendable {
       }
 
       guard let sourceKitLSPServer else {
+        Task {
+          await sourcekitdCrashedWorkDoneProgress?.end()
+        }
         sourcekitdCrashedWorkDoneProgress = nil
         return
       }
       switch state {
       case .connected:
+        Task {
+          await sourcekitdCrashedWorkDoneProgress?.end()
+        }
         sourcekitdCrashedWorkDoneProgress = nil
       case .connectionInterrupted, .semanticFunctionalityDisabled:
         if sourcekitdCrashedWorkDoneProgress == nil {

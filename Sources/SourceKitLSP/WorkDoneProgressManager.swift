@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import LSPLogging
 import LanguageServerProtocol
 import SKSupport
 import SwiftExtensions
@@ -19,29 +20,44 @@ import SwiftExtensions
 ///
 /// The work done progress is started when the object is created and ended when the object is destroyed.
 /// In between, updates can be sent to the client.
-final class WorkDoneProgressManager {
-  private let token: ProgressToken
-  private let queue = AsyncQueue<Serial>()
-  private let server: SourceKitLSPServer
-  /// `true` if the client returned without an error from the `CreateWorkDoneProgressRequest`.
-  ///
-  /// Since all work done progress reports are being sent on `queue`, we never access it in a state where the
-  /// `CreateWorkDoneProgressRequest` is still in progress.
-  ///
-  /// Must be a reference because `deinit` captures it and wants to observe changes to it from `init` eg. in the
-  /// following:
-  ///  - `init` is called
-  ///  - `deinit` is called
-  ///  - The task from `init` gets executed
-  ///  - The task from `deinit` gets executed
-  ///    - This should have `workDoneProgressCreated == true` so that it can send the work progress end.
-  private let workDoneProgressCreated: ThreadSafeBox<Bool> & AnyObject = ThreadSafeBox<Bool>(initialValue: false)
+final actor WorkDoneProgressManager {
+  private enum Status: Equatable {
+    case inProgress(message: String?, percentage: Int?)
+    case done
+  }
 
-  /// The last message and percentage so we don't send a new report notification to the client if `update` is called
-  /// without any actual change.
-  private var lastStatus: (message: String?, percentage: Int?)
+  /// The token with which the work done progress has been created. `nil` if no work done progress has been created yet,
+  /// either because we didn't send the `WorkDoneProgress` request yet, because the work done progress creation failed,
+  /// or because the work done progress has been ended.
+  private var token: ProgressToken?
 
-  convenience init?(server: SourceKitLSPServer, title: String, message: String? = nil, percentage: Int? = nil) async {
+  /// The queue on which progress updates are sent to the client.
+  private let progressUpdateQueue = AsyncQueue<Serial>()
+
+  private weak var server: SourceKitLSPServer?
+
+  private let title: String
+
+  /// The next status that should be sent to the client by `sendProgressUpdateImpl`.
+  ///
+  /// While progress updates are being queued in `progressUpdateQueue` this status can evolve. The next
+  /// `sendProgressUpdateImpl` call will pick up the latest status.
+  ///
+  /// For example, if we receive two update calls to 25% and 50% in quick succession the `sendProgressUpdateImpl`
+  /// scheduled from the 25% update will already pick up the new 50% status. The `sendProgressUpdateImpl` call scheduled
+  /// from the 50% update will then realize that the `lastStatus` is already up-to-date and be a no-op.
+  private var pendingStatus: Status
+
+  /// The last status that was sent to the client. Used so we don't send no-op updates to the client.
+  private var lastStatus: Status? = nil
+
+  init?(
+    server: SourceKitLSPServer,
+    initialDebounce: Duration? = nil,
+    title: String,
+    message: String? = nil,
+    percentage: Int? = nil
+  ) async {
     guard let capabilityRegistry = await server.capabilityRegistry else {
       return nil
     }
@@ -51,6 +67,7 @@ final class WorkDoneProgressManager {
   init?(
     server: SourceKitLSPServer,
     capabilityRegistry: CapabilityRegistry,
+    initialDebounce: Duration? = nil,
     title: String,
     message: String? = nil,
     percentage: Int? = nil
@@ -58,50 +75,93 @@ final class WorkDoneProgressManager {
     guard capabilityRegistry.clientCapabilities.window?.workDoneProgress ?? false else {
       return nil
     }
-    self.token = .string("WorkDoneProgress-\(UUID())")
     self.server = server
-    queue.async { [server, token, workDoneProgressCreated] in
-      await server.waitUntilInitialized()
-      do {
-        _ = try await server.client.send(CreateWorkDoneProgressRequest(token: token))
-      } catch {
-        return
+    self.title = title
+    self.pendingStatus = .inProgress(message: message, percentage: percentage)
+    progressUpdateQueue.async {
+      if let initialDebounce {
+        try? await Task.sleep(for: initialDebounce)
       }
-      server.sendNotificationToClient(
-        WorkDoneProgress(
-          token: token,
-          value: .begin(WorkDoneProgressBegin(title: title, message: message, percentage: percentage))
-        )
-      )
-      workDoneProgressCreated.value = true
-      self.lastStatus = (message, percentage)
+      await self.sendProgressUpdateAssumingOnProgressUpdateQueue()
     }
   }
 
-  func update(message: String? = nil, percentage: Int? = nil) {
-    queue.async { [server, token, workDoneProgressCreated] in
-      guard workDoneProgressCreated.value else {
-        return
-      }
-      guard (message, percentage) != self.lastStatus else {
-        return
-      }
-      self.lastStatus = (message, percentage)
-      server.sendNotificationToClient(
-        WorkDoneProgress(
-          token: token,
-          value: .report(WorkDoneProgressReport(cancellable: false, message: message, percentage: percentage))
+  /// Send the necessary messages to the client to update the work done progress to `status`.
+  ///
+  /// Must be called on `progressUpdateQueue`
+  private func sendProgressUpdateAssumingOnProgressUpdateQueue() async {
+    let statusToSend = pendingStatus
+    guard statusToSend != lastStatus else {
+      return
+    }
+    guard let server else {
+      // SourceKitLSPServer has been destroyed, we don't have a way to send notifications to the client anymore.
+      return
+    }
+    await server.waitUntilInitialized()
+    switch statusToSend {
+    case .inProgress(message: let message, percentage: let percentage):
+      if let token {
+        server.sendNotificationToClient(
+          WorkDoneProgress(
+            token: token,
+            value: .report(WorkDoneProgressReport(cancellable: false, message: message, percentage: percentage))
+          )
         )
-      )
+      } else {
+        let token = ProgressToken.string("WorkDoneProgress-\(UUID())")
+        do {
+          _ = try await server.client.send(CreateWorkDoneProgressRequest(token: token))
+        } catch {
+          return
+        }
+        server.sendNotificationToClient(
+          WorkDoneProgress(
+            token: token,
+            value: .begin(WorkDoneProgressBegin(title: title, message: message, percentage: percentage))
+          )
+        )
+        self.token = token
+      }
+    case .done:
+      if let token {
+        server.sendNotificationToClient(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd())))
+        self.token = nil
+      }
+    }
+    lastStatus = statusToSend
+  }
+
+  func update(message: String? = nil, percentage: Int? = nil) {
+    pendingStatus = .inProgress(message: message, percentage: percentage)
+    progressUpdateQueue.async {
+      await self.sendProgressUpdateAssumingOnProgressUpdateQueue()
+    }
+  }
+
+  /// Ends the work done progress. Any further update calls are no-ops.
+  ///
+  /// `end` must be should be called before the `WorkDoneProgressManager` is deallocated.
+  func end() {
+    pendingStatus = .done
+    progressUpdateQueue.async {
+      await self.sendProgressUpdateAssumingOnProgressUpdateQueue()
     }
   }
 
   deinit {
-    queue.async { [server, token, workDoneProgressCreated] in
-      guard workDoneProgressCreated.value else {
-        return
+    if pendingStatus != .done {
+      // If there is still a pending work done progress, end it. We know that we don't have any pending updates on
+      // `progressUpdateQueue` because they would capture `self` strongly and thus we wouldn't be deallocating this
+      // object.
+      // This is a fallback logic to ensure we don't leave pending work done progresses in the editor if the
+      // `WorkDoneProgressManager` is destroyed without a call to `end` (eg. because its owning object is destroyed).
+      // Calling `end()` is preferred because it ends the work done progress even if there are pending status updates
+      // in `progressUpdateQueue`, which keep the `WorkDoneProgressManager` alive and thus prevent the work done
+      // progress to be implicitly ended by the deinitializer.
+      if let token {
+        server?.sendNotificationToClient(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd())))
       }
-      server.sendNotificationToClient(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd())))
     }
   }
 }

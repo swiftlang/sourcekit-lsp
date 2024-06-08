@@ -194,11 +194,6 @@ struct SourceKitLSP: AsyncParsableCommand {
   var generatedInterfacesPath = defaultDirectoryForGeneratedInterfaces
 
   @Option(
-    help: "When server-side filtering is enabled, the maximum number of results to return"
-  )
-  var completionMaxResults = 200
-
-  @Option(
     name: .customLong("experimental-feature"),
     help: """
       Enable an experimental sourcekit-lsp feature.
@@ -206,6 +201,14 @@ struct SourceKitLSP: AsyncParsableCommand {
       """
   )
   var experimentalFeatures: [ExperimentalFeature] = []
+
+  // MARK: Configuration options intended for SourceKit-LSP developers.
+
+  @Option(help: .hidden)
+  var completionMaxResults = 200
+
+  @Option(help: .hidden)
+  var indexProgressDebounceDuration: Int = 1_000
 
   func mapOptions() -> SourceKitLSPServer.Options {
     var serverOptions = SourceKitLSPServer.Options()
@@ -222,9 +225,10 @@ struct SourceKitLSP: AsyncParsableCommand {
     serverOptions.indexOptions.indexStorePath = indexStorePath
     serverOptions.indexOptions.indexDatabasePath = indexDatabasePath
     serverOptions.indexOptions.indexPrefixMappings = indexPrefixMappings
-    serverOptions.completionOptions.maxResults = completionMaxResults
     serverOptions.generatedInterfacesPath = generatedInterfacesPath
     serverOptions.experimentalFeatures = Set(experimentalFeatures)
+    serverOptions.completionOptions.maxResults = completionMaxResults
+    serverOptions.indexProgressDebounceDuration = .milliseconds(indexProgressDebounceDuration)
 
     return serverOptions
   }
