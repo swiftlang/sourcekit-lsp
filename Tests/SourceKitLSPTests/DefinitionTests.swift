@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+@_spi(Testing) import LSPLogging
 import LanguageServerProtocol
 import SKTestSupport
 import XCTest
@@ -538,6 +539,65 @@ class DefinitionTests: XCTestCase {
       resultAfterFileMove,
       .locations([
         Location(uri: movedDefinitionUri, range: Range(try project.position(of: "1️⃣", in: "definition.swift")))
+      ])
+    )
+  }
+
+  func testJumpToDefinitionOnProtocolImplementationJumpsToRequirement() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      protocol TestProtocol {
+        func 1️⃣doThing()
+      }
+
+      struct TestImpl: TestProtocol {
+        func 2️⃣do3️⃣Thing() { }
+      }
+      """
+    )
+
+    let definitionFromBaseName = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["2️⃣"])
+    )
+    XCTAssertEqual(
+      definitionFromBaseName,
+      .locations([Location(uri: project.fileURI, range: Range(project.positions["1️⃣"]))])
+    )
+
+    let definitionFromInsideBaseName = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["3️⃣"])
+    )
+    XCTAssertEqual(
+      definitionFromInsideBaseName,
+      .locations([Location(uri: project.fileURI, range: Range(project.positions["1️⃣"]))])
+    )
+  }
+
+  func testJumpToDefinitionOnProtocolImplementationShowsAllFulfilledRequirements() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      protocol TestProtocol {
+        func 1️⃣doThing()
+      }
+
+      protocol OtherProtocol {
+        func 2️⃣doThing()
+      }
+
+      struct TestImpl: TestProtocol, OtherProtocol {
+        func 3️⃣doThing() { }
+      }
+      """
+    )
+
+    let result = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["3️⃣"])
+    )
+    XCTAssertEqual(
+      result,
+      .locations([
+        Location(uri: project.fileURI, range: Range(project.positions["1️⃣"])),
+        Location(uri: project.fileURI, range: Range(project.positions["2️⃣"])),
       ])
     )
   }
