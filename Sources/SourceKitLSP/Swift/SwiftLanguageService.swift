@@ -391,7 +391,7 @@ extension SwiftLanguageService {
     ])
   }
 
-  private func closeDocumentSourcekitdRequest(uri: DocumentURI) -> SKDRequestDictionary {
+  func closeDocumentSourcekitdRequest(uri: DocumentURI) -> SKDRequestDictionary {
     return sourcekitd.dictionary([
       keys.request: requests.editorClose,
       keys.name: uri.pseudoPath,

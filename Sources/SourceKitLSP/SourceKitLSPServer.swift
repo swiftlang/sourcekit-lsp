@@ -711,8 +711,8 @@ extension SourceKitLSPServer: MessageHandler {
       await self.handleRequest(for: request, requestHandler: self.completion)
     case let request as RequestAndReply<HoverRequest>:
       await self.handleRequest(for: request, requestHandler: self.hover)
-    case let request as RequestAndReply<OpenInterfaceRequest>:
-      await self.handleRequest(for: request, requestHandler: self.openInterface)
+    case let request as RequestAndReply<OpenGeneratedInterfaceRequest>:
+      await self.handleRequest(for: request, requestHandler: self.openGeneratedInterface)
     case let request as RequestAndReply<DeclarationRequest>:
       await self.handleRequest(for: request, requestHandler: self.declaration)
     case let request as RequestAndReply<DefinitionRequest>:
@@ -1466,12 +1466,12 @@ extension SourceKitLSPServer {
     return try await languageService.hover(req)
   }
 
-  func openInterface(
-    _ req: OpenInterfaceRequest,
+  func openGeneratedInterface(
+    _ req: OpenGeneratedInterfaceRequest,
     workspace: Workspace,
     languageService: LanguageService
-  ) async throws -> InterfaceDetails? {
-    return try await languageService.openInterface(req)
+  ) async throws -> GeneratedInterfaceDetails? {
+    return try await languageService.openGeneratedInterface(req)
   }
 
   /// Find all symbols in the workspace that include a string in their name.
@@ -1808,13 +1808,13 @@ extension SourceKitLSPServer {
     originatorUri: DocumentURI,
     languageService: LanguageService
   ) async throws -> Location {
-    let openInterface = OpenInterfaceRequest(
+    let openInterface = OpenGeneratedInterfaceRequest(
       textDocument: TextDocumentIdentifier(originatorUri),
       name: moduleName,
       groupName: groupName,
       symbolUSR: symbolUSR
     )
-    guard let interfaceDetails = try await languageService.openInterface(openInterface) else {
+    guard let interfaceDetails = try await languageService.openGeneratedInterface(openInterface) else {
       throw ResponseError.unknown("Could not generate Swift Interface for \(moduleName)")
     }
     let position = interfaceDetails.position ?? Position(line: 0, utf16index: 0)

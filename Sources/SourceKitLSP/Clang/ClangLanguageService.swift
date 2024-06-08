@@ -578,7 +578,7 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
-  func openInterface(_ request: OpenInterfaceRequest) async throws -> InterfaceDetails? {
+  func openGeneratedInterface(_ request: OpenGeneratedInterfaceRequest) async throws -> GeneratedInterfaceDetails? {
     throw ResponseError.unknown("unsupported method")
   }
 
