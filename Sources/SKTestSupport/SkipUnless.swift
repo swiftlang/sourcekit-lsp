@@ -156,6 +156,31 @@ public actor SkipUnless {
     }
   }
 
+  /// Checks whether the sourcekitd contains a fix to rename labels of enum cases correctly
+  /// (https://github.com/apple/swift/pull/74241).
+  public static func sourcekitdCanRenameEnumCaseLabels(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+      let testClient = try await TestSourceKitLSPClient()
+      let uri = DocumentURI(for: .swift)
+      let positions = testClient.openDocument(
+        """
+        enum MyEnum {
+          case 1️⃣myCase(2️⃣String)
+        }
+        """,
+        uri: uri
+      )
+
+      let renameResult = try await testClient.send(
+        RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"], newName: "myCase(label:)")
+      )
+      return renameResult?.changes == [uri: [TextEdit(range: Range(positions["2️⃣"]), newText: "label: ")]]
+    }
+  }
+
   /// Whether clangd has support for the `workspace/indexedRename` request.
   public static func clangdSupportsIndexBasedRename(
     file: StaticString = #filePath,
