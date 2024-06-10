@@ -127,7 +127,7 @@ private func setProcessPriority(pid: Process.ProcessID, newPriority: TaskPriorit
   if !SetPriorityClass(handle, UInt32(newPriority.windowsProcessPriority)) {
     logger.error("Failed to set process priority of \(pid) to \(newPriority.rawValue): \(GetLastError())")
   }
-  #elseif canImport(Darwin)
+  #elseif canImport(Darwin) || canImport(Android)
   // `setpriority` is only able to decrease a process's priority and cannot elevate it. Since Swift task’s priorities
   // can only be elevated, this means that we can effectively only change a process's priority once, when it is created.
   // All subsequent calls to `setpriority` will fail. Because of this, don't log an error.
