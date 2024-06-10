@@ -127,7 +127,8 @@ public actor SwiftPMBuildSystem {
 
   private var modulesGraph: ModulesGraph
   private let workspace: Workspace
-  @_spi(Testing) public let buildParameters: BuildParameters
+  @_spi(Testing) public let toolsBuildParameters: BuildParameters
+  @_spi(Testing) public let destinationBuildParameters: BuildParameters
   private let fileSystem: FileSystem
   private let toolchain: SKCore.Toolchain
 
@@ -235,7 +236,18 @@ public actor SwiftPMBuildSystem {
       buildConfiguration = .release
     }
 
-    self.buildParameters = try BuildParameters(
+    self.toolsBuildParameters = try BuildParameters(
+      destination: .host,
+      dataPath: location.scratchDirectory.appending(
+        component: swiftPMToolchain.targetTriple.platformBuildPathComponent
+      ),
+      configuration: buildConfiguration,
+      toolchain: swiftPMToolchain,
+      flags: buildSetup.flags
+    )
+
+    self.destinationBuildParameters = try BuildParameters(
+      destination: .target,
       dataPath: location.scratchDirectory.appending(
         component: swiftPMToolchain.targetTriple.platformBuildPathComponent
       ),
@@ -313,12 +325,13 @@ extension SwiftPMBuildSystem {
     let modulesGraph = try self.workspace.loadPackageGraph(
       rootInput: PackageGraphRootInput(packages: [AbsolutePath(projectRoot)]),
       forceResolvedVersions: forceResolvedVersions,
-      availableLibraries: self.buildParameters.toolchain.providedLibraries,
+      availableLibraries: [],
       observabilityScope: observabilitySystem.topScope
     )
 
     let plan = try BuildPlan(
-      buildParameters: buildParameters,
+      productsBuildParameters: destinationBuildParameters,
+      toolsBuildParameters: toolsBuildParameters,
       graph: modulesGraph,
       fileSystem: fileSystem,
       observabilityScope: observabilitySystem.topScope
@@ -384,12 +397,12 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
   public nonisolated var supportsPreparation: Bool { true }
 
   public var buildPath: TSCAbsolutePath {
-    return TSCAbsolutePath(buildParameters.buildPath)
+    return TSCAbsolutePath(destinationBuildParameters.buildPath)
   }
 
   public var indexStorePath: TSCAbsolutePath? {
-    return buildParameters.indexStoreMode == .off
-      ? nil : TSCAbsolutePath(buildParameters.indexStore)
+    return destinationBuildParameters.indexStoreMode == .off
+      ? nil : TSCAbsolutePath(destinationBuildParameters.indexStore)
   }
 
   public var indexDatabasePath: TSCAbsolutePath? {
