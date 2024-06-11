@@ -1757,23 +1757,87 @@ extension SourceKitLSPServer {
         position: req.position
       )
     )
-    let locations = try await symbols.asyncMap { (symbol) -> [Location] in
-      if symbol.bestLocalDeclaration != nil && !(symbol.isDynamic ?? true)
-        && symbol.usr?.hasPrefix("s:") ?? false /* Swift symbols have USRs starting with s: */
+
+    let canonicalOriginatorLocation = await languageService.canonicalDeclarationPosition(
+      of: req.position,
+      in: req.textDocument.uri
+    )
+
+    // Returns `true` if `location` points to the same declaration that the definition request was initiated from.
+    @Sendable func isAtCanonicalOriginatorLocation(_ location: Location) async -> Bool {
+      guard location.uri == req.textDocument.uri, let canonicalOriginatorLocation else {
+        return false
+      }
+      return await languageService.canonicalDeclarationPosition(of: location.range.lowerBound, in: location.uri)
+        == canonicalOriginatorLocation
+    }
+
+    var locations = try await symbols.asyncMap { (symbol) -> [Location] in
+      var locations: [Location]
+      if let bestLocalDeclaration = symbol.bestLocalDeclaration,
+        !(symbol.isDynamic ?? true),
+        symbol.usr?.hasPrefix("s:") ?? false /* Swift symbols have USRs starting with s: */
       {
         // If we have a known non-dynamic symbol within Swift, we don't need to do an index lookup.
         // For non-Swift symbols, we need to perform an index lookup because the best local declaration will point to
-        // a header file but jump-to-definition should prefer the implementation (there's the declaration request to jump
-        // to the function's declaration).
-        return [symbol.bestLocalDeclaration].compactMap { $0 }
+        // a header file but jump-to-definition should prefer the implementation (there's the declaration request to
+        // jump to the function's declaration).
+        locations = [bestLocalDeclaration]
+      } else {
+        locations = try await self.definitionLocations(
+          for: symbol,
+          in: req.textDocument.uri,
+          languageService: languageService
+        )
       }
-      return try await self.definitionLocations(for: symbol, in: req.textDocument.uri, languageService: languageService)
+
+      // If the symbol's location is is where we initiated rename from, also show the declarations that the symbol
+      // overrides.
+      if let location = locations.only,
+        let usr = symbol.usr,
+        let index = workspace.index(checkedFor: .deletedFiles),
+        await isAtCanonicalOriginatorLocation(location)
+      {
+        let baseUSRs = index.occurrences(ofUSR: usr, roles: .overrideOf).flatMap {
+          $0.relations.filter { $0.roles.contains(.overrideOf) }.map(\.symbol.usr)
+        }
+        locations += baseUSRs.compactMap {
+          guard let baseDeclOccurrence = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: $0) else {
+            return nil
+          }
+          return indexToLSPLocation(baseDeclOccurrence.location)
+        }
+      }
+
+      return locations
     }.flatMap { $0 }
+
     // Remove any duplicate locations. We might end up with duplicate locations when performing a definition request
     // on eg. `MyStruct()` when no explicit initializer is declared. In this case we get two symbol infos, one for the
     // declaration of the `MyStruct` type and one for the initializer, which is implicit and thus has the location of
     // the `MyStruct` declaration itself.
-    return locations.unique
+    locations = locations.unique
+
+    // Try removing any results that would point back to the location we are currently at. This ensures that eg. in the
+    // following case we only show line 2 when performing jump-to-definition on `TestImpl.doThing`.
+    //
+    // ```
+    // protocol TestProtocol {
+    //   func doThing()
+    // }
+    // struct TestImpl: TestProtocol {
+    //   func doThing() { }
+    // }
+    // ```
+    //
+    // If this would result in no locations, don't apply the filter. This way, performing jump-to-definition in the
+    // middle of a function's base name takes us to the base name start, indicating that jump-to-definition was able to
+    // resolve the location and didn't fail.
+    let nonOriginatorLocations = await locations.asyncFilter { await !isAtCanonicalOriginatorLocation($0) }
+    if !nonOriginatorLocations.isEmpty {
+      locations = nonOriginatorLocations
+    }
+    return locations
   }
 
   func definition(

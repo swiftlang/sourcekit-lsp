@@ -318,6 +318,21 @@ extension SwiftLanguageService {
     await self.sourcekitd.removeNotificationHandler(self)
   }
 
+  public func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
+    guard let snapshot = try? documentManager.latestSnapshot(uri) else {
+      return nil
+    }
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    let decl = syntaxTree.token(at: snapshot.absolutePosition(of: position))?.findParentOfSelf(
+      ofType: DeclSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+    )
+    guard let decl else {
+      return nil
+    }
+    return snapshot.position(of: decl.positionAfterSkippingLeadingTrivia)
+  }
+
   /// Tell sourcekitd to crash itself. For testing purposes only.
   public func _crash() async {
     let req = sourcekitd.dictionary([

@@ -121,13 +121,13 @@ extension RemoveSeparatorsFromIntegerLiteral: SyntaxRefactoringCodeActionProvide
   }
 }
 
-extension Syntax {
+extension SyntaxProtocol {
   /// Finds the innermost parent of the given type while not walking outside of nodes that satisfy `stoppingIf`.
   func findParentOfSelf<ParentType: SyntaxProtocol>(
     ofType: ParentType.Type,
     stoppingIf: (Syntax) -> Bool
   ) -> ParentType? {
-    var node: Syntax? = self
+    var node: Syntax? = Syntax(self)
     while let unwrappedNode = node, !stoppingIf(unwrappedNode) {
       if let expectedType = unwrappedNode.as(ParentType.self) {
         return expectedType

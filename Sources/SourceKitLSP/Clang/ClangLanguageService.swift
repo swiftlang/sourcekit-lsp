@@ -338,6 +338,10 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     return try await clangd.send(request)
   }
 
+  public func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
+    return nil
+  }
+
   func _crash() {
     // Since `clangd` doesn't have a method to crash it, kill it.
     #if os(Windows)
