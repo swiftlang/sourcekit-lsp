@@ -549,7 +549,7 @@ extension SwiftLanguageService {
       } catch {
         logger.fault(
           """
-          failed to replace \(edit.range.lowerBound.utf8Offset):\(edit.range.upperBound.utf8Offset) by \
+          Failed to replace \(edit.range.lowerBound.utf8Offset):\(edit.range.upperBound.utf8Offset) by \
           '\(edit.replacement)' in sourcekitd
           """
         )
@@ -939,7 +939,7 @@ extension SwiftLanguageService {
       } else {
         reason = ""
       }
-      logger.error("client refused to apply edit for \(refactor.title, privacy: .public)!\(reason)")
+      logger.error("Client refused to apply edit for \(refactor.title, privacy: .public)!\(reason)")
     }
     return edit.encodeToLSPAny()
   }

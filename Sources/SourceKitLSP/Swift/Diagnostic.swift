@@ -32,7 +32,7 @@ extension CodeAction {
     }
 
     if !editsMapped {
-      logger.fault("failed to construct TextEdits from response \(fixits)")
+      logger.fault("Failed to construct TextEdits from response \(fixits)")
       return nil
     }
 
@@ -374,7 +374,7 @@ extension DiagnosticStage {
       self = .sema
     default:
       let desc = sourcekitd.api.uid_get_string_ptr(uid).map { String(cString: $0) }
-      logger.fault("unknown diagnostic stage \(desc ?? "nil", privacy: .public)")
+      logger.fault("Unknown diagnostic stage \(desc ?? "nil", privacy: .public)")
       return nil
     }
   }
