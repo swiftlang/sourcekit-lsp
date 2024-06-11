@@ -931,7 +931,7 @@ extension SourceKitLSPServer {
     do {
       try await buildSystem?.generateBuildGraph(allowFileSystemWrites: true)
     } catch {
-      logger.error("failed to generate build graph at \(workspaceFolder.uri.forLogging): \(error.forLogging)")
+      logger.error("Failed to generate build graph at \(workspaceFolder.uri.forLogging): \(error.forLogging)")
       return nil
     }
 
@@ -990,7 +990,7 @@ extension SourceKitLSPServer {
         case .some(.int(let maxResults)):
           self.options.completionOptions.maxResults = maxResults
         case .some(let invalid):
-          logger.error("expected null or int for 'maxResults'; got \(String(reflecting: invalid))")
+          logger.error("Expected null or int for 'maxResults'; got \(String(reflecting: invalid))")
         }
       }
     }
@@ -1018,7 +1018,7 @@ extension SourceKitLSPServer {
       }
 
       if self.workspaces.isEmpty {
-        logger.error("no workspace found")
+        logger.error("No workspace found")
 
         let workspace = await Workspace(
           documentManager: self.documentManager,
@@ -1278,7 +1278,7 @@ extension SourceKitLSPServer {
     let uri = notification.textDocument.uri
     guard let workspace = await workspaceForDocument(uri: uri) else {
       logger.error(
-        "received open notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
+        "Received open notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
       )
       return
     }
@@ -1310,7 +1310,7 @@ extension SourceKitLSPServer {
     let uri = notification.textDocument.uri
     guard let workspace = await workspaceForDocument(uri: uri) else {
       logger.error(
-        "received close notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
+        "Received close notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
       )
       return
     }
@@ -1321,7 +1321,7 @@ extension SourceKitLSPServer {
     let uri = notification.textDocument.uri
     guard let workspace = await workspaceForDocument(uri: uri) else {
       logger.error(
-        "received reopen notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
+        "Received reopen notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
       )
       return
     }
@@ -1345,7 +1345,7 @@ extension SourceKitLSPServer {
 
     guard let workspace = await workspaceForDocument(uri: uri) else {
       logger.error(
-        "received change notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
+        "Received change notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
       )
       return
     }
@@ -1597,7 +1597,7 @@ extension SourceKitLSPServer {
 
   func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
     guard let uri = req.textDocument?.uri else {
-      logger.error("attempted to perform executeCommand request without an url!")
+      logger.error("Attempted to perform executeCommand request without an URL")
       return nil
     }
     guard let workspace = await workspaceForDocument(uri: uri) else {
@@ -1704,7 +1704,7 @@ extension SourceKitLSPServer {
       }
     }
     guard let usr = symbol.usr else { return [] }
-    logger.info("performing indexed jump-to-def with usr \(usr)")
+    logger.info("Performing indexed jump-to-definition with USR \(usr)")
     var occurrences = index.definitionOrDeclarationOccurrences(ofUSR: usr)
     if symbol.isDynamic ?? true {
       lazy var transitiveReceiverUsrs: [String]? = {

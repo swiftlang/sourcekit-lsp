@@ -118,7 +118,7 @@ public actor BuildServerBuildSystem: MessageHandler {
       // config file was missing, no build server for this workspace
       return nil
     } catch {
-      logger.fault("failed to start build server: \(error.forLogging)")
+      logger.fault("Failed to start build server: \(error.forLogging)")
       return nil
     }
   }
@@ -127,7 +127,7 @@ public actor BuildServerBuildSystem: MessageHandler {
     if let buildServer = self.buildServer {
       _ = buildServer.send(ShutdownBuild()) { result in
         if let error = result.failure {
-          logger.fault("error shutting down build server: \(error.forLogging)")
+          logger.fault("Error shutting down build server: \(error.forLogging)")
         }
         buildServer.send(ExitBuildNotification())
         buildServer.close()
@@ -175,7 +175,7 @@ public actor BuildServerBuildSystem: MessageHandler {
     let buildServer = try makeJSONRPCBuildServer(client: self, serverPath: serverPath, serverFlags: flags)
     let response = try await buildServer.send(initializeRequest)
     buildServer.send(InitializedBuildNotification())
-    logger.log("initialized build server \(response.displayName)")
+    logger.log("Initialized build server \(response.displayName)")
 
     // see if index store was set as part of the server metadata
     if let indexDbPath = readReponseDataKey(data: response.data, key: "indexDatabasePath") {
@@ -307,7 +307,7 @@ extension BuildServerBuildSystem: BuildSystem {
     let request = RegisterForChanges(uri: uri, action: .register)
     _ = self.buildServer?.send(request) { result in
       if let error = result.failure {
-        logger.error("error registering \(uri): \(error.forLogging)")
+        logger.error("Error registering \(uri): \(error.forLogging)")
 
         Task {
           // BuildServer registration failed, so tell our delegate that no build
@@ -324,7 +324,7 @@ extension BuildServerBuildSystem: BuildSystem {
     let request = RegisterForChanges(uri: uri, action: .unregister)
     _ = self.buildServer?.send(request) { result in
       if let error = result.failure {
-        logger.error("error unregistering \(uri.forLogging): \(error.forLogging)")
+        logger.error("Error unregistering \(uri.forLogging): \(error.forLogging)")
       }
     }
   }
@@ -416,7 +416,7 @@ private func makeJSONRPCBuildServer(
   process.terminationHandler = { process in
     logger.log(
       level: process.terminationReason == .exit ? .default : .error,
-      "build server exited: \(String(reflecting: process.terminationReason)) \(process.terminationStatus)"
+      "Build server exited: \(String(reflecting: process.terminationReason)) \(process.terminationStatus)"
     )
     connection.close()
   }

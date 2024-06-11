@@ -118,14 +118,14 @@ extension Process {
 private func setProcessPriority(pid: Process.ProcessID, newPriority: TaskPriority) {
   #if os(Windows)
   guard let handle = OpenProcess(UInt32(PROCESS_SET_INFORMATION), /*bInheritHandle*/ false, UInt32(pid)) else {
-    logger.error("Failed to get process handle for \(pid) to change its priority: \(GetLastError())")
+    logger.fault("Failed to get process handle for \(pid) to change its priority: \(GetLastError())")
     return
   }
   defer {
     CloseHandle(handle)
   }
   if !SetPriorityClass(handle, UInt32(newPriority.windowsProcessPriority)) {
-    logger.error("Failed to set process priority of \(pid) to \(newPriority.rawValue): \(GetLastError())")
+    logger.fault("Failed to set process priority of \(pid) to \(newPriority.rawValue): \(GetLastError())")
   }
   #elseif canImport(Darwin) || canImport(Android)
   // `setpriority` is only able to decrease a process's priority and cannot elevate it. Since Swift task’s priorities

@@ -181,9 +181,9 @@ public final class Workspace: Sendable {
           listenToUnitEvents: indexOptions.listenToUnitEvents,
           prefixMappings: prefixMappings.map { PathMapping(original: $0.original, replacement: $0.replacement) }
         )
-        logger.debug("opened IndexStoreDB at \(dbPath) with store path \(storePath)")
+        logger.debug("Opened IndexStoreDB at \(dbPath) with store path \(storePath)")
       } catch {
-        logger.error("failed to open IndexStoreDB: \(error.localizedDescription)")
+        logger.error("Failed to open IndexStoreDB: \(error.localizedDescription)")
       }
     }
 

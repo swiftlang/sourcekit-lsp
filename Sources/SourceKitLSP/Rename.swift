@@ -537,7 +537,7 @@ extension SourceKitLSPServer {
   ) async throws -> CrossLanguageName? {
     let definitions = index.occurrences(ofUSR: usr, roles: [.definition])
     if definitions.isEmpty {
-      logger.error("no definitions for \(usr) found")
+      logger.error("No definitions for \(usr) found")
       return nil
     }
     if definitions.count > 1 {

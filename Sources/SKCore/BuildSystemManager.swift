@@ -265,7 +265,7 @@ extension BuildSystemManager {
 
   public func unregisterForChangeNotifications(for uri: DocumentURI) async {
     guard let mainFile = self.watchedFiles[uri]?.mainFile else {
-      logger.error("Unbalanced calls for registerForChangeNotifications and unregisterForChangeNotifications")
+      logger.fault("Unbalanced calls for registerForChangeNotifications and unregisterForChangeNotifications")
       return
     }
     self.watchedFiles[uri] = nil
