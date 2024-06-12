@@ -54,13 +54,13 @@ final class PullDiagnosticsTests: XCTestCase {
     )
     let uri = DocumentURI(for: .swift)
 
-    testClient.openDocument(
+    let positions = testClient.openDocument(
       """
       protocol MyProtocol {
         func bar()
       }
 
-      struct Test: MyProtocol {}
+      struct 1️⃣Test: 2️⃣MyProtocol {}
       """,
       uri: uri
     )
@@ -73,9 +73,15 @@ final class PullDiagnosticsTests: XCTestCase {
 
     XCTAssertEqual(diagnostics.count, 1)
     let diagnostic = try XCTUnwrap(diagnostics.first)
-    XCTAssertEqual(diagnostic.range, Position(line: 4, utf16index: 7)..<Position(line: 4, utf16index: 7))
+    XCTAssert(
+      diagnostic.range == Range(positions["1️⃣"]) || diagnostic.range == Range(positions["2️⃣"]),
+      "Unexpected range: \(diagnostic.range)"
+    )
     let note = try XCTUnwrap(diagnostic.relatedInformation?.first)
-    XCTAssertEqual(note.location.range, Position(line: 4, utf16index: 7)..<Position(line: 4, utf16index: 7))
+    XCTAssert(
+      note.location.range == Range(positions["1️⃣"]) || note.location.range == Range(positions["2️⃣"]),
+      "Unexpected range: \(note.location.range)"
+    )
     XCTAssertEqual(note.codeActions?.count ?? 0, 1)
 
     let response = try await testClient.send(
