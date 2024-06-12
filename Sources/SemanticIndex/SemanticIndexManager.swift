@@ -98,10 +98,6 @@ public enum IndexProgressStatus {
 
 /// See `SemanticIndexManager.inProgressPrepareForEditorTask`.
 fileprivate struct InProgressPrepareForEditorTask {
-  fileprivate enum State {
-    case determiningCanonicalConfiguredTarget
-    case preparingTarget
-  }
   /// A unique ID that identifies the preparation task and is used to set
   /// `SemanticIndexManager.inProgressPrepareForEditorTask` to `nil`  when the current in progress task finishes.
   let id: UUID
@@ -111,9 +107,21 @@ fileprivate struct InProgressPrepareForEditorTask {
 
   /// The task that prepares the document. Should never be awaited and only be used to cancel the task.
   let task: Task<Void, Never>
+}
 
-  /// Whether the task is currently determining the file's target or actually preparing the document.
-  var state: State
+/// The reason why a target is being prepared. This is used to determine the `IndexProgressStatus`.
+fileprivate enum TargetPreparationPurpose: Comparable {
+  /// We are preparing the target so we can index files in it.
+  case forIndexing
+
+  /// We are preparing the target to provide semantic functionality in one of its files.
+  case forEditorFunctionality
+}
+
+/// An entry in `SemanticIndexManager.inProgressPreparationTasks`.
+fileprivate struct InProgressPreparationTask {
+  let task: OpaqueQueuedIndexTask
+  let purpose: TargetPreparationPurpose
 }
 
 /// Schedules index tasks and keeps track of the index status of files.
@@ -139,7 +147,7 @@ public final actor SemanticIndexManager {
   /// executing.
   ///
   /// After a preparation task finishes, it is removed from this dictionary.
-  private var inProgressPreparationTasks: [ConfiguredTarget: OpaqueQueuedIndexTask] = [:]
+  private var inProgressPreparationTasks: [ConfiguredTarget: InProgressPreparationTask] = [:]
 
   /// The files that are currently being index, either waiting for their target to be prepared, waiting for the index
   /// store update task to be scheduled in the task scheduler or which currently have an index store update running.
@@ -175,14 +183,14 @@ public final actor SemanticIndexManager {
 
   /// A summary of the tasks that this `SemanticIndexManager` has currently scheduled or is currently indexing.
   public var progressStatus: IndexProgressStatus {
-    if let inProgressPrepareForEditorTask, inProgressPrepareForEditorTask.state == .preparingTarget {
+    if inProgressPreparationTasks.values.contains(where: { $0.purpose == .forEditorFunctionality }) {
       return .preparingFileForEditorFunctionality
     }
     if generateBuildGraphTask != nil {
       return .generatingBuildGraph
     }
-    let preparationTasks = inProgressPreparationTasks.mapValues { queuedTask in
-      return queuedTask.isExecuting ? IndexTaskStatus.executing : IndexTaskStatus.scheduled
+    let preparationTasks = inProgressPreparationTasks.mapValues { inProgressTask in
+      return inProgressTask.task.isExecuting ? IndexTaskStatus.executing : IndexTaskStatus.scheduled
     }
     let indexTasks = inProgressIndexTasks.mapValues { status in
       switch status {
@@ -385,38 +393,18 @@ public final actor SemanticIndexManager {
     let id = UUID()
     let task = Task(priority: priority) {
       await withLoggingScope("preparation") {
-        defer {
-          if inProgressPrepareForEditorTask?.id == id {
-            inProgressPrepareForEditorTask = nil
-            self.indexProgressStatusDidChange()
-          }
-        }
-        // Should be kept in sync with `prepareFileForEditorFunctionality`
-        guard let target = await buildSystemManager.canonicalConfiguredTarget(for: uri) else {
-          return
-        }
-        if Task.isCancelled {
-          return
-        }
-        if await preparationUpToDateTracker.isUpToDate(target) {
-          // If the target is up-to-date, there is nothing to prepare.
-          return
-        }
+        await prepareFileForEditorFunctionality(uri)
         if inProgressPrepareForEditorTask?.id == id {
-          if inProgressPrepareForEditorTask?.state != .determiningCanonicalConfiguredTarget {
-            logger.fault("inProgressPrepareForEditorTask is in unexpected state")
-          }
-          inProgressPrepareForEditorTask?.state = .preparingTarget
+          inProgressPrepareForEditorTask = nil
+          self.indexProgressStatusDidChange()
         }
-        await self.prepare(targets: [target], priority: nil)
       }
     }
     inProgressPrepareForEditorTask?.task.cancel()
     inProgressPrepareForEditorTask = InProgressPrepareForEditorTask(
       id: id,
       document: uri,
-      task: task,
-      state: .determiningCanonicalConfiguredTarget
+      task: task
     )
     self.indexProgressStatusDidChange()
   }
@@ -426,20 +414,22 @@ public final actor SemanticIndexManager {
   ///
   /// If file's target is known to be up-to-date, this returns almost immediately.
   public func prepareFileForEditorFunctionality(_ uri: DocumentURI) async {
-    // Should be kept in sync with `schedulePreparationForEditorFunctionality`.
     guard let target = await buildSystemManager.canonicalConfiguredTarget(for: uri) else {
       return
     }
     if Task.isCancelled {
       return
     }
-    await self.prepare(targets: [target], priority: nil)
+    if await preparationUpToDateTracker.isUpToDate(target) {
+      // If the target is up-to-date, there is nothing to prepare.
+      return
+    }
+    await self.prepare(targets: [target], purpose: .forEditorFunctionality, priority: nil)
   }
 
   // MARK: - Helper functions
 
-  /// Prepare the given targets for indexing.
-  private func prepare(targets: [ConfiguredTarget], priority: TaskPriority?) async {
+  private func prepare(targets: [ConfiguredTarget], purpose: TargetPreparationPurpose, priority: TaskPriority?) async {
     // Perform a quick initial check whether the target is up-to-date, in which case we don't need to schedule a
     // preparation operation at all.
     // We will check the up-to-date status again in `PreparationTaskDescription.execute`. This ensures that if we
@@ -471,14 +461,25 @@ public final actor SemanticIndexManager {
         return
       }
       for target in targetsToPrepare {
-        if self.inProgressPreparationTasks[target] == OpaqueQueuedIndexTask(task) {
+        if self.inProgressPreparationTasks[target]?.task == OpaqueQueuedIndexTask(task) {
           self.inProgressPreparationTasks[target] = nil
         }
       }
       self.indexProgressStatusDidChange()
     }
     for target in targetsToPrepare {
-      inProgressPreparationTasks[target] = OpaqueQueuedIndexTask(preparationTask)
+      // If we are preparing the same target for indexing and editor functionality, pick editor functionality as the
+      // purpose because it is more significant.
+      let mergedPurpose =
+        if let existingPurpose = inProgressPreparationTasks[target]?.purpose {
+          max(existingPurpose, purpose)
+        } else {
+          purpose
+        }
+      inProgressPreparationTasks[target] = InProgressPreparationTask(
+        task: OpaqueQueuedIndexTask(preparationTask),
+        purpose: mergedPurpose
+      )
     }
     await withTaskCancellationHandler {
       return await preparationTask.waitToFinish()
@@ -603,7 +604,7 @@ public final actor SemanticIndexManager {
       let preparationTaskID = UUID()
       let indexTask = Task(priority: priority) {
         // First prepare the targets.
-        await prepare(targets: targetsBatch, priority: priority)
+        await prepare(targets: targetsBatch, purpose: .forIndexing, priority: priority)
 
         // And after preparation is done, index the files in the targets.
         await withTaskGroup(of: Void.self) { taskGroup in
