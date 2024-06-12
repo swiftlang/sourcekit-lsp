@@ -14,6 +14,7 @@ import LSPTestSupport
 import LanguageServerProtocol
 import SKCore
 import SKTestSupport
+@_spi(Testing) import SourceKitLSP
 import XCTest
 
 final class LocalClangTests: XCTestCase {
@@ -341,7 +342,7 @@ final class LocalClangTests: XCTestCase {
     struct MyObject * newObject();
     """.write(to: headerUri.fileURL!, atomically: false, encoding: .utf8)
 
-    let clangdServer = await project.testClient.server._languageService(
+    let clangdServer = await project.testClient.server.languageService(
       for: mainUri,
       .c,
       in: project.testClient.server.workspaceForDocument(uri: mainUri)!

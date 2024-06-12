@@ -417,8 +417,10 @@ extension BuildSystemManager {
 
 extension BuildSystemManager {
 
-  /// *For Testing* Returns the main file used for `uri`, if this is a registered file.
-  public func _cachedMainFile(for uri: DocumentURI) -> DocumentURI? {
+  /// Returns the main file used for `uri`, if this is a registered file.
+  ///
+  /// For testing purposes only.
+  @_spi(Testing) public func cachedMainFile(for uri: DocumentURI) -> DocumentURI? {
     return self.watchedFiles[uri]?.mainFile
   }
 }

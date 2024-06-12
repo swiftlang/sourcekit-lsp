@@ -15,7 +15,7 @@ import LSPTestSupport
 import LanguageServerProtocol
 import SKCore
 import SKTestSupport
-import SourceKitLSP
+@_spi(Testing) import SourceKitLSP
 import SwiftExtensions
 import SwiftParser
 import SwiftSyntax
@@ -38,7 +38,7 @@ final class LocalSwiftTests: XCTestCase {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let uri = DocumentURI(for: .swift)
 
-    let documentManager = await testClient.server._documentManager
+    let documentManager = await testClient.server.documentManager
 
     testClient.openDocument("func", uri: uri, version: 12)
 
@@ -161,7 +161,7 @@ final class LocalSwiftTests: XCTestCase {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let uri = try DocumentURI(string: "urn:uuid:A1B08909-E791-469E-BF0F-F5790977E051")
 
-    let documentManager = await testClient.server._documentManager
+    let documentManager = await testClient.server.documentManager
 
     testClient.openDocument("func", uri: uri, language: .swift)
 
@@ -1355,7 +1355,7 @@ final class LocalSwiftTests: XCTestCase {
     let reusedNodeCallback = self.expectation(description: "reused node callback called")
     let reusedNodes = ThreadSafeBox<[Syntax]>(initialValue: [])
     let swiftLanguageService =
-      await testClient.server._languageService(for: uri, .swift, in: testClient.server.workspaceForDocument(uri: uri)!)
+      await testClient.server.languageService(for: uri, .swift, in: testClient.server.workspaceForDocument(uri: uri)!)
       as! SwiftLanguageService
     await swiftLanguageService.setReusedNodeCallback {
       reusedNodes.value.append($0)

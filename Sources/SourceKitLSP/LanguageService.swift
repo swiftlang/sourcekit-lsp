@@ -237,5 +237,5 @@ public protocol LanguageService: AnyObject, Sendable {
   func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position?
 
   /// Crash the language server. Should be used for crash recovery testing only.
-  func _crash() async
+  func crash() async
 }

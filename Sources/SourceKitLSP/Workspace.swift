@@ -84,7 +84,7 @@ public final class Workspace: Sendable {
   /// `nil` if background indexing is not enabled.
   let semanticIndexManager: SemanticIndexManager?
 
-  public init(
+  init(
     documentManager: DocumentManager,
     rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
@@ -147,7 +147,7 @@ public final class Workspace: Sendable {
   ///   - url: The root directory of the workspace, which must be a valid path.
   ///   - clientCapabilities: The client capabilities provided during server initialization.
   ///   - toolchainRegistry: The toolchain registry.
-  convenience public init(
+  convenience init(
     documentManager: DocumentManager,
     rootUri: DocumentURI,
     capabilityRegistry: CapabilityRegistry,
@@ -200,6 +200,28 @@ public final class Workspace: Sendable {
       logMessageToIndexLog: logMessageToIndexLog,
       indexTasksWereScheduled: indexTasksWereScheduled,
       indexProgressStatusDidChange: indexProgressStatusDidChange
+    )
+  }
+
+  @_spi(Testing) public static func forTesting(
+    toolchainRegistry: ToolchainRegistry,
+    options: SourceKitLSPServer.Options,
+    underlyingBuildSystem: BuildSystem,
+    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
+  ) async -> Workspace {
+    return await Workspace(
+      documentManager: DocumentManager(),
+      rootUri: nil,
+      capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
+      toolchainRegistry: toolchainRegistry,
+      options: options,
+      underlyingBuildSystem: underlyingBuildSystem,
+      index: nil,
+      indexDelegate: nil,
+      indexTaskScheduler: indexTaskScheduler,
+      logMessageToIndexLog: { _, _ in },
+      indexTasksWereScheduled: { _ in },
+      indexProgressStatusDidChange: {}
     )
   }
 

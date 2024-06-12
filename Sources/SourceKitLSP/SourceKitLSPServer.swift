@@ -112,7 +112,7 @@ public actor SourceKitLSPServer {
 
   var languageServices: [LanguageServerType: [LanguageService]] = [:]
 
-  let documentManager = DocumentManager()
+  @_spi(Testing) public let documentManager = DocumentManager()
 
   /// The `TaskScheduler` that schedules all background indexing tasks.
   ///
@@ -130,11 +130,6 @@ public actor SourceKitLSPServer {
   /// `packageLoadingWorkDoneProgress` is created to show a work done progress indicator in the client.
   private var inProgressPackageLoadingOperations = 0
   private var packageLoadingWorkDoneProgress: WorkDoneProgressManager?
-
-  /// **Public for testing**
-  public var _documentManager: DocumentManager {
-    return documentManager
-  }
 
   /// Caches which workspace a document with the given URI should be opened in.
   ///
@@ -495,16 +490,7 @@ public actor SourceKitLSPServer {
     }
   }
 
-  /// **Public for testing purposes only**
-  public func _languageService(
-    for uri: DocumentURI,
-    _ language: Language,
-    in workspace: Workspace
-  ) async -> LanguageService? {
-    return await languageService(for: uri, language, in: workspace)
-  }
-
-  func languageService(
+  @_spi(Testing) public func languageService(
     for uri: DocumentURI,
     _ language: Language,
     in workspace: Workspace

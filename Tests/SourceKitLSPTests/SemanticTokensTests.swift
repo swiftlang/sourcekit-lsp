@@ -14,7 +14,7 @@ import LSPTestSupport
 import LanguageServerProtocol
 import SKTestSupport
 import SourceKitD
-import SourceKitLSP
+@_spi(Testing) import SourceKitLSP
 import XCTest
 
 private typealias Token = SyntaxHighlightingToken
@@ -206,14 +206,14 @@ final class SemanticTokensTests: XCTestCase {
       """
     openDocument(text: text)
 
-    let snapshot = try await testClient.server._documentManager.latestSnapshot(uri)
+    let snapshot = try await testClient.server.documentManager.latestSnapshot(uri)
 
     let empty = Position(line: 0, utf16index: 1)..<Position(line: 0, utf16index: 1)
-    XCTAssertEqual(empty._splitToSingleLineRanges(in: snapshot), [])
+    XCTAssertEqual(empty.splitToSingleLineRanges(in: snapshot), [])
 
     let multiLine = Position(line: 1, utf16index: 6)..<Position(line: 2, utf16index: 7)
     XCTAssertEqual(
-      multiLine._splitToSingleLineRanges(in: snapshot),
+      multiLine.splitToSingleLineRanges(in: snapshot),
       [
         Position(line: 1, utf16index: 6)..<Position(line: 1, utf16index: 12),
         Position(line: 2, utf16index: 0)..<Position(line: 2, utf16index: 7),
@@ -222,7 +222,7 @@ final class SemanticTokensTests: XCTestCase {
 
     let emptyLines = Position(line: 2, utf16index: 14)..<Position(line: 5, utf16index: 1)
     XCTAssertEqual(
-      emptyLines._splitToSingleLineRanges(in: snapshot),
+      emptyLines.splitToSingleLineRanges(in: snapshot),
       [
         Position(line: 2, utf16index: 14)..<Position(line: 2, utf16index: 15),
         Position(line: 5, utf16index: 0)..<Position(line: 5, utf16index: 1),

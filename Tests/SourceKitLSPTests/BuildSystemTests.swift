@@ -135,19 +135,11 @@ final class BuildSystemTests: XCTestCase {
 
     let server = testClient.server
 
-    self.workspace = await Workspace(
-      documentManager: DocumentManager(),
-      rootUri: nil,
-      capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
+    self.workspace = await Workspace.forTesting(
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPServer.Options.testDefault,
       underlyingBuildSystem: buildSystem,
-      index: nil,
-      indexDelegate: nil,
-      indexTaskScheduler: .forTesting,
-      logMessageToIndexLog: { _, _ in },
-      indexTasksWereScheduled: { _ in },
-      indexProgressStatusDidChange: {}
+      indexTaskScheduler: .forTesting
     )
 
     await server.setWorkspaces([(workspace: workspace, isImplicit: false)])
@@ -180,7 +172,7 @@ final class BuildSystemTests: XCTestCase {
 
     await buildSystem.setBuildSettings(for: doc, to: FileBuildSettings(compilerArguments: args))
 
-    let documentManager = await self.testClient.server._documentManager
+    let documentManager = await self.testClient.server.documentManager
 
     testClient.openDocument(text, uri: doc)
 
@@ -222,7 +214,7 @@ final class BuildSystemTests: XCTestCase {
       foo()
       """
 
-    let documentManager = await self.testClient.server._documentManager
+    let documentManager = await self.testClient.server.documentManager
 
     testClient.openDocument(text, uri: doc)
     let diags1 = try await testClient.nextDiagnosticsNotification()
@@ -255,7 +247,7 @@ final class BuildSystemTests: XCTestCase {
         }
       """
 
-    let documentManager = await self.testClient.server._documentManager
+    let documentManager = await self.testClient.server.documentManager
 
     testClient.openDocument(text, uri: doc)
     let openDiags = try await testClient.nextDiagnosticsNotification()
@@ -292,7 +284,7 @@ final class BuildSystemTests: XCTestCase {
         func
       """
 
-    let documentManager = await self.testClient.server._documentManager
+    let documentManager = await self.testClient.server.documentManager
 
     testClient.openDocument(text, uri: doc)
     _ = try await testClient.nextNotification(ofType: ShowMessageNotification.self)
