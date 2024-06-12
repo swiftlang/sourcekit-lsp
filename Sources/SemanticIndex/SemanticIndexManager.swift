@@ -411,7 +411,10 @@ public final actor SemanticIndexManager {
         await self.prepare(targets: [target], priority: nil)
       }
     }
-    inProgressPrepareForEditorTask?.task.cancel()
+    if let inProgressPrepareForEditorTask {
+      logger.debug("Cancelling preparation of \(inProgressPrepareForEditorTask.document) because \(uri) was opened")
+      inProgressPrepareForEditorTask.task.cancel()
+    }
     inProgressPrepareForEditorTask = InProgressPrepareForEditorTask(
       id: id,
       document: uri,
