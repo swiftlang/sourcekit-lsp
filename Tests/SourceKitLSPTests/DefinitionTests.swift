@@ -601,4 +601,28 @@ class DefinitionTests: XCTestCase {
       ])
     )
   }
+
+  func testJumpToSatisfiedProtocolRequirementInExtension() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      protocol TestProtocol {
+        func 1️⃣doThing()
+      }
+
+      struct TestImpl: TestProtocol {}
+      extension TestImpl {
+        func 2️⃣doThing() { }
+      }
+      """
+    )
+
+    let response = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["1️⃣"])
+    )
+    guard case .locations(let locations) = response else {
+      XCTFail("Expected locations response")
+      return
+    }
+    XCTAssertEqual(locations, [Location(uri: project.fileURI, range: Range(project.positions["2️⃣"]))])
+  }
 }

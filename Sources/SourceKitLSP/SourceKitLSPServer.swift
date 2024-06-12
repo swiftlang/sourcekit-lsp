@@ -1717,9 +1717,12 @@ extension SourceKitLSPServer {
         }
       }()
       occurrences += occurrences.flatMap {
-        let overrides = index.occurrences(relatedToUSR: $0.symbol.usr, roles: .overrideOf)
-        // Only contain overrides that are children of one of the receiver types or their subtypes.
-        return overrides.filter { override in
+        let overriddenUsrs = index.occurrences(relatedToUSR: $0.symbol.usr, roles: .overrideOf).map(\.symbol.usr)
+        let overriddenSymbolDefinitions = overriddenUsrs.compactMap {
+          index.primaryDefinitionOrDeclarationOccurrence(ofUSR: $0)
+        }
+        // Only contain overrides that are children of one of the receiver types or their subtypes or extensions.
+        return overriddenSymbolDefinitions.filter { override in
           override.relations.contains(where: {
             guard $0.roles.contains(.childOf) else {
               return false
@@ -2473,13 +2476,13 @@ fileprivate struct DocumentNotificationRequestQueue {
   }
 }
 
-/// Returns the USRs of the subtypes of `usrs` as well as their subtypes, transitively.
+/// Returns the USRs of the subtypes of `usrs` as well as their subtypes and extensions, transitively.
 fileprivate func transitiveSubtypeClosure(ofUsrs usrs: [String], index: CheckedIndex) -> [String] {
   var result: [String] = []
   for usr in usrs {
     result.append(usr)
-    let directSubtypes = index.occurrences(ofUSR: usr, roles: .baseOf).flatMap { occurrence in
-      occurrence.relations.filter { $0.roles.contains(.baseOf) }.map(\.symbol.usr)
+    let directSubtypes = index.occurrences(ofUSR: usr, roles: [.baseOf, .extendedBy]).flatMap { occurrence in
+      occurrence.relations.filter { $0.roles.contains(.baseOf) || $0.roles.contains(.extendedBy) }.map(\.symbol.usr)
     }
     let transitiveSubtypes = transitiveSubtypeClosure(ofUsrs: directSubtypes, index: index)
     result += transitiveSubtypes
