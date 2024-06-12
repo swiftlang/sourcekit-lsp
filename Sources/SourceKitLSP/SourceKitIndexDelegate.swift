@@ -18,9 +18,7 @@ import SKSupport
 import SwiftExtensions
 
 /// `IndexDelegate` for the SourceKit workspace.
-///
-/// *Public for testing*.
-public actor SourceKitIndexDelegate: IndexDelegate {
+actor SourceKitIndexDelegate: IndexDelegate {
 
   let queue = AsyncQueue<Serial>()
 

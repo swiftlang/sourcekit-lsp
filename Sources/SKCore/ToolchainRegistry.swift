@@ -71,7 +71,7 @@ public final actor ToolchainRegistry {
 
   /// Create a toolchain registry with a pre-defined list of toolchains.
   ///
-  /// For testing purposes.
+  /// For testing purposes only.
   @_spi(Testing)
   public init(toolchains: [Toolchain]) {
     self.init(

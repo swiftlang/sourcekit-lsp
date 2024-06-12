@@ -17,7 +17,7 @@ import LanguageServerProtocol
 import SKSupport
 import SKTestSupport
 import SourceKitD
-import SourceKitLSP
+@_spi(Testing) import SourceKitLSP
 import SwiftExtensions
 import XCTest
 
@@ -83,13 +83,13 @@ final class CrashRecoveryTests: XCTestCase {
     // Crash sourcekitd
 
     let swiftLanguageService =
-      await testClient.server._languageService(
+      await testClient.server.languageService(
         for: uri,
         .swift,
         in: testClient.server.workspaceForDocument(uri: uri)!
       ) as! SwiftLanguageService
 
-    await swiftLanguageService._crash()
+    await swiftLanguageService.crash()
 
     let crashedNotification = try await testClient.nextNotification(ofType: WorkDoneProgress.self, timeout: .seconds(5))
     XCTAssertEqual(
@@ -121,7 +121,7 @@ final class CrashRecoveryTests: XCTestCase {
   }
 
   private func crashClangd(for testClient: TestSourceKitLSPClient, document docUri: DocumentURI) async throws {
-    let clangdServer = await testClient.server._languageService(
+    let clangdServer = await testClient.server.languageService(
       for: docUri,
       .cpp,
       in: testClient.server.workspaceForDocument(uri: docUri)!
@@ -141,7 +141,7 @@ final class CrashRecoveryTests: XCTestCase {
       }
     }
 
-    await clangdServer._crash()
+    await clangdServer.crash()
 
     try await fulfillmentOfOrThrow([clangdCrashed])
     try await fulfillmentOfOrThrow([clangdRestarted])
@@ -268,7 +268,7 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Keep track of clangd crashes
 
-    let clangdServer = await testClient.server._languageService(
+    let clangdServer = await testClient.server.languageService(
       for: uri,
       .cpp,
       in: testClient.server.workspaceForDocument(uri: uri)!
@@ -300,7 +300,7 @@ final class CrashRecoveryTests: XCTestCase {
       }
     }
 
-    await clangdServer._crash()
+    await clangdServer.crash()
 
     try await fulfillmentOfOrThrow([clangdCrashed], timeout: 5)
     try await fulfillmentOfOrThrow([clangdRestartedFirstTime], timeout: 30)
@@ -308,7 +308,7 @@ final class CrashRecoveryTests: XCTestCase {
     let firstRestartDate = Date()
 
     // Crash clangd again. This time, it should only restart after a delay.
-    await clangdServer._crash()
+    await clangdServer.crash()
 
     try await fulfillmentOfOrThrow([clangdRestartedSecondTime], timeout: 30)
     XCTAssert(

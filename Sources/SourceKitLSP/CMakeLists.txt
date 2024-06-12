@@ -19,7 +19,6 @@ add_library(SourceKitLSP STATIC
   TestDiscovery.swift
   TextEdit+IsNoop.swift
   WorkDoneProgressManager.swift
-  WorkDoneProgressState.swift
   Workspace.swift
 )
 target_sources(SourceKitLSP PRIVATE

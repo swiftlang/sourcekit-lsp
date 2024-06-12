@@ -41,8 +41,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   public typealias RequestHandler<Request: RequestType> = @Sendable (Request) -> Request.Response
 
   /// The ID that should be assigned to the next request sent to the `server`.
-  /// `nonisolated(unsafe)` is fine because `nextRequestID` is atomic.
-  private nonisolated(unsafe) var nextRequestID = AtomicUInt32(initialValue: 0)
+  private let nextRequestID = AtomicUInt32(initialValue: 0)
 
   /// The server that handles the requests.
   public let server: SourceKitLSPServer
@@ -70,7 +69,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///
   /// `isOneShort` if the request handler should only serve a single request and should be removed from
   /// `requestHandlers` after it has been called.
-  private nonisolated(unsafe) var requestHandlers: ThreadSafeBox<[(requestHandler: Sendable, isOneShot: Bool)]> =
+  private let requestHandlers: ThreadSafeBox<[(requestHandler: Sendable, isOneShot: Bool)]> =
     ThreadSafeBox(initialValue: [])
 
   /// A closure that is called when the `TestSourceKitLSPClient` is destructed.

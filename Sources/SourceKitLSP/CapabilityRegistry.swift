@@ -141,7 +141,7 @@ public final actor CapabilityRegistry {
   ) async {
     if let registration = registration(for: languages, in: registrationDict) {
       if options != registration {
-        logger.error(
+        logger.fault(
           """
           Failed to dynamically register for \(method, privacy: .public) for \(languages, privacy: .public) \
           due to pre-existing options:
@@ -200,7 +200,7 @@ public final actor CapabilityRegistry {
     guard clientHasDynamicDidChangeWatchedFilesRegistration else { return }
     if let registration = didChangeWatchedFiles {
       if watchers != registration.watchers {
-        logger.error(
+        logger.fault(
           "Unable to register new file system watchers \(watchers) due to pre-existing options \(registration.watchers)"
         )
       }

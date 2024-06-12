@@ -105,7 +105,9 @@ extension XCToolchainPlist: Codable {
     self.displayName = try container.decodeIfPresent(String.self, forKey: .DisplayName)
   }
 
-  /// Encode the info plist. **For testing**.
+  /// Encode the info plist.
+  ///
+  /// For testing purposes only.
   public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     if identifier.starts(with: "com.apple") {

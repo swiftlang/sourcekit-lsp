@@ -16,8 +16,8 @@ import CAtomics
 #warning("We should be able to use atomics in the stdlib when we raise the deployment target to require Swift 6")
 #endif
 
-public class AtomicBool {
-  private let atomic: UnsafeMutablePointer<CAtomicUInt32>
+public final class AtomicBool: Sendable {
+  private nonisolated(unsafe) let atomic: UnsafeMutablePointer<CAtomicUInt32>
 
   public init(initialValue: Bool) {
     self.atomic = atomic_uint32_create(initialValue ? 1 : 0)
@@ -37,8 +37,8 @@ public class AtomicBool {
   }
 }
 
-public class AtomicUInt8 {
-  private let atomic: UnsafeMutablePointer<CAtomicUInt32>
+public final class AtomicUInt8: Sendable {
+  private nonisolated(unsafe) let atomic: UnsafeMutablePointer<CAtomicUInt32>
 
   public init(initialValue: UInt8) {
     self.atomic = atomic_uint32_create(UInt32(initialValue))
@@ -58,8 +58,8 @@ public class AtomicUInt8 {
   }
 }
 
-public class AtomicUInt32 {
-  private let atomic: UnsafeMutablePointer<CAtomicUInt32>
+public final class AtomicUInt32: Sendable {
+  private nonisolated(unsafe) let atomic: UnsafeMutablePointer<CAtomicUInt32>
 
   public init(initialValue: UInt32) {
     self.atomic = atomic_uint32_create(initialValue)

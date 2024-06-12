@@ -265,6 +265,89 @@ public actor SkipUnless {
     }
   }
 
+  public static func swiftPMSupportsExperimentalPrepareForIndexing(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    struct NoSwiftInToolchain: Error {}
+
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+      guard let swift = await ToolchainRegistry.forTesting.default?.swift else {
+        throw NoSwiftInToolchain()
+      }
+
+      let result = try await Process.run(
+        arguments: [swift.pathString, "build", "--help-hidden"],
+        workingDirectory: nil
+      )
+      guard let output = String(bytes: try result.output.get(), encoding: .utf8) else {
+        return false
+      }
+      return output.contains("--experimental-prepare-for-indexing")
+    }
+  }
+
+  public static func swiftPMStoresModulesForTargetAndHostInSeparateFolders(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    struct NoSwiftInToolchain: Error {}
+
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+      guard let swift = await ToolchainRegistry.forTesting.default?.swift else {
+        throw NoSwiftInToolchain()
+      }
+
+      let project = try await SwiftPMTestProject(
+        files: [
+          "Lib/MyFile.swift": """
+          public func foo() {}
+          """,
+          "MyExec/MyExec.swift": """
+          import Lib
+          func bar() {
+            foo()
+          }
+          """,
+          "Plugins/MyPlugin/MyPlugin.swift": "",
+        ],
+        manifest: """
+          let package = Package(
+            name: "MyLibrary",
+            targets: [
+             .target(name: "Lib"),
+             .executableTarget(name: "MyExec", dependencies: ["Lib"]),
+             .plugin(
+               name: "MyPlugin",
+               capability: .command(
+                 intent: .sourceCodeFormatting(),
+                 permissions: []
+               ),
+               dependencies: ["MyExec"]
+             )
+            ]
+          )
+          """
+      )
+      do {
+        // In older version of SwiftPM building `MyPlugin` followed by `Lib` resulted in an error about a redefinition
+        // of Lib when building Lib.
+        for target in ["MyPlugin", "Lib"] {
+          var arguments = [
+            swift.pathString, "build", "--package-path", project.scratchDirectory.path, "--target", target,
+          ]
+          if let globalModuleCache {
+            arguments += ["-Xswiftc", "-module-cache-path", "-Xswiftc", globalModuleCache.path]
+          }
+          try await Process.run(arguments: arguments, workingDirectory: nil)
+        }
+        return true
+      } catch {
+        return false
+      }
+    }
+  }
+
   /// A long test is a test that takes longer than 1-2s to execute.
   public static func longTestsEnabled() throws {
     if let value = ProcessInfo.processInfo.environment["SKIP_LONG_TESTS"], value == "1" || value == "YES" {

@@ -16,82 +16,83 @@ import LanguageServerProtocol
 import SKSupport
 import SourceKitD
 
-struct InterfaceInfo {
+struct GeneratedInterfaceInfo {
   var contents: String
 }
 
 extension SwiftLanguageService {
-  public func openInterface(_ request: OpenInterfaceRequest) async throws -> InterfaceDetails? {
-    let uri = request.textDocument.uri
-    let moduleName = request.moduleName
+  public func openGeneratedInterface(
+    _ request: OpenGeneratedInterfaceRequest
+  ) async throws -> GeneratedInterfaceDetails? {
     let name = request.name
     let symbol = request.symbolUSR
     let interfaceFilePath = self.generatedInterfacesPath.appendingPathComponent("\(name).swiftinterface")
     let interfaceDocURI = DocumentURI(interfaceFilePath)
     // has interface already been generated
     if let snapshot = try? self.documentManager.latestSnapshot(interfaceDocURI) {
-      return await self.interfaceDetails(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
-    } else {
-      // generate interface
-      let interfaceInfo = try await self.openInterface(
+      return await self.generatedInterfaceDetails(
         request: request,
-        uri: uri,
-        name: moduleName,
-        interfaceURI: interfaceDocURI
+        uri: interfaceDocURI,
+        snapshot: snapshot,
+        symbol: symbol
       )
-      do {
-        // write to file
-        try interfaceInfo.contents.write(to: interfaceFilePath, atomically: true, encoding: String.Encoding.utf8)
-        // store snapshot
-        let snapshot = try self.documentManager.open(
-          interfaceDocURI,
-          language: .swift,
-          version: 0,
-          text: interfaceInfo.contents
-        )
-        return await self.interfaceDetails(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
-      } catch {
-        throw ResponseError.unknown(error.localizedDescription)
+    } else {
+      let interfaceInfo = try await self.generatedInterfaceInfo(request: request, interfaceURI: interfaceDocURI)
+      try interfaceInfo.contents.write(to: interfaceFilePath, atomically: true, encoding: String.Encoding.utf8)
+      let snapshot = DocumentSnapshot(
+        uri: interfaceDocURI,
+        language: .swift,
+        version: 0,
+        lineTable: LineTable(interfaceInfo.contents)
+      )
+      let result = await self.generatedInterfaceDetails(
+        request: request,
+        uri: interfaceDocURI,
+        snapshot: snapshot,
+        symbol: symbol
+      )
+      _ = await orLog("Closing generated interface") {
+        try await self.sourcekitd.send(closeDocumentSourcekitdRequest(uri: interfaceDocURI), fileContents: nil)
       }
+      return result
     }
   }
 
   /// Open the Swift interface for a module.
   ///
   /// - Parameters:
-  ///   - request: The OpenInterfaceRequest.
-  ///   - uri: The document whose compiler arguments should be used to generate the interface.
-  ///   - name: The name of the module whose interface should be generated.
+  ///   - request: The OpenGeneratedInterfaceRequest.
   ///   - interfaceURI: The file where the generated interface should be written.
-  private func openInterface(
-    request: OpenInterfaceRequest,
-    uri: DocumentURI,
-    name: String,
+  ///
+  /// - Important: This opens a document with name `interfaceURI.pseudoPath` in sourcekitd. The caller is responsible
+  ///   for ensuring that the document will eventually get closed in sourcekitd again.
+  private func generatedInterfaceInfo(
+    request: OpenGeneratedInterfaceRequest,
     interfaceURI: DocumentURI
-  ) async throws -> InterfaceInfo {
+  ) async throws -> GeneratedInterfaceInfo {
     let keys = self.keys
     let skreq = sourcekitd.dictionary([
       keys.request: requests.editorOpenInterface,
-      keys.moduleName: name,
+      keys.moduleName: request.moduleName,
       keys.groupName: request.groupName,
       keys.name: interfaceURI.pseudoPath,
       keys.synthesizedExtension: 1,
-      keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDRequestValue]?,
+      keys.compilerArgs: await self.buildSettings(for: request.textDocument.uri)?.compilerArgs as [SKDRequestValue]?,
     ])
 
     let dict = try await self.sourcekitd.send(skreq, fileContents: nil)
-    return InterfaceInfo(contents: dict[keys.sourceText] ?? "")
+    return GeneratedInterfaceInfo(contents: dict[keys.sourceText] ?? "")
   }
 
-  private func interfaceDetails(
-    request: OpenInterfaceRequest,
+  private func generatedInterfaceDetails(
+    request: OpenGeneratedInterfaceRequest,
     uri: DocumentURI,
     snapshot: DocumentSnapshot,
     symbol: String?
-  ) async -> InterfaceDetails {
+  ) async -> GeneratedInterfaceDetails {
     do {
       guard let symbol = symbol else {
-        return InterfaceDetails(uri: uri, position: nil)
+        return GeneratedInterfaceDetails(uri: uri, position: nil)
       }
       let keys = self.keys
       let skreq = sourcekitd.dictionary([
@@ -102,12 +103,12 @@ extension SwiftLanguageService {
 
       let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
       if let offset: Int = dict[keys.offset] {
-        return InterfaceDetails(uri: uri, position: snapshot.positionOf(utf8Offset: offset))
+        return GeneratedInterfaceDetails(uri: uri, position: snapshot.positionOf(utf8Offset: offset))
       } else {
-        return InterfaceDetails(uri: uri, position: nil)
+        return GeneratedInterfaceDetails(uri: uri, position: nil)
       }
     } catch {
-      return InterfaceDetails(uri: uri, position: nil)
+      return GeneratedInterfaceDetails(uri: uri, position: nil)
     }
   }
 }

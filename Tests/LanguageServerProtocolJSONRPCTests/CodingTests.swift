@@ -12,7 +12,7 @@
 
 import LSPTestSupport
 import LanguageServerProtocol
-import LanguageServerProtocolJSONRPC
+@_spi(Testing) import LanguageServerProtocolJSONRPC
 import XCTest
 
 final class CodingTests: XCTestCase {

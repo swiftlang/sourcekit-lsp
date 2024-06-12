@@ -142,11 +142,17 @@ public actor SwiftLanguageService: LanguageService, Sendable {
       }
 
       guard let sourceKitLSPServer else {
+        Task {
+          await sourcekitdCrashedWorkDoneProgress?.end()
+        }
         sourcekitdCrashedWorkDoneProgress = nil
         return
       }
       switch state {
       case .connected:
+        Task {
+          await sourcekitdCrashedWorkDoneProgress?.end()
+        }
         sourcekitdCrashedWorkDoneProgress = nil
       case .connectionInterrupted, .semanticFunctionalityDisabled:
         if sourcekitdCrashedWorkDoneProgress == nil {
@@ -224,7 +230,7 @@ public actor SwiftLanguageService: LanguageService, Sendable {
   }
 
   /// - Important: For testing only
-  public func setReusedNodeCallback(_ callback: (@Sendable (_ node: Syntax) -> ())?) async {
+  @_spi(Testing) public func setReusedNodeCallback(_ callback: (@Sendable (_ node: Syntax) -> ())?) async {
     await self.syntaxTreeManager.setReusedNodeCallback(callback)
   }
 
@@ -318,8 +324,23 @@ extension SwiftLanguageService {
     await self.sourcekitd.removeNotificationHandler(self)
   }
 
+  public func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
+    guard let snapshot = try? documentManager.latestSnapshot(uri) else {
+      return nil
+    }
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    let decl = syntaxTree.token(at: snapshot.absolutePosition(of: position))?.findParentOfSelf(
+      ofType: DeclSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+    )
+    guard let decl else {
+      return nil
+    }
+    return snapshot.position(of: decl.positionAfterSkippingLeadingTrivia)
+  }
+
   /// Tell sourcekitd to crash itself. For testing purposes only.
-  public func _crash() async {
+  public func crash() async {
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.crashWithExit
     ])
@@ -391,7 +412,7 @@ extension SwiftLanguageService {
     ])
   }
 
-  private func closeDocumentSourcekitdRequest(uri: DocumentURI) -> SKDRequestDictionary {
+  func closeDocumentSourcekitdRequest(uri: DocumentURI) -> SKDRequestDictionary {
     return sourcekitd.dictionary([
       keys.request: requests.editorClose,
       keys.name: uri.pseudoPath,
@@ -549,7 +570,7 @@ extension SwiftLanguageService {
       } catch {
         logger.fault(
           """
-          failed to replace \(edit.range.lowerBound.utf8Offset):\(edit.range.upperBound.utf8Offset) by \
+          Failed to replace \(edit.range.lowerBound.utf8Offset):\(edit.range.upperBound.utf8Offset) by \
           '\(edit.replacement)' in sourcekitd
           """
         )
@@ -945,7 +966,7 @@ extension SwiftLanguageService {
       } else {
         reason = ""
       }
-      logger.error("client refused to apply edit for \(refactor.title, privacy: .public)!\(reason)")
+      logger.error("Client refused to apply edit for \(refactor.title, privacy: .public)!\(reason)")
     }
     return edit.encodeToLSPAny()
   }

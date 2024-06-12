@@ -87,8 +87,7 @@ fileprivate extension ConfiguredTarget {
   static let forPackageManifest = ConfiguredTarget(targetID: "", runDestinationID: "")
 }
 
-/// `nonisolated(unsafe)` is fine because `preparationTaskID` is atomic.
-fileprivate nonisolated(unsafe) var preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
+fileprivate let preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
 
 /// Swift Package Manager build system and workspace support.
 ///
@@ -305,7 +304,7 @@ public actor SwiftPMBuildSystem {
     } catch Error.noManifest {
       return nil
     } catch {
-      logger.error("failed to create SwiftPMWorkspace at \(uri.forLogging): \(error.forLogging)")
+      logger.error("Failed to create SwiftPMWorkspace at \(uri.forLogging): \(error.forLogging)")
       return nil
     }
   }
@@ -451,7 +450,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     }
 
     guard let buildTarget = self.targets[configuredTarget]?.buildTarget else {
-      logger.error("Did not find target with name \(configuredTarget.targetID)")
+      logger.fault("Did not find target with name \(configuredTarget.targetID)")
       return nil
     }
 

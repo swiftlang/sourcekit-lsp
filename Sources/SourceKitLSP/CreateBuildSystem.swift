@@ -29,7 +29,7 @@ func createBuildSystem(
     // We assume that workspaces are directories. This is only true for URLs not for URIs in general.
     // Simply skip setting up the build integration in this case.
     logger.error(
-      "cannot setup build integration at URI \(rootUri.forLogging) because the URI it is not a valid file URL"
+      "Cannot setup build integration at URI \(rootUri.forLogging) because the URI it is not a valid file URL"
     )
     return nil
   }
