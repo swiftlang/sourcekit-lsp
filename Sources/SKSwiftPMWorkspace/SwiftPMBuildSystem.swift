@@ -87,8 +87,7 @@ fileprivate extension ConfiguredTarget {
   static let forPackageManifest = ConfiguredTarget(targetID: "", runDestinationID: "")
 }
 
-/// `nonisolated(unsafe)` is fine because `preparationTaskID` is atomic.
-fileprivate nonisolated(unsafe) var preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
+fileprivate let preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
 
 /// Swift Package Manager build system and workspace support.
 ///
