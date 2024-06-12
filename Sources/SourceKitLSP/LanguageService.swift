@@ -146,7 +146,7 @@ public protocol LanguageService: AnyObject, Sendable {
   func completion(_ req: CompletionRequest) async throws -> CompletionList
   func hover(_ req: HoverRequest) async throws -> HoverResponse?
   func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails]
-  func openInterface(_ request: OpenInterfaceRequest) async throws -> InterfaceDetails?
+  func openGeneratedInterface(_ request: OpenGeneratedInterfaceRequest) async throws -> GeneratedInterfaceDetails?
 
   /// - Note: Only called as a fallback if the definition could not be found in the index.
   func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse?
