@@ -400,7 +400,10 @@ public final actor SemanticIndexManager {
         }
       }
     }
-    inProgressPrepareForEditorTask?.task.cancel()
+    if let inProgressPrepareForEditorTask {
+      logger.debug("Cancelling preparation of \(inProgressPrepareForEditorTask.document) because \(uri) was opened")
+      inProgressPrepareForEditorTask.task.cancel()
+    }
     inProgressPrepareForEditorTask = InProgressPrepareForEditorTask(
       id: id,
       document: uri,
