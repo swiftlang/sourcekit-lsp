@@ -233,6 +233,37 @@ public actor SkipUnless {
     }
   }
 
+  /// Checks if the toolchain contains https://github.com/apple/swift/pull/74080.
+  public static func sourcekitdReportsOverridableFunctionDefinitionsAsDynamic(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    struct ExpectedLocationsResponse: Error {}
+
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+      let project = try await IndexedSingleSwiftFileTestProject(
+        """
+        protocol TestProtocol {
+          func 1️⃣doThing()
+        }
+
+        struct TestImpl: TestProtocol {}
+        extension TestImpl {
+          func 2️⃣doThing() { }
+        }
+        """
+      )
+
+      let response = try await project.testClient.send(
+        DefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["1️⃣"])
+      )
+      guard case .locations(let locations) = response else {
+        throw ExpectedLocationsResponse()
+      }
+      return locations.contains { $0.range == Range(project.positions["2️⃣"]) }
+    }
+  }
+
   public static func sourcekitdReturnsRawDocumentationResponse(
     file: StaticString = #filePath,
     line: UInt = #line
