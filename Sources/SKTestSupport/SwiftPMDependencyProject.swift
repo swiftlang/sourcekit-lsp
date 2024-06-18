@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import ISDBTibs
+import SKSupport
 import XCTest
 
 import struct TSCBasic.AbsolutePath
@@ -35,7 +35,7 @@ public class SwiftPMDependencyProject {
       case cannotFindGit
       case processedTerminatedWithNonZeroExitCode(ProcessResult)
     }
-    guard let toolUrl = findTool(name: "git") else {
+    guard let git = await findTool(name: "git") else {
       if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] == nil {
         // Never skip the test in CI, similar to what SkipUnless does.
         throw XCTSkip("git cannot be found")
@@ -45,7 +45,7 @@ public class SwiftPMDependencyProject {
     // We can't use `workingDirectory` because Amazon Linux doesn't support working directories (or at least
     // TSCBasic.Process doesn't support working directories on Amazon Linux)
     let process = TSCBasic.Process(
-      arguments: [toolUrl.path, "-C", workingDirectory.path] + arguments
+      arguments: [git.path, "-C", workingDirectory.path] + arguments
     )
     try process.launch()
     let processResult = try await process.waitUntilExit()
