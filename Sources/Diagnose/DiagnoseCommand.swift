@@ -341,6 +341,8 @@ public struct DiagnoseCommand: AsyncParsableCommand {
 
   @MainActor
   public func run() async throws {
+    // IMPORTANT: When adding information to this message, also add it to the message displayed in VS Code
+    // (captureDiagnostics.ts in the vscode-swift repository)
     print(
       """
       sourcekit-lsp diagnose collects information that helps the developers of sourcekit-lsp diagnose and fix issues.
