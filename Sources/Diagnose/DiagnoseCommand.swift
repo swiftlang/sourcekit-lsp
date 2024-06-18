@@ -226,6 +226,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
         "--predicate", #"subsystem = "org.swift.sourcekit-lsp" AND process = "sourcekit-lsp""#,
         "--info",
         "--debug",
+        "--signpost",
       ],
       outputRedirection: .stream(
         stdout: { bytes in
