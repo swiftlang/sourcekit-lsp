@@ -51,6 +51,11 @@ final actor WorkDoneProgressManager {
   /// The last status that was sent to the client. Used so we don't send no-op updates to the client.
   private var lastStatus: Status? = nil
 
+  /// Needed to work around rdar://116221716
+  private static func getServerCapabilityRegistry(_ server: SourceKitLSPServer) async -> CapabilityRegistry? {
+    return await server.capabilityRegistry
+  }
+
   init?(
     server: SourceKitLSPServer,
     initialDebounce: Duration? = nil,
@@ -58,7 +63,7 @@ final actor WorkDoneProgressManager {
     message: String? = nil,
     percentage: Int? = nil
   ) async {
-    guard let capabilityRegistry = await server.capabilityRegistry else {
+    guard let capabilityRegistry = await Self.getServerCapabilityRegistry(server) else {
       return nil
     }
     self.init(
