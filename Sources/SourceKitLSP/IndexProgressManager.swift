@@ -78,6 +78,7 @@ actor IndexProgressManager {
 
   private func indexProgressStatusDidChangeImpl() async {
     guard let sourceKitLSPServer else {
+      await workDoneProgress?.end()
       workDoneProgress = nil
       return
     }
@@ -116,15 +117,17 @@ actor IndexProgressManager {
     case .upToDate:
       // Nothing left to index. Reset the target count and dismiss the work done progress.
       queuedIndexTasks = 0
+      await workDoneProgress?.end()
       workDoneProgress = nil
       return
     }
 
     if let workDoneProgress {
-      workDoneProgress.update(message: message, percentage: percentage)
+      await workDoneProgress.update(message: message, percentage: percentage)
     } else {
       workDoneProgress = await WorkDoneProgressManager(
         server: sourceKitLSPServer,
+        initialDebounce: sourceKitLSPServer.options.workDoneProgressDebounceDuration,
         title: "Indexing",
         message: message,
         percentage: percentage

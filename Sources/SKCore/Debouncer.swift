@@ -33,14 +33,15 @@ public actor Debouncer<Parameter> {
   private let makeCall: (Parameter) async -> Void
 
   /// In the time between the call to `scheduleCall` and the call actually being committed (ie. in the time that the
-  /// call can be debounced), the task that would commit the call (unless cancelled) and the parameter with which this
-  /// call should be made.
-  private var inProgressData: (Parameter, Task<Void, Never>)?
+  /// call can be debounced), the task that would commit the call (unless cancelled), the parameter with which this
+  /// call should be made and the time at which the call should be made. Keeping track of the time ensures that we don't
+  /// indefinitely debounce if a new `scheduleCall` is made every 0.4s but we debounce for 0.5s.
+  private var inProgressData: (Parameter, ContinuousClock.Instant, Task<Void, Never>)?
 
   public init(
     debounceDuration: Duration,
     combineResults: @escaping (Parameter, Parameter) -> Parameter,
-    _ makeCall: @escaping (Parameter) async -> Void
+    _ makeCall: @Sendable @escaping (Parameter) async -> Void
   ) {
     self.debounceDuration = debounceDuration
     self.combineParameters = combineResults
@@ -52,13 +53,15 @@ public actor Debouncer<Parameter> {
   /// `debounceDuration` after the second `scheduleCall` call.
   public func scheduleCall(_ parameter: Parameter) {
     var parameter = parameter
-    if let (inProgressParameter, inProgressTask) = inProgressData {
+    var targetDate = ContinuousClock.now + debounceDuration
+    if let (inProgressParameter, inProgressTargetDate, inProgressTask) = inProgressData {
       inProgressTask.cancel()
       parameter = combineParameters(inProgressParameter, parameter)
+      targetDate = inProgressTargetDate
     }
     let task = Task {
       do {
-        try await Task.sleep(for: debounceDuration)
+        try await Task.sleep(until: targetDate)
         try Task.checkCancellation()
       } catch {
         return
@@ -66,12 +69,12 @@ public actor Debouncer<Parameter> {
       inProgressData = nil
       await makeCall(parameter)
     }
-    inProgressData = (parameter, task)
+    inProgressData = (parameter, ContinuousClock.now + debounceDuration, task)
   }
 }
 
 extension Debouncer<Void> {
-  public init(debounceDuration: Duration, _ makeCall: @escaping () async -> Void) {
+  public init(debounceDuration: Duration, _ makeCall: @Sendable @escaping () async -> Void) {
     self.init(debounceDuration: debounceDuration, combineResults: { _, _ in }, makeCall)
   }
 

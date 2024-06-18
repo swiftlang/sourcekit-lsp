@@ -20,7 +20,7 @@ import SwiftExtensions
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 
-private nonisolated(unsafe) var updateIndexStoreIDForLogging = AtomicUInt32(initialValue: 1)
+private let updateIndexStoreIDForLogging = AtomicUInt32(initialValue: 1)
 
 public enum FileToIndex: CustomLogStringConvertible {
   /// A non-header file

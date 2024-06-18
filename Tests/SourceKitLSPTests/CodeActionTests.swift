@@ -428,22 +428,23 @@ final class CodeActionTests: XCTestCase {
     let diags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.uri, uri)
     XCTAssertEqual(diags.diagnostics.count, 1)
+    let diagPosition = try XCTUnwrap(diags.diagnostics.only?.range.lowerBound)
 
-    let textDocument = TextDocumentIdentifier(uri)
-    let actionsRequest = CodeActionRequest(
-      range: positions["1️⃣"]..<positions["1️⃣"],
-      context: .init(diagnostics: diags.diagnostics),
-      textDocument: textDocument
+    let quickFixActionResult = try await testClient.send(
+      CodeActionRequest(
+        range: Range(diagPosition),
+        context: .init(diagnostics: diags.diagnostics),
+        textDocument: TextDocumentIdentifier(uri)
+      )
     )
-    let actionResult = try await testClient.send(actionsRequest)
 
-    guard case .codeActions(let codeActions) = actionResult else {
+    guard case .codeActions(let quickFixCodeActions) = quickFixActionResult else {
       return XCTFail("Expected code actions, not commands as a response")
     }
 
     // Check that the Fix-It action contains snippets
 
-    guard let quickFixAction = codeActions.filter({ $0.kind == .quickFix }).spm_only else {
+    guard let quickFixAction = quickFixCodeActions.filter({ $0.kind == .quickFix }).spm_only else {
       return XCTFail("Expected exactly one quick fix action")
     }
     guard let change = quickFixAction.edit?.changes?[uri]?.spm_only else {
@@ -461,7 +462,19 @@ final class CodeActionTests: XCTestCase {
     )
 
     // Check that the refactor action contains snippets
-    guard let refactorAction = codeActions.filter({ $0.kind == .refactor }).spm_only else {
+    let refactorActionResult = try await testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: .init(diagnostics: diags.diagnostics),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+
+    guard case .codeActions(let refactorActions) = refactorActionResult else {
+      return XCTFail("Expected code actions, not commands as a response")
+    }
+
+    guard let refactorAction = refactorActions.filter({ $0.kind == .refactor }).spm_only else {
       return XCTFail("Expected exactly one refactor action")
     }
     guard let command = refactorAction.command else {

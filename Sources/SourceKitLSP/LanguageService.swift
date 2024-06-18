@@ -132,7 +132,7 @@ public protocol LanguageService: AnyObject, Sendable {
 
   // MARK: - Build System Integration
 
-  /// Sent when the `BuildSystem` has resolved build settings, such as for the intial build settings
+  /// Sent when the `BuildSystem` has resolved build settings, such as for the initial build settings
   /// or when the settings have changed (e.g. modified build system files). This may be sent before
   /// the respective `DocumentURI` has been opened.
   func documentUpdatedBuildSettings(_ uri: DocumentURI) async
@@ -146,7 +146,7 @@ public protocol LanguageService: AnyObject, Sendable {
   func completion(_ req: CompletionRequest) async throws -> CompletionList
   func hover(_ req: HoverRequest) async throws -> HoverResponse?
   func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails]
-  func openInterface(_ request: OpenInterfaceRequest) async throws -> InterfaceDetails?
+  func openGeneratedInterface(_ request: OpenGeneratedInterfaceRequest) async throws -> GeneratedInterfaceDetails?
 
   /// - Note: Only called as a fallback if the definition could not be found in the index.
   func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse?
@@ -226,6 +226,16 @@ public protocol LanguageService: AnyObject, Sendable {
   /// A return value of `nil` indicates that this language service does not support syntactic test discovery.
   func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [AnnotatedTestItem]?
 
+  /// A position that is canonical for all positions within a declaration. For example, if we have the following
+  /// declaration, then all `|` markers should return the same canonical position.
+  /// ```
+  /// func |fo|o(|ba|r: Int)
+  /// ```
+  /// The actual position returned by the method does not matter. All that's relevant is the canonicalization.
+  ///
+  /// Returns `nil` if no canonical position could be determined.
+  func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position?
+
   /// Crash the language server. Should be used for crash recovery testing only.
-  func _crash() async
+  func crash() async
 }

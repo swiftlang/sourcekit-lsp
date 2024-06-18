@@ -40,8 +40,7 @@ fileprivate final class RequestAndReply<Params: RequestType>: Sendable {
   private let replyBlock: @Sendable (LSPResult<Params.Response>) -> Void
 
   /// Whether a reply has been made. Every request must reply exactly once.
-  /// `nonisolated(unsafe)` is fine because `replied` is atomic.
-  private nonisolated(unsafe) var replied: AtomicBool = AtomicBool(initialValue: false)
+  private let replied: AtomicBool = AtomicBool(initialValue: false)
 
   public init(_ request: Params, reply: @escaping @Sendable (LSPResult<Params.Response>) -> Void) {
     self.params = request
@@ -113,7 +112,7 @@ public actor SourceKitLSPServer {
 
   var languageServices: [LanguageServerType: [LanguageService]] = [:]
 
-  let documentManager = DocumentManager()
+  @_spi(Testing) public let documentManager = DocumentManager()
 
   /// The `TaskScheduler` that schedules all background indexing tasks.
   ///
@@ -127,15 +126,10 @@ public actor SourceKitLSPServer {
   /// initializer.
   private nonisolated(unsafe) var indexProgressManager: IndexProgressManager!
 
-  private var packageLoadingWorkDoneProgress = WorkDoneProgressState(
-    "SourceKitLSP.SourceKitLSPServer.reloadPackage",
-    title: "SourceKit-LSP: Reloading Package"
-  )
-
-  /// **Public for testing**
-  public var _documentManager: DocumentManager {
-    return documentManager
-  }
+  /// Number of workspaces that are currently reloading swift package. When this is not 0, a
+  /// `packageLoadingWorkDoneProgress` is created to show a work done progress indicator in the client.
+  private var inProgressPackageLoadingOperations = 0
+  private var packageLoadingWorkDoneProgress: WorkDoneProgressManager?
 
   /// Caches which workspace a document with the given URI should be opened in.
   ///
@@ -496,16 +490,7 @@ public actor SourceKitLSPServer {
     }
   }
 
-  /// **Public for testing purposes only**
-  public func _languageService(
-    for uri: DocumentURI,
-    _ language: Language,
-    in workspace: Workspace
-  ) async -> LanguageService? {
-    return await languageService(for: uri, language, in: workspace)
-  }
-
-  func languageService(
+  @_spi(Testing) public func languageService(
     for uri: DocumentURI,
     _ language: Language,
     in workspace: Workspace
@@ -539,8 +524,7 @@ public actor SourceKitLSPServer {
 
 // MARK: - MessageHandler
 
-// nonisolated(unsafe) is fine because `notificationIDForLogging` is atomic.
-private nonisolated(unsafe) var notificationIDForLogging = AtomicUInt32(initialValue: 1)
+private let notificationIDForLogging = AtomicUInt32(initialValue: 1)
 
 extension SourceKitLSPServer: MessageHandler {
   public nonisolated func handle(_ params: some NotificationType) {
@@ -551,6 +535,7 @@ extension SourceKitLSPServer: MessageHandler {
         // are currently handling. Ordering is not important here. We thus don't
         // need to execute it on `messageHandlingQueue`.
         self.cancelRequest(params)
+        return
       }
 
       let signposter = Logger(subsystem: LoggingScope.subsystem, category: "message-handling")
@@ -710,8 +695,8 @@ extension SourceKitLSPServer: MessageHandler {
       await self.handleRequest(for: request, requestHandler: self.completion)
     case let request as RequestAndReply<HoverRequest>:
       await self.handleRequest(for: request, requestHandler: self.hover)
-    case let request as RequestAndReply<OpenInterfaceRequest>:
-      await self.handleRequest(for: request, requestHandler: self.openInterface)
+    case let request as RequestAndReply<OpenGeneratedInterfaceRequest>:
+      await self.handleRequest(for: request, requestHandler: self.openGeneratedInterface)
     case let request as RequestAndReply<DeclarationRequest>:
       await self.handleRequest(for: request, requestHandler: self.declaration)
     case let request as RequestAndReply<DefinitionRequest>:
@@ -897,6 +882,27 @@ extension SourceKitLSPServer {
     )
   }
 
+  private func reloadPackageStatusCallback(_ status: ReloadPackageStatus) async {
+    switch status {
+    case .start:
+      inProgressPackageLoadingOperations += 1
+      if let capabilityRegistry, packageLoadingWorkDoneProgress == nil {
+        packageLoadingWorkDoneProgress = WorkDoneProgressManager(
+          server: self,
+          capabilityRegistry: capabilityRegistry,
+          initialDebounce: options.workDoneProgressDebounceDuration,
+          title: "SourceKit-LSP: Reloading Package"
+        )
+      }
+    case .end:
+      inProgressPackageLoadingOperations -= 1
+      if inProgressPackageLoadingOperations == 0, let packageLoadingWorkDoneProgress {
+        self.packageLoadingWorkDoneProgress = nil
+        await packageLoadingWorkDoneProgress.end()
+      }
+    }
+  }
+
   /// Creates a workspace at the given `uri`.
   ///
   /// If the build system that was determined for the workspace does not satisfy `condition`, `nil` is returned.
@@ -915,13 +921,7 @@ extension SourceKitLSPServer {
       options: options,
       toolchainRegistry: toolchainRegistry,
       reloadPackageStatusCallback: { [weak self] status in
-        guard let self else { return }
-        switch status {
-        case .start:
-          await self.packageLoadingWorkDoneProgress.startProgress(server: self)
-        case .end:
-          await self.packageLoadingWorkDoneProgress.endProgress(server: self)
-        }
+        await self?.reloadPackageStatusCallback(status)
       }
     )
     guard await condition(buildSystem) else {
@@ -930,7 +930,7 @@ extension SourceKitLSPServer {
     do {
       try await buildSystem?.generateBuildGraph(allowFileSystemWrites: true)
     } catch {
-      logger.error("failed to generate build graph at \(workspaceFolder.uri.forLogging): \(error.forLogging)")
+      logger.error("Failed to generate build graph at \(workspaceFolder.uri.forLogging): \(error.forLogging)")
       return nil
     }
 
@@ -989,7 +989,7 @@ extension SourceKitLSPServer {
         case .some(.int(let maxResults)):
           self.options.completionOptions.maxResults = maxResults
         case .some(let invalid):
-          logger.error("expected null or int for 'maxResults'; got \(String(reflecting: invalid))")
+          logger.error("Expected null or int for 'maxResults'; got \(String(reflecting: invalid))")
         }
       }
     }
@@ -1017,7 +1017,7 @@ extension SourceKitLSPServer {
       }
 
       if self.workspaces.isEmpty {
-        logger.error("no workspace found")
+        logger.error("No workspace found")
 
         let workspace = await Workspace(
           documentManager: self.documentManager,
@@ -1277,7 +1277,7 @@ extension SourceKitLSPServer {
     let uri = notification.textDocument.uri
     guard let workspace = await workspaceForDocument(uri: uri) else {
       logger.error(
-        "received open notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
+        "Received open notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
       )
       return
     }
@@ -1309,7 +1309,7 @@ extension SourceKitLSPServer {
     let uri = notification.textDocument.uri
     guard let workspace = await workspaceForDocument(uri: uri) else {
       logger.error(
-        "received close notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
+        "Received close notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
       )
       return
     }
@@ -1320,7 +1320,7 @@ extension SourceKitLSPServer {
     let uri = notification.textDocument.uri
     guard let workspace = await workspaceForDocument(uri: uri) else {
       logger.error(
-        "received reopen notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
+        "Received reopen notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
       )
       return
     }
@@ -1344,7 +1344,7 @@ extension SourceKitLSPServer {
 
     guard let workspace = await workspaceForDocument(uri: uri) else {
       logger.error(
-        "received change notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
+        "Received change notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
       )
       return
     }
@@ -1465,12 +1465,12 @@ extension SourceKitLSPServer {
     return try await languageService.hover(req)
   }
 
-  func openInterface(
-    _ req: OpenInterfaceRequest,
+  func openGeneratedInterface(
+    _ req: OpenGeneratedInterfaceRequest,
     workspace: Workspace,
     languageService: LanguageService
-  ) async throws -> InterfaceDetails? {
-    return try await languageService.openInterface(req)
+  ) async throws -> GeneratedInterfaceDetails? {
+    return try await languageService.openGeneratedInterface(req)
   }
 
   /// Find all symbols in the workspace that include a string in their name.
@@ -1596,7 +1596,7 @@ extension SourceKitLSPServer {
 
   func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
     guard let uri = req.textDocument?.uri else {
-      logger.error("attempted to perform executeCommand request without an url!")
+      logger.error("Attempted to perform executeCommand request without an URL")
       return nil
     }
     guard let workspace = await workspaceForDocument(uri: uri) else {
@@ -1703,7 +1703,7 @@ extension SourceKitLSPServer {
       }
     }
     guard let usr = symbol.usr else { return [] }
-    logger.info("performing indexed jump-to-def with usr \(usr)")
+    logger.info("Performing indexed jump-to-definition with USR \(usr)")
     var occurrences = index.definitionOrDeclarationOccurrences(ofUSR: usr)
     if symbol.isDynamic ?? true {
       lazy var transitiveReceiverUsrs: [String]? = {
@@ -1717,9 +1717,12 @@ extension SourceKitLSPServer {
         }
       }()
       occurrences += occurrences.flatMap {
-        let overrides = index.occurrences(relatedToUSR: $0.symbol.usr, roles: .overrideOf)
-        // Only contain overrides that are children of one of the receiver types or their subtypes.
-        return overrides.filter { override in
+        let overriddenUsrs = index.occurrences(relatedToUSR: $0.symbol.usr, roles: .overrideOf).map(\.symbol.usr)
+        let overriddenSymbolDefinitions = overriddenUsrs.compactMap {
+          index.primaryDefinitionOrDeclarationOccurrence(ofUSR: $0)
+        }
+        // Only contain overrides that are children of one of the receiver types or their subtypes or extensions.
+        return overriddenSymbolDefinitions.filter { override in
           override.relations.contains(where: {
             guard $0.roles.contains(.childOf) else {
               return false
@@ -1756,23 +1759,87 @@ extension SourceKitLSPServer {
         position: req.position
       )
     )
-    let locations = try await symbols.asyncMap { (symbol) -> [Location] in
-      if symbol.bestLocalDeclaration != nil && !(symbol.isDynamic ?? true)
-        && symbol.usr?.hasPrefix("s:") ?? false /* Swift symbols have USRs starting with s: */
+
+    let canonicalOriginatorLocation = await languageService.canonicalDeclarationPosition(
+      of: req.position,
+      in: req.textDocument.uri
+    )
+
+    // Returns `true` if `location` points to the same declaration that the definition request was initiated from.
+    @Sendable func isAtCanonicalOriginatorLocation(_ location: Location) async -> Bool {
+      guard location.uri == req.textDocument.uri, let canonicalOriginatorLocation else {
+        return false
+      }
+      return await languageService.canonicalDeclarationPosition(of: location.range.lowerBound, in: location.uri)
+        == canonicalOriginatorLocation
+    }
+
+    var locations = try await symbols.asyncMap { (symbol) -> [Location] in
+      var locations: [Location]
+      if let bestLocalDeclaration = symbol.bestLocalDeclaration,
+        !(symbol.isDynamic ?? true),
+        symbol.usr?.hasPrefix("s:") ?? false /* Swift symbols have USRs starting with s: */
       {
         // If we have a known non-dynamic symbol within Swift, we don't need to do an index lookup.
         // For non-Swift symbols, we need to perform an index lookup because the best local declaration will point to
-        // a header file but jump-to-definition should prefer the implementation (there's the declaration request to jump
-        // to the function's declaration).
-        return [symbol.bestLocalDeclaration].compactMap { $0 }
+        // a header file but jump-to-definition should prefer the implementation (there's the declaration request to
+        // jump to the function's declaration).
+        locations = [bestLocalDeclaration]
+      } else {
+        locations = try await self.definitionLocations(
+          for: symbol,
+          in: req.textDocument.uri,
+          languageService: languageService
+        )
       }
-      return try await self.definitionLocations(for: symbol, in: req.textDocument.uri, languageService: languageService)
+
+      // If the symbol's location is is where we initiated rename from, also show the declarations that the symbol
+      // overrides.
+      if let location = locations.only,
+        let usr = symbol.usr,
+        let index = workspace.index(checkedFor: .deletedFiles),
+        await isAtCanonicalOriginatorLocation(location)
+      {
+        let baseUSRs = index.occurrences(ofUSR: usr, roles: .overrideOf).flatMap {
+          $0.relations.filter { $0.roles.contains(.overrideOf) }.map(\.symbol.usr)
+        }
+        locations += baseUSRs.compactMap {
+          guard let baseDeclOccurrence = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: $0) else {
+            return nil
+          }
+          return indexToLSPLocation(baseDeclOccurrence.location)
+        }
+      }
+
+      return locations
     }.flatMap { $0 }
+
     // Remove any duplicate locations. We might end up with duplicate locations when performing a definition request
     // on eg. `MyStruct()` when no explicit initializer is declared. In this case we get two symbol infos, one for the
     // declaration of the `MyStruct` type and one for the initializer, which is implicit and thus has the location of
     // the `MyStruct` declaration itself.
-    return locations.unique
+    locations = locations.unique
+
+    // Try removing any results that would point back to the location we are currently at. This ensures that eg. in the
+    // following case we only show line 2 when performing jump-to-definition on `TestImpl.doThing`.
+    //
+    // ```
+    // protocol TestProtocol {
+    //   func doThing()
+    // }
+    // struct TestImpl: TestProtocol {
+    //   func doThing() { }
+    // }
+    // ```
+    //
+    // If this would result in no locations, don't apply the filter. This way, performing jump-to-definition in the
+    // middle of a function's base name takes us to the base name start, indicating that jump-to-definition was able to
+    // resolve the location and didn't fail.
+    let nonOriginatorLocations = await locations.asyncFilter { await !isAtCanonicalOriginatorLocation($0) }
+    if !nonOriginatorLocations.isEmpty {
+      locations = nonOriginatorLocations
+    }
+    return locations
   }
 
   func definition(
@@ -1807,13 +1874,13 @@ extension SourceKitLSPServer {
     originatorUri: DocumentURI,
     languageService: LanguageService
   ) async throws -> Location {
-    let openInterface = OpenInterfaceRequest(
+    let openInterface = OpenGeneratedInterfaceRequest(
       textDocument: TextDocumentIdentifier(originatorUri),
       name: moduleName,
       groupName: groupName,
       symbolUSR: symbolUSR
     )
-    guard let interfaceDetails = try await languageService.openInterface(openInterface) else {
+    guard let interfaceDetails = try await languageService.openGeneratedInterface(openInterface) else {
       throw ResponseError.unknown("Could not generate Swift Interface for \(moduleName)")
     }
     let position = interfaceDetails.position ?? Position(line: 0, utf16index: 0)
@@ -2409,13 +2476,13 @@ fileprivate struct DocumentNotificationRequestQueue {
   }
 }
 
-/// Returns the USRs of the subtypes of `usrs` as well as their subtypes, transitively.
+/// Returns the USRs of the subtypes of `usrs` as well as their subtypes and extensions, transitively.
 fileprivate func transitiveSubtypeClosure(ofUsrs usrs: [String], index: CheckedIndex) -> [String] {
   var result: [String] = []
   for usr in usrs {
     result.append(usr)
-    let directSubtypes = index.occurrences(ofUSR: usr, roles: .baseOf).flatMap { occurrence in
-      occurrence.relations.filter { $0.roles.contains(.baseOf) }.map(\.symbol.usr)
+    let directSubtypes = index.occurrences(ofUSR: usr, roles: [.baseOf, .extendedBy]).flatMap { occurrence in
+      occurrence.relations.filter { $0.roles.contains(.baseOf) || $0.roles.contains(.extendedBy) }.map(\.symbol.usr)
     }
     let transitiveSubtypes = transitiveSubtypeClosure(ofUsrs: directSubtypes, index: index)
     result += transitiveSubtypes

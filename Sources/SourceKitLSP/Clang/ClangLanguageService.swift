@@ -338,7 +338,11 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     return try await clangd.send(request)
   }
 
-  func _crash() {
+  public func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
+    return nil
+  }
+
+  func crash() {
     // Since `clangd` doesn't have a method to crash it, kill it.
     #if os(Windows)
     if self.hClangd != INVALID_HANDLE_VALUE {
@@ -578,7 +582,7 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
-  func openInterface(_ request: OpenInterfaceRequest) async throws -> InterfaceDetails? {
+  func openGeneratedInterface(_ request: OpenGeneratedInterfaceRequest) async throws -> GeneratedInterfaceDetails? {
     throw ResponseError.unknown("unsupported method")
   }
 

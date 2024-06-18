@@ -1170,6 +1170,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameEnumCaseWithUnlabeledAssociatedValue() async throws {
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
     try await assertSingleFileRename(
       """
       enum MyEnum {
@@ -1177,7 +1178,7 @@ final class RenameTests: XCTestCase {
       }
       """,
       newName: "newName",
-      expectedPrepareRenamePlaceholder: "myCase",
+      expectedPrepareRenamePlaceholder: "myCase(_:)",
       expected: """
         enum MyEnum {
           case newName(String)
@@ -1187,8 +1188,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testAddLabelToEnumCase() async throws {
-    // We don't support renaming enum parameter labels at the moment
-    // (https://github.com/apple/sourcekit-lsp/issues/1228)
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
     try await assertSingleFileRename(
       """
       enum MyEnum {
@@ -1196,29 +1196,118 @@ final class RenameTests: XCTestCase {
       }
       """,
       newName: "newName(newLabel:)",
-      expectedPrepareRenamePlaceholder: "myCase",
+      expectedPrepareRenamePlaceholder: "myCase(_:)",
       expected: """
         enum MyEnum {
-          case newName(String)
+          case newName(newLabel: String)
         }
         """
     )
   }
 
-  func testRemoveLabelToEnumCase() async throws {
-    // We don't support renaming enum parameter labels at the moment
-    // (https://github.com/apple/sourcekit-lsp/issues/1228)
+  func testRemoveLabelFromEnumCase() async throws {
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
     try await assertSingleFileRename(
       """
       enum MyEnum {
-        case 1️⃣myCase(label: String)
+        case myCase(label: String)
+      }
+
+      func test() {
+        _ = MyEnum.2️⃣myCase(label: "abc")
       }
       """,
       newName: "newName(_:)",
-      expectedPrepareRenamePlaceholder: "myCase",
+      expectedPrepareRenamePlaceholder: "myCase(label:)",
+      expected: """
+        enum MyEnum {
+          case newName(_ label: String)
+        }
+
+        func test() {
+          _ = MyEnum.newName("abc")
+        }
+        """
+    )
+  }
+
+  func testRenameEnumCaseWithUnderscoreLabel() async throws {
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
+    try await assertSingleFileRename(
+      """
+      enum MyEnum {
+        case myCase(_ label: String)
+      }
+
+      func test() {
+        _ = MyEnum.2️⃣myCase("abc")
+      }
+      """,
+      newName: "newName(_:)",
+      expectedPrepareRenamePlaceholder: "myCase(_:)",
+      expected: """
+        enum MyEnum {
+          case newName(_ label: String)
+        }
+
+        func test() {
+          _ = MyEnum.newName("abc")
+        }
+        """
+    )
+  }
+
+  func testRenameEnumCaseWithUnderscoreToLabelMatchingInternalName() async throws {
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
+    try await assertSingleFileRename(
+      """
+      enum MyEnum {
+        case myCase(_ label: String)
+      }
+
+      func test() {
+        _ = MyEnum.2️⃣myCase("abc")
+      }
+      """,
+      newName: "newName(label:)",
+      expectedPrepareRenamePlaceholder: "myCase(_:)",
       expected: """
         enum MyEnum {
           case newName(label: String)
+        }
+
+        func test() {
+          _ = MyEnum.newName(label: "abc")
+        }
+        """
+    )
+  }
+
+  func testRenameEnumCaseWithUnderscoreToLabelNotMatchingInternalName() async throws {
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
+    // Note that the renamed code doesn't compile because enum cases can't have an external and internal parameter name.
+    // But it's probably the best thing we can do because we don't want to erase the user-specified internal name, which
+    // they didn't request to rename. Also, this is a pretty niche case and having a special case for it is probably not
+    // worth it.
+    try await assertSingleFileRename(
+      """
+      enum MyEnum {
+        case myCase(_ label: String)
+      }
+
+      func test() {
+        _ = MyEnum.2️⃣myCase("abc")
+      }
+      """,
+      newName: "newName(publicLabel:)",
+      expectedPrepareRenamePlaceholder: "myCase(_:)",
+      expected: """
+        enum MyEnum {
+          case newName(publicLabel label: String)
+        }
+
+        func test() {
+          _ = MyEnum.newName(publicLabel: "abc")
         }
         """
     )

@@ -10,11 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Request a textual interface of a module to display in the IDE.
+/// Request a generated interface of a module to display in the IDE.
 /// **(LSP Extension)**
-public struct OpenInterfaceRequest: TextDocumentRequest, Hashable {
+public struct OpenGeneratedInterfaceRequest: TextDocumentRequest, Hashable {
   public static let method: String = "textDocument/openInterface"
-  public typealias Response = InterfaceDetails?
+  public typealias Response = GeneratedInterfaceDetails?
 
   /// The document whose compiler arguments should be used to generate the interface.
   public var textDocument: TextDocumentIdentifier
@@ -45,7 +45,7 @@ public struct OpenInterfaceRequest: TextDocumentRequest, Hashable {
 }
 
 /// The textual output of a module interface.
-public struct InterfaceDetails: ResponseType, Hashable {
+public struct GeneratedInterfaceDetails: ResponseType, Hashable {
 
   public var uri: DocumentURI
   public var position: Position?

@@ -537,7 +537,7 @@ extension SourceKitLSPServer {
   ) async throws -> CrossLanguageName? {
     let definitions = index.occurrences(ofUSR: usr, roles: [.definition])
     if definitions.isEmpty {
-      logger.error("no definitions for \(usr) found")
+      logger.error("No definitions for \(usr) found")
       return nil
     }
     if definitions.count > 1 {
@@ -1003,24 +1003,6 @@ extension SwiftLanguageService {
     return nil
   }
 
-  /// Returns `true` if the given position is inside an `EnumCaseDeclSyntax`.
-  fileprivate func isInsideEnumCaseDecl(position: Position, snapshot: DocumentSnapshot) async -> Bool {
-    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    var node = Syntax(syntaxTree.token(at: snapshot.absolutePosition(of: position)))
-
-    while let parent = node?.parent {
-      if parent.is(EnumCaseDeclSyntax.self) {
-        return true
-      }
-      if parent.is(MemberBlockItemSyntax.self) || parent.is(CodeBlockItemSyntax.self) {
-        // `MemberBlockItemSyntax` and `CodeBlockItemSyntax` can't be nested inside an EnumCaseDeclSyntax. Early exit.
-        return false
-      }
-      node = parent
-    }
-    return false
-  }
-
   /// When the user requested a rename at `position` in `snapshot`, determine the position at which the rename should be
   /// performed internally, the USR of the symbol to rename and the range to rename that should be returned to the
   /// editor.
@@ -1095,17 +1077,8 @@ extension SwiftLanguageService {
 
     try Task.checkCancellation()
 
-    var requestedNewName = request.newName
-    if let openParenIndex = requestedNewName.firstIndex(of: "("),
-      await isInsideEnumCaseDecl(position: renamePosition, snapshot: snapshot)
-    {
-      // We don't support renaming enum parameter labels at the moment
-      // (https://github.com/apple/sourcekit-lsp/issues/1228)
-      requestedNewName = String(requestedNewName[..<openParenIndex])
-    }
-
     let oldName = CrossLanguageName(clangName: nil, swiftName: oldNameString, definitionLanguage: .swift)
-    let newName = CrossLanguageName(clangName: nil, swiftName: requestedNewName, definitionLanguage: .swift)
+    let newName = CrossLanguageName(clangName: nil, swiftName: request.newName, definitionLanguage: .swift)
     var edits = try await editsToRename(
       locations: renameLocations,
       in: snapshot,
@@ -1397,13 +1370,6 @@ extension SwiftLanguageService {
     }
     if name.hasSuffix("()") {
       name = String(name.dropLast(2))
-    }
-    if let openParenIndex = name.firstIndex(of: "("),
-      await isInsideEnumCaseDecl(position: renamePosition, snapshot: snapshot)
-    {
-      // We don't support renaming enum parameter labels at the moment
-      // (https://github.com/apple/sourcekit-lsp/issues/1228)
-      name = String(name[..<openParenIndex])
     }
     guard let relatedIdentRange = response.relatedIdentifiers.first(where: { $0.range.contains(renamePosition) })?.range
     else {
