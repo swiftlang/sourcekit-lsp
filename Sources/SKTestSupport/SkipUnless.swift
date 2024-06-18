@@ -436,10 +436,11 @@ public actor SkipUnless {
         let project = try await SwiftPMTestProject(
           files: [
             "MyMacros/MyMacros.swift": #"""
-            import SwiftCompilerPlugin
-            import SwiftSyntax
-            import SwiftSyntaxBuilder
-            import SwiftSyntaxMacros
+            import SwiftParser
+
+            func test() {
+              _ = Parser.parse(source: "let a")
+            }
             """#,
             "MyMacroClient/MyMacroClient.swift": """
             """,
@@ -453,6 +454,9 @@ public actor SkipUnless {
           skipMessage: """
             Skipping because macro could not be built using build artifacts in the sourcekit-lsp build directory. \
             This usually happens if sourcekit-lsp was built using a different toolchain than the one used at test-time.
+
+            Reason:
+            \(error)
             """
         )
       }
