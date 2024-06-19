@@ -132,40 +132,8 @@ public actor SwiftLanguageService: LanguageService, Sendable {
   nonisolated var requests: sourcekitd_api_requests { return sourcekitd.requests }
   nonisolated var values: sourcekitd_api_values { return sourcekitd.values }
 
-  /// When sourcekitd is crashed, a `WorkDoneProgressManager` that display the sourcekitd crash status in the client.
-  private var sourcekitdCrashedWorkDoneProgress: WorkDoneProgressManager?
-
-  private var state: LanguageServerState {
-    didSet {
-      for handler in stateChangeHandlers {
-        handler(oldValue, state)
-      }
-
-      guard let sourceKitLSPServer else {
-        Task {
-          await sourcekitdCrashedWorkDoneProgress?.end()
-        }
-        sourcekitdCrashedWorkDoneProgress = nil
-        return
-      }
-      switch state {
-      case .connected:
-        Task {
-          await sourcekitdCrashedWorkDoneProgress?.end()
-        }
-        sourcekitdCrashedWorkDoneProgress = nil
-      case .connectionInterrupted, .semanticFunctionalityDisabled:
-        if sourcekitdCrashedWorkDoneProgress == nil {
-          sourcekitdCrashedWorkDoneProgress = WorkDoneProgressManager(
-            server: sourceKitLSPServer,
-            capabilityRegistry: capabilityRegistry,
-            title: "SourceKit-LSP: Restoring functionality",
-            message: "Please run 'sourcekit-lsp diagnose' to file an issue"
-          )
-        }
-      }
-    }
-  }
+  /// - Important: Use `setState` to change the state, which notifies the state change handlers
+  private var state: LanguageServerState
 
   private var stateChangeHandlers: [(_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void] = []
 
@@ -255,6 +223,30 @@ public actor SwiftLanguageService: LanguageService, Sendable {
   public nonisolated func canHandle(workspace: Workspace) -> Bool {
     // We have a single sourcekitd instance for all workspaces.
     return true
+  }
+
+  private func setState(_ newState: LanguageServerState) async {
+    let oldState = state
+    state = newState
+    for handler in stateChangeHandlers {
+      handler(oldState, newState)
+    }
+
+    guard let sourceKitLSPServer else {
+      return
+    }
+    switch (oldState, newState) {
+    case (.connected, .connectionInterrupted), (.connected, .semanticFunctionalityDisabled):
+      await sourceKitLSPServer.sourcekitdCrashedWorkDoneProgress.start()
+    case (.connectionInterrupted, .connected), (.semanticFunctionalityDisabled, .connected):
+      await sourceKitLSPServer.sourcekitdCrashedWorkDoneProgress.end()
+    case (.connected, .connected),
+      (.connectionInterrupted, .connectionInterrupted),
+      (.connectionInterrupted, .semanticFunctionalityDisabled),
+      (.semanticFunctionalityDisabled, .connectionInterrupted),
+      (.semanticFunctionalityDisabled, .semanticFunctionalityDisabled):
+      break
+    }
   }
 
   public func addStateChangeHandler(
@@ -988,13 +980,14 @@ extension SwiftLanguageService: SKDNotificationHandler {
     )
     // Check if we need to update our `state` based on the contents of the notification.
     if notification.value?[self.keys.notification] == self.values.semaEnabledNotification {
-      self.state = .connected
+      await self.setState(.connected)
+      return
     }
 
     if self.state == .connectionInterrupted {
       // If we get a notification while we are restoring the connection, it means that the server has restarted.
       // We still need to wait for semantic functionality to come back up.
-      self.state = .semanticFunctionalityDisabled
+      await self.setState(.semanticFunctionalityDisabled)
 
       // Ask our parent to re-open all of our documents.
       if let sourceKitLSPServer {
@@ -1005,7 +998,7 @@ extension SwiftLanguageService: SKDNotificationHandler {
     }
 
     if notification.error == .connectionInterrupted {
-      self.state = .connectionInterrupted
+      await self.setState(.connectionInterrupted)
 
       // We don't have any open documents anymore after sourcekitd crashed.
       // Reset the document manager to reflect that.
