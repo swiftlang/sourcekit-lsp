@@ -126,10 +126,17 @@ public actor SourceKitLSPServer {
   /// initializer.
   private nonisolated(unsafe) var indexProgressManager: IndexProgressManager!
 
-  /// Number of workspaces that are currently reloading swift package. When this is not 0, a
-  /// `packageLoadingWorkDoneProgress` is created to show a work done progress indicator in the client.
-  private var inProgressPackageLoadingOperations = 0
-  private var packageLoadingWorkDoneProgress: WorkDoneProgressManager?
+  /// Implicitly unwrapped optional so we can create an `SharedWorkDoneProgressManager` that has a weak reference to
+  /// `SourceKitLSPServer`.
+  /// `nonisolated(unsafe)` because `packageLoadingWorkDoneProgress` will not be modified after it is assigned from the
+  /// initializer.
+  private nonisolated(unsafe) var packageLoadingWorkDoneProgress: SharedWorkDoneProgressManager!
+
+  /// Implicitly unwrapped optional so we can create an `SharedWorkDoneProgressManager` that has a weak reference to
+  /// `SourceKitLSPServer`.
+  /// `nonisolated(unsafe)` because `sourcekitdCrashedWorkDoneProgress` will not be modified after it is assigned from
+  /// the initializer.
+  nonisolated(unsafe) var sourcekitdCrashedWorkDoneProgress: SharedWorkDoneProgressManager!
 
   /// Caches which workspace a document with the given URI should be opened in.
   ///
@@ -210,6 +217,17 @@ public actor SourceKitLSPServer {
     ])
     self.indexProgressManager = nil
     self.indexProgressManager = IndexProgressManager(sourceKitLSPServer: self)
+    self.packageLoadingWorkDoneProgress = SharedWorkDoneProgressManager(
+      sourceKitLSPServer: self,
+      tokenPrefix: "package-reloading",
+      title: "SourceKit-LSP: Reloading Package"
+    )
+    self.sourcekitdCrashedWorkDoneProgress = SharedWorkDoneProgressManager(
+      sourceKitLSPServer: self,
+      tokenPrefix: "sourcekitd-crashed",
+      title: "SourceKit-LSP: Restoring functionality",
+      message: "Please run 'sourcekit-lsp diagnose' to file an issue"
+    )
   }
 
   /// Await until the server has send the reply to the initialize request.
@@ -885,21 +903,9 @@ extension SourceKitLSPServer {
   private func reloadPackageStatusCallback(_ status: ReloadPackageStatus) async {
     switch status {
     case .start:
-      inProgressPackageLoadingOperations += 1
-      if let capabilityRegistry, packageLoadingWorkDoneProgress == nil {
-        packageLoadingWorkDoneProgress = WorkDoneProgressManager(
-          server: self,
-          capabilityRegistry: capabilityRegistry,
-          initialDebounce: options.workDoneProgressDebounceDuration,
-          title: "SourceKit-LSP: Reloading Package"
-        )
-      }
+      await packageLoadingWorkDoneProgress.start()
     case .end:
-      inProgressPackageLoadingOperations -= 1
-      if inProgressPackageLoadingOperations == 0, let packageLoadingWorkDoneProgress {
-        self.packageLoadingWorkDoneProgress = nil
-        await packageLoadingWorkDoneProgress.end()
-      }
+      await packageLoadingWorkDoneProgress.end()
     }
   }
 
