@@ -85,7 +85,7 @@ public class MultiFileTestProject {
     enableBackgroundIndexing: Bool = false,
     usePullDiagnostics: Bool = true,
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
-    cleanUp: (() -> Void)? = nil,
+    cleanUp: (@Sendable () -> Void)? = nil,
     testName: String = #function
   ) async throws {
     scratchDirectory = try testScratchDir(testName: testName)

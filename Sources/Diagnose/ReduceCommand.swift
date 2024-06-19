@@ -16,7 +16,6 @@ import SKCore
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
-import var TSCBasic.stderrStream
 import class TSCUtility.PercentProgressAnimation
 
 public struct ReduceCommand: AsyncParsableCommand {
@@ -77,7 +76,7 @@ public struct ReduceCommand: AsyncParsableCommand {
       throw ReductionError("Unable to find sourcekitd.framework")
     }
 
-    let progressBar = PercentProgressAnimation(stream: stderrStream, header: "Reducing sourcekitd issue")
+    let progressBar = PercentProgressAnimation(stream: stderrStreamConcurrencySafe, header: "Reducing sourcekitd issue")
 
     let request = try String(contentsOfFile: sourcekitdRequestPath)
     let requestInfo = try RequestInfo(request: request)

@@ -156,7 +156,7 @@ public class SwiftPMTestProject: MultiFileTestProject {
     usePullDiagnostics: Bool = true,
     pollIndex: Bool = true,
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
-    cleanUp: (() -> Void)? = nil,
+    cleanUp: (@Sendable () -> Void)? = nil,
     testName: String = #function
   ) async throws {
     var filesByPath: [RelativeFileLocation: String] = [:]

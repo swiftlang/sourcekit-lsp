@@ -19,7 +19,7 @@ import SKSupport
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 
-private var preparationIDForLogging = AtomicUInt32(initialValue: 1)
+private let preparationIDForLogging = AtomicUInt32(initialValue: 1)
 
 /// Describes a task to prepare a set of targets.
 ///

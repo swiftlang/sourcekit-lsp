@@ -69,7 +69,7 @@ public enum IndexTaskStatus: Comparable {
 /// In reality, these status are not exclusive. Eg. the index might be preparing one target for editor functionality,
 /// re-generating the build graph and indexing files at the same time. To avoid showing too many concurrent status
 /// messages to the user, we only show the highest priority task.
-public enum IndexProgressStatus {
+public enum IndexProgressStatus: Sendable {
   case preparingFileForEditorFunctionality
   case generatingBuildGraph
   case indexing(preparationTasks: [ConfiguredTarget: IndexTaskStatus], indexTasks: [DocumentURI: IndexTaskStatus])
