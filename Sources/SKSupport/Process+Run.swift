@@ -69,9 +69,33 @@ extension Process {
     do {
       try process.launch()
     } catch Process.Error.workingDirectoryNotSupported where workingDirectory != nil {
-      // TODO (indexing): We need to figure out how to set the working directory on all platforms.
+      return try Process.launchWithWorkingDirectoryUsingSh(
+        arguments: arguments,
+        environmentBlock: environmentBlock,
+        workingDirectory: workingDirectory!,
+        outputRedirection: outputRedirection,
+        startNewProcessGroup: startNewProcessGroup,
+        loggingHandler: loggingHandler
+      )
+    }
+    return process
+  }
+
+  private static func launchWithWorkingDirectoryUsingSh(
+    arguments: [String],
+    environmentBlock: ProcessEnvironmentBlock = ProcessEnv.block,
+    workingDirectory: AbsolutePath,
+    outputRedirection: OutputRedirection = .collect,
+    startNewProcessGroup: Bool = true,
+    loggingHandler: LoggingHandler? = .none
+  ) throws -> Process {
+    let shPath = "/usr/bin/sh"
+    guard FileManager.default.fileExists(atPath: shPath) else {
       logger.error(
-        "Working directory not supported on the platform. Launching process without working directory \(workingDirectory!.pathString)"
+        """
+        Working directory not supported on the platform and 'sh' could not be found. \
+        Launching process without working directory \(workingDirectory.pathString)
+        """
       )
       return try Process.launch(
         arguments: arguments,
@@ -82,7 +106,14 @@ extension Process {
         loggingHandler: loggingHandler
       )
     }
-    return process
+    return try Process.launch(
+      arguments: [shPath, "-c", #"cd "$0"; exec "$@""#, workingDirectory.pathString] + arguments,
+      environmentBlock: environmentBlock,
+      workingDirectory: nil,
+      outputRedirection: outputRedirection,
+      startNewProcessGroup: startNewProcessGroup,
+      loggingHandler: loggingHandler
+    )
   }
 
   /// Runs a new process with the given parameters and waits for it to exit, sending SIGINT if this task is cancelled.
