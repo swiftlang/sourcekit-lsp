@@ -16,7 +16,6 @@ import SKCore
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
-import var TSCBasic.stderrStream
 import class TSCUtility.PercentProgressAnimation
 
 public struct ReduceFrontendCommand: AsyncParsableCommand {
@@ -86,7 +85,7 @@ public struct ReduceFrontendCommand: AsyncParsableCommand {
     }
 
     let progressBar = PercentProgressAnimation(
-      stream: stderrStream,
+      stream: stderrStreamConcurrencySafe,
       header: "Reducing swift-frontend crash"
     )
 

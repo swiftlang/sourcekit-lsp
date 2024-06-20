@@ -43,7 +43,7 @@ extension Process {
     arguments: [String],
     environmentBlock: ProcessEnvironmentBlock = ProcessEnv.block,
     workingDirectory: AbsolutePath?,
-    outputRedirection: OutputRedirection = .collect,
+    outputRedirection: OutputRedirection = .collect(redirectStderr: false),
     startNewProcessGroup: Bool = true,
     loggingHandler: LoggingHandler? = .none
   ) throws -> Process {
@@ -93,7 +93,7 @@ extension Process {
     arguments: [String],
     environmentBlock: ProcessEnvironmentBlock = ProcessEnv.block,
     workingDirectory: AbsolutePath?,
-    outputRedirection: OutputRedirection = .collect,
+    outputRedirection: OutputRedirection = .collect(redirectStderr: false),
     startNewProcessGroup: Bool = true,
     loggingHandler: LoggingHandler? = .none
   ) async throws -> ProcessResult {

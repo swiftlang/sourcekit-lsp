@@ -191,7 +191,7 @@ final class BackgroundIndexingTests: XCTestCase {
     )
 
     // Wait for indexing to finish without elevating the priority
-    let semaphore = WrappedSemaphore()
+    let semaphore = WrappedSemaphore(name: "Indexing finished")
     let testClient = project.testClient
     Task(priority: .low) {
       await assertNoThrow {
@@ -199,7 +199,7 @@ final class BackgroundIndexingTests: XCTestCase {
       }
       semaphore.signal()
     }
-    semaphore.wait()
+    try semaphore.waitOrThrow()
   }
 
   func testBackgroundIndexingOfPackageDependency() async throws {
@@ -318,19 +318,19 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testBackgroundIndexingStatusWorkDoneProgress() async throws {
-    let receivedBeginProgressNotification = self.expectation(
-      description: "Received work done progress saying build graph generation"
+    let receivedBeginProgressNotification = WrappedSemaphore(
+      name: "Received work done progress saying build graph generation"
     )
-    let receivedReportProgressNotification = self.expectation(
-      description: "Received work done progress saying indexing"
+    let receivedReportProgressNotification = WrappedSemaphore(
+      name: "Received work done progress saying indexing"
     )
     var serverOptions = SourceKitLSPServer.Options.testDefault
     serverOptions.indexTestHooks = IndexTestHooks(
       buildGraphGenerationDidFinish: {
-        await self.fulfillment(of: [receivedBeginProgressNotification], timeout: defaultTimeout)
+        receivedBeginProgressNotification.waitOrXCTFail()
       },
       updateIndexStoreTaskDidFinish: { _ in
-        await self.fulfillment(of: [receivedReportProgressNotification], timeout: defaultTimeout)
+        receivedReportProgressNotification.waitOrXCTFail()
       }
     )
     let project = try await SwiftPMTestProject(
@@ -362,7 +362,7 @@ final class BackgroundIndexingTests: XCTestCase {
         return data.title == "Indexing"
       }
     )
-    receivedBeginProgressNotification.fulfill()
+    receivedBeginProgressNotification.signal()
     guard case .begin(let beginData) = beginNotification.value else {
       XCTFail("Expected begin notification")
       return
@@ -382,7 +382,7 @@ final class BackgroundIndexingTests: XCTestCase {
         return true
       }
     )
-    receivedReportProgressNotification.fulfill()
+    receivedReportProgressNotification.signal()
 
     _ = try await project.testClient.nextNotification(
       ofType: WorkDoneProgress.self,
@@ -592,9 +592,10 @@ final class BackgroundIndexingTests: XCTestCase {
       return VoidResponse()
     }
 
-    project.testClient.handleMultipleRequests { [weak project] (_: DiagnosticsRefreshRequest) in
-      Task { [weak project] in
-        let updatedDiagnostics = try await project?.testClient.send(
+    let testClient = project.testClient
+    project.testClient.handleMultipleRequests { [weak testClient] (_: DiagnosticsRefreshRequest) in
+      Task { [weak testClient] in
+        let updatedDiagnostics = try await testClient?.send(
           DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
         )
         guard case .full(let updatedDiagnostics) = updatedDiagnostics else {
@@ -631,9 +632,9 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testDontStackTargetPreparationForEditorFunctionality() async throws {
-    let allDocumentsOpened = self.expectation(description: "All documents opened")
-    let libBStartedPreparation = self.expectation(description: "LibB started preparing")
-    let libDPreparedForEditing = self.expectation(description: "LibD prepared for editing")
+    let allDocumentsOpened = WrappedSemaphore(name: "All documents opened")
+    let libBStartedPreparation = WrappedSemaphore(name: "LibB started preparing")
+    let libDPreparedForEditing = WrappedSemaphore(name: "LibD prepared for editing")
 
     var serverOptions = SourceKitLSPServer.Options.testDefault
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
@@ -649,8 +650,8 @@ final class BackgroundIndexingTests: XCTestCase {
         ExpectedPreparation(
           targetID: "LibB",
           runDestinationID: "destination",
-          didStart: { libBStartedPreparation.fulfill() },
-          didFinish: { self.wait(for: [allDocumentsOpened], timeout: defaultTimeout) }
+          didStart: { libBStartedPreparation.signal() },
+          didFinish: { allDocumentsOpened.waitOrXCTFail() }
         )
       ],
       // And now we just want to prepare LibD, and not LibC
@@ -658,7 +659,7 @@ final class BackgroundIndexingTests: XCTestCase {
         ExpectedPreparation(
           targetID: "LibD",
           runDestinationID: "destination",
-          didFinish: { libDPreparedForEditing.fulfill() }
+          didFinish: { libDPreparedForEditing.signal() }
         )
       ],
     ])
@@ -694,7 +695,7 @@ final class BackgroundIndexingTests: XCTestCase {
 
     // Quickly flip through all files
     _ = try project.openDocument("LibB.swift")
-    try await self.fulfillmentOfOrThrow([libBStartedPreparation])
+    try libBStartedPreparation.waitOrThrow()
 
     _ = try project.openDocument("LibC.swift")
 
@@ -704,24 +705,24 @@ final class BackgroundIndexingTests: XCTestCase {
     _ = try await project.testClient.send(BarrierRequest())
     _ = try project.openDocument("LibD.swift")
 
-    allDocumentsOpened.fulfill()
-    try await self.fulfillmentOfOrThrow([libDPreparedForEditing])
+    allDocumentsOpened.signal()
+    try libDPreparedForEditing.waitOrThrow()
   }
 
   public func testProduceIndexLog() async throws {
-    let didReceivePreparationIndexLogMessage = self.expectation(description: "Did receive preparation log message")
-    let didReceiveIndexingLogMessage = self.expectation(description: "Did receive indexing log message")
-    let updateIndexStoreTaskDidFinish = self.expectation(description: "Update index store task did finish")
+    let didReceivePreparationIndexLogMessage = WrappedSemaphore(name: "Did receive preparation log message")
+    let didReceiveIndexingLogMessage = WrappedSemaphore(name: "Did receive indexing log message")
+    let updateIndexStoreTaskDidFinish = WrappedSemaphore(name: "Update index store task did finish")
 
     // Block the index tasks until we have received a log notification to make sure we stream out results as they come
     // in and not only when the indexing task has finished
     var serverOptions = SourceKitLSPServer.Options.testDefault
     serverOptions.indexTestHooks.preparationTaskDidFinish = { _ in
-      await self.fulfillment(of: [didReceivePreparationIndexLogMessage], timeout: defaultTimeout)
+      didReceivePreparationIndexLogMessage.waitOrXCTFail()
     }
     serverOptions.indexTestHooks.updateIndexStoreTaskDidFinish = { _ in
-      await self.fulfillment(of: [didReceiveIndexingLogMessage], timeout: defaultTimeout)
-      updateIndexStoreTaskDidFinish.fulfill()
+      didReceiveIndexingLogMessage.waitOrXCTFail()
+      updateIndexStoreTaskDidFinish.signal()
     }
 
     let project = try await SwiftPMTestProject(
@@ -738,20 +739,20 @@ final class BackgroundIndexingTests: XCTestCase {
         return notification.message.contains("Preparing MyLibrary")
       }
     )
-    didReceivePreparationIndexLogMessage.fulfill()
+    didReceivePreparationIndexLogMessage.signal()
     _ = try await project.testClient.nextNotification(
       ofType: LogMessageNotification.self,
       satisfying: { notification in
         notification.message.contains("Indexing \(try project.uri(for: "MyFile.swift").pseudoPath)")
       }
     )
-    didReceiveIndexingLogMessage.fulfill()
-    try await fulfillmentOfOrThrow([updateIndexStoreTaskDidFinish])
+    didReceiveIndexingLogMessage.signal()
+    try updateIndexStoreTaskDidFinish.waitOrThrow()
   }
 
   func testIndexingHappensInParallel() async throws {
-    let fileAIndexingStarted = self.expectation(description: "FileA indexing started")
-    let fileBIndexingStarted = self.expectation(description: "FileB indexing started")
+    let fileAIndexingStarted = WrappedSemaphore(name: "FileA indexing started")
+    let fileBIndexingStarted = WrappedSemaphore(name: "FileB indexing started")
 
     var serverOptions = SourceKitLSPServer.Options.testDefault
     let expectedIndexTaskTracker = ExpectedIndexTaskTracker(
@@ -760,19 +761,19 @@ final class BackgroundIndexingTests: XCTestCase {
           ExpectedIndexStoreUpdate(
             sourceFileName: "FileA.swift",
             didStart: {
-              fileAIndexingStarted.fulfill()
+              fileAIndexingStarted.signal()
             },
             didFinish: {
-              self.wait(for: [fileBIndexingStarted], timeout: defaultTimeout)
+              fileBIndexingStarted.waitOrXCTFail()
             }
           ),
           ExpectedIndexStoreUpdate(
             sourceFileName: "FileB.swift",
             didStart: {
-              fileBIndexingStarted.fulfill()
+              fileBIndexingStarted.signal()
             },
             didFinish: {
-              self.wait(for: [fileAIndexingStarted], timeout: defaultTimeout)
+              fileAIndexingStarted.waitOrXCTFail()
             }
           ),
         ]

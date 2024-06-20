@@ -507,7 +507,7 @@ extension SwiftLanguageService {
           throw CancellationError()
         }
 
-        await sourceKitLSPServer.sendNotificationToClient(
+        sourceKitLSPServer.sendNotificationToClient(
           PublishDiagnosticsNotification(
             uri: document,
             diagnostics: diagnosticReport.items

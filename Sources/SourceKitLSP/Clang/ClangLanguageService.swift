@@ -388,7 +388,7 @@ extension ClangLanguageService {
     }
     if buildSettings?.isFallback ?? true {
       // Fallback: send empty publish notification instead.
-      await sourceKitLSPServer.sendNotificationToClient(
+      sourceKitLSPServer.sendNotificationToClient(
         PublishDiagnosticsNotification(
           uri: notification.uri,
           version: notification.version,
@@ -396,7 +396,7 @@ extension ClangLanguageService {
         )
       )
     } else {
-      await sourceKitLSPServer.sendNotificationToClient(notification)
+      sourceKitLSPServer.sendNotificationToClient(notification)
     }
   }
 
