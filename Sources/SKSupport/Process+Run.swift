@@ -26,12 +26,30 @@ import WinSDK
 
 extension Process {
   /// Wait for the process to exit. If the task gets cancelled, during this time, send a `SIGINT` to the process.
+  /// Should the process not terminate on SIGINT after 2 seconds, it is killed using `SIGKILL`.
   @discardableResult
-  public func waitUntilExitSendingSigIntOnTaskCancellation() async throws -> ProcessResult {
+  public func waitUntilExitStoppingProcessOnTaskCancellation() async throws -> ProcessResult {
+    let hasExited = AtomicBool(initialValue: false)
     return try await withTaskCancellationHandler {
-      try await waitUntilExit()
+      defer {
+        hasExited.value = true
+      }
+      return try await waitUntilExit()
     } onCancel: {
       signal(SIGINT)
+      Task {
+        // Give the process 2 seconds to react to a SIGINT. If that doesn't work, kill the process.
+        try await Task.sleep(for: .seconds(2))
+        if !hasExited.value {
+          #if os(Windows)
+          // Windows does not define SIGKILL. Process.signal sends a `terminate` to the underlying Foundation process
+          // for any signal that is not SIGINT. Use `SIGABRT` to terminate the process.
+          signal(SIGABRT)
+          #else
+          signal(SIGKILL)
+          #endif
+        }
+      }
     }
   }
 
@@ -138,7 +156,7 @@ extension Process {
     )
     return try await withTaskPriorityChangedHandler(initialPriority: Task.currentPriority) { @Sendable in
       setProcessPriority(pid: process.processID, newPriority: Task.currentPriority)
-      return try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+      return try await process.waitUntilExitStoppingProcessOnTaskCancellation()
     } taskPriorityChanged: {
       setProcessPriority(pid: process.processID, newPriority: Task.currentPriority)
     }
