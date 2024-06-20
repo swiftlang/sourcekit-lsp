@@ -18,4 +18,7 @@ public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
 
   /// Add `--experimental-prepare-for-indexing` to the `swift build` command run to prepare a target for indexing.
   case swiftpmPrepareForIndexing = "swiftpm-prepare-for-indexing"
+
+  /// Enable showing macro expansions via `ShowDocumentRequest`
+  case showMacroExpansions = "show-macro-expansions"
 }

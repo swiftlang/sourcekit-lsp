@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -13,22 +13,27 @@
 import LanguageServerProtocol
 import SourceKitD
 
-public struct SemanticRefactorCommand: RefactorCommand {
-  typealias Response = SemanticRefactoring
+public struct ExpandMacroCommand: RefactorCommand {
+  typealias Response = MacroExpansion
 
-  public static let identifier: String = "semantic.refactor.command"
+  public static let identifier: String = "expand.macro.command"
 
   /// The name of this refactoring action.
-  public var title: String
+  public var title = "Expand Macro"
 
   /// The sourcekitd identifier of the refactoring action.
-  public var actionString: String
+  public var actionString = "source.refactoring.kind.expand.macro"
 
-  /// The range to refactor.
+  /// The range to expand.
   public var positionRange: Range<Position>
 
   /// The text document related to the refactoring action.
   public var textDocument: TextDocumentIdentifier
+
+  public init(positionRange: Range<Position>, textDocument: TextDocumentIdentifier) {
+    self.positionRange = positionRange
+    self.textDocument = textDocument
+  }
 
   public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard case .dictionary(let documentDict)? = dictionary[CodingKeys.textDocument.stringValue],
@@ -43,6 +48,7 @@ public struct SemanticRefactorCommand: RefactorCommand {
     else {
       return nil
     }
+
     self.init(
       title: title,
       actionString: actionString,
@@ -51,8 +57,12 @@ public struct SemanticRefactorCommand: RefactorCommand {
     )
   }
 
-  public init(title: String, actionString: String, positionRange: Range<Position>, textDocument: TextDocumentIdentifier)
-  {
+  public init(
+    title: String,
+    actionString: String,
+    positionRange: Range<Position>,
+    textDocument: TextDocumentIdentifier
+  ) {
     self.title = title
     self.actionString = actionString
     self.positionRange = positionRange
@@ -66,42 +76,5 @@ public struct SemanticRefactorCommand: RefactorCommand {
       CodingKeys.positionRange.stringValue: positionRange.encodeToLSPAny(),
       CodingKeys.textDocument.stringValue: textDocument.encodeToLSPAny(),
     ])
-  }
-}
-
-extension Array where Element == SemanticRefactorCommand {
-  init?(
-    array: SKDResponseArray?,
-    range: Range<Position>,
-    textDocument: TextDocumentIdentifier,
-    _ keys: sourcekitd_api_keys,
-    _ api: sourcekitd_api_functions_t
-  ) {
-    guard let results = array else {
-      return nil
-    }
-    var commands = [SemanticRefactorCommand]()
-    results.forEach { _, value in
-      if let name: String = value[keys.actionName],
-        let actionuid: sourcekitd_api_uid_t = value[keys.actionUID],
-        let ptr = api.uid_get_string_ptr(actionuid)
-      {
-        let actionName = String(cString: ptr)
-        guard !actionName.hasPrefix("source.refactoring.kind.rename.") else {
-          // TODO: Rename.
-          return true
-        }
-        commands.append(
-          SemanticRefactorCommand(
-            title: name,
-            actionString: actionName,
-            positionRange: range,
-            textDocument: textDocument
-          )
-        )
-      }
-      return true
-    }
-    self = commands
   }
 }

@@ -38,8 +38,20 @@ extension SourceKitLSPServer {
     /// Options for code-completion.
     public var completionOptions: SKCompletionOptions
 
-    /// Override the default directory where generated interfaces will be stored
-    public var generatedInterfacesPath: AbsolutePath
+    /// Override the default directory where generated files will be stored
+    public var generatedFilesPath: AbsolutePath
+
+    /// Path to the generated interfaces
+    /// `<generatedFilesPath>/GeneratedInterfaces/`
+    public var generatedInterfacesPath: AbsolutePath {
+      generatedFilesPath.appending(component: "GeneratedInterfaces")
+    }
+
+    /// Path to the generated macro expansions
+    /// `<generatedFilesPath>`/GeneratedMacroExpansions/
+    public var generatedMacroExpansionsPath: AbsolutePath {
+      generatedFilesPath.appending(component: "GeneratedMacroExpansions")
+    }
 
     /// The time that `SwiftLanguageService` should wait after an edit before starting to compute diagnostics and
     /// sending a `PublishDiagnosticsNotification`.
@@ -64,7 +76,7 @@ extension SourceKitLSPServer {
       compilationDatabaseSearchPaths: [RelativePath] = [],
       indexOptions: IndexOptions = .init(),
       completionOptions: SKCompletionOptions = .init(),
-      generatedInterfacesPath: AbsolutePath = defaultDirectoryForGeneratedInterfaces,
+      generatedFilesPath: AbsolutePath = defaultDirectoryForGeneratedFiles,
       swiftPublishDiagnosticsDebounceDuration: TimeInterval = 2, /* 2s */
       workDoneProgressDebounceDuration: Duration = .seconds(0),
       experimentalFeatures: Set<ExperimentalFeature> = [],
@@ -75,7 +87,7 @@ extension SourceKitLSPServer {
       self.compilationDatabaseSearchPaths = compilationDatabaseSearchPaths
       self.indexOptions = indexOptions
       self.completionOptions = completionOptions
-      self.generatedInterfacesPath = generatedInterfacesPath
+      self.generatedFilesPath = generatedFilesPath
       self.swiftPublishDiagnosticsDebounceDuration = swiftPublishDiagnosticsDebounceDuration
       self.experimentalFeatures = experimentalFeatures
       self.workDoneProgressDebounceDuration = workDoneProgressDebounceDuration
