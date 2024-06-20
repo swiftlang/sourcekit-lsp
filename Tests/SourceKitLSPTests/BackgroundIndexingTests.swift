@@ -1246,6 +1246,35 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     _ = try await project.testClient.send(PollIndexRequest())
   }
+
+  func testCancelIndexing() async throws {
+    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
+    try SkipUnless.longTestsEnabled()
+
+    var serverOptions = SourceKitLSPServer.Options.testDefault
+    serverOptions.experimentalFeatures.insert(.swiftpmPrepareForIndexing)
+    serverOptions.indexOptions.updateIndexStoreTimeout = .seconds(1)
+
+    let dateStarted = Date()
+    _ = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": """
+        func slow(x: Invalid1, y: Invalid2) {
+          x / y / x / y / x / y / x / y
+        }
+        """
+      ],
+      serverOptions: serverOptions,
+      enableBackgroundIndexing: true
+    )
+    // Creating the `SwiftPMTestProject` implicitly waits for background indexing to finish.
+    // Preparation of `Test.swift` should finish instantly because it doesn't type check the function body.
+    // Type-checking the body relies on rdar://80582770, which makes the line hard to type check. We should hit the
+    // timeout of 1s. Adding another 2s to escalate a SIGINT (to which swift-frontend doesn't respond) to a SIGKILL mean
+    // that the initial indexing should be done in ~3s. 30s should be enough to always finish within this time while
+    // also testing that we don't wait for type checking of Test.swift to finish.
+    XCTAssert(Date().timeIntervalSince(dateStarted) < 30)
+  }
 }
 
 extension HoverResponseContents {

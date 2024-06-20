@@ -116,6 +116,7 @@ public final class Workspace: Sendable {
       self.semanticIndexManager = SemanticIndexManager(
         index: uncheckedIndex,
         buildSystemManager: buildSystemManager,
+        updateIndexStoreTimeout: options.indexOptions.updateIndexStoreTimeout,
         testHooks: options.indexTestHooks,
         indexTaskScheduler: indexTaskScheduler,
         logMessageToIndexLog: logMessageToIndexLog,
@@ -275,17 +276,24 @@ public struct IndexOptions: Sendable {
   /// Setting this to a value < 1 ensures that background indexing doesn't use all CPU resources.
   public var maxCoresPercentageToUseForBackgroundIndexing: Double
 
+  /// How long to wait until we cancel an update indexstore task. This timeout should be long enough that all
+  /// `swift-frontend` tasks finish within it. It prevents us from blocking the index if the type checker gets stuck on
+  /// an expression for a long time.
+  public var updateIndexStoreTimeout: Duration
+
   public init(
     indexStorePath: AbsolutePath? = nil,
     indexDatabasePath: AbsolutePath? = nil,
     indexPrefixMappings: [PathPrefixMapping]? = nil,
     listenToUnitEvents: Bool = true,
-    maxCoresPercentageToUseForBackgroundIndexing: Double = 1
+    maxCoresPercentageToUseForBackgroundIndexing: Double = 1,
+    updateIndexStoreTimeout: Duration = .seconds(120)
   ) {
     self.indexStorePath = indexStorePath
     self.indexDatabasePath = indexDatabasePath
     self.indexPrefixMappings = indexPrefixMappings
     self.listenToUnitEvents = listenToUnitEvents
     self.maxCoresPercentageToUseForBackgroundIndexing = maxCoresPercentageToUseForBackgroundIndexing
+    self.updateIndexStoreTimeout = updateIndexStoreTimeout
   }
 }

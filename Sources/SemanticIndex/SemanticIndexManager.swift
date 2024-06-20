@@ -133,6 +133,11 @@ public final actor SemanticIndexManager {
   /// The build system manager that is used to get compiler arguments for a file.
   private let buildSystemManager: BuildSystemManager
 
+  /// How long to wait until we cancel an update indexstore task. This timeout should be long enough that all
+  /// `swift-frontend` tasks finish within it. It prevents us from blocking the index if the type checker gets stuck on
+  /// an expression for a long time.
+  public var updateIndexStoreTimeout: Duration
+
   private let testHooks: IndexTestHooks
 
   /// The task to generate the build graph (resolving package dependencies, generating the build description,
@@ -209,6 +214,7 @@ public final actor SemanticIndexManager {
   public init(
     index: UncheckedIndex,
     buildSystemManager: BuildSystemManager,
+    updateIndexStoreTimeout: Duration,
     testHooks: IndexTestHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
@@ -217,6 +223,7 @@ public final actor SemanticIndexManager {
   ) {
     self.index = index
     self.buildSystemManager = buildSystemManager
+    self.updateIndexStoreTimeout = updateIndexStoreTimeout
     self.testHooks = testHooks
     self.indexTaskScheduler = indexTaskScheduler
     self.logMessageToIndexLog = logMessageToIndexLog
@@ -510,6 +517,7 @@ public final actor SemanticIndexManager {
         index: index,
         indexStoreUpToDateTracker: indexStoreUpToDateTracker,
         logMessageToIndexLog: logMessageToIndexLog,
+        timeout: updateIndexStoreTimeout,
         testHooks: testHooks
       )
     )

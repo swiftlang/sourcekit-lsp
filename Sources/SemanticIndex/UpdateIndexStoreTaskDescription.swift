@@ -19,6 +19,7 @@ import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
+import struct TSCBasic.ProcessResult
 
 private let updateIndexStoreIDForLogging = AtomicUInt32(initialValue: 1)
 
@@ -114,6 +115,11 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   /// See `SemanticIndexManager.logMessageToIndexLog`.
   private let logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
 
+  /// How long to wait until we cancel an update indexstore task. This timeout should be long enough that all
+  /// `swift-frontend` tasks finish within it. It prevents us from blocking the index if the type checker gets stuck on
+  /// an expression for a long time.
+  private let timeout: Duration
+
   /// Test hooks that should be called when the index task finishes.
   private let testHooks: IndexTestHooks
 
@@ -140,6 +146,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     index: UncheckedIndex,
     indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>,
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
+    timeout: Duration,
     testHooks: IndexTestHooks
   ) {
     self.filesToIndex = filesToIndex
@@ -147,6 +154,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     self.index = index
     self.indexStoreUpToDateTracker = indexStoreUpToDateTracker
     self.logMessageToIndexLog = logMessageToIndexLog
+    self.timeout = timeout
     self.testHooks = testHooks
   }
 
@@ -356,19 +364,21 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     let stdoutHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
     let stderrHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
 
-    // Time out updating of the index store after 2 minutes. We don't expect any single file compilation to take longer
-    // than 2 minutes in practice, so this indicates that the compiler has entered a loop and we probably won't make any
-    // progress here. We will try indexing the file again when it is edited or when the project is re-opened.
-    // 2 minutes have been chosen arbitrarily.
-    let result = try await withTimeout(.seconds(120)) {
-      try await Process.run(
-        arguments: processArguments,
-        workingDirectory: workingDirectory,
-        outputRedirection: .stream(
-          stdout: { stdoutHandler.handleDataFromPipe(Data($0)) },
-          stderr: { stderrHandler.handleDataFromPipe(Data($0)) }
+    let result: ProcessResult
+    do {
+      result = try await withTimeout(timeout) {
+        try await Process.run(
+          arguments: processArguments,
+          workingDirectory: workingDirectory,
+          outputRedirection: .stream(
+            stdout: { stdoutHandler.handleDataFromPipe(Data($0)) },
+            stderr: { stderrHandler.handleDataFromPipe(Data($0)) }
+          )
         )
-      )
+      }
+    } catch {
+      logMessageToIndexLog(logID, "Finished error in \(start.duration(to: .now)): \(error)")
+      throw error
     }
     let exitStatus = result.exitStatus.exhaustivelySwitchable
     logMessageToIndexLog(logID, "Finished with \(exitStatus.description) in \(start.duration(to: .now))")
