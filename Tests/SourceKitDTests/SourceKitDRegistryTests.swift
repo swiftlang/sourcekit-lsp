@@ -59,7 +59,7 @@ final class SourceKitDRegistryTests: XCTestCase {
   }
 }
 
-private nonisolated(unsafe) var nextToken = AtomicUInt32(initialValue: 0)
+private let nextToken = AtomicUInt32(initialValue: 0)
 
 final class FakeSourceKitD: SourceKitD {
   let token: UInt32

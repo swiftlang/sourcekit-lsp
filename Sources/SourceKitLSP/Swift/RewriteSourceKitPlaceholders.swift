@@ -18,12 +18,12 @@ func rewriteSourceKitPlaceholders(in string: String, clientSupportsSnippets: Boo
   var index = 1
   while let start = result.range(of: "<#") {
     guard let end = result[start.upperBound...].range(of: "#>") else {
-      logger.error("invalid placeholder in \(string)")
+      logger.fault("Invalid placeholder in \(string)")
       return string
     }
     let rawPlaceholder = String(result[start.lowerBound..<end.upperBound])
     guard let displayName = EditorPlaceholderData(text: rawPlaceholder)?.nameForSnippet else {
-      logger.error("failed to decode placeholder \(rawPlaceholder) in \(string)")
+      logger.fault("Failed to decode placeholder \(rawPlaceholder) in \(string)")
       return string
     }
     let snippet = clientSupportsSnippets ? "${\(index):\(displayName)}" : ""

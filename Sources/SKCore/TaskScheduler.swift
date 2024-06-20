@@ -126,7 +126,7 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Every time `execute` gets called, a new task is placed in this continuation. See comment on `executionTask`.
   private let executionTaskCreatedContinuation: AsyncStream<Task<ExecutionTaskFinishStatus, Never>>.Continuation
 
-  nonisolated(unsafe) private var _priority: AtomicUInt8
+  private let _priority: AtomicUInt8
 
   /// The latest known priority of the task.
   ///
@@ -147,9 +147,9 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   private var cancelledToBeRescheduled: Bool = false
 
   /// Whether `resultTask` has been cancelled.
-  private nonisolated(unsafe) var resultTaskCancelled: AtomicBool = .init(initialValue: false)
+  private let resultTaskCancelled: AtomicBool = .init(initialValue: false)
 
-  private nonisolated(unsafe) var _isExecuting: AtomicBool = .init(initialValue: false)
+  private let _isExecuting: AtomicBool = .init(initialValue: false)
 
   /// Whether the task is currently executing or still queued to be executed later.
   public nonisolated var isExecuting: Bool {

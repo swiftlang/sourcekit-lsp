@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LSPLogging
 import LanguageServerProtocol
 import SKCore
 import SemanticIndex
@@ -103,6 +104,7 @@ actor ExpectedIndexTaskTracker {
       return
     }
     if Task.isCancelled {
+      logger.debug("Ignoring preparation task start because task is cancelled: \(taskDescription.targetsToPrepare)")
       return
     }
     guard let expectedTargetsToPrepare = expectedPreparations.first else {
@@ -120,6 +122,7 @@ actor ExpectedIndexTaskTracker {
       return
     }
     if Task.isCancelled {
+      logger.debug("Ignoring preparation task finish because task is cancelled: \(taskDescription.targetsToPrepare)")
       return
     }
     guard let expectedTargetsToPrepare = expectedPreparations.first else {
@@ -147,6 +150,12 @@ actor ExpectedIndexTaskTracker {
 
   func updateIndexStoreTaskDidStart(taskDescription: UpdateIndexStoreTaskDescription) -> Void {
     if Task.isCancelled {
+      logger.debug(
+        """
+        Ignoring update indexstore start because task is cancelled: \
+        \(taskDescription.filesToIndex.map(\.file.sourceFile))
+        """
+      )
       return
     }
     guard let expectedFilesToIndex = expectedIndexStoreUpdates?.first else {
@@ -165,6 +174,12 @@ actor ExpectedIndexTaskTracker {
       return
     }
     if Task.isCancelled {
+      logger.debug(
+        """
+        Ignoring update indexstore finish because task is cancelled: \
+        \(taskDescription.filesToIndex.map(\.file.sourceFile))
+        """
+      )
       return
     }
     guard let expectedFilesToIndex = expectedIndexStoreUpdates.first else {

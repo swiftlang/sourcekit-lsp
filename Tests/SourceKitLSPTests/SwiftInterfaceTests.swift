@@ -73,7 +73,7 @@ final class SwiftInterfaceTests: XCTestCase {
     )
 
     let (mainUri, _) = try project.openDocument("main.swift")
-    let openInterface = OpenInterfaceRequest(
+    let openInterface = OpenGeneratedInterfaceRequest(
       textDocument: TextDocumentIdentifier(mainUri),
       name: "MyLibrary",
       groupName: nil,

@@ -19,8 +19,7 @@ import SourceKitLSP
 public final class InProcessSourceKitLSPClient: Sendable {
   private let server: SourceKitLSPServer
 
-  /// `nonisolated(unsafe)` if fine because `nextRequestID` is atomic.
-  private nonisolated(unsafe) var nextRequestID = AtomicUInt32(initialValue: 0)
+  private let nextRequestID = AtomicUInt32(initialValue: 0)
 
   /// Create a new `SourceKitLSPServer`. An `InitializeRequest` is automatically sent to the server.
   ///
