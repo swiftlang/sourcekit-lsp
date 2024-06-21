@@ -12,11 +12,13 @@
 
 import LSPTestSupport
 import LanguageServerProtocol
-import SKCore
+@_spi(Testing) import SKCore
 import SKTestSupport
 import SemanticIndex
 import SourceKitLSP
 import XCTest
+
+import class TSCBasic.Process
 
 final class BackgroundIndexingTests: XCTestCase {
   func testBackgroundIndexingOfSingleFile() async throws {
@@ -1094,5 +1096,127 @@ final class BackgroundIndexingTests: XCTestCase {
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
     XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "LibB.swift")]))
+  }
+
+  func testUpdatePackageDependency() async throws {
+    try SkipUnless.longTestsEnabled()
+
+    let dependencyProject = try await SwiftPMDependencyProject(files: [
+      "Sources/MyDependency/Dependency.swift": """
+      /// Do something v1.0.0
+      public func doSomething() {}
+      """
+    ])
+    let dependencySwiftURL = dependencyProject.packageDirectory
+      .appendingPathComponent("Sources")
+      .appendingPathComponent("MyDependency")
+      .appendingPathComponent("Dependency.swift")
+    defer { dependencyProject.keepAlive() }
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": """
+        import MyDependency
+
+        func test() {
+          1️⃣doSomething()
+        }
+        """
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          dependencies: [.package(url: "\(dependencyProject.packageDirectory)", from: "1.0.0")],
+          targets: [
+            .target(
+              name: "MyLibrary",
+              dependencies: [.product(name: "MyDependency", package: "MyDependency")]
+            )
+          ]
+        )
+        """,
+      enableBackgroundIndexing: true
+    )
+    let packageResolvedURL = project.scratchDirectory.appendingPathComponent("Package.resolved")
+
+    let originalPackageResolvedContents = try String(contentsOf: packageResolvedURL)
+
+    // First check our setup to see that we get the expected hover response before changing the dependency project.
+    let (uri, positions) = try project.openDocument("Test.swift")
+    let hoverBeforeUpdate = try await project.testClient.send(
+      HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssert(
+      hoverBeforeUpdate?.contents.markupContent?.value.contains("Do something v1.0.0") ?? false,
+      "Did not contain expected string: \(String(describing: hoverBeforeUpdate))"
+    )
+
+    // Just committing a new version of the dependency shouldn't change anything because we didn't update the package
+    // dependencies.
+    try """
+    /// Do something v1.1.0
+    public func doSomething() {}
+    """.write(to: dependencySwiftURL, atomically: true, encoding: .utf8)
+    try await dependencyProject.tag(changedFiles: [dependencySwiftURL], version: "1.1.0")
+
+    let hoverAfterNewVersionCommit = try await project.testClient.send(
+      HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssert(
+      hoverAfterNewVersionCommit?.contents.markupContent?.value.contains("Do something v1.0.0") ?? false,
+      "Did not contain expected string: \(String(describing: hoverBeforeUpdate))"
+    )
+
+    // Updating Package.swift causes a package reload but should not cause dependencies to be updated.
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("Package.resolved")), type: .changed)
+      ])
+    )
+    _ = try await project.testClient.send(PollIndexRequest())
+    XCTAssertEqual(try String(contentsOf: packageResolvedURL), originalPackageResolvedContents)
+
+    // Simulate a package update which goes as follows:
+    //  - The user runs `swift package update`
+    //  - This updates `Package.resolved`, which we watch
+    //  - We reload the package, which updates `Dependency.swift` in `.index-build/checkouts`, which we also watch.
+    try await Process.run(
+      arguments: [
+        unwrap(ToolchainRegistry.forTesting.default?.swift?.pathString),
+        "package", "update",
+        "--package-path", project.scratchDirectory.path,
+      ],
+      workingDirectory: nil
+    )
+    XCTAssertNotEqual(try String(contentsOf: packageResolvedURL), originalPackageResolvedContents)
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("Package.resolved")), type: .changed)
+      ])
+    )
+    _ = try await project.testClient.send(PollIndexRequest())
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(
+        changes: FileManager.default.findFiles(named: "Dependency.swift", in: project.scratchDirectory).map {
+          FileEvent(uri: DocumentURI($0), type: .changed)
+        }
+      )
+    )
+
+    try await repeatUntilExpectedResult {
+      let hoverAfterPackageUpdate = try await project.testClient.send(
+        HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      )
+      return hoverAfterPackageUpdate?.contents.markupContent?.value.contains("Do something v1.1.0") ?? false
+    }
+  }
+}
+
+extension HoverResponseContents {
+  var markupContent: MarkupContent? {
+    switch self {
+    case .markupContent(let markupContent): return markupContent
+    default: return nil
+    }
   }
 }
