@@ -86,15 +86,20 @@ public class SwiftPMDependencyProject {
     }
 
     try await runGitCommand(["init"], workingDirectory: packageDirectory)
+    try await tag(changedFiles: files.keys.map { $0.url(relativeTo: packageDirectory) }, version: "1.0.0")
+  }
+
+  public func tag(changedFiles: [URL], version: String) async throws {
     try await runGitCommand(
-      ["add"] + files.keys.map { $0.url(relativeTo: packageDirectory).path },
+      ["add"] + changedFiles.map(\.path),
       workingDirectory: packageDirectory
     )
     try await runGitCommand(
-      ["-c", "user.name=Dummy", "-c", "user.email=noreply@swift.org", "commit", "-m", "Initial commit"],
+      ["-c", "user.name=Dummy", "-c", "user.email=noreply@swift.org", "commit", "-m", "Version \(version)"],
       workingDirectory: packageDirectory
     )
-    try await runGitCommand(["tag", "1.0.0"], workingDirectory: packageDirectory)
+
+    try await runGitCommand(["tag", version], workingDirectory: self.packageDirectory)
   }
 
   deinit {

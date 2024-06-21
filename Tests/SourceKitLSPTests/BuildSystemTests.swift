@@ -187,15 +187,10 @@ final class BuildSystemTests: XCTestCase {
 
     await buildSystem.delegate?.fileBuildSettingsChanged([doc])
 
-    var receivedCorrectDiagnostic = false
-    for _ in 0..<Int(defaultTimeout) {
+    try await repeatUntilExpectedResult {
       let refreshedDiags = try await testClient.nextDiagnosticsNotification(timeout: .seconds(1))
-      if refreshedDiags.diagnostics.count == 0, try text == documentManager.latestSnapshot(doc).text {
-        receivedCorrectDiagnostic = true
-        break
-      }
+      return try text == documentManager.latestSnapshot(doc).text && refreshedDiags.diagnostics.count == 0
     }
-    XCTAssert(receivedCorrectDiagnostic)
   }
 
   func testSwiftDocumentUpdatedBuildSettings() async throws {
