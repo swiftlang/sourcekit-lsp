@@ -3,9 +3,9 @@ add_library(SemanticIndex STATIC
   CheckedIndex.swift
   CompilerCommandLineOption.swift
   IndexTaskDescription.swift
+  IndexTestHooks.swift
   PreparationTaskDescription.swift
   SemanticIndexManager.swift
-  TestHooks.swift
   UpdateIndexStoreTaskDescription.swift
   UpToDateTracker.swift
 )
