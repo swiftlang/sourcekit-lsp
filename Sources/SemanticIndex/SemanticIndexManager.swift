@@ -238,15 +238,15 @@ public final actor SemanticIndexManager {
   /// Returns immediately after scheduling that task.
   ///
   /// Indexing is being performed with a low priority.
-  private func scheduleBackgroundIndex(files: some Collection<DocumentURI>) async {
-    _ = await self.scheduleIndexing(of: files, priority: .low)
+  private func scheduleBackgroundIndex(files: some Collection<DocumentURI>, indexFilesWithUpToDateUnit: Bool) async {
+    _ = await self.scheduleIndexing(of: files, indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit, priority: .low)
   }
 
   /// Regenerate the build graph (also resolving package dependencies) and then index all the source files known to the
   /// build system that don't currently have a unit with a timestamp that matches the mtime of the file.
   ///
   /// This method is intended to initially update the index of a project after it is opened.
-  public func scheduleBuildGraphGenerationAndBackgroundIndexAllFiles() async {
+  public func scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(indexFilesWithUpToDateUnit: Bool = false) async {
     generateBuildGraphTask = Task(priority: .low) {
       await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "build-graph-generation") {
         logger.log(
@@ -270,14 +270,24 @@ public final actor SemanticIndexManager {
         // potentially not knowing about unit files, which causes the corresponding source files to be re-indexed.
         index.pollForUnitChangesAndWait()
         await testHooks.buildGraphGenerationDidFinish?()
-        let index = index.checked(for: .modifiedFiles)
-        let filesToIndex = await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
-          .filter { !index.hasUpToDateUnit(for: $0) }
-        await scheduleBackgroundIndex(files: filesToIndex)
+        var filesToIndex: any Collection<DocumentURI> = await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
+        if !indexFilesWithUpToDateUnit {
+          let index = index.checked(for: .modifiedFiles)
+          filesToIndex = filesToIndex.filter { !index.hasUpToDateUnit(for: $0) }
+        }
+        await scheduleBackgroundIndex(files: filesToIndex, indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit)
         generateBuildGraphTask = nil
       }
     }
     indexProgressStatusDidChange()
+  }
+
+  /// Causes all files to be re-indexed even if the unit file for the source file is up to date.
+  /// See `TriggerReindexRequest`.
+  public func scheduleReindex() async {
+    await indexStoreUpToDateTracker.markAllKnownOutOfDate()
+    await preparationUpToDateTracker.markAllKnownOutOfDate()
+    await scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(indexFilesWithUpToDateUnit: true)
   }
 
   /// Wait for all in-progress index tasks to finish.
@@ -319,7 +329,7 @@ public final actor SemanticIndexManager {
     // Create a new index task for the files that aren't up-to-date. The newly scheduled index tasks will
     // - Wait for the existing index operations to finish if they have the same number of files.
     // - Reschedule the background index task in favor of an index task with fewer source files.
-    await self.scheduleIndexing(of: uris, priority: nil).value
+    await self.scheduleIndexing(of: uris, indexFilesWithUpToDateUnit: false, priority: nil).value
     index.pollForUnitChangesAndWait()
     logger.debug("Done waiting for up-to-date index")
   }
@@ -354,7 +364,7 @@ public final actor SemanticIndexManager {
       await preparationUpToDateTracker.markOutOfDate(inProgressPreparationTasks.keys)
     }
 
-    await scheduleBackgroundIndex(files: changedFiles)
+    await scheduleBackgroundIndex(files: changedFiles, indexFilesWithUpToDateUnit: false)
   }
 
   /// Returns the files that should be indexed to get up-to-date index information for the given files.
@@ -507,6 +517,7 @@ public final actor SemanticIndexManager {
   /// Update the index store for the given files, assuming that their targets have already been prepared.
   private func updateIndexStore(
     for filesAndTargets: [FileAndTarget],
+    indexFilesWithUpToDateUnit: Bool,
     preparationTaskID: UUID,
     priority: TaskPriority?
   ) async {
@@ -516,6 +527,7 @@ public final actor SemanticIndexManager {
         buildSystemManager: self.buildSystemManager,
         index: index,
         indexStoreUpToDateTracker: indexStoreUpToDateTracker,
+        indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit,
         logMessageToIndexLog: logMessageToIndexLog,
         timeout: updateIndexStoreTimeout,
         testHooks: testHooks
@@ -553,6 +565,7 @@ public final actor SemanticIndexManager {
   /// The returned task finishes when all files are indexed.
   private func scheduleIndexing(
     of files: some Collection<DocumentURI>,
+    indexFilesWithUpToDateUnit: Bool,
     priority: TaskPriority?
   ) async -> Task<Void, Never> {
     // Perform a quick initial check to whether the files is up-to-date, in which case we don't need to schedule a
@@ -627,6 +640,7 @@ public final actor SemanticIndexManager {
               taskGroup.addTask {
                 await self.updateIndexStore(
                   for: fileBatch.map { FileAndTarget(file: $0, target: target) },
+                  indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit,
                   preparationTaskID: preparationTaskID,
                   priority: priority
                 )

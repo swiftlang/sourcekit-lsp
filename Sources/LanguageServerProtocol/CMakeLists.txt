@@ -77,6 +77,7 @@ add_library(LanguageServerProtocol STATIC
   Requests/ShutdownRequest.swift
   Requests/SignatureHelpRequest.swift
   Requests/SymbolInfoRequest.swift
+  Requests/TriggerReindexRequest.swift
   Requests/TypeDefinitionRequest.swift
   Requests/TypeHierarchyPrepareRequest.swift
   Requests/TypeHierarchySubtypesRequest.swift

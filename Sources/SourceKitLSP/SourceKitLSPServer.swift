@@ -762,6 +762,8 @@ extension SourceKitLSPServer: MessageHandler {
       await self.handleRequest(for: request, requestHandler: self.prepareRename)
     case let request as RequestAndReply<IndexedRenameRequest>:
       await self.handleRequest(for: request, requestHandler: self.indexedRename)
+    case let request as RequestAndReply<TriggerReindexRequest>:
+      await request.reply { try await triggerReindex(request.params) }
     // IMPORTANT: When adding a new entry to this switch, also add it to the `MessageHandlingDependencyTracker` initializer.
     default:
       await request.reply { throw ResponseError.methodNotFound(R.method) }
@@ -2340,6 +2342,13 @@ extension SourceKitLSPServer {
     for workspace in workspaces {
       await workspace.semanticIndexManager?.waitForUpToDateIndex()
       workspace.uncheckedIndex?.pollForUnitChangesAndWait()
+    }
+    return VoidResponse()
+  }
+
+  func triggerReindex(_ req: TriggerReindexRequest) async throws -> VoidResponse {
+    for workspace in workspaces {
+      await workspace.semanticIndexManager?.scheduleReindex()
     }
     return VoidResponse()
   }
