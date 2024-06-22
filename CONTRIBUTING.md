@@ -68,6 +68,9 @@ If you want test your changes to SourceKit-LSP inside your editor, you can point
 "swift.sourcekit-lsp.serverPath": "/path/to/sourcekit-lsp/.build/arm64-apple-macosx/debug/sourcekit-lsp",
 ```
 
+> [!NOTE]
+> VS Code will note that that the `swift.sourcekit-lsp.serverPath` setting is deprecated. That’s because mixing and matching versions of sourcekit-lsp and Swift toolchains is generally not supported, so the settings is reserved for developers of SourceKit-LSP, which includes you. You can ignore this warning, If you have the `swift.path` setting to a recent [Swift Development Snapshot](https://www.swift.org/install).
+
 > [!TIP]
 > The easiest way to debug SourceKit-LSP is usually to write a test case that reproduces the behavior and then debug that. If that’s not possible, you can attach LLDB to the sourcekit-lsp launched by your and set breakpoints to debug. To do so on the command line, run
 > ```bash

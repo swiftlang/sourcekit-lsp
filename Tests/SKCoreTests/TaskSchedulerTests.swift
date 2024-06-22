@@ -307,7 +307,7 @@ fileprivate func runTaskScheduler(
   )
   let taskExecutionRecorder = TaskExecutionRecorder()
 
-  let allTasksScheduled = WrappedSemaphore()
+  let allTasksScheduled = WrappedSemaphore(name: "All tasks scheduled")
 
   // Keep scheduler busy so we can schedule all the remaining tasks that we actually want to test.
   // Using a semaphore here is an anti-pattern that should not be used in production since it can lead to priority
@@ -315,7 +315,7 @@ fileprivate func runTaskScheduler(
   // other tasks are running in the process other than the test, this is fine here.
   for _ in 0..<highPriorityTasks {
     await scheduler.schedule(priority: .high, id: nil) {
-      allTasksScheduled.wait()
+      allTasksScheduled.waitOrXCTFail()
     }
   }
 
@@ -325,7 +325,7 @@ fileprivate func runTaskScheduler(
   // Use a semaphore to wait for the scheduler to reach these very low-priority tasks.
   // Using utility for the priority ensures that these tasks get executed last and using a semaphore ensures that we
   // don't elevate the task's priority by awaiting it.
-  let reachedEnd = WrappedSemaphore()
+  let reachedEnd = WrappedSemaphore(name: "Reached end")
   await scheduler.schedule(
     priority: TaskPriority.low,
     id: nil,
@@ -334,7 +334,7 @@ fileprivate func runTaskScheduler(
       return currentlyExecutingTasks.map { .waitAndElevatePriorityOfDependency($0) }
     }
   )
-  reachedEnd.wait()
+  reachedEnd.waitOrXCTFail()
 
   let recordings = await taskExecutionRecorder.taskRecordings
   validate(recordings)

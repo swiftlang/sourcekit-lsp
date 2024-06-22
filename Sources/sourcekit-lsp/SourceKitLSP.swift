@@ -102,6 +102,7 @@ extension SKSupport.WorkspaceType: @retroactive ExpressibleByArgument {}
 @main
 struct SourceKitLSP: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
+    commandName: "sourcekit-lsp",
     abstract: "Language Server Protocol implementation for Swift and C-based languages",
     subcommands: [
       DiagnoseCommand.self,

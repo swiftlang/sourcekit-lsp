@@ -287,7 +287,6 @@ final class BuildSystemTests: XCTestCase {
     let documentManager = await self.testClient.server.documentManager
 
     testClient.openDocument(text, uri: doc)
-    _ = try await testClient.nextNotification(ofType: ShowMessageNotification.self)
     let openDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(openDiags.diagnostics.count, 1)
     XCTAssertEqual(text, try documentManager.latestSnapshot(doc).text)

@@ -21,7 +21,6 @@ import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
-import var TSCBasic.stderrStream
 import class TSCUtility.PercentProgressAnimation
 
 private actor IndexLogMessageHandler: MessageHandler {

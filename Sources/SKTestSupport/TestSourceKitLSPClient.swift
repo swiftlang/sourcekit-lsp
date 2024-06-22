@@ -36,7 +36,7 @@ fileprivate struct NotificationTimeoutError: Error, CustomStringConvertible {
 ///
 /// It can send requests to the LSP server and receive requests or notifications
 /// that the server sends to the client.
-public final class TestSourceKitLSPClient: MessageHandler {
+public final class TestSourceKitLSPClient: MessageHandler, Sendable {
   /// A function that takes a request and returns the request's response.
   public typealias RequestHandler<Request: RequestType> = @Sendable (Request) -> Request.Response
 
@@ -199,7 +199,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   @discardableResult
   public func send<R: RequestType>(
     _ request: R,
-    completionHandler: @escaping (LSPResult<R.Response>) -> Void
+    completionHandler: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) -> RequestID {
     let requestID = RequestID.number(Int(nextRequestID.fetchAndIncrement()))
     server.handle(request, id: requestID) { result in

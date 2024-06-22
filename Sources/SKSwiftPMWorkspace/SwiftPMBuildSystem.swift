@@ -329,7 +329,7 @@ extension SwiftPMBuildSystem {
     )
 
     let plan = try BuildPlan(
-      productsBuildParameters: destinationBuildParameters,
+      destinationBuildParameters: destinationBuildParameters,
       toolsBuildParameters: toolsBuildParameters,
       graph: modulesGraph,
       fileSystem: fileSystem,

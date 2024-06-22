@@ -226,6 +226,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
         "--predicate", #"subsystem = "org.swift.sourcekit-lsp" AND process = "sourcekit-lsp""#,
         "--info",
         "--debug",
+        "--signpost",
       ],
       outputRedirection: .stream(
         stdout: { bytes in
@@ -368,7 +369,9 @@ public struct DiagnoseCommand: AsyncParsableCommand {
       if let bundleOutputPath = self.bundleOutputPath {
         URL(fileURLWithPath: bundleOutputPath)
       } else {
-        FileManager.default.temporaryDirectory.appendingPathComponent("sourcekit-lsp-diagnose-\(date)")
+        FileManager.default.temporaryDirectory
+          .appendingPathComponent("sourcekit-lsp-diagnose")
+          .appendingPathComponent("sourcekit-lsp-diagnose-\(date)")
       }
     try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
 

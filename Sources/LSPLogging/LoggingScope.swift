@@ -39,7 +39,7 @@ public final class LoggingScope {
 public func withLoggingSubsystemAndScope<Result>(
   subsystem: String,
   scope: String?,
-  _ operation: () throws -> Result
+  @_inheritActorContext _ operation: @Sendable () throws -> Result
 ) rethrows -> Result {
   return try LoggingScope.$_subsystem.withValue(subsystem) {
     return try LoggingScope.$_scope.withValue(scope, operation: operation)
@@ -50,7 +50,7 @@ public func withLoggingSubsystemAndScope<Result>(
 public func withLoggingSubsystemAndScope<Result>(
   subsystem: String,
   scope: String?,
-  _ operation: () async throws -> Result
+  @_inheritActorContext _ operation: @Sendable () async throws -> Result
 ) async rethrows -> Result {
   return try await LoggingScope.$_subsystem.withValue(subsystem) {
     return try await LoggingScope.$_scope.withValue(scope, operation: operation)
