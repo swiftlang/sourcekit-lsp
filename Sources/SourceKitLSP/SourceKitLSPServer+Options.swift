@@ -14,6 +14,7 @@ import Foundation
 import LanguageServerProtocol
 import SKCore
 import SKSupport
+import SKSwiftPMWorkspace
 import SemanticIndex
 
 import struct TSCBasic.AbsolutePath
@@ -70,6 +71,8 @@ extension SourceKitLSPServer {
 
     public var indexTestHooks: IndexTestHooks
 
+    public var swiftpmTestHooks: SwiftPMTestHooks
+
     public init(
       buildSetup: BuildSetup = .default,
       clangdOptions: [String] = [],
@@ -80,7 +83,8 @@ extension SourceKitLSPServer {
       swiftPublishDiagnosticsDebounceDuration: TimeInterval = 2, /* 2s */
       workDoneProgressDebounceDuration: Duration = .seconds(0),
       experimentalFeatures: Set<ExperimentalFeature> = [],
-      indexTestHooks: IndexTestHooks = IndexTestHooks()
+      indexTestHooks: IndexTestHooks = IndexTestHooks(),
+      swiftpmTestHooks: SwiftPMTestHooks = SwiftPMTestHooks()
     ) {
       self.buildSetup = buildSetup
       self.clangdOptions = clangdOptions
@@ -92,6 +96,7 @@ extension SourceKitLSPServer {
       self.experimentalFeatures = experimentalFeatures
       self.workDoneProgressDebounceDuration = workDoneProgressDebounceDuration
       self.indexTestHooks = indexTestHooks
+      self.swiftpmTestHooks = swiftpmTestHooks
     }
   }
 }
