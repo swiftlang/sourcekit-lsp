@@ -292,10 +292,7 @@ extension SwiftLanguageService {
           commands: builtinSwiftCommands
         ),
         semanticTokensProvider: SemanticTokensOptions(
-          legend: SemanticTokensLegend(
-            tokenTypes: SemanticTokenTypes.all.map(\.name),
-            tokenModifiers: SemanticTokenModifiers.all.compactMap(\.name)
-          ),
+          legend: SemanticTokensLegend.sourceKitLSPLegend,
           range: .bool(true),
           full: .bool(true)
         ),

@@ -35,7 +35,34 @@ Added field (this is an extension from clangd that SourceKit-LSP re-exposes):
 codeActions: CodeAction[]?
 ```
 
+## Semantic token modifiers
+
+Added the following cases from clangd
+
+```ts
+deduced = 'deduced'
+virtual = 'virtual'
+dependentName = 'dependentName'
+usedAsMutableReference = 'usedAsMutableReference'
+usedAsMutablePointer = 'usedAsMutablePointer'
+constructorOrDestructor = 'constructorOrDestructor'
+userDefined = 'userDefined'
+functionScope = 'functionScope'
+classScope = 'classScope'
+fileScope = 'fileScope'
+globalScope = 'globalScope'
+```
+
 ## Semantic token types
+
+Added the following cases from clangd
+
+```ts
+bracket = 'bracket'
+label = 'label'
+concept = 'concept'
+unknown = 'unknown'
+```
 
 Added case
 

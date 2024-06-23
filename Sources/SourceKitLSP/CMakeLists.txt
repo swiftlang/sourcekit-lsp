@@ -11,6 +11,7 @@ add_library(SourceKitLSP STATIC
   MessageHandlingDependencyTracker.swift
   Rename.swift
   ResponseError+Init.swift
+  SemanticTokensLegend+SourceKitLSPLegend.swift
   SourceKitIndexDelegate.swift
   SourceKitLSPCommandMetadata.swift
   SourceKitLSPServer.swift
@@ -22,7 +23,9 @@ add_library(SourceKitLSP STATIC
   Workspace.swift
 )
 target_sources(SourceKitLSP PRIVATE
-  Clang/ClangLanguageService.swift)
+  Clang/ClangLanguageService.swift
+  Clang/SemanticTokenTranslator.swift
+)
 target_sources(SourceKitLSP PRIVATE
   Swift/AdjustPositionToStartOfIdentifier.swift
   Swift/CodeActions/AddDocumentation.swift
