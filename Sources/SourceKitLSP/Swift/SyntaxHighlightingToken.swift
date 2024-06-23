@@ -47,24 +47,3 @@ public struct SyntaxHighlightingToken: Hashable, Sendable {
     self.init(range: range, kind: kind, modifiers: modifiers)
   }
 }
-
-extension SemanticTokenTypes {
-  /// **(LSP Extension)**
-  public static let identifier = Self("identifier")
-
-  // LSP doesn’t know about actors. Display actors as classes.
-  public static let actor = Self("class")
-
-  /// All tokens supported by sourcekit-lsp
-  public static let all: [Self] = predefined + [.identifier, .actor]
-
-  /// Token types are looked up by index
-  public var tokenType: UInt32 {
-    UInt32(Self.all.firstIndex(of: self)!)
-  }
-}
-
-extension SemanticTokenModifiers {
-  /// All tokens supported by sourcekit-lsp
-  public static let all: [Self] = predefined
-}

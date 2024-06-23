@@ -930,6 +930,20 @@ final class SemanticTokensTests: XCTestCase {
       ]
     )
   }
+
+  func testClang() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
+    try await assertSemanticTokens(
+      markedContents: """
+        int 1️⃣main() {}
+        """,
+      language: .c,
+      expected: [
+        TokenSpec(marker: "1️⃣", length: 4, kind: .function, modifiers: [.declaration, .definition, .globalScope])
+      ]
+    )
+  }
 }
 
 fileprivate struct TokenSpec {
@@ -960,7 +974,7 @@ fileprivate func assertSemanticTokens(
   line: UInt = #line
 ) async throws {
   let testClient = try await TestSourceKitLSPClient()
-  let uri = DocumentURI(for: .swift)
+  let uri = DocumentURI(for: language)
   let positions = testClient.openDocument(markedContents, uri: uri)
 
   let response: DocumentSemanticTokensResponse?
