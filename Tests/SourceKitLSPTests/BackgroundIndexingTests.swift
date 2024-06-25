@@ -13,6 +13,7 @@
 import LSPTestSupport
 import LanguageServerProtocol
 @_spi(Testing) import SKCore
+import SKSupport
 import SKTestSupport
 import SemanticIndex
 import SourceKitLSP
@@ -1221,6 +1222,29 @@ final class BackgroundIndexingTests: XCTestCase {
       )
       return hoverAfterPackageUpdate?.contents.markupContent?.value.contains("Do something v1.1.0") ?? false
     }
+  }
+
+  func testAddingRandomSwiftFileDoesNotTriggerPackageReload() async throws {
+    let packageInitialized = AtomicBool(initialValue: false)
+
+    var serverOptions = SourceKitLSPServer.Options.testDefault
+    serverOptions.swiftpmTestHooks.reloadPackageDidStart = {
+      if packageInitialized.value {
+        XCTFail("Build graph should not get reloaded when random file gets added")
+      }
+    }
+    let project = try await SwiftPMTestProject(
+      files: ["Test.swift": ""],
+      serverOptions: serverOptions,
+      enableBackgroundIndexing: true
+    )
+    packageInitialized.value = true
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("random.swift")), type: .created)
+      ])
+    )
+    _ = try await project.testClient.send(PollIndexRequest())
   }
 }
 

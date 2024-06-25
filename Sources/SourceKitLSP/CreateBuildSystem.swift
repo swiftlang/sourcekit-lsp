@@ -39,7 +39,8 @@ func createBuildSystem(
       toolchainRegistry: toolchainRegistry,
       buildSetup: options.buildSetup,
       experimentalFeatures: options.experimentalFeatures,
-      reloadPackageStatusCallback: reloadPackageStatusCallback
+      reloadPackageStatusCallback: reloadPackageStatusCallback,
+      testHooks: options.swiftpmTestHooks
     )
   }
 
