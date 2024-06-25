@@ -200,7 +200,7 @@ public class SwiftPMTestProject: MultiFileTestProject {
 
     if pollIndex {
       // Wait for the indexstore-db to finish indexing
-      _ = try await testClient.send(PollIndexRequest())
+      try await testClient.send(PollIndexRequest())
     }
   }
 

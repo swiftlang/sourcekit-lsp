@@ -192,6 +192,11 @@ public final class TestSourceKitLSPClient: MessageHandler, Sendable {
     }
   }
 
+  /// Variant of `send` above that allows the response to be discarded if it is a `VoidResponse`.
+  public func send<R: RequestType>(_ request: R) async throws where R.Response == VoidResponse {
+    let _: VoidResponse = try await self.send(request)
+  }
+
   /// Send the request to `server` and return the result via a completion handler.
   ///
   /// This version of the `send` function should only be used if some action needs to be performed after the request is

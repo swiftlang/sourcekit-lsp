@@ -77,7 +77,7 @@ final class WorkspaceTests: XCTestCase {
       },
       enableBackgroundIndexing: true
     )
-    _ = try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(PollIndexRequest())
 
     let (bUri, bPositions) = try project.openDocument("execB.swift")
 
@@ -229,7 +229,7 @@ final class WorkspaceTests: XCTestCase {
 
     let (uri, positions) = try project.openDocument("execA.swift")
 
-    _ = try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(PollIndexRequest())
 
     let otherCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
@@ -320,7 +320,7 @@ final class WorkspaceTests: XCTestCase {
       enableBackgroundIndexing: true
     )
 
-    _ = try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(PollIndexRequest())
 
     let (bUri, bPositions) = try project.openDocument("execB.swift")
 
@@ -362,7 +362,7 @@ final class WorkspaceTests: XCTestCase {
 
     let (aUri, aPositions) = try project.openDocument("execA.swift")
 
-    _ = try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(PollIndexRequest())
 
     let otherCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(aUri), position: aPositions["1️⃣"])
