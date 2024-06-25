@@ -428,7 +428,7 @@ public actor SourceKitLSPServer {
     }
 
     // Start a new service.
-    return await orLog("failed to start language service", level: .error) {
+    return await orLog("failed to start language service", level: .error) { [options] in
       let service = try await serverType.serverType.init(
         sourceKitLSPServer: self,
         toolchain: toolchain,
@@ -996,7 +996,7 @@ extension SourceKitLSPServer {
 
     capabilityRegistry = CapabilityRegistry(clientCapabilities: req.capabilities)
 
-    await workspaceQueue.async {
+    await workspaceQueue.async { [options] in
       if let workspaceFolders = req.workspaceFolders {
         self.workspacesAndIsImplicit += await workspaceFolders.asyncCompactMap {
           guard let workspace = await self.createWorkspace($0) else {
@@ -1024,7 +1024,7 @@ extension SourceKitLSPServer {
           rootUri: req.rootURI,
           capabilityRegistry: self.capabilityRegistry!,
           toolchainRegistry: self.toolchainRegistry,
-          options: self.options,
+          options: options,
           underlyingBuildSystem: nil,
           index: nil,
           indexDelegate: nil,

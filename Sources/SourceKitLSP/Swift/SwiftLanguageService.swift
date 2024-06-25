@@ -430,20 +430,6 @@ extension SwiftLanguageService {
     }
 
     let buildSettings = await self.buildSettings(for: snapshot.uri)
-    if buildSettings == nil || buildSettings!.isFallback, let fileUrl = notification.textDocument.uri.fileURL {
-      // Do not show this notification for non-file URIs to make sure we don't see this notificaiton for newly created
-      // files (which get opened as with a `untitled:Unitled-1` URI by VS Code.
-      sourceKitLSPServer?.sendNotificationToClient(
-        ShowMessageNotification(
-          type: .warning,
-          message: """
-            Failed to get compiler arguments for \(fileUrl.lastPathComponent).
-            Ensure the source file is part of a Swift package or has compiler arguments in compile_commands.json.
-            Functionality will be limited.
-            """
-        )
-      )
-    }
 
     let req = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: buildSettings)
     _ = try? await self.sourcekitd.send(req, fileContents: snapshot.text)
@@ -521,7 +507,7 @@ extension SwiftLanguageService {
           throw CancellationError()
         }
 
-        await sourceKitLSPServer.sendNotificationToClient(
+        sourceKitLSPServer.sendNotificationToClient(
           PublishDiagnosticsNotification(
             uri: document,
             diagnostics: diagnosticReport.items
