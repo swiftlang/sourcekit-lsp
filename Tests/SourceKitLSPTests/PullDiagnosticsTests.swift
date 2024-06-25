@@ -42,7 +42,7 @@ final class PullDiagnosticsTests: XCTestCase {
     XCTAssertEqual(diagnostic.range, Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9))
   }
 
-  /// Test that we can get code actions for pulled diagnostics (https://github.com/apple/sourcekit-lsp/issues/776)
+  /// Test that we can get code actions for pulled diagnostics (https://github.com/swiftlang/sourcekit-lsp/issues/776)
   func testCodeActions() async throws {
     let testClient = try await TestSourceKitLSPClient(
       capabilities: ClientCapabilities(
