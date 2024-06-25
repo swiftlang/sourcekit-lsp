@@ -833,7 +833,7 @@ extension SourceKitLSPServer: BuildSystemDelegate {
 
 extension LanguageServerProtocol.BuildConfiguration {
   /// Convert `LanguageServerProtocol.BuildConfiguration` to `SKSupport.BuildConfiguration`.
-  var configuration: SKSupport.BuildConfiguration {
+  var configuration: SKCore.BuildConfiguration {
     switch self {
     case .debug: return .debug
     case .release: return .release
@@ -843,7 +843,7 @@ extension LanguageServerProtocol.BuildConfiguration {
 
 private extension LanguageServerProtocol.WorkspaceType {
   /// Convert `LanguageServerProtocol.WorkspaceType` to `SkSupport.WorkspaceType`.
-  var workspaceType: SKSupport.WorkspaceType {
+  var workspaceType: SKCore.WorkspaceType {
     switch self {
     case .buildServer: return .buildServer
     case .compilationDatabase: return .compilationDatabase

@@ -12,10 +12,6 @@
 
 import LSPLogging
 
-#if canImport(os)
-import os
-#endif
-
 public struct LineTable: Hashable, Sendable {
   @usableFromInline
   var impl: [String.Index]

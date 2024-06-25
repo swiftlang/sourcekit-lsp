@@ -15,7 +15,22 @@ import SKSupport
 import SKTestSupport
 import XCTest
 
-final class SupportPerfTests: PerfTestCase {
+/// A linear congruential generator with user-specified seed value. Useful for generating a predictable "random" number sequence.
+fileprivate struct SimpleLCG: RandomNumberGenerator {
+
+  var state: UInt64
+
+  public init(seed: UInt64) {
+    state = seed
+  }
+
+  public mutating func next() -> UInt64 {
+    state = state &* 6364136223846793005 &+ 1442695040888963407
+    return state
+  }
+}
+
+final class LineTablePerfTests: PerfTestCase {
 
   func testLineTableAppendPerf() {
 

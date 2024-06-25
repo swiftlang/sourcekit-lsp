@@ -13,7 +13,6 @@
 @_exported import Csourcekitd
 import Dispatch
 import Foundation
-import SKSupport
 import SwiftExtensions
 
 #if compiler(>=6)

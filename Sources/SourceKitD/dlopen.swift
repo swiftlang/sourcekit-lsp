@@ -21,7 +21,7 @@ import Glibc
 import Musl
 #endif
 
-public final class DLHandle {
+public final class DLHandle: Sendable {
   #if os(Windows)
   typealias Handle = HMODULE
   #else

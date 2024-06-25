@@ -1,19 +1,15 @@
 
 add_library(SKSupport STATIC
   Atomics.swift
-  BuildConfiguration.swift
   ByteString.swift
   Connection+Send.swift
-  dlopen.swift
+  Debouncer.swift
   DocumentURI+CustomLogStringConvertible.swift
+  ExperimentalFeatures.swift
   FileSystem.swift
   LineTable.swift
-  PipeAsStringHandler.swift
   Process+Run.swift
-  Random.swift
-  Result.swift
   SwitchableProcessResultExitStatus.swift
-  WorkspaceType.swift
 )
 set_target_properties(SKSupport PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
