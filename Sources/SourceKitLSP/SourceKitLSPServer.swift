@@ -1195,6 +1195,7 @@ extension SourceKitLSPServer {
       return FileSystemWatcher(globPattern: "**/*.\(fileExtension)", kind: [.create, .change, .delete])
     }
     watchers.append(FileSystemWatcher(globPattern: "**/Package.swift", kind: [.change]))
+    watchers.append(FileSystemWatcher(globPattern: "**/Package.resolved", kind: [.change]))
     watchers.append(FileSystemWatcher(globPattern: "**/compile_commands.json", kind: [.create, .change, .delete]))
     watchers.append(FileSystemWatcher(globPattern: "**/compile_flags.txt", kind: [.create, .change, .delete]))
     // Watch for changes to `.swiftmodule` files to detect updated modules during a build.

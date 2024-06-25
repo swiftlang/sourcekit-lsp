@@ -692,7 +692,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
         packageGraph: self.modulesGraph
       )
     case .changed:
-      return fileURL.lastPathComponent == "Package.swift"
+      return fileURL.lastPathComponent == "Package.swift" || fileURL.lastPathComponent == "Package.resolved"
     default:  // Unknown file change type
       return false
     }
