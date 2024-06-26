@@ -12,6 +12,14 @@ If `sourcekit-lsp` is in your `$PATH` or is discoverable by using `xcrun --find 
 
 You can read more about BBEdit's LSP support and configuration hints [here](https://www.barebones.com/support/bbedit/lsp-notes.html).
 
+## Nova
+
+You can use SourceKit-LSP with Nova by using the [Icarus](http://panic.com/open-in-nova/extension?id=panic.Icarus) extension.
+
+By default, Icarus will try to discover `sourcekit-lsp` automatically (using `xcrun --find sourcekit-lsp`), but can be configured to look at an installed Swift toolchain package (using `xcrun --toolchain swift --find sourcekit-lsp`) or custom path. To do so, open the extension settings from Nova's Extensions menu: Extension Library… -> Icarus -> Settings -> Toolchain.
+
+The Icarus source is located within [its repository](https://github.com/panicinc/icarus).
+
 ## Sublime Text
 
 Before using SourceKit-LSP with Sublime Text, you will need to install the [LSP](https://packagecontrol.io/packages/LSP), [LSP-SourceKit](https://github.com/sublimelsp/LSP-SourceKit) and [Swift-Next](https://github.com/Swift-Next/Swift-Next) packages from Package Control. Then toggle the server on by typing in command palette `LSP: Enable Language Server Globally` or `LSP: Enable Language Server in Project`.
