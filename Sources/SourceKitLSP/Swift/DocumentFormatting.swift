@@ -144,7 +144,7 @@ extension SwiftLanguageService {
     writeStream.send(snapshot.text)
     try writeStream.close()
 
-    let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+    let result = try await process.waitUntilExitStoppingProcessOnTaskCancellation()
     guard result.exitStatus == .terminated(code: 0) else {
       let swiftFormatErrorMessage: String
       switch result.stderrOutput {
