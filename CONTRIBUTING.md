@@ -109,7 +109,7 @@ To enable more verbose logging on non-macOS platforms, launch sourcekit-lsp with
 
 ## Formatting
 
-SourceKit-LSP is formatted using [swift-format](http://github.com/apple/swift-format) to ensure a consistent style.
+SourceKit-LSP is formatted using [swift-format](http://github.com/swiftlang/swift-format) to ensure a consistent style.
 
 To format your changes run the formatter using the following command
 ```bash
@@ -153,7 +153,7 @@ In order for a pull request to be considered for inclusion in a release branch (
     ```
 
 > [!TIP]
-> The PR description can be generated using the [release_branch.md](https://github.com/apple/sourcekit-lsp/blob/main/.github/PULL_REQUEST_TEMPLATE/release_branch.md) [pull request template](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/about-issue-and-pull-request-templates). To use this template when creating a PR, you need to add the query parameter:
+> The PR description can be generated using the [release_branch.md](https://github.com/swiftlang/sourcekit-lsp/blob/main/.github/PULL_REQUEST_TEMPLATE/release_branch.md) [pull request template](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/about-issue-and-pull-request-templates). To use this template when creating a PR, you need to add the query parameter:
 > ```
 > ?expand=1&template=release_branch.md
 > ```

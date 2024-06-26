@@ -68,7 +68,7 @@ class WorkspaceSymbolsTests: XCTestCase {
     let response = try await project.testClient.send(WorkspaceSymbolsRequest(query: "funcFrom"))
 
     // Ideally, the item from the current package (PackageB) should be returned before the item from PackageA
-    // https://github.com/apple/sourcekit-lsp/issues/1094
+    // https://github.com/swiftlang/sourcekit-lsp/issues/1094
     XCTAssertEqual(
       response,
       [

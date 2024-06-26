@@ -8,7 +8,7 @@ https://www.swift.org/tools has a list of popular editors that support LSP and c
 
 ## Reporting Issues
 
-If you should hit any issues while using SourceKit-LSP, we appreciate bug reports on [GitHub Issue](https://github.com/apple/sourcekit-lsp/issues/new/choose).
+If you should hit any issues while using SourceKit-LSP, we appreciate bug reports on [GitHub Issue](https://github.com/swiftlang/sourcekit-lsp/issues/new/choose).
 
 > [!IMPORTANT]
 > SourceKit-LSP does not update its global index in the background or build Swift modules in the background. Thus, a lot of cross-module or global functionality is limited if the project hasn't been built recently. To update the index or rebuild the Swift modules, build the project.

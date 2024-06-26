@@ -397,7 +397,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
       """
 
       Bundle created.
-      When filing an issue at https://github.com/apple/sourcekit-lsp/issues/new,
+      When filing an issue at https://github.com/swiftlang/sourcekit-lsp/issues/new,
       please attach the bundle located at
       \(bundlePath.path)
       """

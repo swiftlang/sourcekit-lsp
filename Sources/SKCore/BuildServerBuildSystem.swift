@@ -355,13 +355,13 @@ extension BuildServerBuildSystem: BuildSystem {
 
   public func sourceFiles() async -> [SourceFileInfo] {
     // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
-    // (https://github.com/apple/sourcekit-lsp/issues/1173).
+    // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).
     return []
   }
 
   public func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) {
     // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
-    // (https://github.com/apple/sourcekit-lsp/issues/1173).
+    // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).
   }
 }
 

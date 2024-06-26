@@ -12,7 +12,7 @@ After the message has been decoded, the `SourceKitLSPServer` handles it on its `
 
 To provide language-specific functionality `SourceKitLSPServer` delegates to the types that implement `LanguageService`. This is either `SwiftLanguageService`, which implements language functionality for Swift files based on sourcekitd and swift-syntax, or `ClangLanguageService`, which launches a `clangd` process to provide functionality for C, C++, Objective-C and Objective-C++.
 
-For requests that require knowledge about the project’s index, like call hierarchy or rename of global symbols, `SourceKitLSPServer` enriches the information returned from the language service with information from the [index](http://github.com/apple/indexstore-db/).
+For requests that require knowledge about the project’s index, like call hierarchy or rename of global symbols, `SourceKitLSPServer` enriches the information returned from the language service with information from the [index](http://github.com/swiftlang/indexstore-db/).
 
 ### sourcekitd
 
