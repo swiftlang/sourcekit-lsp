@@ -89,6 +89,19 @@ fileprivate extension ConfiguredTarget {
 
 fileprivate let preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
 
+public struct SwiftPMTestHooks: Sendable {
+  public var reloadPackageDidStart: (@Sendable () async -> Void)?
+  public var reloadPackageDidFinish: (@Sendable () async -> Void)?
+
+  public init(
+    reloadPackageDidStart: (@Sendable () async -> Void)? = nil,
+    reloadPackageDidFinish: (@Sendable () async -> Void)? = nil
+  ) {
+    self.reloadPackageDidStart = reloadPackageDidStart
+    self.reloadPackageDidFinish = reloadPackageDidFinish
+  }
+}
+
 /// Swift Package Manager build system and workspace support.
 ///
 /// This class implements the `BuildSystem` interface to provide the build settings for a Swift
@@ -124,6 +137,7 @@ public actor SwiftPMBuildSystem {
   @_spi(Testing)
   public var projectRoot: TSCAbsolutePath
 
+  private var buildDescription: SourceKitLSPAPI.BuildDescription?
   private var modulesGraph: ModulesGraph
   private let workspace: Workspace
   @_spi(Testing) public let toolsBuildParameters: BuildParameters
@@ -168,6 +182,8 @@ public actor SwiftPMBuildSystem {
   /// user's build.
   private var isForIndexBuild: Bool { experimentalFeatures.contains(.backgroundIndexing) }
 
+  private let testHooks: SwiftPMTestHooks
+
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
   /// - Parameters:
@@ -182,7 +198,8 @@ public actor SwiftPMBuildSystem {
     fileSystem: FileSystem = localFileSystem,
     buildSetup: BuildSetup,
     experimentalFeatures: Set<ExperimentalFeature>,
-    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void = { _ in }
+    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void = { _ in },
+    testHooks: SwiftPMTestHooks
   ) async throws {
     self.workspacePath = workspacePath
     self.buildSetup = buildSetup
@@ -193,6 +210,7 @@ public actor SwiftPMBuildSystem {
 
     self.toolchain = toolchain
     self.experimentalFeatures = experimentalFeatures
+    self.testHooks = testHooks
 
     guard let packageRoot = findPackageDirectory(containing: workspacePath, fileSystem) else {
       throw Error.noManifest(workspacePath: workspacePath)
@@ -287,7 +305,8 @@ public actor SwiftPMBuildSystem {
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
     experimentalFeatures: Set<ExperimentalFeature>,
-    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void
+    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void,
+    testHooks: SwiftPMTestHooks
   ) async {
     guard let fileURL = uri.fileURL else {
       return nil
@@ -299,7 +318,8 @@ public actor SwiftPMBuildSystem {
         fileSystem: localFileSystem,
         buildSetup: buildSetup,
         experimentalFeatures: experimentalFeatures,
-        reloadPackageStatusCallback: reloadPackageStatusCallback
+        reloadPackageStatusCallback: reloadPackageStatusCallback,
+        testHooks: testHooks
       )
     } catch Error.noManifest {
       return nil
@@ -315,8 +335,10 @@ extension SwiftPMBuildSystem {
   /// dependencies.
   public func reloadPackage(forceResolvedVersions: Bool) async throws {
     await reloadPackageStatusCallback(.start)
+    await testHooks.reloadPackageDidStart?()
     defer {
       Task {
+        await testHooks.reloadPackageDidFinish?()
         await reloadPackageStatusCallback(.end)
       }
     }
@@ -336,6 +358,7 @@ extension SwiftPMBuildSystem {
       observabilityScope: observabilitySystem.topScope
     )
     let buildDescription = BuildDescription(buildPlan: plan)
+    self.buildDescription = buildDescription
 
     /// Make sure to execute any throwing statements before setting any
     /// properties because otherwise we might end up in an inconsistent state
@@ -683,14 +706,11 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     }
     switch event.type {
     case .created, .deleted:
-      guard let path = try? AbsolutePath(validating: fileURL.path) else {
+      guard let buildDescription else {
         return false
       }
 
-      return self.workspace.fileAffectsSwiftOrClangBuildSettings(
-        filePath: path,
-        packageGraph: self.modulesGraph
-      )
+      return buildDescription.fileAffectsSwiftOrClangBuildSettings(fileURL)
     case .changed:
       return fileURL.lastPathComponent == "Package.swift" || fileURL.lastPathComponent == "Package.resolved"
     default:  // Unknown file change type
