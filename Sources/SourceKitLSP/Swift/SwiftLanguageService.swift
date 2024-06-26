@@ -107,7 +107,7 @@ public actor SwiftLanguageService: LanguageService, Sendable {
 
   let capabilityRegistry: CapabilityRegistry
 
-  let serverOptions: SourceKitLSPServer.Options
+  let testHooks: TestHooks
 
   /// Directory where generated Files will be stored.
   let generatedFilesPath: URL
@@ -173,7 +173,8 @@ public actor SwiftLanguageService: LanguageService, Sendable {
   public init?(
     sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
-    options: SourceKitLSPServer.Options,
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
     workspace: Workspace
   ) async throws {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
@@ -182,7 +183,7 @@ public actor SwiftLanguageService: LanguageService, Sendable {
     self.sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(dylibPath: sourcekitd)
     self.capabilityRegistry = workspace.capabilityRegistry
     self.semanticIndexManager = workspace.semanticIndexManager
-    self.serverOptions = options
+    self.testHooks = testHooks
     self.documentManager = DocumentManager()
     self.state = .connected
     self.diagnosticReportManager = nil  // Needed to work around rdar://116221716
@@ -198,8 +199,7 @@ public actor SwiftLanguageService: LanguageService, Sendable {
       }
     }
 
-    self.generatedFilesPath = options.generatedFilesPath.asURL
-    try FileManager.default.createDirectory(at: generatedFilesPath, withIntermediateDirectories: true)
+    self.generatedFilesPath = options.generatedFilesAbsolutePath.asURL
 
     self.diagnosticReportManager = DiagnosticReportManager(
       sourcekitd: self.sourcekitd,
@@ -809,8 +809,7 @@ extension SwiftLanguageService {
     var canInlineMacro = false
 
     let showMacroExpansionsIsEnabled =
-      await self.sourceKitLSPServer?.options.experimentalFeatures
-      .contains(.showMacroExpansions) ?? false
+      self.sourceKitLSPServer?.options.hasExperimentalFeature(.showMacroExpansions) ?? false
 
     var refactorActions = cursorInfoResponse.refactorActions.compactMap {
       let lspCommand = $0.asCommand()

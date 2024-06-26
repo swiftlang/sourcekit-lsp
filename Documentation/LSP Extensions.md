@@ -73,28 +73,6 @@ Added case
 identifier = 'identifier'
 ```
 
-## `textDocument/completion`
-
-Added field:
-
-```ts
-/**
- * Options to control code completion behavior in Swift
- */
-sourcekitlspOptions?: SKCompletionOptions
-```
-
-with
-
-```ts
-interface SKCompletionOptions {
-  /**
-   * The maximum number of completion results to return, or `null` for unlimited.
-   */
-  maxResults?: int
-}
-```
-
 ## `textDocument/interface`
 
 New request that request a textual interface of a module to display in the IDE. Used internally within SourceKit-LSP

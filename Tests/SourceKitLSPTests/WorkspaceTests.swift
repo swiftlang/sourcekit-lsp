@@ -830,4 +830,35 @@ final class WorkspaceTests: XCTestCase {
     // rdar://73762053: This should also suggest clib_other
     XCTAssert(cCompletionResponse.items.contains(where: { $0.insertText == "clib_func" }))
   }
+
+  func testWorkspaceOptions() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "/.sourcekit-lsp/config.json": """
+        {
+          "swiftPM": {
+            "swiftCompilerFlags": ["-D", "TEST"]
+          }
+        }
+        """,
+        "Test.swift": """
+        func test() {
+        #if TEST
+          let x: String = 1
+        #endif
+        }
+        """,
+      ]
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+    let diagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    guard case .full(let diagnostics) = diagnostics else {
+      XCTFail("Expected full diagnostics")
+      return
+    }
+    XCTAssertEqual(diagnostics.items.map(\.message), ["Cannot convert value of type 'Int' to specified type 'String'"])
+  }
 }

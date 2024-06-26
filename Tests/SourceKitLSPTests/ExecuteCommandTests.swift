@@ -12,6 +12,7 @@
 
 import LSPTestSupport
 import LanguageServerProtocol
+import SKCore
 import SKTestSupport
 @_spi(Testing) import SourceKitLSP
 import SwiftExtensions
@@ -140,8 +141,7 @@ final class ExecuteCommandTests: XCTestCase {
   func testFreestandingMacroExpansion() async throws {
     try await SkipUnless.canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild()
 
-    var serverOptions = SourceKitLSPServer.Options.testDefault
-    serverOptions.experimentalFeatures.insert(.showMacroExpansions)
+    let options = SourceKitLSPOptions.testDefault(experimentalFeatures: [.showMacroExpansions])
 
     let project = try await SwiftPMTestProject(
       files: [
@@ -181,7 +181,7 @@ final class ExecuteCommandTests: XCTestCase {
         """,
       ],
       manifest: SwiftPMTestProject.macroPackageManifest,
-      serverOptions: serverOptions
+      options: options
     )
     try await SwiftPMTestProject.build(at: project.scratchDirectory)
 
