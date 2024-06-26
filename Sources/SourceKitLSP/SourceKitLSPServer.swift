@@ -524,7 +524,12 @@ public actor SourceKitLSPServer {
       return nil
     }
 
-    logger.log("Using toolchain \(toolchain.identifier) (\(toolchain.identifier)) for \(uri.forLogging)")
+    logger.log(
+      """
+      Using toolchain at \(toolchain.path?.pathString ?? "<nil>") (\(toolchain.identifier, privacy: .public)) \
+      for \(uri.forLogging)
+      """
+    )
 
     return workspace.documentService.withLock { documentService in
       if let concurrentlySetService = documentService[uri] {
