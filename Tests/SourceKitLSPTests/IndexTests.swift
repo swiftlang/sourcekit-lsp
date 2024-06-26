@@ -144,7 +144,7 @@ final class IndexTests: XCTestCase {
       XCTAssertEqual(versionContentsBefore.count, 1)
       XCTAssert(versionContentsBefore.first?.lastPathComponent.starts(with: "p") ?? false)
 
-      _ = try await project.testClient.send(ShutdownRequest())
+      try await project.testClient.send(ShutdownRequest())
       return versionedPath
     }
 

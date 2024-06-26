@@ -136,7 +136,7 @@ public struct IndexedSingleSwiftFileTestProject {
     )
 
     // Wait for the indexstore-db to finish indexing
-    _ = try await testClient.send(PollIndexRequest())
+    try await testClient.send(PollIndexRequest())
 
     // Open the document
     self.fileURI = DocumentURI(testFileURL)

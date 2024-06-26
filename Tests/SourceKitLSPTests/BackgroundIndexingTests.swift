@@ -438,7 +438,7 @@ final class BackgroundIndexingTests: XCTestCase {
     )
 
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: otherFileUri, type: .changed)]))
-    _ = try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(PollIndexRequest())
 
     let callsAfterEdit = try await project.testClient.send(
       CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
@@ -504,7 +504,7 @@ final class BackgroundIndexingTests: XCTestCase {
     )
 
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: .changed)]))
-    _ = try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(PollIndexRequest())
 
     let callsAfterEdit = try await project.testClient.send(
       CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
@@ -714,11 +714,11 @@ final class BackgroundIndexingTests: XCTestCase {
     // Ensure that LibC gets opened before LibD, so that LibD is the latest document. Two open requests don't have
     // dependencies between each other, so SourceKit-LSP is free to execute them in parallel or re-order them without
     // the barrier.
-    _ = try await project.testClient.send(BarrierRequest())
+    try await project.testClient.send(BarrierRequest())
     _ = try project.openDocument("LibD.swift")
 
     // Send a barrier request to ensure we have finished opening LibD before allowing the preparation of LibB to finish.
-    _ = try await project.testClient.send(BarrierRequest())
+    try await project.testClient.send(BarrierRequest())
 
     allDocumentsOpened.signal()
     try libDPreparedForEditing.waitOrThrow()
@@ -848,7 +848,7 @@ final class BackgroundIndexingTests: XCTestCase {
         WorkspaceFolder(uri: DocumentURI(project.scratchDirectory))
       ]
     )
-    _ = try await otherClient.send(PollIndexRequest())
+    try await otherClient.send(PollIndexRequest())
   }
 
   func testOpeningFileThatIsNotPartOfThePackageDoesntGenerateABuildFolderThere() async throws {
@@ -901,7 +901,7 @@ final class BackgroundIndexingTests: XCTestCase {
       return VoidResponse()
     }
     _ = try project.openDocument("Lib.swift")
-    _ = try await project.testClient.send(BarrierRequest())
+    try await project.testClient.send(BarrierRequest())
   }
 
   func testImportPreparedModuleWithFunctionBodiesSkipped() async throws {
@@ -1186,7 +1186,7 @@ final class BackgroundIndexingTests: XCTestCase {
         FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("Package.resolved")), type: .changed)
       ])
     )
-    _ = try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(PollIndexRequest())
     XCTAssertEqual(try String(contentsOf: packageResolvedURL), originalPackageResolvedContents)
 
     // Simulate a package update which goes as follows:
@@ -1207,7 +1207,7 @@ final class BackgroundIndexingTests: XCTestCase {
         FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("Package.resolved")), type: .changed)
       ])
     )
-    _ = try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(PollIndexRequest())
     project.testClient.send(
       DidChangeWatchedFilesNotification(
         changes: FileManager.default.findFiles(named: "Dependency.swift", in: project.scratchDirectory).map {
