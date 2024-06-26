@@ -207,7 +207,7 @@ public actor SkipUnless {
   }
 
   /// SwiftPM moved the location where it stores Swift modules to a subdirectory in
-  /// https://github.com/apple/swift-package-manager/pull/7103.
+  /// https://github.com/swiftlang/swift-package-manager/pull/7103.
   public static func swiftpmStoresModulesInSubdirectory(
     file: StaticString = #filePath,
     line: UInt = #line

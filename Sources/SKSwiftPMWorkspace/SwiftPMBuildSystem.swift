@@ -501,7 +501,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
 
   public func defaultLanguage(for document: DocumentURI) -> Language? {
     // TODO (indexing): Query The SwiftPM build system for the document's language.
-    // https://github.com/apple/sourcekit-lsp/issues/1267
+    // https://github.com/swiftlang/sourcekit-lsp/issues/1267
     return nil
   }
 
@@ -557,7 +557,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
 
     // Files that occur before the target in the topological sorting don't depend on it.
     // Ideally, we should consult the dependency graph here for more accurate dependency analysis instead of relying on
-    // a flattened list (https://github.com/apple/sourcekit-lsp/issues/1312).
+    // a flattened list (https://github.com/swiftlang/sourcekit-lsp/issues/1312).
     return self.targets.compactMap { (configuredTarget, value) -> ConfiguredTarget? in
       if let minimumTargetIndex, value.index <= minimumTargetIndex {
         return nil
@@ -571,7 +571,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     // TODO (indexing): Support preparation of multiple targets at once.
-    // https://github.com/apple/sourcekit-lsp/issues/1262
+    // https://github.com/swiftlang/sourcekit-lsp/issues/1262
     for target in targets {
       await orLog("Preparing") { try await prepare(singleTarget: target, logMessageToIndexLog: logMessageToIndexLog) }
     }
@@ -589,7 +589,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     }
 
     // TODO (indexing): Add a proper 'prepare' job in SwiftPM instead of building the target.
-    // https://github.com/apple/sourcekit-lsp/issues/1254
+    // https://github.com/swiftlang/sourcekit-lsp/issues/1254
     guard let swift = toolchain.swift else {
       logger.error(
         "Not preparing because toolchain at \(self.toolchain.identifier) does not contain a Swift compiler"
@@ -761,7 +761,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
   public func sourceFiles() -> [SourceFileInfo] {
     return fileToTargets.compactMap { (uri, targets) -> SourceFileInfo? in
       // We should only set mayContainTests to `true` for files from test targets
-      // (https://github.com/apple/sourcekit-lsp/issues/1174).
+      // (https://github.com/swiftlang/sourcekit-lsp/issues/1174).
       return SourceFileInfo(
         uri: uri,
         isPartOfRootProject: targets.contains(where: \.isPartOfRootPackage),

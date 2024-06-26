@@ -602,7 +602,7 @@ public final actor SemanticIndexManager {
 
     // TODO (indexing): When we can index multiple targets concurrently in SwiftPM, increase the batch size to half the
     // processor count, so we can get parallelism during preparation.
-    // https://github.com/apple/sourcekit-lsp/issues/1262
+    // https://github.com/swiftlang/sourcekit-lsp/issues/1262
     for targetsBatch in sortedTargets.partition(intoBatchesOfSize: 1) {
       let preparationTaskID = UUID()
       let indexTask = Task(priority: priority) {
@@ -614,7 +614,7 @@ public final actor SemanticIndexManager {
           for target in targetsBatch {
             // TODO (indexing): Once swiftc supports indexing of multiple files in a single invocation, increase the
             // batch size to allow it to share AST builds between multiple files within a target.
-            // https://github.com/apple/sourcekit-lsp/issues/1268
+            // https://github.com/swiftlang/sourcekit-lsp/issues/1268
             for fileBatch in filesByTarget[target]!.partition(intoBatchesOfSize: 1) {
               taskGroup.addTask {
                 await self.updateIndexStore(
