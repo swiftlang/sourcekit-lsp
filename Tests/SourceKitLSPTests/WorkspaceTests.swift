@@ -723,46 +723,6 @@ final class WorkspaceTests: XCTestCase {
       ]
     )
   }
-
-  public func testWorkspaceSpecificBuildSettings() async throws {
-    let project = try await SwiftPMTestProject(
-      files: [
-        "test.swift": """
-        #if MY_FLAG
-        let a: Int = ""
-        #endif
-        """
-      ],
-      workspaces: {
-        [
-          WorkspaceFolder(
-            uri: DocumentURI($0),
-            buildSetup: WorkspaceBuildSetup(
-              buildConfiguration: nil,
-              scratchPath: nil,
-              cFlags: nil,
-              cxxFlags: nil,
-              linkerFlags: nil,
-              swiftFlags: ["-DMY_FLAG"]
-            )
-          )
-        ]
-      }
-    )
-
-    _ = try project.openDocument("test.swift")
-    let report = try await project.testClient.send(
-      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(project.uri(for: "test.swift")))
-    )
-    guard case .full(let fullReport) = report else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
-    XCTAssertEqual(fullReport.items.count, 1)
-    let diag = try XCTUnwrap(fullReport.items.first)
-    XCTAssertEqual(diag.message, "Cannot convert value of type 'String' to specified type 'Int'")
-  }
-
   func testIntegrationTest() async throws {
     // This test is doing the same as `test-sourcekit-lsp` in the `swift-integration-tests` repo.
 

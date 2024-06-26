@@ -838,27 +838,6 @@ extension SourceKitLSPServer: BuildSystemDelegate {
   }
 }
 
-extension LanguageServerProtocol.BuildConfiguration {
-  /// Convert `LanguageServerProtocol.BuildConfiguration` to `SKSupport.BuildConfiguration`.
-  var configuration: SKCore.BuildConfiguration {
-    switch self {
-    case .debug: return .debug
-    case .release: return .release
-    }
-  }
-}
-
-private extension LanguageServerProtocol.WorkspaceType {
-  /// Convert `LanguageServerProtocol.WorkspaceType` to `SkSupport.WorkspaceType`.
-  var workspaceType: SKCore.WorkspaceType {
-    switch self {
-    case .buildServer: return .buildServer
-    case .compilationDatabase: return .compilationDatabase
-    case .swiftPM: return .swiftPM
-    }
-  }
-}
-
 extension SourceKitLSPServer {
   nonisolated func logMessageToIndexLog(taskID: IndexTaskID, message: String) {
     var message: Substring = message[...]
@@ -884,29 +863,6 @@ extension SourceKitLSPServer {
 
   // MARK: - General
 
-  /// Returns the build setup for the parameters specified for the given `WorkspaceFolder`.
-  private func buildSetup(for workspaceFolder: WorkspaceFolder) -> BuildSetup {
-    let buildParams = workspaceFolder.buildSetup
-    let scratchPath: AbsolutePath?
-    if let scratchPathParam = buildParams?.scratchPath {
-      scratchPath = try? AbsolutePath(validating: scratchPathParam.pseudoPath)
-    } else {
-      scratchPath = nil
-    }
-    return SKCore.BuildSetup(
-      configuration: buildParams?.buildConfiguration?.configuration,
-      defaultWorkspaceType: buildParams?.defaultWorkspaceType?.workspaceType,
-      path: scratchPath,
-      flags: BuildFlags(
-        cCompilerFlags: buildParams?.cFlags ?? [],
-        cxxCompilerFlags: buildParams?.cxxFlags ?? [],
-        swiftCompilerFlags: buildParams?.swiftFlags ?? [],
-        linkerFlags: buildParams?.linkerFlags ?? [],
-        xcbuildFlags: []
-      )
-    )
-  }
-
   private func reloadPackageStatusCallback(_ status: ReloadPackageStatus) async {
     switch status {
     case .start:
@@ -927,8 +883,7 @@ extension SourceKitLSPServer {
       logger.log("Cannot open workspace before server is initialized")
       return nil
     }
-    var options = self.options
-    options.buildSetup = self.options.buildSetup.merging(buildSetup(for: workspaceFolder))
+    let options = self.options
     let buildSystem = await createBuildSystem(
       rootUri: workspaceFolder.uri,
       options: options,
