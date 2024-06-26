@@ -95,6 +95,9 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   /// opened with.
   private var openDocuments: [DocumentURI: Language] = [:]
 
+  /// Type to map `clangd`'s semantic token legend to SourceKit-LSP's.
+  private var semanticTokensTranslator: SemanticTokensLegendTranslator? = nil
+
   /// While `clangd` is running, its PID.
   #if os(Windows)
   private var hClangd: HANDLE = INVALID_HANDLE_VALUE
@@ -412,6 +415,12 @@ extension ClangLanguageService {
 
     let result = try await clangd.send(initialize)
     self.capabilities = result.capabilities
+    if let legend = result.capabilities.semanticTokensProvider?.legend {
+      self.semanticTokensTranslator = SemanticTokensLegendTranslator(
+        clangdLegend: legend,
+        sourceKitLSPLegend: SemanticTokensLegend.sourceKitLSPLegend
+      )
+    }
     return result
   }
 
@@ -537,19 +546,50 @@ extension ClangLanguageService {
   }
 
   func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse? {
-    return try await forwardRequestToClangd(req)
+    guard var response = try await forwardRequestToClangd(req) else {
+      return nil
+    }
+    if let semanticTokensTranslator {
+      response.data = semanticTokensTranslator.translate(response.data)
+    }
+    return response
   }
 
   func documentSemanticTokensDelta(
     _ req: DocumentSemanticTokensDeltaRequest
   ) async throws -> DocumentSemanticTokensDeltaResponse? {
-    return try await forwardRequestToClangd(req)
+    guard var response = try await forwardRequestToClangd(req) else {
+      return nil
+    }
+    if let semanticTokensTranslator {
+      switch response {
+      case .tokens(var tokens):
+        tokens.data = semanticTokensTranslator.translate(tokens.data)
+        response = .tokens(tokens)
+      case .delta(var delta):
+        delta.edits = delta.edits.map {
+          var edit = $0
+          if let data = edit.data {
+            edit.data = semanticTokensTranslator.translate(data)
+          }
+          return edit
+        }
+        response = .delta(delta)
+      }
+    }
+    return response
   }
 
   func documentSemanticTokensRange(
     _ req: DocumentSemanticTokensRangeRequest
   ) async throws -> DocumentSemanticTokensResponse? {
-    return try await forwardRequestToClangd(req)
+    guard var response = try await forwardRequestToClangd(req) else {
+      return nil
+    }
+    if let semanticTokensTranslator {
+      response.data = semanticTokensTranslator.translate(response.data)
+    }
+    return response
   }
 
   func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {

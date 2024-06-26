@@ -34,6 +34,19 @@ public struct SemanticTokenModifiers: OptionSet, Hashable, Sendable {
   public static let documentation = Self(rawValue: 1 << 8)
   public static let defaultLibrary = Self(rawValue: 1 << 9)
 
+  // The following are LSP extensions from clangd
+  public static let deduced = Self(rawValue: 1 << 10)
+  public static let virtual = Self(rawValue: 1 << 11)
+  public static let dependentName = Self(rawValue: 1 << 12)
+  public static let usedAsMutableReference = Self(rawValue: 1 << 13)
+  public static let usedAsMutablePointer = Self(rawValue: 1 << 14)
+  public static let constructorOrDestructor = Self(rawValue: 1 << 15)
+  public static let userDefined = Self(rawValue: 1 << 16)
+  public static let functionScope = Self(rawValue: 1 << 17)
+  public static let classScope = Self(rawValue: 1 << 18)
+  public static let fileScope = Self(rawValue: 1 << 19)
+  public static let globalScope = Self(rawValue: 1 << 20)
+
   public var name: String? {
     switch self {
     case .declaration: return "declaration"
@@ -46,13 +59,24 @@ public struct SemanticTokenModifiers: OptionSet, Hashable, Sendable {
     case .modification: return "modification"
     case .documentation: return "documentation"
     case .defaultLibrary: return "defaultLibrary"
+    case .deduced: return "deduced"
+    case .virtual: return "virtual"
+    case .dependentName: return "dependentName"
+    case .usedAsMutableReference: return "usedAsMutableReference"
+    case .usedAsMutablePointer: return "usedAsMutablePointer"
+    case .constructorOrDestructor: return "constructorOrDestructor"
+    case .userDefined: return "userDefined"
+    case .functionScope: return "functionScope"
+    case .classScope: return "classScope"
+    case .fileScope: return "fileScope"
+    case .globalScope: return "globalScope"
     default: return nil
     }
   }
 
   /// All available modifiers, in ascending order of the bit index
   /// they are represented with (starting at the rightmost bit).
-  public static let predefined: [Self] = [
+  public static let all: [Self] = [
     .declaration,
     .definition,
     .readonly,
@@ -63,5 +87,16 @@ public struct SemanticTokenModifiers: OptionSet, Hashable, Sendable {
     .modification,
     .documentation,
     .defaultLibrary,
+    .deduced,
+    .virtual,
+    .dependentName,
+    .usedAsMutableReference,
+    .usedAsMutablePointer,
+    .constructorOrDestructor,
+    .userDefined,
+    .functionScope,
+    .classScope,
+    .fileScope,
+    .globalScope,
   ]
 }
