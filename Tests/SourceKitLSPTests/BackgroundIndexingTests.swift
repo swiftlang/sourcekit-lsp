@@ -695,7 +695,16 @@ final class BackgroundIndexingTests: XCTestCase {
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: try project.uri(for: "LibA.swift"), type: .changed)])
     )
 
-    // Quickly flip through all files
+    // Quickly flip through all files. The way the test is designed to work is as follows:
+    //  - LibB.swift gets opened and prepared. Preparation is simulated to take a long time until both LibC.swift and
+    //    LibD.swift have been opened.
+    //  - LibC.swift gets opened. This queues preparation of LibC but doesn't cancel preparation of LibB because we
+    //    don't cancel in-progress preparation tasks to guarantee forward progress (see comment at the end of
+    //    `SemanticIndexManager.prepare`).
+    //  - Now LibD.swift gets opened. This cancels preparation of LibC which actually cancels LibC's preparation for
+    //    real because LibC's preparation hasn't started yet (it's only queued).
+    // Thus, the only targets that are being prepared are LibB and LibD, which is checked by the
+    // `ExpectedIndexTaskTracker`.
     _ = try project.openDocument("LibB.swift")
     try libBStartedPreparation.waitOrThrow()
 
@@ -706,6 +715,9 @@ final class BackgroundIndexingTests: XCTestCase {
     // the barrier.
     _ = try await project.testClient.send(BarrierRequest())
     _ = try project.openDocument("LibD.swift")
+
+    // Send a barrier request to ensure we have finished opening LibD before allowing the preparation of LibB to finish.
+    _ = try await project.testClient.send(BarrierRequest())
 
     allDocumentsOpened.signal()
     try libDPreparedForEditing.waitOrThrow()
