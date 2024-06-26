@@ -143,27 +143,18 @@ In order for a pull request to be considered for inclusion in a release branch (
 
 1. The title of the PR should start with the tag `[{swift version number}]`. For example, `[6.0]` for the Swift 6.0 release branch.
 
-1. The PR description must include the following information:
-
-    ```md
-    * **Explanation**: A description of the issue being fixed or enhancement being made. This can be brief, but it should be clear.
-    * **Scope**: An assessment of the impact/importance of the change. For example, is the change a source-breaking language change, etc.
-    * **Issue**: The GitHub Issue link if the change fixes/implements an issue/enhancement.
-    * **Original PR**: Pull Request link from the `main` branch.
-    * **Risk**: What is the (specific) risk to the release for taking this change?
-    * **Testing**: What specific testing has been done or needs to be done to further validate any impact of this change?
-    * **Reviewer**: One or more code owners for the impacted components should review the change. Technical review can be delegated by a code owner or otherwise requested as deemed appropriate or useful.
-    ```
-
-> [!TIP]
-> The PR description can be generated using the [release_branch.md](https://github.com/swiftlang/sourcekit-lsp/blob/main/.github/PULL_REQUEST_TEMPLATE/release_branch.md) [pull request template](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/about-issue-and-pull-request-templates). To use this template when creating a PR, you need to add the query parameter:
-> ```
-> ?expand=1&template=release_branch.md
-> ```
-> to the PR URL, as described in the [GitHub documentation on using query parameters to create a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/using-query-parameters-to-create-a-pull-request).
-> This is necessary because GitHub does not currently provide a UI to choose a PR template.
+1. [This][form] should be filled out in the description of the PR.
+   To use this template when creating a PR, append the `template=release.md`
+   query parameter to the current URL and refresh.
+   For example:
+   ```diff
+   -https://github.com/swiftlang/sourcekit-lsp/compare/main...my-branch?quick_pull=1
+   +https://github.com/swiftlang/sourcekit-lsp/compare/main...my-branch?quick_pull=1&template=release.md
+   ```
 
 All changes going into a release branch must go through pull requests that are approved and merged by the corresponding release manager.
+
+[form]: https://github.com/swiftlang/.github/blob/main/PULL_REQUEST_TEMPLATE/release.md?plain=1
 
 ## Review and CI Testing
 
