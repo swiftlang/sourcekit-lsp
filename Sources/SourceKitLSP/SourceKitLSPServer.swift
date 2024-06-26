@@ -752,6 +752,8 @@ extension SourceKitLSPServer: MessageHandler {
       await request.reply { try await shutdown(request.params) }
     case let request as RequestAndReply<SymbolInfoRequest>:
       await self.handleRequest(for: request, requestHandler: self.symbolInfo)
+    case let request as RequestAndReply<TriggerReindexRequest>:
+      await request.reply { try await triggerReindex(request.params) }
     case let request as RequestAndReply<TypeHierarchyPrepareRequest>:
       await self.handleRequest(for: request, requestHandler: self.prepareTypeHierarchy)
     case let request as RequestAndReply<TypeHierarchySubtypesRequest>:
@@ -2340,6 +2342,13 @@ extension SourceKitLSPServer {
     for workspace in workspaces {
       await workspace.semanticIndexManager?.waitForUpToDateIndex()
       workspace.uncheckedIndex?.pollForUnitChangesAndWait()
+    }
+    return VoidResponse()
+  }
+
+  func triggerReindex(_ req: TriggerReindexRequest) async throws -> VoidResponse {
+    for workspace in workspaces {
+      await workspace.semanticIndexManager?.scheduleReindex()
     }
     return VoidResponse()
   }

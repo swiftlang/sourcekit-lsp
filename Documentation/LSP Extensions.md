@@ -431,3 +431,17 @@ New request that returns symbols for all the test classes and test methods withi
 ```ts
 export interface WorkspaceTestsParams {}
 ```
+
+## `workspace/triggerReindex`
+
+New request to re-index all files open in the SourceKit-LSP server.
+
+Users should not need to rely on this request. The index should always be updated automatically in the background. Having to invoke this request means there is a bug in SourceKit-LSP's automatic re-indexing. It does, however, offer a workaround to re-index files when such a bug occurs where otherwise there would be no workaround.
+
+
+- params: `TriggerReindexParams`
+- result: `void`
+
+```ts
+export interface TriggerReindexParams {}
+```

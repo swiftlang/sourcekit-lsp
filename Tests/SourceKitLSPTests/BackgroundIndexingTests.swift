@@ -1246,6 +1246,104 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     _ = try await project.testClient.send(PollIndexRequest())
   }
+
+  func testManualReindex() async throws {
+    // This test relies on the issue described in https://github.com/apple/sourcekit-lsp/issues/1264 that we don't
+    // re-index dependent files if a function of a low-level module gains a new default parameter, which changes the
+    // function's USR but is API compatible with all dependencies.
+    // Check that after running the re-index request, the index gets updated.
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": """
+        public func 1️⃣getInt() -> Int {
+          return 1
+        }
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+
+        public func 2️⃣test() -> Int {
+          return 3️⃣getInt()
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """,
+      enableBackgroundIndexing: true
+    )
+
+    let expectedCallHierarchyItem = CallHierarchyIncomingCall(
+      from: CallHierarchyItem(
+        name: "test()",
+        kind: .function,
+        tags: nil,
+        uri: try project.uri(for: "LibB.swift"),
+        range: try project.range(from: "2️⃣", to: "2️⃣", in: "LibB.swift"),
+        selectionRange: try project.range(from: "2️⃣", to: "2️⃣", in: "LibB.swift"),
+        data: .dictionary([
+          "usr": .string("s:4LibB4testSiyF"),
+          "uri": .string(try project.uri(for: "LibB.swift").stringValue),
+        ])
+      ),
+      fromRanges: [try project.range(from: "3️⃣", to: "3️⃣", in: "LibB.swift")]
+    )
+
+    /// Start by making a call hierarchy request to check that we get the expected results without any edits.
+    let (uri, positions) = try project.openDocument("LibA.swift")
+    let prepareBeforeUpdate = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let callHierarchyBeforeUpdate = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: XCTUnwrap(prepareBeforeUpdate?.only))
+    )
+    XCTAssertEqual(callHierarchyBeforeUpdate, [expectedCallHierarchyItem])
+
+    // Now add a new default parameter to `getInt`.
+    project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
+    let newLibAContents = """
+      public func getInt(value: Int = 1) -> Int {
+        return value
+      }
+      """
+    try newLibAContents.write(to: XCTUnwrap(uri.fileURL), atomically: true, encoding: .utf8)
+    project.testClient.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(uri: uri, language: .swift, version: 0, text: newLibAContents)
+      )
+    )
+    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: .changed)]))
+    _ = try await project.testClient.send(PollIndexRequest())
+
+    // The USR of `getInt` has changed but LibB.swift has not been re-indexed due to
+    // https://github.com/apple/sourcekit-lsp/issues/1264. We expect to get an empty call hierarchy.
+    let prepareAfterUpdate = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let callHierarchyAfterUpdate = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: XCTUnwrap(prepareAfterUpdate?.only))
+    )
+    XCTAssertEqual(callHierarchyAfterUpdate, [])
+
+    // After re-indexing, we expect to get a full call hierarchy again.
+    _ = try await project.testClient.send(TriggerReindexRequest())
+    _ = try await project.testClient.send(PollIndexRequest())
+
+    let prepareAfterReindex = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let callHierarchyAfterReindex = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: XCTUnwrap(prepareAfterReindex?.only))
+    )
+    XCTAssertEqual(callHierarchyAfterReindex, [expectedCallHierarchyItem])
+  }
 }
 
 extension HoverResponseContents {

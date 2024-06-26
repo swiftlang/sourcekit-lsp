@@ -105,11 +105,17 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
 
-  private let indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>
-
   /// A reference to the underlying index store. Used to check if the index is already up-to-date for a file, in which
   /// case we don't need to index it again.
   private let index: UncheckedIndex
+
+  private let indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>
+
+  /// Whether files that have an up-to-date unit file should be indexed.
+  ///
+  /// In general, this should be `false`. The only situation when this should be set to `true` is when the user
+  /// explicitly requested a re-index of all files.
+  private let indexFilesWithUpToDateUnit: Bool
 
   /// See `SemanticIndexManager.logMessageToIndexLog`.
   private let logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
@@ -139,6 +145,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     buildSystemManager: BuildSystemManager,
     index: UncheckedIndex,
     indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>,
+    indexFilesWithUpToDateUnit: Bool,
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     testHooks: IndexTestHooks
   ) {
@@ -146,6 +153,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     self.buildSystemManager = buildSystemManager
     self.index = index
     self.indexStoreUpToDateTracker = indexStoreUpToDateTracker
+    self.indexFilesWithUpToDateUnit = indexFilesWithUpToDateUnit
     self.logMessageToIndexLog = logMessageToIndexLog
     self.testHooks = testHooks
   }
@@ -206,7 +214,9 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       // If we know that the file is up-to-date without having ot hit the index, do that because it's fastest.
       return
     }
-    guard !index.checked(for: .modifiedFiles).hasUpToDateUnit(for: file.sourceFile, mainFile: file.mainFile)
+    guard
+      indexFilesWithUpToDateUnit
+        || !index.checked(for: .modifiedFiles).hasUpToDateUnit(for: file.sourceFile, mainFile: file.mainFile)
     else {
       logger.debug("Not indexing \(file.forLogging) because index has an up-to-date unit")
       // We consider a file's index up-to-date if we have any up-to-date unit. Changing build settings does not
