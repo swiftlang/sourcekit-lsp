@@ -104,7 +104,9 @@ public actor SourceKitLSPServer {
   /// This ensures that we only inform the user about background indexing not being supported for these projects once.
   private var didSendBackgroundIndexingNotSupportedNotification = false
 
-  var options: Options
+  let options: SourceKitLSPOptions
+
+  let testHooks: TestHooks
 
   let toolchainRegistry: ToolchainRegistry
 
@@ -201,16 +203,18 @@ public actor SourceKitLSPServer {
   public init(
     client: Connection,
     toolchainRegistry: ToolchainRegistry,
-    options: Options,
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
     onExit: @escaping () -> Void = {}
   ) {
     self.toolchainRegistry = toolchainRegistry
     self.options = options
+    self.testHooks = testHooks
     self.onExit = onExit
 
     self.client = client
     let processorCount = ProcessInfo.processInfo.processorCount
-    let lowPriorityCores = options.indexOptions.maxCoresPercentageToUseForBackgroundIndexing * Double(processorCount)
+    let lowPriorityCores = (options.index?.maxCoresPercentageToUseForBackgroundIndexing ?? 1) * Double(processorCount)
     self.indexTaskScheduler = TaskScheduler(maxConcurrentTasksByPriority: [
       (TaskPriority.medium, processorCount),
       (TaskPriority.low, max(Int(lowPriorityCores), 1)),
@@ -446,11 +450,12 @@ public actor SourceKitLSPServer {
     }
 
     // Start a new service.
-    return await orLog("failed to start language service", level: .error) { [options] in
+    return await orLog("failed to start language service", level: .error) { [options = workspace.options, testHooks] in
       let service = try await serverType.serverType.init(
         sourceKitLSPServer: self,
         toolchain: toolchain,
         options: options,
+        testHooks: testHooks,
         workspace: workspace
       )
 
@@ -883,10 +888,19 @@ extension SourceKitLSPServer {
       logger.log("Cannot open workspace before server is initialized")
       return nil
     }
-    let options = self.options
+    let testHooks = self.testHooks
+    let options = SourceKitLSPOptions.merging(
+      base: self.options,
+      override: SourceKitLSPOptions(
+        path: workspaceFolder.uri.fileURL?
+          .appendingPathComponent(".sourcekit-lsp")
+          .appendingPathComponent("config.json")
+      )
+    )
     let buildSystem = await createBuildSystem(
       rootUri: workspaceFolder.uri,
       options: options,
+      testHooks: testHooks,
       toolchainRegistry: toolchainRegistry,
       reloadPackageStatusCallback: { [weak self] status in
         await self?.reloadPackageStatusCallback(status)
@@ -914,7 +928,7 @@ extension SourceKitLSPServer {
       buildSystem: buildSystem,
       toolchainRegistry: self.toolchainRegistry,
       options: options,
-      indexOptions: self.options.indexOptions,
+      testHooks: testHooks,
       indexTaskScheduler: indexTaskScheduler,
       logMessageToIndexLog: { [weak self] taskID, message in
         self?.logMessageToIndexLog(taskID: taskID, message: message)
@@ -926,7 +940,7 @@ extension SourceKitLSPServer {
         self?.indexProgressManager.indexProgressStatusDidChange()
       }
     )
-    if let workspace, options.experimentalFeatures.contains(.backgroundIndexing), workspace.semanticIndexManager == nil,
+    if let workspace, options.hasExperimentalFeature(.backgroundIndexing), workspace.semanticIndexManager == nil,
       !self.didSendBackgroundIndexingNotSupportedNotification
     {
       self.sendNotificationToClient(
@@ -944,27 +958,9 @@ extension SourceKitLSPServer {
   }
 
   func initialize(_ req: InitializeRequest) async throws -> InitializeResult {
-    if case .dictionary(let options) = req.initializationOptions {
-      if case .bool(let listenToUnitEvents) = options["listenToUnitEvents"] {
-        self.options.indexOptions.listenToUnitEvents = listenToUnitEvents
-      }
-      if case .dictionary(let completionOptions) = options["completion"] {
-        switch completionOptions["maxResults"] {
-        case .none:
-          break
-        case .some(.null):
-          self.options.completionOptions.maxResults = nil
-        case .some(.int(let maxResults)):
-          self.options.completionOptions.maxResults = maxResults
-        case .some(let invalid):
-          logger.error("Expected null or int for 'maxResults'; got \(String(reflecting: invalid))")
-        }
-      }
-    }
-
     capabilityRegistry = CapabilityRegistry(clientCapabilities: req.capabilities)
 
-    await workspaceQueue.async { [options] in
+    await workspaceQueue.async { [testHooks] in
       if let workspaceFolders = req.workspaceFolders {
         self.workspacesAndIsImplicit += await workspaceFolders.asyncCompactMap {
           guard let workspace = await self.createWorkspace($0) else {
@@ -992,7 +988,8 @@ extension SourceKitLSPServer {
           rootUri: req.rootURI,
           capabilityRegistry: self.capabilityRegistry!,
           toolchainRegistry: self.toolchainRegistry,
-          options: options,
+          options: self.options,
+          testHooks: testHooks,
           underlyingBuildSystem: nil,
           index: nil,
           indexDelegate: nil,

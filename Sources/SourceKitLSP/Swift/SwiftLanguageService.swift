@@ -107,10 +107,15 @@ public actor SwiftLanguageService: LanguageService, Sendable {
 
   let capabilityRegistry: CapabilityRegistry
 
-  let serverOptions: SourceKitLSPServer.Options
+  let testHooks: TestHooks
+
+  /// Directory where generated Files will be stored.
+  let generatedFilesPath: URL
 
   /// Directory where generated Swift interfaces will be stored.
-  let generatedInterfacesPath: URL
+  var generatedInterfacesPath: URL {
+    generatedFilesPath.appendingPathComponent("GeneratedInterfaces")
+  }
 
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
   var documentManager: DocumentManager
@@ -163,7 +168,8 @@ public actor SwiftLanguageService: LanguageService, Sendable {
   public init?(
     sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
-    options: SourceKitLSPServer.Options,
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
     workspace: Workspace
   ) async throws {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
@@ -172,11 +178,10 @@ public actor SwiftLanguageService: LanguageService, Sendable {
     self.sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(dylibPath: sourcekitd)
     self.capabilityRegistry = workspace.capabilityRegistry
     self.semanticIndexManager = workspace.semanticIndexManager
-    self.serverOptions = options
+    self.testHooks = testHooks
     self.documentManager = DocumentManager()
     self.state = .connected
-    self.generatedInterfacesPath = options.generatedInterfacesPath.asURL
-    try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
+    self.generatedFilesPath = options.generatedFilesAbsolutePath.asURL
     self.diagnosticReportManager = nil  // Needed to work around rdar://116221716
 
     // The debounce duration of 500ms was chosen arbitrarily without scientific research.
@@ -195,6 +200,7 @@ public actor SwiftLanguageService: LanguageService, Sendable {
       documentManager: documentManager,
       clientHasDiagnosticsCodeDescriptionSupport: await self.clientHasDiagnosticsCodeDescriptionSupport
     )
+    try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
   }
 
   /// - Important: For testing only

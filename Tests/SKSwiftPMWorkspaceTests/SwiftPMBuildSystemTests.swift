@@ -53,7 +53,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           workspacePath: packageRoot,
           toolchainRegistry: tr,
           fileSystem: fs,
-          buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+          options: SourceKitLSPOptions.SwiftPMOptions(),
           experimentalFeatures: [],
           testHooks: SwiftPMTestHooks()
         )
@@ -81,7 +81,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+        options: SourceKitLSPOptions.SwiftPMOptions(),
         experimentalFeatures: [],
         testHooks: SwiftPMTestHooks()
       )
@@ -112,7 +112,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           workspacePath: packageRoot,
           toolchainRegistry: ToolchainRegistry(toolchains: []),
           fileSystem: fs,
-          buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+          options: SourceKitLSPOptions.SwiftPMOptions(),
           experimentalFeatures: [],
           testHooks: SwiftPMTestHooks()
         )
@@ -144,7 +144,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+        options: SourceKitLSPOptions.SwiftPMOptions(),
         experimentalFeatures: [],
         testHooks: SwiftPMTestHooks()
       )
@@ -210,7 +210,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: localFileSystem,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+        options: SourceKitLSPOptions.SwiftPMOptions(),
         experimentalFeatures: [],
         testHooks: SwiftPMTestHooks()
       )
@@ -263,18 +263,18 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.forTesting
 
-      let config = BuildSetup(
+      let options = SourceKitLSPOptions.SwiftPMOptions(
         configuration: .release,
-        defaultWorkspaceType: nil,
-        path: packageRoot.appending(component: "non_default_build_path"),
-        flags: BuildFlags(cCompilerFlags: ["-m32"], swiftCompilerFlags: ["-typecheck"])
+        scratchPath: packageRoot.appending(component: "non_default_build_path").pathString,
+        cCompilerFlags: ["-m32"],
+        swiftCompilerFlags: ["-typecheck"]
       )
 
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: config,
+        options: options,
         experimentalFeatures: [],
         testHooks: SwiftPMTestHooks()
       )
@@ -282,7 +282,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
-      let build = buildPath(root: packageRoot, config: config, platform: hostTriple.platformBuildPathComponent)
+      let build = buildPath(root: packageRoot, options: options, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
       let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
@@ -317,7 +317,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+        options: SourceKitLSPOptions.SwiftPMOptions(),
         experimentalFeatures: [],
         testHooks: SwiftPMTestHooks()
       )
@@ -355,7 +355,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+        options: SourceKitLSPOptions.SwiftPMOptions(),
         experimentalFeatures: [],
         testHooks: SwiftPMTestHooks()
       )
@@ -405,7 +405,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+        options: SourceKitLSPOptions.SwiftPMOptions(),
         experimentalFeatures: [],
         testHooks: SwiftPMTestHooks()
       )
@@ -471,7 +471,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+        options: SourceKitLSPOptions.SwiftPMOptions(),
         experimentalFeatures: [],
         testHooks: SwiftPMTestHooks()
       )
@@ -516,7 +516,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+        options: SourceKitLSPOptions.SwiftPMOptions(),
         experimentalFeatures: [],
         testHooks: SwiftPMTestHooks()
       )
@@ -598,7 +598,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: ToolchainRegistry.forTesting,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+        options: SourceKitLSPOptions.SwiftPMOptions(),
         experimentalFeatures: [],
         testHooks: SwiftPMTestHooks()
       )
@@ -651,7 +651,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+        options: SourceKitLSPOptions.SwiftPMOptions(),
         experimentalFeatures: [],
         testHooks: SwiftPMTestHooks()
       )
@@ -720,7 +720,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: symlinkRoot,
         toolchainRegistry: ToolchainRegistry.forTesting,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+        options: SourceKitLSPOptions.SwiftPMOptions(),
         experimentalFeatures: [],
         testHooks: SwiftPMTestHooks()
       )
@@ -761,7 +761,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+        options: SourceKitLSPOptions.SwiftPMOptions(),
         experimentalFeatures: [],
         testHooks: SwiftPMTestHooks()
       )
@@ -803,7 +803,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+        options: SourceKitLSPOptions.SwiftPMOptions(),
         experimentalFeatures: [],
         testHooks: SwiftPMTestHooks()
       )
@@ -839,7 +839,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+        options: SourceKitLSPOptions.SwiftPMOptions(),
         experimentalFeatures: [],
         testHooks: SwiftPMTestHooks()
       )
@@ -947,9 +947,9 @@ private func assertArgumentsContain(
 
 private func buildPath(
   root: AbsolutePath,
-  config: BuildSetup = SourceKitLSPServer.Options.testDefault.buildSetup,
+  options: SourceKitLSPOptions.SwiftPMOptions = SourceKitLSPOptions.SwiftPMOptions(),
   platform: String
 ) -> AbsolutePath {
-  let buildPath = config.path ?? root.appending(component: ".build")
-  return buildPath.appending(components: platform, "\(config.configuration ?? .debug)")
+  let buildPath = AbsolutePath(validatingOrNil: options.scratchPath) ?? root.appending(component: ".build")
+  return buildPath.appending(components: platform, "\(options.configuration ?? .debug)")
 }

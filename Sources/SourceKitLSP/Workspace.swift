@@ -57,8 +57,7 @@ public final class Workspace: Sendable {
   /// The build system manager to use for documents in this workspace.
   public let buildSystemManager: BuildSystemManager
 
-  /// Build setup
-  public let buildSetup: BuildSetup
+  let options: SourceKitLSPOptions
 
   /// The source code index, if available.
   ///
@@ -89,7 +88,8 @@ public final class Workspace: Sendable {
     rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
     toolchainRegistry: ToolchainRegistry,
-    options: SourceKitLSPServer.Options,
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
     underlyingBuildSystem: BuildSystem?,
     index uncheckedIndex: UncheckedIndex?,
     indexDelegate: SourceKitIndexDelegate?,
@@ -99,25 +99,31 @@ public final class Workspace: Sendable {
     indexProgressStatusDidChange: @escaping @Sendable () -> Void
   ) async {
     self.documentManager = documentManager
-    self.buildSetup = options.buildSetup
     self.rootUri = rootUri
     self.capabilityRegistry = capabilityRegistry
+    self.options = options
     self._uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
     self.buildSystemManager = await BuildSystemManager(
       buildSystem: underlyingBuildSystem,
-      fallbackBuildSystem: FallbackBuildSystem(buildSetup: buildSetup),
+      fallbackBuildSystem: FallbackBuildSystem(options: options.fallbackBuildSystem ?? .init()),
       mainFilesProvider: uncheckedIndex,
       toolchainRegistry: toolchainRegistry
     )
-    if options.experimentalFeatures.contains(.backgroundIndexing),
+    if options.hasExperimentalFeature(.backgroundIndexing),
       let uncheckedIndex,
       await buildSystemManager.supportsPreparation
     {
+      let updateIndexStoreTimeoutDuration: Duration =
+        if let timeout = options.index?.updateIndexStoreTimeout {
+          .seconds(timeout)
+        } else {
+          .seconds(120)
+        }
       self.semanticIndexManager = SemanticIndexManager(
         index: uncheckedIndex,
         buildSystemManager: buildSystemManager,
-        updateIndexStoreTimeout: options.indexOptions.updateIndexStoreTimeout,
-        testHooks: options.indexTestHooks,
+        updateIndexStoreTimeout: updateIndexStoreTimeoutDuration,
+        testHooks: testHooks.indexTestHooks,
         indexTaskScheduler: indexTaskScheduler,
         logMessageToIndexLog: logMessageToIndexLog,
         indexTasksWereScheduled: indexTasksWereScheduled,
@@ -154,8 +160,8 @@ public final class Workspace: Sendable {
     capabilityRegistry: CapabilityRegistry,
     buildSystem: BuildSystem?,
     toolchainRegistry: ToolchainRegistry,
-    options: SourceKitLSPServer.Options,
-    indexOptions: IndexOptions = IndexOptions(),
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     indexTasksWereScheduled: @Sendable @escaping (Int) -> Void,
@@ -164,22 +170,30 @@ public final class Workspace: Sendable {
     var index: IndexStoreDB? = nil
     var indexDelegate: SourceKitIndexDelegate? = nil
 
-    let indexOptions = options.indexOptions
-    if let storePath = await firstNonNil(indexOptions.indexStorePath, await buildSystem?.indexStorePath),
-      let dbPath = await firstNonNil(indexOptions.indexDatabasePath, await buildSystem?.indexDatabasePath),
+    let indexOptions = options.index
+    if let storePath = await firstNonNil(
+      AbsolutePath(validatingOrNil: indexOptions?.indexStorePath),
+      await buildSystem?.indexStorePath
+    ),
+      let dbPath = await firstNonNil(
+        AbsolutePath(validatingOrNil: indexOptions?.indexDatabasePath),
+        await buildSystem?.indexDatabasePath
+      ),
       let libPath = await toolchainRegistry.default?.libIndexStore
     {
       do {
         let lib = try IndexStoreLibrary(dylibPath: libPath.pathString)
         indexDelegate = SourceKitIndexDelegate()
         let prefixMappings =
-          await firstNonNil(indexOptions.indexPrefixMappings, await buildSystem?.indexPrefixMappings) ?? []
+          await firstNonNil(
+            indexOptions?.indexPrefixMap?.map { PathPrefixMapping(original: $0.key, replacement: $0.value) },
+            await buildSystem?.indexPrefixMappings
+          ) ?? []
         index = try IndexStoreDB(
           storePath: storePath.pathString,
           databasePath: dbPath.pathString,
           library: lib,
           delegate: indexDelegate,
-          listenToUnitEvents: indexOptions.listenToUnitEvents,
           prefixMappings: prefixMappings.map { PathMapping(original: $0.original, replacement: $0.replacement) }
         )
         logger.debug("Opened IndexStoreDB at \(dbPath) with store path \(storePath)")
@@ -194,6 +208,7 @@ public final class Workspace: Sendable {
       capabilityRegistry: capabilityRegistry,
       toolchainRegistry: toolchainRegistry,
       options: options,
+      testHooks: testHooks,
       underlyingBuildSystem: buildSystem,
       index: UncheckedIndex(index),
       indexDelegate: indexDelegate,
@@ -206,7 +221,8 @@ public final class Workspace: Sendable {
 
   @_spi(Testing) public static func forTesting(
     toolchainRegistry: ToolchainRegistry,
-    options: SourceKitLSPServer.Options,
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
     underlyingBuildSystem: BuildSystem,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async -> Workspace {
@@ -216,6 +232,7 @@ public final class Workspace: Sendable {
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
       toolchainRegistry: toolchainRegistry,
       options: options,
+      testHooks: testHooks,
       underlyingBuildSystem: underlyingBuildSystem,
       index: nil,
       indexDelegate: nil,

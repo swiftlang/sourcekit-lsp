@@ -22,9 +22,10 @@ import SwiftExtensions
 import SwiftSyntax
 import XCTest
 
-extension SourceKitLSPServer.Options {
-  /// The default SourceKitLSPServer options for testing.
-  public static let testDefault = Self(swiftPublishDiagnosticsDebounceDuration: 0)
+extension SourceKitLSPOptions {
+  public static func testDefault(experimentalFeatures: Set<ExperimentalFeature>? = nil) -> SourceKitLSPOptions {
+    return SourceKitLSPOptions(experimentalFeatures: experimentalFeatures, swiftPublishDiagnosticsDebounce: 0)
+  }
 }
 
 fileprivate struct NotificationTimeoutError: Error, CustomStringConvertible {
@@ -94,7 +95,8 @@ public final class TestSourceKitLSPClient: MessageHandler, Sendable {
   ///     This allows e.g. a `IndexedSingleSwiftFileTestProject` to delete its temporary files when they are no longer
   ///     needed.
   public init(
-    serverOptions: SourceKitLSPServer.Options = .testDefault,
+    options: SourceKitLSPOptions = .testDefault(),
+    testHooks: TestHooks = TestHooks(),
     initialize: Bool = true,
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
@@ -104,12 +106,14 @@ public final class TestSourceKitLSPClient: MessageHandler, Sendable {
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
     cleanUp: @Sendable @escaping () -> Void = {}
   ) async throws {
-    var serverOptions = serverOptions
+    var options = options
     if let globalModuleCache {
-      serverOptions.buildSetup.flags.swiftCompilerFlags += ["-module-cache-path", globalModuleCache.path]
+      options.swiftPM = options.swiftPM ?? SourceKitLSPOptions.SwiftPMOptions()
+      options.swiftPM!.swiftCompilerFlags =
+        (options.swiftPM!.swiftCompilerFlags ?? []) + ["-module-cache-path", globalModuleCache.path]
     }
     if enableBackgroundIndexing {
-      serverOptions.experimentalFeatures.insert(.backgroundIndexing)
+      options.experimentalFeatures = (options.experimentalFeatures ?? []).union([.backgroundIndexing])
     }
 
     var notificationYielder: AsyncStream<any NotificationType>.Continuation!
@@ -123,7 +127,8 @@ public final class TestSourceKitLSPClient: MessageHandler, Sendable {
     server = SourceKitLSPServer(
       client: serverToClientConnection,
       toolchainRegistry: ToolchainRegistry.forTesting,
-      options: serverOptions,
+      options: options,
+      testHooks: testHooks,
       onExit: {
         serverToClientConnection.close()
       }
