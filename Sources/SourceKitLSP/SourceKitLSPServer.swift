@@ -576,26 +576,26 @@ extension SourceKitLSPServer: MessageHandler {
     logger.log("Received notification: \(notification.forLogging)")
 
     switch notification {
-    case let notification as InitializedNotification:
-      self.clientInitialized(notification)
-    case let notification as ExitNotification:
-      await self.exit(notification)
-    case let notification as DidOpenTextDocumentNotification:
-      await self.openDocument(notification)
-    case let notification as DidCloseTextDocumentNotification:
-      await self.closeDocument(notification)
-    case let notification as ReopenTextDocumentNotification:
-      await self.reopenDocument(notification)
     case let notification as DidChangeTextDocumentNotification:
       await self.changeDocument(notification)
     case let notification as DidChangeWorkspaceFoldersNotification:
       await self.didChangeWorkspaceFolders(notification)
+    case let notification as DidCloseTextDocumentNotification:
+      await self.closeDocument(notification)
     case let notification as DidChangeWatchedFilesNotification:
       await self.didChangeWatchedFiles(notification)
-    case let notification as WillSaveTextDocumentNotification:
-      await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.willSaveDocument)
+    case let notification as DidOpenTextDocumentNotification:
+      await self.openDocument(notification)
     case let notification as DidSaveTextDocumentNotification:
       await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.didSaveDocument)
+    case let notification as InitializedNotification:
+      self.clientInitialized(notification)
+    case let notification as ExitNotification:
+      await self.exit(notification)
+    case let notification as ReopenTextDocumentNotification:
+      await self.reopenDocument(notification)
+    case let notification as WillSaveTextDocumentNotification:
+      await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.willSaveDocument)
     // IMPORTANT: When adding a new entry to this switch, also add it to the `MessageHandlingDependencyTracker` initializer.
     default:
       break
@@ -681,82 +681,82 @@ extension SourceKitLSPServer: MessageHandler {
     }
 
     switch request {
-    case let request as RequestAndReply<InitializeRequest>:
-      await request.reply { try await initialize(request.params) }
-      // Only set `initialized` to `true` after we have sent the response to the initialize request to the client.
-      initialized = true
-    case let request as RequestAndReply<ShutdownRequest>:
-      await request.reply { try await shutdown(request.params) }
-    case let request as RequestAndReply<WorkspaceSymbolsRequest>:
-      await request.reply { try await workspaceSymbols(request.params) }
-    case let request as RequestAndReply<WorkspaceTestsRequest>:
-      await request.reply { try await workspaceTests(request.params) }
-    case let request as RequestAndReply<DocumentTestsRequest>:
-      await self.handleRequest(for: request, requestHandler: self.documentTests)
-    case let request as RequestAndReply<PollIndexRequest>:
-      await request.reply { try await pollIndex(request.params) }
     case let request as RequestAndReply<BarrierRequest>:
       await request.reply { VoidResponse() }
-    case let request as RequestAndReply<ExecuteCommandRequest>:
-      await request.reply { try await executeCommand(request.params) }
     case let request as RequestAndReply<CallHierarchyIncomingCallsRequest>:
       await request.reply { try await incomingCalls(request.params) }
     case let request as RequestAndReply<CallHierarchyOutgoingCallsRequest>:
       await request.reply { try await outgoingCalls(request.params) }
-    case let request as RequestAndReply<TypeHierarchySupertypesRequest>:
-      await request.reply { try await supertypes(request.params) }
-    case let request as RequestAndReply<TypeHierarchySubtypesRequest>:
-      await request.reply { try await subtypes(request.params) }
-    case let request as RequestAndReply<RenameRequest>:
-      await request.reply { try await rename(request.params) }
+    case let request as RequestAndReply<CallHierarchyPrepareRequest>:
+      await self.handleRequest(for: request, requestHandler: self.prepareCallHierarchy)
+    case let request as RequestAndReply<CodeActionRequest>:
+      await self.handleRequest(for: request, requestHandler: self.codeAction)
+    case let request as RequestAndReply<ColorPresentationRequest>:
+      await self.handleRequest(for: request, requestHandler: self.colorPresentation)
     case let request as RequestAndReply<CompletionRequest>:
       await self.handleRequest(for: request, requestHandler: self.completion)
-    case let request as RequestAndReply<HoverRequest>:
-      await self.handleRequest(for: request, requestHandler: self.hover)
-    case let request as RequestAndReply<OpenGeneratedInterfaceRequest>:
-      await self.handleRequest(for: request, requestHandler: self.openGeneratedInterface)
     case let request as RequestAndReply<DeclarationRequest>:
       await self.handleRequest(for: request, requestHandler: self.declaration)
     case let request as RequestAndReply<DefinitionRequest>:
       await self.handleRequest(for: request, requestHandler: self.definition)
-    case let request as RequestAndReply<ReferencesRequest>:
-      await self.handleRequest(for: request, requestHandler: self.references)
-    case let request as RequestAndReply<ImplementationRequest>:
-      await self.handleRequest(for: request, requestHandler: self.implementation)
-    case let request as RequestAndReply<CallHierarchyPrepareRequest>:
-      await self.handleRequest(for: request, requestHandler: self.prepareCallHierarchy)
-    case let request as RequestAndReply<TypeHierarchyPrepareRequest>:
-      await self.handleRequest(for: request, requestHandler: self.prepareTypeHierarchy)
-    case let request as RequestAndReply<SymbolInfoRequest>:
-      await self.handleRequest(for: request, requestHandler: self.symbolInfo)
-    case let request as RequestAndReply<DocumentHighlightRequest>:
-      await self.handleRequest(for: request, requestHandler: self.documentSymbolHighlight)
-    case let request as RequestAndReply<DocumentFormattingRequest>:
-      await self.handleRequest(for: request, requestHandler: self.documentFormatting)
-    case let request as RequestAndReply<FoldingRangeRequest>:
-      await self.handleRequest(for: request, requestHandler: self.foldingRange)
-    case let request as RequestAndReply<DocumentSymbolRequest>:
-      await self.handleRequest(for: request, requestHandler: self.documentSymbol)
     case let request as RequestAndReply<DocumentColorRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentColor)
-    case let request as RequestAndReply<DocumentSemanticTokensRequest>:
-      await self.handleRequest(for: request, requestHandler: self.documentSemanticTokens)
+    case let request as RequestAndReply<DocumentDiagnosticsRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentDiagnostic)
+    case let request as RequestAndReply<DocumentFormattingRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentFormatting)
+    case let request as RequestAndReply<DocumentHighlightRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentSymbolHighlight)
     case let request as RequestAndReply<DocumentSemanticTokensDeltaRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensDelta)
     case let request as RequestAndReply<DocumentSemanticTokensRangeRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensRange)
-    case let request as RequestAndReply<ColorPresentationRequest>:
-      await self.handleRequest(for: request, requestHandler: self.colorPresentation)
-    case let request as RequestAndReply<CodeActionRequest>:
-      await self.handleRequest(for: request, requestHandler: self.codeAction)
-    case let request as RequestAndReply<InlayHintRequest>:
-      await self.handleRequest(for: request, requestHandler: self.inlayHint)
-    case let request as RequestAndReply<DocumentDiagnosticsRequest>:
-      await self.handleRequest(for: request, requestHandler: self.documentDiagnostic)
-    case let request as RequestAndReply<PrepareRenameRequest>:
-      await self.handleRequest(for: request, requestHandler: self.prepareRename)
+    case let request as RequestAndReply<DocumentSemanticTokensRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentSemanticTokens)
+    case let request as RequestAndReply<DocumentSymbolRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentSymbol)
+    case let request as RequestAndReply<DocumentTestsRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentTests)
+    case let request as RequestAndReply<ExecuteCommandRequest>:
+      await request.reply { try await executeCommand(request.params) }
+    case let request as RequestAndReply<FoldingRangeRequest>:
+      await self.handleRequest(for: request, requestHandler: self.foldingRange)
+    case let request as RequestAndReply<HoverRequest>:
+      await self.handleRequest(for: request, requestHandler: self.hover)
+    case let request as RequestAndReply<ImplementationRequest>:
+      await self.handleRequest(for: request, requestHandler: self.implementation)
     case let request as RequestAndReply<IndexedRenameRequest>:
       await self.handleRequest(for: request, requestHandler: self.indexedRename)
+    case let request as RequestAndReply<InitializeRequest>:
+      await request.reply { try await initialize(request.params) }
+      // Only set `initialized` to `true` after we have sent the response to the initialize request to the client.
+      initialized = true
+    case let request as RequestAndReply<InlayHintRequest>:
+      await self.handleRequest(for: request, requestHandler: self.inlayHint)
+    case let request as RequestAndReply<OpenGeneratedInterfaceRequest>:
+      await self.handleRequest(for: request, requestHandler: self.openGeneratedInterface)
+    case let request as RequestAndReply<PollIndexRequest>:
+      await request.reply { try await pollIndex(request.params) }
+    case let request as RequestAndReply<PrepareRenameRequest>:
+      await self.handleRequest(for: request, requestHandler: self.prepareRename)
+    case let request as RequestAndReply<ReferencesRequest>:
+      await self.handleRequest(for: request, requestHandler: self.references)
+    case let request as RequestAndReply<RenameRequest>:
+      await request.reply { try await rename(request.params) }
+    case let request as RequestAndReply<ShutdownRequest>:
+      await request.reply { try await shutdown(request.params) }
+    case let request as RequestAndReply<SymbolInfoRequest>:
+      await self.handleRequest(for: request, requestHandler: self.symbolInfo)
+    case let request as RequestAndReply<TypeHierarchyPrepareRequest>:
+      await self.handleRequest(for: request, requestHandler: self.prepareTypeHierarchy)
+    case let request as RequestAndReply<TypeHierarchySubtypesRequest>:
+      await request.reply { try await subtypes(request.params) }
+    case let request as RequestAndReply<TypeHierarchySupertypesRequest>:
+      await request.reply { try await supertypes(request.params) }
+    case let request as RequestAndReply<WorkspaceSymbolsRequest>:
+      await request.reply { try await workspaceSymbols(request.params) }
+    case let request as RequestAndReply<WorkspaceTestsRequest>:
+      await request.reply { try await workspaceTests(request.params) }
     // IMPORTANT: When adding a new entry to this switch, also add it to the `MessageHandlingDependencyTracker` initializer.
     default:
       await request.reply { throw ResponseError.methodNotFound(R.method) }
