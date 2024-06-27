@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKCore
+import SKSupport
 import XCTest
 
 final class DebouncerTests: XCTestCase {

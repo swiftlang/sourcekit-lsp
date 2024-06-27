@@ -6,6 +6,7 @@ add_library(SemanticIndex STATIC
   IndexTestHooks.swift
   PreparationTaskDescription.swift
   SemanticIndexManager.swift
+  TaskScheduler.swift
   UpdateIndexStoreTaskDescription.swift
   UpToDateTracker.swift
 )

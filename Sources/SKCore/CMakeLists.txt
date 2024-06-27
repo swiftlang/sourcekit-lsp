@@ -1,5 +1,6 @@
 
 add_library(SKCore STATIC
+  BuildConfiguration.swift
   BuildServerBuildSystem.swift
   BuildSetup.swift
   BuildSystem.swift
@@ -7,17 +8,15 @@ add_library(SKCore STATIC
   BuildSystemManager.swift
   CompilationDatabase.swift
   CompilationDatabaseBuildSystem.swift
-  Debouncer.swift
-  ExperimentalFeatures.swift
   FallbackBuildSystem.swift
   FileBuildSettings.swift
   IndexTaskID.swift
   MainFilesProvider.swift
   PathPrefixMapping.swift
   SplitShellCommand.swift
-  TaskScheduler.swift
   Toolchain.swift
   ToolchainRegistry.swift
+  WorkspaceType.swift
   XCToolchainPlist.swift)
 set_target_properties(SKCore PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})

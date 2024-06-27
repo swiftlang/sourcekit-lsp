@@ -1,5 +1,6 @@
 
 add_library(SourceKitD STATIC
+  dlopen.swift
   SKDRequestArray.swift
   SKDRequestDictionary.swift
   SKDResponse.swift

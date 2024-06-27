@@ -88,15 +88,15 @@ extension PathPrefixMapping: @retroactive ExpressibleByArgument {}
 #endif
 
 #if compiler(<5.11)
-extension SKSupport.BuildConfiguration: ExpressibleByArgument {}
+extension SKCore.BuildConfiguration: ExpressibleByArgument {}
 #else
-extension SKSupport.BuildConfiguration: @retroactive ExpressibleByArgument {}
+extension SKCore.BuildConfiguration: @retroactive ExpressibleByArgument {}
 #endif
 
 #if compiler(<5.11)
-extension SKSupport.WorkspaceType: ExpressibleByArgument {}
+extension SKCore.WorkspaceType: ExpressibleByArgument {}
 #else
-extension SKSupport.WorkspaceType: @retroactive ExpressibleByArgument {}
+extension SKCore.WorkspaceType: @retroactive ExpressibleByArgument {}
 #endif
 
 @main
@@ -179,7 +179,7 @@ struct SourceKitLSP: AsyncParsableCommand {
   @Option(
     help: "Override default workspace type selection; one of 'swiftPM', 'compilationDatabase', or 'buildServer'"
   )
-  var defaultWorkspaceType: SKSupport.WorkspaceType?
+  var defaultWorkspaceType: SKCore.WorkspaceType?
 
   @Option(
     name: .customLong("compilation-db-search-path"),

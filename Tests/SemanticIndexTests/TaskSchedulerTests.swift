@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import LSPLogging
-import SKCore
 import SKTestSupport
+import SemanticIndex
 import XCTest
 
 final class TaskSchedulerTests: XCTestCase {

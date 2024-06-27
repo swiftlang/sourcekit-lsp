@@ -220,7 +220,9 @@ let package = Package(
     .testTarget(
       name: "SemanticIndexTests",
       dependencies: [
-        "SemanticIndex"
+        "LSPLogging",
+        "SemanticIndex",
+        "SKTestSupport",
       ],
       swiftSettings: strictConcurrencySettings
     ),
@@ -343,7 +345,6 @@ let package = Package(
       dependencies: [
         "Csourcekitd",
         "LSPLogging",
-        "SKSupport",
         "SwiftExtensions",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
@@ -399,6 +400,7 @@ let package = Package(
         "LSPLogging",
         "LSPTestSupport",
         "LanguageServerProtocol",
+        "SemanticIndex",
         "SKCore",
         "SKSupport",
         "SKTestSupport",
