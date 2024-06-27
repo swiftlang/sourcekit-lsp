@@ -113,6 +113,7 @@ actor DiagnosticReportManager {
         Diagnostic(
           diag,
           in: snapshot,
+          documentManager: documentManager,
           useEducationalNoteAsCode: self.clientHasDiagnosticsCodeDescriptionSupport
         )
       }) ?? []
