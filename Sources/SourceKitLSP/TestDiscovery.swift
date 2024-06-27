@@ -260,7 +260,7 @@ extension SourceKitLSPServer {
 
   func workspaceTests(_ req: WorkspaceTestsRequest) async throws -> [TestItem] {
     return await self.workspaces
-      .concurrentMap { await self.tests(in: $0) }
+      .concurrentMap { await self.tests(in: $0).prefixTestsWithModuleName(workspace: $0) }
       .flatMap { $0 }
       .sorted { $0.testItem.location < $1.testItem.location }
       .mergingTestsInExtensions()
@@ -272,6 +272,7 @@ extension SourceKitLSPServer {
     languageService: LanguageService
   ) async throws -> [TestItem] {
     return try await documentTestsWithoutMergingExtensions(req, workspace: workspace, languageService: languageService)
+      .prefixTestsWithModuleName(workspace: workspace)
       .mergingTestsInExtensions()
   }
 
@@ -475,6 +476,30 @@ fileprivate extension Array<AnnotatedTestItem> {
       return newItem
     }
     return result
+  }
+
+  func prefixTestsWithModuleName(workspace: Workspace) async -> Self {
+    return await self.asyncMap({
+      return AnnotatedTestItem(
+        testItem: await $0.testItem.prefixIDWithModuleName(workspace: workspace),
+        isExtension: $0.isExtension
+      )
+    })
+  }
+}
+
+extension TestItem {
+  fileprivate func prefixIDWithModuleName(workspace: Workspace) async -> TestItem {
+    guard let configuredTarget = await workspace.buildSystemManager.canonicalConfiguredTarget(for: self.location.uri),
+      let moduleName = await workspace.buildSystemManager.moduleName(for: self.location.uri, in: configuredTarget)
+    else {
+      return self
+    }
+
+    var newTest = self
+    newTest.id = "\(moduleName).\(newTest.id)"
+    newTest.children = await newTest.children.asyncMap({ await $0.prefixIDWithModuleName(workspace: workspace) })
+    return newTest
   }
 }
 
