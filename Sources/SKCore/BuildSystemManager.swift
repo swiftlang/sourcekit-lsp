@@ -154,6 +154,18 @@ extension BuildSystemManager {
       .first
   }
 
+  /// Returns the target's module name as parsed from the `ConfiguredTarget`'s compiler arguments.
+  public func moduleName(for document: DocumentURI, in target: ConfiguredTarget) async -> String? {
+    guard let buildSettings = await buildSettings(for: document, in: target, language: .swift),
+      let moduleNameFlagIndex = buildSettings.compilerArguments.firstIndex(of: "-module-name")
+    else {
+      return nil
+    }
+
+    let moduleNameIndex = buildSettings.compilerArguments.index(after: moduleNameFlagIndex)
+    return buildSettings.compilerArguments[moduleNameIndex]
+  }
+
   /// Returns the build settings for `document` from `buildSystem`.
   ///
   /// Implementation detail of `buildSettings(for:language:)`.

@@ -260,7 +260,7 @@ extension SourceKitLSPServer {
 
   func workspaceTests(_ req: WorkspaceTestsRequest) async throws -> [TestItem] {
     return await self.workspaces
-      .concurrentMap { await self.tests(in: $0) }
+      .concurrentMap { await self.tests(in: $0).prefixTestsWithModuleName(workspace: $0) }
       .flatMap { $0 }
       .sorted { $0.testItem.location < $1.testItem.location }
       .mergingTestsInExtensions()
@@ -272,6 +272,7 @@ extension SourceKitLSPServer {
     languageService: LanguageService
   ) async throws -> [TestItem] {
     return try await documentTestsWithoutMergingExtensions(req, workspace: workspace, languageService: languageService)
+      .prefixTestsWithModuleName(workspace: workspace)
       .mergingTestsInExtensions()
   }
 
@@ -475,6 +476,42 @@ fileprivate extension Array<AnnotatedTestItem> {
       return newItem
     }
     return result
+  }
+
+  func prefixTestsWithModuleName(workspace: Workspace) async -> Self {
+    return await self.asyncMap({
+      // If the module name can't be determined we return the test item without a prefixed id.
+      guard let moduleName = await self.moduleName(from: workspace, for: $0.testItem.location.uri) else {
+        return $0
+      }
+      var newTest = $0.testItem
+      newTest.id = "\(moduleName).\(newTest.id)"
+      newTest.children = await prefixTestsWithModuleName(workspace: workspace, newTest.children)
+      return AnnotatedTestItem(testItem: newTest, isExtension: $0.isExtension)
+    })
+  }
+
+  private func prefixTestsWithModuleName(workspace: Workspace, _ tests: [TestItem]) async -> [TestItem] {
+    return await tests.asyncMap({
+      guard let moduleName = await self.moduleName(from: workspace, for: $0.location.uri) else {
+        return $0
+      }
+
+      var newTest = $0
+      newTest.id = "\(moduleName).\(newTest.id)"
+      newTest.children = await prefixTestsWithModuleName(workspace: workspace, newTest.children)
+      return newTest
+    })
+  }
+
+  private func moduleName(from workspace: Workspace, for uri: DocumentURI) async -> String? {
+    guard let configuredTarget = await workspace.buildSystemManager.canonicalConfiguredTarget(for: uri) else {
+      return nil
+    }
+    // If for whatever reason we can't get a module name from the build system, fall back
+    // to using the targetID as this would be used when there is no command line arguments
+    // to define the module name as something other than the targetID.
+    return await workspace.buildSystemManager.moduleName(for: uri, in: configuredTarget) ?? configuredTarget.targetID
   }
 }
 
