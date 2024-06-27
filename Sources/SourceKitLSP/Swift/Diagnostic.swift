@@ -154,15 +154,26 @@ fileprivate extension String {
 extension Diagnostic {
 
   /// Creates a diagnostic from a sourcekitd response dictionary.
+  ///
+  /// `snapshot` is the snapshot of the document for which the diagnostics are generated.
+  /// `documentManager` is used to resolve positions of notes in secondary files.
   init?(
     _ diag: SKDResponseDictionary,
     in snapshot: DocumentSnapshot,
+    documentManager: DocumentManager,
     useEducationalNoteAsCode: Bool
   ) {
-    // FIXME: this assumes that the diagnostics are all in the same file.
-
     let keys = diag.sourcekitd.keys
     let values = diag.sourcekitd.values
+
+    guard let filePath: String = diag[keys.filePath] else {
+      logger.fault("Missing file path in diagnostic")
+      return nil
+    }
+    guard filePath == snapshot.uri.pseudoPath else {
+      logger.error("Ignoring diagnostic from a different file: \(filePath)")
+      return nil
+    }
 
     guard let message: String = diag[keys.description]?.withFirstLetterUppercased() else { return nil }
 
@@ -237,7 +248,13 @@ extension Diagnostic {
     if let sknotes: SKDResponseArray = diag[keys.diagnostics] {
       notes = []
       sknotes.forEach { (_, sknote) -> Bool in
-        guard let note = DiagnosticRelatedInformation(sknote, in: snapshot) else { return true }
+        guard
+          let note = DiagnosticRelatedInformation(
+            sknote,
+            primaryDocumentSnapshot: snapshot,
+            documentManager: documentManager
+          )
+        else { return true }
         notes?.append(note)
         return true
       }
@@ -309,8 +326,27 @@ extension Diagnostic {
 extension DiagnosticRelatedInformation {
 
   /// Creates related information from a sourcekitd note response dictionary.
-  init?(_ diag: SKDResponseDictionary, in snapshot: DocumentSnapshot) {
+  ///
+  /// `primaryDocumentSnapshot` is the snapshot of the document for which the diagnostics are generated.
+  /// `documentManager` is used to resolve positions of notes in secondary files.
+  init?(_ diag: SKDResponseDictionary, primaryDocumentSnapshot: DocumentSnapshot, documentManager: DocumentManager) {
     let keys = diag.sourcekitd.keys
+
+    guard let filePath: String = diag[keys.filePath] else {
+      logger.fault("Missing file path in related diagnostic information")
+      return nil
+    }
+    let uri = DocumentURI(filePath: filePath, isDirectory: false)
+    let snapshot: DocumentSnapshot
+    if filePath == primaryDocumentSnapshot.uri.pseudoPath {
+      snapshot = primaryDocumentSnapshot
+    } else if let inMemorySnapshot = try? documentManager.latestSnapshot(uri) {
+      snapshot = inMemorySnapshot
+    } else if let snapshotFromDisk = try? DocumentSnapshot(withContentsFromDisk: uri, language: .swift) {
+      snapshot = snapshotFromDisk
+    } else {
+      return nil
+    }
 
     var position: Position? = nil
     if let line: Int = diag[keys.line],
