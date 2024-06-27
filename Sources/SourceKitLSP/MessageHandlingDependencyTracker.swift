@@ -199,6 +199,8 @@ enum MessageHandlingDependencyTracker: DependencyTracker {
       self = .freestanding
     case is ShutdownRequest:
       self = .globalConfigurationChange
+    case is TriggerReindexRequest:
+      self = .globalConfigurationChange
     case is TypeHierarchySubtypesRequest:
       self = .freestanding
     case is TypeHierarchySupertypesRequest:
