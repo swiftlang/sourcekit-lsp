@@ -484,9 +484,7 @@ extension SwiftLanguageService {
         // Sleep for a little bit until triggering the diagnostic generation. This effectively de-bounces diagnostic
         // generation since any later edit will cancel the previous in-flight task, which will thus never go on to send
         // the `DocumentDiagnosticsRequest`.
-        try await Task.sleep(
-          nanoseconds: UInt64(sourceKitLSPServer.options.swiftPublishDiagnosticsDebounceDuration * 1_000_000_000)
-        )
+        try await Task.sleep(for: sourceKitLSPServer.options.swiftPublishDiagnosticsDebounceDurationOrDefault)
       } catch {
         return
       }

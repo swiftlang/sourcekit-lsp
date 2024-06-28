@@ -53,8 +53,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           workspacePath: packageRoot,
           toolchainRegistry: tr,
           fileSystem: fs,
-          options: SourceKitLSPOptions.SwiftPMOptions(),
-          experimentalFeatures: [],
+          options: SourceKitLSPOptions(),
           testHooks: SwiftPMTestHooks()
         )
       )
@@ -81,8 +80,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        options: SourceKitLSPOptions.SwiftPMOptions(),
-        experimentalFeatures: [],
+        options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
       await assertThrowsError(try await buildSystem.generateBuildGraph(allowFileSystemWrites: false))
@@ -112,8 +110,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           workspacePath: packageRoot,
           toolchainRegistry: ToolchainRegistry(toolchains: []),
           fileSystem: fs,
-          options: SourceKitLSPOptions.SwiftPMOptions(),
-          experimentalFeatures: [],
+          options: SourceKitLSPOptions(),
           testHooks: SwiftPMTestHooks()
         )
       )
@@ -144,8 +141,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        options: SourceKitLSPOptions.SwiftPMOptions(),
-        experimentalFeatures: [],
+        options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
@@ -210,8 +206,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: localFileSystem,
-        options: SourceKitLSPOptions.SwiftPMOptions(),
-        experimentalFeatures: [],
+        options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
@@ -274,8 +269,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        options: options,
-        experimentalFeatures: [],
+        options: SourceKitLSPOptions(swiftPM: options),
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
@@ -317,8 +311,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        options: SourceKitLSPOptions.SwiftPMOptions(),
-        experimentalFeatures: [],
+        options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
@@ -355,8 +348,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        options: SourceKitLSPOptions.SwiftPMOptions(),
-        experimentalFeatures: [],
+        options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
@@ -405,8 +397,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        options: SourceKitLSPOptions.SwiftPMOptions(),
-        experimentalFeatures: [],
+        options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
@@ -471,8 +462,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        options: SourceKitLSPOptions.SwiftPMOptions(),
-        experimentalFeatures: [],
+        options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
@@ -516,8 +506,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        options: SourceKitLSPOptions.SwiftPMOptions(),
-        experimentalFeatures: [],
+        options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
@@ -598,8 +587,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: ToolchainRegistry.forTesting,
         fileSystem: fs,
-        options: SourceKitLSPOptions.SwiftPMOptions(),
-        experimentalFeatures: [],
+        options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
@@ -651,8 +639,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        options: SourceKitLSPOptions.SwiftPMOptions(),
-        experimentalFeatures: [],
+        options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
@@ -720,8 +707,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: symlinkRoot,
         toolchainRegistry: ToolchainRegistry.forTesting,
         fileSystem: fs,
-        options: SourceKitLSPOptions.SwiftPMOptions(),
-        experimentalFeatures: [],
+        options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
@@ -761,8 +747,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        options: SourceKitLSPOptions.SwiftPMOptions(),
-        experimentalFeatures: [],
+        options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
@@ -803,8 +788,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        options: SourceKitLSPOptions.SwiftPMOptions(),
-        experimentalFeatures: [],
+        options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
 
@@ -839,8 +823,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        options: SourceKitLSPOptions.SwiftPMOptions(),
-        experimentalFeatures: [],
+        options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
