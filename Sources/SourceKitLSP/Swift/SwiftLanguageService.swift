@@ -807,7 +807,7 @@ extension SwiftLanguageService {
     var canInlineMacro = false
 
     let showMacroExpansionsIsEnabled =
-      self.sourceKitLSPServer?.options.hasExperimentalFeature(.showMacroExpansions) ?? false
+      await self.sourceKitLSPServer?.options.hasExperimentalFeature(.showMacroExpansions) ?? false
 
     var refactorActions = cursorInfoResponse.refactorActions.compactMap {
       let lspCommand = $0.asCommand()

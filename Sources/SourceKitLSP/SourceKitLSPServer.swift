@@ -104,7 +104,7 @@ public actor SourceKitLSPServer {
   /// This ensures that we only inform the user about background indexing not being supported for these projects once.
   private var didSendBackgroundIndexingNotSupportedNotification = false
 
-  let options: SourceKitLSPOptions
+  var options: SourceKitLSPOptions
 
   let testHooks: TestHooks
 
@@ -959,6 +959,10 @@ extension SourceKitLSPServer {
 
   func initialize(_ req: InitializeRequest) async throws -> InitializeResult {
     capabilityRegistry = CapabilityRegistry(clientCapabilities: req.capabilities)
+    self.options = SourceKitLSPOptions.merging(
+      base: self.options,
+      override: orLog("Parsing SourceKitLSPOptions", { try SourceKitLSPOptions(fromLSPAny: req.initializationOptions) })
+    )
 
     await workspaceQueue.async { [testHooks] in
       if let workspaceFolders = req.workspaceFolders {
@@ -983,12 +987,13 @@ extension SourceKitLSPServer {
       if self.workspaces.isEmpty {
         logger.error("No workspace found")
 
+        let options = self.options
         let workspace = await Workspace(
           documentManager: self.documentManager,
           rootUri: req.rootURI,
           capabilityRegistry: self.capabilityRegistry!,
           toolchainRegistry: self.toolchainRegistry,
-          options: self.options,
+          options: options,
           testHooks: testHooks,
           underlyingBuildSystem: nil,
           index: nil,

@@ -150,6 +150,7 @@ public class SwiftPMTestProject: MultiFileTestProject {
     files: [RelativeFileLocation: String],
     manifest: String = SwiftPMTestProject.defaultPackageManifest,
     workspaces: (URL) async throws -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
+    initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
     options: SourceKitLSPOptions = .testDefault(),
     testHooks: TestHooks = TestHooks(),
@@ -190,6 +191,7 @@ public class SwiftPMTestProject: MultiFileTestProject {
     try await super.init(
       files: filesByPath,
       workspaces: workspaces,
+      initializationOptions: initializationOptions,
       capabilities: capabilities,
       options: options,
       testHooks: testHooks,

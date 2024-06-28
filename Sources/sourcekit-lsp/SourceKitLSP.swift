@@ -264,7 +264,7 @@ struct SourceKitLSP: AsyncParsableCommand {
         override: SourceKitLSPOptions(
           path:
             URL(fileURLWithPath: xdgConfigHome)
-            .appendingPathComponent("org.swift.sourcekit-lsp")
+            .appendingPathComponent("sourcekit-lsp")
             .appendingPathComponent("config.json")
         )
       )
