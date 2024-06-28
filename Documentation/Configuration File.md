@@ -13,12 +13,15 @@ The structure of the file is currently not guaranteed to be stable. Options may 
 `config.json` is a JSON file with the following structure. All keys are optional and unknown keys are ignored.
 
 - `swiftPM`: Dictionary with the following keys, defining options for SwiftPM workspaces
-  - `configuration: "debug"|"release"`: The configuration to build the project for during background indexing and the configuration whose build folder should be used for Swift modules if background indexing is disabled
-  - `scratchPath: string`: Build artifacts directory path. If nil, the build system may choose a default value
-  - `cCompilerFlags: string[]`: Extra arguments passed to the compiler for C files
-  - `cxxCompilerFlags: string[]`: Extra arguments passed to the compiler for C++ files
-  - `swiftCompilerFlags: string[]`: Extra arguments passed to the compiler for Swift files
-  - `linkerFlags: string[]`: Extra arguments passed to the linker
+  - `configuration: "debug"|"release"`: The configuration to build the project for during background indexing and the configuration whose build folder should be used for Swift modules if background indexing is disabled. Equivalent to SwiftPM's `--configuration` option.
+  - `scratchPath: string`: Build artifacts directory path. If nil, the build system may choose a default value. Equivalent to SwiftPM's `--scratch-path` option.
+  - `swiftSDKsDirectory: string`: Equivalent to SwiftPM's `--swift-sdks-path` option
+  - `swiftSDK: string`: Equivalent to SwiftPM's `--swift-sdk` option
+  - `triple: string`: Equivalent to SwiftPM's `--triple` option
+  - `cCompilerFlags: string[]`: Extra arguments passed to the compiler for C files. Equivalent to SwiftPM's `-Xcc` option.
+  - `cxxCompilerFlags: string[]`: Extra arguments passed to the compiler for C++ files. Equivalent to SwiftPM's `-Xcxx` option.
+  - `swiftCompilerFlags: string[]`: Extra arguments passed to the compiler for Swift files. Equivalent to SwiftPM's `-Xswiftc` option.
+  - `linkerFlags: string[]`: Extra arguments passed to the linker. Equivalent to SwiftPM's `-Xlinker` option.
 - `compilationDatabase`: Dictionary with the following keys, defining options for workspaces with a compilation database
   - `searchPaths: string[]`: Additional paths to search for a compilation database, relative to a workspace root.
 - `fallbackBuildSystem`: Dictionary with the following keys, defining options for files that aren't managed by any build system
