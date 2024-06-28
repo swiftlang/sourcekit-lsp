@@ -222,8 +222,29 @@ public actor SwiftPMBuildSystem {
       throw Error.cannotDetermineHostToolchain
     }
 
-    let swiftSDK = try SwiftSDK.hostSwiftSDK(AbsolutePath(destinationToolchainBinDir))
-    let swiftPMToolchain = try UserToolchain(swiftSDK: swiftSDK)
+    let hostSDK = try SwiftSDK.hostSwiftSDK(AbsolutePath(destinationToolchainBinDir))
+    let hostSwiftPMToolchain = try UserToolchain(swiftSDK: hostSDK)
+
+    var destinationSDK: SwiftSDK
+    if let swiftSDK = options.swiftSDK {
+      let bundleStore = try SwiftSDKBundleStore(
+        swiftSDKsDirectory: fileSystem.getSharedSwiftSDKsDirectory(
+          explicitDirectory: options.swiftSDKsDirectory.map { try AbsolutePath(validating: $0) }
+        ),
+        fileSystem: fileSystem,
+        observabilityScope: observabilitySystem.topScope,
+        outputHandler: { _ in }
+      )
+      destinationSDK = try bundleStore.selectBundle(matching: swiftSDK, hostTriple: hostSwiftPMToolchain.targetTriple)
+    } else {
+      destinationSDK = hostSDK
+    }
+
+    if let triple = options.triple {
+      destinationSDK = hostSDK
+      destinationSDK.targetTriple = try Triple(triple)
+    }
+    let destinationSwiftPMToolchain = try UserToolchain(swiftSDK: destinationSDK)
 
     var location = try Workspace.Location(
       forRootPackage: AbsolutePath(packageRoot),
@@ -244,7 +265,7 @@ public actor SwiftPMBuildSystem {
       fileSystem: fileSystem,
       location: location,
       configuration: configuration,
-      customHostToolchain: swiftPMToolchain
+      customHostToolchain: hostSwiftPMToolchain
     )
 
     let buildConfiguration: PackageModel.BuildConfiguration
@@ -265,20 +286,21 @@ public actor SwiftPMBuildSystem {
     self.toolsBuildParameters = try BuildParameters(
       destination: .host,
       dataPath: location.scratchDirectory.appending(
-        component: swiftPMToolchain.targetTriple.platformBuildPathComponent
+        component: hostSwiftPMToolchain.targetTriple.platformBuildPathComponent
       ),
       configuration: buildConfiguration,
-      toolchain: swiftPMToolchain,
+      toolchain: hostSwiftPMToolchain,
       flags: buildFlags
     )
 
     self.destinationBuildParameters = try BuildParameters(
       destination: .target,
       dataPath: location.scratchDirectory.appending(
-        component: swiftPMToolchain.targetTriple.platformBuildPathComponent
+        component: destinationSwiftPMToolchain.targetTriple.platformBuildPathComponent
       ),
       configuration: buildConfiguration,
-      toolchain: swiftPMToolchain,
+      toolchain: destinationSwiftPMToolchain,
+      triple: destinationSDK.targetTriple,
       flags: buildFlags
     )
 

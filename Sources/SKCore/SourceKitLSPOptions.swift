@@ -23,19 +23,42 @@ import struct TSCBasic.AbsolutePath
 public struct SourceKitLSPOptions: Sendable, Codable {
   public struct SwiftPMOptions: Sendable, Codable {
     /// Build configuration (debug|release).
+    ///
+    /// Equivalent to SwiftPM's `--configuration` option.
     public var configuration: BuildConfiguration?
 
     /// Build artifacts directory path. If nil, the build system may choose a default value.
+    ///
+    /// Equivalent to SwiftPM's `--scratch-path` option.
     public var scratchPath: String?
 
+    /// Equivalent to SwiftPM's `--swift-sdks-path` option
+    public var swiftSDKsDirectory: String?
+
+    /// Equivalent to SwiftPM's `--swift-sdk` option
+    public var swiftSDK: String?
+
+    /// Equivalent to SwiftPM's `--triple` option
+    public var triple: String?
+
+    /// Equivalent to SwiftPM's `-Xcc` option
     public var cCompilerFlags: [String]?
+
+    /// Equivalent to SwiftPM's `-Xcxx` option
     public var cxxCompilerFlags: [String]?
+
+    /// Equivalent to SwiftPM's `-Xswiftc` option
     public var swiftCompilerFlags: [String]?
+
+    /// Equivalent to SwiftPM's `-Xlinker` option
     public var linkerFlags: [String]?
 
     public init(
       configuration: BuildConfiguration? = nil,
       scratchPath: String? = nil,
+      swiftSDKsDirectory: String? = nil,
+      swiftSDK: String? = nil,
+      triple: String? = nil,
       cCompilerFlags: [String]? = nil,
       cxxCompilerFlags: [String]? = nil,
       swiftCompilerFlags: [String]? = nil,
@@ -43,6 +66,9 @@ public struct SourceKitLSPOptions: Sendable, Codable {
     ) {
       self.configuration = configuration
       self.scratchPath = scratchPath
+      self.swiftSDKsDirectory = swiftSDKsDirectory
+      self.swiftSDK = swiftSDK
+      self.triple = triple
       self.cCompilerFlags = cCompilerFlags
       self.cxxCompilerFlags = cxxCompilerFlags
       self.swiftCompilerFlags = swiftCompilerFlags
@@ -53,6 +79,9 @@ public struct SourceKitLSPOptions: Sendable, Codable {
       return SwiftPMOptions(
         configuration: override?.configuration ?? base.configuration,
         scratchPath: override?.scratchPath ?? base.scratchPath,
+        swiftSDKsDirectory: override?.swiftSDKsDirectory ?? base.swiftSDKsDirectory,
+        swiftSDK: override?.swiftSDK ?? base.swiftSDK,
+        triple: override?.triple ?? base.triple,
         cCompilerFlags: override?.cCompilerFlags ?? base.cCompilerFlags,
         cxxCompilerFlags: override?.cxxCompilerFlags ?? base.cxxCompilerFlags,
         swiftCompilerFlags: override?.swiftCompilerFlags ?? base.swiftCompilerFlags,
