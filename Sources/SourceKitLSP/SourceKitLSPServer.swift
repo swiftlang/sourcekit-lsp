@@ -214,7 +214,7 @@ public actor SourceKitLSPServer {
 
     self.client = client
     let processorCount = ProcessInfo.processInfo.processorCount
-    let lowPriorityCores = (options.index?.maxCoresPercentageToUseForBackgroundIndexing ?? 1) * Double(processorCount)
+    let lowPriorityCores = options.index.maxCoresPercentageToUseForBackgroundIndexingOrDefault * Double(processorCount)
     self.indexTaskScheduler = TaskScheduler(maxConcurrentTasksByPriority: [
       (TaskPriority.medium, processorCount),
       (TaskPriority.low, max(Int(lowPriorityCores), 1)),
@@ -940,7 +940,7 @@ extension SourceKitLSPServer {
         self?.indexProgressManager.indexProgressStatusDidChange()
       }
     )
-    if let workspace, options.hasExperimentalFeature(.backgroundIndexing), workspace.semanticIndexManager == nil,
+    if let workspace, options.backgroundIndexingOrDefault, workspace.semanticIndexManager == nil,
       !self.didSendBackgroundIndexingNotSupportedNotification
     {
       self.sendNotificationToClient(

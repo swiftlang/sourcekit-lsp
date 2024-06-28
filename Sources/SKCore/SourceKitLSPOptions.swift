@@ -140,6 +140,18 @@ public struct SourceKitLSPOptions: Sendable, Codable {
     public var maxCoresPercentageToUseForBackgroundIndexing: Double?
     public var updateIndexStoreTimeout: Int?
 
+    public var maxCoresPercentageToUseForBackgroundIndexingOrDefault: Double {
+      return maxCoresPercentageToUseForBackgroundIndexing ?? 1
+    }
+
+    public var updateIndexStoreTimeoutOrDefault: Duration {
+      if let updateIndexStoreTimeout {
+        .seconds(updateIndexStoreTimeout)
+      } else {
+        .seconds(120)
+      }
+    }
+
     public init(
       indexStorePath: String? = nil,
       indexDatabasePath: String? = nil,
@@ -166,15 +178,18 @@ public struct SourceKitLSPOptions: Sendable, Codable {
     }
   }
 
-  public var swiftPM: SwiftPMOptions?
-  public var compilationDatabase: CompilationDatabaseOptions?
-  public var fallbackBuildSystem: FallbackBuildSystemOptions?
+  public var swiftPM: SwiftPMOptions
+  public var compilationDatabase: CompilationDatabaseOptions
+  public var fallbackBuildSystem: FallbackBuildSystemOptions
   public var clangdOptions: [String]?
-  public var index: IndexOptions?
+  public var index: IndexOptions
 
   /// Default workspace type (buildserver|compdb|swiftpm). Overrides workspace type selection logic.
   public var defaultWorkspaceType: WorkspaceType?
   public var generatedFilesPath: String?
+
+  /// Whether background indexing is enabled.
+  public var backgroundIndexing: Bool?
 
   /// Experimental features that are enabled.
   public var experimentalFeatures: Set<ExperimentalFeature>? = nil
@@ -184,25 +199,29 @@ public struct SourceKitLSPOptions: Sendable, Codable {
   ///
   /// This is mostly intended for testing purposes so we don't need to wait the debouncing time to get a diagnostics
   /// notification when running unit tests.
-  public var swiftPublishDiagnosticsDebounce: Double? = nil
+  public var swiftPublishDiagnosticsDebounceDuration: Double? = nil
 
-  public var swiftPublishDiagnosticsDebounceDuration: TimeInterval {
-    if let workDoneProgressDebounce {
-      return workDoneProgressDebounce
+  public var swiftPublishDiagnosticsDebounceDurationOrDefault: Duration {
+    if let swiftPublishDiagnosticsDebounceDuration {
+      return .seconds(swiftPublishDiagnosticsDebounceDuration)
     }
-    return 2 /* seconds */
+    return .seconds(2)
   }
 
   /// When a task is started that should be displayed to the client as a work done progress, how many milliseconds to
   /// wait before actually starting the work done progress. This prevents flickering of the work done progress in the
   /// client for short-lived index tasks which end within this duration.
-  public var workDoneProgressDebounce: Double? = nil
+  public var workDoneProgressDebounceDuration: Double? = nil
 
-  public var workDoneProgressDebounceDuration: Duration {
-    if let workDoneProgressDebounce {
-      return .seconds(workDoneProgressDebounce)
+  public var workDoneProgressDebounceDurationOrDefault: Duration {
+    if let workDoneProgressDebounceDuration {
+      return .seconds(workDoneProgressDebounceDuration)
     }
-    return .seconds(0)
+    return .seconds(1)
+  }
+
+  public var backgroundIndexingOrDefault: Bool {
+    return backgroundIndexing ?? false
   }
 
   public init(
@@ -213,9 +232,10 @@ public struct SourceKitLSPOptions: Sendable, Codable {
     index: IndexOptions = .init(),
     defaultWorkspaceType: WorkspaceType? = nil,
     generatedFilesPath: String? = nil,
+    backgroundIndexing: Bool? = nil,
     experimentalFeatures: Set<ExperimentalFeature>? = nil,
-    swiftPublishDiagnosticsDebounce: Double? = nil,
-    workDoneProgressDebounce: Double? = nil
+    swiftPublishDiagnosticsDebounceDuration: Double? = nil,
+    workDoneProgressDebounceDuration: Double? = nil
   ) {
     self.swiftPM = swiftPM
     self.fallbackBuildSystem = fallbackBuildSystem
@@ -224,9 +244,10 @@ public struct SourceKitLSPOptions: Sendable, Codable {
     self.index = index
     self.generatedFilesPath = generatedFilesPath
     self.defaultWorkspaceType = defaultWorkspaceType
+    self.backgroundIndexing = backgroundIndexing
     self.experimentalFeatures = experimentalFeatures
-    self.swiftPublishDiagnosticsDebounce = swiftPublishDiagnosticsDebounce
-    self.workDoneProgressDebounce = workDoneProgressDebounce
+    self.swiftPublishDiagnosticsDebounceDuration = swiftPublishDiagnosticsDebounceDuration
+    self.workDoneProgressDebounceDuration = workDoneProgressDebounceDuration
   }
 
   public init?(path: URL?) {
@@ -236,7 +257,7 @@ public struct SourceKitLSPOptions: Sendable, Codable {
     guard
       let decoded = orLog(
         "Parsing config.json",
-        { try JSONDecoder().decode(SourceKitLSPOptions.self, from: contents) }
+        { try JSONDecoder().decode(Self.self, from: contents) }
       )
     else {
       return nil
@@ -246,23 +267,25 @@ public struct SourceKitLSPOptions: Sendable, Codable {
 
   public static func merging(base: SourceKitLSPOptions, override: SourceKitLSPOptions?) -> SourceKitLSPOptions {
     return SourceKitLSPOptions(
-      swiftPM: SwiftPMOptions.merging(base: base.swiftPM ?? .init(), override: override?.swiftPM),
+      swiftPM: SwiftPMOptions.merging(base: base.swiftPM, override: override?.swiftPM),
       fallbackBuildSystem: FallbackBuildSystemOptions.merging(
-        base: base.fallbackBuildSystem ?? .init(),
+        base: base.fallbackBuildSystem,
         override: override?.fallbackBuildSystem
       ),
       compilationDatabase: CompilationDatabaseOptions.merging(
-        base: base.compilationDatabase ?? .init(),
+        base: base.compilationDatabase,
         override: override?.compilationDatabase
       ),
       clangdOptions: override?.clangdOptions ?? base.clangdOptions,
-      index: IndexOptions.merging(base: base.index ?? .init(), override: override?.index),
+      index: IndexOptions.merging(base: base.index, override: override?.index),
       defaultWorkspaceType: override?.defaultWorkspaceType ?? base.defaultWorkspaceType,
       generatedFilesPath: override?.generatedFilesPath ?? base.generatedFilesPath,
+      backgroundIndexing: override?.backgroundIndexing ?? base.backgroundIndexing,
       experimentalFeatures: override?.experimentalFeatures ?? base.experimentalFeatures,
-      swiftPublishDiagnosticsDebounce: override?.swiftPublishDiagnosticsDebounce
-        ?? base.swiftPublishDiagnosticsDebounce,
-      workDoneProgressDebounce: override?.workDoneProgressDebounce ?? base.workDoneProgressDebounce
+      swiftPublishDiagnosticsDebounceDuration: override?.swiftPublishDiagnosticsDebounceDuration
+        ?? base.swiftPublishDiagnosticsDebounceDuration,
+      workDoneProgressDebounceDuration: override?.workDoneProgressDebounceDuration
+        ?? base.workDoneProgressDebounceDuration
     )
   }
 
@@ -278,5 +301,35 @@ public struct SourceKitLSPOptions: Sendable, Codable {
       return false
     }
     return experimentalFeatures.contains(feature)
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+
+    self.swiftPM = try container.decodeIfPresent(SwiftPMOptions.self, forKey: CodingKeys.swiftPM) ?? .init()
+    self.compilationDatabase =
+      try container.decodeIfPresent(CompilationDatabaseOptions.self, forKey: CodingKeys.compilationDatabase) ?? .init()
+    self.fallbackBuildSystem =
+      try container.decodeIfPresent(FallbackBuildSystemOptions.self, forKey: CodingKeys.fallbackBuildSystem) ?? .init()
+    self.clangdOptions = try container.decodeIfPresent([String].self, forKey: CodingKeys.clangdOptions)
+    self.index = try container.decodeIfPresent(IndexOptions.self, forKey: CodingKeys.index) ?? .init()
+    self.defaultWorkspaceType = try container.decodeIfPresent(
+      WorkspaceType.self,
+      forKey: CodingKeys.defaultWorkspaceType
+    )
+    self.generatedFilesPath = try container.decodeIfPresent(String.self, forKey: CodingKeys.generatedFilesPath)
+    self.backgroundIndexing = try container.decodeIfPresent(Bool.self, forKey: CodingKeys.backgroundIndexing)
+    self.experimentalFeatures = try container.decodeIfPresent(
+      Set<ExperimentalFeature>.self,
+      forKey: CodingKeys.experimentalFeatures
+    )
+    self.swiftPublishDiagnosticsDebounceDuration = try container.decodeIfPresent(
+      Double.self,
+      forKey: CodingKeys.swiftPublishDiagnosticsDebounceDuration
+    )
+    self.workDoneProgressDebounceDuration = try container.decodeIfPresent(
+      Double.self,
+      forKey: CodingKeys.workDoneProgressDebounceDuration
+    )
   }
 }

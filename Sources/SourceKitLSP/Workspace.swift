@@ -105,24 +105,15 @@ public final class Workspace: Sendable {
     self._uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
     self.buildSystemManager = await BuildSystemManager(
       buildSystem: underlyingBuildSystem,
-      fallbackBuildSystem: FallbackBuildSystem(options: options.fallbackBuildSystem ?? .init()),
+      fallbackBuildSystem: FallbackBuildSystem(options: options.fallbackBuildSystem),
       mainFilesProvider: uncheckedIndex,
       toolchainRegistry: toolchainRegistry
     )
-    if options.hasExperimentalFeature(.backgroundIndexing),
-      let uncheckedIndex,
-      await buildSystemManager.supportsPreparation
-    {
-      let updateIndexStoreTimeoutDuration: Duration =
-        if let timeout = options.index?.updateIndexStoreTimeout {
-          .seconds(timeout)
-        } else {
-          .seconds(120)
-        }
+    if options.backgroundIndexingOrDefault, let uncheckedIndex, await buildSystemManager.supportsPreparation {
       self.semanticIndexManager = SemanticIndexManager(
         index: uncheckedIndex,
         buildSystemManager: buildSystemManager,
-        updateIndexStoreTimeout: updateIndexStoreTimeoutDuration,
+        updateIndexStoreTimeout: options.index.updateIndexStoreTimeoutOrDefault,
         testHooks: testHooks.indexTestHooks,
         indexTaskScheduler: indexTaskScheduler,
         logMessageToIndexLog: logMessageToIndexLog,
@@ -172,11 +163,11 @@ public final class Workspace: Sendable {
 
     let indexOptions = options.index
     if let storePath = await firstNonNil(
-      AbsolutePath(validatingOrNil: indexOptions?.indexStorePath),
+      AbsolutePath(validatingOrNil: indexOptions.indexStorePath),
       await buildSystem?.indexStorePath
     ),
       let dbPath = await firstNonNil(
-        AbsolutePath(validatingOrNil: indexOptions?.indexDatabasePath),
+        AbsolutePath(validatingOrNil: indexOptions.indexDatabasePath),
         await buildSystem?.indexDatabasePath
       ),
       let libPath = await toolchainRegistry.default?.libIndexStore
@@ -186,7 +177,7 @@ public final class Workspace: Sendable {
         indexDelegate = SourceKitIndexDelegate()
         let prefixMappings =
           await firstNonNil(
-            indexOptions?.indexPrefixMap?.map { PathPrefixMapping(original: $0.key, replacement: $0.value) },
+            indexOptions.indexPrefixMap?.map { PathPrefixMapping(original: $0.key, replacement: $0.value) },
             await buildSystem?.indexPrefixMappings
           ) ?? []
         index = try IndexStoreDB(

@@ -201,7 +201,7 @@ struct SourceKitLSP: AsyncParsableCommand {
       Available features are: \(ExperimentalFeature.allCases.map(\.rawValue).joined(separator: ", "))
       """
   )
-  var experimentalFeatures: [ExperimentalFeature] = []
+  var experimentalFeatures: [String] = []
 
   /// Maps The options passed on the command line to a `SourceKitLSPOptions` struct.
   func commandLineOptions() -> SourceKitLSPOptions {
@@ -233,7 +233,8 @@ struct SourceKitLSP: AsyncParsableCommand {
       ),
       defaultWorkspaceType: defaultWorkspaceType,
       generatedFilesPath: generatedFilesPath,
-      experimentalFeatures: Set(experimentalFeatures)
+      backgroundIndexing: experimentalFeatures.contains("background-indexing"),
+      experimentalFeatures: Set(experimentalFeatures.compactMap(ExperimentalFeature.init))
     )
   }
 
