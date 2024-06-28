@@ -24,7 +24,11 @@ import XCTest
 
 extension SourceKitLSPOptions {
   public static func testDefault(experimentalFeatures: Set<ExperimentalFeature>? = nil) -> SourceKitLSPOptions {
-    return SourceKitLSPOptions(experimentalFeatures: experimentalFeatures, swiftPublishDiagnosticsDebounceDuration: 0)
+    return SourceKitLSPOptions(
+      experimentalFeatures: experimentalFeatures,
+      swiftPublishDiagnosticsDebounceDuration: 0,
+      workDoneProgressDebounceDuration: 0
+    )
   }
 }
 

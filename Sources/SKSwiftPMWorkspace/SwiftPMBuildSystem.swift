@@ -221,10 +221,10 @@ public actor SwiftPMBuildSystem {
     let hostSwiftPMToolchain = try UserToolchain(swiftSDK: hostSDK)
 
     var destinationSDK: SwiftSDK
-    if let swiftSDK = options.swiftSDK {
+    if let swiftSDK = options.swiftPM.swiftSDK {
       let bundleStore = try SwiftSDKBundleStore(
         swiftSDKsDirectory: fileSystem.getSharedSwiftSDKsDirectory(
-          explicitDirectory: options.swiftSDKsDirectory.map { try AbsolutePath(validating: $0) }
+          explicitDirectory: options.swiftPM.swiftSDKsDirectory.map { try AbsolutePath(validating: $0) }
         ),
         fileSystem: fileSystem,
         observabilityScope: observabilitySystem.topScope,
@@ -235,7 +235,7 @@ public actor SwiftPMBuildSystem {
       destinationSDK = hostSDK
     }
 
-    if let triple = options.triple {
+    if let triple = options.swiftPM.triple {
       destinationSDK = hostSDK
       destinationSDK.targetTriple = try Triple(triple)
     }
