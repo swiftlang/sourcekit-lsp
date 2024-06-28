@@ -49,55 +49,6 @@ final class SwiftInterfaceTests: XCTestCase {
     )
   }
 
-  func testOpenInterface() async throws {
-    let project = try await SwiftPMTestProject(
-      files: [
-        "MyLibrary/MyLibrary.swift": """
-        public struct Lib {
-          public func foo() {}
-          public init() {}
-        }
-        """,
-        "Exec/main.swift": "import MyLibrary",
-      ],
-      manifest: """
-        let package = Package(
-          name: "MyLibrary",
-          targets: [
-            .target(name: "MyLibrary"),
-            .executableTarget(name: "Exec", dependencies: ["MyLibrary"])
-          ]
-        )
-        """,
-      enableBackgroundIndexing: true
-    )
-
-    let (mainUri, _) = try project.openDocument("main.swift")
-    let openInterface = OpenGeneratedInterfaceRequest(
-      textDocument: TextDocumentIdentifier(mainUri),
-      name: "MyLibrary",
-      groupName: nil,
-      symbolUSR: nil
-    )
-    let interfaceDetails = try unwrap(await project.testClient.send(openInterface))
-    XCTAssert(interfaceDetails.uri.pseudoPath.hasSuffix("/MyLibrary.swiftinterface"))
-    let fileContents = try XCTUnwrap(
-      interfaceDetails.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) })
-    )
-    XCTAssertTrue(
-      fileContents.contains(
-        """
-        public struct Lib {
-
-            public func foo()
-
-            public init()
-        }
-        """
-      )
-    )
-  }
-
   func testDefinitionInSystemModuleInterface() async throws {
     let project = try await IndexedSingleSwiftFileTestProject(
       """

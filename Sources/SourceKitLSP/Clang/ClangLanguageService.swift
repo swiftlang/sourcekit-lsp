@@ -623,7 +623,12 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
-  func openGeneratedInterface(_ request: OpenGeneratedInterfaceRequest) async throws -> GeneratedInterfaceDetails? {
+  func openGeneratedInterface(
+    document: DocumentURI,
+    moduleName: String,
+    groupName: String?,
+    symbolUSR symbol: String?
+  ) async throws -> GeneratedInterfaceDetails? {
     throw ResponseError.unknown("unsupported method")
   }
 
