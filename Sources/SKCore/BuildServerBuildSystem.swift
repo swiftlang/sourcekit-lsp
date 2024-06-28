@@ -16,6 +16,7 @@ import LSPLogging
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKSupport
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
@@ -44,7 +45,6 @@ func executable(_ name: String) -> String {
 /// `buildServer.json` configuration file provided in the repo root.
 public actor BuildServerBuildSystem: MessageHandler {
   public let projectRoot: AbsolutePath
-  let buildFolder: AbsolutePath?
   let serverConfig: BuildServerConfig
 
   var buildServer: JSONRPCConnection?
@@ -81,7 +81,6 @@ public actor BuildServerBuildSystem: MessageHandler {
 
   public init(
     projectRoot: AbsolutePath,
-    buildFolder: AbsolutePath?,
     fileSystem: FileSystem = localFileSystem
   ) async throws {
     let configPath = projectRoot.appending(component: "buildServer.json")
@@ -99,7 +98,6 @@ public actor BuildServerBuildSystem: MessageHandler {
         currentWorkingDirectory: fileSystem.currentWorkingDirectory
       )
     #endif
-    self.buildFolder = buildFolder
     self.projectRoot = projectRoot
     self.serverConfig = config
     try await self.initializeBuildServer()
@@ -108,16 +106,16 @@ public actor BuildServerBuildSystem: MessageHandler {
   /// Creates a build system using the Build Server Protocol config.
   ///
   /// - Returns: nil if `projectRoot` has no config or there is an error parsing it.
-  public init?(projectRoot: AbsolutePath?, buildSetup: BuildSetup) async {
-    if projectRoot == nil { return nil }
+  public init?(projectRoot: AbsolutePath?) async {
+    guard let projectRoot else { return nil }
 
     do {
-      try await self.init(projectRoot: projectRoot!, buildFolder: buildSetup.path)
+      try await self.init(projectRoot: projectRoot)
     } catch is FileSystemError {
       // config file was missing, no build server for this workspace
       return nil
     } catch {
-      logger.fault("failed to start build server: \(error.forLogging)")
+      logger.fault("Failed to start build server: \(error.forLogging)")
       return nil
     }
   }
@@ -126,7 +124,7 @@ public actor BuildServerBuildSystem: MessageHandler {
     if let buildServer = self.buildServer {
       _ = buildServer.send(ShutdownBuild()) { result in
         if let error = result.failure {
-          logger.fault("error shutting down build server: \(error.forLogging)")
+          logger.fault("Error shutting down build server: \(error.forLogging)")
         }
         buildServer.send(ExitBuildNotification())
         buildServer.close()
@@ -174,7 +172,7 @@ public actor BuildServerBuildSystem: MessageHandler {
     let buildServer = try makeJSONRPCBuildServer(client: self, serverPath: serverPath, serverFlags: flags)
     let response = try await buildServer.send(initializeRequest)
     buildServer.send(InitializedBuildNotification())
-    logger.log("initialized build server \(response.displayName)")
+    logger.log("Initialized build server \(response.displayName)")
 
     // see if index store was set as part of the server metadata
     if let indexDbPath = readReponseDataKey(data: response.data, key: "indexDatabasePath") {
@@ -259,19 +257,54 @@ private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
 }
 
 extension BuildServerBuildSystem: BuildSystem {
+  public nonisolated var supportsPreparation: Bool { false }
+
   /// The build settings for the given file.
   ///
   /// Returns `nil` if no build settings have been received from the build
   /// server yet or if no build settings are available for this file.
-  public func buildSettings(for document: DocumentURI, language: Language) async throws -> FileBuildSettings? {
+  public func buildSettings(
+    for document: DocumentURI,
+    in target: ConfiguredTarget,
+    language: Language
+  ) async -> FileBuildSettings? {
     return buildSettings[document]
+  }
+
+  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+    return nil
+  }
+
+  public func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+    return nil
+  }
+
+  public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
+    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
+  }
+
+  public func generateBuildGraph(allowFileSystemWrites: Bool) {}
+
+  public func topologicalSort(of targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
+    return nil
+  }
+
+  public func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+    return nil
+  }
+
+  public func prepare(
+    targets: [ConfiguredTarget],
+    logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
+  ) async throws {
+    throw PrepareNotSupportedError()
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI) {
     let request = RegisterForChanges(uri: uri, action: .register)
     _ = self.buildServer?.send(request) { result in
       if let error = result.failure {
-        logger.error("error registering \(uri): \(error.forLogging)")
+        logger.error("Error registering \(uri): \(error.forLogging)")
 
         Task {
           // BuildServer registration failed, so tell our delegate that no build
@@ -288,7 +321,7 @@ extension BuildServerBuildSystem: BuildSystem {
     let request = RegisterForChanges(uri: uri, action: .unregister)
     _ = self.buildServer?.send(request) { result in
       if let error = result.failure {
-        logger.error("error unregistering \(uri.forLogging): \(error.forLogging)")
+        logger.error("Error unregistering \(uri.forLogging): \(error.forLogging)")
       }
     }
   }
@@ -315,6 +348,17 @@ extension BuildServerBuildSystem: BuildSystem {
     }
 
     return .unhandled
+  }
+
+  public func sourceFiles() async -> [SourceFileInfo] {
+    // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
+    // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).
+    return []
+  }
+
+  public func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) {
+    // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
+    // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).
   }
 }
 
@@ -369,7 +413,7 @@ private func makeJSONRPCBuildServer(
   process.terminationHandler = { process in
     logger.log(
       level: process.terminationReason == .exit ? .default : .error,
-      "build server exited: \(String(reflecting: process.terminationReason)) \(process.terminationStatus)"
+      "Build server exited: \(String(reflecting: process.terminationReason)) \(process.terminationStatus)"
     )
     connection.close()
   }

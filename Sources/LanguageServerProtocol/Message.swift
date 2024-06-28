@@ -24,7 +24,7 @@ public protocol _RequestType: MessageType {
   func _handle(
     _ handler: MessageHandler,
     id: RequestID,
-    reply: @escaping (LSPResult<ResponseType>, RequestID) -> Void
+    reply: @Sendable @escaping (LSPResult<ResponseType>, RequestID) -> Void
   )
 }
 
@@ -49,7 +49,7 @@ extension RequestType {
   public func _handle(
     _ handler: MessageHandler,
     id: RequestID,
-    reply: @escaping (LSPResult<ResponseType>, RequestID) -> Void
+    reply: @Sendable @escaping (LSPResult<ResponseType>, RequestID) -> Void
   ) {
     handler.handle(self, id: id) { response in
       reply(response.map({ $0 as ResponseType }), id)

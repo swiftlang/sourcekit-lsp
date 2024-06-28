@@ -60,16 +60,15 @@ class WorkspaceSymbolsTests: XCTestCase {
       ],
       workspaces: {
         return [WorkspaceFolder(uri: DocumentURI($0.appendingPathComponent("packageB")))]
-      }
+      },
+      enableBackgroundIndexing: true
     )
 
-    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("packageB"))
-
-    _ = try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(PollIndexRequest())
     let response = try await project.testClient.send(WorkspaceSymbolsRequest(query: "funcFrom"))
 
     // Ideally, the item from the current package (PackageB) should be returned before the item from PackageA
-    // https://github.com/apple/sourcekit-lsp/issues/1094
+    // https://github.com/swiftlang/sourcekit-lsp/issues/1094
     XCTAssertEqual(
       response,
       [

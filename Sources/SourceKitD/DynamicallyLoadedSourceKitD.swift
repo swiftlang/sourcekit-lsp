@@ -12,15 +12,10 @@
 
 import Foundation
 import LSPLogging
-import SKSupport
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 
-#if compiler(<5.11)
-extension DLHandle: @unchecked Sendable {}
-#else
-extension DLHandle: @unchecked @retroactive Sendable {}
-#endif
 extension sourcekitd_api_keys: @unchecked Sendable {}
 extension sourcekitd_api_requests: @unchecked Sendable {}
 extension sourcekitd_api_values: @unchecked Sendable {}
@@ -31,7 +26,6 @@ extension sourcekitd_api_values: @unchecked Sendable {}
 /// Users of this class should not call the api functions `initialize`, `shutdown`, or
 /// `set_notification_handler`, which are global state managed internally by this class.
 public actor DynamicallyLoadedSourceKitD: SourceKitD {
-
   /// The path to the sourcekitd dylib.
   public let path: AbsolutePath
 
@@ -142,6 +136,16 @@ public actor DynamicallyLoadedSourceKitD: SourceKitD {
     }
   }
 
+  public nonisolated func logRequestCancellation(request: SKDRequestDictionary) {
+    // We don't need to log which request has been cancelled because we can associate the cancellation log message with
+    // the send message via the log
+    logger.info(
+      """
+      Cancelling sourcekitd request:
+      \(request.forLogging)
+      """
+    )
+  }
 }
 
 struct WeakSKDNotificationHandler: Sendable {

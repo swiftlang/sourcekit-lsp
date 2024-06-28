@@ -10,19 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Which log level to use (from https://developer.apple.com/wwdc20/10168?time=604)
-///  - Debug: Useful only during debugging (only logged during debugging)
-///  - Info: Helpful but not essential for troubleshooting (not persisted, logged to memory)
-///  - Notice/log (Default): Essential for troubleshooting
-///  - Error: Error seen during execution
-///    - Used eg. if the user sends an erroneous request or if a request fails
-///  - Fault: Bug in program
-///    - Used eg. if invariants inside sourcekit-lsp are broken and the error is not due to user-provided input
-
 import Foundation
-
-/// The subsystem that should be used for any logging by default.
-public let subsystem = "org.swift.sourcekit-lsp"
 
 #if canImport(os) && !SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER
 import os  // os_log
@@ -30,6 +18,16 @@ import os  // os_log
 public typealias LogLevel = os.OSLogType
 public typealias Logger = os.Logger
 public typealias Signposter = OSSignposter
+
+#if compiler(<5.11)
+extension OSSignposter: @unchecked Sendable {}
+extension OSSignpostID: @unchecked Sendable {}
+extension OSSignpostIntervalState: @unchecked Sendable {}
+#else
+extension OSSignposter: @retroactive @unchecked Sendable {}
+extension OSSignpostID: @retroactive @unchecked Sendable {}
+extension OSSignpostIntervalState: @retroactive @unchecked Sendable {}
+#endif
 
 extension os.Logger {
   public func makeSignposter() -> Signposter {
@@ -44,5 +42,5 @@ public typealias Signposter = NonDarwinSignposter
 
 /// The logger that is used to log any messages.
 public var logger: Logger {
-  Logger(subsystem: subsystem, category: LoggingScope.scope)
+  Logger(subsystem: LoggingScope.subsystem, category: LoggingScope.scope)
 }

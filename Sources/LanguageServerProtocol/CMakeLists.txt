@@ -19,6 +19,7 @@ add_library(LanguageServerProtocol STATIC
   Notifications/LogMessageNotification.swift
   Notifications/LogTraceNotification.swift
   Notifications/PublishDiagnosticsNotification.swift
+  Notifications/ReopenTextDocumentNotifications.swift
   Notifications/SetTraceNotification.swift
   Notifications/ShowMessageNotification.swift
   Notifications/TextSynchronizationNotifications.swift
@@ -72,10 +73,12 @@ add_library(LanguageServerProtocol STATIC
   Requests/RegisterCapabilityRequest.swift
   Requests/RenameRequest.swift
   Requests/SelectionRangeRequest.swift
+  Requests/ShowDocumentRequest.swift
   Requests/ShowMessageRequest.swift
   Requests/ShutdownRequest.swift
   Requests/SignatureHelpRequest.swift
   Requests/SymbolInfoRequest.swift
+  Requests/TriggerReindexRequest.swift
   Requests/TypeDefinitionRequest.swift
   Requests/TypeHierarchyPrepareRequest.swift
   Requests/TypeHierarchySubtypesRequest.swift
@@ -121,9 +124,9 @@ add_library(LanguageServerProtocol STATIC
   SupportTypes/SemanticTokens.swift
   SupportTypes/SemanticTokenTypes.swift
   SupportTypes/ServerCapabilities.swift
-  SupportTypes/SKCompletionOptions.swift
   SupportTypes/StringOrMarkupContent.swift
   SupportTypes/SymbolKind.swift
+  SupportTypes/TestItem.swift
   SupportTypes/TextDocumentContentChangeEvent.swift
   SupportTypes/TextDocumentEdit.swift
   SupportTypes/TextDocumentIdentifier.swift

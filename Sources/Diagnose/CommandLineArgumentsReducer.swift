@@ -16,6 +16,7 @@ import LSPLogging
 // MARK: - Entry point
 
 extension RequestInfo {
+  @MainActor
   func reduceCommandLineArguments(
     using executor: SourceKitRequestExecutor,
     progressUpdate: (_ progress: Double, _ message: String) -> Void
@@ -49,6 +50,7 @@ fileprivate class CommandLineArgumentReducer {
     self.progressUpdate = progressUpdate
   }
 
+  @MainActor
   func run(initialRequestInfo: RequestInfo) async throws -> RequestInfo {
     var requestInfo = initialRequestInfo
     requestInfo = try await reduce(initialRequestInfo: requestInfo, simultaneousRemove: 10)
@@ -60,6 +62,7 @@ fileprivate class CommandLineArgumentReducer {
   ///
   /// If `simultaneousRemove` is set, the reducer will try to remove that many arguments at once. This is useful to
   /// quickly remove multiple arguments from the request.
+  @MainActor
   private func reduce(initialRequestInfo: RequestInfo, simultaneousRemove: Int) async throws -> RequestInfo {
     guard initialRequestInfo.compilerArgs.count > simultaneousRemove else {
       // Trying to remove more command line arguments than we have. This isn't going to work.
@@ -113,6 +116,7 @@ fileprivate class CommandLineArgumentReducer {
     return requestInfo
   }
 
+  @MainActor
   private func tryRemoving(
     _ argumentsToRemove: ClosedRange<Int>,
     from requestInfo: RequestInfo

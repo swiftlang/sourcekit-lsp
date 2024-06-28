@@ -16,17 +16,16 @@ import Foundation
 import LanguageServerProtocol
 import SKSupport
 
-@preconcurrency import enum PackageLoading.Platform
+import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 
 /// A simple BuildSystem suitable as a fallback when accurate settings are unknown.
-public final class FallbackBuildSystem {
+public actor FallbackBuildSystem {
+  private let options: SourceKitLSPOptions.FallbackBuildSystemOptions
 
-  let buildSetup: BuildSetup
-
-  public init(buildSetup: BuildSetup) {
-    self.buildSetup = buildSetup
+  public init(options: SourceKitLSPOptions.FallbackBuildSystemOptions) {
+    self.options = options
   }
 
   /// The path to the SDK.
@@ -37,6 +36,10 @@ public final class FallbackBuildSystem {
         .trimmingCharacters(in: .whitespacesAndNewlines)
     )
   }()
+
+  @_spi(Testing) public func setSdkPath(_ newValue: AbsolutePath?) {
+    self.sdkpath = newValue
+  }
 
   /// Delegate to handle any build system events.
   public weak var delegate: BuildSystemDelegate? = nil
@@ -67,7 +70,7 @@ public final class FallbackBuildSystem {
 
   func settingsSwift(_ file: String) -> FileBuildSettings {
     var args: [String] = []
-    args.append(contentsOf: self.buildSetup.flags.swiftCompilerFlags)
+    args.append(contentsOf: self.options.swiftCompilerFlags ?? [])
     if let sdkpath = sdkpath, !args.contains("-sdk") {
       args += [
         "-sdk",
@@ -82,9 +85,9 @@ public final class FallbackBuildSystem {
     var args: [String] = []
     switch language {
     case .c:
-      args.append(contentsOf: self.buildSetup.flags.cCompilerFlags)
+      args.append(contentsOf: self.options.cCompilerFlags ?? [])
     case .cpp:
-      args.append(contentsOf: self.buildSetup.flags.cxxCompilerFlags)
+      args.append(contentsOf: self.options.cxxCompilerFlags ?? [])
     default:
       break
     }

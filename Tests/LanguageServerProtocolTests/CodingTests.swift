@@ -74,7 +74,8 @@ final class CodingTests: XCTestCase {
       OptionalVersionedTextDocumentIdentifier(uri, version: nil),
       json: """
         {
-          "uri" : "\(urljson)"
+          "uri" : "\(urljson)",
+          "version" : null
         }
         """
     )

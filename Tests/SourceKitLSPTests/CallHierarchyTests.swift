@@ -200,7 +200,7 @@ final class CallHierarchyTests: XCTestCase {
         void FilePathIndex::2️⃣foo() {}
         """,
       ],
-      build: true
+      enableBackgroundIndexing: true
     )
     let (uri, positions) = try project.openDocument("lib.h", language: .cpp)
     let result = try await project.testClient.send(
@@ -212,10 +212,9 @@ final class CallHierarchyTests: XCTestCase {
       result,
       [
         CallHierarchyItem(
-          name: "foo",
+          name: "FilePathIndex::foo",
           kind: .method,
           tags: nil,
-          detail: "FilePathIndex",
           uri: try project.uri(for: "lib.cpp"),
           range: try Range(project.position(of: "2️⃣", in: "lib.cpp")),
           selectionRange: try Range(project.position(of: "2️⃣", in: "lib.cpp")),
@@ -229,6 +228,7 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testIncomingCallHierarchyShowsSurroundingFunctionCall() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
     // We used to show `myVar` as the caller here
     let project = try await IndexedSingleSwiftFileTestProject(
       """
@@ -255,7 +255,6 @@ final class CallHierarchyTests: XCTestCase {
             name: "testFunc(x:)",
             kind: .function,
             tags: nil,
-            detail: nil,
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
@@ -271,13 +270,20 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testIncomingCallHierarchyFromComputedProperty() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
     let project = try await IndexedSingleSwiftFileTestProject(
       """
       func 1️⃣foo() {}
 
-      var testVar: Int 2️⃣{
-        let myVar = 3️⃣foo()
-        return 2
+      var testVar: Int {
+        2️⃣get {
+          let myVar = 3️⃣foo()
+          return 2
+        }
+      }
+
+      func 4️⃣testFunc() {
+        _ = 5️⃣testVar
       }
       """
     )
@@ -297,7 +303,6 @@ final class CallHierarchyTests: XCTestCase {
             name: "getter:testVar",
             kind: .function,
             tags: nil,
-            detail: nil,
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
@@ -307,6 +312,30 @@ final class CallHierarchyTests: XCTestCase {
             ])
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
+        )
+      ]
+    )
+
+    let testVarItem = try XCTUnwrap(calls?.first?.from)
+
+    let callsToTestVar = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: testVarItem))
+    XCTAssertEqual(
+      callsToTestVar,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "testFunc()",
+            kind: .function,
+            tags: nil,
+            uri: project.fileURI,
+            range: Range(project.positions["4️⃣"]),
+            selectionRange: Range(project.positions["4️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test0A4FuncyyF"),
+              "uri": .string(project.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(project.positions["5️⃣"])]
         )
       ]
     )
@@ -339,7 +368,6 @@ final class CallHierarchyTests: XCTestCase {
             name: "testFunc()",
             kind: .function,
             tags: nil,
-            detail: nil,
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
@@ -348,24 +376,8 @@ final class CallHierarchyTests: XCTestCase {
               "uri": .string(project.fileURI.stringValue),
             ])
           ),
-          fromRanges: [Range(project.positions["3️⃣"])]
-        ),
-        CallHierarchyIncomingCall(
-          from: CallHierarchyItem(
-            name: "testFunc()",
-            kind: .function,
-            tags: nil,
-            detail: nil,
-            uri: project.fileURI,
-            range: Range(project.positions["2️⃣"]),
-            selectionRange: Range(project.positions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test0A4FuncyyF"),
-              "uri": .string(project.fileURI.stringValue),
-            ])
-          ),
-          fromRanges: [Range(project.positions["4️⃣"])]
-        ),
+          fromRanges: [Range(project.positions["3️⃣"]), Range(project.positions["4️⃣"])]
+        )
       ]
     )
   }
@@ -396,7 +408,6 @@ final class CallHierarchyTests: XCTestCase {
             name: "getter:foo",
             kind: .function,
             tags: nil,
-            detail: nil,
             uri: project.fileURI,
             range: Range(project.positions["1️⃣"]),
             selectionRange: Range(project.positions["1️⃣"]),
@@ -436,7 +447,6 @@ final class CallHierarchyTests: XCTestCase {
             name: "testFunc()",
             kind: .function,
             tags: nil,
-            detail: nil,
             uri: project.fileURI,
             range: Range(project.positions["1️⃣"]),
             selectionRange: Range(project.positions["1️⃣"]),
@@ -485,7 +495,6 @@ final class CallHierarchyTests: XCTestCase {
             name: "test(proto:)",
             kind: .function,
             tags: nil,
-            detail: nil,
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
@@ -534,7 +543,6 @@ final class CallHierarchyTests: XCTestCase {
             name: "test(base:)",
             kind: .function,
             tags: nil,
-            detail: nil,
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
@@ -574,10 +582,9 @@ final class CallHierarchyTests: XCTestCase {
       [
         CallHierarchyIncomingCall(
           from: CallHierarchyItem(
-            name: "foo()",
+            name: "MyClass.foo()",
             kind: .method,
             tags: nil,
-            detail: "MyClass",
             uri: project.fileURI,
             range: Range(project.positions["1️⃣"]),
             selectionRange: Range(project.positions["1️⃣"]),
@@ -587,6 +594,258 @@ final class CallHierarchyTests: XCTestCase {
             ])
           ),
           fromRanges: [Range(project.positions["2️⃣"])]
+        )
+      ]
+    )
+  }
+
+  func testUnappliedFunctionReferenceInIncomingCallHierarchy() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      func 1️⃣foo() {}
+
+      func 2️⃣testFunc(x: String) {
+        let myVar = 3️⃣foo
+      }
+      """
+    )
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["1️⃣"]
+      )
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "testFunc(x:)",
+            kind: .function,
+            tags: nil,
+            uri: project.fileURI,
+            range: Range(project.positions["2️⃣"]),
+            selectionRange: Range(project.positions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test0A4Func1xySS_tF"),
+              "uri": .string(project.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(project.positions["3️⃣"])]
+        )
+      ]
+    )
+  }
+
+  func testUnappliedFunctionReferenceInOutgoingCallHierarchy() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      func 1️⃣foo() {}
+
+      func 2️⃣testFunc(x: String) {
+        let myVar = 3️⃣foo
+      }
+      """
+    )
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["2️⃣"]
+      )
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await project.testClient.send(CallHierarchyOutgoingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyOutgoingCall(
+          to: CallHierarchyItem(
+            name: "foo()",
+            kind: .function,
+            tags: nil,
+            uri: project.fileURI,
+            range: Range(project.positions["1️⃣"]),
+            selectionRange: Range(project.positions["1️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test3fooyyF"),
+              "uri": .string(project.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(project.positions["3️⃣"])]
+        )
+      ]
+    )
+  }
+
+  func testIncomingCallHierarchyForPropertyInitializedWithClosure() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      func 1️⃣foo() -> Int {}
+
+      let 2️⃣myVar: Int = {
+        3️⃣foo()
+      }()
+      """
+    )
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["1️⃣"]
+      )
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "myVar",
+            kind: .variable,
+            tags: nil,
+            uri: project.fileURI,
+            range: Range(project.positions["2️⃣"]),
+            selectionRange: Range(project.positions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test5myVarSivp"),
+              "uri": .string(project.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(project.positions["3️⃣"])]
+        )
+      ]
+    )
+  }
+
+  func testOutgoingCallHierarchyForPropertyInitializedWithClosure() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      func 1️⃣foo() -> Int {}
+
+      let 2️⃣myVar: Int = {
+        3️⃣foo()
+      }()
+      """
+    )
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["2️⃣"]
+      )
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await project.testClient.send(CallHierarchyOutgoingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyOutgoingCall(
+          to: CallHierarchyItem(
+            name: "foo()",
+            kind: .function,
+            tags: nil,
+            uri: project.fileURI,
+            range: Range(project.positions["1️⃣"]),
+            selectionRange: Range(project.positions["1️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test3fooSiyF"),
+              "uri": .string(project.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(project.positions["3️⃣"])]
+        )
+      ]
+    )
+  }
+
+  func testInitializerInCallHierarchy() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      func 1️⃣foo() {}
+
+      struct Bar {
+        2️⃣init() {
+          3️⃣foo()
+        }
+      }
+      """
+    )
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["1️⃣"]
+      )
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "Bar.init()",
+            kind: .constructor,
+            tags: nil,
+            uri: project.fileURI,
+            range: Range(project.positions["2️⃣"]),
+            selectionRange: Range(project.positions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test3BarVACycfc"),
+              "uri": .string(project.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(project.positions["3️⃣"])]
+        )
+      ]
+    )
+  }
+
+  func testCallHierarchyOfNestedClass() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      func 1️⃣foo() {}
+
+      struct Outer {
+        struct Bar {
+          2️⃣init() {
+            3️⃣foo()
+          }
+        }
+      }
+      """
+    )
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["1️⃣"]
+      )
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "Bar.init()",
+            kind: .constructor,
+            tags: nil,
+            uri: project.fileURI,
+            range: Range(project.positions["2️⃣"]),
+            selectionRange: Range(project.positions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test5OuterV3BarVAEycfc"),
+              "uri": .string(project.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(project.positions["3️⃣"])]
         )
       ]
     )

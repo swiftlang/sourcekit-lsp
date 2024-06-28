@@ -19,32 +19,31 @@ import SKTestSupport
 import SourceKitD
 import XCTest
 
-import class ISDBTibs.TibsBuilder
 import struct TSCBasic.AbsolutePath
 
+/// If a default SDK is present on the test machine, return the `-sdk` argument that can be placed in the request
+/// YAML. Otherwise, return an empty string.
+private let sdkArg: String = {
+  if let sdk = defaultSDKPath {
+    return """
+      "-sdk", "\(sdk)",
+      """
+  } else {
+    return ""
+  }
+}()
+
+/// If a default SDK is present on the test machine, return the `-sdk` argument that can be placed in the request
+/// YAML. Otherwise, return an empty string.
+private let sdkArgs: [String] = {
+  if let sdk = defaultSDKPath {
+    return ["-sdk", "\(sdk)"]
+  } else {
+    return []
+  }
+}()
+
 final class DiagnoseTests: XCTestCase {
-  /// If a default SDK is present on the test machine, return the `-sdk` argument that can be placed in the request
-  /// YAML. Otherwise, return an empty string.
-  private var sdkArg: String {
-    if let sdk = TibsBuilder.defaultSDKPath {
-      return """
-        "-sdk", "\(sdk)",
-        """
-    } else {
-      return ""
-    }
-  }
-
-  /// If a default SDK is present on the test machine, return the `-sdk` argument that can be placed in the request
-  /// YAML. Otherwise, return an empty string.
-  private var sdkArgs: [String] {
-    if let sdk = TibsBuilder.defaultSDKPath {
-      return ["-sdk", "\(sdk)"]
-    } else {
-      return []
-    }
-  }
-
   func testRemoveCodeItemsAndMembers() async throws {
     // We consider the test case reproducing if cursor info returns the two ambiguous results including their doc
     // comments.
@@ -114,7 +113,7 @@ final class DiagnoseTests: XCTestCase {
         let foo = 1️⃣Foo()
       }
 
-      /* 
+      /*
        Block comment
        With another line
       */
@@ -146,6 +145,7 @@ final class DiagnoseTests: XCTestCase {
     )
   }
 
+  @MainActor
   func testReduceFrontend() async throws {
     try await withTestScratchDir { scratchDir in
       let fileAContents = """
@@ -227,28 +227,29 @@ final class DiagnoseTests: XCTestCase {
 ///     - `$OFFSET`: The UTF-8 offset of the 1️⃣ location marker in `markedFileContents`
 ///   - reproducerPredicate: A predicate that indicates whether a run request reproduces the issue.
 ///   - expectedReducedFileContents: The contents of the file that the reducer is expected to produce.
+@MainActor
 private func assertReduceSourceKitD(
   _ markedFileContents: String,
   request: String,
-  reproducerPredicate: @escaping (String) -> Bool,
+  reproducerPredicate: @Sendable @escaping (String) -> Bool,
   expectedReducedFileContents: String,
-  file: StaticString = #file,
+  file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
   let (markers, fileContents) = extractMarkers(markedFileContents)
 
   let toolchain = try await unwrap(ToolchainRegistry.forTesting.default)
   logger.debug("Using \(toolchain.path?.pathString ?? "<nil>") to reduce source file")
-  let requestExecutor = try InProcessSourceKitRequestExecutor(
-    toolchain: toolchain,
-    reproducerPredicate: NSPredicate(block: { (requestResponse, _) -> Bool in
-      reproducerPredicate(requestResponse as! String)
-    })
-  )
 
   let markerOffset = try XCTUnwrap(markers["1️⃣"], "Failed to find position marker 1️⃣ in file contents")
 
   try await withTestScratchDir { scratchDir in
+    let requestExecutor = try InProcessSourceKitRequestExecutor(
+      toolchain: toolchain,
+      reproducerPredicate: NSPredicate(block: { (requestResponse, _) -> Bool in
+        reproducerPredicate(requestResponse as! String)
+      })
+    )
     let testFilePath = scratchDir.appending(component: "test.swift").pathString
     try fileContents.write(toFile: testFilePath, atomically: false, encoding: .utf8)
 

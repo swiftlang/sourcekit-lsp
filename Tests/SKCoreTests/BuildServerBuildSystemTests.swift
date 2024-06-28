@@ -20,41 +20,43 @@ import SKTestSupport
 import TSCBasic
 import XCTest
 
+/// The path to the INPUTS directory of shared test projects.
+private let skTestSupportInputsDirectory: URL = {
+  #if os(macOS)
+  // FIXME: Use Bundle.module.resourceURL once the fix for SR-12912 is released.
+
+  var resources =
+    productsDirectory
+    .appendingPathComponent("SourceKitLSP_SKTestSupport.bundle")
+    .appendingPathComponent("Contents")
+    .appendingPathComponent("Resources")
+  if !FileManager.default.fileExists(atPath: resources.path) {
+    // Xcode and command-line swiftpm differ about the path.
+    resources.deleteLastPathComponent()
+    resources.deleteLastPathComponent()
+  }
+  #else
+  let resources = XCTestCase.productsDirectory
+    .appendingPathComponent("SourceKitLSP_SKTestSupport.resources")
+  #endif
+  guard FileManager.default.fileExists(atPath: resources.path) else {
+    fatalError("missing resources \(resources.path)")
+  }
+  return resources.appendingPathComponent("INPUTS", isDirectory: true).standardizedFileURL
+}()
+
 final class BuildServerBuildSystemTests: XCTestCase {
-  /// The path to the INPUTS directory of shared test projects.
-  private static var skTestSupportInputsDirectory: URL = {
-    #if os(macOS)
-    // FIXME: Use Bundle.module.resourceURL once the fix for SR-12912 is released.
-
-    var resources = XCTestCase.productsDirectory
-      .appendingPathComponent("SourceKitLSP_SKTestSupport.bundle")
-      .appendingPathComponent("Contents")
-      .appendingPathComponent("Resources")
-    if !FileManager.default.fileExists(atPath: resources.path) {
-      // Xcode and command-line swiftpm differ about the path.
-      resources.deleteLastPathComponent()
-      resources.deleteLastPathComponent()
-    }
-    #else
-    let resources = XCTestCase.productsDirectory
-      .appendingPathComponent("SourceKitLSP_SKTestSupport.resources")
-    #endif
-    guard FileManager.default.fileExists(atPath: resources.path) else {
-      fatalError("missing resources \(resources.path)")
-    }
-    return resources.appendingPathComponent("INPUTS", isDirectory: true).standardizedFileURL
-  }()
-
   private var root: AbsolutePath {
     try! AbsolutePath(
-      validating: Self.skTestSupportInputsDirectory
+      validating:
+        skTestSupportInputsDirectory
         .appendingPathComponent(testDirectoryName, isDirectory: true).path
     )
   }
   let buildFolder = try! AbsolutePath(validating: NSTemporaryDirectory())
 
   func testServerInitialize() async throws {
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
+    let buildSystem = try await BuildServerBuildSystem(projectRoot: root)
 
     assertEqual(
       await buildSystem.indexDatabasePath,
@@ -67,7 +69,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testFileRegistration() async throws {
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
+    let buildSystem = try await BuildServerBuildSystem(projectRoot: root)
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "\(fileUrl) settings updated")
@@ -83,7 +85,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testBuildTargetsChanged() async throws {
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
+    let buildSystem = try await BuildServerBuildSystem(projectRoot: root)
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "target changed")

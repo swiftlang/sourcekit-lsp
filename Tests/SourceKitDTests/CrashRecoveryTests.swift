@@ -17,7 +17,8 @@ import LanguageServerProtocol
 import SKSupport
 import SKTestSupport
 import SourceKitD
-import SourceKitLSP
+@_spi(Testing) import SourceKitLSP
+import SwiftExtensions
 import XCTest
 
 import enum PackageLoading.Platform
@@ -52,7 +53,7 @@ final class CrashRecoveryTests: XCTestCase {
       capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
       usePullDiagnostics: false
     )
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -75,22 +76,22 @@ final class CrashRecoveryTests: XCTestCase {
       "Sanity check failed. The Hover response did not contain foo(), even before crashing sourcekitd. Received response: \(String(describing: preCrashHoverResponse))"
     )
 
-    testClient.handleNextRequest { (request: CreateWorkDoneProgressRequest) -> VoidResponse in
+    testClient.handleSingleRequest { (request: CreateWorkDoneProgressRequest) -> VoidResponse in
       return VoidResponse()
     }
 
     // Crash sourcekitd
 
     let swiftLanguageService =
-      await testClient.server._languageService(
+      await testClient.server.languageService(
         for: uri,
         .swift,
         in: testClient.server.workspaceForDocument(uri: uri)!
       ) as! SwiftLanguageService
 
-    await swiftLanguageService._crash()
+    await swiftLanguageService.crash()
 
-    let crashedNotification = try await testClient.nextNotification(ofType: WorkDoneProgress.self, timeout: 5)
+    let crashedNotification = try await testClient.nextNotification(ofType: WorkDoneProgress.self, timeout: .seconds(5))
     XCTAssertEqual(
       crashedNotification.value,
       .begin(
@@ -107,7 +108,7 @@ final class CrashRecoveryTests: XCTestCase {
     _ = try? await testClient.send(hoverRequest)
     let semanticFunctionalityRestoredNotification = try await testClient.nextNotification(
       ofType: WorkDoneProgress.self,
-      timeout: 30
+      timeout: .seconds(30)
     )
     XCTAssertEqual(semanticFunctionalityRestoredNotification.value, .end(WorkDoneProgressEnd()))
 
@@ -120,7 +121,7 @@ final class CrashRecoveryTests: XCTestCase {
   }
 
   private func crashClangd(for testClient: TestSourceKitLSPClient, document docUri: DocumentURI) async throws {
-    let clangdServer = await testClient.server._languageService(
+    let clangdServer = await testClient.server.languageService(
       for: docUri,
       .cpp,
       in: testClient.server.workspaceForDocument(uri: docUri)!
@@ -140,7 +141,7 @@ final class CrashRecoveryTests: XCTestCase {
       }
     }
 
-    await clangdServer._crash()
+    await clangdServer.crash()
 
     try await fulfillmentOfOrThrow([clangdCrashed])
     try await fulfillmentOfOrThrow([clangdRestarted])
@@ -150,7 +151,7 @@ final class CrashRecoveryTests: XCTestCase {
     try SkipUnless.longTestsEnabled()
 
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.cpp)
+    let uri = DocumentURI(for: .cpp)
 
     let positions = testClient.openDocument("1️⃣", uri: uri)
 
@@ -256,7 +257,7 @@ final class CrashRecoveryTests: XCTestCase {
     try SkipUnless.longTestsEnabled()
 
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.cpp)
+    let uri = DocumentURI(for: .cpp)
 
     let positions = testClient.openDocument("1️⃣", uri: uri)
 
@@ -267,7 +268,7 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Keep track of clangd crashes
 
-    let clangdServer = await testClient.server._languageService(
+    let clangdServer = await testClient.server.languageService(
       for: uri,
       .cpp,
       in: testClient.server.workspaceForDocument(uri: uri)!
@@ -279,25 +280,27 @@ final class CrashRecoveryTests: XCTestCase {
     let clangdRestartedFirstTime = self.expectation(description: "clangd restarted for the first time")
     let clangdRestartedSecondTime = self.expectation(description: "clangd restarted for the second time")
 
-    var clangdHasRestartedFirstTime = false
+    let clangdHasRestartedFirstTime = ThreadSafeBox(initialValue: false)
 
     await clangdServer.addStateChangeHandler { (oldState, newState) in
       switch newState {
       case .connectionInterrupted:
         clangdCrashed.fulfill()
       case .connected:
-        if !clangdHasRestartedFirstTime {
-          clangdRestartedFirstTime.fulfill()
-          clangdHasRestartedFirstTime = true
-        } else {
-          clangdRestartedSecondTime.fulfill()
+        clangdHasRestartedFirstTime.withLock { clangdHasRestartedFirstTime in
+          if !clangdHasRestartedFirstTime {
+            clangdRestartedFirstTime.fulfill()
+            clangdHasRestartedFirstTime = true
+          } else {
+            clangdRestartedSecondTime.fulfill()
+          }
         }
       default:
         break
       }
     }
 
-    await clangdServer._crash()
+    await clangdServer.crash()
 
     try await fulfillmentOfOrThrow([clangdCrashed], timeout: 5)
     try await fulfillmentOfOrThrow([clangdRestartedFirstTime], timeout: 30)
@@ -305,7 +308,7 @@ final class CrashRecoveryTests: XCTestCase {
     let firstRestartDate = Date()
 
     // Crash clangd again. This time, it should only restart after a delay.
-    await clangdServer._crash()
+    await clangdServer.crash()
 
     try await fulfillmentOfOrThrow([clangdRestartedSecondTime], timeout: 30)
     XCTAssert(

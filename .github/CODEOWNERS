@@ -1,0 +1,11 @@
+# This file is a list of the people responsible for ensuring that patches for a
+# particular part of SourceKit-LSP are reviewed, either by themselves or by
+# someone else. They are also the gatekeepers for their part of Swift, with the
+# final word on what goes in or not.
+
+# Lines starting with '#' are comments.
+# Each line is a file pattern followed by one or more owners.
+# Order is important. The last matching pattern has the most precedence.
+
+# Owner of anything in SourceKit-LSP not owned by anyone else.
+* @ahoppen

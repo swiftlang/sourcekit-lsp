@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import Csourcekitd
-import SKSupport
 
 extension sourcekitd_api_functions_t {
   public init(_ sourcekitd: DLHandle) throws {

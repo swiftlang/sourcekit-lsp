@@ -1,5 +1,6 @@
 
 add_library(SourceKitD STATIC
+  dlopen.swift
   SKDRequestArray.swift
   SKDRequestDictionary.swift
   SKDResponse.swift
@@ -17,5 +18,6 @@ target_link_libraries(SourceKitD PUBLIC
 target_link_libraries(SourceKitD PRIVATE
   LSPLogging
   SKSupport
+  SwiftExtensions
   TSCBasic
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)

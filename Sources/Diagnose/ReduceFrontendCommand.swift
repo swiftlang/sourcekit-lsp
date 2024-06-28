@@ -16,14 +16,12 @@ import SKCore
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
-import var TSCBasic.stderrStream
 import class TSCUtility.PercentProgressAnimation
 
 public struct ReduceFrontendCommand: AsyncParsableCommand {
-  public static var configuration: CommandConfiguration = CommandConfiguration(
+  public static let configuration: CommandConfiguration = CommandConfiguration(
     commandName: "reduce-frontend",
-    abstract: "Reduce a single swift-frontend crash",
-    shouldDisplay: false
+    abstract: "Reduce a single swift-frontend crash"
   )
 
   #if canImport(Darwin)
@@ -64,6 +62,7 @@ public struct ReduceFrontendCommand: AsyncParsableCommand {
   )
   var frontendArgs: [String]
 
+  @MainActor
   var toolchain: Toolchain? {
     get async throws {
       if let toolchainOverride {
@@ -76,6 +75,7 @@ public struct ReduceFrontendCommand: AsyncParsableCommand {
 
   public init() {}
 
+  @MainActor
   public func run() async throws {
     guard let sourcekitd = try await toolchain?.sourcekitd else {
       throw ReductionError("Unable to find sourcekitd.framework")
@@ -84,7 +84,10 @@ public struct ReduceFrontendCommand: AsyncParsableCommand {
       throw ReductionError("Unable to find swift-frontend")
     }
 
-    let progressBar = PercentProgressAnimation(stream: stderrStream, header: "Reducing swift-frontend crash")
+    let progressBar = PercentProgressAnimation(
+      stream: stderrStreamConcurrencySafe,
+      header: "Reducing swift-frontend crash"
+    )
 
     let executor = OutOfProcessSourceKitRequestExecutor(
       sourcekitd: sourcekitd.asURL,
@@ -92,6 +95,9 @@ public struct ReduceFrontendCommand: AsyncParsableCommand {
       reproducerPredicate: nsPredicate
     )
 
+    defer {
+      progressBar.complete(success: true)
+    }
     let reducedRequestInfo = try await reduceFrontendIssue(
       frontendArgs: frontendArgs,
       using: executor
@@ -99,10 +105,8 @@ public struct ReduceFrontendCommand: AsyncParsableCommand {
       progressBar.update(step: Int(progress * 100), total: 100, text: message)
     }
 
-    progressBar.complete(success: true)
-
     print("Reduced compiler arguments:")
-    print(reducedRequestInfo.compilerArgs)
+    print(reducedRequestInfo.compilerArgs.joined(separator: " "))
 
     print("")
     print("Reduced file contents:")

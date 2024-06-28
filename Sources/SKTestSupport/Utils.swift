@@ -25,15 +25,19 @@ extension Language {
 
   init?(fileExtension: String) {
     switch fileExtension {
+    case "c": self = .c
+    case "cpp": self = .cpp
     case "m": self = .objective_c
-    default: self.init(rawValue: fileExtension)
+    case "mm": self = .objective_cpp
+    case "swift": self = .swift
+    default: return nil
     }
   }
 }
 
 extension DocumentURI {
-  /// Create a unique URI for a document of the given language.
-  public static func `for`(_ language: Language, testName: String = #function) -> DocumentURI {
+  /// Construct a `DocumentURI` by creating a unique URI for a document of the given language.
+  public init(for language: Language, testName: String = #function) {
     let testBaseName = testName.prefix(while: \.isLetter)
 
     #if os(Windows)
@@ -41,7 +45,8 @@ extension DocumentURI {
     #else
     let url = URL(fileURLWithPath: "/\(testBaseName)/\(UUID())/test.\(language.fileExtension)")
     #endif
-    return DocumentURI(url)
+
+    self.init(url)
   }
 }
 
@@ -70,7 +75,7 @@ public func testScratchDir(testName: String = #function) throws -> URL {
 /// The temporary directory will be deleted at the end of `directory` unless the
 /// `SOURCEKITLSP_KEEP_TEST_SCRATCH_DIR` environment variable is set.
 public func withTestScratchDir<T>(
-  _ body: (AbsolutePath) async throws -> T,
+  @_inheritActorContext _ body: @Sendable (AbsolutePath) async throws -> T,
   testName: String = #function
 ) async throws -> T {
   let scratchDirectory = try testScratchDir(testName: testName)
@@ -107,3 +112,15 @@ fileprivate extension URL {
     #endif
   }
 }
+
+let globalModuleCache: URL? = {
+  if let customModuleCache = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_TEST_MODULE_CACHE"] {
+    if customModuleCache.isEmpty {
+      return nil
+    }
+    return URL(fileURLWithPath: customModuleCache)
+  }
+  return FileManager.default.temporaryDirectory.realpath
+    .appendingPathComponent("sourcekit-lsp-test-scratch")
+    .appendingPathComponent("shared-module-cache")
+}()

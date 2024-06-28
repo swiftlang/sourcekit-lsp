@@ -88,26 +88,25 @@ extension PathPrefixMapping: @retroactive ExpressibleByArgument {}
 #endif
 
 #if compiler(<5.11)
-extension SKSupport.BuildConfiguration: ExpressibleByArgument {}
+extension SKCore.BuildConfiguration: ExpressibleByArgument {}
 #else
-extension SKSupport.BuildConfiguration: @retroactive ExpressibleByArgument {}
+extension SKCore.BuildConfiguration: @retroactive ExpressibleByArgument {}
 #endif
 
 #if compiler(<5.11)
-extension SKSupport.WorkspaceType: ExpressibleByArgument {}
+extension SKCore.WorkspaceType: ExpressibleByArgument {}
 #else
-extension SKSupport.WorkspaceType: @retroactive ExpressibleByArgument {}
+extension SKCore.WorkspaceType: @retroactive ExpressibleByArgument {}
 #endif
 
 @main
 struct SourceKitLSP: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
+    commandName: "sourcekit-lsp",
     abstract: "Language Server Protocol implementation for Swift and C-based languages",
     subcommands: [
       DiagnoseCommand.self,
-      ReduceCommand.self,
-      ReduceFrontendCommand.self,
-      SourceKitdRequestCommand.self,
+      DebugCommand.self,
     ]
   )
 
@@ -121,7 +120,7 @@ struct SourceKitLSP: AsyncParsableCommand {
     name: [.long, .customLong("build-path")],
     help: "Specify build/cache directory (--build-path option is deprecated, --scratch-path should be used instead)"
   )
-  var scratchPath: AbsolutePath?
+  var scratchPath: String?
 
   @Option(
     name: .customLong("Xcc", withSingleDash: true),
@@ -162,13 +161,13 @@ struct SourceKitLSP: AsyncParsableCommand {
     name: .customLong("index-store-path", withSingleDash: true),
     help: "Override index-store-path from the build system"
   )
-  var indexStorePath: AbsolutePath?
+  var indexStorePath: String?
 
   @Option(
     name: .customLong("index-db-path", withSingleDash: true),
     help: "Override index-database-path from the build system"
   )
-  var indexDatabasePath: AbsolutePath?
+  var indexDatabasePath: String?
 
   @Option(
     name: .customLong("index-prefix-map", withSingleDash: true),
@@ -180,7 +179,7 @@ struct SourceKitLSP: AsyncParsableCommand {
   @Option(
     help: "Override default workspace type selection; one of 'swiftPM', 'compilationDatabase', or 'buildServer'"
   )
-  var defaultWorkspaceType: SKSupport.WorkspaceType?
+  var defaultWorkspaceType: SKCore.WorkspaceType?
 
   @Option(
     name: .customLong("compilation-db-search-path"),
@@ -188,37 +187,88 @@ struct SourceKitLSP: AsyncParsableCommand {
     help:
       "Specify a relative path where sourcekit-lsp should search for `compile_commands.json` or `compile_flags.txt` relative to the root of a workspace. Multiple search paths may be specified by repeating this option."
   )
-  var compilationDatabaseSearchPaths = [RelativePath]()
+  var compilationDatabaseSearchPaths = [String]()
 
   @Option(
-    help: "Specify the directory where generated interfaces will be stored"
+    help: "Specify the directory where generated files will be stored"
   )
-  var generatedInterfacesPath = defaultDirectoryForGeneratedInterfaces
+  var generatedFilesPath: String = defaultDirectoryForGeneratedFiles.pathString
 
   @Option(
-    help: "When server-side filtering is enabled, the maximum number of results to return"
+    name: .customLong("experimental-feature"),
+    help: """
+      Enable an experimental sourcekit-lsp feature.
+      Available features are: \(ExperimentalFeature.allCases.map(\.rawValue).joined(separator: ", "))
+      """
   )
-  var completionMaxResults = 200
+  var experimentalFeatures: [ExperimentalFeature] = []
 
-  func mapOptions() -> SourceKitLSPServer.Options {
-    var serverOptions = SourceKitLSPServer.Options()
+  /// Maps The options passed on the command line to a `SourceKitLSPOptions` struct.
+  func commandLineOptions() -> SourceKitLSPOptions {
+    return SourceKitLSPOptions(
+      swiftPM: SourceKitLSPOptions.SwiftPMOptions(
+        configuration: buildConfiguration,
+        scratchPath: scratchPath,
+        cCompilerFlags: buildFlagsCc,
+        cxxCompilerFlags: buildFlagsCxx,
+        swiftCompilerFlags: buildFlagsSwift,
+        linkerFlags: buildFlagsLinker
+      ),
+      fallbackBuildSystem: SourceKitLSPOptions.FallbackBuildSystemOptions(
+        cCompilerFlags: buildFlagsCc,
+        cxxCompilerFlags: buildFlagsCxx,
+        swiftCompilerFlags: buildFlagsSwift
+      ),
+      compilationDatabase: SourceKitLSPOptions.CompilationDatabaseOptions(searchPaths: compilationDatabaseSearchPaths),
+      clangdOptions: clangdOptions,
+      index: SourceKitLSPOptions.IndexOptions(
+        indexStorePath: indexStorePath,
+        indexDatabasePath: indexDatabasePath,
+        indexPrefixMap: [String: String](
+          indexPrefixMappings.map { ($0.original, $0.replacement) },
+          uniquingKeysWith: { lhs, rhs in rhs }
+        ),
+        maxCoresPercentageToUseForBackgroundIndexing: nil,
+        updateIndexStoreTimeout: nil
+      ),
+      defaultWorkspaceType: defaultWorkspaceType,
+      generatedFilesPath: generatedFilesPath,
+      experimentalFeatures: Set(experimentalFeatures)
+    )
+  }
 
-    serverOptions.buildSetup.configuration = buildConfiguration
-    serverOptions.buildSetup.defaultWorkspaceType = defaultWorkspaceType
-    serverOptions.buildSetup.path = scratchPath
-    serverOptions.buildSetup.flags.cCompilerFlags = buildFlagsCc
-    serverOptions.buildSetup.flags.cxxCompilerFlags = buildFlagsCxx
-    serverOptions.buildSetup.flags.linkerFlags = buildFlagsLinker
-    serverOptions.buildSetup.flags.swiftCompilerFlags = buildFlagsSwift
-    serverOptions.clangdOptions = clangdOptions
-    serverOptions.compilationDatabaseSearchPaths = compilationDatabaseSearchPaths
-    serverOptions.indexOptions.indexStorePath = indexStorePath
-    serverOptions.indexOptions.indexDatabasePath = indexDatabasePath
-    serverOptions.indexOptions.indexPrefixMappings = indexPrefixMappings
-    serverOptions.completionOptions.maxResults = completionMaxResults
-    serverOptions.generatedInterfacesPath = generatedInterfacesPath
-
-    return serverOptions
+  var globalConfigurationOptions: SourceKitLSPOptions {
+    var options = SourceKitLSPOptions.merging(
+      base: commandLineOptions(),
+      override: SourceKitLSPOptions(
+        path: URL(fileURLWithPath: ("~/.sourcekit-lsp/config.json" as NSString).expandingTildeInPath)
+      )
+    )
+    #if canImport(Darwin)
+    for applicationSupportDir in FileManager.default.urls(for: .applicationSupportDirectory, in: [.allDomainsMask]) {
+      options = SourceKitLSPOptions.merging(
+        base: options,
+        override: SourceKitLSPOptions(
+          path:
+            applicationSupportDir
+            .appendingPathComponent("org.swift.sourcekit-lsp")
+            .appendingPathComponent("config.json")
+        )
+      )
+    }
+    #endif
+    if let xdgConfigHome = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"] {
+      options = SourceKitLSPOptions.merging(
+        base: options,
+        override: SourceKitLSPOptions(
+          path:
+            URL(fileURLWithPath: xdgConfigHome)
+            .appendingPathComponent("org.swift.sourcekit-lsp")
+            .appendingPathComponent("config.json")
+        )
+      )
+    }
+    return options
   }
 
   func run() async throws {
@@ -234,6 +284,15 @@ struct SourceKitLSP: AsyncParsableCommand {
 
     let realStdoutHandle = FileHandle(fileDescriptor: realStdout, closeOnDealloc: false)
 
+    // Directory should match the directory we are searching for logs in `DiagnoseCommand.addNonDarwinLogs`.
+    let logFileDirectoryURL = URL(fileURLWithPath: ("~/.sourcekit-lsp/logs" as NSString).expandingTildeInPath)
+    await setUpGlobalLogFileHandler(
+      logFileDirectory: logFileDirectoryURL,
+      logFileMaxBytes: 5_000_000,
+      logRotateCount: 10
+    )
+    cleanOldLogFiles(logFileDirectory: logFileDirectoryURL, maxAge: 60 * 60 /* 1h */)
+
     let clientConnection = JSONRPCConnection(
       name: "client",
       protocol: MessageRegistry.lspProtocol,
@@ -246,7 +305,8 @@ struct SourceKitLSP: AsyncParsableCommand {
     let server = SourceKitLSPServer(
       client: clientConnection,
       toolchainRegistry: ToolchainRegistry(installPath: installPath, localFileSystem),
-      options: mapOptions(),
+      options: globalConfigurationOptions,
+      testHooks: TestHooks(),
       onExit: {
         clientConnection.close()
       }
@@ -266,6 +326,9 @@ struct SourceKitLSP: AsyncParsableCommand {
     // Park the main function by sleeping for 10 years.
     // All request handling is done on other threads and sourcekit-lsp exits by calling `_Exit` when it receives a
     // shutdown notification.
-    try await Task.sleep(for: .seconds(60 * 60 * 24 * 365 * 10))
+    while true {
+      try? await Task.sleep(for: .seconds(60 * 60 * 24 * 365 * 10))
+      logger.fault("10 year wait that's parking the main thread expired. Waiting again.")
+    }
   }
 }

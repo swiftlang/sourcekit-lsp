@@ -15,7 +15,7 @@ import LSPTestSupport
 import LanguageServerProtocol
 import PackageModel
 @_spi(Testing) import SKCore
-import SKSwiftPMWorkspace
+@_spi(Testing) import SKSwiftPMWorkspace
 import SKTestSupport
 import SourceKitLSP
 import TSCBasic
@@ -24,11 +24,19 @@ import XCTest
 import struct PackageModel.BuildFlags
 
 #if canImport(SPMBuildCore)
-import SPMBuildCore
+@preconcurrency import SPMBuildCore
 #endif
 
-final class SwiftPMWorkspaceTests: XCTestCase {
+fileprivate extension SwiftPMBuildSystem {
+  func buildSettings(for uri: DocumentURI, language: Language) async throws -> FileBuildSettings? {
+    guard let target = self.configuredTargets(for: uri).only else {
+      return nil
+    }
+    return try await buildSettings(for: uri, in: target, language: language)
+  }
+}
 
+final class SwiftPMBuildSystemTests: XCTestCase {
   func testNoPackage() async throws {
     let fs = InMemoryFileSystem()
     try await withTestScratchDir { tempDir in
@@ -45,7 +53,9 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           workspacePath: packageRoot,
           toolchainRegistry: tr,
           fileSystem: fs,
-          buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
+          options: SourceKitLSPOptions.SwiftPMOptions(),
+          experimentalFeatures: [],
+          testHooks: SwiftPMTestHooks()
         )
       )
     }
@@ -67,14 +77,15 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.forTesting
-      await assertThrowsError(
-        try await SwiftPMBuildSystem(
-          workspacePath: packageRoot,
-          toolchainRegistry: tr,
-          fileSystem: fs,
-          buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
-        )
+      let buildSystem = try await SwiftPMBuildSystem(
+        workspacePath: packageRoot,
+        toolchainRegistry: tr,
+        fileSystem: fs,
+        options: SourceKitLSPOptions.SwiftPMOptions(),
+        experimentalFeatures: [],
+        testHooks: SwiftPMTestHooks()
       )
+      await assertThrowsError(try await buildSystem.generateBuildGraph(allowFileSystemWrites: false))
     }
   }
 
@@ -88,8 +99,10 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [.target(name: "lib", dependencies: [])])
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
           """,
         ]
       )
@@ -99,13 +112,16 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           workspacePath: packageRoot,
           toolchainRegistry: ToolchainRegistry(toolchains: []),
           fileSystem: fs,
-          buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
+          options: SourceKitLSPOptions.SwiftPMOptions(),
+          experimentalFeatures: [],
+          testHooks: SwiftPMTestHooks()
         )
       )
     }
   }
 
   func testBasicSwiftArgs() async throws {
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let fs = localFileSystem
     try await withTestScratchDir { tempDir in
       try fs.createFiles(
@@ -115,8 +131,10 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [.target(name: "lib", dependencies: [])])
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
           """,
         ]
       )
@@ -126,16 +144,20 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
+        options: SourceKitLSPOptions.SwiftPMOptions(),
+        experimentalFeatures: [],
+        testHooks: SwiftPMTestHooks()
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
       let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
       assertNotNil(await swiftpmBuildSystem.indexStorePath)
-      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
+        .compilerArguments
 
       assertArgumentsContain("-module-name", "lib", arguments: arguments)
       assertArgumentsContain("-emit-dependencies", arguments: arguments)
@@ -165,6 +187,62 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     }
   }
 
+  func testCompilerArgumentsForFileThatContainsPlusCharacterURLEncoded() async throws {
+    try await withTestScratchDir { tempDir in
+      try localFileSystem.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Sources/lib/a+something.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
+          """,
+        ]
+      )
+      let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
+      let tr = ToolchainRegistry.forTesting
+      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
+        workspacePath: packageRoot,
+        toolchainRegistry: tr,
+        fileSystem: localFileSystem,
+        options: SourceKitLSPOptions.SwiftPMOptions(),
+        experimentalFeatures: [],
+        testHooks: SwiftPMTestHooks()
+      )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
+
+      let aPlusSomething = packageRoot.appending(components: "Sources", "lib", "a+something.swift")
+      let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
+      let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
+
+      assertEqual(await swiftpmBuildSystem.buildPath, build)
+      assertNotNil(await swiftpmBuildSystem.indexStorePath)
+      let arguments = try await unwrap(
+        swiftpmBuildSystem.buildSettings(
+          for: DocumentURI(URL(string: "file://\(aPlusSomething.asURL.path.replacing("+", with: "%2B"))")!),
+          language: .swift
+        )
+      )
+      .compilerArguments
+
+      // Check that we have both source files in the compiler arguments, which means that we didn't compute the compiler
+      // arguments for a+something.swift using substitute arguments from a.swift.
+      XCTAssert(
+        arguments.contains(aPlusSomething.pathString),
+        "Compiler arguments do not contain a+something.swift: \(arguments)"
+      )
+      XCTAssert(
+        arguments.contains(packageRoot.appending(components: "Sources", "lib", "a.swift").pathString),
+        "Compiler arguments do not contain a.swift: \(arguments)"
+      )
+    }
+  }
+
   func testBuildSetup() async throws {
     let fs = localFileSystem
     try await withTestScratchDir { tempDir in
@@ -175,34 +253,40 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [.target(name: "lib", dependencies: [])])
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
           """,
         ]
       )
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.forTesting
 
-      let config = BuildSetup(
+      let options = SourceKitLSPOptions.SwiftPMOptions(
         configuration: .release,
-        defaultWorkspaceType: nil,
-        path: packageRoot.appending(component: "non_default_build_path"),
-        flags: BuildFlags(cCompilerFlags: ["-m32"], swiftCompilerFlags: ["-typecheck"])
+        scratchPath: packageRoot.appending(component: "non_default_build_path").pathString,
+        cCompilerFlags: ["-m32"],
+        swiftCompilerFlags: ["-typecheck"]
       )
 
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: config
+        options: options,
+        experimentalFeatures: [],
+        testHooks: SwiftPMTestHooks()
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
-      let build = buildPath(root: packageRoot, config: config, platform: hostTriple.platformBuildPathComponent)
+      let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
+      let build = buildPath(root: packageRoot, options: options, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
-      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
+        .compilerArguments
 
       assertArgumentsContain("-typecheck", arguments: arguments)
       assertArgumentsContain("-Xcc", "-m32", arguments: arguments)
@@ -220,8 +304,10 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [.target(name: "lib", dependencies: [])])
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
           """,
         ]
       )
@@ -231,11 +317,15 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
+        options: SourceKitLSPOptions.SwiftPMOptions(),
+        experimentalFeatures: [],
+        testHooks: SwiftPMTestHooks()
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let source = try resolveSymlinks(packageRoot.appending(component: "Package.swift"))
-      let arguments = try await swiftpmBuildSystem.buildSettings(for: source.asURI, language: .swift)!.compilerArguments
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: source.asURI, language: .swift))
+        .compilerArguments
 
       assertArgumentsContain("-swift-version", "4.2", arguments: arguments)
       assertArgumentsContain(source.pathString, arguments: arguments)
@@ -253,8 +343,9 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [.target(name: "lib", dependencies: [])])
+          let package = Package(name: "a",
+            targets: [.target(name: "lib")]
+          )
           """,
         ]
       )
@@ -264,17 +355,20 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
+        options: SourceKitLSPOptions.SwiftPMOptions(),
+        experimentalFeatures: [],
+        testHooks: SwiftPMTestHooks()
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
 
-      let argumentsA = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!
+      let argumentsA = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
         .compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: argumentsA)
       assertArgumentsContain(bswift.pathString, arguments: argumentsA)
-      let argumentsB = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!
+      let argumentsB = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
         .compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: argumentsB)
       assertArgumentsContain(bswift.pathString, arguments: argumentsB)
@@ -294,12 +388,14 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
+          let package = Package(
+            name: "a",
             targets: [
               .target(name: "libA", dependencies: ["libB", "libC"]),
-              .target(name: "libB", dependencies: []),
-              .target(name: "libC", dependencies: []),
-            ])
+              .target(name: "libB"),
+              .target(name: "libC"),
+            ]
+          )
           """,
         ]
       )
@@ -309,12 +405,16 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
+        options: SourceKitLSPOptions.SwiftPMOptions(),
+        experimentalFeatures: [],
+        testHooks: SwiftPMTestHooks()
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
-      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
+        .compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: arguments)
       assertArgumentsDoNotContain(bswift.pathString, arguments: arguments)
       // Temporary conditional to work around revlock between SourceKit-LSP and SwiftPM
@@ -335,7 +435,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         )
       }
 
-      let argumentsB = try await swiftpmBuildSystem.buildSettings(for: bswift.asURI, language: .swift)!
+      let argumentsB = try await unwrap(swiftpmBuildSystem.buildSettings(for: bswift.asURI, language: .swift))
         .compilerArguments
       assertArgumentsContain(bswift.pathString, arguments: argumentsB)
       assertArgumentsDoNotContain(aswift.pathString, arguments: argumentsB)
@@ -358,10 +458,10 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [
-              .target(name: "libA", dependencies: []),
-            ])
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "libA")]
+          )
           """,
         ]
       )
@@ -371,8 +471,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
+        options: SourceKitLSPOptions.SwiftPMOptions(),
+        experimentalFeatures: [],
+        testHooks: SwiftPMTestHooks()
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
@@ -399,9 +502,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [.target(name: "lib", dependencies: [])],
-            cxxLanguageStandard: .cxx14)
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")],
+            cxxLanguageStandard: .cxx14
+          )
           """,
         ]
       )
@@ -411,20 +516,23 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
+        options: SourceKitLSPOptions.SwiftPMOptions(),
+        experimentalFeatures: [],
+        testHooks: SwiftPMTestHooks()
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
       let header = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
-      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
       let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
       assertNotNil(await swiftpmBuildSystem.indexStorePath)
 
       for file in [acxx, header] {
-        let args = try await swiftpmBuildSystem.buildSettings(for: file.asURI, language: .cpp)!.compilerArguments
+        let args = try await unwrap(swiftpmBuildSystem.buildSettings(for: file.asURI, language: .cpp)).compilerArguments
 
         assertArgumentsContain("-std=c++14", arguments: args)
 
@@ -480,8 +588,8 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           import PackageDescription
           let package = Package(name: "a",
             platforms: [.macOS(.v10_13)],
-            products: [], dependencies: [],
-            targets: [.target(name: "lib", dependencies: [])])
+            targets: [.target(name: "lib")]
+          )
           """,
         ]
       )
@@ -490,13 +598,17 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: ToolchainRegistry.forTesting,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
+        options: SourceKitLSPOptions.SwiftPMOptions(),
+        experimentalFeatures: [],
+        testHooks: SwiftPMTestHooks()
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
+        .compilerArguments
       assertArgumentsContain("-target", arguments: arguments)  // Only one!
-      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
 
       #if os(macOS)
       assertArgumentsContain(
@@ -520,8 +632,10 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           "pkg_real/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-          targets: [.target(name: "lib", dependencies: [])])
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
           """,
         ]
       )
@@ -537,8 +651,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
+        options: SourceKitLSPOptions.SwiftPMOptions(),
+        experimentalFeatures: [],
+        testHooks: SwiftPMTestHooks()
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift1 = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let aswift2 =
@@ -579,9 +696,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           "pkg_real/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [.target(name: "lib", dependencies: [])],
-            cxxLanguageStandard: .cxx14)
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")],
+            cxxLanguageStandard: .cxx14
+          )
           """,
         ]
       )
@@ -601,8 +720,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: symlinkRoot,
         toolchainRegistry: ToolchainRegistry.forTesting,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
+        options: SourceKitLSPOptions.SwiftPMOptions(),
+        experimentalFeatures: [],
+        testHooks: SwiftPMTestHooks()
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       for file in [acpp, ah] {
         let args = try unwrap(
@@ -626,12 +748,10 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:5.3
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-            targets: [
-              .target(
-                name: "lib",
-                dependencies: [],
-                resources: [.copy("a.txt")])])
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib", resources: [.copy("a.txt")])]
+          )
           """,
         ]
       )
@@ -641,11 +761,15 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
+        options: SourceKitLSPOptions.SwiftPMOptions(),
+        experimentalFeatures: [],
+        testHooks: SwiftPMTestHooks()
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
+        .compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: arguments)
       XCTAssertNotNil(
         arguments.firstIndex(where: {
@@ -666,8 +790,10 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           "pkg/Package.swift": """
           // swift-tools-version:4.2
           import PackageDescription
-          let package = Package(name: "a", products: [], dependencies: [],
-          targets: [.target(name: "lib", dependencies: [])])
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
           """,
         ]
       )
@@ -677,7 +803,9 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
+        options: SourceKitLSPOptions.SwiftPMOptions(),
+        experimentalFeatures: [],
+        testHooks: SwiftPMTestHooks()
       )
 
       assertEqual(await swiftpmBuildSystem.projectRoot, try resolveSymlinks(tempDir.appending(component: "pkg")))
@@ -697,8 +825,6 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           import PackageDescription
           let package = Package(
             name: "a",
-            products: [],
-            dependencies: [],
             targets: [
               .target(name: "lib"),
               .plugin(name: "MyPlugin", capability: .buildTool)
@@ -713,16 +839,20 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
+        options: SourceKitLSPOptions.SwiftPMOptions(),
+        experimentalFeatures: [],
+        testHooks: SwiftPMTestHooks()
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Plugins", "MyPlugin", "a.swift")
-      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
       let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
       assertNotNil(await swiftpmBuildSystem.indexStorePath)
-      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
+        .compilerArguments
 
       // Plugins get compiled with the same compiler arguments as the package manifest
       assertArgumentsContain("-package-description-version", "5.7.0", arguments: arguments)
@@ -770,9 +900,9 @@ private func assertArgumentsContain(
 
 private func buildPath(
   root: AbsolutePath,
-  config: BuildSetup = SourceKitLSPServer.Options.testDefault.buildSetup,
+  options: SourceKitLSPOptions.SwiftPMOptions = SourceKitLSPOptions.SwiftPMOptions(),
   platform: String
 ) -> AbsolutePath {
-  let buildPath = config.path ?? root.appending(component: ".build")
-  return buildPath.appending(components: platform, "\(config.configuration ?? .debug)")
+  let buildPath = AbsolutePath(validatingOrNil: options.scratchPath) ?? root.appending(component: ".build")
+  return buildPath.appending(components: platform, "\(options.configuration ?? .debug)")
 }

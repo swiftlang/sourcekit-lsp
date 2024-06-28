@@ -21,18 +21,18 @@ fileprivate func assertLogging(
   _ body: (NonDarwinLogger) -> Void,
   file: StaticString = #filePath,
   line: UInt = #line
-) {
+) async {
   // nonisolated(unsafe) because calls of `assertLogging` do not log to `logHandler` concurrently.
   nonisolated(unsafe) var messages: [String] = []
   let logger = NonDarwinLogger(
-    subsystem: subsystem,
+    subsystem: LoggingScope.subsystem,
     category: "test",
     logLevel: logLevel,
     privacyLevel: privacyLevel,
-    logHandler: { messages.append($0) }
+    overrideLogHandler: { messages.append($0) }
   )
   body(logger)
-  NonDarwinLogger.flush()
+  await NonDarwinLogger.flush()
   guard messages.count == expected.count else {
     XCTFail(
       """
@@ -75,9 +75,9 @@ final class LoggingTests: XCTestCase {
     // nonisolated(unsafe) because we only have a single call to `logger.log` and that cannot race.
     nonisolated(unsafe) var message: String = ""
     let logger = NonDarwinLogger(
-      subsystem: subsystem,
+      subsystem: LoggingScope.subsystem,
       category: "test",
-      logHandler: {
+      overrideLogHandler: {
         message = $0
         expectation.fulfill()
       }
@@ -91,27 +91,27 @@ final class LoggingTests: XCTestCase {
     XCTAssert(message.hasSuffix("\nmy message\n---"), "Message did not have expected body. Received \n\(message)")
   }
 
-  func testLoggingBasic() {
-    assertLogging(
+  func testLoggingBasic() async {
+    await assertLogging(
       expected: ["a"],
       {
         $0.log("a")
       }
     )
 
-    assertLogging(
+    await assertLogging(
       expected: [],
       { _ in
       }
     )
 
-    assertLogging(expected: ["b\n\nc"]) {
+    await assertLogging(expected: ["b\n\nc"]) {
       $0.log("b\n\nc")
     }
   }
 
-  func testLogLevels() {
-    assertLogging(
+  func testLogLevels() async {
+    await assertLogging(
       logLevel: .default,
       expected: ["d", "e", "f"]
     ) {
@@ -122,7 +122,7 @@ final class LoggingTests: XCTestCase {
       $0.debug("h")
     }
 
-    assertLogging(
+    await assertLogging(
       logLevel: .error,
       expected: ["d", "e"]
     ) {
@@ -133,7 +133,7 @@ final class LoggingTests: XCTestCase {
       $0.debug("h")
     }
 
-    assertLogging(
+    await assertLogging(
       logLevel: .fault,
       expected: ["d"]
     ) {
@@ -145,23 +145,23 @@ final class LoggingTests: XCTestCase {
     }
   }
 
-  func testPrivacyMaskingLevels() {
-    assertLogging(expected: ["password is <private>"]) {
+  func testPrivacyMaskingLevels() async {
+    await assertLogging(expected: ["password is <private>"]) {
       let password: String = "1234"
       $0.log("password is \(password, privacy: .sensitive)")
     }
 
-    assertLogging(expected: ["username is root"]) {
+    await assertLogging(expected: ["username is root"]) {
       let username: String = "root"
       $0.log("username is \(username, privacy: .private)")
     }
 
-    assertLogging(expected: ["username is root"]) {
+    await assertLogging(expected: ["username is root"]) {
       let username: String = "root"
       $0.log("username is \(username)")
     }
 
-    assertLogging(
+    await assertLogging(
       privacyLevel: .public,
       expected: ["username is <private>"]
     ) {
@@ -169,7 +169,7 @@ final class LoggingTests: XCTestCase {
       $0.log("username is \(username, privacy: .private)")
     }
 
-    assertLogging(
+    await assertLogging(
       privacyLevel: .public,
       expected: ["username is <private>"]
     ) {
@@ -178,15 +178,15 @@ final class LoggingTests: XCTestCase {
     }
   }
 
-  func testPrivacyMaskingTypes() {
-    assertLogging(
+  func testPrivacyMaskingTypes() async {
+    await assertLogging(
       privacyLevel: .public,
       expected: ["logging a static string"]
     ) {
       $0.log("logging a \("static string")")
     }
 
-    assertLogging(
+    await assertLogging(
       privacyLevel: .public,
       expected: ["logging from LSPLoggingTests.LoggingTests"]
     ) {
@@ -198,14 +198,14 @@ final class LoggingTests: XCTestCase {
       var redactedDescription: String = "redacted description"
     }
 
-    assertLogging(
+    await assertLogging(
       privacyLevel: .public,
       expected: ["got redacted description"]
     ) {
       $0.log("got \(LogStringConvertible().forLogging)")
     }
 
-    assertLogging(
+    await assertLogging(
       privacyLevel: .private,
       expected: ["got full description"]
     ) {

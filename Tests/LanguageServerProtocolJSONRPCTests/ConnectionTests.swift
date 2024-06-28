@@ -37,7 +37,7 @@ class ConnectionTests: XCTestCase {
     XCTAssertEqual("a/b", dec.string)
   }
 
-  func testEcho() {
+  func testEcho() async throws {
     let client = connection.client
     let expectation = self.expectation(description: "response received")
 
@@ -48,43 +48,45 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
   }
 
   func testMessageBuffer() async throws {
     let client = connection.client
     let clientConnection = connection.clientToServerConnection
-    let expectation = self.expectation(description: "note received")
+    let expectation = self.expectation(description: "notfication received")
 
-    await client.appendOneShotNotificationHandler { (note: EchoNotification) in
-      XCTAssertEqual(note.string, "hello!")
+    await client.appendOneShotNotificationHandler { (notification: EchoNotification) in
+      XCTAssertEqual(notification.string, "hello!")
       expectation.fulfill()
     }
 
-    let note1 = try JSONEncoder().encode(JSONRPCMessage.notification(EchoNotification(string: "hello!")))
-    let note2 = try JSONEncoder().encode(JSONRPCMessage.notification(EchoNotification(string: "no way!")))
+    let notification1 = try JSONEncoder().encode(JSONRPCMessage.notification(EchoNotification(string: "hello!")))
+    let notification2 = try JSONEncoder().encode(JSONRPCMessage.notification(EchoNotification(string: "no way!")))
 
-    let note1Str: String = "Content-Length: \(note1.count)\r\n\r\n\(String(data: note1, encoding: .utf8)!)"
-    let note2Str: String = "Content-Length: \(note2.count)\r\n\r\n\(String(data: note2, encoding: .utf8)!)"
+    let notification1Str =
+      "Content-Length: \(notification1.count)\r\n\r\n\(String(data: notification1, encoding: .utf8)!)"
+    let notfication2Str =
+      "Content-Length: \(notification2.count)\r\n\r\n\(String(data: notification2, encoding: .utf8)!)"
 
-    for b in note1Str.utf8.dropLast() {
+    for b in notification1Str.utf8.dropLast() {
       clientConnection.send(_rawData: [b].withUnsafeBytes { DispatchData(bytes: $0) })
     }
 
     clientConnection.send(
-      _rawData: [note1Str.utf8.last!, note2Str.utf8.first!].withUnsafeBytes { DispatchData(bytes: $0) }
+      _rawData: [notification1Str.utf8.last!, notfication2Str.utf8.first!].withUnsafeBytes { DispatchData(bytes: $0) }
     )
 
     try await fulfillmentOfOrThrow([expectation])
 
-    let expectation2 = self.expectation(description: "note received")
+    let expectation2 = self.expectation(description: "notification received")
 
-    await client.appendOneShotNotificationHandler { (note: EchoNotification) in
-      XCTAssertEqual(note.string, "no way!")
+    await client.appendOneShotNotificationHandler { (notification: EchoNotification) in
+      XCTAssertEqual(notification.string, "no way!")
       expectation2.fulfill()
     }
 
-    for b in note2Str.utf8.dropFirst() {
+    for b in notfication2Str.utf8.dropFirst() {
       clientConnection.send(_rawData: [b].withUnsafeBytes { DispatchData(bytes: $0) })
     }
 
@@ -95,7 +97,7 @@ class ConnectionTests: XCTestCase {
     XCTAssert(connection.serverToClientConnection.requestBufferIsEmpty)
   }
 
-  func testEchoError() {
+  func testEchoError() async throws {
     let client = connection.client
     let expectation = self.expectation(description: "response received 1")
     let expectation2 = self.expectation(description: "response received 2")
@@ -114,15 +116,15 @@ class ConnectionTests: XCTestCase {
       expectation2.fulfill()
     }
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation, expectation2])
   }
 
-  func testEchoNote() async throws {
+  func testEchoNotification() async throws {
     let client = connection.client
-    let expectation = self.expectation(description: "note received")
+    let expectation = self.expectation(description: "notification received")
 
-    await client.appendOneShotNotificationHandler { (note: EchoNotification) in
-      XCTAssertEqual(note.string, "hello!")
+    await client.appendOneShotNotificationHandler { (notification: EchoNotification) in
+      XCTAssertEqual(notification.string, "hello!")
       expectation.fulfill()
     }
 
@@ -131,7 +133,7 @@ class ConnectionTests: XCTestCase {
     try await fulfillmentOfOrThrow([expectation])
   }
 
-  func testUnknownRequest() {
+  func testUnknownRequest() async throws {
     let client = connection.client
     let expectation = self.expectation(description: "response received")
 
@@ -145,18 +147,18 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
   }
 
-  func testUnknownNotification() {
+  func testUnknownNotification() async throws {
     let client = connection.client
-    let expectation = self.expectation(description: "note received")
+    let expectation = self.expectation(description: "notification received")
 
-    struct UnknownNote: NotificationType {
+    struct UnknownNotification: NotificationType {
       static let method: String = "unknown"
     }
 
-    client.send(UnknownNote())
+    client.send(UnknownNotification())
 
     // Nothing bad should happen; check that the next request works.
 
@@ -167,10 +169,10 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
   }
 
-  func testUnexpectedResponse() {
+  func testUnexpectedResponse() async throws {
     let client = connection.client
     let expectation = self.expectation(description: "response received")
 
@@ -186,12 +188,12 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
   }
 
-  func testSendAfterClose() {
+  func testSendAfterClose() async throws {
     let client = connection.client
-    let expectation = self.expectation(description: "note received")
+    let expectation = self.expectation(description: "notification received")
 
     connection.clientToServerConnection.close()
 
@@ -206,7 +208,7 @@ class ConnectionTests: XCTestCase {
     connection.clientToServerConnection.close()
     connection.clientToServerConnection.close()
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
   }
 
   func testSendBeforeClose() async throws {
@@ -214,7 +216,7 @@ class ConnectionTests: XCTestCase {
     let server = connection.server
 
     let expectation = self.expectation(description: "received notification")
-    await client.appendOneShotNotificationHandler { (note: EchoNotification) in
+    await client.appendOneShotNotificationHandler { (notification: EchoNotification) in
       expectation.fulfill()
     }
 
@@ -229,7 +231,7 @@ class ConnectionTests: XCTestCase {
   /// DispatchIO can make its callback at any time, so this test is to try to
   /// provoke a race between those things and ensure the closeHandler is called
   /// exactly once.
-  func testCloseRace() {
+  func testCloseRace() async throws {
     for _ in 0...100 {
       let to = Pipe()
       let from = Pipe()
@@ -274,16 +276,15 @@ class ConnectionTests: XCTestCase {
       #endif
       conn.close()
 
-      withExtendedLifetime(conn) {
-        waitForExpectations(timeout: defaultTimeout)
-      }
+      try await fulfillmentOfOrThrow([expectation])
+      withExtendedLifetime(conn) {}
     }
   }
 
   func testMessageWithMissingParameter() async throws {
     let expectation = self.expectation(description: "Received ShowMessageNotification")
-    await connection.client.appendOneShotNotificationHandler { (note: ShowMessageNotification) in
-      XCTAssertEqual(note.type, .error)
+    await connection.client.appendOneShotNotificationHandler { (notification: ShowMessageNotification) in
+      XCTAssertEqual(notification.type, .error)
       expectation.fulfill()
     }
 

@@ -74,13 +74,8 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
     if !self.range.overlaps(range) {
       return .skipChildren
     }
-    guard let rangeLowerBound = snapshot.position(of: range.lowerBound),
-      let rangeUpperBound = snapshot.position(of: range.upperBound),
-      let selectionLowerBound = snapshot.position(of: selection.lowerBound),
-      let selectionUpperBound = snapshot.position(of: selection.upperBound)
-    else {
-      return .skipChildren
-    }
+    let positionRange = snapshot.absolutePositionRange(of: range)
+    let selectionPositionRange = snapshot.absolutePositionRange(of: selection)
 
     // Record MARK comments on the node's leading and trailing trivia in `result` not as a child of `node`.
     visit(node.leadingTrivia, position: node.position)
@@ -94,8 +89,8 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
       DocumentSymbol(
         name: name,
         kind: symbolKind,
-        range: rangeLowerBound..<rangeUpperBound,
-        selectionRange: selectionLowerBound..<selectionUpperBound,
+        range: positionRange,
+        selectionRange: selectionPositionRange,
         children: children
       )
     )
@@ -146,17 +141,15 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
         let trimmedComment = commentText.trimmingCharacters(in: CharacterSet(["/", "*"]).union(.whitespaces))
         if trimmedComment.starts(with: markPrefix) {
           let markText = trimmedComment.dropFirst(markPrefix.count)
-          guard let rangeLowerBound = snapshot.position(of: position),
-            let rangeUpperBound = snapshot.position(of: position.advanced(by: piece.sourceLength.utf8Length))
-          else {
-            break
-          }
+          let range = snapshot.absolutePositionRange(
+            of: position..<position.advanced(by: piece.sourceLength.utf8Length)
+          )
           result.append(
             DocumentSymbol(
               name: String(markText),
               kind: .namespace,
-              range: rangeLowerBound..<rangeUpperBound,
-              selectionRange: rangeLowerBound..<rangeUpperBound,
+              range: range,
+              selectionRange: range,
               children: nil
             )
           )
@@ -175,6 +168,17 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
       self.visit(node.trailingTrivia, position: node.endPositionBeforeTrailingTrivia)
     }
     return .skipChildren
+  }
+
+  override func visit(_ node: DeinitializerDeclSyntax) -> SyntaxVisitorContinueKind {
+    // LSP doesn't have a destructor kind. constructor is the closest match and also what clangd for destructors.
+    return record(
+      node: node,
+      name: node.deinitKeyword.text,
+      symbolKind: .constructor,
+      range: node.rangeWithoutTrivia,
+      selection: node.deinitKeyword.rangeWithoutTrivia
+    )
   }
 
   override func visit(_ node: EnumCaseElementSyntax) -> SyntaxVisitorContinueKind {

@@ -23,8 +23,6 @@ import XCTest
 final class WorkspaceTests: XCTestCase {
 
   func testMultipleSwiftPMWorkspaces() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-
     // The package manifest is the same for both packages we open.
     let packageManifest = """
       // swift-tools-version: 5.7
@@ -76,11 +74,10 @@ final class WorkspaceTests: XCTestCase {
           WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageA"))),
           WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageB"))),
         ]
-      }
+      },
+      enableBackgroundIndexing: true
     )
-
-    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("PackageA"))
-    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("PackageB"))
+    try await project.testClient.send(PollIndexRequest())
 
     let (bUri, bPositions) = try project.openDocument("execB.swift")
 
@@ -161,9 +158,40 @@ final class WorkspaceTests: XCTestCase {
     )
   }
 
-  func testSwiftPMPackageInSubfolder() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
+  func testOpenPackageManifestInMultiSwiftPMWorkspaceSetup() async throws {
+    let project = try await MultiFileTestProject(
+      files: [
+        // PackageA
+        "PackageA/Sources/MyLibrary/libA.swift": "",
+        "PackageA/Package.swift": SwiftPMTestProject.defaultPackageManifest,
 
+        // PackageB
+        "PackageB/Sources/MyLibrary/libB.swift": "",
+        "PackageB/Package.swift": SwiftPMTestProject.defaultPackageManifest,
+      ],
+      workspaces: { scratchDir in
+        return [
+          WorkspaceFolder(uri: DocumentURI(scratchDir)),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageA"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageB"))),
+        ]
+      }
+    )
+
+    let bPackageManifestUri = DocumentURI(
+      project.scratchDirectory.appendingPathComponent("PackageB").appendingPathComponent("Package.swift")
+    )
+
+    project.testClient.openDocument(SwiftPMTestProject.defaultPackageManifest, uri: bPackageManifestUri)
+
+    // Ensure that we get proper build settings for Package.swift and no error about `No such module: PackageDescription`
+    let diags = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bPackageManifestUri))
+    )
+    XCTAssertEqual(diags, .full(RelatedFullDocumentDiagnosticReport(items: [])))
+  }
+
+  func testSwiftPMPackageInSubfolder() async throws {
     let packageManifest = """
       // swift-tools-version: 5.7
 
@@ -195,11 +223,13 @@ final class WorkspaceTests: XCTestCase {
         """,
 
         "PackageA/Package.swift": packageManifest,
-      ]
+      ],
+      enableBackgroundIndexing: true
     )
-    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("PackageA"))
 
     let (uri, positions) = try project.openDocument("execA.swift")
+
+    try await project.testClient.send(PollIndexRequest())
 
     let otherCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
@@ -241,8 +271,6 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testNestedSwiftPMWorkspacesWithoutDedicatedWorkspaceFolder() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-
     // The package manifest is the same for both packages we open.
     let packageManifest = """
       // swift-tools-version: 5.7
@@ -288,11 +316,11 @@ final class WorkspaceTests: XCTestCase {
         Lib().2️⃣foo()
         """,
         "Package.swift": packageManifest,
-      ]
+      ],
+      enableBackgroundIndexing: true
     )
 
-    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("PackageA"))
-    try await SwiftPMTestProject.build(at: project.scratchDirectory)
+    try await project.testClient.send(PollIndexRequest())
 
     let (bUri, bPositions) = try project.openDocument("execB.swift")
 
@@ -333,6 +361,8 @@ final class WorkspaceTests: XCTestCase {
     )
 
     let (aUri, aPositions) = try project.openDocument("execA.swift")
+
+    try await project.testClient.send(PollIndexRequest())
 
     let otherCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(aUri), position: aPositions["1️⃣"])
@@ -538,10 +568,6 @@ final class WorkspaceTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -567,8 +593,6 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testChangeWorkspaceFolders() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-
     let project = try await MultiFileTestProject(
       files: [
         "subdir/Sources/otherPackage/otherPackage.swift": """
@@ -699,50 +723,8 @@ final class WorkspaceTests: XCTestCase {
       ]
     )
   }
-
-  public func testWorkspaceSpecificBuildSettings() async throws {
-    let project = try await SwiftPMTestProject(
-      files: [
-        "test.swift": """
-        #if MY_FLAG
-        let a: Int = ""
-        #endif
-        """
-      ],
-      workspaces: {
-        [
-          WorkspaceFolder(
-            uri: DocumentURI($0),
-            buildSetup: WorkspaceBuildSetup(
-              buildConfiguration: nil,
-              scratchPath: nil,
-              cFlags: nil,
-              cxxFlags: nil,
-              linkerFlags: nil,
-              swiftFlags: ["-DMY_FLAG"]
-            )
-          )
-        ]
-      }
-    )
-
-    _ = try project.openDocument("test.swift")
-    let report = try await project.testClient.send(
-      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(project.uri(for: "test.swift")))
-    )
-    guard case .full(let fullReport) = report else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
-    XCTAssertEqual(fullReport.items.count, 1)
-    let diag = try XCTUnwrap(fullReport.items.first)
-    XCTAssertEqual(diag.message, "Cannot convert value of type 'String' to specified type 'Int'")
-  }
-
   func testIntegrationTest() async throws {
     // This test is doing the same as `test-sourcekit-lsp` in the `swift-integration-tests` repo.
-
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
 
     let project = try await SwiftPMTestProject(
       files: [
@@ -787,10 +769,9 @@ final class WorkspaceTests: XCTestCase {
           ]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
     let (mainUri, mainPositions) = try project.openDocument("main.swift")
-    _ = try await project.testClient.send(PollIndexRequest())
 
     let fooDefinitionResponse = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(mainUri), position: mainPositions["3️⃣"])
@@ -846,41 +827,38 @@ final class WorkspaceTests: XCTestCase {
     let cCompletionResponse = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(clibcUri), position: clibcPositions["2️⃣"])
     )
-    XCTAssertEqual(
-      cCompletionResponse.items,
-      [
-        // rdar://73762053: This should also suggest clib_other
-        CompletionItem(
-          label: " clib_func",
-          kind: .text,
-          deprecated: true,
-          sortText: "41b99800clib_func",
-          filterText: "clib_func",
-          insertText: "clib_func",
-          insertTextFormat: .plain,
-          textEdit: .textEdit(TextEdit(range: Range(clibcPositions["2️⃣"]), newText: "clib_func"))
-        ),
-        CompletionItem(
-          label: " include",
-          kind: .text,
-          deprecated: true,
-          sortText: "41d85b70include",
-          filterText: "include",
-          insertText: "include",
-          insertTextFormat: .plain,
-          textEdit: .textEdit(TextEdit(range: Range(clibcPositions["2️⃣"]), newText: "include"))
-        ),
-        CompletionItem(
-          label: " void",
-          kind: .text,
-          deprecated: true,
-          sortText: "41e677bbvoid",
-          filterText: "void",
-          insertText: "void",
-          insertTextFormat: .plain,
-          textEdit: .textEdit(TextEdit(range: Range(clibcPositions["2️⃣"]), newText: "void"))
-        ),
+    // rdar://73762053: This should also suggest clib_other
+    XCTAssert(cCompletionResponse.items.contains(where: { $0.insertText == "clib_func" }))
+  }
+
+  func testWorkspaceOptions() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "/.sourcekit-lsp/config.json": """
+        {
+          "swiftPM": {
+            "swiftCompilerFlags": ["-D", "TEST"]
+          }
+        }
+        """,
+        "Test.swift": """
+        func test() {
+        #if TEST
+          let x: String = 1
+        #endif
+        }
+        """,
       ]
     )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+    let diagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    guard case .full(let diagnostics) = diagnostics else {
+      XCTFail("Expected full diagnostics")
+      return
+    }
+    XCTAssertEqual(diagnostics.items.map(\.message), ["Cannot convert value of type 'Int' to specified type 'String'"])
   }
 }

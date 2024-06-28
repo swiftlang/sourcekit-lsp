@@ -15,7 +15,7 @@ import RegexBuilder
 
 /// All the information necessary to replay a sourcektid request.
 @_spi(Testing)
-public struct RequestInfo {
+public struct RequestInfo: Sendable {
   /// The JSON request object. Contains the following dynamic placeholders:
   ///  - `$OFFSET`: To be replaced by `offset` before running the request
   ///  - `$FILE`: Will be replaced with a path to the file that contains the reduced source code.
@@ -51,7 +51,7 @@ public struct RequestInfo {
   }
 
   /// A fake value that is used to indicate that we are reducing a `swift-frontend` issue instead of a sourcekitd issue.
-  static var fakeRequestTemplateForFrontendIssues = """
+  static let fakeRequestTemplateForFrontendIssues = """
     {
       key.request: sourcekit-lsp-fake-request-for-frontend-crash
       key.compilerargs: [
@@ -121,10 +121,12 @@ public struct RequestInfo {
 
     // Inline the file list so we can reduce the compiler arguments by removing individual source files.
     // A couple `output-filelist`-related compiler arguments don't work with the file list inlined. Remove them as they
-    // are unlikely to be responsible for the swift-frontend cache
+    // are unlikely to be responsible for the swift-frontend cache.
+    // `-index-system-modules` is invalid when no output file lists are specified.
     while let frontendArg = iterator.next() {
       switch frontendArg {
-      case "-supplementary-output-file-map", "-output-filelist", "-index-unit-output-path-filelist":
+      case "-supplementary-output-file-map", "-output-filelist", "-index-unit-output-path-filelist",
+        "-index-system-modules":
         _ = iterator.next()
       case "-filelist":
         guard let fileList = iterator.next() else {

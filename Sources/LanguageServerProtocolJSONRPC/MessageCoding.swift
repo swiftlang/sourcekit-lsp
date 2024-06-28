@@ -12,8 +12,7 @@
 
 import LanguageServerProtocol
 
-/// *Public For Testing*. A single JSONRPC message suitable for encoding/decoding.
-public enum JSONRPCMessage {
+@_spi(Testing) public enum JSONRPCMessage {
   case notification(NotificationType)
   case request(_RequestType, id: RequestID)
   case response(ResponseType, id: RequestID)

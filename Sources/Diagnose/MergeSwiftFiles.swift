@@ -17,6 +17,7 @@ extension RequestInfo {
   /// Check if the issue reproduces when merging all `.swift` input files into a single file.
   ///
   /// Returns `nil` if the issue didn't reproduce with all `.swift` files merged.
+  @MainActor
   func mergeSwiftFiles(
     using executor: SourceKitRequestExecutor,
     progressUpdate: (_ progress: Double, _ message: String) -> Void
@@ -26,10 +27,11 @@ extension RequestInfo {
 
     progressUpdate(0, "Merging all .swift files into a single file")
 
+    let compilerArgs = compilerArgs.filter { $0 != "-primary-file" && !$0.hasSuffix(".swift") } + ["$FILE"]
     let mergedRequestInfo = RequestInfo(
       requestTemplate: requestTemplate,
       offset: offset,
-      compilerArgs: compilerArgs.filter { !$0.hasSuffix(".swift") } + ["$FILE"],
+      compilerArgs: compilerArgs,
       fileContents: mergedFile
     )
 

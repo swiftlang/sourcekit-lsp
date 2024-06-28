@@ -16,26 +16,32 @@ import SKCore
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
-import var TSCBasic.stderrStream
 import class TSCUtility.PercentProgressAnimation
 
 /// When diagnosis is started, a progress bar displayed on the terminal that shows how far the diagnose command has
 /// progressed.
 /// Can't be a member of `DiagnoseCommand` because then `DiagnoseCommand` is no longer codable, which it needs to be
 /// to be a `AsyncParsableCommand`.
+@MainActor
 private var progressBar: PercentProgressAnimation? = nil
+
+/// The last progress that was reported on the progress bar. This ensures that when the progress indicator uses the
+/// `MultiLinePercentProgressAnimation` (eg. because stderr is redirected to a file) we don't emit status updates
+/// without making any real progress.
+@MainActor
+private var lastProgress: (Int, String)? = nil
 
 /// A component of the diagnostic bundle that's collected in independent stages.
 fileprivate enum BundleComponent: String, CaseIterable, ExpressibleByArgument {
-  case crashReports
-  case logs
-  case swiftVersions
-  case sourcekitdCrashes
-  case swiftFrontendCrashes
+  case crashReports = "crash-reports"
+  case logs = "logs"
+  case swiftVersions = "swift-versions"
+  case sourcekitdCrashes = "sourcekitd-crashes"
+  case swiftFrontendCrashes = "swift-frontend-crashes"
 }
 
 public struct DiagnoseCommand: AsyncParsableCommand {
-  public static var configuration: CommandConfiguration = CommandConfiguration(
+  public static let configuration: CommandConfiguration = CommandConfiguration(
     commandName: "diagnose",
     abstract: "Creates a bundle containing information that help diagnose issues with sourcekit-lsp"
   )
@@ -65,6 +71,14 @@ public struct DiagnoseCommand: AsyncParsableCommand {
   )
   private var components: [BundleComponent] = BundleComponent.allCases
 
+  @Option(
+    help: """
+      The directory to which the diagnostic bundle should be written. No file or directory should exist at this path. \
+      After sourcekit-lsp diagnose runs, a directory will exist at this path that contains the diagnostic bundle.
+      """
+  )
+  var bundleOutputPath: String? = nil
+
   var toolchainRegistry: ToolchainRegistry {
     get throws {
       let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
@@ -72,6 +86,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     }
   }
 
+  @MainActor
   var toolchain: Toolchain? {
     get async throws {
       if let toolchainOverride {
@@ -96,6 +111,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
 
   public init() {}
 
+  @MainActor
   private func addSourcekitdCrashReproducer(toBundle bundlePath: URL) async throws {
     reportProgress(.reproducingSourcekitdCrash(progress: 0), message: "Trying to reduce recent sourcekitd crashes")
     for (name, requestInfo) in try requestInfos() {
@@ -121,6 +137,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     }
   }
 
+  @MainActor
   private func addSwiftFrontendCrashReproducer(toBundle bundlePath: URL) async throws {
     reportProgress(
       .reproducingSwiftFrontendCrash(progress: 0),
@@ -134,6 +151,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
 
     for crashInfo in crashInfos {
       let dateFormatter = DateFormatter()
+      dateFormatter.timeZone = NSTimeZone.local
       dateFormatter.dateStyle = .none
       dateFormatter.timeStyle = .medium
       let progressMessagePrefix = "Reducing Swift compiler crash at \(dateFormatter.string(from: crashInfo.date))"
@@ -181,7 +199,8 @@ public struct DiagnoseCommand: AsyncParsableCommand {
   }
 
   /// Execute body and if it throws, log the error.
-  private func orPrintError(_ body: () async throws -> Void) async {
+  @MainActor
+  private func orPrintError(_ body: @MainActor () async throws -> Void) async {
     do {
       try await body()
     } catch {
@@ -189,6 +208,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     }
   }
 
+  @MainActor
   private func addOsLog(toBundle bundlePath: URL) async throws {
     #if os(macOS)
     reportProgress(.collectingLogMessages(progress: 0), message: "Collecting log messages")
@@ -206,6 +226,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
         "--predicate", #"subsystem = "org.swift.sourcekit-lsp" AND process = "sourcekit-lsp""#,
         "--info",
         "--debug",
+        "--signpost",
       ],
       outputRedirection: .stream(
         stdout: { bytes in
@@ -226,6 +247,33 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     #endif
   }
 
+  @MainActor
+  private func addNonDarwinLogs(toBundle bundlePath: URL) async throws {
+    reportProgress(.collectingLogMessages(progress: 0), message: "Collecting log files")
+
+    let destinationDir = bundlePath.appendingPathComponent("logs")
+    try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true)
+
+    let logFileDirectoryURL = URL(fileURLWithPath: ("~/.sourcekit-lsp/logs" as NSString).expandingTildeInPath)
+    let enumerator = FileManager.default.enumerator(at: logFileDirectoryURL, includingPropertiesForKeys: nil)
+    while let fileUrl = enumerator?.nextObject() as? URL {
+      guard fileUrl.lastPathComponent.hasPrefix("sourcekit-lsp") else {
+        continue
+      }
+      try? FileManager.default.copyItem(
+        at: fileUrl,
+        to: destinationDir.appendingPathComponent(fileUrl.lastPathComponent)
+      )
+    }
+  }
+
+  @MainActor
+  private func addLogs(toBundle bundlePath: URL) async throws {
+    try await addNonDarwinLogs(toBundle: bundlePath)
+    try await addOsLog(toBundle: bundlePath)
+  }
+
+  @MainActor
   private func addCrashLogs(toBundle bundlePath: URL) throws {
     #if os(macOS)
     reportProgress(.collectingCrashReports, message: "Collecting crash reports")
@@ -251,6 +299,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     #endif
   }
 
+  @MainActor
   private func addSwiftVersion(toBundle bundlePath: URL) async throws {
     let outputFileUrl = bundlePath.appendingPathComponent("swift-versions.txt")
     FileManager.default.createFile(atPath: outputFileUrl.path, contents: nil)
@@ -282,11 +331,19 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     }
   }
 
+  @MainActor
   private func reportProgress(_ state: DiagnoseProgressState, message: String) {
-    progressBar?.update(step: Int(state.progress * 100), total: 100, text: message)
+    let progress: (step: Int, message: String) = (Int(state.progress * 100), message)
+    if lastProgress == nil || progress != lastProgress! {
+      progressBar?.update(step: Int(state.progress * 100), total: 100, text: message)
+      lastProgress = progress
+    }
   }
 
+  @MainActor
   public func run() async throws {
+    // IMPORTANT: When adding information to this message, also add it to the message displayed in VS Code
+    // (captureDiagnostics.ts in the vscode-swift repository)
     print(
       """
       sourcekit-lsp diagnose collects information that helps the developers of sourcekit-lsp diagnose and fix issues.
@@ -302,18 +359,29 @@ public struct DiagnoseCommand: AsyncParsableCommand {
       """
     )
 
-    progressBar = PercentProgressAnimation(stream: stderrStream, header: "Diagnosing sourcekit-lsp issues")
+    progressBar = PercentProgressAnimation(
+      stream: stderrStreamConcurrencySafe,
+      header: "Diagnosing sourcekit-lsp issues"
+    )
 
-    let date = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-    let bundlePath = FileManager.default.temporaryDirectory
-      .appendingPathComponent("sourcekitd-reproducer-\(date)")
+    let dateFormatter = ISO8601DateFormatter()
+    dateFormatter.timeZone = NSTimeZone.local
+    let date = dateFormatter.string(from: Date()).replacingOccurrences(of: ":", with: "-")
+    let bundlePath =
+      if let bundleOutputPath = self.bundleOutputPath {
+        URL(fileURLWithPath: bundleOutputPath)
+      } else {
+        FileManager.default.temporaryDirectory
+          .appendingPathComponent("sourcekit-lsp-diagnose")
+          .appendingPathComponent("sourcekit-lsp-diagnose-\(date)")
+      }
     try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
 
     if components.isEmpty || components.contains(.crashReports) {
       await orPrintError { try addCrashLogs(toBundle: bundlePath) }
     }
     if components.isEmpty || components.contains(.logs) {
-      await orPrintError { try await addOsLog(toBundle: bundlePath) }
+      await orPrintError { try await addLogs(toBundle: bundlePath) }
     }
     if components.isEmpty || components.contains(.swiftVersions) {
       await orPrintError { try await addSwiftVersion(toBundle: bundlePath) }
@@ -330,15 +398,29 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     print(
       """
 
-      Bundle created. 
-      When filing an issue at https://github.com/apple/sourcekit-lsp/issues/new, 
-      please attach the bundle located at 
+      Bundle created.
+      When filing an issue at https://github.com/swiftlang/sourcekit-lsp/issues/new,
+      please attach the bundle located at
       \(bundlePath.path)
       """
     )
 
+    #if os(macOS)
+    // Reveal the bundle in Finder on macOS.
+    // Don't open the bundle in Finder if the user manually specified a log output path. In that case they are running
+    // `sourcekit-lsp diagnose` as part of a larger logging script (like the Swift for VS Code extension) and the caller
+    // is responsible for showing the diagnose bundle location to the user
+    if self.bundleOutputPath == nil {
+      do {
+        _ = try await Process.run(arguments: ["open", "-R", bundlePath.path], workingDirectory: nil)
+      } catch {
+        // If revealing the bundle in Finder should fail, we don't care. We still printed the bundle path to stdout.
+      }
+    }
+    #endif
   }
 
+  @MainActor
   private func reduce(
     requestInfo: RequestInfo,
     toolchain: Toolchain?,

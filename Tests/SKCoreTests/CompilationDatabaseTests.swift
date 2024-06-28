@@ -157,9 +157,9 @@ final class CompilationDatabaseTests: XCTestCase {
 
     let db = JSONCompilationDatabase([cmd1, cmd2, cmd3])
 
-    XCTAssertEqual(db[URL(fileURLWithPath: "b")], [cmd1])
-    XCTAssertEqual(db[URL(fileURLWithPath: "/c/b")], [cmd2])
-    XCTAssertEqual(db[URL(fileURLWithPath: "/b")], [cmd3])
+    XCTAssertEqual(db[DocumentURI(filePath: "b", isDirectory: false)], [cmd1])
+    XCTAssertEqual(db[DocumentURI(filePath: "/c/b", isDirectory: false)], [cmd2])
+    XCTAssertEqual(db[DocumentURI(filePath: "/b", isDirectory: false)], [cmd3])
   }
 
   func testJSONCompilationDatabaseFromDirectory() throws {
@@ -255,7 +255,7 @@ final class CompilationDatabaseTests: XCTestCase {
     XCTAssertNotNil(db)
 
     XCTAssertEqual(
-      db![URL(fileURLWithPath: "/a/b")],
+      db![DocumentURI(filePath: "/a/b", isDirectory: false)],
       [
         CompilationDatabase.Command(
           directory: try AbsolutePath(validating: "/a").pathString,
@@ -290,6 +290,7 @@ final class CompilationDatabaseTests: XCTestCase {
     ) { buildSystem in
       let settings = await buildSystem.buildSettings(
         for: DocumentURI(URL(fileURLWithPath: "/a/a.swift")),
+        in: ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy"),
         language: .swift
       )
       XCTAssertNotNil(settings)

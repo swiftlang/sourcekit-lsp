@@ -24,7 +24,23 @@ public enum LanguageServerState {
   case semanticFunctionalityDisabled
 }
 
-public struct RenameLocation {
+public struct AnnotatedTestItem: Sendable {
+  /// The test item to be annotated
+  public var testItem: TestItem
+
+  /// Whether the `TestItem` is an extension.
+  public var isExtension: Bool
+
+  public init(
+    testItem: TestItem,
+    isExtension: Bool
+  ) {
+    self.testItem = testItem
+    self.isExtension = isExtension
+  }
+}
+
+public struct RenameLocation: Sendable {
   /// How the identifier at a given location is being used.
   ///
   /// This is primarily used to influence how argument labels should be renamed in Swift and if a location should be
@@ -64,14 +80,15 @@ public struct RenameLocation {
 ///
 /// For example, we may have a language service that provides semantic functionality for c-family using a clangd server,
 /// launched from a specific toolchain or from sourcekitd.
-public protocol LanguageService: AnyObject {
+public protocol LanguageService: AnyObject, Sendable {
 
   // MARK: - Creation
 
   init?(
     sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
-    options: SourceKitLSPServer.Options,
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
     workspace: Workspace
   ) async throws
 
@@ -90,7 +107,7 @@ public protocol LanguageService: AnyObject {
 
   /// Add a handler that is called whenever the state of the language server changes.
   func addStateChangeHandler(
-    handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void
+    handler: @Sendable @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void
   ) async
 
   // MARK: - Text synchronization
@@ -98,17 +115,25 @@ public protocol LanguageService: AnyObject {
   /// Sent to open up a document on the Language Server.
   /// This may be called before or after a corresponding
   /// `documentUpdatedBuildSettings` call for the same document.
-  func openDocument(_ note: DidOpenTextDocumentNotification) async
+  func openDocument(_ notification: DidOpenTextDocumentNotification) async
 
   /// Sent to close a document on the Language Server.
-  func closeDocument(_ note: DidCloseTextDocumentNotification) async
-  func changeDocument(_ note: DidChangeTextDocumentNotification) async
-  func willSaveDocument(_ note: WillSaveTextDocumentNotification) async
-  func didSaveDocument(_ note: DidSaveTextDocumentNotification) async
+  func closeDocument(_ notification: DidCloseTextDocumentNotification) async
+
+  /// Re-open the given document, discarding any in-memory state and forcing an AST to be re-built after build settings
+  /// have been changed. This needs to be handled via a notification to ensure that no other request for this document
+  /// is executing at the same time.
+  ///
+  /// Only intended for `SwiftLanguageService`.
+  func reopenDocument(_ notification: ReopenTextDocumentNotification) async
+
+  func changeDocument(_ notification: DidChangeTextDocumentNotification) async
+  func willSaveDocument(_ notification: WillSaveTextDocumentNotification) async
+  func didSaveDocument(_ notification: DidSaveTextDocumentNotification) async
 
   // MARK: - Build System Integration
 
-  /// Sent when the `BuildSystem` has resolved build settings, such as for the intial build settings
+  /// Sent when the `BuildSystem` has resolved build settings, such as for the initial build settings
   /// or when the settings have changed (e.g. modified build system files). This may be sent before
   /// the respective `DocumentURI` has been opened.
   func documentUpdatedBuildSettings(_ uri: DocumentURI) async
@@ -122,7 +147,7 @@ public protocol LanguageService: AnyObject {
   func completion(_ req: CompletionRequest) async throws -> CompletionList
   func hover(_ req: HoverRequest) async throws -> HoverResponse?
   func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails]
-  func openInterface(_ request: OpenInterfaceRequest) async throws -> InterfaceDetails?
+  func openGeneratedInterface(_ request: OpenGeneratedInterfaceRequest) async throws -> GeneratedInterfaceDetails?
 
   /// - Note: Only called as a fallback if the definition could not be found in the index.
   func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse?
@@ -198,8 +223,20 @@ public protocol LanguageService: AnyObject {
   /// Perform a syntactic scan of the file at the given URI for test cases and test classes.
   ///
   /// This is used as a fallback to show the test cases in a file if the index for a given file is not up-to-date.
-  func syntacticDocumentTests(for uri: DocumentURI) async throws -> [WorkspaceSymbolItem]?
+  ///
+  /// A return value of `nil` indicates that this language service does not support syntactic test discovery.
+  func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [AnnotatedTestItem]?
+
+  /// A position that is canonical for all positions within a declaration. For example, if we have the following
+  /// declaration, then all `|` markers should return the same canonical position.
+  /// ```
+  /// func |fo|o(|ba|r: Int)
+  /// ```
+  /// The actual position returned by the method does not matter. All that's relevant is the canonicalization.
+  ///
+  /// Returns `nil` if no canonical position could be determined.
+  func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position?
 
   /// Crash the language server. Should be used for crash recovery testing only.
-  func _crash() async
+  func crash() async
 }

@@ -1,25 +1,40 @@
 
 add_library(SourceKitLSP STATIC
   CapabilityRegistry.swift
+  CreateBuildSystem.swift
   DocumentManager.swift
-  IndexOutOfDateChecker.swift
+  DocumentSnapshot+FromFileContents.swift
+  IndexProgressManager.swift
   IndexStoreDB+MainFilesProvider.swift
+  LanguageServerType.swift
   LanguageService.swift
+  MessageHandlingDependencyTracker.swift
   Rename.swift
   ResponseError+Init.swift
-  Sequence+AsyncMap.swift
+  SemanticTokensLegend+SourceKitLSPLegend.swift
   SourceKitIndexDelegate.swift
   SourceKitLSPCommandMetadata.swift
   SourceKitLSPServer.swift
-  SourceKitLSPServer+Options.swift
+  SymbolLocation+DocumentURI.swift
   TestDiscovery.swift
+  TestHooks.swift
+  TextEdit+IsNoop.swift
   WorkDoneProgressManager.swift
   Workspace.swift
 )
 target_sources(SourceKitLSP PRIVATE
-  Clang/ClangLanguageService.swift)
+  Clang/ClangLanguageService.swift
+  Clang/SemanticTokenTranslator.swift
+)
 target_sources(SourceKitLSP PRIVATE
   Swift/AdjustPositionToStartOfIdentifier.swift
+  Swift/CodeActions/AddDocumentation.swift
+  Swift/CodeActions/ConvertIntegerLiteral.swift
+  Swift/CodeActions/ConvertJSONToCodableStruct.swift
+  Swift/CodeActions/PackageManifestEdits.swift
+  Swift/CodeActions/SyntaxCodeActionProvider.swift
+  Swift/CodeActions/SyntaxCodeActions.swift
+  Swift/CodeActions/SyntaxRefactoringCodeActionProvider.swift
   Swift/CodeCompletion.swift
   Swift/CodeCompletionSession.swift
   Swift/CommentXML.swift
@@ -28,8 +43,13 @@ target_sources(SourceKitLSP PRIVATE
   Swift/DiagnosticReportManager.swift
   Swift/DocumentFormatting.swift
   Swift/DocumentSymbols.swift
+  Swift/ExpandMacroCommand.swift
   Swift/FoldingRange.swift
+  Swift/MacroExpansion.swift
   Swift/OpenInterface.swift
+  Swift/Refactoring.swift
+  Swift/RefactoringEdit.swift
+  Swift/RefactorCommand.swift
   Swift/RelatedIdentifiers.swift
   Swift/RewriteSourceKitPlaceholders.swift
   Swift/SemanticRefactorCommand.swift
@@ -38,10 +58,13 @@ target_sources(SourceKitLSP PRIVATE
   Swift/SourceKitD+ResponseError.swift
   Swift/SwiftCommand.swift
   Swift/SwiftLanguageService.swift
+  Swift/SwiftTestingScanner.swift
   Swift/SymbolInfo.swift
+  Swift/SyntacticSwiftXCTestScanner.swift
+  Swift/SyntacticTestIndex.swift
   Swift/SyntaxHighlightingToken.swift
-  Swift/SyntaxHighlightingTokens.swift
   Swift/SyntaxHighlightingTokenParser.swift
+  Swift/SyntaxHighlightingTokens.swift
   Swift/SyntaxTreeManager.swift
   Swift/VariableTypeInfo.swift
 )
@@ -53,10 +76,12 @@ target_link_libraries(SourceKitLSP PUBLIC
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
   LSPLogging
+  SemanticIndex
   SKCore
   SKSupport
   SKSwiftPMWorkspace
   SourceKitD
+  SwiftExtensions
   IndexStoreDB
   SwiftSyntax::SwiftBasicFormat
   SwiftSyntax::SwiftDiagnostics
@@ -66,5 +91,6 @@ target_link_libraries(SourceKitLSP PUBLIC
   SwiftSyntax::SwiftRefactor
   SwiftSyntax::SwiftSyntax)
 target_link_libraries(SourceKitLSP PRIVATE
+  PackageModelSyntax
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
 

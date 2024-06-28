@@ -105,9 +105,11 @@ private func edits(from original: DocumentSnapshot, to edited: String) -> [TextE
   let sequentialEdits = difference.map { change in
     switch change {
     case .insert(offset: let offset, element: let element, associatedWith: _):
-      IncrementalEdit(offset: offset, length: 0, replacement: [element])
+      let absolutePosition = AbsolutePosition(utf8Offset: offset)
+      return SourceEdit(range: absolutePosition..<absolutePosition, replacement: [element])
     case .remove(offset: let offset, element: _, associatedWith: _):
-      IncrementalEdit(offset: offset, length: 1, replacement: [])
+      let absolutePosition = AbsolutePosition(utf8Offset: offset)
+      return SourceEdit(range: absolutePosition..<absolutePosition.advanced(by: 1), replacement: [])
     }
   }
 
@@ -115,22 +117,8 @@ private func edits(from original: DocumentSnapshot, to edited: String) -> [TextE
 
   // Map the offset-based edits to line-column based edits to be consumed by LSP
 
-  return concurrentEdits.edits.compactMap { (edit) -> TextEdit? in
-    guard let (startLine, startColumn) = original.lineTable.lineAndUTF16ColumnOf(utf8Offset: edit.offset) else {
-      return nil
-    }
-    guard let (endLine, endColumn) = original.lineTable.lineAndUTF16ColumnOf(utf8Offset: edit.endOffset) else {
-      return nil
-    }
-    guard let newText = String(bytes: edit.replacement, encoding: .utf8) else {
-      logger.fault("Failed to get String from UTF-8 bytes \(edit.replacement)")
-      return nil
-    }
-
-    return TextEdit(
-      range: Position(line: startLine, utf16index: startColumn)..<Position(line: endLine, utf16index: endColumn),
-      newText: newText
-    )
+  return concurrentEdits.edits.compactMap {
+    TextEdit(range: original.absolutePositionRange(of: $0.range), newText: $0.replacement)
   }
 }
 
@@ -156,7 +144,7 @@ extension SwiftLanguageService {
     writeStream.send(snapshot.text)
     try writeStream.close()
 
-    let result = try await process.waitUntilExit()
+    let result = try await process.waitUntilExitStoppingProcessOnTaskCancellation()
     guard result.exitStatus == .terminated(code: 0) else {
       let swiftFormatErrorMessage: String
       switch result.stderrOutput {

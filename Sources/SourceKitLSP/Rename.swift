@@ -10,10 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import IndexStoreDB
+@preconcurrency import IndexStoreDB
 import LSPLogging
 import LanguageServerProtocol
 import SKSupport
+import SemanticIndex
 import SourceKitD
 import SwiftSyntax
 
@@ -186,12 +187,8 @@ fileprivate struct SyntacticRenamePiece {
     else {
       return nil
     }
-    guard
-      let start = snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: column - 1),
-      let end = snapshot.positionOf(zeroBasedLine: endLine - 1, utf8Column: endColumn - 1)
-    else {
-      return nil
-    }
+    let start = snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: column - 1)
+    let end = snapshot.positionOf(zeroBasedLine: endLine - 1, utf8Column: endColumn - 1)
     guard let kind = SyntacticRenamePieceKind(kind, values: values) else {
       return nil
     }
@@ -270,34 +267,20 @@ private extension LineTable {
   ///
   /// If either the lower or upper bound of `range` do not refer to valid positions with in the snapshot, returns
   /// `nil` and logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
-  subscript(range: Range<Position>, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> Substring? {
-    guard
-      let start = self.stringIndexOf(
-        line: range.lowerBound.line,
-        utf16Column: range.lowerBound.utf16index,
-        callerFile: callerFile,
-        callerLine: callerLine
-      ),
-      let end = self.stringIndexOf(
-        line: range.upperBound.line,
-        utf16Column: range.upperBound.utf16index,
-        callerFile: callerFile,
-        callerLine: callerLine
-      )
-    else {
-      return nil
-    }
+  subscript(range: Range<Position>, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> Substring {
+    let start = self.stringIndexOf(
+      line: range.lowerBound.line,
+      utf16Column: range.lowerBound.utf16index,
+      callerFile: callerFile,
+      callerLine: callerLine
+    )
+    let end = self.stringIndexOf(
+      line: range.upperBound.line,
+      utf16Column: range.upperBound.utf16index,
+      callerFile: callerFile,
+      callerLine: callerLine
+    )
     return self.content[start..<end]
-  }
-}
-
-private extension DocumentSnapshot {
-  init?(_ uri: DocumentURI, language: Language) throws {
-    guard let url = uri.fileURL else {
-      return nil
-    }
-    let contents = try String(contentsOf: url)
-    self.init(uri: DocumentURI(url), language: language, version: 0, lineTable: LineTable(contents))
   }
 }
 
@@ -327,14 +310,11 @@ private extension IndexSymbolKind {
 
 extension SwiftLanguageService {
   enum NameTranslationError: Error, CustomStringConvertible {
-    case cannotComputeOffset(SymbolLocation)
     case malformedSwiftToClangTranslateNameResponse(SKDResponseDictionary)
     case malformedClangToSwiftTranslateNameResponse(SKDResponseDictionary)
 
     var description: String {
       switch self {
-      case .cannotComputeOffset(let position):
-        return "Failed to determine UTF-8 offset of \(position)"
       case .malformedSwiftToClangTranslateNameResponse(let response):
         return """
           Malformed response for Swift to Clang name translation
@@ -369,18 +349,11 @@ extension SwiftLanguageService {
       throw ResponseError.unknown("Failed to get contents of \(uri.forLogging) to translate Swift name to clang name")
     }
 
-    guard
-      let position = snapshot.position(of: symbolLocation),
-      let offset = snapshot.utf8Offset(of: position)
-    else {
-      throw NameTranslationError.cannotComputeOffset(symbolLocation)
-    }
-
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.nameTranslation,
       keys.sourceFile: snapshot.uri.pseudoPath,
       keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
-      keys.offset: offset,
+      keys.offset: snapshot.utf8Offset(of: snapshot.position(of: symbolLocation)),
       keys.nameKind: sourcekitd.values.nameSwift,
       keys.baseName: name.baseName,
       keys.argNames: sourcekitd.array(name.parameters.map { $0.stringOrWildcard }),
@@ -427,17 +400,11 @@ extension SwiftLanguageService {
     isObjectiveCSelector: Bool,
     name: String
   ) async throws -> String {
-    guard
-      let position = snapshot.position(of: symbolLocation),
-      let offset = snapshot.utf8Offset(of: position)
-    else {
-      throw NameTranslationError.cannotComputeOffset(symbolLocation)
-    }
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.nameTranslation,
       keys.sourceFile: snapshot.uri.pseudoPath,
       keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
-      keys.offset: offset,
+      keys.offset: snapshot.utf8Offset(of: snapshot.position(of: symbolLocation)),
       keys.nameKind: sourcekitd.values.nameObjc,
     ])
 
@@ -478,7 +445,7 @@ extension SwiftLanguageService {
 /// These names might differ. For example, an Objective-C method gets translated by the clang importer to form the Swift
 /// name or it could have a `SWIFT_NAME` attribute that defines the method's name in Swift. Similarly, a Swift symbol
 /// might specify the name by which it gets exposed to Objective-C using the `@objc` attribute.
-public struct CrossLanguageName {
+public struct CrossLanguageName: Sendable {
   /// The name of the symbol in clang languages or `nil` if the symbol is defined in Swift, doesn't have any references
   /// from clang languages and thus hasn't been translated.
   fileprivate let clangName: String?
@@ -519,7 +486,7 @@ extension DocumentManager {
   /// Returns the latest open snapshot of `uri` or, if no document with that URI is open, reads the file contents of
   /// that file from disk.
   fileprivate func latestSnapshotOrDisk(_ uri: DocumentURI, language: Language) -> DocumentSnapshot? {
-    return (try? self.latestSnapshot(uri)) ?? (try? DocumentSnapshot.init(uri, language: language))
+    return (try? self.latestSnapshot(uri)) ?? (try? DocumentSnapshot(withContentsFromDisk: uri, language: language))
   }
 }
 
@@ -528,12 +495,12 @@ extension SourceKitLSPServer {
   /// `usr` from a Swift file. If `usr` is not referenced from Swift, returns `nil`.
   private func getReferenceFromSwift(
     usr: String,
-    index: IndexStoreDB,
+    index: CheckedIndex,
     workspace: Workspace
   ) async -> (swiftLanguageService: SwiftLanguageService, snapshot: DocumentSnapshot, location: SymbolLocation)? {
     var reference: SymbolOccurrence? = nil
     index.forEachSymbolOccurrence(byUSR: usr, roles: renameRoles) {
-      if index.symbolProvider(for: $0.location.path) == .swift {
+      if $0.symbolProvider == .swift {
         reference = $0
         // We have found a reference from Swift. Stop iteration.
         return false
@@ -544,7 +511,7 @@ extension SourceKitLSPServer {
     guard let reference else {
       return nil
     }
-    let uri = DocumentURI(URL(fileURLWithPath: reference.location.path))
+    let uri = reference.location.documentUri
     guard let snapshot = self.documentManager.latestSnapshotOrDisk(uri, language: .swift) else {
       return nil
     }
@@ -566,11 +533,11 @@ extension SourceKitLSPServer {
     forUsr usr: String,
     overrideName: String? = nil,
     workspace: Workspace,
-    index: IndexStoreDB
+    index: CheckedIndex
   ) async throws -> CrossLanguageName? {
     let definitions = index.occurrences(ofUSR: usr, roles: [.definition])
     if definitions.isEmpty {
-      logger.error("no definitions for \(usr) found")
+      logger.error("No definitions for \(usr) found")
       return nil
     }
     if definitions.count > 1 {
@@ -597,11 +564,27 @@ extension SourceKitLSPServer {
     return nil
   }
 
+  // FIXME: (async-workaround): Needed to work around rdar://127977642
+  private func translateClangNameToSwift(
+    _ swiftLanguageService: SwiftLanguageService,
+    at symbolLocation: SymbolLocation,
+    in snapshot: DocumentSnapshot,
+    isObjectiveCSelector: Bool,
+    name: String
+  ) async throws -> String {
+    return try await swiftLanguageService.translateClangNameToSwift(
+      at: symbolLocation,
+      in: snapshot,
+      isObjectiveCSelector: isObjectiveCSelector,
+      name: name
+    )
+  }
+
   private func getCrossLanguageName(
     forDefinitionOccurrence definitionOccurrence: SymbolOccurrence,
     overrideName: String? = nil,
     workspace: Workspace,
-    index: IndexStoreDB
+    index: CheckedIndex
   ) async throws -> CrossLanguageName {
     let definitionSymbol = definitionOccurrence.symbol
     let usr = definitionSymbol.usr
@@ -612,7 +595,7 @@ extension SourceKitLSPServer {
       case .objc: .objective_c
       case .swift: .swift
       }
-    let definitionDocumentUri = DocumentURI(URL(fileURLWithPath: definitionOccurrence.location.path))
+    let definitionDocumentUri = definitionOccurrence.location.documentUri
 
     guard
       let definitionLanguageService = await self.languageService(
@@ -631,7 +614,8 @@ extension SourceKitLSPServer {
       let swiftName: String?
       if let swiftReference = await getReferenceFromSwift(usr: usr, index: index, workspace: workspace) {
         let isObjectiveCSelector = definitionLanguage == .objective_c && definitionSymbol.kind.isMethod
-        swiftName = try await swiftReference.swiftLanguageService.translateClangNameToSwift(
+        swiftName = try await self.translateClangNameToSwift(
+          swiftReference.swiftLanguageService,
           at: swiftReference.location,
           in: swiftReference.snapshot,
           isObjectiveCSelector: isObjectiveCSelector,
@@ -647,7 +631,7 @@ extension SourceKitLSPServer {
       // If we terminate early by returning `false` from the closure, `forEachSymbolOccurrence` returns `true`,
       // indicating that we have found a reference from clang.
       let hasReferenceFromClang = !index.forEachSymbolOccurrence(byUSR: usr, roles: renameRoles) {
-        return index.symbolProvider(for: $0.location.path) != .clang
+        return $0.symbolProvider != .clang
       }
       let clangName: String?
       if hasReferenceFromClang {
@@ -676,7 +660,7 @@ extension SourceKitLSPServer {
   /// class Inherited: Base { override func foo() {} }
   /// class OtherInherited: Base { override func foo() {} }
   /// ```
-  private func overridingAndOverriddenUsrs(of usr: String, index: IndexStoreDB) -> [String] {
+  private func overridingAndOverriddenUsrs(of usr: String, index: CheckedIndex) -> [String] {
     var workList = [usr]
     var usrs: [String] = []
     while let usr = workList.popLast() {
@@ -703,14 +687,19 @@ extension SourceKitLSPServer {
     guard let workspace = await workspaceForDocument(uri: uri) else {
       throw ResponseError.workspaceNotOpen(uri)
     }
-    guard let primaryFileLanguageService = workspace.documentService[uri] else {
+    guard let primaryFileLanguageService = workspace.documentService.value[uri] else {
       return nil
     }
 
     // Determine the local edits and the USR to rename
     let renameResult = try await primaryFileLanguageService.rename(request)
 
-    guard let usr = renameResult.usr, let index = workspace.index else {
+    // We only check if the files exist. If a source file has been modified on disk, we will still try to perform a
+    // rename. Rename will check if the expected old name exists at the location in the index and, if not, ignore that
+    // location. This way we are still able to rename occurrences in files where eg. only one line has been modified but
+    // all the line:column locations of occurrences are still up-to-date.
+    // This should match the check level in prepareRename.
+    guard let usr = renameResult.usr, let index = workspace.index(checkedFor: .deletedFiles) else {
       // We don't have enough information to perform a cross-file rename.
       return renameResult.edits
     }
@@ -741,53 +730,30 @@ extension SourceKitLSPServer {
 
     // If we have a USR + old name, perform an index lookup to find workspace-wide symbols to rename.
     // First, group all occurrences of that USR by the files they occur in.
-    var locationsByFile: [URL: [RenameLocation]] = [:]
-
-    actor LanguageServerTypesCache {
-      let index: IndexStoreDB
-      var languageServerTypesCache: [URL: LanguageServerType?] = [:]
-
-      init(index: IndexStoreDB) {
-        self.index = index
-      }
-
-      func languageServerType(for url: URL) -> LanguageServerType? {
-        if let cachedValue = languageServerTypesCache[url] {
-          return cachedValue
-        }
-        let serverType = LanguageServerType(symbolProvider: index.symbolProvider(for: url.path))
-        languageServerTypesCache[url] = serverType
-        return serverType
-      }
-    }
-
-    let languageServerTypesCache = LanguageServerTypesCache(index: index)
+    var locationsByFile: [DocumentURI: (renameLocations: [RenameLocation], symbolProvider: SymbolProviderKind)] = [:]
 
     let usrsToRename = overridingAndOverriddenUsrs(of: usr, index: index)
     let occurrencesToRename = usrsToRename.flatMap { index.occurrences(ofUSR: $0, roles: renameRoles) }
     for occurrence in occurrencesToRename {
-      let url = URL(fileURLWithPath: occurrence.location.path)
+      let uri = occurrence.location.documentUri
 
       // Determine whether we should add the location produced by the index to those that will be renamed, or if it has
       // already been handled by the set provided by the AST.
-      if changes[DocumentURI(url)] != nil {
+      if changes[uri] != nil {
         if occurrence.symbol.usr == usr {
           // If the language server's rename function already produced AST-based locations for this symbol, no need to
           // perform an indexed rename for it.
           continue
         }
-        switch await languageServerTypesCache.languageServerType(for: url) {
+        switch occurrence.symbolProvider {
         case .swift:
           // sourcekitd only produces AST-based results for the direct calls to this USR. This is because the Swift
           // AST only has upwards references to superclasses and overridden methods, not the other way round. It is
           // thus not possible to (easily) compute an up-down closure like described in `overridingAndOverriddenUsrs`.
           // We thus need to perform an indexed rename for other, related USRs.
           break
-        case .clangd:
+        case .clang:
           // clangd produces AST-based results for the entire class hierarchy, so nothing to do.
-          continue
-        case nil:
-          // Unknown symbol provider
           continue
         }
       }
@@ -797,26 +763,39 @@ extension SourceKitLSPServer {
         utf8Column: occurrence.location.utf8Column,
         usage: RenameLocation.Usage(roles: occurrence.roles)
       )
-      locationsByFile[url, default: []].append(renameLocation)
+      if let existingLocations = locationsByFile[uri] {
+        if existingLocations.symbolProvider != occurrence.symbolProvider {
+          logger.fault(
+            """
+            Found mismatching symbol providers for \(uri.forLogging): \
+            \(String(describing: existingLocations.symbolProvider), privacy: .public) vs \
+            \(String(describing: occurrence.symbolProvider), privacy: .public)
+            """
+          )
+        }
+        locationsByFile[uri] = (existingLocations.renameLocations + [renameLocation], occurrence.symbolProvider)
+      } else {
+        locationsByFile[uri] = ([renameLocation], occurrence.symbolProvider)
+      }
     }
 
     // Now, call `editsToRename(locations:in:oldName:newName:)` on the language service to convert these ranges into
     // edits.
     let urisAndEdits =
       await locationsByFile
-      .concurrentMap { (url: URL, renameLocations: [RenameLocation]) -> (DocumentURI, [TextEdit])? in
-        let uri = DocumentURI(url)
+      .concurrentMap {
+        (
+          uri: DocumentURI,
+          value: (renameLocations: [RenameLocation], symbolProvider: SymbolProviderKind)
+        ) -> (DocumentURI, [TextEdit])? in
         let language: Language
-        switch await languageServerTypesCache.languageServerType(for: url) {
-        case .clangd:
+        switch value.symbolProvider {
+        case .clang:
           // Technically, we still don't know the language of the source file but defaulting to C is sufficient to
           // ensure we get the clang toolchain language server, which is all we care about.
           language = .c
         case .swift:
           language = .swift
-        case nil:
-          logger.error("Failed to determine symbol provider for \(uri.forLogging)")
-          return nil
         }
         // Create a document snapshot to operate on. If the document is open, load it from the document manager,
         // otherwise conjure one from the file on disk. We need the file in memory to perform UTF-8 to UTF-16 column
@@ -832,19 +811,20 @@ extension SourceKitLSPServer {
         var edits: [TextEdit] =
           await orLog("Getting edits for rename location") {
             return try await languageService.editsToRename(
-              locations: renameLocations,
+              locations: value.renameLocations,
               in: snapshot,
               oldName: oldName,
               newName: newName
             )
           } ?? []
-        for location in renameLocations where location.usage == .definition {
+        for location in value.renameLocations where location.usage == .definition {
           edits += await languageService.editsToRenameParametersInFunctionBody(
             snapshot: snapshot,
             renameLocation: location,
             newName: newName
           )
         }
+        edits = edits.filter { !$0.isNoOp(in: snapshot) }
         return (uri, edits)
       }.compactMap { $0 }
     for (uri, editsForUri) in urisAndEdits {
@@ -868,7 +848,7 @@ extension SourceKitLSPServer {
     var prepareRenameResult = languageServicePrepareRename.prepareRename
 
     guard
-      let index = workspace.index,
+      let index = workspace.index(checkedFor: .deletedFiles),
       let usr = languageServicePrepareRename.usr,
       let oldName = try await self.getCrossLanguageName(forUsr: usr, workspace: workspace, index: index),
       var definitionName = oldName.definitionName
@@ -947,10 +927,7 @@ extension SwiftLanguageService {
   /// also be a closing ']' for subscripts or the end of a trailing closure.
   private func findFunctionLikeRange(of position: Position, in snapshot: DocumentSnapshot) async -> Range<Position>? {
     let tree = await self.syntaxTreeManager.syntaxTree(for: snapshot)
-    guard let absolutePosition = snapshot.absolutePosition(of: position) else {
-      return nil
-    }
-    guard let token = tree.token(at: absolutePosition) else {
+    guard let token = tree.token(at: snapshot.absolutePosition(of: position)) else {
       return nil
     }
 
@@ -1018,11 +995,10 @@ extension SwiftLanguageService {
       break
     }
 
-    if let startToken, let endToken,
-      let startPosition = snapshot.position(of: startToken.positionAfterSkippingLeadingTrivia),
-      let endPosition = snapshot.position(of: endToken.endPositionBeforeTrailingTrivia)
-    {
-      return startPosition..<endPosition
+    if let startToken, let endToken {
+      return snapshot.absolutePositionRange(
+        of: startToken.positionAfterSkippingLeadingTrivia..<endToken.endPositionBeforeTrailingTrivia
+      )
     }
     return nil
   }
@@ -1045,9 +1021,9 @@ extension SwiftLanguageService {
   /// For example, `position` could point to the definition of a function within the file when rename was initiated on
   /// a call.
   ///
-  /// If a `range` is returned, this is an expanded range that contains both the symbol to rename as well as the
-  /// position at which the rename was requested. For example, when rename was initiated from the argument label of a
-  /// function call, the `range` will contain the entire function call from the base name to the closing `)`.
+  /// If a `functionLikeRange` is returned, this is an expanded range that contains both the symbol to rename as well
+  /// as the position at which the rename was requested. For example, when rename was initiated from the argument label
+  /// of a function call, the `range` will contain the entire function call from the base name to the closing `)`.
   func symbolToRename(
     at position: Position,
     in snapshot: DocumentSnapshot
@@ -1121,7 +1097,11 @@ extension SwiftLanguageService {
         )
       }
     }
+    edits = edits.filter { !$0.isNoOp(in: snapshot) }
 
+    if edits.isEmpty {
+      return (edits: WorkspaceEdit(changes: [:]), usr: usr)
+    }
     return (edits: WorkspaceEdit(changes: [snapshot.uri: edits]), usr: usr)
   }
 
@@ -1130,9 +1110,7 @@ extension SwiftLanguageService {
     renameLocation: RenameLocation,
     newName: CrossLanguageName
   ) async -> [TextEdit] {
-    guard let position = snapshot.absolutePosition(of: renameLocation) else {
-      return []
-    }
+    let position = snapshot.absolutePosition(of: renameLocation)
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
     let token = syntaxTree.token(at: position)
     let parameterClause: FunctionParameterClauseSyntax?
@@ -1192,11 +1170,8 @@ extension SwiftLanguageService {
         definitionLanguage: .swift
       )
 
-      guard let parameterPosition = snapshot.position(of: parameter.positionAfterSkippingLeadingTrivia) else {
-        continue
-      }
-
       let parameterRenameEdits = await orLog("Renaming parameter") {
+        let parameterPosition = snapshot.position(of: parameter.positionAfterSkippingLeadingTrivia)
         // Once we have lexical scope lookup in swift-syntax, this can be a purely syntactic rename.
         // We know that the parameters are variables and thus there can't be overloads that need to be resolved by the
         // type checker.
@@ -1247,9 +1222,9 @@ extension SwiftLanguageService {
         // E.g. `func foo(a: Int)` becomes `func foo(_ a: Int)`.
         return TextEdit(range: piece.range, newText: " " + oldParameterName)
       }
-      if let original = snapshot.lineTable[piece.range],
-        case .named(let newParameterLabel) = newParameter,
-        newParameterLabel.trimmingCharacters(in: .whitespaces) == original.trimmingCharacters(in: .whitespaces)
+      if case .named(let newParameterLabel) = newParameter,
+        newParameterLabel.trimmingCharacters(in: .whitespaces)
+          == snapshot.lineTable[piece.range].trimmingCharacters(in: .whitespaces)
       {
         // We are changing the external parameter name to be the same one as the internal parameter name. The
         // internal name is thus no longer needed. Drop it.
@@ -1336,17 +1311,18 @@ extension SwiftLanguageService {
       }
       return compoundRenameRange.pieces.compactMap { (piece) -> TextEdit? in
         if piece.kind == .baseName {
-          if let absolutePiecePosition = snapshot.absolutePosition(of: piece.range.lowerBound),
-            let firstNameToken = tree.token(at: absolutePiecePosition),
+          if let firstNameToken = tree.token(at: snapshot.absolutePosition(of: piece.range.lowerBound)),
             firstNameToken.keyPathInParent == \FunctionParameterSyntax.firstName,
             let parameterSyntax = firstNameToken.parent(as: FunctionParameterSyntax.self),
-            parameterSyntax.secondName == nil,  // Should always be true because otherwise decl would be second name
-            let firstNameEndPos = snapshot.position(of: firstNameToken.endPositionBeforeTrailingTrivia)
+            parameterSyntax.secondName == nil  // Should always be true because otherwise decl would be second name
           {
             // We are renaming a function parameter from inside the function body.
             // This should be a local rename and it shouldn't affect all the callers of the function. Introduce the new
             // name as a second name.
-            return TextEdit(range: firstNameEndPos..<firstNameEndPos, newText: " " + newName.baseName)
+            return TextEdit(
+              range: Range(snapshot.position(of: firstNameToken.endPositionBeforeTrailingTrivia)),
+              newText: " " + newName.baseName
+            )
           }
 
           return TextEdit(range: piece.range, newText: newName.baseName)
@@ -1479,13 +1455,10 @@ fileprivate extension SyntaxProtocol {
 
 fileprivate extension RelatedIdentifiersResponse {
   func renameLocations(in snapshot: DocumentSnapshot) -> [RenameLocation] {
-    return self.relatedIdentifiers.compactMap {
-      (relatedIdentifier) -> RenameLocation? in
+    return self.relatedIdentifiers.map {
+      (relatedIdentifier) -> RenameLocation in
       let position = relatedIdentifier.range.lowerBound
-      guard let utf8Column = snapshot.lineTable.utf8ColumnAt(line: position.line, utf16Column: position.utf16index)
-      else {
-        return nil
-      }
+      let utf8Column = snapshot.lineTable.utf8ColumnAt(line: position.line, utf16Column: position.utf16index)
       return RenameLocation(line: position.line + 1, utf8Column: utf8Column + 1, usage: relatedIdentifier.usage)
     }
   }

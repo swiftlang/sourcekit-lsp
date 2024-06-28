@@ -1,0 +1,53 @@
+name: Bug Report
+description: Something isn't working as expected
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Swift version
+      description: Which version of Swift are you using? If you are unsure, insert the output of `path/to/swift --version`
+      placeholder: Eg. swiftlang-5.10.0.13, swift-DEVELOPMENT-SNAPSHOT-2024-05-01-a
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: What operating system are you seeing the issue on?
+      placeholder: Eg. Ubuntu 22.04, Windows 11, macOS 14
+  - type: input
+    id: editor
+    attributes:
+      label: Editor
+      description: Which text editor are you using (and LSP extension/plugin if applicable)?
+      placeholder: Eg. Visual Studio Code with Swift extension 1.9.0, Neovim
+  - type: dropdown
+    id: reproduces-with-swift-6
+    attributes:
+      label: Does the issue reproduce with Swift 6?
+      description: |
+        Does the issue also reproduce using a [recent Swift 6 Development Snapshot](https://www.swift.org/download/#swift-60-development)?
+
+        We have made significant changes to SourceKit-LSP in Swift 6 and the issue might have already been fixed. If you didn’t try, that is fine.
+      options:
+        - "Yes"
+        - "No"
+        - I didn’t try
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: |
+        A short description of the incorrect behavior.
+        If you think this issue has been recently introduced and did not occur in an earlier version, please note that. If possible, include the last version that the behavior was correct in addition to your current version.
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: If you have steps that reproduce the issue, please add them here. If you can share a project that reproduces the issue, please attach it.
+  - type: textarea
+    id: logging
+    attributes:
+      label: Logging
+      description: |
+        If you are using SourceKit-LSP from Swift 6, running `sourcekit-lsp diagnose` in terminal and attaching the generated bundle helps us diagnose the issue.
+        The generated bundle may contain paths to files on disk as well as portions of your source code. This greatly helps in reproducing issues, but you should only attach it if you feel comfortable doing so.

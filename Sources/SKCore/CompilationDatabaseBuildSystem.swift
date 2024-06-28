@@ -39,6 +39,9 @@ public actor CompilationDatabaseBuildSystem {
   /// Delegate to handle any build system events.
   public weak var delegate: BuildSystemDelegate? = nil
 
+  /// Callbacks that should be called if the list of possible test files has changed.
+  public var testFilesDidChangeCallbacks: [() async -> Void] = []
+
   public func setDelegate(_ delegate: BuildSystemDelegate?) async {
     self.delegate = delegate
   }
@@ -90,6 +93,7 @@ public actor CompilationDatabaseBuildSystem {
 }
 
 extension CompilationDatabaseBuildSystem: BuildSystem {
+  public nonisolated var supportsPreparation: Bool { false }
 
   public var indexDatabasePath: AbsolutePath? {
     indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
@@ -97,18 +101,47 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
 
   public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
-  public func buildSettings(for document: DocumentURI, language: Language) async -> FileBuildSettings? {
-    guard let url = document.fileURL else {
-      // We can't determine build settings for non-file URIs.
-      return nil
-    }
-    guard let db = database(for: url),
-      let cmd = db[url].first
+  public func buildSettings(
+    for document: DocumentURI,
+    in buildTarget: ConfiguredTarget,
+    language: Language
+  ) async -> FileBuildSettings? {
+    guard let db = database(for: document),
+      let cmd = db[document].first
     else { return nil }
     return FileBuildSettings(
       compilerArguments: Array(cmd.commandLine.dropFirst()),
       workingDirectory: cmd.directory
     )
+  }
+
+  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+    return nil
+  }
+
+  public func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+    return nil
+  }
+
+  public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
+    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
+  }
+
+  public func prepare(
+    targets: [ConfiguredTarget],
+    logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
+  ) async throws {
+    throw PrepareNotSupportedError()
+  }
+
+  public func generateBuildGraph(allowFileSystemWrites: Bool) {}
+
+  public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+    return nil
+  }
+
+  public func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+    return nil
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI) async {
@@ -120,8 +153,8 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     self.watchedFiles.remove(uri)
   }
 
-  private func database(for url: URL) -> CompilationDatabase? {
-    if let path = try? AbsolutePath(validating: url.path) {
+  private func database(for uri: DocumentURI) -> CompilationDatabase? {
+    if let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) {
       return database(for: path)
     }
     return compdb
@@ -140,7 +173,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     }
 
     if compdb == nil {
-      logger.error("could not open compilation database for \(path)")
+      logger.error("Could not open compilation database for \(path)")
     }
 
     return compdb
@@ -167,6 +200,9 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     if let delegate = self.delegate {
       await delegate.fileBuildSettingsChanged(self.watchedFiles)
     }
+    for testFilesDidChangeCallback in testFilesDidChangeCallbacks {
+      await testFilesDidChangeCallback()
+    }
   }
 
   public func filesDidChange(_ events: [FileEvent]) async {
@@ -176,13 +212,23 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
   }
 
   public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    guard let fileUrl = uri.fileURL else {
-      return .unhandled
-    }
-    if database(for: fileUrl) != nil {
+    if database(for: uri) != nil {
       return .handled
     } else {
       return .unhandled
     }
+  }
+
+  public func sourceFiles() async -> [SourceFileInfo] {
+    guard let compdb else {
+      return []
+    }
+    return compdb.allCommands.map {
+      SourceFileInfo(uri: $0.uri, isPartOfRootProject: true, mayContainTests: true)
+    }
+  }
+
+  public func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {
+    testFilesDidChangeCallbacks.append(callback)
   }
 }

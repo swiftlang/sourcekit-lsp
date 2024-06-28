@@ -26,7 +26,7 @@ class ConnectionTests: XCTestCase {
     connection.close()
   }
 
-  func testEcho() {
+  func testEcho() async throws {
     let client = connection.client
     let expectation = self.expectation(description: "response received")
 
@@ -37,10 +37,10 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
   }
 
-  func testEchoError() {
+  func testEchoError() async throws {
     let client = connection.client
     let expectation = self.expectation(description: "response received 1")
     let expectation2 = self.expectation(description: "response received 2")
@@ -57,15 +57,15 @@ class ConnectionTests: XCTestCase {
       expectation2.fulfill()
     }
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation, expectation2])
   }
 
-  func testEchoNote() async throws {
+  func testEchoNotification() async throws {
     let client = connection.client
-    let expectation = self.expectation(description: "note received")
+    let expectation = self.expectation(description: "notification received")
 
-    await client.appendOneShotNotificationHandler { (note: EchoNotification) in
-      XCTAssertEqual(note.string, "hello!")
+    await client.appendOneShotNotificationHandler { (notification: EchoNotification) in
+      XCTAssertEqual(notification.string, "hello!")
       expectation.fulfill()
     }
 

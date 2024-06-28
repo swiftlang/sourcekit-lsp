@@ -22,11 +22,11 @@ fileprivate extension TokenSyntax {
     var node = Syntax(self)
     LOOP: while let parent = node.parent {
       switch parent.kind {
-      case .caseItem, .closureParam:
+      case .switchCaseItem, .closureShorthandParameter:
         // case items (inside a switch) and closure parameters can’t have type
         // annotations.
         return false
-      case .codeBlockItem, .memberDeclListItem:
+      case .codeBlockItem, .memberBlockItem:
         // Performance optimization. If we walked the parents up to code block item,
         // we can’t enter a case item or closure param anymore. No need walking
         // the tree any further.
@@ -60,8 +60,6 @@ struct VariableTypeInfo {
 
     guard let offset: Int = dict[keys.variableOffset],
       let length: Int = dict[keys.variableLength],
-      let startIndex = snapshot.positionOf(utf8Offset: offset),
-      let endIndex = snapshot.positionOf(utf8Offset: offset + length),
       let printedType: String = dict[keys.variableType],
       let hasExplicitType: Bool = dict[keys.variableTypeExplicit]
     else {
@@ -69,7 +67,7 @@ struct VariableTypeInfo {
     }
     let tokenAtOffset = syntaxTree.token(at: AbsolutePosition(utf8Offset: offset))
 
-    self.range = startIndex..<endIndex
+    self.range = snapshot.positionOf(utf8Offset: offset)..<snapshot.positionOf(utf8Offset: offset + length)
     self.printedType = printedType
     self.hasExplicitType = hasExplicitType
     self.canBeFollowedByTypeAnnotation = tokenAtOffset?.canBeFollowedByTypeAnnotation ?? true
@@ -93,10 +91,9 @@ extension SwiftLanguageService {
       keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDRequestValue]?,
     ])
 
-    if let range = range,
-      let start = snapshot.utf8Offset(of: range.lowerBound),
+    if let range = range {
+      let start = snapshot.utf8Offset(of: range.lowerBound)
       let end = snapshot.utf8Offset(of: range.upperBound)
-    {
       skreq.set(keys.offset, to: start)
       skreq.set(keys.length, to: end - start)
     }

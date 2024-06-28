@@ -31,7 +31,6 @@ struct SyntaxHighlightingTokenParser {
 
     if let offset: Int = response[keys.offset],
       var length: Int = response[keys.length],
-      let start: Position = snapshot.positionOf(utf8Offset: offset),
       let skKind: sourcekitd_api_uid_t = response[keys.kind],
       case (let kind, var modifiers)? = parseKindAndModifiers(skKind)
     {
@@ -39,7 +38,7 @@ struct SyntaxHighlightingTokenParser {
       // If the name is escaped in backticks, we need to add two characters to the
       // length for the backticks.
       if modifiers.contains(.declaration),
-        let index = snapshot.indexOf(utf8Offset: offset), snapshot.text[index] == "`"
+        snapshot.text[snapshot.indexOf(utf8Offset: offset)] == "`"
       {
         length += 2
       }
@@ -48,17 +47,15 @@ struct SyntaxHighlightingTokenParser {
         modifiers.insert(.defaultLibrary)
       }
 
-      if let end: Position = snapshot.positionOf(utf8Offset: offset + length) {
-        let multiLineRange = start..<end
-        let ranges = multiLineRange.splitToSingleLineRanges(in: snapshot)
+      let multiLineRange = snapshot.positionOf(utf8Offset: offset)..<snapshot.positionOf(utf8Offset: offset + length)
+      let ranges = multiLineRange.splitToSingleLineRanges(in: snapshot)
 
-        tokens.tokens += ranges.map {
-          SyntaxHighlightingToken(
-            range: $0,
-            kind: kind,
-            modifiers: modifiers
-          )
-        }
+      tokens.tokens += ranges.map {
+        SyntaxHighlightingToken(
+          range: $0,
+          kind: kind,
+          modifiers: modifiers
+        )
       }
     }
 
@@ -208,7 +205,7 @@ struct SyntaxHighlightingTokenParser {
 
 extension Range<Position> {
   /// Splits a potentially multi-line range to multiple single-line ranges.
-  func splitToSingleLineRanges(in snapshot: DocumentSnapshot) -> [Self] {
+  @_spi(Testing) public func splitToSingleLineRanges(in snapshot: DocumentSnapshot) -> [Self] {
     if isEmpty {
       return []
     }
@@ -217,14 +214,7 @@ extension Range<Position> {
       return [self]
     }
 
-    guard let startIndex = snapshot.index(of: lowerBound),
-      let endIndex = snapshot.index(of: upperBound)
-    else {
-      logger.fault("Range \(self) reaches outside of the document")
-      return [self]
-    }
-
-    let text = snapshot.text[startIndex..<endIndex]
+    let text = snapshot.text[snapshot.indexRange(of: self)]
     let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
 
     return
@@ -243,10 +233,5 @@ extension Range<Position> {
         return start..<end
       }
       .filter { !$0.isEmpty }
-  }
-
-  /// **Public for testing**
-  public func _splitToSingleLineRanges(in snapshot: DocumentSnapshot) -> [Self] {
-    splitToSingleLineRanges(in: snapshot)
   }
 }

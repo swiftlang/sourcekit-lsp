@@ -65,7 +65,7 @@ struct CursorInfo {
       return nil
     }
 
-    var location: Location? = nil
+    let location: Location?
     if let filepath: String = dict[keys.filePath],
       let line: Int = dict[keys.line],
       let column: Int = dict[keys.column]
@@ -75,7 +75,17 @@ struct CursorInfo {
         // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
         utf16index: column - 1
       )
-      location = Location(uri: DocumentURI(URL(fileURLWithPath: filepath)), range: Range(position))
+      location = Location(uri: DocumentURI(filePath: filepath, isDirectory: false), range: Range(position))
+    } else {
+      location = nil
+    }
+
+    let module: SymbolDetails.ModuleInfo?
+    if let moduleName: String = dict[keys.moduleName] {
+      let groupName: String? = dict[keys.groupName]
+      module = SymbolDetails.ModuleInfo(moduleName: moduleName, groupName: groupName)
+    } else {
+      module = nil
     }
 
     self.init(
@@ -86,7 +96,9 @@ struct CursorInfo {
         bestLocalDeclaration: location,
         kind: kind.asSymbolKind(sourcekitd.values),
         isDynamic: dict[keys.isDynamic] ?? false,
-        receiverUsrs: dict[keys.receivers]?.compactMap { $0[keys.usr] as String? } ?? []
+        isSystem: dict[keys.isSystem] ?? false,
+        receiverUsrs: dict[keys.receivers]?.compactMap { $0[keys.usr] as String? } ?? [],
+        systemModule: module
       ),
       annotatedDeclaration: dict[keys.annotatedDecl],
       documentationXML: dict[keys.docFullAsXML],
@@ -122,7 +134,7 @@ extension SwiftLanguageService {
   /// USR, and declaration location. This request does minimal processing of the result.
   ///
   /// - Parameters:
-  ///   - url: Document URL in which to perform the request. Must be an open document.
+  ///   - url: Document URI in which to perform the request. Must be an open document.
   ///   - range: The position range within the document to lookup the symbol at.
   ///   - completion: Completion block to asynchronously receive the CursorInfo, or error.
   func cursorInfo(
@@ -132,9 +144,7 @@ extension SwiftLanguageService {
   ) async throws -> (cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand]) {
     let snapshot = try documentManager.latestSnapshot(uri)
 
-    guard let offsetRange = snapshot.utf8OffsetRange(of: range) else {
-      throw CursorInfoError.invalidRange(range)
-    }
+    let offsetRange = snapshot.utf8OffsetRange(of: range)
 
     let keys = self.keys
 

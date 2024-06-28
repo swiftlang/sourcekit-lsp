@@ -12,7 +12,6 @@
 
 import Foundation
 import ISDBTestSupport
-import ISDBTibs
 import LSPTestSupport
 import LanguageServerProtocol
 @_spi(Testing) import SKCore
@@ -30,9 +29,9 @@ final class SourceKitDTests: XCTestCase {
     let sourcekitdPath = await ToolchainRegistry.forTesting.default!.sourcekitd!
     let sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(dylibPath: sourcekitdPath)
     let keys = sourcekitd.keys
-    let path = DocumentURI.for(.swift).pseudoPath
+    let path = DocumentURI(for: .swift).pseudoPath
 
-    let isExpectedNotification = { (response: SKDResponse) -> Bool in
+    let isExpectedNotification = { @Sendable (response: SKDResponse) -> Bool in
       if let notification: sourcekitd_api_uid_t = response.value?[keys.notification],
         let name: String = response.value?[keys.name]
       {
@@ -95,10 +94,10 @@ final class SourceKitDTests: XCTestCase {
   }
 }
 
-private class ClosureNotificationHandler: SKDNotificationHandler {
-  let f: (SKDResponse) -> Void
+private final class ClosureNotificationHandler: SKDNotificationHandler {
+  let f: @Sendable (SKDResponse) -> Void
 
-  init(_ f: @escaping (SKDResponse) -> Void) {
+  init(_ f: @Sendable @escaping (SKDResponse) -> Void) {
     self.f = f
   }
 

@@ -17,7 +17,9 @@ import LSPLogging
 import LanguageServerProtocol
 import SKCore
 import SKSupport
+import SemanticIndex
 import SourceKitD
+import SwiftExtensions
 import SwiftParser
 import SwiftParserDiagnostics
 import SwiftSyntax
@@ -68,7 +70,7 @@ fileprivate func diagnosticsEnabled(for document: DocumentURI) -> Bool {
 }
 
 /// A swift compiler command derived from a `FileBuildSettingsChange`.
-public struct SwiftCompileCommand: Equatable {
+public struct SwiftCompileCommand: Sendable, Equatable {
 
   /// The compiler arguments, including working directory. This is required since sourcekitd only
   /// accepts the working directory via the compiler arguments.
@@ -90,7 +92,7 @@ public struct SwiftCompileCommand: Equatable {
   }
 }
 
-public actor SwiftLanguageService: LanguageService {
+public actor SwiftLanguageService: LanguageService, Sendable {
   /// The ``SourceKitLSPServer`` instance that created this `ClangLanguageService`.
   weak var sourceKitLSPServer: SourceKitLSPServer?
 
@@ -105,10 +107,20 @@ public actor SwiftLanguageService: LanguageService {
 
   let capabilityRegistry: CapabilityRegistry
 
-  let serverOptions: SourceKitLSPServer.Options
+  let testHooks: TestHooks
+
+  /// Directory where generated Files will be stored.
+  let generatedFilesPath: URL
 
   /// Directory where generated Swift interfaces will be stored.
-  let generatedInterfacesPath: URL
+  var generatedInterfacesPath: URL {
+    generatedFilesPath.appendingPathComponent("GeneratedInterfaces")
+  }
+
+  /// Directory where generated Macro expansions  will be stored.
+  var generatedMacroExpansionsPath: URL {
+    generatedFilesPath.appendingPathComponent("GeneratedMacroExpansions")
+  }
 
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
   var documentManager: DocumentManager
@@ -123,42 +135,28 @@ public actor SwiftLanguageService: LanguageService {
 
   let syntaxTreeManager = SyntaxTreeManager()
 
+  /// The `semanticIndexManager` of the workspace this language service was created for.
+  private let semanticIndexManager: SemanticIndexManager?
+
   nonisolated var keys: sourcekitd_api_keys { return sourcekitd.keys }
   nonisolated var requests: sourcekitd_api_requests { return sourcekitd.requests }
   nonisolated var values: sourcekitd_api_values { return sourcekitd.values }
 
-  /// When sourcekitd is crashed, a `WorkDoneProgressManager` that display the sourcekitd crash status in the client.
-  private var sourcekitdCrashedWorkDoneProgress: WorkDoneProgressManager?
-
-  private var state: LanguageServerState {
-    didSet {
-      for handler in stateChangeHandlers {
-        handler(oldValue, state)
-      }
-
-      guard let sourceKitLSPServer else {
-        sourcekitdCrashedWorkDoneProgress = nil
-        return
-      }
-      switch state {
-      case .connected:
-        sourcekitdCrashedWorkDoneProgress = nil
-      case .connectionInterrupted, .semanticFunctionalityDisabled:
-        if sourcekitdCrashedWorkDoneProgress == nil {
-          sourcekitdCrashedWorkDoneProgress = WorkDoneProgressManager(
-            server: sourceKitLSPServer,
-            capabilityRegistry: capabilityRegistry,
-            title: "SourceKit-LSP: Restoring functionality",
-            message: "Please run 'sourcekit-lsp diagnose' to file an issue"
-          )
-        }
-      }
-    }
-  }
+  /// - Important: Use `setState` to change the state, which notifies the state change handlers
+  private var state: LanguageServerState
 
   private var stateChangeHandlers: [(_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void] = []
 
   private var diagnosticReportManager: DiagnosticReportManager!
+
+  /// Calling `scheduleCall` on `refreshDiagnosticsDebouncer` schedules a `DiagnosticsRefreshRequest` to be sent to
+  /// to the client.
+  ///
+  /// We debounce these calls because the `DiagnosticsRefreshRequest` is a workspace-wide request. If we discover that
+  /// the client should update diagnostics for file A and then discover that it should also update diagnostics for file
+  /// B, we don't want to send two `DiagnosticsRefreshRequest`s. Instead, the two should be unified into a single
+  /// request.
+  private let refreshDiagnosticsDebouncer: Debouncer<Void>
 
   /// Only exists to work around rdar://116221716.
   /// Once that is fixed, remove the property and make `diagnosticReportManager` non-optional.
@@ -175,7 +173,8 @@ public actor SwiftLanguageService: LanguageService {
   public init?(
     sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
-    options: SourceKitLSPServer.Options,
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
     workspace: Workspace
   ) async throws {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
@@ -183,22 +182,39 @@ public actor SwiftLanguageService: LanguageService {
     self.swiftFormat = toolchain.swiftFormat
     self.sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(dylibPath: sourcekitd)
     self.capabilityRegistry = workspace.capabilityRegistry
-    self.serverOptions = options
+    self.semanticIndexManager = workspace.semanticIndexManager
+    self.testHooks = testHooks
     self.documentManager = DocumentManager()
     self.state = .connected
-    self.generatedInterfacesPath = options.generatedInterfacesPath.asURL
-    try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
     self.diagnosticReportManager = nil  // Needed to work around rdar://116221716
+
+    // The debounce duration of 500ms was chosen arbitrarily without scientific research.
+    self.refreshDiagnosticsDebouncer = Debouncer(debounceDuration: .milliseconds(500)) { [weak sourceKitLSPServer] in
+      guard let sourceKitLSPServer else {
+        logger.fault("Not sending DiagnosticRefreshRequest to client because sourceKitLSPServer has been deallocated")
+        return
+      }
+      _ = await orLog("Sending DiagnosticRefreshRequest to client after document dependencies updated") {
+        try await sourceKitLSPServer.sendRequestToClient(DiagnosticsRefreshRequest())
+      }
+    }
+
+    self.generatedFilesPath = options.generatedFilesAbsolutePath.asURL
+
     self.diagnosticReportManager = DiagnosticReportManager(
       sourcekitd: self.sourcekitd,
       syntaxTreeManager: syntaxTreeManager,
       documentManager: documentManager,
       clientHasDiagnosticsCodeDescriptionSupport: await self.clientHasDiagnosticsCodeDescriptionSupport
     )
+
+    // Create sub-directories for each type of generated file
+    try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: generatedMacroExpansionsPath, withIntermediateDirectories: true)
   }
 
   /// - Important: For testing only
-  public func setReusedNodeCallback(_ callback: ReusedNodeCallback?) async {
+  @_spi(Testing) public func setReusedNodeCallback(_ callback: (@Sendable (_ node: Syntax) -> ())?) async {
     await self.syntaxTreeManager.setReusedNodeCallback(callback)
   }
 
@@ -225,8 +241,32 @@ public actor SwiftLanguageService: LanguageService {
     return true
   }
 
+  private func setState(_ newState: LanguageServerState) async {
+    let oldState = state
+    state = newState
+    for handler in stateChangeHandlers {
+      handler(oldState, newState)
+    }
+
+    guard let sourceKitLSPServer else {
+      return
+    }
+    switch (oldState, newState) {
+    case (.connected, .connectionInterrupted), (.connected, .semanticFunctionalityDisabled):
+      await sourceKitLSPServer.sourcekitdCrashedWorkDoneProgress.start()
+    case (.connectionInterrupted, .connected), (.semanticFunctionalityDisabled, .connected):
+      await sourceKitLSPServer.sourcekitdCrashedWorkDoneProgress.end()
+    case (.connected, .connected),
+      (.connectionInterrupted, .connectionInterrupted),
+      (.connectionInterrupted, .semanticFunctionalityDisabled),
+      (.semanticFunctionalityDisabled, .connectionInterrupted),
+      (.semanticFunctionalityDisabled, .semanticFunctionalityDisabled):
+      break
+    }
+  }
+
   public func addStateChangeHandler(
-    handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void
+    handler: @Sendable @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void
   ) {
     self.stateChangeHandlers.append(handler)
   }
@@ -268,10 +308,7 @@ extension SwiftLanguageService {
           commands: builtinSwiftCommands
         ),
         semanticTokensProvider: SemanticTokensOptions(
-          legend: SemanticTokensLegend(
-            tokenTypes: SemanticTokenTypes.all.map(\.name),
-            tokenModifiers: SemanticTokenModifiers.all.compactMap(\.name)
-          ),
+          legend: SemanticTokensLegend.sourceKitLSPLegend,
           range: .bool(true),
           full: .bool(true)
         ),
@@ -292,8 +329,23 @@ extension SwiftLanguageService {
     await self.sourcekitd.removeNotificationHandler(self)
   }
 
+  public func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
+    guard let snapshot = try? documentManager.latestSnapshot(uri) else {
+      return nil
+    }
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    let decl = syntaxTree.token(at: snapshot.absolutePosition(of: position))?.findParentOfSelf(
+      ofType: DeclSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+    )
+    guard let decl else {
+      return nil
+    }
+    return snapshot.position(of: decl.positionAfterSkippingLeadingTrivia)
+  }
+
   /// Tell sourcekitd to crash itself. For testing purposes only.
-  public func _crash() async {
+  public func crash() async {
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.crashWithExit
     ])
@@ -302,112 +354,101 @@ extension SwiftLanguageService {
 
   // MARK: - Build System Integration
 
-  private func reopenDocument(_ snapshot: DocumentSnapshot, _ compileCmd: SwiftCompileCommand?) async {
+  public func reopenDocument(_ notification: ReopenTextDocumentNotification) async {
+    let snapshot = orLog("Getting snapshot to re-open document") {
+      try documentManager.latestSnapshot(notification.textDocument.uri)
+    }
+    guard let snapshot else {
+      return
+    }
     cancelInFlightPublishDiagnosticsTask(for: snapshot.uri)
-    await diagnosticReportManager.removeItemsFromCache(with: snapshot.id.uri)
+    await diagnosticReportManager.removeItemsFromCache(with: snapshot.uri)
 
-    let keys = self.keys
-    let path = snapshot.uri.pseudoPath
+    let closeReq = closeDocumentSourcekitdRequest(uri: snapshot.uri)
+    _ = await orLog("Closing document to re-open it") { try await self.sourcekitd.send(closeReq, fileContents: nil) }
 
-    let closeReq = sourcekitd.dictionary([
-      keys.request: requests.editorClose,
-      keys.name: path,
-    ])
-    _ = try? await self.sourcekitd.send(closeReq, fileContents: nil)
+    let openReq = openDocumentSourcekitdRequest(
+      snapshot: snapshot,
+      compileCommand: await buildSettings(for: snapshot.uri)
+    )
+    _ = await orLog("Re-opening document") { try await self.sourcekitd.send(openReq, fileContents: snapshot.text) }
 
-    let openReq = sourcekitd.dictionary([
-      keys.request: self.requests.editorOpen,
-      keys.name: path,
-      keys.sourceText: snapshot.text,
-      keys.compilerArgs: compileCmd?.compilerArgs as [SKDRequestValue]?,
-    ])
-
-    _ = try? await self.sourcekitd.send(openReq, fileContents: snapshot.text)
-
-    await publishDiagnosticsIfNeeded(for: snapshot.uri)
+    if await capabilityRegistry.clientSupportsPullDiagnostics(for: .swift) {
+      await self.refreshDiagnosticsDebouncer.scheduleCall()
+    } else {
+      await publishDiagnosticsIfNeeded(for: snapshot.uri)
+    }
   }
 
   public func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
-    // We may not have a snapshot if this is called just before `openDocument`.
-    guard let snapshot = try? self.documentManager.latestSnapshot(uri) else {
-      return
-    }
-
-    // Close and re-open the document internally to inform sourcekitd to update the compile
-    // command. At the moment there's no better way to do this.
-    await self.reopenDocument(snapshot, await self.buildSettings(for: uri))
+    // Close and re-open the document internally to inform sourcekitd to update the compile command. At the moment
+    // there's no better way to do this.
+    // Schedule the document re-open in the SourceKit-LSP server. This ensures that the re-open happens exclusively with
+    // no other request running at the same time.
+    sourceKitLSPServer?.handle(ReopenTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
   }
 
   public func documentDependenciesUpdated(_ uri: DocumentURI) async {
-    guard let snapshot = try? self.documentManager.latestSnapshot(uri) else {
-      return
+    await orLog("Sending dependencyUpdated request to sourcekitd") {
+      let req = sourcekitd.dictionary([
+        keys.request: requests.dependencyUpdated
+      ])
+      _ = try await self.sourcekitd.send(req, fileContents: nil)
     }
-
-    // Forcefully reopen the document since the `BuildSystem` has informed us
-    // that the dependencies have changed and the AST needs to be reloaded.
-    await self.reopenDocument(snapshot, self.buildSettings(for: uri))
+    // `documentUpdatedBuildSettings` already handles reopening the document, so we do that here as well.
+    await self.documentUpdatedBuildSettings(uri)
   }
 
   // MARK: - Text synchronization
 
-  public func openDocument(_ note: DidOpenTextDocumentNotification) async {
-    cancelInFlightPublishDiagnosticsTask(for: note.textDocument.uri)
-    await diagnosticReportManager.removeItemsFromCache(with: note.textDocument.uri)
-
-    let keys = self.keys
-
-    guard let snapshot = self.documentManager.open(note) else {
-      // Already logged failure.
-      return
-    }
-
-    let buildSettings = await self.buildSettings(for: snapshot.uri)
-    if buildSettings == nil || buildSettings!.isFallback, let fileUrl = note.textDocument.uri.fileURL {
-      // Do not show this notification for non-file URIs to make sure we don't see this notificaiton for newly created
-      // files (which get opened as with a `untitled:Unitled-1` URI by VS Code.
-      await sourceKitLSPServer?.sendNotificationToClient(
-        ShowMessageNotification(
-          type: .warning,
-          message: """
-            Failed to get compiler arguments for \(fileUrl.lastPathComponent).
-            Ensure the source file is part of a Swift package or has compiler arguments in compile_commands.json.
-            Functionality will be limited.
-            """
-        )
-      )
-    }
-
-    let req = sourcekitd.dictionary([
+  private func openDocumentSourcekitdRequest(
+    snapshot: DocumentSnapshot,
+    compileCommand: SwiftCompileCommand?
+  ) -> SKDRequestDictionary {
+    return sourcekitd.dictionary([
       keys.request: self.requests.editorOpen,
-      keys.name: note.textDocument.uri.pseudoPath,
+      keys.name: snapshot.uri.pseudoPath,
       keys.sourceText: snapshot.text,
       keys.enableSyntaxMap: 0,
       keys.enableStructure: 0,
       keys.enableDiagnostics: 0,
       keys.syntacticOnly: 1,
-      keys.compilerArgs: buildSettings?.compilerArgs as [SKDRequestValue]?,
+      keys.compilerArgs: compileCommand?.compilerArgs as [SKDRequestValue]?,
     ])
-
-    _ = try? await self.sourcekitd.send(req, fileContents: snapshot.text)
-    await publishDiagnosticsIfNeeded(for: note.textDocument.uri)
   }
 
-  public func closeDocument(_ note: DidCloseTextDocumentNotification) async {
-    cancelInFlightPublishDiagnosticsTask(for: note.textDocument.uri)
-    inFlightPublishDiagnosticsTasks[note.textDocument.uri] = nil
-    await diagnosticReportManager.removeItemsFromCache(with: note.textDocument.uri)
-
-    let keys = self.keys
-
-    self.documentManager.close(note)
-
-    let uri = note.textDocument.uri
-
-    let req = sourcekitd.dictionary([
-      keys.request: self.requests.editorClose,
+  func closeDocumentSourcekitdRequest(uri: DocumentURI) -> SKDRequestDictionary {
+    return sourcekitd.dictionary([
+      keys.request: requests.editorClose,
       keys.name: uri.pseudoPath,
+      keys.cancelBuilds: 0,
     ])
+  }
 
+  public func openDocument(_ notification: DidOpenTextDocumentNotification) async {
+    cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
+    await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
+
+    guard let snapshot = self.documentManager.open(notification) else {
+      // Already logged failure.
+      return
+    }
+
+    let buildSettings = await self.buildSettings(for: snapshot.uri)
+
+    let req = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: buildSettings)
+    _ = try? await self.sourcekitd.send(req, fileContents: snapshot.text)
+    await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
+  }
+
+  public func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
+    cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
+    inFlightPublishDiagnosticsTasks[notification.textDocument.uri] = nil
+    await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
+
+    self.documentManager.close(notification)
+
+    let req = closeDocumentSourcekitdRequest(uri: notification.textDocument.uri)
     _ = try? await self.sourcekitd.send(req, fileContents: nil)
   }
 
@@ -471,7 +512,7 @@ extension SwiftLanguageService {
           throw CancellationError()
         }
 
-        await sourceKitLSPServer.sendNotificationToClient(
+        sourceKitLSPServer.sendNotificationToClient(
           PublishDiagnosticsNotification(
             uri: document,
             diagnostics: diagnosticReport.items
@@ -489,8 +530,8 @@ extension SwiftLanguageService {
     }
   }
 
-  public func changeDocument(_ note: DidChangeTextDocumentNotification) async {
-    cancelInFlightPublishDiagnosticsTask(for: note.textDocument.uri)
+  public func changeDocument(_ notification: DidChangeTextDocumentNotification) async {
+    cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
 
     let keys = self.keys
     struct Edit {
@@ -499,20 +540,20 @@ extension SwiftLanguageService {
       let replacement: String
     }
 
-    guard let (preEditSnapshot, postEditSnapshot, edits) = self.documentManager.edit(note) else {
+    guard let (preEditSnapshot, postEditSnapshot, edits) = self.documentManager.edit(notification) else {
       return
     }
 
     for edit in edits {
       let req = sourcekitd.dictionary([
         keys.request: self.requests.editorReplaceText,
-        keys.name: note.textDocument.uri.pseudoPath,
+        keys.name: notification.textDocument.uri.pseudoPath,
         keys.enableSyntaxMap: 0,
         keys.enableStructure: 0,
         keys.enableDiagnostics: 0,
         keys.syntacticOnly: 1,
         keys.offset: edit.range.lowerBound.utf8Offset,
-        keys.length: edit.length.utf8Length,
+        keys.length: edit.range.length.utf8Length,
         keys.sourceText: edit.replacement,
       ])
       do {
@@ -520,7 +561,7 @@ extension SwiftLanguageService {
       } catch {
         logger.fault(
           """
-          failed to replace \(edit.range.lowerBound.utf8Offset):\(edit.range.upperBound.utf8Offset) by \
+          Failed to replace \(edit.range.lowerBound.utf8Offset):\(edit.range.upperBound.utf8Offset) by \
           '\(edit.replacement)' in sourcekitd
           """
         )
@@ -528,13 +569,7 @@ extension SwiftLanguageService {
     }
 
     let concurrentEdits = ConcurrentEdits(
-      fromSequential: edits.map {
-        IncrementalEdit(
-          offset: $0.range.lowerBound.utf8Offset,
-          length: $0.length.utf8Length,
-          replacementLength: $0.replacement.utf8.count
-        )
-      }
+      fromSequential: edits
     )
     await syntaxTreeManager.registerEdit(
       preEditSnapshot: preEditSnapshot,
@@ -542,14 +577,14 @@ extension SwiftLanguageService {
       edits: concurrentEdits
     )
 
-    await publishDiagnosticsIfNeeded(for: note.textDocument.uri)
+    await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
   }
 
-  public func willSaveDocument(_ note: WillSaveTextDocumentNotification) {
+  public func willSaveDocument(_ notification: WillSaveTextDocumentNotification) {
 
   }
 
-  public func didSaveDocument(_ note: DidSaveTextDocumentNotification) {
+  public func didSaveDocument(_ notification: DidSaveTextDocumentNotification) {
 
   }
 
@@ -569,46 +604,55 @@ extension SwiftLanguageService {
     let cursorInfoResults = try await cursorInfo(uri, position..<position).cursorInfo
 
     let symbolDocumentations = cursorInfoResults.compactMap { (cursorInfo) -> String? in
-      guard let name: String = cursorInfo.symbolInfo.name else {
-        // There is a cursor but we don't know how to deal with it.
-        return nil
-      }
-
-      /// Prepend backslash to `*` and `_`, to prevent them
-      /// from being interpreted as markdown.
-      func escapeNameMarkdown(_ str: String) -> String {
-        return String(str.flatMap({ ($0 == "*" || $0 == "_") ? ["\\", $0] : [$0] }))
-      }
-
-      var result = escapeNameMarkdown(name)
       if let documentation = cursorInfo.documentation {
+        var result = ""
         if let annotatedDeclaration = cursorInfo.annotatedDeclaration {
           let markdownDecl =
             orLog("Convert XML declaration to Markdown") {
               try xmlDocumentationToMarkdown(annotatedDeclaration)
             } ?? annotatedDeclaration
-          result += "\n\(markdownDecl)"
+          result += "\(markdownDecl)\n"
         }
         result += documentation
+        return result
       } else if let doc = cursorInfo.documentationXML {
-        result += """
-
+        return """
           \(orLog("Convert XML to Markdown") { try xmlDocumentationToMarkdown(doc) } ?? doc)
           """
       } else if let annotated: String = cursorInfo.annotatedDeclaration {
-        result += """
-
+        return """
           \(orLog("Convert XML to Markdown") { try xmlDocumentationToMarkdown(annotated) } ?? annotated)
           """
+      } else {
+        return nil
       }
-      return result
     }
 
     if symbolDocumentations.isEmpty {
       return nil
     }
 
-    let joinedDocumentation = symbolDocumentations.joined(separator: "\n# Alternative result\n")
+    let joinedDocumentation: String
+    if let only = symbolDocumentations.only {
+      joinedDocumentation = only
+    } else {
+      let documentationsWithSpacing = symbolDocumentations.enumerated().map { index, documentation in
+        // Work around a bug in VS Code that displays a code block after a horizontal ruler without any spacing
+        // (the pixels of the code block literally touch the ruler) by adding an empty line into the code block.
+        // Only do this for subsequent results since only those are preceeded by a ruler.
+        let prefix = "```swift\n"
+        if index != 0 && documentation.starts(with: prefix) {
+          return prefix + "\n" + documentation.dropFirst(prefix.count)
+        } else {
+          return documentation
+        }
+      }
+      joinedDocumentation = """
+        ## Multiple results
+
+        \(documentationsWithSpacing.joined(separator: "\n\n---\n\n"))
+        """
+    }
 
     return HoverResponse(
       contents: .markupContent(MarkupContent(kind: .markdown, value: joinedDocumentation)),
@@ -654,15 +698,9 @@ extension SwiftLanguageService {
           return .skipChildren
         }
 
-        guard let startPosition = snapshot.position(of: node.position),
-          let endPosition = snapshot.position(of: node.endPosition)
-        else {
-          return .skipChildren
-        }
-
         result.append(
           ColorInformation(
-            range: startPosition..<endPosition,
+            range: snapshot.absolutePositionRange(of: node.position..<node.endPosition),
             color: Color(red: red, green: green, blue: blue, alpha: alpha)
           )
         )
@@ -705,14 +743,21 @@ extension SwiftLanguageService {
   }
 
   public func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
-    let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind)] = [
+    let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind?)] = [
+      (retrieveSyntaxCodeActions, nil),
       (retrieveRefactorCodeActions, .refactor),
       (retrieveQuickFixCodeActions, .quickFix),
     ]
     let wantedActionKinds = req.context.only
-    let providers = providersAndKinds.filter { wantedActionKinds?.contains($0.1) != false }
+    let providers: [CodeActionProvider] = providersAndKinds.compactMap {
+      if let wantedActionKinds, let kind = $0.1, !wantedActionKinds.contains(kind) {
+        return nil
+      }
+
+      return $0.provider
+    }
     let codeActionCapabilities = capabilityRegistry.clientCapabilities.textDocument?.codeAction
-    let codeActions = try await retrieveCodeActions(req, providers: providers.map { $0.provider })
+    let codeActions = try await retrieveCodeActions(req, providers: providers)
     let response = CodeActionRequestResponse(
       codeActions: codeActions,
       clientCapabilities: codeActionCapabilities
@@ -720,7 +765,10 @@ extension SwiftLanguageService {
     return response
   }
 
-  func retrieveCodeActions(_ req: CodeActionRequest, providers: [CodeActionProvider]) async throws -> [CodeAction] {
+  func retrieveCodeActions(
+    _ req: CodeActionRequest,
+    providers: [CodeActionProvider]
+  ) async throws -> [CodeAction] {
     guard providers.isEmpty == false else {
       return []
     }
@@ -731,6 +779,19 @@ extension SwiftLanguageService {
         // Ignore any providers that failed to provide refactoring actions.
         return []
       }
+    }.flatMap { $0 }.sorted { $0.title < $1.title }
+  }
+
+  func retrieveSyntaxCodeActions(_ request: CodeActionRequest) async throws -> [CodeAction] {
+    let uri = request.textDocument.uri
+    let snapshot = try documentManager.latestSnapshot(uri)
+
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    guard let scope = SyntaxCodeActionScope(snapshot: snapshot, syntaxTree: syntaxTree, request: request) else {
+      return []
+    }
+    return await allSyntaxCodeActions.concurrentMap { provider in
+      return provider.codeActions(in: scope)
     }.flatMap { $0 }
   }
 
@@ -745,15 +806,28 @@ extension SwiftLanguageService {
       additionalParameters: additionalCursorInfoParameters
     )
 
-    return cursorInfoResponse.refactorActions.compactMap {
-      do {
-        let lspCommand = try $0.asCommand()
-        return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
-      } catch {
-        logger.log("Failed to convert SwiftCommand to Command type: \(error.forLogging)")
-        return nil
+    var canInlineMacro = false
+
+    let showMacroExpansionsIsEnabled =
+      self.sourceKitLSPServer?.options.hasExperimentalFeature(.showMacroExpansions) ?? false
+
+    var refactorActions = cursorInfoResponse.refactorActions.compactMap {
+      let lspCommand = $0.asCommand()
+      if !canInlineMacro, showMacroExpansionsIsEnabled {
+        canInlineMacro = $0.actionString == "source.refactoring.kind.inline.macro"
       }
+
+      return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
     }
+
+    if canInlineMacro {
+      let expandMacroCommand = ExpandMacroCommand(positionRange: params.range, textDocument: params.textDocument)
+        .asCommand()
+
+      refactorActions.append(CodeAction(title: expandMacroCommand.title, kind: .refactor, command: expandMacroCommand))
+    }
+
+    return refactorActions
   }
 
   func retrieveQuickFixCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
@@ -838,6 +912,7 @@ extension SwiftLanguageService {
 
   public func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
     do {
+      await semanticIndexManager?.prepareFileForEditorFunctionality(req.textDocument.uri)
       let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
       let buildSettings = await self.buildSettings(for: req.textDocument.uri)
       let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
@@ -849,9 +924,14 @@ extension SwiftLanguageService {
       // VS Code does not request diagnostics again for a document if the diagnostics request failed.
       // Since sourcekit-lsp usually recovers from failures (e.g. after sourcekitd crashes), this is undesirable.
       // Instead of returning an error, return empty results.
+      // Do forward cancellation because we don't want to clear diagnostics in the client if they cancel the diagnostic
+      // request.
+      if ResponseError(error) == .cancelled {
+        throw error
+      }
       logger.error(
         """
-        Loading diagnostic failed with the following error. Returning empty diagnostics. 
+        Loading diagnostic failed with the following error. Returning empty diagnostics.
         \(error.forLogging)
         """
       )
@@ -864,29 +944,16 @@ extension SwiftLanguageService {
   }
 
   public func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
-    // TODO: If there's support for several types of commands, we might need to structure this similarly to the code actions request.
-    guard let sourceKitLSPServer else {
-      // `SourceKitLSPServer` has been destructed. We are tearing down the language
-      // server. Nothing left to do.
-      throw ResponseError.unknown("Connection to the editor closed")
+    if let command = req.swiftCommand(ofType: SemanticRefactorCommand.self) {
+      return try await semanticRefactoring(command)
+    } else if let command = req.swiftCommand(ofType: ExpandMacroCommand.self),
+      let experimentalFeatures = await self.sourceKitLSPServer?.options.experimentalFeatures,
+      experimentalFeatures.contains(.showMacroExpansions)
+    {
+      return try await expandMacro(command)
+    } else {
+      throw ResponseError.unknown("unknown command \(req.command)")
     }
-    guard let swiftCommand = req.swiftCommand(ofType: SemanticRefactorCommand.self) else {
-      throw ResponseError.unknown("semantic refactoring: unknown command \(req.command)")
-    }
-    let refactor = try await semanticRefactoring(swiftCommand)
-    let edit = refactor.edit
-    let req = ApplyEditRequest(label: refactor.title, edit: edit)
-    let response = try await sourceKitLSPServer.sendRequestToClient(req)
-    if !response.applied {
-      let reason: String
-      if let failureReason = response.failureReason {
-        reason = " reason: \(failureReason)"
-      } else {
-        reason = ""
-      }
-      logger.error("client refused to apply edit for \(refactor.title, privacy: .public)!\(reason)")
-    }
-    return edit.encodeToLSPAny()
   }
 }
 
@@ -906,13 +973,14 @@ extension SwiftLanguageService: SKDNotificationHandler {
     )
     // Check if we need to update our `state` based on the contents of the notification.
     if notification.value?[self.keys.notification] == self.values.semaEnabledNotification {
-      self.state = .connected
+      await self.setState(.connected)
+      return
     }
 
     if self.state == .connectionInterrupted {
       // If we get a notification while we are restoring the connection, it means that the server has restarted.
       // We still need to wait for semantic functionality to come back up.
-      self.state = .semanticFunctionalityDisabled
+      await self.setState(.semanticFunctionalityDisabled)
 
       // Ask our parent to re-open all of our documents.
       if let sourceKitLSPServer {
@@ -923,7 +991,7 @@ extension SwiftLanguageService: SKDNotificationHandler {
     }
 
     if notification.error == .connectionInterrupted {
-      self.state = .connectionInterrupted
+      await self.setState(.connectionInterrupted)
 
       // We don't have any open documents anymore after sourcekitd crashed.
       // Reset the document manager to reflect that.
@@ -940,28 +1008,37 @@ extension DocumentSnapshot {
 
   /// Converts the given UTF-8 offset to `String.Index`.
   ///
-  /// If the offset is after the end of the snapshot, returns `nil` and logs a fault containing the file and line of
-  /// the caller (from `callerFile` and `callerLine`).
-  func indexOf(utf8Offset: Int, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> String.Index? {
-    guard let index = text.utf8.index(text.startIndex, offsetBy: utf8Offset, limitedBy: text.endIndex) else {
+  /// If the offset is out-of-bounds of the snapshot, returns the closest valid index and logs a fault containing the
+  /// file and line of the caller (from `callerFile` and `callerLine`).
+  func indexOf(utf8Offset: Int, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> String.Index {
+    guard utf8Offset >= 0 else {
       logger.fault(
         """
-        Unable to get String index for UTF-8 offset \(utf8Offset) because offset is out of range \
+        UTF-8 offset \(utf8Offset) is negative while converting it to String.Index \
         (\(callerFile, privacy: .public):\(callerLine, privacy: .public))
         """
       )
-      return nil
+      return text.startIndex
+    }
+    guard let index = text.utf8.index(text.startIndex, offsetBy: utf8Offset, limitedBy: text.endIndex) else {
+      logger.fault(
+        """
+        UTF-8 offset \(utf8Offset) is past end of file while converting it to String.Index \
+        (\(callerFile, privacy: .public):\(callerLine, privacy: .public))
+        """
+      )
+      return text.endIndex
     }
     return index
   }
 
-  // MARK: Position <-> Raw UTF-8
+  // MARK: Position <-> Raw UTF-8 offset
 
   /// Converts the given UTF-16-based line:column position to the UTF-8 offset of that position within the source file.
   ///
-  /// If `position` does not refer to a valid position with in the snapshot, returns `nil` and logs a fault
-  /// containing the file and line of the caller (from `callerFile` and `callerLine`).
-  func utf8Offset(of position: Position, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> Int? {
+  /// If `position` does not refer to a valid position with in the snapshot, returns the offset of the closest valid
+  /// position and logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
+  func utf8Offset(of position: Position, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> Int {
     return lineTable.utf8OffsetOf(
       line: position.line,
       utf16Column: position.utf16index,
@@ -970,13 +1047,41 @@ extension DocumentSnapshot {
     )
   }
 
+  /// Converts the given UTF-8 offset to a UTF-16-based line:column position.
+  ///
+  /// If the offset is after the end of the snapshot, returns `nil` and logs a fault containing the file and line of
+  /// the caller (from `callerFile` and `callerLine`).
+  func positionOf(utf8Offset: Int, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> Position {
+    let (line, utf16Column) = lineTable.lineAndUTF16ColumnOf(
+      utf8Offset: utf8Offset,
+      callerFile: callerFile,
+      callerLine: callerLine
+    )
+    return Position(line: line, utf16index: utf16Column)
+  }
+
+  /// Converts the given UTF-16 based line:column range to a UTF-8 based offset range.
+  ///
+  /// If the bounds of the range do not refer to a valid positions with in the snapshot, this function adjusts them to
+  /// the closest valid positions and logs a fault containing the file and line of the caller (from `callerFile` and
+  /// `callerLine`).
+  func utf8OffsetRange(
+    of range: Range<Position>,
+    callerFile: StaticString = #fileID,
+    callerLine: UInt = #line
+  ) -> Range<Int> {
+    let startOffset = utf8Offset(of: range.lowerBound, callerFile: callerFile, callerLine: callerLine)
+    let endOffset = utf8Offset(of: range.upperBound, callerFile: callerFile, callerLine: callerLine)
+    return startOffset..<endOffset
+  }
+
   // MARK: Position <-> String.Index
 
-  /// Converts the given UTF-16-based `line:column`` position to a `String.Index`.
+  /// Converts the given UTF-16-based `line:column` position to a `String.Index`.
   ///
-  /// If `position` does not refer to a valid position with in the snapshot, returns `nil` and logs a fault
-  /// containing the file and line of the caller (from `callerFile` and `callerLine`).
-  func index(of position: Position, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> String.Index? {
+  /// If `position` does not refer to a valid position with in the snapshot, returns the index of the closest valid
+  /// position and logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
+  func index(of position: Position, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> String.Index {
     return lineTable.stringIndexOf(
       line: position.line,
       utf16Column: position.utf16index,
@@ -985,60 +1090,35 @@ extension DocumentSnapshot {
     )
   }
 
-  /// Converts the given UTF-16 based line:column range to a UTF-8 based offset range.
+  /// Converts the given UTF-16-based `line:column` range to a `String.Index` range.
   ///
-  /// If either the lower or upper bound of `range` do not refer to valid positions with in the snapshot, returns
-  /// `nil` and logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
-  func utf8OffsetRange(
+  /// If the bounds of the range do not refer to a valid positions with in the snapshot, this function adjusts them to
+  /// the closest valid positions and logs a fault containing the file and line of the caller (from `callerFile` and
+  /// `callerLine`).
+  func indexRange(
     of range: Range<Position>,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> Range<Int>? {
-    guard let startOffset = utf8Offset(of: range.lowerBound, callerFile: callerFile, callerLine: callerLine),
-      let endOffset = utf8Offset(of: range.upperBound, callerFile: callerFile, callerLine: callerLine)
-    else {
-      return nil
-    }
-    return startOffset..<endOffset
-  }
-
-  /// Converts the given UTF-8 offset to a UTF-16-based line:column position.
-  ///
-  /// If the offset is after the end of the snapshot, returns `nil` and logs a fault containing the file and line of
-  /// the caller (from `callerFile` and `callerLine`).
-  func positionOf(utf8Offset: Int, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> Position? {
-    guard
-      let (line, utf16Column) = lineTable.lineAndUTF16ColumnOf(
-        utf8Offset: utf8Offset,
-        callerFile: callerFile,
-        callerLine: callerLine
-      )
-    else {
-      return nil
-    }
-    return Position(line: line, utf16index: utf16Column)
+  ) -> Range<String.Index> {
+    return self.index(of: range.lowerBound)..<self.index(of: range.upperBound)
   }
 
   /// Converts the given UTF-8 based line:column position to a UTF-16 based line-column position.
   ///
-  /// If the UTF-8 based line:column pair does not refer to a valid position within the snapshot, returns `nil` and logs
-  /// a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
+  /// If the UTF-8 based line:column pair does not refer to a valid position within the snapshot, returns the closest
+  /// valid position and logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
   func positionOf(
     zeroBasedLine: Int,
     utf8Column: Int,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> Position? {
-    guard
-      let utf16Column = lineTable.utf16ColumnAt(
-        line: zeroBasedLine,
-        utf8Column: utf8Column,
-        callerFile: callerFile,
-        callerLine: callerLine
-      )
-    else {
-      return nil
-    }
+  ) -> Position {
+    let utf16Column = lineTable.utf16ColumnAt(
+      line: zeroBasedLine,
+      utf8Column: utf8Column,
+      callerFile: callerFile,
+      callerLine: callerLine
+    )
     return Position(line: zeroBasedLine, utf16index: utf16Column)
   }
 
@@ -1046,75 +1126,85 @@ extension DocumentSnapshot {
 
   /// Converts the given UTF-8-offset-based `AbsolutePosition` to a UTF-16-based line:column.
   ///
-  /// If the `AbsolutePosition` out of bounds of the source file, returns `nil` and logs a fault containing the file and
-  /// line of the caller (from `callerFile` and `callerLine`).
+  /// If the `AbsolutePosition` out of bounds of the source file, returns the closest valid position and logs a fault
+  /// containing the file and line of the caller (from `callerFile` and `callerLine`).
   func position(
     of position: AbsolutePosition,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> Position? {
+  ) -> Position {
     return positionOf(utf8Offset: position.utf8Offset, callerFile: callerFile, callerLine: callerLine)
   }
 
   /// Converts the given UTF-16-based line:column `Position` to a UTF-8-offset-based `AbsolutePosition`.
   ///
-  /// If the UTF-16 based line:column pair does not refer to a valid position within the snapshot, returns `nil` and
-  /// logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
+  /// If the UTF-16 based line:column pair does not refer to a valid position within the snapshot, returns the closest
+  /// valid position and logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
   func absolutePosition(
     of position: Position,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> AbsolutePosition? {
-    guard let offset = utf8Offset(of: position, callerFile: callerFile, callerLine: callerLine) else {
-      return nil
-    }
+  ) -> AbsolutePosition {
+    let offset = utf8Offset(of: position, callerFile: callerFile, callerLine: callerLine)
     return AbsolutePosition(utf8Offset: offset)
   }
 
   /// Converts the lower and upper bound of the given UTF-8-offset-based `AbsolutePosition` range to a UTF-16-based
   /// line:column range for use in LSP.
   ///
-  /// If either the lower or the upper bound of the range is out of bounds of the source file, returns `nil` and logs
-  /// a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
-  func range(
+  /// If the bounds of the range do not refer to a valid positions with in the snapshot, this function adjusts them to
+  /// the closest valid positions and logs a fault containing the file and line of the caller (from `callerFile` and
+  /// `callerLine`).
+  func absolutePositionRange(
     of range: Range<AbsolutePosition>,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> Range<Position>? {
-    guard let lowerBound = self.position(of: range.lowerBound, callerFile: callerFile, callerLine: callerLine),
-      let upperBound = self.position(of: range.upperBound, callerFile: callerFile, callerLine: callerLine)
-    else {
-      return nil
-    }
+  ) -> Range<Position> {
+    let lowerBound = self.position(of: range.lowerBound, callerFile: callerFile, callerLine: callerLine)
+    let upperBound = self.position(of: range.upperBound, callerFile: callerFile, callerLine: callerLine)
+    return lowerBound..<upperBound
+  }
+
+  /// Extracts the range of the given syntax node in terms of positions within
+  /// this source file.
+  func range(
+    of node: some SyntaxProtocol,
+    callerFile: StaticString = #fileID,
+    callerLine: UInt = #line
+  ) -> Range<Position> {
+    let lowerBound = self.position(of: node.position, callerFile: callerFile, callerLine: callerLine)
+    let upperBound = self.position(of: node.endPosition, callerFile: callerFile, callerLine: callerLine)
     return lowerBound..<upperBound
   }
 
   /// Converts the given UTF-16-based line:column range to a UTF-8-offset-based `ByteSourceRange`.
   ///
-  /// If either the lower or upper bound of the range does not refer to a valid position within the snapshot, returns
-  /// `nil` and logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
+  /// If the bounds of the range do not refer to a valid positions with in the snapshot, this function adjusts them to
+  /// the closest valid positions and logs a fault containing the file and line of the caller (from `callerFile` and
+  /// `callerLine`).
   func byteSourceRange(
     of range: Range<Position>,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> ByteSourceRange? {
-    guard let utf8OffsetRange = utf8OffsetRange(of: range, callerFile: callerFile, callerLine: callerLine) else {
-      return nil
-    }
-    return ByteSourceRange(offset: utf8OffsetRange.startIndex, length: utf8OffsetRange.count)
+  ) -> Range<AbsolutePosition> {
+    let utf8OffsetRange = utf8OffsetRange(of: range, callerFile: callerFile, callerLine: callerLine)
+    return Range<AbsolutePosition>(
+      position: AbsolutePosition(utf8Offset: utf8OffsetRange.startIndex),
+      length: SourceLength(utf8Length: utf8OffsetRange.count)
+    )
   }
 
   // MARK: Position <-> RenameLocation
 
   /// Converts the given UTF-8-based line:column `RenamedLocation` to a UTF-16-based line:column `Position`.
   ///
-  /// If the UTF-8 based line:column pair does not refer to a valid position within the snapshot, returns `nil` and
-  /// logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
+  /// If the UTF-8 based line:column pair does not refer to a valid position within the snapshot, returns the closest
+  /// valid position and logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
   func position(
     of renameLocation: RenameLocation,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> Position? {
+  ) -> Position {
     return positionOf(
       zeroBasedLine: renameLocation.line - 1,
       utf8Column: renameLocation.utf8Column - 1,
@@ -1127,13 +1217,13 @@ extension DocumentSnapshot {
 
   /// Converts the given UTF-8-offset-based `SymbolLocation` to a UTF-16-based line:column `Position`.
   ///
-  /// If the UTF-8 offset is out-of-bounds of the snapshot, returns `nil` and  logs a fault containing the file and line
-  /// of the caller (from `callerFile` and `callerLine`).
+  /// If the UTF-8 offset is out-of-bounds of the snapshot, returns the closest valid position and logs a fault
+  /// containing the file and line of the caller (from `callerFile` and `callerLine`).
   func position(
     of symbolLocation: SymbolLocation,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> Position? {
+  ) -> Position {
     return positionOf(
       zeroBasedLine: symbolLocation.line - 1,
       utf8Column: symbolLocation.utf8Column - 1,
@@ -1146,23 +1236,20 @@ extension DocumentSnapshot {
 
   /// Converts the given UTF-8-based line:column `RenamedLocation` to a UTF-8-offset-based `AbsolutePosition`.
   ///
-  /// If the UTF-8 based line:column pair does not refer to a valid position within the snapshot, returns `nil` and
-  /// logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
+  /// If the UTF-8 based line:column pair does not refer to a valid position within the snapshot, returns the offset of
+  /// the closest valid position and logs a fault containing the file and line of the caller (from `callerFile` and
+  /// `callerLine`).
   func absolutePosition(
     of renameLocation: RenameLocation,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> AbsolutePosition? {
-    guard
-      let utf8Offset = lineTable.utf8OffsetOf(
-        line: renameLocation.line - 1,
-        utf8Column: renameLocation.utf8Column - 1,
-        callerFile: callerFile,
-        callerLine: callerLine
-      )
-    else {
-      return nil
-    }
+  ) -> AbsolutePosition {
+    let utf8Offset = lineTable.utf8OffsetOf(
+      line: renameLocation.line - 1,
+      utf8Column: renameLocation.utf8Column - 1,
+      callerFile: callerFile,
+      callerLine: callerLine
+    )
     return AbsolutePosition(utf8Offset: utf8Offset)
   }
 }

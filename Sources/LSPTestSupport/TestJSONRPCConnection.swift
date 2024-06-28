@@ -10,14 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+import InProcessClient
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKSupport
+import SwiftExtensions
 import XCTest
 
 import class Foundation.Pipe
 
-public final class TestJSONRPCConnection {
+public final class TestJSONRPCConnection: Sendable {
   public let clientToServer: Pipe = Pipe()
   public let serverToClient: Pipe = Pipe()
 
@@ -76,9 +78,9 @@ public final class TestJSONRPCConnection {
 
 public struct TestLocalConnection {
   public let client: TestClient
-  public let clientConnection: LocalConnection = LocalConnection()
+  public let clientConnection: LocalConnection = LocalConnection(name: "Test")
   public let server: TestServer
-  public let serverConnection: LocalConnection = LocalConnection()
+  public let serverConnection: LocalConnection = LocalConnection(name: "Test")
 
   public init(allowUnexpectedNotification: Bool = true) {
     client = TestClient(connectionToServer: serverConnection, allowUnexpectedNotification: allowUnexpectedNotification)
@@ -110,11 +112,11 @@ public actor TestClient: MessageHandler {
   }
 
   public func appendOneShotNotificationHandler<N: NotificationType>(_ handler: @escaping (N) -> Void) {
-    oneShotNotificationHandlers.append({ anyNote in
-      guard let note = anyNote as? N else {
-        fatalError("received notification of the wrong type \(anyNote); expected \(N.self)")
+    oneShotNotificationHandlers.append({ anyNotification in
+      guard let notification = anyNotification as? N else {
+        fatalError("received notification of the wrong type \(anyNotification); expected \(N.self)")
       }
-      handler(note)
+      handler(notification)
     })
   }
 
@@ -151,7 +153,7 @@ public actor TestClient: MessageHandler {
   /// Send a request to the LSP server and (asynchronously) receive a reply.
   public nonisolated func send<Request: RequestType>(
     _ request: Request,
-    reply: @escaping (LSPResult<Request.Response>) -> Void
+    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
   ) -> RequestID {
     return connectionToServer.send(request, reply: reply)
   }

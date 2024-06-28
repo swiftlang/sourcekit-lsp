@@ -16,41 +16,13 @@ import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKCore
 import SKSupport
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 
 #if os(Windows)
 import WinSDK
 #endif
-
-extension NSLock {
-  /// NOTE: Keep in sync with SwiftPM's 'Sources/Basics/NSLock+Extensions.swift'
-  fileprivate func withLock<T>(_ body: () throws -> T) rethrows -> T {
-    lock()
-    defer { unlock() }
-    return try body()
-  }
-}
-
-/// Gathers data from clangd's stderr pipe. When it has accumulated a full line, writes the the line to the logger.
-fileprivate class ClangdStderrLogForwarder {
-  private var buffer = Data()
-
-  func handle(_ newData: Data) {
-    self.buffer += newData
-    while let newlineIndex = self.buffer.firstIndex(of: UInt8(ascii: "\n")) {
-      // Output a separate log message for every line in clangd's stderr.
-      // The reason why we don't output multiple lines in a single log message is that
-      //  a) os_log truncates log messages at about 1000 bytes. The assumption is that a single line is usually less
-      //     than 1000 bytes long but if we merge multiple lines into one message, we might easily exceed this limit.
-      //  b) It might be confusing why sometimes a single log message contains one line while sometimes it contains
-      //     multiple.
-      let logger = Logger(subsystem: subsystem, category: "clangd-stderr")
-      logger.info("\(String(data: self.buffer[...newlineIndex], encoding: .utf8) ?? "<invalid UTF-8>")")
-      buffer = buffer[buffer.index(after: newlineIndex)...]
-    }
-  }
-}
 
 /// A thin wrapper over a connection to a clangd server providing build setting handling.
 ///
@@ -123,6 +95,9 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   /// opened with.
   private var openDocuments: [DocumentURI: Language] = [:]
 
+  /// Type to map `clangd`'s semantic token legend to SourceKit-LSP's.
+  private var semanticTokensTranslator: SemanticTokensLegendTranslator? = nil
+
   /// While `clangd` is running, its PID.
   #if os(Windows)
   private var hClangd: HANDLE = INVALID_HANDLE_VALUE
@@ -135,7 +110,8 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   public init?(
     sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
-    options: SourceKitLSPServer.Options,
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
     workspace: Workspace
   ) async throws {
     guard let clangdPath = toolchain.clangd else {
@@ -143,7 +119,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     }
     self.clangPath = toolchain.clang
     self.clangdPath = clangdPath
-    self.clangdOptions = options.clangdOptions
+    self.clangdOptions = options.clangdOptions ?? []
     self.workspace = WeakWorkspace(workspace)
     self.state = .connected
     self.sourceKitLSPServer = sourceKitLSPServer
@@ -224,14 +200,16 @@ actor ClangLanguageService: LanguageService, MessageHandler {
 
     process.standardOutput = clangdToUs
     process.standardInput = usToClangd
-    let logForwarder = ClangdStderrLogForwarder()
+    let logForwarder = PipeAsStringHandler {
+      Logger(subsystem: LoggingScope.subsystem, category: "clangd-stderr").info("\($0)")
+    }
     let stderrHandler = Pipe()
     stderrHandler.fileHandleForReading.readabilityHandler = { fileHandle in
       let newData = fileHandle.availableData
       if newData.count == 0 {
         stderrHandler.fileHandleForReading.readabilityHandler = nil
       } else {
-        logForwarder.handle(newData)
+        logForwarder.handleDataFromPipe(newData)
       }
     }
     process.standardError = stderrHandler
@@ -328,7 +306,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   nonisolated func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
-    reply: @escaping (LSPResult<R.Response>) -> Void
+    reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) {
     logger.info(
       """
@@ -364,7 +342,11 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     return try await clangd.send(request)
   }
 
-  func _crash() {
+  public func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
+    return nil
+  }
+
+  func crash() {
     // Since `clangd` doesn't have a method to crash it, kill it.
     #if os(Windows)
     if self.hClangd != INVALID_HANDLE_VALUE {
@@ -410,7 +392,7 @@ extension ClangLanguageService {
     }
     if buildSettings?.isFallback ?? true {
       // Fallback: send empty publish notification instead.
-      await sourceKitLSPServer.sendNotificationToClient(
+      sourceKitLSPServer.sendNotificationToClient(
         PublishDiagnosticsNotification(
           uri: notification.uri,
           version: notification.version,
@@ -418,7 +400,7 @@ extension ClangLanguageService {
         )
       )
     } else {
-      await sourceKitLSPServer.sendNotificationToClient(notification)
+      sourceKitLSPServer.sendNotificationToClient(notification)
     }
   }
 
@@ -434,6 +416,12 @@ extension ClangLanguageService {
 
     let result = try await clangd.send(initialize)
     self.capabilities = result.capabilities
+    if let legend = result.capabilities.semanticTokensProvider?.legend {
+      self.semanticTokensTranslator = SemanticTokensLegendTranslator(
+        clangdLegend: legend,
+        sourceKitLSPLegend: SemanticTokensLegend.sourceKitLSPLegend
+      )
+    }
     return result
   }
 
@@ -442,10 +430,11 @@ extension ClangLanguageService {
   }
 
   public func shutdown() async {
+    let clangd = clangd!
     await withCheckedContinuation { continuation in
       _ = clangd.send(ShutdownRequest()) { _ in
         Task {
-          await self.clangd.send(ExitNotification())
+          clangd.send(ExitNotification())
           continuation.resume()
         }
       }
@@ -454,30 +443,32 @@ extension ClangLanguageService {
 
   // MARK: - Text synchronization
 
-  public func openDocument(_ note: DidOpenTextDocumentNotification) async {
-    openDocuments[note.textDocument.uri] = note.textDocument.language
+  public func openDocument(_ notification: DidOpenTextDocumentNotification) async {
+    openDocuments[notification.textDocument.uri] = notification.textDocument.language
     // Send clangd the build settings for the new file. We need to do this before
     // sending the open notification, so that the initial diagnostics already
     // have build settings.
-    await documentUpdatedBuildSettings(note.textDocument.uri)
-    clangd.send(note)
+    await documentUpdatedBuildSettings(notification.textDocument.uri)
+    clangd.send(notification)
   }
 
-  public func closeDocument(_ note: DidCloseTextDocumentNotification) {
-    openDocuments[note.textDocument.uri] = nil
-    clangd.send(note)
+  public func closeDocument(_ notification: DidCloseTextDocumentNotification) {
+    openDocuments[notification.textDocument.uri] = nil
+    clangd.send(notification)
   }
 
-  public func changeDocument(_ note: DidChangeTextDocumentNotification) {
-    clangd.send(note)
+  func reopenDocument(_ notification: ReopenTextDocumentNotification) {}
+
+  public func changeDocument(_ notification: DidChangeTextDocumentNotification) {
+    clangd.send(notification)
   }
 
-  public func willSaveDocument(_ note: WillSaveTextDocumentNotification) {
+  public func willSaveDocument(_ notification: WillSaveTextDocumentNotification) {
 
   }
 
-  public func didSaveDocument(_ note: DidSaveTextDocumentNotification) {
-    clangd.send(note)
+  public func didSaveDocument(_ notification: DidSaveTextDocumentNotification) {
+    clangd.send(notification)
   }
 
   // MARK: - Build System Integration
@@ -489,21 +480,19 @@ extension ClangLanguageService {
       return
     }
     let clangBuildSettings = await self.buildSettings(for: uri)
-    // FIXME: (logging) Log only the `-something` flags with paths redacted if private mode is enabled
-    logger.info("settings for \(uri.forLogging): \(clangBuildSettings?.compilerArgs.description ?? "nil")")
 
     // The compile command changed, send over the new one.
     // FIXME: what should we do if we no longer have valid build settings?
     if let compileCommand = clangBuildSettings?.compileCommand,
       let pathString = (try? AbsolutePath(validating: url.path))?.pathString
     {
-      let note = DidChangeConfigurationNotification(
+      let notification = DidChangeConfigurationNotification(
         settings: .clangd(
           ClangWorkspaceSettings(
             compilationDatabaseChanges: [pathString: compileCommand])
         )
       )
-      clangd.send(note)
+      clangd.send(notification)
     }
   }
 
@@ -511,12 +500,12 @@ extension ClangLanguageService {
     // In order to tell clangd to reload an AST, we send it an empty `didChangeTextDocument`
     // with `forceRebuild` set in case any missing header files have been added.
     // This works well for us as the moment since clangd ignores the document version.
-    let note = DidChangeTextDocumentNotification(
+    let notification = DidChangeTextDocumentNotification(
       textDocument: VersionedTextDocumentIdentifier(uri, version: 0),
       contentChanges: [],
       forceRebuild: true
     )
-    clangd.send(note)
+    clangd.send(notification)
   }
 
   // MARK: - Text Document
@@ -558,19 +547,50 @@ extension ClangLanguageService {
   }
 
   func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse? {
-    return try await forwardRequestToClangd(req)
+    guard var response = try await forwardRequestToClangd(req) else {
+      return nil
+    }
+    if let semanticTokensTranslator {
+      response.data = semanticTokensTranslator.translate(response.data)
+    }
+    return response
   }
 
   func documentSemanticTokensDelta(
     _ req: DocumentSemanticTokensDeltaRequest
   ) async throws -> DocumentSemanticTokensDeltaResponse? {
-    return try await forwardRequestToClangd(req)
+    guard var response = try await forwardRequestToClangd(req) else {
+      return nil
+    }
+    if let semanticTokensTranslator {
+      switch response {
+      case .tokens(var tokens):
+        tokens.data = semanticTokensTranslator.translate(tokens.data)
+        response = .tokens(tokens)
+      case .delta(var delta):
+        delta.edits = delta.edits.map {
+          var edit = $0
+          if let data = edit.data {
+            edit.data = semanticTokensTranslator.translate(data)
+          }
+          return edit
+        }
+        response = .delta(delta)
+      }
+    }
+    return response
   }
 
   func documentSemanticTokensRange(
     _ req: DocumentSemanticTokensRangeRequest
   ) async throws -> DocumentSemanticTokensResponse? {
-    return try await forwardRequestToClangd(req)
+    guard var response = try await forwardRequestToClangd(req) else {
+      return nil
+    }
+    if let semanticTokensTranslator {
+      response.data = semanticTokensTranslator.translate(response.data)
+    }
+    return response
   }
 
   func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {
@@ -603,7 +623,7 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
-  func openInterface(_ request: OpenInterfaceRequest) async throws -> InterfaceDetails? {
+  func openGeneratedInterface(_ request: OpenGeneratedInterfaceRequest) async throws -> GeneratedInterfaceDetails? {
     throw ResponseError.unknown("unsupported method")
   }
 

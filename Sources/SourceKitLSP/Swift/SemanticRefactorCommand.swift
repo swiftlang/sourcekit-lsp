@@ -9,10 +9,12 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
+
 import LanguageServerProtocol
 import SourceKitD
 
-public struct SemanticRefactorCommand: SwiftCommand {
+public struct SemanticRefactorCommand: RefactorCommand {
+  typealias Response = SemanticRefactoring
 
   public static let identifier: String = "semantic.refactor.command"
 

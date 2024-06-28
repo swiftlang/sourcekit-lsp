@@ -12,7 +12,7 @@
 
 import LSPTestSupport
 import LanguageServerProtocol
-import LanguageServerProtocolJSONRPC
+@_spi(Testing) import LanguageServerProtocolJSONRPC
 import XCTest
 
 final class CodingTests: XCTestCase {
@@ -283,9 +283,8 @@ final class CodingTests: XCTestCase {
       return $0 == .string("unknown") ? nil : InitializeResult.self
     }
 
-    let info = defaultCodingInfo.merging([CodingUserInfoKey.responseTypeCallbackKey: responseTypeCallback]) {
-      (_, new) in new
-    }
+    var info = defaultCodingInfo as [CodingUserInfoKey: Any]
+    info[CodingUserInfoKey.responseTypeCallbackKey] = responseTypeCallback
 
     checkMessageDecodingError(
       MessageDecodingError.invalidRequest(
@@ -367,7 +366,7 @@ final class CodingTests: XCTestCase {
   }
 }
 
-let defaultCodingInfo: [CodingUserInfoKey: Any] = [CodingUserInfoKey.messageRegistryKey: MessageRegistry.lspProtocol]
+let defaultCodingInfo = [CodingUserInfoKey.messageRegistryKey: MessageRegistry.lspProtocol]
 
 private func checkMessageCoding<Request: RequestType & Equatable>(
   _ value: Request,
@@ -418,7 +417,7 @@ private func checkMessageCoding<Response: ResponseType & Equatable>(
     return $0 == .string("unknown") ? nil : Response.self
   }
 
-  var codingInfo = defaultCodingInfo
+  var codingInfo = defaultCodingInfo as [CodingUserInfoKey: Any]
   codingInfo[.responseTypeCallbackKey] = callback
 
   checkCoding(JSONRPCMessage.response(value, id: id), json: json, userInfo: codingInfo, file: file, line: line) {

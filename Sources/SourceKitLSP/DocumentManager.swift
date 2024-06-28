@@ -14,6 +14,7 @@ import Dispatch
 import LSPLogging
 import LanguageServerProtocol
 import SKSupport
+import SemanticIndex
 import SwiftSyntax
 
 /// An immutable snapshot of a document at a given time.
@@ -22,10 +23,10 @@ import SwiftSyntax
 /// data structure that is stored internally by the ``DocumentManager`` is a
 /// ``Document``. The purpose of a ``DocumentSnapshot`` is to be able to work
 /// with one version of a document without having to think about it changing.
-public struct DocumentSnapshot: Identifiable {
+public struct DocumentSnapshot: Identifiable, Sendable {
   /// An ID that uniquely identifies the version of the document stored in this
   /// snapshot.
-  public struct ID: Hashable, Comparable {
+  public struct ID: Hashable, Comparable, Sendable {
     public let uri: DocumentURI
     public let version: Int
 
@@ -83,17 +84,18 @@ public final class Document {
   }
 }
 
-public final class DocumentManager {
+public final class DocumentManager: InMemoryDocumentManager, Sendable {
 
   public enum Error: Swift.Error {
     case alreadyOpen(DocumentURI)
     case missingDocument(DocumentURI)
-    case failedToConvertPosition
   }
 
-  let queue: DispatchQueue = DispatchQueue(label: "document-manager-queue")
+  // FIXME: (async) Migrate this to be an AsyncQueue
+  private let queue: DispatchQueue = DispatchQueue(label: "document-manager-queue")
 
-  var documents: [DocumentURI: Document] = [:]
+  // `nonisolated(unsafe)` is fine because `documents` is guarded by queue.
+  nonisolated(unsafe) var documents: [DocumentURI: Document] = [:]
 
   public init() {}
 
@@ -156,10 +158,7 @@ public final class DocumentManager {
 
       var sourceEdits: [SourceEdit] = []
       for edit in edits {
-        guard let sourceEdit = SourceEdit(edit: edit, lineTableBeforeEdit: document.latestLineTable) else {
-          throw Error.failedToConvertPosition
-        }
-        sourceEdits.append(sourceEdit)
+        sourceEdits.append(SourceEdit(edit: edit, lineTableBeforeEdit: document.latestLineTable))
 
         if let range = edit.range {
           document.latestLineTable.replace(
@@ -191,6 +190,18 @@ public final class DocumentManager {
       return document.latestSnapshot
     }
   }
+
+  public func fileHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
+    guard let document = try? latestSnapshot(uri), let fileURL = uri.fileURL else {
+      return false
+    }
+
+    guard let onDiskFileContents = try? String(contentsOf: fileURL, encoding: .utf8) else {
+      // If we can't read the file on disk, it can't match any on-disk state, so it's in-memory state
+      return true
+    }
+    return onDiskFileContents != document.lineTable.content
+  }
 }
 
 extension DocumentManager {
@@ -199,17 +210,17 @@ extension DocumentManager {
 
   /// Convenience wrapper for `open(_:language:version:text:)` that logs on failure.
   @discardableResult
-  func open(_ note: DidOpenTextDocumentNotification) -> DocumentSnapshot? {
-    let doc = note.textDocument
+  func open(_ notification: DidOpenTextDocumentNotification) -> DocumentSnapshot? {
+    let doc = notification.textDocument
     return orLog("failed to open document", level: .error) {
       try open(doc.uri, language: doc.language, version: doc.version, text: doc.text)
     }
   }
 
   /// Convenience wrapper for `close(_:)` that logs on failure.
-  func close(_ note: DidCloseTextDocumentNotification) {
+  func close(_ notification: DidCloseTextDocumentNotification) {
     orLog("failed to close document", level: .error) {
-      try close(note.textDocument.uri)
+      try close(notification.textDocument.uri)
     }
   }
 
@@ -217,13 +228,13 @@ extension DocumentManager {
   /// that logs on failure.
   @discardableResult
   func edit(
-    _ note: DidChangeTextDocumentNotification
+    _ notification: DidChangeTextDocumentNotification
   ) -> (preEditSnapshot: DocumentSnapshot, postEditSnapshot: DocumentSnapshot, edits: [SourceEdit])? {
     return orLog("failed to edit document", level: .error) {
       return try edit(
-        note.textDocument.uri,
-        newVersion: note.textDocument.version,
-        edits: note.contentChanges
+        notification.textDocument.uri,
+        newVersion: notification.textDocument.version,
+        edits: notification.contentChanges
       )
     }
   }
@@ -234,20 +245,16 @@ fileprivate extension SourceEdit {
   ///
   /// Returns `nil` if the `TextDocumentContentChangeEvent` refers to line:column positions that don't exist in
   /// `LineTable`.
-  init?(edit: TextDocumentContentChangeEvent, lineTableBeforeEdit: LineTable) {
+  init(edit: TextDocumentContentChangeEvent, lineTableBeforeEdit: LineTable) {
     if let range = edit.range {
-      guard
-        let offset = lineTableBeforeEdit.utf8OffsetOf(
-          line: range.lowerBound.line,
-          utf16Column: range.lowerBound.utf16index
-        ),
-        let end = lineTableBeforeEdit.utf8OffsetOf(
-          line: range.upperBound.line,
-          utf16Column: range.upperBound.utf16index
-        )
-      else {
-        return nil
-      }
+      let offset = lineTableBeforeEdit.utf8OffsetOf(
+        line: range.lowerBound.line,
+        utf16Column: range.lowerBound.utf16index
+      )
+      let end = lineTableBeforeEdit.utf8OffsetOf(
+        line: range.upperBound.line,
+        utf16Column: range.upperBound.utf16index
+      )
       self.init(
         range: AbsolutePosition(utf8Offset: offset)..<AbsolutePosition(utf8Offset: end),
         replacement: edit.text

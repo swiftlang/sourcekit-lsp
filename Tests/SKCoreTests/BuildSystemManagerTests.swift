@@ -13,7 +13,7 @@
 import BuildServerProtocol
 import LSPTestSupport
 import LanguageServerProtocol
-import SKCore
+@_spi(Testing) import SKCore
 import TSCBasic
 import XCTest
 
@@ -36,65 +36,68 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let bsm = await BuildSystemManager(
       buildSystem: nil,
-      fallbackBuildSystem: FallbackBuildSystem(buildSetup: .default),
-      mainFilesProvider: mainFiles
+      fallbackBuildSystem: FallbackBuildSystem(options: SourceKitLSPOptions.FallbackBuildSystemOptions()),
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
 
-    await assertEqual(bsm._cachedMainFile(for: a), nil)
-    await assertEqual(bsm._cachedMainFile(for: b), nil)
-    await assertEqual(bsm._cachedMainFile(for: c), nil)
-    await assertEqual(bsm._cachedMainFile(for: d), nil)
+    await assertEqual(bsm.cachedMainFile(for: a), nil)
+    await assertEqual(bsm.cachedMainFile(for: b), nil)
+    await assertEqual(bsm.cachedMainFile(for: c), nil)
+    await assertEqual(bsm.cachedMainFile(for: d), nil)
 
     await bsm.registerForChangeNotifications(for: a, language: .c)
     await bsm.registerForChangeNotifications(for: b, language: .c)
     await bsm.registerForChangeNotifications(for: c, language: .c)
     await bsm.registerForChangeNotifications(for: d, language: .c)
-    await assertEqual(bsm._cachedMainFile(for: a), c)
-    let bMain = await bsm._cachedMainFile(for: b)
+    await assertEqual(bsm.cachedMainFile(for: a), c)
+    let bMain = await bsm.cachedMainFile(for: b)
     XCTAssert(Set([c, d]).contains(bMain))
-    await assertEqual(bsm._cachedMainFile(for: c), c)
-    await assertEqual(bsm._cachedMainFile(for: d), d)
+    await assertEqual(bsm.cachedMainFile(for: c), c)
+    await assertEqual(bsm.cachedMainFile(for: d), d)
 
     await mainFiles.updateMainFiles(for: a, to: [a])
     await mainFiles.updateMainFiles(for: b, to: [c, d, a])
 
-    await assertEqual(bsm._cachedMainFile(for: a), c)
-    await assertEqual(bsm._cachedMainFile(for: b), bMain)
-    await assertEqual(bsm._cachedMainFile(for: c), c)
-    await assertEqual(bsm._cachedMainFile(for: d), d)
+    await assertEqual(bsm.cachedMainFile(for: a), c)
+    await assertEqual(bsm.cachedMainFile(for: b), bMain)
+    await assertEqual(bsm.cachedMainFile(for: c), c)
+    await assertEqual(bsm.cachedMainFile(for: d), d)
 
     await bsm.mainFilesChanged()
 
-    await assertEqual(bsm._cachedMainFile(for: a), a)
-    await assertEqual(bsm._cachedMainFile(for: b), a)
-    await assertEqual(bsm._cachedMainFile(for: c), c)
-    await assertEqual(bsm._cachedMainFile(for: d), d)
+    await assertEqual(bsm.cachedMainFile(for: a), a)
+    await assertEqual(bsm.cachedMainFile(for: b), a)
+    await assertEqual(bsm.cachedMainFile(for: c), c)
+    await assertEqual(bsm.cachedMainFile(for: d), d)
 
     await bsm.unregisterForChangeNotifications(for: a)
-    await assertEqual(bsm._cachedMainFile(for: a), nil)
-    await assertEqual(bsm._cachedMainFile(for: b), a)
-    await assertEqual(bsm._cachedMainFile(for: c), c)
-    await assertEqual(bsm._cachedMainFile(for: d), d)
+    await assertEqual(bsm.cachedMainFile(for: a), nil)
+    await assertEqual(bsm.cachedMainFile(for: b), a)
+    await assertEqual(bsm.cachedMainFile(for: c), c)
+    await assertEqual(bsm.cachedMainFile(for: d), d)
 
     await bsm.unregisterForChangeNotifications(for: b)
     await bsm.mainFilesChanged()
     await bsm.unregisterForChangeNotifications(for: c)
     await bsm.unregisterForChangeNotifications(for: d)
-    await assertEqual(bsm._cachedMainFile(for: a), nil)
-    await assertEqual(bsm._cachedMainFile(for: b), nil)
-    await assertEqual(bsm._cachedMainFile(for: c), nil)
-    await assertEqual(bsm._cachedMainFile(for: d), nil)
+    await assertEqual(bsm.cachedMainFile(for: a), nil)
+    await assertEqual(bsm.cachedMainFile(for: b), nil)
+    await assertEqual(bsm.cachedMainFile(for: c), nil)
+    await assertEqual(bsm.cachedMainFile(for: d), nil)
   }
 
+  @MainActor
   func testSettingsMainFile() async throws {
-    let a = try try DocumentURI(string: "bsm:a.swift")
+    let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
@@ -110,6 +113,7 @@ final class BuildSystemManagerTests: XCTestCase {
     try await fulfillmentOfOrThrow([changed])
   }
 
+  @MainActor
   func testSettingsMainFileInitialNil() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
@@ -117,7 +121,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
@@ -131,19 +136,21 @@ final class BuildSystemManagerTests: XCTestCase {
     try await fulfillmentOfOrThrow([changed])
   }
 
+  @MainActor
   func testSettingsMainFileWithFallback() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
     let bs = ManualBuildSystem()
-    let fallback = FallbackBuildSystem(buildSetup: .default)
+    let fallback = FallbackBuildSystem(options: SourceKitLSPOptions.FallbackBuildSystemOptions())
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: fallback,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
-    let fallbackSettings = fallback.buildSettings(for: a, language: .swift)
+    let fallbackSettings = await fallback.buildSettings(for: a, language: .swift)
     await bsm.registerForChangeNotifications(for: a, language: .swift)
     assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), fallbackSettings)
 
@@ -160,6 +167,7 @@ final class BuildSystemManagerTests: XCTestCase {
     try await fulfillmentOfOrThrow([revert])
   }
 
+  @MainActor
   func testSettingsMainFileInitialIntersect() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let b = try DocumentURI(string: "bsm:b.swift")
@@ -168,7 +176,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
@@ -200,6 +209,7 @@ final class BuildSystemManagerTests: XCTestCase {
     try await fulfillmentOfOrThrow([changedBothA, changedBothB])
   }
 
+  @MainActor
   func testSettingsMainFileUnchanged() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let b = try DocumentURI(string: "bsm:b.swift")
@@ -208,7 +218,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
@@ -230,6 +241,7 @@ final class BuildSystemManagerTests: XCTestCase {
     try await fulfillmentOfOrThrow([changed])
   }
 
+  @MainActor
   func testSettingsHeaderChangeMainFile() async throws {
     let h = try DocumentURI(string: "bsm:header.h")
     let cpp1 = try DocumentURI(string: "bsm:main.cpp")
@@ -246,7 +258,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
@@ -285,6 +298,7 @@ final class BuildSystemManagerTests: XCTestCase {
     try await fulfillmentOfOrThrow([changed4])
   }
 
+  @MainActor
   func testSettingsOneMainTwoHeader() async throws {
     let h1 = try DocumentURI(string: "bsm:header1.h")
     let h2 = try DocumentURI(string: "bsm:header2.h")
@@ -300,7 +314,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
@@ -332,6 +347,7 @@ final class BuildSystemManagerTests: XCTestCase {
     try await fulfillmentOfOrThrow([changed1, changed2])
   }
 
+  @MainActor
   func testSettingsChangedAfterUnregister() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let b = try DocumentURI(string: "bsm:b.swift")
@@ -341,7 +357,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
@@ -375,6 +392,7 @@ final class BuildSystemManagerTests: XCTestCase {
     try await fulfillmentOfOrThrow([changedB])
   }
 
+  @MainActor
   func testDependenciesUpdated() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
@@ -383,7 +401,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
@@ -424,6 +443,7 @@ private final actor ManualMainFilesProvider: MainFilesProvider {
 }
 
 /// A simple `BuildSystem` that wraps a dictionary, for testing.
+@MainActor
 class ManualBuildSystem: BuildSystem {
   var projectRoot = try! AbsolutePath(validating: "/")
 
@@ -435,8 +455,39 @@ class ManualBuildSystem: BuildSystem {
     self.delegate = delegate
   }
 
-  func buildSettings(for uri: DocumentURI, language: Language) -> FileBuildSettings? {
+  public nonisolated var supportsPreparation: Bool { false }
+
+  func buildSettings(for uri: DocumentURI, in buildTarget: ConfiguredTarget, language: Language) -> FileBuildSettings? {
     return map[uri]
+  }
+
+  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+    return nil
+  }
+
+  public func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+    return nil
+  }
+
+  public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
+    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
+  }
+
+  public func prepare(
+    targets: [ConfiguredTarget],
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
+  ) async throws {
+    throw PrepareNotSupportedError()
+  }
+
+  public func generateBuildGraph(allowFileSystemWrites: Bool) {}
+
+  public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+    return nil
+  }
+
+  public func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+    return nil
   }
 
   func registerForChangeNotifications(for uri: DocumentURI) async {
@@ -458,6 +509,12 @@ class ManualBuildSystem: BuildSystem {
       return .unhandled
     }
   }
+
+  func sourceFiles() async -> [SourceFileInfo] {
+    return []
+  }
+
+  func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) {}
 }
 
 /// A `BuildSystemDelegate` setup for testing.

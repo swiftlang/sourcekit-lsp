@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SwiftExtensions
 
 // MARK: - Log settings
 
@@ -195,6 +196,17 @@ public struct NonDarwinLogInterpolation: StringInterpolationProtocol, Sendable {
     append(description: message.description, redactedDescription: message.redactedDescription, privacy: privacy)
   }
 
+  public mutating func appendInterpolation(
+    _ message: (some CustomLogStringConvertibleWrapper & Sendable)?,
+    privacy: NonDarwinLogPrivacy = .private
+  ) {
+    if let message {
+      self.appendInterpolation(message, privacy: privacy)
+    } else {
+      self.appendLiteral("<nil>")
+    }
+  }
+
   public mutating func appendInterpolation(_ type: Any.Type, privacy: NonDarwinLogPrivacy = .public) {
     append(description: String(reflecting: type), redactedDescription: "<private>", privacy: privacy)
   }
@@ -245,26 +257,39 @@ public struct NonDarwinLogMessage: ExpressibleByStringInterpolation, Expressible
 /// a new `DateFormatter` is rather expensive and its the same for all loggers.
 private let dateFormatter = {
   let dateFormatter = DateFormatter()
-  dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
+  dateFormatter.timeZone = NSTimeZone.local
+  dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSSS Z"
   return dateFormatter
 }()
+
+/// Actor that protects `logHandler`
+@globalActor
+actor LogHandlerActor {
+  static var shared: LogHandlerActor = LogHandlerActor()
+}
+
+/// The handler that is called to log a message from `NonDarwinLogger` unless `overrideLogHandler` is set on the logger.
+@LogHandlerActor
+var logHandler: @Sendable (String) async -> Void = { fputs($0 + "\n", stderr) }
 
 /// The queue on which we log messages.
 ///
 /// A global queue since we create and discard loggers all the time.
-private let loggingQueue: DispatchQueue = DispatchQueue(label: "loggingQueue", qos: .utility)
+private let loggingQueue = AsyncQueue<Serial>()
 
 /// A logger that is designed to be API-compatible with `os.Logger` for all uses
 /// in sourcekit-lsp.
 ///
 /// This logger is used to log messages to stderr on platforms where OSLog is
 /// not available.
+///
+/// `overrideLogHandler` allows capturing of the logged messages for testing purposes.
 public struct NonDarwinLogger: Sendable {
   private let subsystem: String
   private let category: String
   private let logLevel: NonDarwinLogLevel
   private let privacyLevel: NonDarwinLogPrivacy
-  private let logHandler: @Sendable (String) -> Void
+  private let overrideLogHandler: (@Sendable (String) -> Void)?
 
   /// - Parameters:
   ///   - subsystem: See os.Logger
@@ -279,13 +304,13 @@ public struct NonDarwinLogger: Sendable {
     category: String,
     logLevel: NonDarwinLogLevel? = nil,
     privacyLevel: NonDarwinLogPrivacy? = nil,
-    logHandler: @escaping @Sendable (String) -> Void = { fputs($0 + "\n", stderr) }
+    overrideLogHandler: (@Sendable (String) -> Void)? = nil
   ) {
     self.subsystem = subsystem
     self.category = category
     self.logLevel = logLevel ?? LogConfig.logLevel
     self.privacyLevel = privacyLevel ?? LogConfig.privacyLevel
-    self.logHandler = logHandler
+    self.overrideLogHandler = overrideLogHandler
   }
 
   /// Logs the given message at the given level.
@@ -298,12 +323,21 @@ public struct NonDarwinLogger: Sendable {
   ) {
     guard level >= self.logLevel else { return }
     let date = Date()
-    loggingQueue.async {
+    loggingQueue.async(priority: .utility) { @LogHandlerActor in
+      // Truncate log message after 10.000 characters to avoid flooding the log with huge log messages (eg. from a
+      // sourcekitd response). 10.000 characters was chosen because it seems to fit the result of most sourcekitd
+      // responses that are not generated interface or global completion results (which are a lot bigger).
+      var message = message().value.string(for: self.privacyLevel)
+      if message.utf8.count > 10_000 {
+        // Check for UTF-8 byte length first because that's faster since it doesn't need to count UTF-8 characters.
+        // Truncate using `.prefix` to avoid cutting of in the middle of a UTF-8 multi-byte character.
+        message = message.prefix(10_000) + "..."
+      }
       // Start each log message with `[org.swift.sourcekit-lsp` so that it’s easy to split the log to the different messages
-      logHandler(
+      await (overrideLogHandler ?? logHandler)(
         """
         [\(subsystem):\(category)] \(level) \(dateFormatter.string(from: date))
-        \(message().value.string(for: self.privacyLevel))
+        \(message)
         ---
         """
       )
@@ -320,7 +354,7 @@ public struct NonDarwinLogger: Sendable {
     log(level: .info, message)
   }
 
-  /// Log a message at the `log` level.
+  /// Log a message at the `default` level.
   public func log(_ message: NonDarwinLogMessage) {
     log(level: .default, message)
   }
@@ -340,8 +374,8 @@ public struct NonDarwinLogger: Sendable {
   /// Useful for testing to make sure all asynchronous log calls have actually
   /// written their data.
   @_spi(Testing)
-  public static func flush() {
-    loggingQueue.sync {}
+  public static func flush() async {
+    await loggingQueue.async {}.value
   }
 
   public func makeSignposter() -> NonDarwinSignposter {
@@ -351,14 +385,14 @@ public struct NonDarwinLogger: Sendable {
 
 // MARK: - Signposter
 
-public struct NonDarwinSignpostID {}
+public struct NonDarwinSignpostID: Sendable {}
 
-public struct NonDarwinSignpostIntervalState {}
+public struct NonDarwinSignpostIntervalState: Sendable {}
 
 /// A type that is API-compatible to `OSLogMessage` for all uses within sourcekit-lsp.
 ///
 /// Since non-Darwin platforms don't have signposts, the type just has no-op operations.
-public struct NonDarwinSignposter {
+public struct NonDarwinSignposter: Sendable {
   public func makeSignpostID() -> NonDarwinSignpostID {
     return NonDarwinSignpostID()
   }
@@ -373,5 +407,6 @@ public struct NonDarwinSignposter {
 
   public func emitEvent(_ name: StaticString, id: NonDarwinSignpostID, _ message: NonDarwinLogMessage = "") {}
 
-  public func endInterval(_ name: StaticString, _ state: NonDarwinSignpostIntervalState, _ message: StaticString) {}
+  public func endInterval(_ name: StaticString, _ state: NonDarwinSignpostIntervalState, _ message: StaticString = "") {
+  }
 }

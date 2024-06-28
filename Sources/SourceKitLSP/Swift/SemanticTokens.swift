@@ -58,7 +58,7 @@ extension SwiftLanguageService {
       if let range = range.flatMap({ snapshot.byteSourceRange(of: $0) }) {
         range
       } else {
-        ByteSourceRange(offset: 0, length: await tree.totalLength.utf8Length)
+        await tree.range
       }
 
     let tokens =
@@ -107,14 +107,7 @@ extension SyntaxClassifiedRange {
       return SyntaxHighlightingTokens(tokens: [])
     }
 
-    guard
-      let start: Position = snapshot.positionOf(utf8Offset: self.offset),
-      let end: Position = snapshot.positionOf(utf8Offset: self.endOffset)
-    else {
-      return SyntaxHighlightingTokens(tokens: [])
-    }
-
-    let multiLineRange = start..<end
+    let multiLineRange = snapshot.absolutePositionRange(of: self.range)
     let ranges = multiLineRange.splitToSingleLineRanges(in: snapshot)
 
     let tokens = ranges.map {

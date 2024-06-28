@@ -12,6 +12,7 @@
 
 import Dispatch
 import Foundation
+import LanguageServerProtocol
 import SKSupport
 
 import struct TSCBasic.AbsolutePath
@@ -70,7 +71,7 @@ public final actor ToolchainRegistry {
 
   /// Create a toolchain registry with a pre-defined list of toolchains.
   ///
-  /// For testing purposes.
+  /// For testing purposes only.
   @_spi(Testing)
   public init(toolchains: [Toolchain]) {
     self.init(
@@ -243,6 +244,21 @@ public final actor ToolchainRegistry {
   @_spi(Testing)
   public var darwinToolchainIdentifier: String {
     return darwinToolchainOverride ?? ToolchainRegistry.darwinDefaultToolchainIdentifier
+  }
+
+  /// Returns the preferred toolchain that contains all the tools at the given key paths.
+  public func preferredToolchain(containing requiredTools: [KeyPath<Toolchain, AbsolutePath?>]) -> Toolchain? {
+    if let toolchain = self.default, requiredTools.allSatisfy({ toolchain[keyPath: $0] != nil }) {
+      return toolchain
+    }
+
+    for toolchain in toolchains {
+      if requiredTools.allSatisfy({ toolchain[keyPath: $0] != nil }) {
+        return toolchain
+      }
+    }
+
+    return nil
   }
 }
 

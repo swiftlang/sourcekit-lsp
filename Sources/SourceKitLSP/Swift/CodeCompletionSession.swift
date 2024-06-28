@@ -15,6 +15,7 @@ import LSPLogging
 import LanguageServerProtocol
 import SKSupport
 import SourceKitD
+import SwiftExtensions
 import SwiftParser
 @_spi(SourceKitLSP) import SwiftRefactor
 import SwiftSyntax
@@ -52,9 +53,9 @@ class CodeCompletionSession {
   /// have a global mapping from `sourcekitd` to its currently active code
   /// completion session.
   ///
-  /// Modification of code completion sessions should only happen on
-  /// `completionQueue`.
-  private static var completionSessions: [ObjectIdentifier: CodeCompletionSession] = [:]
+  /// - Important: Must only be accessed on `completionQueue`.
+  /// `nonisolated(unsafe)` fine because this is guarded by `completionQueue`.
+  private static nonisolated(unsafe) var completionSessions: [ObjectIdentifier: CodeCompletionSession] = [:]
 
   /// Gets the code completion results for the given parameters.
   ///
@@ -96,7 +97,6 @@ class CodeCompletionSession {
     completionUtf8Offset: Int,
     cursorPosition: Position,
     compileCommand: SwiftCompileCommand?,
-    options: SKCompletionOptions,
     clientSupportsSnippets: Bool,
     filterText: String
   ) async throws -> CompletionList {
@@ -111,8 +111,7 @@ class CodeCompletionSession {
           return try await session.update(
             filterText: filterText,
             position: cursorPosition,
-            in: snapshot,
-            options: options
+            in: snapshot
           )
         }
 
@@ -130,7 +129,7 @@ class CodeCompletionSession {
         clientSupportsSnippets: clientSupportsSnippets
       )
       completionSessions[ObjectIdentifier(sourcekitd)] = session
-      return try await session.open(filterText: filterText, position: cursorPosition, in: snapshot, options: options)
+      return try await session.open(filterText: filterText, position: cursorPosition, in: snapshot)
     }
 
     return try await task.valuePropagatingCancellation
@@ -177,10 +176,9 @@ class CodeCompletionSession {
   private func open(
     filterText: String,
     position: Position,
-    in snapshot: DocumentSnapshot,
-    options: SKCompletionOptions
+    in snapshot: DocumentSnapshot
   ) async throws -> CompletionList {
-    logger.info("Opening code completion session: \(self, privacy: .private) filter=\(filterText)")
+    logger.info("Opening code completion session: \(self.description) filter=\(filterText)")
     guard snapshot.version == self.snapshot.version else {
       throw ResponseError(code: .invalidRequest, message: "open must use the original snapshot")
     }
@@ -191,7 +189,7 @@ class CodeCompletionSession {
       keys.name: uri.pseudoPath,
       keys.sourceFile: uri.pseudoPath,
       keys.sourceText: snapshot.text,
-      keys.codeCompleteOptions: optionsDictionary(filterText: filterText, options: options),
+      keys.codeCompleteOptions: optionsDictionary(filterText: filterText),
       keys.compilerArgs: compileCommand?.compilerArgs as [SKDRequestValue]?,
     ])
 
@@ -216,17 +214,16 @@ class CodeCompletionSession {
   private func update(
     filterText: String,
     position: Position,
-    in snapshot: DocumentSnapshot,
-    options: SKCompletionOptions
+    in snapshot: DocumentSnapshot
   ) async throws -> CompletionList {
     // FIXME: Assertion for prefix of snapshot matching what we started with.
 
-    logger.info("Updating code completion session: \(self, privacy: .private) filter=\(filterText)")
+    logger.info("Updating code completion session: \(self.description) filter=\(filterText)")
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.codeCompleteUpdate,
       keys.offset: utf8StartOffset,
       keys.name: uri.pseudoPath,
-      keys.codeCompleteOptions: optionsDictionary(filterText: filterText, options: options),
+      keys.codeCompleteOptions: optionsDictionary(filterText: filterText),
     ])
 
     let dict = try await sourcekitd.send(req, fileContents: snapshot.text)
@@ -244,8 +241,7 @@ class CodeCompletionSession {
   }
 
   private func optionsDictionary(
-    filterText: String,
-    options: SKCompletionOptions
+    filterText: String
   ) -> SKDRequestDictionary {
     let dict = sourcekitd.dictionary([
       // Sorting and priority options.
@@ -256,7 +252,7 @@ class CodeCompletionSession {
       keys.topNonLiteral: 0,
       // Filtering options.
       keys.filterText: filterText,
-      keys.requestLimit: options.maxResults,
+      keys.requestLimit: 200,
     ])
     return dict
   }
@@ -272,7 +268,7 @@ class CodeCompletionSession {
         keys.offset: utf8StartOffset,
         keys.name: snapshot.uri.pseudoPath,
       ])
-      logger.info("Closing code completion session: \(self, privacy: .private)")
+      logger.info("Closing code completion session: \(self.description)")
       _ = try? await sourcekitd.send(req, fileContents: nil)
       self.state = .closed
     }
@@ -280,17 +276,9 @@ class CodeCompletionSession {
 
   // MARK: - Helpers
 
-  private func expandClosurePlaceholders(
-    insertText: String,
-    utf8CodeUnitsToErase: Int,
-    requestPosition: Position
-  ) -> String? {
+  private func expandClosurePlaceholders(insertText: String) -> String? {
     guard insertText.contains("<#") && insertText.contains("->") else {
       // Fast path: There is no closure placeholder to expand
-      return nil
-    }
-    guard requestPosition.line < snapshot.lineTable.count else {
-      logger.error("Request position is past the last line")
       return nil
     }
 
@@ -336,95 +324,63 @@ class CodeCompletionSession {
     requestPosition: Position,
     isIncomplete: Bool
   ) -> CompletionList {
-    var result = CompletionList(isIncomplete: isIncomplete, items: [])
-
-    completions.forEach { (i: Int, value: SKDResponseDictionary) -> Bool in
-      guard let name: String = value[keys.description] else {
-        return true  // continue
+    let completionItems = completions.compactMap { (value: SKDResponseDictionary) -> CompletionItem? in
+      guard let name: String = value[keys.description],
+        var insertText: String = value[keys.sourceText]
+      else {
+        return nil
       }
 
       var filterName: String? = value[keys.name]
-      var insertText: String? = value[keys.sourceText]
       let typeName: String? = value[sourcekitd.keys.typeName]
       let docBrief: String? = value[sourcekitd.keys.docBrief]
       let utf8CodeUnitsToErase: Int = value[sourcekitd.keys.numBytesToErase] ?? 0
 
-      if let insertTextUnwrapped = insertText {
-        insertText =
-          expandClosurePlaceholders(
-            insertText: insertTextUnwrapped,
-            utf8CodeUnitsToErase: utf8CodeUnitsToErase,
-            requestPosition: requestPosition
-          ) ?? insertText
+      if let closureExpanded = expandClosurePlaceholders(insertText: insertText) {
+        insertText = closureExpanded
       }
 
-      let text = insertText.map {
-        rewriteSourceKitPlaceholders(in: $0, clientSupportsSnippets: clientSupportsSnippets)
-      }
+      let text = rewriteSourceKitPlaceholders(in: insertText, clientSupportsSnippets: clientSupportsSnippets)
       let isInsertTextSnippet = clientSupportsSnippets && text != insertText
 
       let textEdit: TextEdit?
-      if let text = text {
-        guard
-          let edit = self.computeCompletionTextEdit(
-            completionPos: completionPos,
-            requestPosition: requestPosition,
-            utf8CodeUnitsToErase: utf8CodeUnitsToErase,
-            newText: text,
-            snapshot: snapshot
-          )
-        else {
-          return true  // continue
-        }
-        textEdit = edit
+      let edit = self.computeCompletionTextEdit(
+        completionPos: completionPos,
+        requestPosition: requestPosition,
+        utf8CodeUnitsToErase: utf8CodeUnitsToErase,
+        newText: text,
+        snapshot: snapshot
+      )
+      textEdit = edit
 
-        if utf8CodeUnitsToErase != 0, filterName != nil, let textEdit = textEdit {
-          // To support the case where the client is doing prefix matching on the TextEdit range,
-          // we need to prepend the deleted text to filterText.
-          // This also works around a behaviour in VS Code that causes completions to not show up
-          // if a '.' is being replaced for Optional completion.
-          guard
-            let startIndex = snapshot.lineTable.stringIndexOf(
-              line: textEdit.range.lowerBound.line,
-              utf16Column: textEdit.range.lowerBound.utf16index
-            ),
-            let endIndex = snapshot.lineTable.stringIndexOf(
-              line: completionPos.line,
-              utf16Column: completionPos.utf16index
-            )
-          else {
-            return true  // continue
-          }
-          let filterPrefix = snapshot.text[startIndex..<endIndex]
-          filterName = filterPrefix + filterName!
-        }
-      } else {
-        textEdit = nil
+      if utf8CodeUnitsToErase != 0, filterName != nil, let textEdit = textEdit {
+        // To support the case where the client is doing prefix matching on the TextEdit range,
+        // we need to prepend the deleted text to filterText.
+        // This also works around a behaviour in VS Code that causes completions to not show up
+        // if a '.' is being replaced for Optional completion.
+        let filterPrefix = snapshot.text[snapshot.indexRange(of: textEdit.range.lowerBound..<completionPos)]
+        filterName = filterPrefix + filterName!
       }
 
       // Map SourceKit's not_recommended field to LSP's deprecated
-      let notRecommended = (value[sourcekitd.keys.notRecommended] as Int?).map({ $0 != 0 })
+      let notRecommended = (value[sourcekitd.keys.notRecommended] ?? 0) != 0
 
       let kind: sourcekitd_api_uid_t? = value[sourcekitd.keys.kind]
-      result.items.append(
-        CompletionItem(
-          label: name,
-          kind: kind?.asCompletionItemKind(sourcekitd.values) ?? .value,
-          detail: typeName,
-          documentation: docBrief != nil ? .markupContent(MarkupContent(kind: .markdown, value: docBrief!)) : nil,
-          deprecated: notRecommended ?? false,
-          sortText: nil,
-          filterText: filterName,
-          insertText: text,
-          insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
-          textEdit: textEdit.map(CompletionItemEdit.textEdit)
-        )
+      return CompletionItem(
+        label: name,
+        kind: kind?.asCompletionItemKind(sourcekitd.values) ?? .value,
+        detail: typeName,
+        documentation: docBrief != nil ? .markupContent(MarkupContent(kind: .markdown, value: docBrief!)) : nil,
+        deprecated: notRecommended,
+        sortText: nil,
+        filterText: filterName,
+        insertText: text,
+        insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
+        textEdit: textEdit.map(CompletionItemEdit.textEdit)
       )
-
-      return true
     }
 
-    return result
+    return CompletionList(isIncomplete: isIncomplete, items: completionItems)
   }
 
   private func computeCompletionTextEdit(
@@ -433,7 +389,7 @@ class CodeCompletionSession {
     utf8CodeUnitsToErase: Int,
     newText: String,
     snapshot: DocumentSnapshot
-  ) -> TextEdit? {
+  ) -> TextEdit {
     let textEditRangeStart: Position
 
     // Compute the TextEdit
@@ -456,15 +412,7 @@ class CodeCompletionSession {
       assert(completionPos.line == requestPosition.line)
       // Construct a string index for the edit range start by subtracting the UTF-8 code units to erase from the completion position.
       let line = snapshot.lineTable[completionPos.line]
-      guard
-        let completionPosStringIndex = snapshot.lineTable.stringIndexOf(
-          line: completionPos.line,
-          utf16Column: completionPos.utf16index
-        )
-      else {
-        return nil
-      }
-      let deletionStartStringIndex = line.utf8.index(completionPosStringIndex, offsetBy: -utf8CodeUnitsToErase)
+      let deletionStartStringIndex = line.utf8.index(snapshot.index(of: completionPos), offsetBy: -utf8CodeUnitsToErase)
 
       // Compute the UTF-16 offset of the deletion start range. If the start lies in a previous line, this will be negative
       let deletionStartUtf16Offset = line.utf16.distance(from: line.startIndex, to: deletionStartStringIndex)

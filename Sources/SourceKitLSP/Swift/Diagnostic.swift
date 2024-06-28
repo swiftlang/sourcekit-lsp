@@ -32,7 +32,7 @@ extension CodeAction {
     }
 
     if !editsMapped {
-      logger.fault("failed to construct TextEdits from response \(fixits)")
+      logger.fault("Failed to construct TextEdits from response \(fixits)")
       return nil
     }
 
@@ -61,12 +61,7 @@ extension CodeAction {
   init?(_ fixIt: FixIt, in snapshot: DocumentSnapshot) {
     var textEdits = [TextEdit]()
     for edit in fixIt.edits {
-      guard let startPosition = snapshot.position(of: edit.range.lowerBound),
-        let endPosition = snapshot.position(of: edit.range.upperBound)
-      else {
-        continue
-      }
-      textEdits.append(TextEdit(range: startPosition..<endPosition, newText: edit.replacement))
+      textEdits.append(TextEdit(range: snapshot.absolutePositionRange(of: edit.range), newText: edit.replacement))
     }
 
     self.init(
@@ -81,9 +76,9 @@ extension CodeAction {
     if edits.isEmpty {
       return nil
     }
-    guard let startIndex = snapshot.index(of: edits[0].range.lowerBound),
-      let endIndex = snapshot.index(of: edits[0].range.upperBound),
-      startIndex <= endIndex,
+    let startIndex = snapshot.index(of: edits[0].range.lowerBound)
+    let endIndex = snapshot.index(of: edits[0].range.upperBound)
+    guard startIndex <= endIndex,
       snapshot.text.indices.contains(startIndex),
       endIndex <= snapshot.text.endIndex
     else {
@@ -123,8 +118,6 @@ extension TextEdit {
     if let utf8Offset: Int = fixit[keys.offset],
       let length: Int = fixit[keys.length],
       let replacement: String = fixit[keys.sourceText],
-      let position = snapshot.positionOf(utf8Offset: utf8Offset),
-      let endPosition = snapshot.positionOf(utf8Offset: utf8Offset + length),
       length > 0 || !replacement.isEmpty
     {
       // Snippets are only suppored in code completion.
@@ -136,6 +129,8 @@ extension TextEdit {
         return nil
       }
 
+      let position = snapshot.positionOf(utf8Offset: utf8Offset)
+      let endPosition = snapshot.positionOf(utf8Offset: utf8Offset + length)
       self.init(range: position..<endPosition, newText: replacementWithoutPlaceholders)
     } else {
       return nil
@@ -159,15 +154,26 @@ fileprivate extension String {
 extension Diagnostic {
 
   /// Creates a diagnostic from a sourcekitd response dictionary.
+  ///
+  /// `snapshot` is the snapshot of the document for which the diagnostics are generated.
+  /// `documentManager` is used to resolve positions of notes in secondary files.
   init?(
     _ diag: SKDResponseDictionary,
     in snapshot: DocumentSnapshot,
+    documentManager: DocumentManager,
     useEducationalNoteAsCode: Bool
   ) {
-    // FIXME: this assumes that the diagnostics are all in the same file.
-
     let keys = diag.sourcekitd.keys
     let values = diag.sourcekitd.values
+
+    guard let filePath: String = diag[keys.filePath] else {
+      logger.fault("Missing file path in diagnostic")
+      return nil
+    }
+    guard filePath == snapshot.uri.pseudoPath else {
+      logger.error("Ignoring diagnostic from a different file: \(filePath)")
+      return nil
+    }
 
     guard let message: String = diag[keys.description]?.withFirstLetterUppercased() else { return nil }
 
@@ -176,24 +182,26 @@ extension Diagnostic {
       let utf8Column: Int = diag[keys.column],
       line > 0, utf8Column > 0
     {
-      range = snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: utf8Column - 1).map(Range.init)
+      range = Range(snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: utf8Column - 1))
     } else if let utf8Offset: Int = diag[keys.offset] {
-      range = snapshot.positionOf(utf8Offset: utf8Offset).map(Range.init)
+      range = Range(snapshot.positionOf(utf8Offset: utf8Offset))
     }
 
     // If the diagnostic has a range associated with it that starts at the same location as the diagnostics position, use it to retrieve a proper range for the diagnostic, instead of just reporting a zero-length range.
     (diag[keys.ranges] as SKDResponseArray?)?.forEach { index, skRange in
-      if let utf8Offset: Int = skRange[keys.offset],
-        let start = snapshot.positionOf(utf8Offset: utf8Offset),
-        start == range?.lowerBound,
-        let length: Int = skRange[keys.length],
-        let end = snapshot.positionOf(utf8Offset: utf8Offset + length)
-      {
-        range = start..<end
-        return false
-      } else {
+      guard let utf8Offset: Int = skRange[keys.offset],
+        let length: Int = skRange[keys.length]
+      else {
+        return true  // continue
+      }
+      let start = snapshot.positionOf(utf8Offset: utf8Offset)
+      let end = snapshot.positionOf(utf8Offset: utf8Offset + length)
+      guard start == range?.lowerBound else {
         return true
       }
+
+      range = start..<end
+      return false  // terminate forEach
     }
 
     guard let range = range else {
@@ -240,7 +248,13 @@ extension Diagnostic {
     if let sknotes: SKDResponseArray = diag[keys.diagnostics] {
       notes = []
       sknotes.forEach { (_, sknote) -> Bool in
-        guard let note = DiagnosticRelatedInformation(sknote, in: snapshot) else { return true }
+        guard
+          let note = DiagnosticRelatedInformation(
+            sknote,
+            primaryDocumentSnapshot: snapshot,
+            documentManager: documentManager
+          )
+        else { return true }
         notes?.append(note)
         return true
       }
@@ -266,7 +280,7 @@ extension Diagnostic {
       severity: severity,
       code: code,
       codeDescription: codeDescription,
-      source: "sourcekitd",
+      source: "SourceKit",
       message: message,
       tags: tags,
       relatedInformation: notes,
@@ -274,22 +288,17 @@ extension Diagnostic {
     )
   }
 
-  init?(
+  init(
     _ diag: SwiftDiagnostics.Diagnostic,
     in snapshot: DocumentSnapshot
   ) {
-    guard let position = snapshot.position(of: diag.position) else {
-      return nil
-    }
     // Start with a zero-length range based on the position.
     // If the diagnostic has highlights associated with it that start at the
     // position, use that as the diagnostic's range.
-    var range = Range(position)
+    var range = Range(snapshot.position(of: diag.position))
     for highlight in diag.highlights {
       let swiftSyntaxRange = highlight.positionAfterSkippingLeadingTrivia..<highlight.endPositionBeforeTrailingTrivia
-      guard let highlightRange = snapshot.range(of: swiftSyntaxRange) else {
-        break
-      }
+      let highlightRange = snapshot.absolutePositionRange(of: swiftSyntaxRange)
       if range.upperBound == highlightRange.lowerBound {
         range = range.lowerBound..<highlightRange.upperBound
       } else {
@@ -305,7 +314,7 @@ extension Diagnostic {
       severity: diag.diagMessage.severity.lspSeverity,
       code: nil,
       codeDescription: nil,
-      source: "SwiftSyntax",
+      source: "SourceKit",
       message: diag.message,
       tags: nil,
       relatedInformation: relatedInformation,
@@ -317,8 +326,27 @@ extension Diagnostic {
 extension DiagnosticRelatedInformation {
 
   /// Creates related information from a sourcekitd note response dictionary.
-  init?(_ diag: SKDResponseDictionary, in snapshot: DocumentSnapshot) {
+  ///
+  /// `primaryDocumentSnapshot` is the snapshot of the document for which the diagnostics are generated.
+  /// `documentManager` is used to resolve positions of notes in secondary files.
+  init?(_ diag: SKDResponseDictionary, primaryDocumentSnapshot: DocumentSnapshot, documentManager: DocumentManager) {
     let keys = diag.sourcekitd.keys
+
+    guard let filePath: String = diag[keys.filePath] else {
+      logger.fault("Missing file path in related diagnostic information")
+      return nil
+    }
+    let uri = DocumentURI(filePath: filePath, isDirectory: false)
+    let snapshot: DocumentSnapshot
+    if filePath == primaryDocumentSnapshot.uri.pseudoPath {
+      snapshot = primaryDocumentSnapshot
+    } else if let inMemorySnapshot = try? documentManager.latestSnapshot(uri) {
+      snapshot = inMemorySnapshot
+    } else if let snapshotFromDisk = try? DocumentSnapshot(withContentsFromDisk: uri, language: .swift) {
+      snapshot = snapshotFromDisk
+    } else {
+      return nil
+    }
 
     var position: Position? = nil
     if let line: Int = diag[keys.line],
@@ -350,19 +378,10 @@ extension DiagnosticRelatedInformation {
     )
   }
 
-  init?(_ note: Note, in snapshot: DocumentSnapshot) {
+  init(_ note: Note, in snapshot: DocumentSnapshot) {
     let nodeRange = note.node.positionAfterSkippingLeadingTrivia..<note.node.endPositionBeforeTrailingTrivia
-    guard let range = snapshot.range(of: nodeRange) else {
-      logger.error(
-        """
-        Cannot construct DiagnosticRelatedInformation because the range \(nodeRange, privacy: .public) \
-        is out of range of the source file \(snapshot.uri.forLogging).
-        """
-      )
-      return nil
-    }
     self.init(
-      location: Location(uri: snapshot.uri, range: range),
+      location: Location(uri: snapshot.uri, range: snapshot.absolutePositionRange(of: nodeRange)),
       message: note.message
     )
   }
@@ -391,7 +410,7 @@ extension DiagnosticStage {
       self = .sema
     default:
       let desc = sourcekitd.api.uid_get_string_ptr(uid).map { String(cString: $0) }
-      logger.fault("unknown diagnostic stage \(desc ?? "nil", privacy: .public)")
+      logger.fault("Unknown diagnostic stage \(desc ?? "nil", privacy: .public)")
       return nil
     }
   }

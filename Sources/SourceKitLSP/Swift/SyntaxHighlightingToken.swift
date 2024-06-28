@@ -15,7 +15,7 @@ import LanguageServerProtocol
 import SourceKitD
 
 /// A ranged token in the document used for syntax highlighting.
-public struct SyntaxHighlightingToken: Hashable {
+public struct SyntaxHighlightingToken: Hashable, Sendable {
   /// The range of the token in the document. Must be on a single line.
   public var range: Range<Position> {
     didSet {
@@ -46,25 +46,4 @@ public struct SyntaxHighlightingToken: Hashable {
     let range = start..<Position(line: start.line, utf16index: start.utf16index + utf16length)
     self.init(range: range, kind: kind, modifiers: modifiers)
   }
-}
-
-extension SemanticTokenTypes {
-  /// **(LSP Extension)**
-  public static let identifier = Self("identifier")
-
-  // LSP doesn’t know about actors. Display actors as classes.
-  public static let actor = Self("class")
-
-  /// All tokens supported by sourcekit-lsp
-  public static let all: [Self] = predefined + [.identifier, .actor]
-
-  /// Token types are looked up by index
-  public var tokenType: UInt32 {
-    UInt32(Self.all.firstIndex(of: self)!)
-  }
-}
-
-extension SemanticTokenModifiers {
-  /// All tokens supported by sourcekit-lsp
-  public static let all: [Self] = predefined
 }

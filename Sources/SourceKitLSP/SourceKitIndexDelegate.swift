@@ -12,18 +12,18 @@
 
 import Dispatch
 import IndexStoreDB
+import LSPLogging
 import SKCore
 import SKSupport
+import SwiftExtensions
 
 /// `IndexDelegate` for the SourceKit workspace.
-///
-/// *Public for testing*.
-public actor SourceKitIndexDelegate: IndexDelegate {
+actor SourceKitIndexDelegate: IndexDelegate {
 
   let queue = AsyncQueue<Serial>()
 
   /// Registered `MainFilesDelegate`s to notify when main files change.
-  var mainFilesChangedCallbacks: [() async -> Void] = []
+  var mainFilesChangedCallbacks: [@Sendable () async -> Void] = []
 
   /// The count of pending unit events. Whenever this transitions to 0, it represents a time where
   /// the index finished processing known events. Of course, that may have already changed by the
@@ -51,17 +51,18 @@ public actor SourceKitIndexDelegate: IndexDelegate {
   private func processCompleted(_ count: Int) {
     pendingUnitCount -= count
     if pendingUnitCount == 0 {
-      _indexChanged()
+      indexChanged()
     }
 
     if pendingUnitCount < 0 {
       assertionFailure("pendingUnitCount = \(pendingUnitCount) < 0")
       pendingUnitCount = 0
-      _indexChanged()
+      indexChanged()
     }
   }
 
-  func _indexChanged() {
+  private func indexChanged() {
+    logger.debug("IndexStoreDB changed")
     for callback in mainFilesChangedCallbacks {
       queue.async {
         await callback()
@@ -70,7 +71,7 @@ public actor SourceKitIndexDelegate: IndexDelegate {
   }
 
   /// Register a delegate to receive notifications when main files change.
-  public func addMainFileChangedCallback(_ callback: @escaping () async -> Void) {
+  public func addMainFileChangedCallback(_ callback: @escaping @Sendable () async -> Void) {
     mainFilesChangedCallbacks.append(callback)
   }
 

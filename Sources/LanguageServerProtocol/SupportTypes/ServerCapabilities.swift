@@ -587,7 +587,7 @@ public struct DocumentRangeFormattingOptions: WorkDoneProgressOptions, Codable, 
   }
 }
 
-public struct FoldingRangeOptions: Codable, Hashable {
+public struct FoldingRangeOptions: Codable, Hashable, Sendable {
   /// Currently empty in the spec.
   public init() {}
 }

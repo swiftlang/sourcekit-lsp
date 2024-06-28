@@ -13,12 +13,47 @@
 import Foundation
 
 public final class LoggingScope {
+  /// The name of the current logging subsystem or `nil` if no logging scope is set.
+  @TaskLocal fileprivate static var _subsystem: String?
+
   /// The name of the current logging scope or `nil` if no logging scope is set.
   @TaskLocal fileprivate static var _scope: String?
+
+  /// The name of the current logging subsystem.
+  public static var subsystem: String {
+    return _subsystem ?? "org.swift.sourcekit-lsp"
+  }
 
   /// The name of the current logging scope.
   public static var scope: String {
     return _scope ?? "default"
+  }
+}
+
+/// Logs all messages created from the operation to the given subsystem.
+///
+/// This overrides the current logging subsystem.
+///
+/// - Note: Since this stores the logging subsystem in a task-local value, it only works when run inside a task.
+///   Outside a task, this is a no-op.
+public func withLoggingSubsystemAndScope<Result>(
+  subsystem: String,
+  scope: String?,
+  @_inheritActorContext _ operation: @Sendable () throws -> Result
+) rethrows -> Result {
+  return try LoggingScope.$_subsystem.withValue(subsystem) {
+    return try LoggingScope.$_scope.withValue(scope, operation: operation)
+  }
+}
+
+/// Same as `withLoggingSubsystemAndScope` but allows the operation to be `async`.
+public func withLoggingSubsystemAndScope<Result>(
+  subsystem: String,
+  scope: String?,
+  @_inheritActorContext _ operation: @Sendable () async throws -> Result
+) async rethrows -> Result {
+  return try await LoggingScope.$_subsystem.withValue(subsystem) {
+    return try await LoggingScope.$_scope.withValue(scope, operation: operation)
   }
 }
 
@@ -45,7 +80,7 @@ public func withLoggingScope<Result>(
 /// - SeeAlso: ``withLoggingScope(_:_:)-6qtga``
 public func withLoggingScope<Result>(
   _ scope: String,
-  _ operation: () async throws -> Result
+  @_inheritActorContext _ operation: @Sendable () async throws -> Result
 ) async rethrows -> Result {
   return try await LoggingScope.$_scope.withValue(
     scope,

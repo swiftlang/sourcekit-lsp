@@ -14,6 +14,7 @@ import LSPTestSupport
 import LanguageServerProtocol
 import SKCore
 import SKTestSupport
+@_spi(Testing) import SourceKitLSP
 import XCTest
 
 final class LocalClangTests: XCTestCase {
@@ -21,7 +22,7 @@ final class LocalClangTests: XCTestCase {
 
   func testSymbolInfo() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.cpp)
+    let uri = DocumentURI(for: .cpp)
 
     let locations = testClient.openDocument(
       """
@@ -96,7 +97,7 @@ final class LocalClangTests: XCTestCase {
 
   func testFoldingRange() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.cpp)
+    let uri = DocumentURI(for: .cpp)
 
     testClient.openDocument(
       """
@@ -133,7 +134,7 @@ final class LocalClangTests: XCTestCase {
         )
       )
     )
-    let uri = DocumentURI.for(.cpp)
+    let uri = DocumentURI(for: .cpp)
 
     testClient.openDocument(
       """
@@ -161,7 +162,7 @@ final class LocalClangTests: XCTestCase {
 
   func testCodeAction() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
-    let uri = DocumentURI.for(.cpp)
+    let uri = DocumentURI(for: .cpp)
     let positions = testClient.openDocument(
       """
       enum Color { RED, GREEN, BLUE };
@@ -201,7 +202,7 @@ final class LocalClangTests: XCTestCase {
     XCTAssertEqual(command.command, "clangd.applyTweak")
 
     let applyEdit = XCTestExpectation(description: "applyEdit")
-    testClient.handleNextRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
+    testClient.handleSingleRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
       XCTAssertNotNil(request.edit.changes)
       applyEdit.fulfill()
       return ApplyEditResponse(applied: true, failureReason: nil)
@@ -284,7 +285,7 @@ final class LocalClangTests: XCTestCase {
 
   func testSemanticHighlighting() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
-    let uri = DocumentURI.for(.c)
+    let uri = DocumentURI(for: .c)
 
     testClient.openDocument(
       """
@@ -341,7 +342,7 @@ final class LocalClangTests: XCTestCase {
     struct MyObject * newObject();
     """.write(to: headerUri.fileURL!, atomically: false, encoding: .utf8)
 
-    let clangdServer = await project.testClient.server._languageService(
+    let clangdServer = await project.testClient.server.languageService(
       for: mainUri,
       .c,
       in: project.testClient.server.workspaceForDocument(uri: mainUri)!

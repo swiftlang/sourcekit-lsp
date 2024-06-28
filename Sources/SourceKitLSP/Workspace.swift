@@ -15,7 +15,8 @@ import LSPLogging
 import LanguageServerProtocol
 import SKCore
 import SKSupport
-import SKSwiftPMWorkspace
+import SemanticIndex
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
@@ -45,7 +46,7 @@ fileprivate func firstNonNil<T>(
 /// "initialize" request has been made.
 ///
 /// Typically a workspace is contained in a root directory.
-public final class Workspace {
+public final class Workspace: Sendable {
 
   /// The root directory of the workspace.
   public let rootUri: DocumentURI?
@@ -56,141 +57,148 @@ public final class Workspace {
   /// The build system manager to use for documents in this workspace.
   public let buildSystemManager: BuildSystemManager
 
-  /// Build setup
-  public let buildSetup: BuildSetup
+  let options: SourceKitLSPOptions
 
   /// The source code index, if available.
-  public var index: IndexStoreDB? = nil
+  ///
+  /// Usually a checked index (retrieved using `index(checkedFor:)`) should be used instead of the unchecked index.
+  private let _uncheckedIndex: ThreadSafeBox<UncheckedIndex?>
+
+  public var uncheckedIndex: UncheckedIndex? {
+    return _uncheckedIndex.value
+  }
+
+  /// The index that syntactically scans the workspace for tests.
+  let syntacticTestIndex = SyntacticTestIndex()
 
   /// Documents open in the SourceKitLSPServer. This may include open documents from other workspaces.
   private let documentManager: DocumentManager
 
   /// Language service for an open document, if available.
-  var documentService: [DocumentURI: LanguageService] = [:]
+  let documentService: ThreadSafeBox<[DocumentURI: LanguageService]> = ThreadSafeBox(initialValue: [:])
 
-  public init(
+  /// The `SemanticIndexManager` that keeps track of whose file's index is up-to-date in the workspace and schedules
+  /// indexing and preparation tasks for files with out-of-date index.
+  ///
+  /// `nil` if background indexing is not enabled.
+  let semanticIndexManager: SemanticIndexManager?
+
+  init(
     documentManager: DocumentManager,
     rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
     toolchainRegistry: ToolchainRegistry,
-    buildSetup: BuildSetup,
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
     underlyingBuildSystem: BuildSystem?,
-    index: IndexStoreDB?,
-    indexDelegate: SourceKitIndexDelegate?
+    index uncheckedIndex: UncheckedIndex?,
+    indexDelegate: SourceKitIndexDelegate?,
+    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
+    indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
+    indexProgressStatusDidChange: @escaping @Sendable () -> Void
   ) async {
     self.documentManager = documentManager
-    self.buildSetup = buildSetup
     self.rootUri = rootUri
     self.capabilityRegistry = capabilityRegistry
-    self.index = index
+    self.options = options
+    self._uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
     self.buildSystemManager = await BuildSystemManager(
       buildSystem: underlyingBuildSystem,
-      fallbackBuildSystem: FallbackBuildSystem(buildSetup: buildSetup),
-      mainFilesProvider: index
+      fallbackBuildSystem: FallbackBuildSystem(options: options.fallbackBuildSystem ?? .init()),
+      mainFilesProvider: uncheckedIndex,
+      toolchainRegistry: toolchainRegistry
     )
+    if options.hasExperimentalFeature(.backgroundIndexing),
+      let uncheckedIndex,
+      await buildSystemManager.supportsPreparation
+    {
+      let updateIndexStoreTimeoutDuration: Duration =
+        if let timeout = options.index?.updateIndexStoreTimeout {
+          .seconds(timeout)
+        } else {
+          .seconds(120)
+        }
+      self.semanticIndexManager = SemanticIndexManager(
+        index: uncheckedIndex,
+        buildSystemManager: buildSystemManager,
+        updateIndexStoreTimeout: updateIndexStoreTimeoutDuration,
+        testHooks: testHooks.indexTestHooks,
+        indexTaskScheduler: indexTaskScheduler,
+        logMessageToIndexLog: logMessageToIndexLog,
+        indexTasksWereScheduled: indexTasksWereScheduled,
+        indexProgressStatusDidChange: indexProgressStatusDidChange
+      )
+    } else {
+      self.semanticIndexManager = nil
+    }
     await indexDelegate?.addMainFileChangedCallback { [weak self] in
       await self?.buildSystemManager.mainFilesChanged()
     }
+    await underlyingBuildSystem?.addSourceFilesDidChangeCallback { [weak self] in
+      guard let self else {
+        return
+      }
+      await self.syntacticTestIndex.listOfTestFilesDidChange(self.buildSystemManager.testFiles())
+    }
+    // Trigger an initial population of `syntacticTestIndex`.
+    await syntacticTestIndex.listOfTestFilesDidChange(buildSystemManager.testFiles())
+    if let semanticIndexManager {
+      await semanticIndexManager.scheduleBuildGraphGenerationAndBackgroundIndexAllFiles()
+    }
   }
 
-  /// Creates a workspace for a given root `URL`, inferring the `ExternalWorkspace` if possible.
+  /// Creates a workspace for a given root `DocumentURI`, inferring the `ExternalWorkspace` if possible.
   ///
   /// - Parameters:
   ///   - url: The root directory of the workspace, which must be a valid path.
   ///   - clientCapabilities: The client capabilities provided during server initialization.
   ///   - toolchainRegistry: The toolchain registry.
-  convenience public init(
+  convenience init(
     documentManager: DocumentManager,
     rootUri: DocumentURI,
     capabilityRegistry: CapabilityRegistry,
+    buildSystem: BuildSystem?,
     toolchainRegistry: ToolchainRegistry,
-    buildSetup: BuildSetup,
-    compilationDatabaseSearchPaths: [RelativePath],
-    indexOptions: IndexOptions = IndexOptions(),
-    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
+    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
+    indexTasksWereScheduled: @Sendable @escaping (Int) -> Void,
+    indexProgressStatusDidChange: @Sendable @escaping () -> Void
   ) async throws {
-    var buildSystem: BuildSystem? = nil
-
-    func createSwiftPMBuildSystem(rootUrl: URL) async -> SwiftPMBuildSystem? {
-      return await SwiftPMBuildSystem(
-        url: rootUrl,
-        toolchainRegistry: toolchainRegistry,
-        buildSetup: buildSetup,
-        reloadPackageStatusCallback: reloadPackageStatusCallback
-      )
-    }
-
-    func createCompilationDatabaseBuildSystem(rootPath: AbsolutePath) -> CompilationDatabaseBuildSystem? {
-      return CompilationDatabaseBuildSystem(
-        projectRoot: rootPath,
-        searchPaths: compilationDatabaseSearchPaths
-      )
-    }
-
-    func createBuildServerBuildSystem(rootPath: AbsolutePath) async -> BuildServerBuildSystem? {
-      return await BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup)
-    }
-
-    if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
-      let defaultBuildSystem: BuildSystem? =
-        switch buildSetup.defaultWorkspaceType {
-        case .buildServer: await createBuildServerBuildSystem(rootPath: rootPath)
-        case .compilationDatabase: createCompilationDatabaseBuildSystem(rootPath: rootPath)
-        case .swiftPM: await createSwiftPMBuildSystem(rootUrl: rootUrl)
-        case nil: nil
-        }
-      if let defaultBuildSystem {
-        buildSystem = defaultBuildSystem
-      } else if let buildServer = await createBuildServerBuildSystem(rootPath: rootPath) {
-        buildSystem = buildServer
-      } else if let swiftpm = await createSwiftPMBuildSystem(rootUrl: rootUrl) {
-        buildSystem = swiftpm
-      } else if let compdb = createCompilationDatabaseBuildSystem(rootPath: rootPath) {
-        buildSystem = compdb
-      } else {
-        buildSystem = nil
-      }
-      if let buildSystem {
-        let projectRoot = await buildSystem.projectRoot
-        logger.log(
-          "Opening workspace at \(rootUrl) as \(type(of: buildSystem)) with project root \(projectRoot.pathString)"
-        )
-      } else {
-        logger.error(
-          "Could not set up a build system for workspace at '\(rootUri.forLogging)'"
-        )
-      }
-    } else {
-      // We assume that workspaces are directories. This is only true for URLs not for URIs in general.
-      // Simply skip setting up the build integration in this case.
-      logger.error(
-        "cannot setup build integration for workspace at URI \(rootUri.forLogging) because the URI it is not a valid file URL"
-      )
-    }
-
     var index: IndexStoreDB? = nil
     var indexDelegate: SourceKitIndexDelegate? = nil
 
-    if let storePath = await firstNonNil(indexOptions.indexStorePath, await buildSystem?.indexStorePath),
-      let dbPath = await firstNonNil(indexOptions.indexDatabasePath, await buildSystem?.indexDatabasePath),
+    let indexOptions = options.index
+    if let storePath = await firstNonNil(
+      AbsolutePath(validatingOrNil: indexOptions?.indexStorePath),
+      await buildSystem?.indexStorePath
+    ),
+      let dbPath = await firstNonNil(
+        AbsolutePath(validatingOrNil: indexOptions?.indexDatabasePath),
+        await buildSystem?.indexDatabasePath
+      ),
       let libPath = await toolchainRegistry.default?.libIndexStore
     {
       do {
         let lib = try IndexStoreLibrary(dylibPath: libPath.pathString)
         indexDelegate = SourceKitIndexDelegate()
         let prefixMappings =
-          await firstNonNil(indexOptions.indexPrefixMappings, await buildSystem?.indexPrefixMappings) ?? []
+          await firstNonNil(
+            indexOptions?.indexPrefixMap?.map { PathPrefixMapping(original: $0.key, replacement: $0.value) },
+            await buildSystem?.indexPrefixMappings
+          ) ?? []
         index = try IndexStoreDB(
           storePath: storePath.pathString,
           databasePath: dbPath.pathString,
           library: lib,
           delegate: indexDelegate,
-          listenToUnitEvents: indexOptions.listenToUnitEvents,
           prefixMappings: prefixMappings.map { PathMapping(original: $0.original, replacement: $0.replacement) }
         )
-        logger.debug("opened IndexStoreDB at \(dbPath) with store path \(storePath)")
+        logger.debug("Opened IndexStoreDB at \(dbPath) with store path \(storePath)")
       } catch {
-        logger.error("failed to open IndexStoreDB: \(error.localizedDescription)")
+        logger.error("Failed to open IndexStoreDB: \(error.localizedDescription)")
       }
     }
 
@@ -199,11 +207,60 @@ public final class Workspace {
       rootUri: rootUri,
       capabilityRegistry: capabilityRegistry,
       toolchainRegistry: toolchainRegistry,
-      buildSetup: buildSetup,
+      options: options,
+      testHooks: testHooks,
       underlyingBuildSystem: buildSystem,
-      index: index,
-      indexDelegate: indexDelegate
+      index: UncheckedIndex(index),
+      indexDelegate: indexDelegate,
+      indexTaskScheduler: indexTaskScheduler,
+      logMessageToIndexLog: logMessageToIndexLog,
+      indexTasksWereScheduled: indexTasksWereScheduled,
+      indexProgressStatusDidChange: indexProgressStatusDidChange
     )
+  }
+
+  @_spi(Testing) public static func forTesting(
+    toolchainRegistry: ToolchainRegistry,
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
+    underlyingBuildSystem: BuildSystem,
+    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
+  ) async -> Workspace {
+    return await Workspace(
+      documentManager: DocumentManager(),
+      rootUri: nil,
+      capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
+      toolchainRegistry: toolchainRegistry,
+      options: options,
+      testHooks: testHooks,
+      underlyingBuildSystem: underlyingBuildSystem,
+      index: nil,
+      indexDelegate: nil,
+      indexTaskScheduler: indexTaskScheduler,
+      logMessageToIndexLog: { _, _ in },
+      indexTasksWereScheduled: { _ in },
+      indexProgressStatusDidChange: {}
+    )
+  }
+
+  /// Returns a `CheckedIndex` that verifies that all the returned entries are up-to-date with the given
+  /// `IndexCheckLevel`.
+  func index(checkedFor checkLevel: IndexCheckLevel) -> CheckedIndex? {
+    return _uncheckedIndex.value?.checked(for: checkLevel)
+  }
+
+  /// Write the index to disk.
+  ///
+  /// After this method is called, the workspace will no longer have an index associated with it. It should only be
+  /// called when SourceKit-LSP shuts down.
+  func closeIndex() {
+    _uncheckedIndex.value = nil
+  }
+
+  public func filesDidChange(_ events: [FileEvent]) async {
+    await buildSystemManager.filesDidChange(events)
+    await syntacticTestIndex.filesDidChange(events)
+    await semanticIndexManager?.filesDidChange(events)
   }
 }
 
@@ -213,33 +270,5 @@ struct WeakWorkspace {
 
   init(_ value: Workspace? = nil) {
     self.value = value
-  }
-}
-
-public struct IndexOptions {
-
-  /// Override the index-store-path provided by the build system.
-  public var indexStorePath: AbsolutePath?
-
-  /// Override the index-database-path provided by the build system.
-  public var indexDatabasePath: AbsolutePath?
-
-  /// Override the index prefix mappings provided by the build system.
-  public var indexPrefixMappings: [PathPrefixMapping]?
-
-  /// *For Testing* Whether the index should listen to unit events, or wait for
-  /// explicit calls to pollForUnitChangesAndWait().
-  public var listenToUnitEvents: Bool
-
-  public init(
-    indexStorePath: AbsolutePath? = nil,
-    indexDatabasePath: AbsolutePath? = nil,
-    indexPrefixMappings: [PathPrefixMapping]? = nil,
-    listenToUnitEvents: Bool = true
-  ) {
-    self.indexStorePath = indexStorePath
-    self.indexDatabasePath = indexDatabasePath
-    self.indexPrefixMappings = indexPrefixMappings
-    self.listenToUnitEvents = listenToUnitEvents
   }
 }

@@ -70,6 +70,7 @@ struct SwiftFrontendCrashScraper {
       }
       let interestingString = fileContents[firstNewline...]
       let dateFormatter = DateFormatter()
+      dateFormatter.timeZone = NSTimeZone.local
       dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSSS Z"
       let decoder = JSONDecoder()
       decoder.dateDecodingStrategy = .formatted(dateFormatter)

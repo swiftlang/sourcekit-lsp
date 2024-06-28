@@ -32,11 +32,11 @@ class ConnectionPerfTests: PerfTestCase {
       let expectation = self.expectation(description: "response received")
       self.startMeasuring()
       _ = client.send(EchoRequest(string: "hello!")) { _ in
-        self.stopMeasuring()
         expectation.fulfill()
       }
 
-      waitForExpectations(timeout: defaultTimeout)
+      wait(for: [expectation], timeout: defaultTimeout)
+      self.stopMeasuring()
     }
   }
 

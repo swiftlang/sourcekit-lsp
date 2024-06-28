@@ -536,10 +536,6 @@ final class RenameTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
@@ -576,15 +572,11 @@ final class RenameTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
             .target(
-              name: "MyLibrary", 
+              name: "MyLibrary",
               swiftSettings: [.unsafeFlags(["-Xfrontend", "-disable-objc-attr-requires-foundation-module"])]
             )
           ]
@@ -627,15 +619,11 @@ final class RenameTests: XCTestCase {
         """,
       ],
       manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
         let package = Package(
           name: "MyLibrary",
           targets: [
             .target(
-              name: "MyLibrary", 
+              name: "MyLibrary",
               swiftSettings: [.unsafeFlags(["-Xfrontend", "-disable-objc-attr-requires-foundation-module"])]
             )
           ]
@@ -658,7 +646,7 @@ final class RenameTests: XCTestCase {
   func testPrepeareRenameOnDefinition() async throws {
     try await SkipUnless.sourcekitdSupportsRename()
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
       func 1️⃣foo2️⃣(3️⃣a: Int) {}
@@ -677,7 +665,7 @@ final class RenameTests: XCTestCase {
   func testPrepeareRenameOnReference() async throws {
     try await SkipUnless.sourcekitdSupportsRename()
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
       func foo(a: Int, b: Int = 1) {}
@@ -1114,7 +1102,7 @@ final class RenameTests: XCTestCase {
         }
         """,
       ],
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let definitionUri = try project.uri(for: "definition.swift")
@@ -1157,7 +1145,7 @@ final class RenameTests: XCTestCase {
       ])
     )
 
-    try await SwiftPMTestProject.build(at: project.scratchDirectory)
+    try await project.testClient.send(PollIndexRequest())
 
     let resultAfterFileMove = try await project.testClient.send(
       RenameRequest(textDocument: TextDocumentIdentifier(callerUri), position: callerPositions["3️⃣"], newName: "bar")
@@ -1179,5 +1167,171 @@ final class RenameTests: XCTestCase {
         ]
       )
     )
+  }
+
+  func testRenameEnumCaseWithUnlabeledAssociatedValue() async throws {
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
+    try await assertSingleFileRename(
+      """
+      enum MyEnum {
+        case 1️⃣myCase(String)
+      }
+      """,
+      newName: "newName",
+      expectedPrepareRenamePlaceholder: "myCase(_:)",
+      expected: """
+        enum MyEnum {
+          case newName(String)
+        }
+        """
+    )
+  }
+
+  func testAddLabelToEnumCase() async throws {
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
+    try await assertSingleFileRename(
+      """
+      enum MyEnum {
+        case 1️⃣myCase(String)
+      }
+      """,
+      newName: "newName(newLabel:)",
+      expectedPrepareRenamePlaceholder: "myCase(_:)",
+      expected: """
+        enum MyEnum {
+          case newName(newLabel: String)
+        }
+        """
+    )
+  }
+
+  func testRemoveLabelFromEnumCase() async throws {
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
+    try await assertSingleFileRename(
+      """
+      enum MyEnum {
+        case myCase(label: String)
+      }
+
+      func test() {
+        _ = MyEnum.2️⃣myCase(label: "abc")
+      }
+      """,
+      newName: "newName(_:)",
+      expectedPrepareRenamePlaceholder: "myCase(label:)",
+      expected: """
+        enum MyEnum {
+          case newName(_ label: String)
+        }
+
+        func test() {
+          _ = MyEnum.newName("abc")
+        }
+        """
+    )
+  }
+
+  func testRenameEnumCaseWithUnderscoreLabel() async throws {
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
+    try await assertSingleFileRename(
+      """
+      enum MyEnum {
+        case myCase(_ label: String)
+      }
+
+      func test() {
+        _ = MyEnum.2️⃣myCase("abc")
+      }
+      """,
+      newName: "newName(_:)",
+      expectedPrepareRenamePlaceholder: "myCase(_:)",
+      expected: """
+        enum MyEnum {
+          case newName(_ label: String)
+        }
+
+        func test() {
+          _ = MyEnum.newName("abc")
+        }
+        """
+    )
+  }
+
+  func testRenameEnumCaseWithUnderscoreToLabelMatchingInternalName() async throws {
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
+    try await assertSingleFileRename(
+      """
+      enum MyEnum {
+        case myCase(_ label: String)
+      }
+
+      func test() {
+        _ = MyEnum.2️⃣myCase("abc")
+      }
+      """,
+      newName: "newName(label:)",
+      expectedPrepareRenamePlaceholder: "myCase(_:)",
+      expected: """
+        enum MyEnum {
+          case newName(label: String)
+        }
+
+        func test() {
+          _ = MyEnum.newName(label: "abc")
+        }
+        """
+    )
+  }
+
+  func testRenameEnumCaseWithUnderscoreToLabelNotMatchingInternalName() async throws {
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
+    // Note that the renamed code doesn't compile because enum cases can't have an external and internal parameter name.
+    // But it's probably the best thing we can do because we don't want to erase the user-specified internal name, which
+    // they didn't request to rename. Also, this is a pretty niche case and having a special case for it is probably not
+    // worth it.
+    try await assertSingleFileRename(
+      """
+      enum MyEnum {
+        case myCase(_ label: String)
+      }
+
+      func test() {
+        _ = MyEnum.2️⃣myCase("abc")
+      }
+      """,
+      newName: "newName(publicLabel:)",
+      expectedPrepareRenamePlaceholder: "myCase(_:)",
+      expected: """
+        enum MyEnum {
+          case newName(publicLabel label: String)
+        }
+
+        func test() {
+          _ = MyEnum.newName(publicLabel: "abc")
+        }
+        """
+    )
+  }
+
+  func testRenameDoesNotReportEditsIfNoActualChangeIsMade() async throws {
+    try await SkipUnless.sourcekitdSupportsRename()
+    let project = try await SwiftPMTestProject(
+      files: [
+        "FileA.swift": """
+        func 1️⃣foo(x: Int) {}
+        """,
+        "FileB.swift": """
+        func test() {
+          foo(x: 1)
+        }
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+    let (uri, positions) = try project.openDocument("FileA.swift")
+    let result = try await project.testClient.send(
+      RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"], newName: "foo(x:)")
+    )
+    XCTAssertEqual(result?.changes, [:])
   }
 }

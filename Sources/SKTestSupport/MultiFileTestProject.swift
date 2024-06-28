@@ -13,6 +13,7 @@
 import Foundation
 import LanguageServerProtocol
 import SKCore
+import SourceKitLSP
 
 /// The location of a test file within test workspace.
 public struct RelativeFileLocation: Hashable, ExpressibleByStringLiteral {
@@ -30,6 +31,15 @@ public struct RelativeFileLocation: Hashable, ExpressibleByStringLiteral {
   public init(stringLiteral value: String) {
     let components = value.components(separatedBy: "/")
     self.init(directories: components.dropLast(), components.last!)
+  }
+
+  public func url(relativeTo: URL) -> URL {
+    var url = relativeTo
+    for directory in directories {
+      url = url.appendingPathComponent(directory)
+    }
+    url = url.appendingPathComponent(fileName)
+    return url
   }
 }
 
@@ -69,8 +79,14 @@ public class MultiFileTestProject {
   /// File contents can also contain `$TEST_DIR`, which gets replaced by the temporary directory.
   public init(
     files: [RelativeFileLocation: String],
-    workspaces: (URL) -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
+    workspaces: (URL) async throws -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
+    capabilities: ClientCapabilities = ClientCapabilities(),
+    options: SourceKitLSPOptions = .testDefault(),
+    testHooks: TestHooks = TestHooks(),
+    enableBackgroundIndexing: Bool = false,
     usePullDiagnostics: Bool = true,
+    preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
+    cleanUp: (@Sendable () -> Void)? = nil,
     testName: String = #function
   ) async throws {
     scratchDirectory = try testScratchDir(testName: testName)
@@ -79,11 +95,7 @@ public class MultiFileTestProject {
     var fileData: [String: FileData] = [:]
     for (fileLocation, markedText) in files {
       let markedText = markedText.replacingOccurrences(of: "$TEST_DIR", with: scratchDirectory.path)
-      var fileURL = scratchDirectory
-      for directory in fileLocation.directories {
-        fileURL = fileURL.appendingPathComponent(directory)
-      }
-      fileURL = fileURL.appendingPathComponent(fileLocation.fileName)
+      let fileURL = fileLocation.url(relativeTo: scratchDirectory)
       try FileManager.default.createDirectory(
         at: fileURL.deletingLastPathComponent(),
         withIntermediateDirectories: true
@@ -104,12 +116,18 @@ public class MultiFileTestProject {
     self.fileData = fileData
 
     self.testClient = try await TestSourceKitLSPClient(
+      options: options,
+      testHooks: testHooks,
+      capabilities: capabilities,
       usePullDiagnostics: usePullDiagnostics,
+      enableBackgroundIndexing: enableBackgroundIndexing,
       workspaceFolders: workspaces(scratchDirectory),
+      preInitialization: preInitialization,
       cleanUp: { [scratchDirectory] in
         if cleanScratchDirectories {
           try? FileManager.default.removeItem(at: scratchDirectory)
         }
+        cleanUp?()
       }
     )
   }
@@ -141,5 +159,14 @@ public class MultiFileTestProject {
       throw Error.fileNotFound
     }
     return DocumentPositions(markedText: fileData.markedText)[marker]
+  }
+
+  public func range(from fromMarker: String, to toMarker: String, in fileName: String) throws -> Range<Position> {
+    return try position(of: fromMarker, in: fileName)..<position(of: toMarker, in: fileName)
+  }
+
+  public func location(from fromMarker: String, to toMarker: String, in fileName: String) throws -> Location {
+    let range = try self.range(from: fromMarker, to: toMarker, in: fileName)
+    return Location(uri: try self.uri(for: fileName), range: range)
   }
 }

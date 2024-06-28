@@ -15,7 +15,8 @@ import LSPTestSupport
 import LanguageServerProtocol
 import SKCore
 import SKTestSupport
-import SourceKitLSP
+@_spi(Testing) import SourceKitLSP
+import SwiftExtensions
 import SwiftParser
 import SwiftSyntax
 import XCTest
@@ -35,9 +36,9 @@ final class LocalSwiftTests: XCTestCase {
 
   func testEditing() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
-    let documentManager = await testClient.server._documentManager
+    let documentManager = await testClient.server.documentManager
 
     testClient.openDocument("func", uri: uri, version: 12)
 
@@ -160,7 +161,7 @@ final class LocalSwiftTests: XCTestCase {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let uri = try DocumentURI(string: "urn:uuid:A1B08909-E791-469E-BF0F-F5790977E051")
 
-    let documentManager = await testClient.server._documentManager
+    let documentManager = await testClient.server.documentManager
 
     testClient.openDocument("func", uri: uri, language: .swift)
 
@@ -419,7 +420,7 @@ final class LocalSwiftTests: XCTestCase {
     )
   }
 
-  func testFixitsAreIncludedInPublishDiagnosticsNotes() async throws {
+  func testFixitsAreIncludedInPublishDiagnosticsNotifications() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
@@ -585,7 +586,7 @@ final class LocalSwiftTests: XCTestCase {
     )
   }
 
-  func testFixitsAreReturnedFromCodeActionsNotes() async throws {
+  func testFixitsAreReturnedFromCodeActionsNotifications() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: quickFixCapabilities, usePullDiagnostics: false)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
@@ -691,7 +692,7 @@ final class LocalSwiftTests: XCTestCase {
     )
   }
 
-  func testMuliEditFixitCodeActionNote() async throws {
+  func testMuliEditFixitCodeActionNotifications() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: quickFixCapabilities, usePullDiagnostics: false)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
@@ -755,8 +756,6 @@ final class LocalSwiftTests: XCTestCase {
       func foo(_ bar: Baz)
       ```
 
-      ---
-
       """
     )
     XCTAssertEqual(
@@ -769,8 +768,6 @@ final class LocalSwiftTests: XCTestCase {
       ```swift
       func foo() -> Bar
       ```
-
-      ---
 
       """
     )
@@ -805,8 +802,6 @@ final class LocalSwiftTests: XCTestCase {
       func replacingOccurrences<Target, Replacement>(of target: Target, with replacement: Replacement, options: String.CompareOptions = default, range searchRange: Range<String.Index>? = default) -> String where Target : StringProtocol, Replacement : StringProtocol
       ```
 
-      ---
-
       """
     )
   }
@@ -823,8 +818,6 @@ final class LocalSwiftTests: XCTestCase {
       var foo
       ```
 
-      ---
-
       """
     )
 
@@ -839,8 +832,6 @@ final class LocalSwiftTests: XCTestCase {
       var foo
       ```
 
-      ---
-
       """
     )
     XCTAssertEqual(
@@ -853,8 +844,6 @@ final class LocalSwiftTests: XCTestCase {
       ```swift
       var foo
       ```
-
-      ---
 
       """
     )
@@ -881,8 +870,6 @@ final class LocalSwiftTests: XCTestCase {
       ```swift
       var foo
       ```
-
-      ---
 
       """
     )
@@ -1064,8 +1051,6 @@ final class LocalSwiftTests: XCTestCase {
       ```swift
       struct String
       ```
-
-      ---
       A Unicode s
 
       ### Discussion
@@ -1147,8 +1132,6 @@ final class LocalSwiftTests: XCTestCase {
       ```swift
       struct S
       ```
-
-      ---
       ### Discussion
 
       ```swift
@@ -1370,12 +1353,12 @@ final class LocalSwiftTests: XCTestCase {
     let uri = DocumentURI(url)
 
     let reusedNodeCallback = self.expectation(description: "reused node callback called")
-    var reusedNodes: [Syntax] = []
+    let reusedNodes = ThreadSafeBox<[Syntax]>(initialValue: [])
     let swiftLanguageService =
-      await testClient.server._languageService(for: uri, .swift, in: testClient.server.workspaceForDocument(uri: uri)!)
+      await testClient.server.languageService(for: uri, .swift, in: testClient.server.workspaceForDocument(uri: uri)!)
       as! SwiftLanguageService
     await swiftLanguageService.setReusedNodeCallback {
-      reusedNodes.append($0)
+      reusedNodes.value.append($0)
       reusedNodeCallback.fulfill()
     }
 
@@ -1402,9 +1385,8 @@ final class LocalSwiftTests: XCTestCase {
     )
     try await fulfillmentOfOrThrow([reusedNodeCallback])
 
-    XCTAssertEqual(reusedNodes.count, 1)
-
-    let firstNode = try XCTUnwrap(reusedNodes.first)
+    XCTAssertEqual(reusedNodes.value.count, 1)
+    let firstNode = try XCTUnwrap(reusedNodes.value.first)
     XCTAssertEqual(
       firstNode.description,
       """
@@ -1418,11 +1400,10 @@ final class LocalSwiftTests: XCTestCase {
   func testDebouncePublishDiagnosticsNotification() async throws {
     try SkipUnless.longTestsEnabled()
 
-    var serverOptions = SourceKitLSPServer.Options.testDefault
-    serverOptions.swiftPublishDiagnosticsDebounceDuration = 1 /* 1s */
+    let options = SourceKitLSPOptions(swiftPublishDiagnosticsDebounce: 1 /* second */)
 
     // Construct our own  `TestSourceKitLSPClient` instead of the one from set up because we want a higher debounce interval.
-    let testClient = try await TestSourceKitLSPClient(serverOptions: serverOptions, usePullDiagnostics: false)
+    let testClient = try await TestSourceKitLSPClient(options: options, usePullDiagnostics: false)
 
     let uri = DocumentURI(URL(fileURLWithPath: "/\(UUID())/a.swift"))
     testClient.openDocument("foo", uri: uri)
@@ -1443,6 +1424,6 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertEqual(diag.message, "Cannot find 'bar' in scope")
 
     // Ensure that we don't get a second `PublishDiagnosticsNotification`
-    await assertThrowsError(try await testClient.nextDiagnosticsNotification(timeout: 2))
+    await assertThrowsError(try await testClient.nextDiagnosticsNotification(timeout: .seconds(2)))
   }
 }

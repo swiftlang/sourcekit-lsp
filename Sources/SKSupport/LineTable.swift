@@ -12,7 +12,7 @@
 
 import LSPLogging
 
-public struct LineTable: Hashable {
+public struct LineTable: Hashable, Sendable {
   @usableFromInline
   var impl: [String.Index]
 
@@ -125,15 +125,50 @@ extension LineTable {
   }
 }
 
-// MARK: - Position translation
+// MARK: - Position conversion
 
 extension LineTable {
   // MARK: line:column <-> String.Index
 
+  /// Result of `lineSlice(at:)`
+  @usableFromInline
+  enum LineSliceResult {
+    /// The line index passed to `lineSlice(at:)` was negative.
+    case beforeFirstLine
+    /// The contents of the line at the index passed to `lineSlice(at:)`.
+    case line(Substring)
+    /// The line index passed to `lineSlice(at:)` was after the last line of the file
+    case afterLastLine
+  }
+
+  /// Extracts the contents of the line at the given index.
+  ///
+  /// If `line` is out-of-bounds, logs a fault and returns either `beforeFirstLine` or `afterLastLine`.
+  @usableFromInline
+  func lineSlice(at line: Int, callerFile: StaticString, callerLine: UInt) -> LineSliceResult {
+    guard line >= 0 else {
+      logger.fault(
+        """
+        Line \(line) is negative (\(callerFile, privacy: .public):\(callerLine, privacy: .public))
+        """
+      )
+      return .beforeFirstLine
+    }
+    guard line < count else {
+      logger.fault(
+        """
+        Line \(line) is out-of range (\(callerFile, privacy: .public):\(callerLine, privacy: .public))
+        """
+      )
+      return .afterLastLine
+    }
+    return .line(self[line])
+  }
+
   /// Converts the given UTF-16-based `line:column`` position to a `String.Index`.
   ///
-  /// If the position does not refer to a valid position with in the source file, returns `nil` and logs a fault
-  /// containing the file and line of the caller (from `callerFile` and `callerLine`).
+  /// If the position does not refer to a valid position with in the source file, returns the closest valid position and
+  /// logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
   ///
   /// - parameter line: Line number (zero-based).
   /// - parameter utf16Column: UTF-16 column offset (zero-based).
@@ -143,34 +178,42 @@ extension LineTable {
     utf16Column: Int,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> String.Index? {
-    guard line < count else {
+  ) -> String.Index {
+    let lineSlice: Substring
+    switch self.lineSlice(at: line, callerFile: callerFile, callerLine: callerLine) {
+    case .beforeFirstLine:
+      return self.content.startIndex
+    case .afterLastLine:
+      return self.content.endIndex
+    case .line(let line):
+      lineSlice = line
+    }
+    guard utf16Column >= 0 else {
       logger.fault(
         """
-        Unable to get string index for \(line):\(utf16Column) (UTF-16) because line is out of range \
+        Column is negative while converting \(line):\(utf16Column) (UTF-16) to String.Index \
         (\(callerFile, privacy: .public):\(callerLine, privacy: .public))
         """
       )
-      return nil
+      return lineSlice.startIndex
     }
-    let lineSlice = self[line]
     guard let index = content.utf16.index(lineSlice.startIndex, offsetBy: utf16Column, limitedBy: lineSlice.endIndex)
     else {
       logger.fault(
         """
-        Unable to get string index for \(line):\(utf16Column) (UTF-16) because column is out of range \
+        Column is past line end while converting \(line):\(utf16Column) (UTF-16) to String.Index \
         (\(callerFile, privacy: .public):\(callerLine, privacy: .public))
         """
       )
-      return nil
+      return lineSlice.endIndex
     }
     return index
   }
 
   /// Converts the given UTF-8-based `line:column`` position to a `String.Index`.
   ///
-  /// If the position does not refer to a valid position with in the source file, returns `nil` and logs a fault
-  /// containing the file and line of the caller (from `callerFile` and `callerLine`).
+  /// If the position does not refer to a valid position with in the source file, returns the closest valid position and
+  /// logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
   ///
   /// - parameter line: Line number (zero-based).
   /// - parameter utf8Column: UTF-8 column offset (zero-based).
@@ -180,35 +223,46 @@ extension LineTable {
     utf8Column: Int,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> String.Index? {
-    guard 0 <= line, line < count else {
+  ) -> String.Index {
+    let lineSlice: Substring
+    switch self.lineSlice(at: line, callerFile: callerFile, callerLine: callerLine) {
+    case .beforeFirstLine:
+      return self.content.startIndex
+    case .afterLastLine:
+      return self.content.endIndex
+    case .line(let line):
+      lineSlice = line
+    }
+
+    guard utf8Column >= 0 else {
       logger.fault(
         """
-        Unable to get string index for \(line):\(utf8Column) (UTF-8) because line is out of range \
+        Column is negative while converting \(line):\(utf8Column) (UTF-8) to String.Index. \
         (\(callerFile, privacy: .public):\(callerLine, privacy: .public))
         """
       )
-      return nil
+      return lineSlice.startIndex
     }
-    guard 0 <= utf8Column else {
+    guard let index = content.utf8.index(lineSlice.startIndex, offsetBy: utf8Column, limitedBy: lineSlice.endIndex)
+    else {
       logger.fault(
         """
-        Unable to get string index for \(line):\(utf8Column) (UTF-8) because column is out of range \
+        Column is after end of line while converting \(line):\(utf8Column) (UTF-8) to String.Index. \
         (\(callerFile, privacy: .public):\(callerLine, privacy: .public))
         """
       )
-      return nil
+      return lineSlice.endIndex
     }
-    let lineSlice = self[line]
-    return content.utf8.index(lineSlice.startIndex, offsetBy: utf8Column, limitedBy: lineSlice.endIndex)
+
+    return index
   }
 
   // MARK: line:column <-> UTF-8 offset
 
   /// Converts the given UTF-16-based `line:column`` position to a UTF-8 offset within the source file.
   ///
-  /// If the position does not refer to a valid position with in the source file, returns `nil` and logs a fault
-  /// containing the file and line of the caller (from `callerFile` and `callerLine`).
+  /// If the position does not refer to a valid position with in the source file, returns the closest valid offset and
+  /// logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
   ///
   /// - parameter line: Line number (zero-based).
   /// - parameter utf16Column: UTF-16 column offset (zero-based).
@@ -218,24 +272,20 @@ extension LineTable {
     utf16Column: Int,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> Int? {
-    guard
-      let stringIndex = stringIndexOf(
-        line: line,
-        utf16Column: utf16Column,
-        callerFile: callerFile,
-        callerLine: callerLine
-      )
-    else {
-      return nil
-    }
+  ) -> Int {
+    let stringIndex = stringIndexOf(
+      line: line,
+      utf16Column: utf16Column,
+      callerFile: callerFile,
+      callerLine: callerLine
+    )
     return content.utf8.distance(from: content.startIndex, to: stringIndex)
   }
 
-  /// Converts the given UTF-8-based `line:column`` position to a UTF-8 offset within the source file.
+  /// Converts the given UTF-8-based `line:column` position to a UTF-8 offset within the source file.
   ///
-  /// If the position does not refer to a valid position with in the source file, returns `nil` and logs a fault
-  /// containing the file and line of the caller (from `callerFile` and `callerLine`).
+  /// If the position does not refer to a valid position with in the source file, returns the closest valid offset and
+  /// logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
   ///
   /// - parameter line: Line number (zero-based).
   /// - parameter utf8Column: UTF-8 column offset (zero-based).
@@ -245,24 +295,20 @@ extension LineTable {
     utf8Column: Int,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> Int? {
-    guard
-      let stringIndex = stringIndexOf(
-        line: line,
-        utf8Column: utf8Column,
-        callerFile: callerFile,
-        callerLine: callerLine
-      )
-    else {
-      return nil
-    }
+  ) -> Int {
+    let stringIndex = stringIndexOf(
+      line: line,
+      utf8Column: utf8Column,
+      callerFile: callerFile,
+      callerLine: callerLine
+    )
     return content.utf8.distance(from: content.startIndex, to: stringIndex)
   }
 
-  /// Converts the given UTF-16-based line:column position to the UTF-8 offset of that position within the source file.
+  /// Converts the given UTF-8 offset to a zero-based UTF-16 line:column pair.
   ///
-  /// If the position does not refer to a valid position with in the snapshot, returns `nil` and logs a fault
-  /// containing the file and line of the caller (from `callerFile` and `callerLine`).
+  /// If the position does not refer to a valid position with in the snapshot, returns the closest valid line:column
+  /// pair and logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
   ///
   /// - parameter utf8Offset: UTF-8 buffer offset (zero-based).
   @inlinable
@@ -270,47 +316,48 @@ extension LineTable {
     utf8Offset: Int,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> (line: Int, utf16Column: Int)? {
-    guard utf8Offset <= content.utf8.count else {
+  ) -> (line: Int, utf16Column: Int) {
+    guard utf8Offset >= 0 else {
       logger.fault(
         """
-        Unable to get line and UTF-16 column for UTF-8 offset \(utf8Offset) because offset is out of range \
+        UTF-8 offset \(utf8Offset) is negative while converting it to UTF-16 line:column \
         (\(callerFile, privacy: .public):\(callerLine, privacy: .public))
         """
       )
-      return nil
+      return (line: 0, utf16Column: 0)
+    }
+    guard utf8Offset <= content.utf8.count else {
+      logger.fault(
+        """
+        UTF-8 offset \(utf8Offset) is past the end of the file while converting it to UTF-16 line:column \
+        (\(callerFile, privacy: .public):\(callerLine, privacy: .public))
+        """
+      )
+      return lineAndUTF16ColumnOf(content.endIndex)
     }
     return lineAndUTF16ColumnOf(content.utf8.index(content.startIndex, offsetBy: utf8Offset))
   }
 
   /// Converts the given UTF-8-based line:column position to the UTF-8 offset of that position within the source file.
   ///
-  /// If the position does not refer to a valid position with in the snapshot, returns `nil` and logs a fault
-  /// containing the file and line of the caller (from `callerFile` and `callerLine`).
+  /// If the position does not refer to a valid position with in the snapshot, returns the closest valid line:colum pair
+  /// and logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
   @inlinable func lineAndUTF8ColumnOf(
     utf8Offset: Int,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> (line: Int, utf8Column: Int)? {
-    guard
-      let (line, utf16Column) = lineAndUTF16ColumnOf(
-        utf8Offset: utf8Offset,
-        callerFile: callerFile,
-        callerLine: callerLine
-      )
-    else {
-      return nil
-    }
-    guard
-      let utf8Column = utf8ColumnAt(
-        line: line,
-        utf16Column: utf16Column,
-        callerFile: callerFile,
-        callerLine: callerLine
-      )
-    else {
-      return nil
-    }
+  ) -> (line: Int, utf8Column: Int) {
+    let (line, utf16Column) = lineAndUTF16ColumnOf(
+      utf8Offset: utf8Offset,
+      callerFile: callerFile,
+      callerLine: callerLine
+    )
+    let utf8Column = utf8ColumnAt(
+      line: line,
+      utf16Column: utf16Column,
+      callerFile: callerFile,
+      callerLine: callerLine
+    )
     return (line, utf8Column)
   }
 
@@ -318,8 +365,8 @@ extension LineTable {
 
   /// Returns UTF-16 column offset at UTF-8 based `line:column` position.
   ///
-  /// If the position does not refer to a valid position with in the snapshot, returns `nil` and logs a fault
-  /// containing the file and line of the caller (from `callerFile` and `callerLine`).
+  /// If the position does not refer to a valid position with in the snapshot, performs a best-effort recovery and logs
+  /// a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
   ///
   /// - parameter line: Line number (zero-based).
   /// - parameter utf8Column: UTF-8 column offset (zero-based).
@@ -329,21 +376,34 @@ extension LineTable {
     utf8Column: Int,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> Int? {
-    return convertColumn(
-      line: line,
-      column: utf8Column,
-      indexFunction: content.utf8.index(_:offsetBy:limitedBy:),
-      distanceFunction: content.utf16.distance(from:to:),
-      callerFile: callerFile,
-      callerLine: callerLine
-    )
+  ) -> Int {
+    let lineSlice: Substring
+    switch self.lineSlice(at: line, callerFile: callerFile, callerLine: callerLine) {
+    case .beforeFirstLine, .afterLastLine:
+      // This line is out-of-bounds. `lineSlice(at:)` already logged a fault.
+      // Recovery by assuming that UTF-8 and UTF-16 columns are similar.
+      return utf8Column
+    case .line(let line):
+      lineSlice = line
+    }
+    guard
+      let stringIndex = lineSlice.utf8.index(lineSlice.startIndex, offsetBy: utf8Column, limitedBy: lineSlice.endIndex)
+    else {
+      logger.fault(
+        """
+        UTF-8 column is past the end of the line while getting UTF-16 column of \(line):\(utf8Column) \
+        (\(callerFile, privacy: .public):\(callerLine, privacy: .public))
+        """
+      )
+      return lineSlice.utf16.count
+    }
+    return lineSlice.utf16.distance(from: lineSlice.startIndex, to: stringIndex)
   }
 
   /// Returns UTF-8 column offset at UTF-16 based `line:column` position.
   ///
-  /// If the position does not refer to a valid position with in the snapshot, returns `nil` and logs a fault
-  /// containing the file and line of the caller (from `callerFile` and `callerLine`).
+  /// If the position does not refer to a valid position with in the snapshot, performs a bets-effort recovery and logs
+  /// a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
   ///
   /// - parameter line: Line number (zero-based).
   /// - parameter utf16Column: UTF-16 column offset (zero-based).
@@ -353,45 +413,31 @@ extension LineTable {
     utf16Column: Int,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> Int? {
-    return convertColumn(
-      line: line,
-      column: utf16Column,
-      indexFunction: content.utf16.index(_:offsetBy:limitedBy:),
-      distanceFunction: content.utf8.distance(from:to:),
-      callerFile: callerFile,
-      callerLine: callerLine
-    )
-  }
-
-  @inlinable
-  func convertColumn(
-    line: Int,
-    column: Int,
-    indexFunction: (Substring.Index, Int, Substring.Index) -> Substring.Index?,
-    distanceFunction: (Substring.Index, Substring.Index) -> Int,
-    callerFile: StaticString = #fileID,
-    callerLine: UInt = #line
-  ) -> Int? {
-    guard line < count else {
+  ) -> Int {
+    let lineSlice: Substring
+    switch self.lineSlice(at: line, callerFile: callerFile, callerLine: callerLine) {
+    case .beforeFirstLine, .afterLastLine:
+      // This line is out-of-bounds. `lineSlice` already logged a fault.
+      // Recovery by assuming that UTF-8 and UTF-16 columns are similar.
+      return utf16Column
+    case .line(let line):
+      lineSlice = line
+    }
+    guard
+      let stringIndex = lineSlice.utf16.index(
+        lineSlice.startIndex,
+        offsetBy: utf16Column,
+        limitedBy: lineSlice.endIndex
+      )
+    else {
       logger.fault(
         """
-        Unable to convert column of \(line):\(column) because line is out of range \
+        UTF-16 column is past the end of the line while getting UTF-8 column of \(line):\(utf16Column) \
         (\(callerFile, privacy: .public):\(callerLine, privacy: .public))
         """
       )
-      return nil
+      return lineSlice.utf8.count
     }
-    let lineSlice = self[line]
-    guard let targetIndex = indexFunction(lineSlice.startIndex, column, lineSlice.endIndex) else {
-      logger.fault(
-        """
-        Unable to convert column of \(line):\(column) because column is out of range \
-        (\(callerFile, privacy: .public):\(callerLine, privacy: .public))
-        """
-      )
-      return nil
-    }
-    return distanceFunction(lineSlice.startIndex, targetIndex)
+    return lineSlice.utf8.distance(from: lineSlice.startIndex, to: stringIndex)
   }
 }

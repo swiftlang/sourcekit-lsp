@@ -19,9 +19,12 @@ import LanguageServerProtocol
 import struct CDispatch.dispatch_fd_t
 #endif
 
-/// A connection between a message handler (e.g. language server) in the same process as the connection object and a remote message handler (e.g. language client) that may run in another process using JSON RPC messages sent over a pair of in/out file descriptors.
+/// A connection between a message handler (e.g. language server) in the same process as the connection object and a
+/// remote message handler (e.g. language client) that may run in another process using JSON RPC messages sent over a
+// pair of in/out file descriptors.
 ///
-/// For example, inside a language server, the `JSONRPCConnection` takes the language service implementation as its `receiveHandler` and itself provides the client connection for sending notifications and callbacks.
+/// For example, inside a language server, the `JSONRPCConnection` takes the language service implementation as its
+// `receiveHandler` and itself provides the client connection for sending notifications and callbacks.
 public final class JSONRPCConnection: Connection {
 
   /// A name of the endpoint for this connection, used for logging, e.g. `clangd`.
@@ -134,7 +137,7 @@ public final class JSONRPCConnection: Connection {
       queue: queue,
       cleanupHandler: { (error: Int32) in
         if error != 0 {
-          logger.error("IO error \(error)")
+          logger.fault("IO error \(error)")
         }
         ioGroup.leave()
       }
@@ -153,7 +156,7 @@ public final class JSONRPCConnection: Connection {
       queue: sendQueue,
       cleanupHandler: { (error: Int32) in
         if error != 0 {
-          logger.error("IO error \(error)")
+          logger.fault("IO error \(error)")
         }
         ioGroup.leave()
       }
@@ -195,7 +198,7 @@ public final class JSONRPCConnection: Connection {
         guard errorCode == 0 else {
           #if !os(Windows)
           if errorCode != POSIXError.ECANCELED.rawValue {
-            logger.error("IO error reading \(errorCode)")
+            logger.fault("IO error reading \(errorCode)")
           }
           #endif
           if done { self.closeAssumingOnQueue() }
@@ -365,7 +368,7 @@ public final class JSONRPCConnection: Connection {
     precondition(state != .created, "tried to send message before calling start(messageHandler:)")
     let ready = state == .running
     if shouldLog && !ready {
-      logger.error("ignoring message; state = \(String(reflecting: self.state), privacy: .public)")
+      logger.error("Ignoring message; state = \(String(reflecting: self.state), privacy: .public)")
     }
     return ready
   }
@@ -444,7 +447,7 @@ public final class JSONRPCConnection: Connection {
 
     sendIO.write(offset: 0, data: dispatchData, queue: sendQueue) { [weak self] done, _, errorCode in
       if errorCode != 0 {
-        logger.error("IO error sending message \(errorCode)")
+        logger.fault("IO error sending message \(errorCode)")
         if done, let self {
           // An unrecoverable error occurs on the channel’s file descriptor.
           // Close the connection.
@@ -546,7 +549,7 @@ public final class JSONRPCConnection: Connection {
       guard state == .running else { return }
       state = .closed
 
-      logger.log("closing JSONRPCConnection...")
+      logger.log("Closing JSONRPCConnection...")
       // Attempt to close the reader immediately; we do not need to accept remaining inputs.
       receiveIO.close(flags: .stop)
       // Close the writer after it finishes outstanding work.

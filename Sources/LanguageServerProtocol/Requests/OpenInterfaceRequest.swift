@@ -10,11 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Request a textual interface of a module to display in the IDE.
+/// Request a generated interface of a module to display in the IDE.
 /// **(LSP Extension)**
-public struct OpenInterfaceRequest: TextDocumentRequest, Hashable {
+public struct OpenGeneratedInterfaceRequest: TextDocumentRequest, Hashable {
   public static let method: String = "textDocument/openInterface"
-  public typealias Response = InterfaceDetails?
+  public typealias Response = GeneratedInterfaceDetails?
 
   /// The document whose compiler arguments should be used to generate the interface.
   public var textDocument: TextDocumentIdentifier
@@ -23,32 +23,29 @@ public struct OpenInterfaceRequest: TextDocumentRequest, Hashable {
   public var moduleName: String
 
   /// The module group name.
-  public var groupNames: [String]
+  public var groupName: String?
 
   /// The symbol USR to search for in the generated module interface.
   public var symbolUSR: String?
 
-  public init(textDocument: TextDocumentIdentifier, name: String, symbolUSR: String?) {
+  public init(textDocument: TextDocumentIdentifier, name: String, groupName: String?, symbolUSR: String?) {
     self.textDocument = textDocument
     self.symbolUSR = symbolUSR
-    // Stdlib Swift modules are all in the "Swift" module, but their symbols return a module name `Swift.***`.
-    let splitName = name.split(separator: ".")
-    self.moduleName = String(splitName[0])
-    self.groupNames = [String.SubSequence](splitName.dropFirst()).map(String.init)
+    self.moduleName = name
+    self.groupName = groupName
   }
 
   /// Name of interface module name with group names appended
   public var name: String {
-    if groupNames.count > 0 {
-      return "\(self.moduleName).\(self.groupNames.joined(separator: "."))"
-    } else {
-      return self.moduleName
+    if let groupName {
+      return "\(self.moduleName).\(groupName.replacing("/", with: "."))"
     }
+    return self.moduleName
   }
 }
 
 /// The textual output of a module interface.
-public struct InterfaceDetails: ResponseType, Hashable {
+public struct GeneratedInterfaceDetails: ResponseType, Hashable {
 
   public var uri: DocumentURI
   public var position: Position?

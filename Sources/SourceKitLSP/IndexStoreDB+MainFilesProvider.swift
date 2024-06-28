@@ -10,18 +10,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-import IndexStoreDB
+import Foundation
 import LSPLogging
 import LanguageServerProtocol
 import SKCore
+import SemanticIndex
 
-extension IndexStoreDB {
+extension UncheckedIndex {
   public func mainFilesContainingFile(_ uri: DocumentURI) -> Set<DocumentURI> {
     let mainFiles: Set<DocumentURI>
     if let url = uri.fileURL {
+      let mainFilePaths = Set(self.underlyingIndexStoreDB.mainFilesContainingFile(path: url.path))
       mainFiles = Set(
-        self.mainFilesContainingFile(path: url.path)
-          .lazy.map({ DocumentURI(URL(fileURLWithPath: $0, isDirectory: false)) })
+        mainFilePaths
+          .filter { FileManager.default.fileExists(atPath: $0) }
+          .map({ DocumentURI(filePath: $0, isDirectory: false) })
       )
     } else {
       mainFiles = []
@@ -32,7 +35,7 @@ extension IndexStoreDB {
 }
 
 #if compiler(<5.11)
-extension IndexStoreDB: MainFilesProvider {}
+extension UncheckedIndex: MainFilesProvider {}
 #else
-extension IndexStoreDB: @retroactive MainFilesProvider {}
+extension UncheckedIndex: @retroactive MainFilesProvider {}
 #endif
