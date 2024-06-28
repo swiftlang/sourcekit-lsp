@@ -3,7 +3,7 @@
 `.sourcekit-lsp/config.json` configuration files can be used to modify the behavior of SourceKit-LSP in various ways. The following locations are checked. Settings in later configuration files override settings in earlier configuration files
 - `~/.sourcekit-lsp/config.json`
 - On macOS: `~/Library/Application Support/org.swift.sourcekit-lsp/config.json` from the various `Library` folders on the system
-- If the `XDG_CONFIG_HOME` environment variable is set: `$XDG_CONFIG_HOME/org.swift.sourcekit-lsp/config.json`
+- If the `XDG_CONFIG_HOME` environment variable is set: `$XDG_CONFIG_HOME/sourcekit-lsp/config.json`
 - Initialization options passed in the initialize request
 - A `.sourcekit-lsp/config.json` file in a workspace’s root
 
