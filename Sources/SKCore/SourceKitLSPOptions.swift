@@ -12,7 +12,7 @@
 
 import Foundation
 import LSPLogging
-import SKCore
+import LanguageServerProtocol
 import SKSupport
 
 import struct TSCBasic.AbsolutePath
@@ -198,6 +198,21 @@ public struct SourceKitLSPOptions: Sendable, Codable {
     self.experimentalFeatures = experimentalFeatures
     self.swiftPublishDiagnosticsDebounce = swiftPublishDiagnosticsDebounce
     self.workDoneProgressDebounce = workDoneProgressDebounce
+  }
+
+  public init?(fromLSPAny lspAny: LSPAny?) throws {
+    guard let lspAny else {
+      return nil
+    }
+    let jsonEncoded = try JSONEncoder().encode(lspAny)
+    self = try JSONDecoder().decode(Self.self, from: jsonEncoded)
+  }
+
+  public var asLSPAny: LSPAny {
+    get throws {
+      let jsonEncoded = try JSONEncoder().encode(self)
+      return try JSONDecoder().decode(LSPAny.self, from: jsonEncoded)
+    }
   }
 
   public init?(path: URL?) {
