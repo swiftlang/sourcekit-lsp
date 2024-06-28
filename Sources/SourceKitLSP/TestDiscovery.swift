@@ -480,38 +480,26 @@ fileprivate extension Array<AnnotatedTestItem> {
 
   func prefixTestsWithModuleName(workspace: Workspace) async -> Self {
     return await self.asyncMap({
-      // If the module name can't be determined we return the test item without a prefixed id.
-      guard let moduleName = await self.moduleName(from: workspace, for: $0.testItem.location.uri) else {
-        return $0
-      }
-      var newTest = $0.testItem
-      newTest.id = "\(moduleName).\(newTest.id)"
-      newTest.children = await prefixTestsWithModuleName(workspace: workspace, newTest.children)
-      return AnnotatedTestItem(testItem: newTest, isExtension: $0.isExtension)
+      return AnnotatedTestItem(
+        testItem: await $0.testItem.prefixIDWithModuleName(workspace: workspace),
+        isExtension: $0.isExtension
+      )
     })
   }
+}
 
-  private func prefixTestsWithModuleName(workspace: Workspace, _ tests: [TestItem]) async -> [TestItem] {
-    return await tests.asyncMap({
-      guard let moduleName = await self.moduleName(from: workspace, for: $0.location.uri) else {
-        return $0
-      }
-
-      var newTest = $0
-      newTest.id = "\(moduleName).\(newTest.id)"
-      newTest.children = await prefixTestsWithModuleName(workspace: workspace, newTest.children)
-      return newTest
-    })
-  }
-
-  private func moduleName(from workspace: Workspace, for uri: DocumentURI) async -> String? {
-    guard let configuredTarget = await workspace.buildSystemManager.canonicalConfiguredTarget(for: uri) else {
-      return nil
+extension TestItem {
+  fileprivate func prefixIDWithModuleName(workspace: Workspace) async -> TestItem {
+    guard let configuredTarget = await workspace.buildSystemManager.canonicalConfiguredTarget(for: self.location.uri),
+      let moduleName = await workspace.buildSystemManager.moduleName(for: self.location.uri, in: configuredTarget)
+    else {
+      return self
     }
-    // If for whatever reason we can't get a module name from the build system, fall back
-    // to using the targetID as this would be used when there is no command line arguments
-    // to define the module name as something other than the targetID.
-    return await workspace.buildSystemManager.moduleName(for: uri, in: configuredTarget) ?? configuredTarget.targetID
+
+    var newTest = self
+    newTest.id = "\(moduleName).\(newTest.id)"
+    newTest.children = await newTest.children.asyncMap({ await $0.prefixIDWithModuleName(workspace: workspace) })
+    return newTest
   }
 }
 

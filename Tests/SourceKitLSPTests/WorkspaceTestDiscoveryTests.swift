@@ -655,12 +655,12 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "dummy.MyTests",
+          id: "MyTests",
           label: "MyTests",
           location: Location(uri: project.fileURI, range: Range(project.positions["1️⃣"])),
           children: [
             TestItem(
-              id: "dummy.MyTests/testSomething()",
+              id: "MyTests/testSomething()",
               label: "testSomething()",
               location: Location(uri: project.fileURI, range: Range(project.positions["2️⃣"]))
             )
@@ -712,12 +712,12 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "dummy.MyTests",
+          id: "MyTests",
           label: "MyTests",
           location: try project.location(from: "1️⃣", to: "4️⃣", in: "MyTests.swift"),
           children: [
             TestItem(
-              id: "dummy.MyTests/testSomething()",
+              id: "MyTests/testSomething()",
               label: "testSomething()",
               location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift")
             )
