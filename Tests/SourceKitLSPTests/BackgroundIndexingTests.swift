@@ -969,8 +969,7 @@ final class BackgroundIndexingTests: XCTestCase {
 
   func testUseBuildFlagsDuringPreparation() async throws {
     var options = SourceKitLSPOptions.testDefault()
-    options.swiftPM = options.swiftPM ?? SourceKitLSPOptions.SwiftPMOptions()
-    options.swiftPM!.swiftCompilerFlags = ["-D", "MY_FLAG"]
+    options.swiftPM.swiftCompilerFlags = ["-D", "MY_FLAG"]
     let project = try await SwiftPMTestProject(
       files: [
         "Lib/Lib.swift": """
@@ -1252,7 +1251,7 @@ final class BackgroundIndexingTests: XCTestCase {
     try SkipUnless.longTestsEnabled()
 
     var options = SourceKitLSPOptions.testDefault(experimentalFeatures: [.swiftpmPrepareForIndexing])
-    options.index?.updateIndexStoreTimeout = 1 /* second */
+    options.index.updateIndexStoreTimeout = 1 /* second */
 
     let dateStarted = Date()
     _ = try await SwiftPMTestProject(

@@ -131,7 +131,7 @@ public actor SwiftPMBuildSystem {
   private let workspacePath: TSCAbsolutePath
 
   /// Options that allow the user to pass extra compiler flags.
-  private let options: SourceKitLSPOptions.SwiftPMOptions
+  private let options: SourceKitLSPOptions
 
   /// The directory containing `Package.swift`.
   @_spi(Testing)
@@ -175,12 +175,9 @@ public actor SwiftPMBuildSystem {
     logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
   })
 
-  /// Whether to pass `--experimental-prepare-for-indexing` to `swift build` as part of preparation.
-  private let experimentalFeatures: Set<ExperimentalFeature>
-
   /// Whether the `SwiftPMBuildSystem` is pointed at a `.index-build` directory that's independent of the
   /// user's build.
-  private var isForIndexBuild: Bool { experimentalFeatures.contains(.backgroundIndexing) }
+  private var isForIndexBuild: Bool { options.backgroundIndexingOrDefault }
 
   private let testHooks: SwiftPMTestHooks
 
@@ -196,8 +193,7 @@ public actor SwiftPMBuildSystem {
     workspacePath: TSCAbsolutePath,
     toolchainRegistry: ToolchainRegistry,
     fileSystem: FileSystem = localFileSystem,
-    options: SourceKitLSPOptions.SwiftPMOptions,
-    experimentalFeatures: Set<ExperimentalFeature>,
+    options: SourceKitLSPOptions,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void = { _ in },
     testHooks: SwiftPMTestHooks
   ) async throws {
@@ -209,7 +205,6 @@ public actor SwiftPMBuildSystem {
     }
 
     self.toolchain = toolchain
-    self.experimentalFeatures = experimentalFeatures
     self.testHooks = testHooks
 
     guard let packageRoot = findPackageDirectory(containing: workspacePath, fileSystem) else {
@@ -250,9 +245,9 @@ public actor SwiftPMBuildSystem {
       forRootPackage: AbsolutePath(packageRoot),
       fileSystem: fileSystem
     )
-    if experimentalFeatures.contains(.backgroundIndexing) {
+    if options.backgroundIndexingOrDefault {
       location.scratchDirectory = AbsolutePath(packageRoot.appending(component: ".index-build"))
-    } else if let scratchDirectory = options.scratchPath,
+    } else if let scratchDirectory = options.swiftPM.scratchPath,
       let scratchDirectoryPath = try? AbsolutePath(validating: scratchDirectory)
     {
       location.scratchDirectory = scratchDirectoryPath
@@ -269,7 +264,7 @@ public actor SwiftPMBuildSystem {
     )
 
     let buildConfiguration: PackageModel.BuildConfiguration
-    switch options.configuration {
+    switch options.swiftPM.configuration {
     case .debug, nil:
       buildConfiguration = .debug
     case .release:
@@ -277,10 +272,10 @@ public actor SwiftPMBuildSystem {
     }
 
     let buildFlags = BuildFlags(
-      cCompilerFlags: options.cCompilerFlags ?? [],
-      cxxCompilerFlags: options.cxxCompilerFlags ?? [],
-      swiftCompilerFlags: options.swiftCompilerFlags ?? [],
-      linkerFlags: options.linkerFlags ?? []
+      cCompilerFlags: options.swiftPM.cCompilerFlags ?? [],
+      cxxCompilerFlags: options.swiftPM.cxxCompilerFlags ?? [],
+      swiftCompilerFlags: options.swiftPM.swiftCompilerFlags ?? [],
+      linkerFlags: options.swiftPM.linkerFlags ?? []
     )
 
     self.toolsBuildParameters = try BuildParameters(
@@ -334,8 +329,7 @@ public actor SwiftPMBuildSystem {
   public init?(
     uri: DocumentURI,
     toolchainRegistry: ToolchainRegistry,
-    options: SourceKitLSPOptions.SwiftPMOptions,
-    experimentalFeatures: Set<ExperimentalFeature>,
+    options: SourceKitLSPOptions,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void,
     testHooks: SwiftPMTestHooks
   ) async {
@@ -348,7 +342,6 @@ public actor SwiftPMBuildSystem {
         toolchainRegistry: toolchainRegistry,
         fileSystem: localFileSystem,
         options: options,
-        experimentalFeatures: experimentalFeatures,
         reloadPackageStatusCallback: reloadPackageStatusCallback,
         testHooks: testHooks
       )
@@ -636,14 +629,14 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       "--disable-index-store",
       "--target", target.targetID,
     ]
-    if let configuration = options.configuration {
+    if let configuration = options.swiftPM.configuration {
       arguments += ["-c", configuration.rawValue]
     }
-    arguments += options.cCompilerFlags?.flatMap { ["-Xcc", $0] } ?? []
-    arguments += options.cxxCompilerFlags?.flatMap { ["-Xcxx", $0] } ?? []
-    arguments += options.swiftCompilerFlags?.flatMap { ["-Xswiftc", $0] } ?? []
-    arguments += options.linkerFlags?.flatMap { ["-Xlinker", $0] } ?? []
-    if experimentalFeatures.contains(.swiftpmPrepareForIndexing) {
+    arguments += options.swiftPM.cCompilerFlags?.flatMap { ["-Xcc", $0] } ?? []
+    arguments += options.swiftPM.cxxCompilerFlags?.flatMap { ["-Xcxx", $0] } ?? []
+    arguments += options.swiftPM.swiftCompilerFlags?.flatMap { ["-Xswiftc", $0] } ?? []
+    arguments += options.swiftPM.linkerFlags?.flatMap { ["-Xlinker", $0] } ?? []
+    if options.hasExperimentalFeature(.swiftpmPrepareForIndexing) {
       arguments.append("--experimental-prepare-for-indexing")
     }
     if Task.isCancelled {

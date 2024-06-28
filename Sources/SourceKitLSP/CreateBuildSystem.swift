@@ -38,8 +38,7 @@ func createBuildSystem(
     return await SwiftPMBuildSystem(
       uri: rootUri,
       toolchainRegistry: toolchainRegistry,
-      options: options.swiftPM ?? .init(),
-      experimentalFeatures: options.experimentalFeatures ?? [],
+      options: options,
       reloadPackageStatusCallback: reloadPackageStatusCallback,
       testHooks: testHooks.swiftpmTestHooks
     )
@@ -48,7 +47,7 @@ func createBuildSystem(
   func createCompilationDatabaseBuildSystem(rootPath: AbsolutePath) -> CompilationDatabaseBuildSystem? {
     return CompilationDatabaseBuildSystem(
       projectRoot: rootPath,
-      searchPaths: (options.compilationDatabase?.searchPaths ?? []).compactMap { try? RelativePath(validating: $0) }
+      searchPaths: (options.compilationDatabase.searchPaths ?? []).compactMap { try? RelativePath(validating: $0) }
     )
   }
 

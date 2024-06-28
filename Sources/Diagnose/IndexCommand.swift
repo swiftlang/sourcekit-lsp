@@ -82,7 +82,10 @@ public struct IndexCommand: AsyncParsableCommand {
   public init() {}
 
   public func run() async throws {
-    let options = SourceKitLSPOptions(experimentalFeatures: Set(experimentalFeatures).union([.backgroundIndexing]))
+    let options = SourceKitLSPOptions(
+      backgroundIndexing: true,
+      experimentalFeatures: Set(experimentalFeatures)
+    )
 
     let installPath =
       if let toolchainOverride, let toolchain = Toolchain(try AbsolutePath(validating: toolchainOverride)) {

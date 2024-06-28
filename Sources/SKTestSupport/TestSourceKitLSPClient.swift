@@ -24,7 +24,7 @@ import XCTest
 
 extension SourceKitLSPOptions {
   public static func testDefault(experimentalFeatures: Set<ExperimentalFeature>? = nil) -> SourceKitLSPOptions {
-    return SourceKitLSPOptions(experimentalFeatures: experimentalFeatures, swiftPublishDiagnosticsDebounce: 0)
+    return SourceKitLSPOptions(experimentalFeatures: experimentalFeatures, swiftPublishDiagnosticsDebounceDuration: 0)
   }
 }
 
@@ -108,13 +108,10 @@ public final class TestSourceKitLSPClient: MessageHandler, Sendable {
   ) async throws {
     var options = options
     if let globalModuleCache {
-      options.swiftPM = options.swiftPM ?? SourceKitLSPOptions.SwiftPMOptions()
-      options.swiftPM!.swiftCompilerFlags =
-        (options.swiftPM!.swiftCompilerFlags ?? []) + ["-module-cache-path", globalModuleCache.path]
+      options.swiftPM.swiftCompilerFlags =
+        (options.swiftPM.swiftCompilerFlags ?? []) + ["-module-cache-path", globalModuleCache.path]
     }
-    if enableBackgroundIndexing {
-      options.experimentalFeatures = (options.experimentalFeatures ?? []).union([.backgroundIndexing])
-    }
+    options.backgroundIndexing = enableBackgroundIndexing
 
     var notificationYielder: AsyncStream<any NotificationType>.Continuation!
     self.notifications = AsyncStream { continuation in

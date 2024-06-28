@@ -1400,7 +1400,7 @@ final class LocalSwiftTests: XCTestCase {
   func testDebouncePublishDiagnosticsNotification() async throws {
     try SkipUnless.longTestsEnabled()
 
-    let options = SourceKitLSPOptions(swiftPublishDiagnosticsDebounce: 1 /* second */)
+    let options = SourceKitLSPOptions(swiftPublishDiagnosticsDebounceDuration: 1 /* second */)
 
     // Construct our own  `TestSourceKitLSPClient` instead of the one from set up because we want a higher debounce interval.
     let testClient = try await TestSourceKitLSPClient(options: options, usePullDiagnostics: false)
