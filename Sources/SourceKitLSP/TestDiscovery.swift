@@ -16,11 +16,6 @@ import LanguageServerProtocol
 import SemanticIndex
 import SwiftSyntax
 
-public enum TestStyle {
-  public static let xcTest = "XCTest"
-  public static let swiftTesting = "swift-testing"
-}
-
 fileprivate extension SymbolOccurrence {
   /// Assuming that this is a symbol occurrence returned by the index, return whether it can constitute the definition
   /// of a test case.
@@ -155,7 +150,7 @@ extension SourceKitLSPServer {
           id: id,
           label: testSymbolOccurrence.symbol.name,
           disabled: false,
-          style: TestStyle.xcTest,
+          style: .xcTest,
           location: location,
           children: children.map(\.testItem),
           tags: []
@@ -221,7 +216,7 @@ extension SourceKitLSPServer {
       testsFromSyntacticIndex
       .compactMap { (item) -> AnnotatedTestItem? in
         let testItem = item.testItem
-        if testItem.style == TestStyle.swiftTesting {
+        if testItem.style == .swiftTesting {
           // Swift-testing tests aren't part of the semantic index. Always include them.
           return item
         }
@@ -297,7 +292,7 @@ extension SourceKitLSPServer {
 
     if let index = workspace.index(checkedFor: indexCheckLevel) {
       var syntacticSwiftTestingTests: [AnnotatedTestItem] {
-        syntacticTests?.filter { $0.testItem.style == TestStyle.swiftTesting } ?? []
+        syntacticTests?.filter { $0.testItem.style == .swiftTesting } ?? []
       }
 
       let testSymbols =

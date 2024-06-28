@@ -72,7 +72,7 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
         id: "\(containerName)/\(function.name.text)()",
         label: "\(function.name.text)()",
         disabled: false,
-        style: TestStyle.xcTest,
+        style: .xcTest,
         location: Location(uri: snapshot.uri, range: range),
         children: [],
         tags: []
@@ -106,7 +106,7 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
         id: node.name.text,
         label: node.name.text,
         disabled: false,
-        style: TestStyle.xcTest,
+        style: .xcTest,
         location: Location(uri: snapshot.uri, range: range),
         children: testMethods,
         tags: []
