@@ -35,4 +35,3 @@ public struct PeekMacroResponse: ResponseType {
   public var success: Bool
   public var failureReason: String?
 }
-

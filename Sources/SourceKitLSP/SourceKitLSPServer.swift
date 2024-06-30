@@ -958,7 +958,21 @@ extension SourceKitLSPServer {
   }
 
   func initialize(_ req: InitializeRequest) async throws -> InitializeResult {
-    capabilityRegistry = CapabilityRegistry(clientCapabilities: req.capabilities)
+
+    var clientCapabilities = req.capabilities
+    if case .dictionary(let initializationOptions) = req.initializationOptions,
+      let peekDocuments = initializationOptions["peekDocuments"]
+    {
+      if case .dictionary(var experimentalCapabilities) = clientCapabilities.experimental {
+        experimentalCapabilities["peekDocuments"] = peekDocuments
+        clientCapabilities.experimental = .dictionary(experimentalCapabilities)
+      } else {
+        clientCapabilities.experimental = .dictionary(["peekDocuments": peekDocuments])
+      }
+    }
+
+    capabilityRegistry = CapabilityRegistry(clientCapabilities: clientCapabilities)
+
     self.options = SourceKitLSPOptions.merging(
       base: self.options,
       override: orLog("Parsing SourceKitLSPOptions", { try SourceKitLSPOptions(fromLSPAny: req.initializationOptions) })

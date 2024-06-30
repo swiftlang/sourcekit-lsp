@@ -86,7 +86,8 @@ extension SwiftLanguageService {
 
         let macroExpansionBufferDirectoryURL = self.generatedMacroExpansionsPath
           .appendingPathComponent(macroExpansionBufferDirectoryName)
-        completeExpansionFilePath = completeExpansionFilePath
+        completeExpansionFilePath =
+          completeExpansionFilePath
           .appendingPathComponent(macroExpansionBufferDirectoryName)
 
         do {
@@ -123,7 +124,8 @@ extension SwiftLanguageService {
 
         macroExpansionFilePaths.append(macroExpansionFilePath)
 
-        let editContent = "// \(sourceFileURL.lastPathComponent) @ \(macroEdit.range.lowerBound.line + 1):\(macroEdit.range.lowerBound.utf16index + 1) - \(macroEdit.range.upperBound.line + 1):\(macroEdit.range.upperBound.utf16index + 1)\n\(macroEdit.newText)\n"
+        let editContent =
+          "// \(sourceFileURL.lastPathComponent) @ \(macroEdit.range.lowerBound.line + 1):\(macroEdit.range.lowerBound.utf16index + 1) - \(macroEdit.range.upperBound.line + 1):\(macroEdit.range.upperBound.utf16index + 1)\n\(macroEdit.newText)\n"
         completeExpansionFileContent += editContent
       } else if !macroEdit.newText.isEmpty {
         logger.fault("Unable to retrieve some parts of macro expansion")
@@ -157,11 +159,16 @@ extension SwiftLanguageService {
         return DocumentURI($0)
       }
     )
-    
-    let peekDocument = true
-    if peekDocument {
+
+    if case .dictionary(let experimentalCapabilities) = self.capabilityRegistry.clientCapabilities.experimental,
+      case .bool(let peekDocuments) = experimentalCapabilities["peekDocuments"],
+      peekDocuments
+    {
       Task {
-        let req = PeekMacroRequest(macroExpansion: macroExpansion, peekLocation: expandMacroCommand.positionRange.lowerBound)
+        let req = PeekMacroRequest(
+          macroExpansion: macroExpansion,
+          peekLocation: expandMacroCommand.positionRange.lowerBound
+        )
 
         let response = await orLog("Sending PeekMacroRequest to Client") {
           try await sourceKitLSPServer.sendRequestToClient(req)
