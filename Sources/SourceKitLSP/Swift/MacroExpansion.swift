@@ -154,32 +154,25 @@ extension SwiftLanguageService {
     }
 
     let completeMacroExpansionFilePath = completeExpansionFilePath
-    let macroExpansion = LanguageServerProtocol.MacroExpansion(
-      expansionURIs: macroExpansionFilePaths.map {
-        return DocumentURI($0)
-      }
-    )
+    let expansionURIs = macroExpansionFilePaths.map {
+      return DocumentURI($0)
+    }
 
     if case .dictionary(let experimentalCapabilities) = self.capabilityRegistry.clientCapabilities.experimental,
       case .bool(let peekDocuments) = experimentalCapabilities["peekDocuments"],
       peekDocuments
     {
       Task {
-        let req = PeekMacroRequest(
-          macroExpansion: macroExpansion,
-          peekLocation: expandMacroCommand.positionRange.lowerBound
+        let req = PeekDocumentsRequest(
+          locations: expansionURIs
         )
 
-        let response = await orLog("Sending PeekMacroRequest to Client") {
+        let response = await orLog("Sending PeekDocumentsRequest to Client") {
           try await sourceKitLSPServer.sendRequestToClient(req)
         }
 
-        if let response, !response.success {
-          if let failureReason = response.failureReason {
-            logger.error("client refused to peek macro, reason: \(failureReason)")
-          } else {
-            logger.error("client refused to peek macro")
-          }
+        if response?.success != true {
+          logger.error("client refused to peek macro")
         }
       }
     } else {
