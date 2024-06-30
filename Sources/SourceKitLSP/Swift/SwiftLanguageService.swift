@@ -945,7 +945,7 @@ extension SwiftLanguageService {
     if let command = req.swiftCommand(ofType: SemanticRefactorCommand.self) {
       return try await semanticRefactoring(command)
     } else if let command = req.swiftCommand(ofType: ExpandMacroCommand.self),
-      let experimentalFeatures = self.sourceKitLSPServer?.options.experimentalFeatures,
+      let experimentalFeatures = await self.sourceKitLSPServer?.options.experimentalFeatures,
       experimentalFeatures.contains(.showMacroExpansions)
     {
       return try await expandMacro(command)
