@@ -34,6 +34,10 @@ public struct PeekDocumentsRequest: RequestType {
 
 public struct PeekDocumentsResponse: ResponseType {
   public var success: Bool
+
+  public init(success: Bool) {
+    self.success = success
+  }
 }
 
 public enum Multiple: String, Sendable, Codable {

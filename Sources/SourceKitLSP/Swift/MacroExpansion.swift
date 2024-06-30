@@ -57,10 +57,10 @@ extension SwiftLanguageService {
   /// - Parameters:
   ///   - expandMacroCommand: The `ExpandMacroCommand` that triggered this request.
   ///
-  /// - Returns: A `[RefactoringEdit]` with the necessary edits and buffer name as a `LSPAny`
+  /// - Returns: nil
   func expandMacro(
     _ expandMacroCommand: ExpandMacroCommand
-  ) async throws -> LSPAny {
+  ) async throws -> LSPAny? {
     guard let sourceKitLSPServer else {
       // `SourceKitLSPServer` has been destructed. We are tearing down the
       // language server. Nothing left to do.
@@ -132,6 +132,10 @@ extension SwiftLanguageService {
       }
     }
 
+    if completeExpansionFileContent.hasSuffix("\n") {
+      completeExpansionFileContent.removeLast()
+    }
+
     do {
       try FileManager.default.createDirectory(
         at: completeExpansionFilePath,
@@ -171,7 +175,7 @@ extension SwiftLanguageService {
           try await sourceKitLSPServer.sendRequestToClient(req)
         }
 
-        if response?.success != true {
+        if let response, !response.success {
           logger.error("client refused to peek macro")
         }
       }
@@ -189,6 +193,6 @@ extension SwiftLanguageService {
       }
     }
 
-    return expansion.edits.encodeToLSPAny()
+    return nil
   }
 }
