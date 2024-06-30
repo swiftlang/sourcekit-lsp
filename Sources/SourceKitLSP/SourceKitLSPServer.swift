@@ -958,7 +958,12 @@ extension SourceKitLSPServer {
   }
 
   func initialize(_ req: InitializeRequest) async throws -> InitializeResult {
-
+    // If the client can handle `PeekDocumentsRequest`, they can enable the
+    // experimental client capability `"peekDocuments"` through the `req.capabilities.experimental`.
+    //
+    // The below allows the client to pass the `"peekDocuments"` flag in the
+    // `req.initializationOptions` if for some reason the client cannot pass it
+    // directly through `req.capabilities.experimental` .
     var clientCapabilities = req.capabilities
     if case .dictionary(let initializationOptions) = req.initializationOptions,
       let peekDocuments = initializationOptions["peekDocuments"]

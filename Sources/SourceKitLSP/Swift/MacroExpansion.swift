@@ -50,9 +50,9 @@ struct MacroExpansion: RefactoringResponse {
 extension SwiftLanguageService {
   /// Handles the `ExpandMacroCommand`.
   ///
-  /// Makes a request to sourcekitd and wraps the result into a `MacroExpansion`
-  /// and then makes a `ShowDocumentRequest` to the client side for each
-  /// expansion to be displayed.
+  /// Makes a `PeekDocumentsRequest` or `ShowDocumentRequest`, containing the
+  /// location of each macro expansion, to the client depending on whether the
+  /// client supports the `experimental["peekDocuments"]` capability.
   ///
   /// - Parameters:
   ///   - expandMacroCommand: The `ExpandMacroCommand` that triggered this request.

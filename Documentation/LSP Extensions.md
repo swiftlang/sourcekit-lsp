@@ -376,3 +376,47 @@ Users should not need to rely on this request. The index should always be update
 ```ts
 export interface TriggerReindexParams {}
 ```
+
+## `sourcekit-lsp/peekDocuments`
+
+Request from the server to the client to show the given documents in a "peeked" editor.
+
+This request is handled by the client to show the given documents in a "peeked" editor (i.e. inline with / inside the editor canvas).
+
+It requires the experimental client capability `"peekDocuments"` to use.
+
+- params: `PeekDocumentsParams`
+- result: `PeekDocumentsResult`
+
+```ts
+export interface PeekDocumentsParams {
+    /**
+     * The `Uri` of the text document in which to show the "peeked" editor
+     * (default: current document in the active editor)
+     */
+    uri?: Uri;
+
+    /**
+     * The position in the given text document in which to show the
+     * "peeked editor" (default: current cursor position in the active editor)
+     */
+    position?: Position;
+
+    /**
+     * An array `Uri` of the documents to appear inside the "peeked" editor
+     */
+    locations: Uri[];
+
+    /**
+     * Presentation strategy when having multiple locations (default: "peek")
+     */
+    multiple: string;
+}
+
+/**
+ * Response to indicate the `success` of the `PeekDocumentsRequest`
+ */
+export interface PeekDocumentsResult {
+    success: boolean;
+}
+```
