@@ -53,23 +53,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
-              id: "MyTests/testMyLibrary()",
+              id: "MyLibraryTests.MyTests/testMyLibrary()",
               label: "testMyLibrary()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: try project.uri(for: "MyTests.swift"), range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: try project.uri(for: "MyTests.swift"), range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -100,21 +93,14 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/testMyLibrary()",
               label: "testMyLibrary()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -156,23 +142,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
       syntacticTests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
-              id: "MyTests/testMyLibrary()",
+              id: "MyLibraryTests.MyTests/testMyLibrary()",
               label: "testMyLibrary()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -212,21 +191,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -256,21 +230,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: project.fileURI, range: project.positions["1️⃣"]..<project.positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: project.fileURI, range: project.positions["2️⃣"]..<project.positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: project.fileURI, range: project.positions["2️⃣"]..<project.positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -303,31 +272,24 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["6️⃣"]),
           children: [
             TestItem(
               id: "MyTests/Inner",
               label: "Inner",
-              disabled: false,
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["5️⃣"]),
               children: [
                 TestItem(
                   id: "MyTests/Inner/oneIsTwo()",
                   label: "oneIsTwo()",
-                  disabled: false,
                   style: TestStyle.swiftTesting,
-                  location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"]),
-                  children: [],
-                  tags: []
+                  location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"])
                 )
-              ],
-              tags: []
+              ]
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -358,21 +320,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/numbersAreOne(x:)",
               label: "numbersAreOne(x:)",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -403,14 +360,12 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/numbersAreOne(_:)",
               label: "numbersAreOne(_:)",
-              disabled: false,
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
               children: [],
@@ -448,21 +403,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/numbersAreOne(x:)",
               label: "numbersAreOne(x:)",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -490,11 +440,8 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
-          children: [],
-          tags: []
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"])
         )
       ]
     )
@@ -522,11 +469,8 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "My tests",
-          disabled: false,
           style: TestStyle.swiftTesting,
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
-          children: [],
-          tags: []
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"])
         )
       ]
     )
@@ -555,11 +499,8 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "oneIsTwo()",
           label: "One is two",
-          disabled: false,
           style: TestStyle.swiftTesting,
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
-          children: [],
-          tags: []
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"])
         )
       ]
     )
@@ -597,30 +538,22 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo(foo:)",
               label: "oneIsTwo(foo:)",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             ),
             TestItem(
               id: "MyTests/twoIsThree()",
               label: "twoIsThree()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["6️⃣"]..<positions["7️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["6️⃣"]..<positions["7️⃣"])
             ),
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -651,9 +584,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
           label: "One is two",
           disabled: true,
           style: TestStyle.swiftTesting,
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
-          children: [],
-          tags: []
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"])
         )
       ]
     )
@@ -694,12 +625,9 @@ final class DocumentTestDiscoveryTests: XCTestCase {
               label: "oneIsTwo()",
               disabled: true,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -754,17 +682,14 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
               tags: [TestTag(id: "red"), TestTag(id: "blue")]
             )
           ],
@@ -811,17 +736,14 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
               tags: [
                 TestTag(id: "foo"),
                 TestTag(id: "Nested.foo"),
@@ -875,23 +797,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             ),
             TestItem(
               id: "MyTests/twoIsThree()",
               label: "twoIsThree()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["6️⃣"]..<positions["7️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["6️⃣"]..<positions["7️⃣"])
             ),
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -923,30 +838,22 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             ),
             TestItem(
               id: "MyTests/twoIsThree()",
               label: "twoIsThree()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"])
             ),
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -976,21 +883,14 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
           children: [
             TestItem(
               id: "MyTests/testOneIsTwo()",
               label: "testOneIsTwo()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -1024,40 +924,30 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "Outer",
           label: "Outer",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
           children: [
             TestItem(
               id: "Outer/Inner",
               label: "Inner",
-              disabled: false,
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"]),
               children: [
                 TestItem(
                   id: "Outer/Inner/oneIsTwo()",
                   label: "oneIsTwo()",
-                  disabled: false,
                   style: TestStyle.swiftTesting,
-                  location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"]),
-                  children: [],
-                  tags: []
+                  location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"])
                 ),
                 TestItem(
                   id: "Outer/Inner/twoIsThree()",
                   label: "twoIsThree()",
-                  disabled: false,
                   style: TestStyle.swiftTesting,
-                  location: Location(uri: uri, range: positions["7️⃣"]..<positions["8️⃣"]),
-                  children: [],
-                  tags: []
+                  location: Location(uri: uri, range: positions["7️⃣"]..<positions["8️⃣"])
                 ),
-              ],
-              tags: []
+              ]
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -1088,21 +978,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -1137,21 +1022,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests/Inner",
           label: "Inner",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/Inner/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -1183,14 +1063,12 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"]),
               children: [],
@@ -1199,14 +1077,10 @@ final class DocumentTestDiscoveryTests: XCTestCase {
             TestItem(
               id: "MyTests/twoIsThree()",
               label: "twoIsThree()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"])
             ),
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -1238,21 +1112,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "My Tests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "one is two",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -1364,23 +1233,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
-              id: "MyTests/testSomething",
+              id: "MyLibraryTests.MyTests/testSomething",
               label: "testSomething",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -1434,23 +1296,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
-              id: "MyTests/testSomething",
+              id: "MyLibraryTests.MyTests/testSomething",
               label: "testSomething",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )

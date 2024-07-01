@@ -1,5 +1,6 @@
 
 add_library(SwiftExtensions STATIC
+  Array+Safe.swift
   AsyncQueue.swift
   AsyncUtils.swift
   Collection+Only.swift
