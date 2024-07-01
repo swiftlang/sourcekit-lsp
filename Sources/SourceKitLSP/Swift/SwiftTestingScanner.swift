@@ -257,7 +257,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
         id: (parentTypeNames + typeNames).joined(separator: "/"),
         label: attributeData?.displayName ?? typeNames.last!,
         disabled: (attributeData?.isDisabled ?? false) || allTestsDisabled,
-        style: .swiftTesting,
+        style: TestStyle.swiftTesting,
         location: Location(uri: snapshot.uri, range: range),
         children: memberScanner.result.map(\.testItem),
         tags: attributeData?.tags.map(TestTag.init(id:)) ?? []
@@ -330,7 +330,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
         id: (parentTypeNames + [name]).joined(separator: "/"),
         label: attributeData.displayName ?? name,
         disabled: attributeData.isDisabled || allTestsDisabled,
-        style: .swiftTesting,
+        style: TestStyle.swiftTesting,
         location: Location(uri: snapshot.uri, range: range),
         children: [],
         tags: attributeData.tags.map(TestTag.init(id:))

@@ -230,13 +230,13 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: try project.location(from: "1️⃣", to: "4️⃣", in: "MyTests.swift"),
           children: [
             TestItem(
               id: "MyLibraryTests.MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift")
             )
           ]
@@ -277,13 +277,13 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: try project.location(from: "1️⃣", to: "4️⃣", in: "MyTests.swift"),
           children: [
             TestItem(
               id: "MyLibraryTests.MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift")
             )
           ],
@@ -292,13 +292,11 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyLibraryTests.MyOldTests",
           label: "MyOldTests",
-          style: .xcTest,
           location: try project.location(from: "5️⃣", to: "5️⃣", in: "MyTests.swift"),
           children: [
             TestItem(
               id: "MyLibraryTests.MyOldTests/testOld()",
               label: "testOld()",
-              style: .xcTest,
               location: try project.location(from: "6️⃣", to: "6️⃣", in: "MyTests.swift")
             )
           ]
@@ -994,19 +992,19 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: fileBURI, range: fileBPositions["1️⃣"]..<fileBPositions["2️⃣"]),
           children: [
             TestItem(
               id: "MyLibraryTests.MyTests/inStruct()",
               label: "inStruct()",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: fileBURI, range: fileBPositions["3️⃣"]..<fileBPositions["4️⃣"])
             ),
             TestItem(
               id: "MyLibraryTests.MyTests/inExtension()",
               label: "inExtension()",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: fileAURI, range: fileAPositions["5️⃣"]..<fileAPositions["6️⃣"])
             ),
           ]
@@ -1021,7 +1019,7 @@ extension TestItem {
     id: String,
     label: String,
     disabled: Bool = false,
-    style: TestStyle = .xcTest,
+    style: String = TestStyle.xcTest,
     location: Location,
     children: [TestItem] = [],
     tags: [TestTag] = []

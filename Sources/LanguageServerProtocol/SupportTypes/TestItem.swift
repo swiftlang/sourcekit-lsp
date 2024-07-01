@@ -19,15 +19,6 @@ public struct TestTag: Codable, Equatable, Sendable {
   }
 }
 
-/// An enum representing the different styles of tests that can be found in a document.
-public enum TestStyle: String, Codable, Sendable {
-  /// XCTest: https://developer.apple.com/documentation/xctest
-  case xcTest = "XCTest"
-
-  /// Swift Testing: https://swiftpackageindex.com/apple/swift-testing/main/documentation/testing
-  case swiftTesting = "swift-testing"
-}
-
 /// A test item that can be shown an a client's test explorer or used to identify tests alongside a source file.
 ///
 /// A `TestItem` can represent either a test suite or a test itself, since they both have similar capabilities.
@@ -52,7 +43,7 @@ public struct TestItem: ResponseType, Equatable {
   public var disabled: Bool
 
   /// The type of test, eg. the testing framework that was used to declare the test.
-  public var style: TestStyle
+  public var style: String
 
   /// The location of the test item in the source code.
   public var location: Location
@@ -71,7 +62,7 @@ public struct TestItem: ResponseType, Equatable {
     description: String? = nil,
     sortText: String? = nil,
     disabled: Bool,
-    style: TestStyle,
+    style: String,
     location: Location,
     children: [TestItem],
     tags: [TestTag]

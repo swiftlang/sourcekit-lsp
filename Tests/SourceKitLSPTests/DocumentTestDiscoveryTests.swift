@@ -191,13 +191,13 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
           ]
@@ -230,13 +230,13 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: project.fileURI, range: project.positions["1️⃣"]..<project.positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: project.fileURI, range: project.positions["2️⃣"]..<project.positions["3️⃣"])
             )
           ]
@@ -272,19 +272,19 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["6️⃣"]),
           children: [
             TestItem(
               id: "MyTests/Inner",
               label: "Inner",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["5️⃣"]),
               children: [
                 TestItem(
                   id: "MyTests/Inner/oneIsTwo()",
                   label: "oneIsTwo()",
-                  style: .swiftTesting,
+                  style: TestStyle.swiftTesting,
                   location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"])
                 )
               ]
@@ -320,13 +320,13 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/numbersAreOne(x:)",
               label: "numbersAreOne(x:)",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
           ]
@@ -360,13 +360,13 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/numbersAreOne(_:)",
               label: "numbersAreOne(_:)",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
               children: [],
               tags: []
@@ -403,13 +403,13 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/numbersAreOne(x:)",
               label: "numbersAreOne(x:)",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
           ]
@@ -440,7 +440,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"])
         )
       ]
@@ -469,7 +469,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "My tests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"])
         )
       ]
@@ -499,7 +499,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "oneIsTwo()",
           label: "One is two",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"])
         )
       ]
@@ -538,19 +538,19 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo(foo:)",
               label: "oneIsTwo(foo:)",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             ),
             TestItem(
               id: "MyTests/twoIsThree()",
               label: "twoIsThree()",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["6️⃣"]..<positions["7️⃣"])
             ),
           ]
@@ -583,7 +583,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
           id: "oneIsTwo()",
           label: "One is two",
           disabled: true,
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"])
         )
       ]
@@ -617,14 +617,14 @@ final class DocumentTestDiscoveryTests: XCTestCase {
           id: "MyTests",
           label: "MyTests",
           disabled: true,
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
               disabled: true,
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
           ]
@@ -682,13 +682,13 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
               tags: [TestTag(id: "red"), TestTag(id: "blue")]
             )
@@ -736,13 +736,13 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
               tags: [
                 TestTag(id: "foo"),
@@ -791,19 +791,19 @@ final class DocumentTestDiscoveryTests: XCTestCase {
           id: "MyTests",
           label: "MyTests",
           disabled: false,
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             ),
             TestItem(
               id: "MyTests/twoIsThree()",
               label: "twoIsThree()",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["6️⃣"]..<positions["7️⃣"])
             ),
           ]
@@ -838,19 +838,19 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             ),
             TestItem(
               id: "MyTests/twoIsThree()",
               label: "twoIsThree()",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"])
             ),
           ]
@@ -924,25 +924,25 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "Outer",
           label: "Outer",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
           children: [
             TestItem(
               id: "Outer/Inner",
               label: "Inner",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"]),
               children: [
                 TestItem(
                   id: "Outer/Inner/oneIsTwo()",
                   label: "oneIsTwo()",
-                  style: .swiftTesting,
+                  style: TestStyle.swiftTesting,
                   location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"])
                 ),
                 TestItem(
                   id: "Outer/Inner/twoIsThree()",
                   label: "twoIsThree()",
-                  style: .swiftTesting,
+                  style: TestStyle.swiftTesting,
                   location: Location(uri: uri, range: positions["7️⃣"]..<positions["8️⃣"])
                 ),
               ]
@@ -978,13 +978,13 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
           ]
@@ -1022,13 +1022,13 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests/Inner",
           label: "Inner",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/Inner/oneIsTwo()",
               label: "oneIsTwo()",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
           ]
@@ -1063,13 +1063,13 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"]),
               children: [],
               tags: []
@@ -1077,7 +1077,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
             TestItem(
               id: "MyTests/twoIsThree()",
               label: "twoIsThree()",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"])
             ),
           ]
@@ -1112,13 +1112,13 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "My Tests",
-          style: .swiftTesting,
+          style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "one is two",
-              style: .swiftTesting,
+              style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
           ]
