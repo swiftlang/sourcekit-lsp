@@ -73,39 +73,99 @@ Added case
 identifier = 'identifier'
 ```
 
-## `textDocument/interface`
+## `WorkspaceFolder`
 
-New request that request a textual interface of a module to display in the IDE. Used internally within SourceKit-LSP
-
-- params: `OpenInterfaceParams`
-- result: `InterfaceDetails?`
+Added field:
 
 ```ts
-export interface OpenInterfaceRequest: TextDocumentRequest, Hashable {
-  /**
-   * The document whose compiler arguments should be used to generate the interface.
-   */
-  textDocument: TextDocumentIdentifier
+/**
+ * Build settings that should be used for this workspace.
+ *
+ * For arguments that have a single value (like the build configuration), this takes precedence over the global
+ * options set when launching sourcekit-lsp. For all other options, the values specified in the workspace-specific
+ * build setup are appended to the global options.
+ */
+var buildSetup?: WorkspaceBuildSetup
+```
 
-  /**
-   * The module to generate an index for.
-   */
-  moduleName: string
+with
 
-  /**
-   * The module group name.
-   */
-  groupName?: string
-
-  /**
-   * The symbol USR to search for in the generated module interface.
-   */
-  symbolUSR?: string
+```ts
+/**
+ * The configuration to build a workspace in.
+ */
+export enum BuildConfiguration {
+  case debug = 'debug'
+  case release = 'release'
 }
 
-interface InterfaceDetails {
-  uri: DocumentURI
-  position?: Position
+/**
+ * The type of workspace; default workspace type selection logic can be overridden.
+ */
+export enum WorkspaceType {
+  buildServer = 'buildServer'
+  compilationDatabase = 'compilationDatabase'
+  swiftPM = 'swiftPM'
+}
+
+/// Build settings that should be used for a workspace.
+interface WorkspaceBuildSetup {
+  /**
+   * The configuration that the workspace should be built in.
+   */
+  buildConfiguration?: BuildConfiguration
+
+  /**
+   * The default workspace type to use for this workspace.
+   */
+  defaultWorkspaceType?: WorkspaceType
+
+  /**
+   * The build directory for the workspace.
+   */
+  scratchPath?: DocumentURI
+
+  /**
+   * Arguments to be passed to any C compiler invocations.
+   */
+  cFlags?: string[]
+
+  /**
+   * Arguments to be passed to any C++ compiler invocations.
+   */
+  cxxFlags?: string[]
+
+  /**
+   * Arguments to be passed to any linker invocations.
+   */
+  linkerFlags?: string[]
+
+  /**
+   * Arguments to be passed to any Swift compiler invocations.
+   */
+  swiftFlags?: string[]
+}
+```
+
+## `textDocument/completion`
+
+Added field:
+
+```ts
+/**
+ * Options to control code completion behavior in Swift
+ */
+sourcekitlspOptions?: SKCompletionOptions
+```
+
+with
+
+```ts
+interface SKCompletionOptions {
+  /**
+   * The maximum number of completion results to return, or `null` for unlimited.
+   */
+  maxResults?: int
 }
 ```
 

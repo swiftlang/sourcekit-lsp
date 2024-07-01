@@ -76,6 +76,17 @@ public struct RenameLocation: Sendable {
   let usage: Usage
 }
 
+/// The textual output of a module interface.
+public struct GeneratedInterfaceDetails: ResponseType, Hashable {
+  public var uri: DocumentURI
+  public var position: Position?
+
+  public init(uri: DocumentURI, position: Position?) {
+    self.uri = uri
+    self.position = position
+  }
+}
+
 /// Provides language specific functionality to sourcekit-lsp from a specific toolchain.
 ///
 /// For example, we may have a language service that provides semantic functionality for c-family using a clangd server,
@@ -147,7 +158,20 @@ public protocol LanguageService: AnyObject, Sendable {
   func completion(_ req: CompletionRequest) async throws -> CompletionList
   func hover(_ req: HoverRequest) async throws -> HoverResponse?
   func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails]
-  func openGeneratedInterface(_ request: OpenGeneratedInterfaceRequest) async throws -> GeneratedInterfaceDetails?
+
+  /// Request a generated interface of a module to display in the IDE.
+  ///
+  /// - Parameters:
+  ///   - document: The document whose compiler arguments should be used to generate the interface.
+  ///   - moduleName: The module to generate an index for.
+  ///   - groupName: The module group name.
+  ///   - symbol: The symbol USR to search for in the generated module interface.
+  func openGeneratedInterface(
+    document: DocumentURI,
+    moduleName: String,
+    groupName: String?,
+    symbolUSR symbol: String?
+  ) async throws -> GeneratedInterfaceDetails?
 
   /// - Note: Only called as a fallback if the definition could not be found in the index.
   func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse?
