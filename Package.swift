@@ -337,6 +337,7 @@ let package = Package(
         .product(name: "Crypto", package: "swift-crypto"),
         .product(name: "SwiftDiagnostics", package: "swift-syntax"),
         .product(name: "SwiftIDEUtils", package: "swift-syntax"),
+        .product(name: "SwiftOperators", package: "swift-syntax"),
         .product(name: "SwiftParser", package: "swift-syntax"),
         .product(name: "SwiftParserDiagnostics", package: "swift-syntax"),
         .product(name: "SwiftRefactor", package: "swift-syntax"),

@@ -29,6 +29,7 @@ target_sources(SourceKitLSP PRIVATE
 target_sources(SourceKitLSP PRIVATE
   Swift/AdjustPositionToStartOfIdentifier.swift
   Swift/CodeActions/AddDocumentation.swift
+  Swift/CodeActions/ApplyDeMorganLaw.swift
   Swift/CodeActions/ConvertIntegerLiteral.swift
   Swift/CodeActions/ConvertJSONToCodableStruct.swift
   Swift/CodeActions/ConvertStringConcatenationToStringInterpolation.swift

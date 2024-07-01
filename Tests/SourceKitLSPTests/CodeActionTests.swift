@@ -1000,6 +1000,123 @@ final class CodeActionTests: XCTestCase {
     }
   }
 
+  func testApplyDeMorganLawReducedBoolean() async throws {
+    try await assertCodeActions(
+      """
+      case 0 where 1️⃣((((((a !== !(2️⃣b || c)))) && !d)))3️⃣:
+      """,
+      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "3️⃣"), ("2️⃣", "3️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert ((((((a !== !(b || c)))) && !d))) to !((((((a === !(b || c)))) || d)))",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["3️⃣"],
+                  newText: "!((((((a === !(b || c)))) || d)))"
+                )
+              ]
+            ]
+          ),
+          command: nil
+        )
+      ]
+    }
+  }
+
+  func testApplyDeMorganLawReducedBooleanNonNested() async throws {
+    try await assertCodeActions(
+      """
+      guard 1️⃣!a || 2️⃣((!((b)))) || s is String || c 3️⃣!= d4️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "3️⃣"), ("2️⃣", "3️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert !a || ((!((b)))) || s is String || c != d to !(a && ((((b)))) && !(s is String) && c == d)",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["4️⃣"],
+                  newText: "!(a && ((((b)))) && !(s is String) && c == d)"
+                )
+              ]
+            ]
+          ),
+          command: nil
+        )
+      ]
+    }
+  }
+
+  func testApplyDeMorganLawSpreadBitwise() async throws {
+    try await assertCodeActions(
+      """
+      a = 1️⃣~((b 2️⃣| ((c)) | d | e & ~f | (~g & h)))3️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "3️⃣"), ("2️⃣", "3️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert ~((b | ((c)) | d | e & ~f | (~g & h))) to ((~b & ~((c)) & ~d & (~e | f) & (g | ~h)))",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["3️⃣"],
+                  newText: "((~b & ~((c)) & ~d & (~e | f) & (g | ~h)))"
+                )
+              ]
+            ]
+          ),
+          command: nil
+        )
+      ]
+    }
+  }
+
+  func testApplyDeMorganLawTernaryExpansion() async throws {
+    try await assertCodeActions(
+      """
+      a = 1️⃣!((a ? b : !c) || (!d ? !e : f) && (g ? h : i))2️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title:
+            "Convert !((a ? b : !c) || (!d ? !e : f) && (g ? h : i)) to ((a ? !b : c) && ((!d ? e : !f) || !(g ? h : i)))",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "((a ? !b : c) && ((!d ? e : !f) || !(g ? h : i)))"
+                )
+              ]
+            ]
+          ),
+          command: nil
+        )
+      ]
+    }
+  }
+
   func testConvertStringConcatenationToStringInterpolation() async throws {
     try await assertCodeActions(
       #"""
