@@ -376,3 +376,40 @@ Users should not need to rely on this request. The index should always be update
 ```ts
 export interface TriggerReindexParams {}
 ```
+
+## `workspace/peekDocuments`
+
+Request from the server to the client to show the given documents in a "peeked" editor.
+
+This request is handled by the client to show the given documents in a "peeked" editor (i.e. inline with / inside the editor canvas).
+
+It requires the experimental client capability `"peekDocuments"` to use.
+
+- params: `PeekDocumentsParams`
+- result: `PeekDocumentsResult`
+
+```ts
+export interface PeekDocumentsParams {
+  /**
+   * The `DocumentUri` of the text document in which to show the "peeked" editor
+   */
+  uri: langclient.DocumentUri;
+
+  /**
+   * The `Position` in the given text document in which to show the "peeked editor"
+   */
+  position: vscode.Position;
+
+  /**
+   * An array `DocumentUri` of the documents to appear inside the "peeked" editor
+   */
+  locations: langclient.DocumentUri[];
+}
+
+/**
+ * Response to indicate the `success` of the `PeekDocumentsRequest`
+ */
+export interface PeekDocumentsResult {
+  success: boolean;
+}
+```

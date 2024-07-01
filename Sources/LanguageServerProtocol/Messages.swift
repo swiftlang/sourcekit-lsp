@@ -59,6 +59,7 @@ public let builtinRequests: [_RequestType.Type] = [
   LinkedEditingRangeRequest.self,
   MonikersRequest.self,
   OpenGeneratedInterfaceRequest.self,
+  PeekDocumentsRequest.self,
   PollIndexRequest.self,
   PrepareRenameRequest.self,
   ReferencesRequest.self,

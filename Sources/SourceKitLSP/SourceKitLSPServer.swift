@@ -958,7 +958,25 @@ extension SourceKitLSPServer {
   }
 
   func initialize(_ req: InitializeRequest) async throws -> InitializeResult {
-    capabilityRegistry = CapabilityRegistry(clientCapabilities: req.capabilities)
+    // If the client can handle `PeekDocumentsRequest`, they can enable the
+    // experimental client capability `"peekDocuments"` through the `req.capabilities.experimental`.
+    //
+    // The below is a workaround for the vscode-swift extension since it cannot set client capabilities.
+    // It passes "peekDocuments" through the `initializationOptions`.
+    var clientCapabilities = req.capabilities
+    if case .dictionary(let initializationOptions) = req.initializationOptions,
+      let peekDocuments = initializationOptions["peekDocuments"]
+    {
+      if case .dictionary(var experimentalCapabilities) = clientCapabilities.experimental {
+        experimentalCapabilities["peekDocuments"] = peekDocuments
+        clientCapabilities.experimental = .dictionary(experimentalCapabilities)
+      } else {
+        clientCapabilities.experimental = .dictionary(["peekDocuments": peekDocuments])
+      }
+    }
+
+    capabilityRegistry = CapabilityRegistry(clientCapabilities: clientCapabilities)
+
     self.options = SourceKitLSPOptions.merging(
       base: self.options,
       override: orLog("Parsing SourceKitLSPOptions", { try SourceKitLSPOptions(fromLSPAny: req.initializationOptions) })
