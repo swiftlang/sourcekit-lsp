@@ -17,39 +17,33 @@
 /// similar to VS Code's built-in "editor.action.peekLocations" command.
 ///
 /// - Parameters:
-///   - uri: The URI of the text document in which to show the "peeked" editor
-/// (default: nil, current document in the active editor handled by the client)
-///   - position: The position in the given text document in which to show the
-/// "peeked editor" (default: nil, current cursor position in the active editor handled by the client)
-///   - locations: The URIs of documents to appear inside the "peeked" editor
-///   - multiple: Presentation strategy when having multiple locations (default: "peek")
+///   - uri: The DocumentURI of the text document in which to show the "peeked" editor
+///   - position: The position in the given text document in which to show the "peeked editor"
+///   - locations: The DocumentURIs of documents to appear inside the "peeked" editor
 ///
 /// - Returns: `PeekDocumentsResponse` which indicates the `success` of the request.
 ///
 /// ### LSP Extension
 ///
-/// This request is an extension to LSP supported by SourceKit-LSP and clangd.
+/// This request is an extension to LSP supported by SourceKit-LSP.
 /// It requires the experimental client capability `"peekDocuments"` to use.
 /// It also needs the client to handle the request and present the "peeked" editor.
 public struct PeekDocumentsRequest: RequestType {
-  public static let method: String = "sourcekit-lsp/peekDocuments"
+  public static let method: String = "workspace/peekDocuments"
   public typealias Response = PeekDocumentsResponse
 
-  public var uri: DocumentURI?
-  public var position: Position?
+  public var uri: DocumentURI
+  public var position: Position
   public var locations: [DocumentURI]
-  public var multiple: Multiple
 
   public init(
-    uri: DocumentURI? = nil,
-    position: Position? = nil,
-    locations: [DocumentURI],
-    multiple: Multiple = .peek
+    uri: DocumentURI,
+    position: Position,
+    locations: [DocumentURI]
   ) {
     self.uri = uri
     self.position = position
     self.locations = locations
-    self.multiple = multiple
   }
 }
 
@@ -60,11 +54,4 @@ public struct PeekDocumentsResponse: ResponseType {
   public init(success: Bool) {
     self.success = success
   }
-}
-
-/// The presentation strategies that can be used when having multiple locations
-public enum Multiple: String, Sendable, Codable {
-  case peek
-  case goto
-  case gotoAndPeek
 }

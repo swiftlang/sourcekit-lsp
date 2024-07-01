@@ -58,7 +58,7 @@ final class ExecuteCommandTests: XCTestCase {
       return ApplyEditResponse(applied: true, failureReason: nil)
     }
 
-    _ = try await testClient.send(request)
+    try await testClient.send(request)
 
     try await fulfillmentOfOrThrow([expectation])
 
@@ -123,7 +123,7 @@ final class ExecuteCommandTests: XCTestCase {
       return ApplyEditResponse(applied: true, failureReason: nil)
     }
 
-    _ = try await testClient.send(request)
+    try await testClient.send(request)
 
     try await fulfillmentOfOrThrow([expectation])
 
@@ -203,9 +203,9 @@ final class ExecuteCommandTests: XCTestCase {
         files: files,
         manifest: SwiftPMTestProject.macroPackageManifest,
         capabilities: ClientCapabilities(experimental: ["peekDocuments": .bool(peekDocuments)]),
-        options: options
+        options: options,
+        enableBackgroundIndexing: true
       )
-      try await SwiftPMTestProject.build(at: project.scratchDirectory)
 
       let (uri, positions) = try project.openDocument("MyMacroClient.swift")
 
@@ -289,7 +289,11 @@ final class ExecuteCommandTests: XCTestCase {
 
           XCTAssertEqual(
             fileContents,
-            "// MyMacroClient.swift @ 5:3 - 5:20\n(1 + 2, \"1 + 2\")",
+            """
+            // MyMacroClient.swift @ 5:3 - 5:20
+            (1 + 2, \"1 + 2\")
+
+            """,
             "File doesn't contain macro expansion. Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
           )
 
@@ -343,45 +347,10 @@ final class ExecuteCommandTests: XCTestCase {
         }
       }
 
-      public struct DictionaryStoragePropertyMacro: AccessorMacro {
-        public static func expansion<
-          Context: MacroExpansionContext,
-          Declaration: DeclSyntaxProtocol
-        >(
-          of node: AttributeSyntax,
-          providingAccessorsOf declaration: Declaration,
-          in context: Context
-        ) throws -> [AccessorDeclSyntax] {
-          guard let binding = declaration.as(VariableDeclSyntax.self)?.bindings.first,
-            let identifier = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier,
-            binding.accessorBlock == nil,
-            let type = binding.typeAnnotation?.type,
-            let defaultValue = binding.initializer?.value,
-            identifier.text != "_storage"
-          else {
-            return []
-          }
-
-          return [
-            """
-            get {
-              _storage[\(literal: identifier.text), default: \(defaultValue)] as! \(type)
-            }
-            """,
-            """
-            set {
-              _storage[\(literal: identifier.text)] = newValue
-            }
-            """,
-          ]
-        }
-      }
-
       @main
       struct MyMacroPlugin: CompilerPlugin {
         let providingMacros: [Macro.Type] = [
-          DictionaryStorageMacro.self,
-          DictionaryStoragePropertyMacro.self
+          DictionaryStorageMacro.self
         ]
       }
       """#,
@@ -389,10 +358,6 @@ final class ExecuteCommandTests: XCTestCase {
       @attached(memberAttribute)
       @attached(member, names: named(_storage))
       public macro DictionaryStorage() = #externalMacro(module: "MyMacros", type: "DictionaryStorageMacro")
-
-      @attached(accessor)
-      public macro DictionaryStorageProperty() =
-        #externalMacro(module: "MyMacros", type: "DictionaryStoragePropertyMacro")
 
       1️⃣@2️⃣DictionaryStorage3️⃣
       struct Point {
@@ -409,9 +374,9 @@ final class ExecuteCommandTests: XCTestCase {
         files: files,
         manifest: SwiftPMTestProject.macroPackageManifest,
         capabilities: ClientCapabilities(experimental: ["peekDocuments": .bool(peekDocuments)]),
-        options: options
+        options: options,
+        enableBackgroundIndexing: true
       )
-      try await SwiftPMTestProject.build(at: project.scratchDirectory)
 
       let (uri, positions) = try project.openDocument("MyMacroClient.swift")
 
@@ -473,12 +438,12 @@ final class ExecuteCommandTests: XCTestCase {
           )
 
           XCTAssertEqual(
-            urls.map { $0.lastPathComponent }.sorted(),
+            urls.map { $0.lastPathComponent },
             [
-              "MyMacroClient_L11C3-L11C3.swift",
-              "MyMacroClient_L12C3-L12C3.swift",
-              "MyMacroClient_L13C1-L13C1.swift",
-            ].sorted(),
+              "MyMacroClient_L7C3-L7C3.swift",
+              "MyMacroClient_L8C3-L8C3.swift",
+              "MyMacroClient_L9C1-L9C1.swift",
+            ],
             "Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
           )
         } else {
@@ -504,7 +469,17 @@ final class ExecuteCommandTests: XCTestCase {
 
           XCTAssertEqual(
             fileContents,
-            "// MyMacroClient.swift @ 11:3 - 11:3\n@DictionaryStorageProperty\n// MyMacroClient.swift @ 12:3 - 12:3\n@DictionaryStorageProperty\n// MyMacroClient.swift @ 13:1 - 13:1\nvar _storage: [String: Any] = [:]",
+            """
+            // MyMacroClient.swift @ 7:3 - 7:3
+            @DictionaryStorageProperty
+
+            // MyMacroClient.swift @ 8:3 - 8:3
+            @DictionaryStorageProperty
+
+            // MyMacroClient.swift @ 9:1 - 9:1
+            var _storage: [String: Any] = [:]
+
+            """,
             "File doesn't contain macro expansion. Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
           )
 

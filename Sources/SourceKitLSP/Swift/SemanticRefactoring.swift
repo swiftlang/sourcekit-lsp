@@ -73,7 +73,7 @@ extension SwiftLanguageService {
   /// - Returns: nil
   func semanticRefactoring(
     _ semanticRefactorCommand: SemanticRefactorCommand
-  ) async throws -> LSPAny? {
+  ) async throws {
     guard let sourceKitLSPServer else {
       // `SourceKitLSPServer` has been destructed. We are tearing down the
       // language server. Nothing left to do.
@@ -94,7 +94,5 @@ extension SwiftLanguageService {
       }
       logger.error("client refused to apply edit for \(semanticRefactor.title, privacy: .public) \(reason)")
     }
-
-    return nil
   }
 }

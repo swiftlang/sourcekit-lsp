@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Crypto
 import Foundation
 import LSPLogging
 import LanguageServerProtocol
@@ -21,15 +22,13 @@ import SourceKitD
 /// request, such as the necessary macro expansion edits.
 struct MacroExpansion: RefactoringResponse {
   /// The title of the refactoring action.
-  let title: String
+  var title: String
 
   /// The URI of the file where the macro is used
-  let uri: DocumentURI
+  var uri: DocumentURI
 
   /// The resulting array of `RefactoringEdit` of a semantic refactoring request
-  let edits: [RefactoringEdit]
-
-  var expansionURIs: [DocumentURI]?
+  var edits: [RefactoringEdit]
 
   init(title: String, uri: DocumentURI, refactoringEdits: [RefactoringEdit]) {
     self.title = title
@@ -42,8 +41,6 @@ struct MacroExpansion: RefactoringResponse {
 
       return refactoringEdit
     }
-
-    expansionURIs = nil
   }
 }
 
@@ -60,7 +57,7 @@ extension SwiftLanguageService {
   /// - Returns: nil
   func expandMacro(
     _ expandMacroCommand: ExpandMacroCommand
-  ) async throws -> LSPAny? {
+  ) async throws {
     guard let sourceKitLSPServer else {
       // `SourceKitLSPServer` has been destructed. We are tearing down the
       // language server. Nothing left to do.
@@ -74,8 +71,9 @@ extension SwiftLanguageService {
     let expansion = try await self.refactoring(expandMacroCommand)
 
     var completeExpansionFileContent = ""
-    var completeExpansionFilePath = self.generatedMacroExpansionsPath
-    var macroExpansionFilePaths = [URL]()
+    var completeExpansionDirectoryName = ""
+
+    var macroExpansionFilePaths: [URL] = []
     for macroEdit in expansion.edits {
       if let bufferName = macroEdit.bufferName {
         // buffer name without ".swift"
@@ -86,9 +84,8 @@ extension SwiftLanguageService {
 
         let macroExpansionBufferDirectoryURL = self.generatedMacroExpansionsPath
           .appendingPathComponent(macroExpansionBufferDirectoryName)
-        completeExpansionFilePath =
-          completeExpansionFilePath
-          .appendingPathComponent(macroExpansionBufferDirectoryName)
+
+        completeExpansionDirectoryName += "\(bufferName)-"
 
         do {
           try FileManager.default.createDirectory(
@@ -125,16 +122,35 @@ extension SwiftLanguageService {
         macroExpansionFilePaths.append(macroExpansionFilePath)
 
         let editContent =
-          "// \(sourceFileURL.lastPathComponent) @ \(macroEdit.range.lowerBound.line + 1):\(macroEdit.range.lowerBound.utf16index + 1) - \(macroEdit.range.upperBound.line + 1):\(macroEdit.range.upperBound.utf16index + 1)\n\(macroEdit.newText)\n"
+          """
+          // \(sourceFileURL.lastPathComponent) @ \(macroEdit.range.lowerBound.line + 1):\(macroEdit.range.lowerBound.utf16index + 1) - \(macroEdit.range.upperBound.line + 1):\(macroEdit.range.upperBound.utf16index + 1)
+          \(macroEdit.newText)
+
+
+          """
         completeExpansionFileContent += editContent
       } else if !macroEdit.newText.isEmpty {
         logger.fault("Unable to retrieve some parts of macro expansion")
       }
     }
 
-    if completeExpansionFileContent.hasSuffix("\n") {
+    // removes superfluous newline
+    if completeExpansionFileContent.hasSuffix("\n\n") {
       completeExpansionFileContent.removeLast()
     }
+
+    if completeExpansionDirectoryName.hasSuffix("-") {
+      completeExpansionDirectoryName.removeLast()
+    }
+
+    var completeExpansionFilePath =
+      self.generatedMacroExpansionsPath.appendingPathComponent(
+        Insecure.MD5.hash(
+          data: Data(completeExpansionDirectoryName.utf8)
+        )
+        .map { String(format: "%02hhx", $0) }
+        .joined()
+      )
 
     do {
       try FileManager.default.createDirectory(
@@ -168,6 +184,8 @@ extension SwiftLanguageService {
     {
       Task {
         let req = PeekDocumentsRequest(
+          uri: expandMacroCommand.textDocument.uri,
+          position: expandMacroCommand.positionRange.lowerBound,
           locations: expansionURIs
         )
 
@@ -192,7 +210,5 @@ extension SwiftLanguageService {
         }
       }
     }
-
-    return nil
   }
 }

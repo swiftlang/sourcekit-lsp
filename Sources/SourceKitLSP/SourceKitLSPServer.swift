@@ -961,9 +961,8 @@ extension SourceKitLSPServer {
     // If the client can handle `PeekDocumentsRequest`, they can enable the
     // experimental client capability `"peekDocuments"` through the `req.capabilities.experimental`.
     //
-    // The below allows the client to pass the `"peekDocuments"` flag in the
-    // `req.initializationOptions` if for some reason the client cannot pass it
-    // directly through `req.capabilities.experimental` .
+    // The below is a workaround for the vscode-swift extension since it cannot set client capabilities.
+    // It passes "peekDocuments" through the `initializationOptions`.
     var clientCapabilities = req.capabilities
     if case .dictionary(let initializationOptions) = req.initializationOptions,
       let peekDocuments = initializationOptions["peekDocuments"]
