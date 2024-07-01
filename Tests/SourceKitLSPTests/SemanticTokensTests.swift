@@ -335,7 +335,7 @@ final class SemanticTokensTests: XCTestCase {
       expected: [
         TokenSpec(marker: "1️⃣", length: 4, kind: .keyword),
         TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
-        TokenSpec(marker: "3️⃣", length: 1, kind: .function),
+        TokenSpec(marker: "3️⃣", length: 1, kind: .function, modifiers: .parameterLabel),
         TokenSpec(marker: "4️⃣", length: 3, kind: .struct, modifiers: .defaultLibrary),
         TokenSpec(marker: "5️⃣", length: 1, kind: .identifier),
         TokenSpec(marker: "6️⃣", length: 6, kind: .struct, modifiers: .defaultLibrary),
