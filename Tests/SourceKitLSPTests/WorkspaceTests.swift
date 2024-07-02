@@ -191,6 +191,49 @@ final class WorkspaceTests: XCTestCase {
     XCTAssertEqual(diags, .full(RelatedFullDocumentDiagnosticReport(items: [])))
   }
 
+  func testCorrectWorkspaceForPackageSwiftInMultiSwiftPMWorkspaceSetup() async throws {
+    let project = try await MultiFileTestProject(
+      files: [
+        // PackageA
+        "PackageA/Sources/MyLibrary/libA.swift": "",
+        "PackageA/Package.swift": SwiftPMTestProject.defaultPackageManifest,
+
+        // PackageB
+        "PackageB/Sources/MyLibrary/libB.swift": "",
+        "PackageB/Package.swift": SwiftPMTestProject.defaultPackageManifest,
+      ],
+      workspaces: { scratchDir in
+        return [
+          WorkspaceFolder(uri: DocumentURI(scratchDir)),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageA"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageB"))),
+        ]
+      }
+    )
+
+    let pkgA = DocumentURI(
+      project.scratchDirectory
+        .appendingPathComponent("PackageA")
+        .appendingPathComponent("Package.swift")
+    )
+
+    let pkgB = DocumentURI(
+      project.scratchDirectory
+        .appendingPathComponent("PackageB")
+        .appendingPathComponent("Package.swift")
+    )
+
+    assertEqual(
+      await project.testClient.server.workspaceForDocument(uri: pkgA)?.rootUri,
+      DocumentURI(project.scratchDirectory.appendingPathComponent("PackageA"))
+    )
+
+    assertEqual(
+      await project.testClient.server.workspaceForDocument(uri: pkgB)?.rootUri,
+      DocumentURI(project.scratchDirectory.appendingPathComponent("PackageB"))
+    )
+  }
+
   func testSwiftPMPackageInSubfolder() async throws {
     let packageManifest = """
       // swift-tools-version: 5.7
