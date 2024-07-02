@@ -243,6 +243,8 @@ final class SwiftPMIntegrationTests: XCTestCase {
   }
 
   func testWasm() async throws {
+    try await SkipUnless.canCompileForWasm()
+
     let project = try await SwiftPMTestProject(
       files: [
         "/.sourcekit-lsp/config.json": """
