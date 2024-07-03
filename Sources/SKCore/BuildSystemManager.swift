@@ -166,14 +166,14 @@ extension BuildSystemManager {
     switch language {
     case .swift:
       // Module name is specified in the form -module-name MyLibrary
-      guard let moduleNameFlagIndex = buildSettings.compilerArguments.firstIndex(of: "-module-name") else {
+      guard let moduleNameFlagIndex = buildSettings.compilerArguments.lastIndex(of: "-module-name") else {
         return nil
       }
       return buildSettings.compilerArguments[safe: moduleNameFlagIndex + 1]
     case .objective_c:
       // Specified in the form -fmodule-name=MyLibrary
       guard
-        let moduleNameArgument = buildSettings.compilerArguments.first(where: {
+        let moduleNameArgument = buildSettings.compilerArguments.last(where: {
           $0.starts(with: "-fmodule-name=")
         }),
         let moduleName = moduleNameArgument.split(separator: "=").last
