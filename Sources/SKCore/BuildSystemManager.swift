@@ -14,6 +14,7 @@ import BuildServerProtocol
 import Dispatch
 import LSPLogging
 import LanguageServerProtocol
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 
@@ -152,6 +153,37 @@ extension BuildSystemManager {
     return await configuredTargets(for: document)
       .sorted { ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID) }
       .first
+  }
+
+  /// Returns the target's module name as parsed from the `ConfiguredTarget`'s compiler arguments.
+  public func moduleName(for document: DocumentURI, in target: ConfiguredTarget) async -> String? {
+    guard let language = await self.defaultLanguage(for: document),
+      let buildSettings = await buildSettings(for: document, in: target, language: language)
+    else {
+      return nil
+    }
+
+    switch language {
+    case .swift:
+      // Module name is specified in the form -module-name MyLibrary
+      guard let moduleNameFlagIndex = buildSettings.compilerArguments.firstIndex(of: "-module-name") else {
+        return nil
+      }
+      return buildSettings.compilerArguments[safe: moduleNameFlagIndex + 1]
+    case .objective_c:
+      // Specified in the form -fmodule-name=MyLibrary
+      guard
+        let moduleNameArgument = buildSettings.compilerArguments.first(where: {
+          $0.starts(with: "-fmodule-name=")
+        }),
+        let moduleName = moduleNameArgument.split(separator: "=").last
+      else {
+        return nil
+      }
+      return String(moduleName)
+    default:
+      return nil
+    }
   }
 
   /// Returns the build settings for `document` from `buildSystem`.
