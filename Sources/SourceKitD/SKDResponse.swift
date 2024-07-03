@@ -19,6 +19,8 @@ import Glibc
 import Musl
 #elseif canImport(CRT)
 import CRT
+#elseif canImport(Android)
+import Android
 #endif
 
 public final class SKDResponse: Sendable {
