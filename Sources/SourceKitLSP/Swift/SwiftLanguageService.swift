@@ -93,7 +93,7 @@ public struct SwiftCompileCommand: Sendable, Equatable {
 }
 
 public actor SwiftLanguageService: LanguageService, Sendable {
-  /// The ``SourceKitLSPServer`` instance that created this `ClangLanguageService`.
+  /// The ``SourceKitLSPServer`` instance that created this `SwiftLanguageService`.
   weak var sourceKitLSPServer: SourceKitLSPServer?
 
   let sourcekitd: SourceKitD
@@ -121,9 +121,6 @@ public actor SwiftLanguageService: LanguageService, Sendable {
     options.generatedFilesAbsolutePath.asURL.appendingPathComponent("GeneratedMacroExpansions")
   }
 
-  // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
-  var documentManager: DocumentManager
-
   /// For each edited document, the last task that was triggered to send a `PublishDiagnosticsNotification`.
   ///
   /// This is used to cancel previous publish diagnostics tasks if an edit is made to a document.
@@ -147,6 +144,15 @@ public actor SwiftLanguageService: LanguageService, Sendable {
   private var stateChangeHandlers: [(_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void] = []
 
   private var diagnosticReportManager: DiagnosticReportManager!
+
+  var documentManager: DocumentManager {
+    get throws {
+      guard let sourceKitLSPServer = self.sourceKitLSPServer else {
+        throw ResponseError.unknown("Connection to the editor closed")
+      }
+      return sourceKitLSPServer.documentManager
+    }
+  }
 
   /// Calling `scheduleCall` on `refreshDiagnosticsDebouncer` schedules a `DiagnosticsRefreshRequest` to be sent to
   /// to the client.
@@ -183,7 +189,6 @@ public actor SwiftLanguageService: LanguageService, Sendable {
     self.capabilityRegistry = workspace.capabilityRegistry
     self.semanticIndexManager = workspace.semanticIndexManager
     self.testHooks = testHooks
-    self.documentManager = DocumentManager()
     self.state = .connected
     self.diagnosticReportManager = nil  // Needed to work around rdar://116221716
     self.options = options
@@ -203,7 +208,7 @@ public actor SwiftLanguageService: LanguageService, Sendable {
       sourcekitd: self.sourcekitd,
       options: options,
       syntaxTreeManager: syntaxTreeManager,
-      documentManager: documentManager,
+      documentManager: try documentManager,
       clientHasDiagnosticsCodeDescriptionSupport: await self.clientHasDiagnosticsCodeDescriptionSupport
     )
 
@@ -439,14 +444,9 @@ extension SwiftLanguageService {
     ])
   }
 
-  public func openDocument(_ notification: DidOpenTextDocumentNotification) async {
+  public func openDocument(_ notification: DidOpenTextDocumentNotification, snapshot: DocumentSnapshot) async {
     cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
     await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
-
-    guard let snapshot = self.documentManager.open(notification) else {
-      // Already logged failure.
-      return
-    }
 
     let buildSettings = await self.buildSettings(for: snapshot.uri)
 
@@ -459,8 +459,6 @@ extension SwiftLanguageService {
     cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
     inFlightPublishDiagnosticsTasks[notification.textDocument.uri] = nil
     await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
-
-    self.documentManager.close(notification)
 
     let req = closeDocumentSourcekitdRequest(uri: notification.textDocument.uri)
     _ = try? await self.sendSourcekitdRequest(req, fileContents: nil)
@@ -542,7 +540,12 @@ extension SwiftLanguageService {
     }
   }
 
-  public func changeDocument(_ notification: DidChangeTextDocumentNotification) async {
+  public func changeDocument(
+    _ notification: DidChangeTextDocumentNotification,
+    preEditSnapshot: DocumentSnapshot,
+    postEditSnapshot: DocumentSnapshot,
+    edits: [SourceEdit]
+  ) async {
     cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
 
     let keys = self.keys
@@ -550,10 +553,6 @@ extension SwiftLanguageService {
       let offset: Int
       let length: Int
       let replacement: String
-    }
-
-    guard let (preEditSnapshot, postEditSnapshot, edits) = self.documentManager.edit(notification) else {
-      return
     }
 
     for edit in edits {
@@ -1006,10 +1005,6 @@ extension SwiftLanguageService: SKDNotificationHandler {
 
     if notification.error == .connectionInterrupted {
       await self.setState(.connectionInterrupted)
-
-      // We don't have any open documents anymore after sourcekitd crashed.
-      // Reset the document manager to reflect that.
-      self.documentManager = DocumentManager()
     }
   }
 }
