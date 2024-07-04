@@ -622,6 +622,10 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
+  func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens] {
+    return try await forwardRequestToClangd(req) ?? []
+  }
+
   func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
     guard self.capabilities?.foldingRangeProvider?.isSupported ?? false else {
       return nil

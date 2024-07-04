@@ -921,6 +921,11 @@ extension SwiftLanguageService {
     return Array(hints)
   }
 
+  package func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens] {
+    let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
+    return await SwiftCodeLensScanner.findCodeLenses(in: snapshot, syntaxTreeManager: self.syntaxTreeManager)
+  }
+
   package func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
     do {
       await semanticIndexManager?.prepareFileForEditorFunctionality(req.textDocument.uri)

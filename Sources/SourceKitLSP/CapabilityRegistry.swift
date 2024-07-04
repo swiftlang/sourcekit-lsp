@@ -38,6 +38,9 @@ package final actor CapabilityRegistry {
   /// Dynamically registered pull diagnostics options.
   private var pullDiagnostics: [CapabilityRegistration: DiagnosticRegistrationOptions] = [:]
 
+  /// Dynamically registered code lens options.
+  private var codeLens: [CapabilityRegistration: CodeLensRegistrationOptions] = [:]
+
   /// Dynamically registered file watchers.
   private var didChangeWatchedFiles: DidChangeWatchedFilesRegistrationOptions?
 
@@ -279,6 +282,7 @@ package final actor CapabilityRegistry {
     server: SourceKitLSPServer
   ) async {
     guard clientHasDynamicInlayHintRegistration else { return }
+
     await registerLanguageSpecificCapability(
       options: InlayHintRegistrationOptions(
         documentSelector: DocumentSelector(for: languages),
@@ -314,6 +318,29 @@ package final actor CapabilityRegistry {
     )
   }
 
+  /// Dynamically register code lens capabilities,
+  /// if the client supports it.
+  public func registerCodeLensIfNeeded(
+    options: CodeLensOptions,
+    for languages: [Language],
+    server: SourceKitLSPServer
+  ) async {
+    guard clientHasDynamicDocumentCodeLensRegistration else { return }
+
+    await registerLanguageSpecificCapability(
+      options: CodeLensRegistrationOptions(
+        // Code lenses should only apply to saved files
+        documentSelector: DocumentSelector(for: languages, scheme: "file"),
+        codeLensOptions: options
+      ),
+      forMethod: CodeLensRequest.method,
+      languages: languages,
+      in: server,
+      registrationDict: codeLens,
+      setRegistrationDict: { codeLens[$0] = $1 }
+    )
+  }
+
   /// Dynamically register executeCommand with the given IDs if the client supports
   /// it and we haven't yet registered the given command IDs yet.
   package func registerExecuteCommandIfNeeded(
@@ -345,7 +372,7 @@ package final actor CapabilityRegistry {
 }
 
 fileprivate extension DocumentSelector {
-  init(for languages: [Language]) {
-    self.init(languages.map { DocumentFilter(language: $0.rawValue) })
+  init(for languages: [Language], scheme: String? = nil) {
+    self.init(languages.map { DocumentFilter(language: $0.rawValue, scheme: scheme) })
   }
 }

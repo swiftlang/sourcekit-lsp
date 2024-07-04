@@ -700,6 +700,8 @@ extension SourceKitLSPServer: MessageHandler {
       await self.handleRequest(for: request, requestHandler: self.prepareCallHierarchy)
     case let request as RequestAndReply<CodeActionRequest>:
       await self.handleRequest(for: request, requestHandler: self.codeAction)
+    case let request as RequestAndReply<CodeLensRequest>:
+      await self.handleRequest(for: request, requestHandler: self.codeLens)
     case let request as RequestAndReply<ColorPresentationRequest>:
       await self.handleRequest(for: request, requestHandler: self.colorPresentation)
     case let request as RequestAndReply<CompletionRequest>:
@@ -1100,6 +1102,7 @@ extension SourceKitLSPServer {
           supportsCodeActions: true
         )
       ),
+      codeLensProvider: CodeLensOptions(resolveProvider: false),
       documentFormattingProvider: .value(DocumentFormattingOptions(workDoneProgress: false)),
       renameProvider: .value(RenameOptions(prepareProvider: true)),
       colorProvider: .bool(true),
@@ -1160,6 +1163,9 @@ extension SourceKitLSPServer {
     // whether it supports pull diagnostics.
     if let diagnosticOptions = server.diagnosticProvider {
       await registry.registerDiagnosticIfNeeded(options: diagnosticOptions, for: languages, server: self)
+    }
+    if let codeLensOptions = server.codeLensProvider {
+      await registry.registerCodeLensIfNeeded(options: codeLensOptions, for: languages, server: self)
     }
     if let commandOptions = server.executeCommandProvider {
       await registry.registerExecuteCommandIfNeeded(commands: commandOptions.commands, server: self)
@@ -1640,6 +1646,14 @@ extension SourceKitLSPServer {
   ) async throws -> CodeActionRequestResponse? {
     let response = try await languageService.codeAction(req)
     return req.injectMetadata(toResponse: response)
+  }
+
+  func codeLens(
+    _ req: CodeLensRequest,
+    workspace: Workspace,
+    languageService: LanguageService
+  ) async throws -> [CodeLens] {
+    return try await languageService.codeLens(req)
   }
 
   func inlayHint(
