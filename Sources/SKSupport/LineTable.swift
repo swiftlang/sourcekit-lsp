@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LSPLogging
+import os
 
 public struct LineTable: Hashable, Sendable {
   @usableFromInline
