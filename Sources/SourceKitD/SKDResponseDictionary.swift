@@ -18,8 +18,8 @@ import Glibc
 import Musl
 #elseif canImport(CRT)
 import CRT
-#elseif canImport(Android)
-import Android
+#elseif canImport(Bionic)
+import Bionic
 #endif
 
 public final class SKDResponseDictionary: Sendable {
