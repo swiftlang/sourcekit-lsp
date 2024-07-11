@@ -1120,6 +1120,7 @@ extension SourceKitLSPServer {
       experimental: .dictionary([
         "workspace/tests": .dictionary(["version": .int(2)]),
         "textDocument/tests": .dictionary(["version": .int(2)]),
+        "workspace/triggerReindex": .dictionary(["version": .int(1)]),
       ])
     )
   }
