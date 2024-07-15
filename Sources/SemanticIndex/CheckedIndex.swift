@@ -326,15 +326,31 @@ private struct IndexOutOfDateChecker {
     }
   }
 
+  private static func modificationDate(atPath path: String) throws -> Date {
+    let attributes = try FileManager.default.attributesOfItem(atPath: path)
+    guard let modificationDate = attributes[FileAttributeKey.modificationDate] as? Date else {
+      throw Error.fileAttributesDontHaveModificationDate
+    }
+    return modificationDate
+  }
+
   private func modificationDateUncached(of uri: DocumentURI) throws -> ModificationTime {
     do {
-      guard let fileURL = uri.fileURL else {
+      guard var fileURL = uri.fileURL else {
         return .fileDoesNotExist
       }
-      let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.resolvingSymlinksInPath().path)
-      guard let modificationDate = attributes[FileAttributeKey.modificationDate] as? Date else {
-        throw Error.fileAttributesDontHaveModificationDate
+      var modificationDate = try Self.modificationDate(atPath: fileURL.path)
+
+      // Get the maximum mtime in the symlink chain as the modification date of the URI. That way if either the symlink
+      // is changed to point to a different file or if the underlying file is modified, the modification time is
+      // updated.
+      while let relativeSymlinkDestination = try? FileManager.default.destinationOfSymbolicLink(atPath: fileURL.path),
+        let symlinkDestination = URL(string: relativeSymlinkDestination, relativeTo: fileURL)
+      {
+        fileURL = symlinkDestination
+        modificationDate = max(modificationDate, try Self.modificationDate(atPath: fileURL.path))
       }
+
       return .date(modificationDate)
     } catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileReadNoSuchFileError {
       return .fileDoesNotExist
