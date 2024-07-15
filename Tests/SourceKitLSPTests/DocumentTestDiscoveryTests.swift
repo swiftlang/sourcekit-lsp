@@ -245,7 +245,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
-  func testNestedSwiftTestingSuites() async throws {
+  func testSwiftTestingNestedSuites() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -295,7 +295,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
-  func testParameterizedSwiftTestingTest() async throws {
+  func testSwiftTestingParameterizedTest() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -335,7 +335,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
-  func testParameterizedSwiftTestingTestWithAnonymousArgument() async throws {
+  func testSwiftTestingParameterizedTestWithAnonymousArgument() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -378,7 +378,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
-  func testParameterizedSwiftTestingTestWithCommentInSignature() async throws {
+  func testSwiftTestingParameterizedTestWithCommentInSignature() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -559,7 +559,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
-  func testDisabledSwiftTestingTest() async throws {
+  func testSwiftTestingTestDisabledTest() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -633,7 +633,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
-  func testHiddenSwiftTestingTest() async throws {
+  func testSwiftTestingHiddenTest() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -859,43 +859,6 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
-  func testXCTestTestsWithExtension() async throws {
-    let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI(for: .swift)
-
-    let positions = testClient.openDocument(
-      """
-      import XCTest
-
-      1️⃣final class MyTests: XCTestCase {}2️⃣
-
-      extension MyTests {
-        3️⃣func testOneIsTwo() {}4️⃣
-      }
-      """,
-      uri: uri
-    )
-
-    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
-    XCTAssertEqual(
-      tests,
-      [
-        TestItem(
-          id: "MyTests",
-          label: "MyTests",
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
-          children: [
-            TestItem(
-              id: "MyTests/testOneIsTwo()",
-              label: "testOneIsTwo()",
-              location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"])
-            )
-          ]
-        )
-      ]
-    )
-  }
-
   func testSwiftTestingNestedTestSuiteWithExtension() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
@@ -1086,7 +1049,87 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
-  func testFullyQualifySwiftTestingTestAttribute() async throws {
+  func testSwiftTestingEnumSuite() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      1️⃣enum MyTests {
+        2️⃣@Test
+        static func oneIsTwo() {
+          #expect(1 == 2)
+        }3️⃣
+      }4️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/oneIsTwo()",
+              label: "oneIsTwo()",
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
+            )
+          ]
+        )
+      ]
+    )
+  }
+
+  func testSwiftTestingActorSuite() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      1️⃣actor MyTests {
+        2️⃣@Test
+        static func oneIsTwo() {
+          #expect(1 == 2)
+        }3️⃣
+      }4️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/oneIsTwo()",
+              label: "oneIsTwo()",
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
+            )
+          ]
+        )
+      ]
+    )
+  }
+
+  func testSwiftTestingFullyQualifyTestAttribute() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -1122,6 +1165,77 @@ final class DocumentTestDiscoveryTests: XCTestCase {
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
           ]
+        )
+      ]
+    )
+  }
+
+  func testXCTestTestsWithExtension() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import XCTest
+
+      1️⃣final class MyTests: XCTestCase {}2️⃣
+
+      extension MyTests {
+        3️⃣func testOneIsTwo() {}4️⃣
+      }
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/testOneIsTwo()",
+              label: "testOneIsTwo()",
+              location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"])
+            )
+          ]
+        )
+      ]
+    )
+  }
+
+  func testXCTestInvalidXCTestSuiteConstructions() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import XCTest
+
+      // This comment contains the string XCTestCase
+      final class NSObjectInheritance: NSObject {}
+      final class BaseClass {}
+      final class MyEmptyTests: BaseClass {}
+      1️⃣final class MyTests: XCTestCase {
+        static func testStaticFuncIsNotATest() {}
+      }2️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
+          children: []
         )
       ]
     )
