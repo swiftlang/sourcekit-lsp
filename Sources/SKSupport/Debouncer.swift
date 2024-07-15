@@ -12,7 +12,7 @@
 
 /// Debounces calls to a function/closure. If multiple calls to the closure are made, it allows aggregating the
 /// parameters.
-public actor Debouncer<Parameter> {
+package actor Debouncer<Parameter> {
   /// How long to wait for further `scheduleCall` calls before committing to actually calling `makeCall`.
   private let debounceDuration: Duration
 
@@ -38,7 +38,7 @@ public actor Debouncer<Parameter> {
   /// indefinitely debounce if a new `scheduleCall` is made every 0.4s but we debounce for 0.5s.
   private var inProgressData: (Parameter, ContinuousClock.Instant, Task<Void, Never>)?
 
-  public init(
+  package init(
     debounceDuration: Duration,
     combineResults: @escaping (Parameter, Parameter) -> Parameter,
     _ makeCall: @Sendable @escaping (Parameter) async -> Void
@@ -51,7 +51,7 @@ public actor Debouncer<Parameter> {
   /// Schedule a debounced call. If `scheduleCall` is called within `debounceDuration`, the parameters of the two
   /// `scheduleCall` calls will be combined using `combineParameters` and the new debounced call will be scheduled
   /// `debounceDuration` after the second `scheduleCall` call.
-  public func scheduleCall(_ parameter: Parameter) {
+  package func scheduleCall(_ parameter: Parameter) {
     var parameter = parameter
     var targetDate = ContinuousClock.now + debounceDuration
     if let (inProgressParameter, inProgressTargetDate, inProgressTask) = inProgressData {
@@ -74,11 +74,11 @@ public actor Debouncer<Parameter> {
 }
 
 extension Debouncer<Void> {
-  public init(debounceDuration: Duration, _ makeCall: @Sendable @escaping () async -> Void) {
+  package init(debounceDuration: Duration, _ makeCall: @Sendable @escaping () async -> Void) {
     self.init(debounceDuration: debounceDuration, combineResults: { _, _ in }, makeCall)
   }
 
-  public func scheduleCall() {
+  package func scheduleCall() {
     self.scheduleCall(())
   }
 }

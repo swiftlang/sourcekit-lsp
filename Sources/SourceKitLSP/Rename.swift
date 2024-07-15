@@ -445,7 +445,7 @@ extension SwiftLanguageService {
 /// These names might differ. For example, an Objective-C method gets translated by the clang importer to form the Swift
 /// name or it could have a `SWIFT_NAME` attribute that defines the method's name in Swift. Similarly, a Swift symbol
 /// might specify the name by which it gets exposed to Objective-C using the `@objc` attribute.
-public struct CrossLanguageName: Sendable {
+package struct CrossLanguageName: Sendable {
   /// The name of the symbol in clang languages or `nil` if the symbol is defined in Swift, doesn't have any references
   /// from clang languages and thus hasn't been translated.
   fileprivate let clangName: String?
@@ -1056,7 +1056,7 @@ extension SwiftLanguageService {
     return (functionLikeRange.lowerBound, baseNameSymbolInfo?.only?.usr, functionLikeRange)
   }
 
-  public func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
+  package func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
     let snapshot = try self.documentManager.latestSnapshot(request.textDocument.uri)
 
     let (renamePosition, usr, _) = await symbolToRename(at: request.position, in: snapshot)
@@ -1105,7 +1105,7 @@ extension SwiftLanguageService {
     return (edits: WorkspaceEdit(changes: [snapshot.uri: edits]), usr: usr)
   }
 
-  public func editsToRenameParametersInFunctionBody(
+  package func editsToRenameParametersInFunctionBody(
     snapshot: DocumentSnapshot,
     renameLocation: RenameLocation,
     newName: CrossLanguageName
@@ -1268,7 +1268,7 @@ extension SwiftLanguageService {
     }
   }
 
-  public func editsToRename(
+  package func editsToRename(
     locations renameLocations: [RenameLocation],
     in snapshot: DocumentSnapshot,
     oldName oldCrossLanguageName: CrossLanguageName,
@@ -1350,7 +1350,7 @@ extension SwiftLanguageService {
     }
   }
 
-  public func prepareRename(
+  package func prepareRename(
     _ request: PrepareRenameRequest
   ) async throws -> (prepareRename: PrepareRenameResponse, usr: String?)? {
     let snapshot = try self.documentManager.latestSnapshot(request.textDocument.uri)
@@ -1424,7 +1424,7 @@ extension ClangLanguageService {
     }
   }
 
-  public func prepareRename(
+  package func prepareRename(
     _ request: PrepareRenameRequest
   ) async throws -> (prepareRename: PrepareRenameResponse, usr: String?)? {
     guard let prepareRename = try await forwardRequestToClangd(request) else {
@@ -1436,7 +1436,7 @@ extension ClangLanguageService {
     return (prepareRename, symbolInfo.only?.usr)
   }
 
-  public func editsToRenameParametersInFunctionBody(
+  package func editsToRenameParametersInFunctionBody(
     snapshot: DocumentSnapshot,
     renameLocation: RenameLocation,
     newName: CrossLanguageName

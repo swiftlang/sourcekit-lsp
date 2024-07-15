@@ -27,7 +27,7 @@ extension Task: AnyTask {
 }
 
 /// A type that is able to track dependencies between tasks.
-public protocol DependencyTracker: Sendable {
+package protocol DependencyTracker: Sendable {
   /// Whether the task described by `self` needs to finish executing before
   /// `other` can start executing.
   func isDependency(of other: Self) -> Bool
@@ -35,8 +35,8 @@ public protocol DependencyTracker: Sendable {
 
 /// A dependency tracker where each task depends on every other, i.e. a serial
 /// queue.
-public struct Serial: DependencyTracker {
-  public func isDependency(of other: Serial) -> Bool {
+package struct Serial: DependencyTracker {
+  package func isDependency(of other: Serial) -> Bool {
     return true
   }
 }
@@ -77,12 +77,12 @@ private class PendingTasks<TaskMetadata: Sendable>: @unchecked Sendable {
 }
 
 /// A queue that allows the execution of asynchronous blocks of code.
-public final class AsyncQueue<TaskMetadata: DependencyTracker>: Sendable {
+package final class AsyncQueue<TaskMetadata: DependencyTracker>: Sendable {
   private let pendingTasks: PendingTasks<TaskMetadata> = PendingTasks()
 
-  public init() {}
+  package init() {}
 
-  public func cancelTasks(where filter: (TaskMetadata) -> Bool) {
+  package func cancelTasks(where filter: (TaskMetadata) -> Bool) {
     pendingTasks.withLock { pendingTasks in
       for task in pendingTasks {
         if filter(task.metadata) {
@@ -101,7 +101,7 @@ public final class AsyncQueue<TaskMetadata: DependencyTracker>: Sendable {
   /// finish execution before the barrier is executed and all tasks that are
   /// added later will wait until the barrier finishes execution.
   @discardableResult
-  public func async<Success: Sendable>(
+  package func async<Success: Sendable>(
     priority: TaskPriority? = nil,
     metadata: TaskMetadata,
     @_inheritActorContext operation: @escaping @Sendable () async -> Success
@@ -122,7 +122,7 @@ public final class AsyncQueue<TaskMetadata: DependencyTracker>: Sendable {
   ///
   /// - Important: The caller is responsible for handling any errors thrown from
   ///   the operation by awaiting the result of the returned task.
-  public func asyncThrowing<Success: Sendable>(
+  package func asyncThrowing<Success: Sendable>(
     priority: TaskPriority? = nil,
     metadata: TaskMetadata,
     @_inheritActorContext operation: @escaping @Sendable () async throws -> Success
@@ -165,7 +165,7 @@ extension AsyncQueue where TaskMetadata == Serial {
   /// Same as ``async(priority:operation:)`` but specialized for serial queues
   /// that don't specify any metadata.
   @discardableResult
-  public func async<Success: Sendable>(
+  package func async<Success: Sendable>(
     priority: TaskPriority? = nil,
     @_inheritActorContext operation: @escaping @Sendable () async -> Success
   ) -> Task<Success, Never> {
@@ -174,7 +174,7 @@ extension AsyncQueue where TaskMetadata == Serial {
 
   /// Same as ``asyncThrowing(priority:metadata:operation:)`` but specialized
   /// for serial queues that don't specify any metadata.
-  public func asyncThrowing<Success: Sendable>(
+  package func asyncThrowing<Success: Sendable>(
     priority: TaskPriority? = nil,
     @_inheritActorContext operation: @escaping @Sendable () async throws -> Success
   ) -> Task<Success, any Error> {

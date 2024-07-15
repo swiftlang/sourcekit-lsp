@@ -11,21 +11,21 @@
 //===----------------------------------------------------------------------===//
 
 /// Callbacks that allow inspection of internal state modifications during testing.
-public struct IndexTestHooks: Sendable {
-  public var buildGraphGenerationDidStart: (@Sendable () async -> Void)?
+package struct IndexTestHooks: Sendable {
+  package var buildGraphGenerationDidStart: (@Sendable () async -> Void)?
 
-  public var buildGraphGenerationDidFinish: (@Sendable () async -> Void)?
+  package var buildGraphGenerationDidFinish: (@Sendable () async -> Void)?
 
-  public var preparationTaskDidStart: (@Sendable (PreparationTaskDescription) async -> Void)?
+  package var preparationTaskDidStart: (@Sendable (PreparationTaskDescription) async -> Void)?
 
-  public var preparationTaskDidFinish: (@Sendable (PreparationTaskDescription) async -> Void)?
+  package var preparationTaskDidFinish: (@Sendable (PreparationTaskDescription) async -> Void)?
 
-  public var updateIndexStoreTaskDidStart: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)?
+  package var updateIndexStoreTaskDidStart: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)?
 
   /// A callback that is called when an index task finishes.
-  public var updateIndexStoreTaskDidFinish: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)?
+  package var updateIndexStoreTaskDidFinish: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)?
 
-  public init(
+  package init(
     buildGraphGenerationDidStart: (@Sendable () async -> Void)? = nil,
     buildGraphGenerationDidFinish: (@Sendable () async -> Void)? = nil,
     preparationTaskDidStart: (@Sendable (PreparationTaskDescription) async -> Void)? = nil,

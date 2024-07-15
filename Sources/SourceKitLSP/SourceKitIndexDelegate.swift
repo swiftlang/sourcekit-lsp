@@ -30,9 +30,9 @@ actor SourceKitIndexDelegate: IndexDelegate {
   /// time we are notified.
   var pendingUnitCount: Int = 0
 
-  public init() {}
+  package init() {}
 
-  nonisolated public func processingAddedPending(_ count: Int) {
+  nonisolated package func processingAddedPending(_ count: Int) {
     queue.async {
       await self.addPending(count)
     }
@@ -42,7 +42,7 @@ actor SourceKitIndexDelegate: IndexDelegate {
     pendingUnitCount += count
   }
 
-  nonisolated public func processingCompleted(_ count: Int) {
+  nonisolated package func processingCompleted(_ count: Int) {
     queue.async {
       await self.processCompleted(count)
     }
@@ -71,7 +71,7 @@ actor SourceKitIndexDelegate: IndexDelegate {
   }
 
   /// Register a delegate to receive notifications when main files change.
-  public func addMainFileChangedCallback(_ callback: @escaping @Sendable () async -> Void) {
+  package func addMainFileChangedCallback(_ callback: @escaping @Sendable () async -> Void) {
     mainFilesChangedCallbacks.append(callback)
   }
 

@@ -18,6 +18,12 @@ import XCTest
 
 import struct PackageModel.BuildFlags
 
+fileprivate extension FallbackBuildSystem {
+  func setSdkPath(_ newValue: AbsolutePath?) {
+    self.sdkpath = newValue
+  }
+}
+
 final class FallbackBuildSystemTests: XCTestCase {
 
   func testSwift() async throws {

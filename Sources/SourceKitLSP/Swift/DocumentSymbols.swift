@@ -16,7 +16,7 @@ import LanguageServerProtocol
 import SwiftSyntax
 
 extension SwiftLanguageService {
-  public func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
+  package func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
 
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)

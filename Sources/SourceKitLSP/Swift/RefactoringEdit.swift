@@ -14,21 +14,21 @@ import LanguageServerProtocol
 import SourceKitD
 
 /// Represents an edit from semantic refactor response. Notionally, a subclass of `TextEdit`
-@_spi(Testing) public struct RefactoringEdit: Hashable, Sendable, Codable {
+package struct RefactoringEdit: Hashable, Sendable, Codable {
   /// The range of text to be replaced.
   @CustomCodable<PositionRange>
-  public var range: Range<Position>
+  package var range: Range<Position>
 
   /// The new text.
-  public var newText: String
+  package var newText: String
 
   /// If the new text of the edit should not be applied to the original source
   /// file but to a separate buffer, a fake name for that buffer. For example
   /// for expansion of macros, this is @ followed by the mangled name of the
   /// macro expansion, followed by .swift.
-  public var bufferName: String?
+  package var bufferName: String?
 
-  public init(range: Range<Position>, newText: String, bufferName: String?) {
+  package init(range: Range<Position>, newText: String, bufferName: String?) {
     self._range = CustomCodable<PositionRange>(wrappedValue: range)
     self.newText = newText
     self.bufferName = bufferName
@@ -36,7 +36,7 @@ import SourceKitD
 }
 
 extension RefactoringEdit: LSPAnyCodable {
-  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+  package init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard case .dictionary(let rangeDict) = dictionary[CodingKeys.range.stringValue],
       case .string(let newText) = dictionary[CodingKeys.newText.stringValue]
     else {
@@ -57,7 +57,7 @@ extension RefactoringEdit: LSPAnyCodable {
     }
   }
 
-  public func encodeToLSPAny() -> LSPAny {
+  package func encodeToLSPAny() -> LSPAny {
     guard let bufferName = bufferName else {
       return .dictionary([
         CodingKeys.range.stringValue: range.encodeToLSPAny(),

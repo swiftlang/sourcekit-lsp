@@ -338,7 +338,7 @@ func assertRefactor<R: EditRefactoringProvider>(
 ///     which this function was called.
 ///   - line: The line number on which failure occurred. Defaults to the line number on which this
 ///     function was called.
-public func assertStringsEqualWithDiff(
+fileprivate func assertStringsEqualWithDiff(
   _ actual: String,
   _ expected: String,
   _ message: String = "",
@@ -359,43 +359,8 @@ public func assertStringsEqualWithDiff(
   )
 }
 
-/// Asserts that the two data are equal, providing Unix `diff`-style output if they are not.
-///
-/// - Parameters:
-///   - actual: The actual string.
-///   - expected: The expected string.
-///   - message: An optional description of the failure.
-///   - additionalInfo: Additional information about the failed test case that will be printed after the diff
-///   - file: The file in which failure occurred. Defaults to the file name of the test case in
-///     which this function was called.
-///   - line: The line number on which failure occurred. Defaults to the line number on which this
-///     function was called.
-public func assertDataEqualWithDiff(
-  _ actual: Data,
-  _ expected: Data,
-  _ message: String = "",
-  additionalInfo: @autoclosure () -> String? = nil,
-  file: StaticString = #filePath,
-  line: UInt = #line
-) {
-  if actual == expected {
-    return
-  }
-
-  // NOTE: Converting to `Stirng` here looses invalid UTF8 sequence difference,
-  // but at least we can see something is different.
-  failStringsEqualWithDiff(
-    String(decoding: actual, as: UTF8.self),
-    String(decoding: expected, as: UTF8.self),
-    message,
-    additionalInfo: additionalInfo(),
-    file: file,
-    line: line
-  )
-}
-
 /// `XCTFail` with `diff`-style output.
-public func failStringsEqualWithDiff(
+fileprivate func failStringsEqualWithDiff(
   _ actual: String,
   _ expected: String,
   _ message: String = "",

@@ -18,8 +18,8 @@ import SourceKitD
 
 import struct TSCBasic.AbsolutePath
 
-public struct RunSourceKitdRequestCommand: AsyncParsableCommand {
-  public static let configuration = CommandConfiguration(
+package struct RunSourceKitdRequestCommand: AsyncParsableCommand {
+  package static let configuration = CommandConfiguration(
     commandName: "run-sourcekitd-request",
     abstract: "Run a sourcekitd request and print its result"
   )
@@ -39,9 +39,9 @@ public struct RunSourceKitdRequestCommand: AsyncParsableCommand {
   @Option(help: "line:column override for key.offset")
   var position: String?
 
-  public init() {}
+  package init() {}
 
-  public func run() async throws {
+  package func run() async throws {
     var requestString = try String(contentsOf: URL(fileURLWithPath: sourcekitdRequestPath))
 
     let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)

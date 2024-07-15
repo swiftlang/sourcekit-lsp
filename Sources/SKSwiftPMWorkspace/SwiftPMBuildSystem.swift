@@ -46,16 +46,16 @@ import SPMBuildCore
 /// Parameter of `reloadPackageStatusCallback` in ``SwiftPMWorkspace``.
 ///
 /// Informs the callback about whether `reloadPackage` started or finished executing.
-public enum ReloadPackageStatus: Sendable {
+package enum ReloadPackageStatus: Sendable {
   case start
   case end
 }
 
 /// A build target in SwiftPM
-public typealias SwiftBuildTarget = SourceKitLSPAPI.BuildTarget
+package typealias SwiftBuildTarget = SourceKitLSPAPI.BuildTarget
 
 /// A build target in `BuildServerProtocol`
-public typealias BuildServerTarget = BuildServerProtocol.BuildTarget
+package typealias BuildServerTarget = BuildServerProtocol.BuildTarget
 
 /// Same as `toolchainRegistry.default`.
 ///
@@ -89,11 +89,11 @@ fileprivate extension ConfiguredTarget {
 
 fileprivate let preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
 
-public struct SwiftPMTestHooks: Sendable {
-  public var reloadPackageDidStart: (@Sendable () async -> Void)?
-  public var reloadPackageDidFinish: (@Sendable () async -> Void)?
+package struct SwiftPMTestHooks: Sendable {
+  package var reloadPackageDidStart: (@Sendable () async -> Void)?
+  package var reloadPackageDidFinish: (@Sendable () async -> Void)?
 
-  public init(
+  package init(
     reloadPackageDidStart: (@Sendable () async -> Void)? = nil,
     reloadPackageDidFinish: (@Sendable () async -> Void)? = nil
   ) {
@@ -107,9 +107,9 @@ public struct SwiftPMTestHooks: Sendable {
 /// This class implements the `BuildSystem` interface to provide the build settings for a Swift
 /// Package Manager (SwiftPM) package. The settings are determined by loading the Package.swift
 /// manifest using `libSwiftPM` and constructing a build plan using the default (debug) parameters.
-public actor SwiftPMBuildSystem {
+package actor SwiftPMBuildSystem {
 
-  public enum Error: Swift.Error {
+  package enum Error: Swift.Error {
 
     /// Could not find a manifest (Package.swift file). This is not a package.
     case noManifest(workspacePath: TSCAbsolutePath)
@@ -119,9 +119,9 @@ public actor SwiftPMBuildSystem {
   }
 
   /// Delegate to handle any build system events.
-  public weak var delegate: SKCore.BuildSystemDelegate? = nil
+  package weak var delegate: SKCore.BuildSystemDelegate? = nil
 
-  public func setDelegate(_ delegate: SKCore.BuildSystemDelegate?) async {
+  package func setDelegate(_ delegate: SKCore.BuildSystemDelegate?) async {
     self.delegate = delegate
   }
 
@@ -134,14 +134,13 @@ public actor SwiftPMBuildSystem {
   private let options: SourceKitLSPOptions
 
   /// The directory containing `Package.swift`.
-  @_spi(Testing)
-  public var projectRoot: TSCAbsolutePath
+  package var projectRoot: TSCAbsolutePath
 
   private var buildDescription: SourceKitLSPAPI.BuildDescription?
   private var modulesGraph: ModulesGraph
   private let workspace: Workspace
-  @_spi(Testing) public let toolsBuildParameters: BuildParameters
-  @_spi(Testing) public let destinationBuildParameters: BuildParameters
+  package let toolsBuildParameters: BuildParameters
+  package let destinationBuildParameters: BuildParameters
   private let fileSystem: FileSystem
   private let toolchain: SKCore.Toolchain
 
@@ -189,7 +188,7 @@ public actor SwiftPMBuildSystem {
   ///     manifest parsing and runtime support.
   ///   - reloadPackageStatusCallback: Will be informed when `reloadPackage` starts and ends executing.
   /// - Throws: If there is an error loading the package, or no manifest is found.
-  public init(
+  package init(
     workspacePath: TSCAbsolutePath,
     toolchainRegistry: ToolchainRegistry,
     fileSystem: FileSystem = localFileSystem,
@@ -326,7 +325,7 @@ public actor SwiftPMBuildSystem {
   /// - Parameters:
   ///   - reloadPackageStatusCallback: Will be informed when `reloadPackage` starts and ends executing.
   /// - Returns: nil if `workspacePath` is not part of a package or there is an error.
-  public init?(
+  package init?(
     uri: DocumentURI,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
@@ -357,7 +356,7 @@ public actor SwiftPMBuildSystem {
 extension SwiftPMBuildSystem {
   /// (Re-)load the package settings by parsing the manifest and resolving all the targets and
   /// dependencies.
-  public func reloadPackage(forceResolvedVersions: Bool) async throws {
+  package func reloadPackage(forceResolvedVersions: Bool) async throws {
     await reloadPackageStatusCallback(.start)
     await testHooks.reloadPackageDidStart?()
     defer {
@@ -439,22 +438,22 @@ fileprivate struct NonFileURIError: Error, CustomStringConvertible {
 }
 
 extension SwiftPMBuildSystem: SKCore.BuildSystem {
-  public nonisolated var supportsPreparation: Bool { true }
+  package nonisolated var supportsPreparation: Bool { true }
 
-  public var buildPath: TSCAbsolutePath {
+  package var buildPath: TSCAbsolutePath {
     return TSCAbsolutePath(destinationBuildParameters.buildPath)
   }
 
-  public var indexStorePath: TSCAbsolutePath? {
+  package var indexStorePath: TSCAbsolutePath? {
     return destinationBuildParameters.indexStoreMode == .off
       ? nil : TSCAbsolutePath(destinationBuildParameters.indexStore)
   }
 
-  public var indexDatabasePath: TSCAbsolutePath? {
+  package var indexDatabasePath: TSCAbsolutePath? {
     return buildPath.appending(components: "index", "db")
   }
 
-  public var indexPrefixMappings: [PathPrefixMapping] { return [] }
+  package var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
   /// Return the compiler arguments for the given source file within a target, making any necessary adjustments to
   /// account for differences in the SwiftPM versions being linked into SwiftPM and being installed in the toolchain.
@@ -481,7 +480,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     }
   }
 
-  public func buildSettings(
+  package func buildSettings(
     for uri: DocumentURI,
     in configuredTarget: ConfiguredTarget,
     language: Language
@@ -523,17 +522,17 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     )
   }
 
-  public func defaultLanguage(for document: DocumentURI) -> Language? {
+  package func defaultLanguage(for document: DocumentURI) -> Language? {
     // TODO (indexing): Query The SwiftPM build system for the document's language.
     // https://github.com/swiftlang/sourcekit-lsp/issues/1267
     return nil
   }
 
-  public func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+  package func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
     return toolchain
   }
 
-  public func configuredTargets(for uri: DocumentURI) -> [ConfiguredTarget] {
+  package func configuredTargets(for uri: DocumentURI) -> [ConfiguredTarget] {
     guard let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
       // We can't determine targets for non-file URIs.
       return []
@@ -559,11 +558,11 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     return []
   }
 
-  public func generateBuildGraph(allowFileSystemWrites: Bool) async throws {
+  package func generateBuildGraph(allowFileSystemWrites: Bool) async throws {
     try await self.reloadPackage(forceResolvedVersions: !isForIndexBuild || !allowFileSystemWrites)
   }
 
-  public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  package func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return targets.sorted { (lhs: ConfiguredTarget, rhs: ConfiguredTarget) -> Bool in
       let lhsIndex = self.targets[lhs]?.index ?? self.targets.count
       let rhsIndex = self.targets[rhs]?.index ?? self.targets.count
@@ -571,7 +570,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     }
   }
 
-  public func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  package func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     let targetIndices = targets.compactMap { self.targets[$0]?.index }
     let minimumTargetIndex: Int?
     if targetIndices.count == targets.count {
@@ -592,7 +591,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     }
   }
 
-  public func prepare(
+  package func prepare(
     targets: [ConfiguredTarget],
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
@@ -696,13 +695,13 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     }
   }
 
-  public func registerForChangeNotifications(for uri: DocumentURI) async {
+  package func registerForChangeNotifications(for uri: DocumentURI) async {
     self.watchedFiles.insert(uri)
   }
 
   /// Unregister the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
-  public func unregisterForChangeNotifications(for uri: DocumentURI) {
+  package func unregisterForChangeNotifications(for uri: DocumentURI) {
     self.watchedFiles.remove(uri)
   }
 
@@ -742,7 +741,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     }
   }
 
-  public func filesDidChange(_ events: [FileEvent]) async {
+  package func filesDidChange(_ events: [FileEvent]) async {
     if events.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
       logger.log("Reloading package because of file change")
       await orLog("Reloading package") {
@@ -776,14 +775,14 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     await self.fileDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
   }
 
-  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
+  package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
     if configuredTargets(for: uri).isEmpty {
       return .unhandled
     }
     return .handled
   }
 
-  public func sourceFiles() -> [SourceFileInfo] {
+  package func sourceFiles() -> [SourceFileInfo] {
     return fileToTargets.compactMap { (uri, targets) -> SourceFileInfo? in
       // We should only set mayContainTests to `true` for files from test targets
       // (https://github.com/swiftlang/sourcekit-lsp/issues/1174).
@@ -795,7 +794,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     }
   }
 
-  public func addSourceFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async {
+  package func addSourceFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async {
     testFilesDidChangeCallbacks.append(callback)
   }
 }

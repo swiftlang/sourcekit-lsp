@@ -18,13 +18,13 @@ import LanguageServerProtocol
 /// Essentially a `DocumentManager` from the `SourceKitLSP` module.
 ///
 /// Protocol is needed because the `SemanticIndex` module is lower-level than the `SourceKitLSP` module.
-public protocol InMemoryDocumentManager {
+package protocol InMemoryDocumentManager {
   /// Returns true if the file at the given URI has a different content in the document manager than on-disk. This is
   /// the case if the user made edits to the file but didn't save them yet.
   func fileHasInMemoryModifications(_ uri: DocumentURI) -> Bool
 }
 
-public enum IndexCheckLevel {
+package enum IndexCheckLevel {
   /// Consider the index out-of-date only if the source file has been deleted on disk.
   ///
   /// This is usually a good default because: When a file gets modified, it's likely that some of the line:column
@@ -47,7 +47,7 @@ public enum IndexCheckLevel {
 /// `IndexCheckLevel`.
 ///
 /// - SeeAlso: Comment on `IndexOutOfDateChecker`
-public final class CheckedIndex {
+package final class CheckedIndex {
   private var checker: IndexOutOfDateChecker
   private let index: IndexStoreDB
 
@@ -56,12 +56,12 @@ public final class CheckedIndex {
     self.checker = IndexOutOfDateChecker(checkLevel: checkLevel)
   }
 
-  public var unchecked: UncheckedIndex {
+  package var unchecked: UncheckedIndex {
     return UncheckedIndex(index)
   }
 
   @discardableResult
-  public func forEachSymbolOccurrence(
+  package func forEachSymbolOccurrence(
     byUSR usr: String,
     roles: SymbolRole,
     _ body: (SymbolOccurrence) -> Bool
@@ -74,15 +74,15 @@ public final class CheckedIndex {
     }
   }
 
-  public func occurrences(ofUSR usr: String, roles: SymbolRole) -> [SymbolOccurrence] {
+  package func occurrences(ofUSR usr: String, roles: SymbolRole) -> [SymbolOccurrence] {
     return index.occurrences(ofUSR: usr, roles: roles).filter { checker.isUpToDate($0.location) }
   }
 
-  public func occurrences(relatedToUSR usr: String, roles: SymbolRole) -> [SymbolOccurrence] {
+  package func occurrences(relatedToUSR usr: String, roles: SymbolRole) -> [SymbolOccurrence] {
     return index.occurrences(relatedToUSR: usr, roles: roles).filter { checker.isUpToDate($0.location) }
   }
 
-  @discardableResult public func forEachCanonicalSymbolOccurrence(
+  @discardableResult package func forEachCanonicalSymbolOccurrence(
     containing pattern: String,
     anchorStart: Bool,
     anchorEnd: Bool,
@@ -104,7 +104,7 @@ public final class CheckedIndex {
     }
   }
 
-  public func symbols(inFilePath path: String) -> [Symbol] {
+  package func symbols(inFilePath path: String) -> [Symbol] {
     guard self.hasUpToDateUnit(for: DocumentURI(filePath: path, isDirectory: false)) else {
       return []
     }
@@ -112,14 +112,14 @@ public final class CheckedIndex {
   }
 
   /// Returns all unit test symbol in unit files that reference one of the main files in `mainFilePaths`.
-  public func unitTests(referencedByMainFiles mainFilePaths: [String]) -> [SymbolOccurrence] {
+  package func unitTests(referencedByMainFiles mainFilePaths: [String]) -> [SymbolOccurrence] {
     return index.unitTests(referencedByMainFiles: mainFilePaths).filter { checker.isUpToDate($0.location) }
   }
 
   /// Returns all the files that (transitively) include the header file at the given path.
   ///
   /// If `crossLanguage` is set to `true`, Swift files that import a header through a module will also be reported.
-  public func mainFilesContainingFile(uri: DocumentURI, crossLanguage: Bool = false) -> [DocumentURI] {
+  package func mainFilesContainingFile(uri: DocumentURI, crossLanguage: Bool = false) -> [DocumentURI] {
     return index.mainFilesContainingFile(path: uri.pseudoPath, crossLanguage: crossLanguage).compactMap {
       let uri = DocumentURI(filePath: $0, isDirectory: false)
       guard checker.indexHasUpToDateUnit(for: uri, mainFile: nil, index: self.index) else {
@@ -130,7 +130,7 @@ public final class CheckedIndex {
   }
 
   /// Returns all unit test symbols in the index.
-  public func unitTests() -> [SymbolOccurrence] {
+  package func unitTests() -> [SymbolOccurrence] {
     return index.unitTests().filter { checker.isUpToDate($0.location) }
   }
 
@@ -141,7 +141,7 @@ public final class CheckedIndex {
   /// If `mainFile` is passed, then `url` is a header file that won't have a unit associated with it. `mainFile` is
   /// assumed to be a file that imports `url`. To check that `url` has an up-to-date unit, check that the latest unit
   /// for `mainFile` is newer than the mtime of the header file at `url`.
-  public func hasUpToDateUnit(for uri: DocumentURI, mainFile: DocumentURI? = nil) -> Bool {
+  package func hasUpToDateUnit(for uri: DocumentURI, mainFile: DocumentURI? = nil) -> Bool {
     return checker.indexHasUpToDateUnit(for: uri, mainFile: mainFile, index: index)
   }
 
@@ -149,7 +149,7 @@ public final class CheckedIndex {
   /// the case if the user made edits to the file but didn't save them yet.
   ///
   /// - Important: This must only be called on a `CheckedIndex` with a `checkLevel` of `inMemoryModifiedFiles`
-  public func fileHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
+  package func fileHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
     return checker.fileHasInMemoryModifications(uri)
   }
 }
@@ -158,26 +158,26 @@ public final class CheckedIndex {
 /// access of the underlying `IndexStoreDB`. This makes sure that accesses to the raw `IndexStoreDB` are explicit (by
 /// calling `underlyingIndexStoreDB`) and we don't accidentally call into the `IndexStoreDB` when we wanted a
 /// `CheckedIndex`.
-public struct UncheckedIndex: Sendable {
-  public let underlyingIndexStoreDB: IndexStoreDB
+package struct UncheckedIndex: Sendable {
+  package let underlyingIndexStoreDB: IndexStoreDB
 
-  public init?(_ index: IndexStoreDB?) {
+  package init?(_ index: IndexStoreDB?) {
     guard let index else {
       return nil
     }
     self.underlyingIndexStoreDB = index
   }
 
-  public init(_ index: IndexStoreDB) {
+  package init(_ index: IndexStoreDB) {
     self.underlyingIndexStoreDB = index
   }
 
-  public func checked(for checkLevel: IndexCheckLevel) -> CheckedIndex {
+  package func checked(for checkLevel: IndexCheckLevel) -> CheckedIndex {
     return CheckedIndex(index: underlyingIndexStoreDB, checkLevel: checkLevel)
   }
 
   /// Wait for IndexStoreDB to be updated based on new unit files written to disk.
-  public func pollForUnitChangesAndWait() {
+  package func pollForUnitChangesAndWait() {
     self.underlyingIndexStoreDB.pollForUnitChangesAndWait()
   }
 }

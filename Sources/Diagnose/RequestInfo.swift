@@ -14,8 +14,7 @@ import Foundation
 import RegexBuilder
 
 /// All the information necessary to replay a sourcektid request.
-@_spi(Testing)
-public struct RequestInfo: Sendable {
+package struct RequestInfo: Sendable {
   /// The JSON request object. Contains the following dynamic placeholders:
   ///  - `$OFFSET`: To be replaced by `offset` before running the request
   ///  - `$FILE`: Will be replaced with a path to the file that contains the reduced source code.
@@ -27,15 +26,12 @@ public struct RequestInfo: Sendable {
   var offset: Int
 
   /// The compiler arguments of the request. Replaces the `$COMPILER_ARGS`placeholder in the request template.
-  @_spi(Testing)
-  public var compilerArgs: [String]
+  package var compilerArgs: [String]
 
   /// The contents of the file that the sourcekitd request operates on.
-  @_spi(Testing)
-  public var fileContents: String
+  package var fileContents: String
 
-  @_spi(Testing)
-  public func request(for file: URL) throws -> String {
+  package func request(for file: URL) throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = .prettyPrinted
     guard var compilerArgs = String(data: try encoder.encode(compilerArgs), encoding: .utf8) else {
@@ -60,8 +56,7 @@ public struct RequestInfo: Sendable {
     }
     """
 
-  @_spi(Testing)
-  public init(requestTemplate: String, offset: Int, compilerArgs: [String], fileContents: String) {
+  package init(requestTemplate: String, offset: Int, compilerArgs: [String], fileContents: String) {
     self.requestTemplate = requestTemplate
     self.offset = offset
     self.compilerArgs = compilerArgs
@@ -71,8 +66,7 @@ public struct RequestInfo: Sendable {
   /// Creates `RequestInfo` from the contents of the JSON sourcekitd request at `requestPath`.
   ///
   /// The contents of the source file are read from disk.
-  @_spi(Testing)
-  public init(request: String) throws {
+  package init(request: String) throws {
     var requestTemplate = request
 
     // Extract offset

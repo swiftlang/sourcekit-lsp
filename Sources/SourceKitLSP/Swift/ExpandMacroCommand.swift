@@ -13,29 +13,29 @@
 import LanguageServerProtocol
 import SourceKitD
 
-public struct ExpandMacroCommand: RefactorCommand {
+package struct ExpandMacroCommand: RefactorCommand {
   typealias Response = MacroExpansion
 
-  public static let identifier: String = "expand.macro.command"
+  package static let identifier: String = "expand.macro.command"
 
   /// The name of this refactoring action.
-  public var title = "Expand Macro"
+  package var title = "Expand Macro"
 
   /// The sourcekitd identifier of the refactoring action.
-  public var actionString = "source.refactoring.kind.expand.macro"
+  package var actionString = "source.refactoring.kind.expand.macro"
 
   /// The range to expand.
-  public var positionRange: Range<Position>
+  package var positionRange: Range<Position>
 
   /// The text document related to the refactoring action.
-  public var textDocument: TextDocumentIdentifier
+  package var textDocument: TextDocumentIdentifier
 
-  public init(positionRange: Range<Position>, textDocument: TextDocumentIdentifier) {
+  package init(positionRange: Range<Position>, textDocument: TextDocumentIdentifier) {
     self.positionRange = positionRange
     self.textDocument = textDocument
   }
 
-  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+  package init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard case .dictionary(let documentDict)? = dictionary[CodingKeys.textDocument.stringValue],
       case .string(let title)? = dictionary[CodingKeys.title.stringValue],
       case .string(let actionString)? = dictionary[CodingKeys.actionString.stringValue],
@@ -57,7 +57,7 @@ public struct ExpandMacroCommand: RefactorCommand {
     )
   }
 
-  public init(
+  package init(
     title: String,
     actionString: String,
     positionRange: Range<Position>,
@@ -69,7 +69,7 @@ public struct ExpandMacroCommand: RefactorCommand {
     self.textDocument = textDocument
   }
 
-  public func encodeToLSPAny() -> LSPAny {
+  package func encodeToLSPAny() -> LSPAny {
     return .dictionary([
       CodingKeys.title.stringValue: .string(title),
       CodingKeys.actionString.stringValue: .string(actionString),

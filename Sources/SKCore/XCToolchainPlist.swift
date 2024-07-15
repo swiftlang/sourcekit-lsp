@@ -22,15 +22,15 @@ import struct TSCBasic.FileSystemError
 #endif
 
 /// A helper type for decoding the Info.plist or ToolchainInfo.plist file from an .xctoolchain.
-public struct XCToolchainPlist {
+package struct XCToolchainPlist {
 
   /// The toolchain identifier e.g. "com.apple.dt.toolchain.XcodeDefault".
-  public var identifier: String
+  package var identifier: String
 
   /// The toolchain's human-readable name.
-  public var displayName: String?
+  package var displayName: String?
 
-  public init(identifier: String, displayName: String? = nil) {
+  package init(identifier: String, displayName: String? = nil) {
     self.identifier = identifier
     self.displayName = displayName
   }
@@ -95,7 +95,7 @@ extension XCToolchainPlist: Codable {
     case DisplayName
   }
 
-  public init(from decoder: Decoder) throws {
+  package init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     if let identifier = try container.decodeIfPresent(String.self, forKey: .Identifier) {
       self.identifier = identifier
@@ -108,7 +108,7 @@ extension XCToolchainPlist: Codable {
   /// Encode the info plist.
   ///
   /// For testing purposes only.
-  public func encode(to encoder: Encoder) throws {
+  package func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     if identifier.starts(with: "com.apple") {
       try container.encode(identifier, forKey: .Identifier)

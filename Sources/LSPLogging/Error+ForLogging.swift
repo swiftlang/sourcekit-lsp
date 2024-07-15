@@ -33,7 +33,7 @@ private struct MaskedError: CustomLogStringConvertible {
 extension Error {
   /// A version of the error that can be used for logging and will only log the
   /// error code and a hash of the description in privacy-sensitive contexts.
-  public var forLogging: CustomLogStringConvertibleWrapper {
+  package var forLogging: CustomLogStringConvertibleWrapper {
     if let error = self as? CustomLogStringConvertible {
       return error.forLogging
     } else {

@@ -16,24 +16,24 @@ import SKCore
 import SourceKitLSP
 
 /// The location of a test file within test workspace.
-public struct RelativeFileLocation: Hashable, ExpressibleByStringLiteral {
+package struct RelativeFileLocation: Hashable, ExpressibleByStringLiteral {
   /// The subdirectories in which the file is located.
-  public let directories: [String]
+  package let directories: [String]
 
   /// The file's name.
-  public let fileName: String
+  package let fileName: String
 
-  public init(directories: [String] = [], _ fileName: String) {
+  package init(directories: [String] = [], _ fileName: String) {
     self.directories = directories
     self.fileName = fileName
   }
 
-  public init(stringLiteral value: String) {
+  package init(stringLiteral value: String) {
     let components = value.components(separatedBy: "/")
     self.init(directories: components.dropLast(), components.last!)
   }
 
-  public func url(relativeTo: URL) -> URL {
+  package func url(relativeTo: URL) -> URL {
     var url = relativeTo
     for directory in directories {
       url = url.appendingPathComponent(directory)
@@ -47,7 +47,7 @@ public struct RelativeFileLocation: Hashable, ExpressibleByStringLiteral {
 /// pointing to a temporary directory containing those files.
 ///
 /// The temporary files will be deleted when the `TestSourceKitLSPClient` is destructed.
-public class MultiFileTestProject {
+package class MultiFileTestProject {
   /// Information necessary to open a file in the LSP server by its filename.
   private struct FileData {
     /// The URI at which the file is stored on disk.
@@ -57,7 +57,7 @@ public class MultiFileTestProject {
     let markedText: String
   }
 
-  public let testClient: TestSourceKitLSPClient
+  package let testClient: TestSourceKitLSPClient
 
   /// Information necessary to open a file in the LSP server by its filename.
   private let fileData: [String: FileData]
@@ -68,7 +68,7 @@ public class MultiFileTestProject {
   }
 
   /// The directory in which the temporary files are being placed.
-  public let scratchDirectory: URL
+  package let scratchDirectory: URL
 
   /// Writes the specified files to a temporary directory on disk and creates a `TestSourceKitLSPClient` for that
   /// temporary directory.
@@ -77,7 +77,7 @@ public class MultiFileTestProject {
   /// ``openDocument(_:)``.
   ///
   /// File contents can also contain `$TEST_DIR`, which gets replaced by the temporary directory.
-  public init(
+  package init(
     files: [RelativeFileLocation: String],
     workspaces: (URL) async throws -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
     initializationOptions: LSPAny? = nil,
@@ -137,7 +137,7 @@ public class MultiFileTestProject {
   /// Opens the document with the given file name in the SourceKit-LSP server.
   ///
   /// - Returns: The URI for the opened document and the positions of the location markers.
-  public func openDocument(
+  package func openDocument(
     _ fileName: String,
     language: Language? = nil
   ) throws -> (uri: DocumentURI, positions: DocumentPositions) {
@@ -149,7 +149,7 @@ public class MultiFileTestProject {
   }
 
   /// Returns the URI of the file with the given name.
-  public func uri(for fileName: String) throws -> DocumentURI {
+  package func uri(for fileName: String) throws -> DocumentURI {
     guard let fileData = self.fileData[fileName] else {
       throw Error.fileNotFound
     }
@@ -157,18 +157,18 @@ public class MultiFileTestProject {
   }
 
   /// Returns the position of the given marker in the given file.
-  public func position(of marker: String, in fileName: String) throws -> Position {
+  package func position(of marker: String, in fileName: String) throws -> Position {
     guard let fileData = self.fileData[fileName] else {
       throw Error.fileNotFound
     }
     return DocumentPositions(markedText: fileData.markedText)[marker]
   }
 
-  public func range(from fromMarker: String, to toMarker: String, in fileName: String) throws -> Range<Position> {
+  package func range(from fromMarker: String, to toMarker: String, in fileName: String) throws -> Range<Position> {
     return try position(of: fromMarker, in: fileName)..<position(of: toMarker, in: fileName)
   }
 
-  public func location(from fromMarker: String, to toMarker: String, in fileName: String) throws -> Location {
+  package func location(from fromMarker: String, to toMarker: String, in fileName: String) throws -> Location {
     let range = try self.range(from: fromMarker, to: toMarker, in: fileName)
     return Location(uri: try self.uri(for: fileName), range: range)
   }

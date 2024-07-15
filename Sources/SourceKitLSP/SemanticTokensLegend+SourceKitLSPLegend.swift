@@ -14,10 +14,10 @@ import LanguageServerProtocol
 
 extension SemanticTokenTypes {
   // LSP doesn’t know about actors. Display actors as classes.
-  public static var actor: Self { Self.class }
+  package static var actor: Self { Self.class }
 
   /// Token types are looked up by index
-  public var tokenType: UInt32 {
+  package var tokenType: UInt32 {
     UInt32(Self.all.firstIndex(of: self)!)
   }
 }

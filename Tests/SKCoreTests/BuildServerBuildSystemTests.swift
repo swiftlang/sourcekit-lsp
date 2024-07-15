@@ -114,7 +114,7 @@ final class TestDelegate: BuildSystemDelegate {
   let targetExpectations: [BuildTargetEvent: XCTestExpectation]
   let dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation]
 
-  public init(
+  package init(
     settingsExpectations: [DocumentURI: XCTestExpectation] = [:],
     targetExpectations: [BuildTargetEvent: XCTestExpectation] = [:],
     dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation] = [:]
@@ -136,7 +136,7 @@ final class TestDelegate: BuildSystemDelegate {
     }
   }
 
-  public func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
+  package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
     for uri in changedFiles {
       dependenciesUpdatedExpectations[uri]?.fulfill()
     }

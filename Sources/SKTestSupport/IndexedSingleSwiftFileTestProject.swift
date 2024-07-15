@@ -16,15 +16,15 @@ import LanguageServerProtocol
 import SourceKitLSP
 import TSCBasic
 
-public struct IndexedSingleSwiftFileTestProject {
+package struct IndexedSingleSwiftFileTestProject {
   enum Error: Swift.Error {
     case swiftcNotFound
   }
 
-  public let testClient: TestSourceKitLSPClient
-  public let fileURI: DocumentURI
-  public let positions: DocumentPositions
-  public let indexDBURL: URL
+  package let testClient: TestSourceKitLSPClient
+  package let fileURI: DocumentURI
+  package let positions: DocumentPositions
+  package let indexDBURL: URL
 
   /// Writes a single file to a temporary directory on disk and compiles it to index it.
   ///
@@ -35,7 +35,7 @@ public struct IndexedSingleSwiftFileTestProject {
   ///   - workspaceDirectory: If specified, the temporary files will be put in this directory. If `nil` a temporary
   ///     scratch directory will be created based on `testName`.
   ///   - cleanUp: Whether to remove the temporary directory when the SourceKit-LSP server shuts down.
-  public init(
+  package init(
     _ markedText: String,
     indexSystemModules: Bool = false,
     allowBuildFailure: Bool = false,

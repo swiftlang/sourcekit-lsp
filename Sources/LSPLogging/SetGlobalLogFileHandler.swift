@@ -181,7 +181,7 @@ private func cleanOldLogFilesImpl(logFileDirectory: URL, maxAge: TimeInterval) {
 /// when it does.
 ///
 /// No-op when using OSLog.
-public func setUpGlobalLogFileHandler(logFileDirectory: URL, logFileMaxBytes: Int, logRotateCount: Int) async {
+package func setUpGlobalLogFileHandler(logFileDirectory: URL, logFileMaxBytes: Int, logRotateCount: Int) async {
   #if !canImport(os) || SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER
   await setUpGlobalLogFileHandlerImpl(
     logFileDirectory: logFileDirectory,
@@ -195,7 +195,7 @@ public func setUpGlobalLogFileHandler(logFileDirectory: URL, logFileMaxBytes: In
 /// haven't been modified within the last hour.
 ///
 /// No-op when using OSLog.
-public func cleanOldLogFiles(logFileDirectory: URL, maxAge: TimeInterval) {
+package func cleanOldLogFiles(logFileDirectory: URL, maxAge: TimeInterval) {
   #if !canImport(os) || SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER
   cleanOldLogFilesImpl(logFileDirectory: logFileDirectory, maxAge: maxAge)
   #endif

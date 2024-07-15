@@ -15,7 +15,7 @@ import Foundation
 
 /// An object that can printed for logging and also offers a redacted description
 /// when logging in contexts in which private information shouldn't be captured.
-public protocol CustomLogStringConvertible: CustomStringConvertible, Sendable {
+package protocol CustomLogStringConvertible: CustomStringConvertible, Sendable {
   /// A full description of the object.
   var description: String { get }
 
@@ -30,14 +30,14 @@ public protocol CustomLogStringConvertible: CustomStringConvertible, Sendable {
 /// There currently is no way to get equivalent functionality in pure Swift. We
 /// thus pass this object to OSLog, which just forwards to `description` or
 /// `redactedDescription` of an object that implements `CustomLogStringConvertible`.
-public final class CustomLogStringConvertibleWrapper: NSObject, Sendable {
+package final class CustomLogStringConvertibleWrapper: NSObject, Sendable {
   private let underlyingObject: any CustomLogStringConvertible
 
   fileprivate init(_ underlyingObject: any CustomLogStringConvertible) {
     self.underlyingObject = underlyingObject
   }
 
-  public override var description: String {
+  package override var description: String {
     return underlyingObject.description
   }
 
@@ -46,7 +46,7 @@ public final class CustomLogStringConvertibleWrapper: NSObject, Sendable {
   // We can't unconditionally mark it as @objc because eg. Linux doesn't have the Objective-C runtime.
   @objc
   #endif
-  public var redactedDescription: String {
+  package var redactedDescription: String {
     underlyingObject.redactedDescription
   }
 }
@@ -55,7 +55,7 @@ extension CustomLogStringConvertible {
   /// Returns an object that can be passed to OSLog, which will print the
   /// `redactedDescription` if logging of private information is disabled and
   /// will log `description` otherwise.
-  public var forLogging: CustomLogStringConvertibleWrapper {
+  package var forLogging: CustomLogStringConvertibleWrapper {
     return CustomLogStringConvertibleWrapper(self)
   }
 }
@@ -63,7 +63,7 @@ extension CustomLogStringConvertible {
 extension String {
   /// A hash value that can be logged in a redacted description without
   /// disclosing any private information about the string.
-  public var hashForLogging: String {
+  package var hashForLogging: String {
     return Insecure.MD5.hash(data: Data(self.utf8)).description
   }
 }
@@ -71,17 +71,17 @@ extension String {
 private struct OptionalWrapper<Wrapped>: CustomLogStringConvertible where Wrapped: CustomLogStringConvertible {
   let optional: Optional<Wrapped>
 
-  public var description: String {
+  package var description: String {
     return optional?.description ?? "<nil>"
   }
 
-  public var redactedDescription: String {
+  package var redactedDescription: String {
     return optional?.redactedDescription ?? "<nil>"
   }
 }
 
 extension Optional where Wrapped: CustomLogStringConvertible {
-  public var forLogging: CustomLogStringConvertibleWrapper {
+  package var forLogging: CustomLogStringConvertibleWrapper {
     return CustomLogStringConvertibleWrapper(OptionalWrapper(optional: self))
   }
 }

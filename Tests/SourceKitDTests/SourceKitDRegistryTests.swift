@@ -77,8 +77,8 @@ final class FakeSourceKitD: SourceKitD {
     return await registry.getOrAdd(path, create: { Self.init() })
   }
 
-  public func log(request: SKDRequestDictionary) {}
-  public func log(response: SKDResponse) {}
-  public func log(crashedRequest: SKDRequestDictionary, fileContents: String?) {}
-  public func logRequestCancellation(request: SKDRequestDictionary) {}
+  package func log(request: SKDRequestDictionary) {}
+  package func log(response: SKDResponse) {}
+  package func log(crashedRequest: SKDRequestDictionary, fileContents: String?) {}
+  package func logRequestCancellation(request: SKDRequestDictionary) {}
 }

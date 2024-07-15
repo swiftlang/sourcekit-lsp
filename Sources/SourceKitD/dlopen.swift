@@ -23,7 +23,7 @@ import Musl
 import Android
 #endif
 
-public final class DLHandle: Sendable {
+package final class DLHandle: Sendable {
   #if os(Windows)
   typealias Handle = HMODULE
   #else
@@ -39,7 +39,7 @@ public final class DLHandle: Sendable {
     precondition(rawValue == nil, "DLHandle must be closed or explicitly leaked before destroying")
   }
 
-  public func close() throws {
+  package func close() throws {
     if let handle = rawValue {
       #if os(Windows)
       guard FreeLibrary(handle) else {
@@ -54,40 +54,40 @@ public final class DLHandle: Sendable {
     rawValue = nil
   }
 
-  public func leak() {
+  package func leak() {
     rawValue = nil
   }
 }
 
-public struct DLOpenFlags: RawRepresentable, OptionSet, Sendable {
+package struct DLOpenFlags: RawRepresentable, OptionSet, Sendable {
 
   #if !os(Windows)
-  public static let lazy: DLOpenFlags = DLOpenFlags(rawValue: RTLD_LAZY)
-  public static let now: DLOpenFlags = DLOpenFlags(rawValue: RTLD_NOW)
-  public static let local: DLOpenFlags = DLOpenFlags(rawValue: RTLD_LOCAL)
-  public static let global: DLOpenFlags = DLOpenFlags(rawValue: RTLD_GLOBAL)
+  package static let lazy: DLOpenFlags = DLOpenFlags(rawValue: RTLD_LAZY)
+  package static let now: DLOpenFlags = DLOpenFlags(rawValue: RTLD_NOW)
+  package static let local: DLOpenFlags = DLOpenFlags(rawValue: RTLD_LOCAL)
+  package static let global: DLOpenFlags = DLOpenFlags(rawValue: RTLD_GLOBAL)
 
   // Platform-specific flags.
   #if os(macOS)
-  public static let first: DLOpenFlags = DLOpenFlags(rawValue: RTLD_FIRST)
+  package static let first: DLOpenFlags = DLOpenFlags(rawValue: RTLD_FIRST)
   #else
-  public static let first: DLOpenFlags = DLOpenFlags(rawValue: 0)
+  package static let first: DLOpenFlags = DLOpenFlags(rawValue: 0)
   #endif
   #endif
 
-  public var rawValue: Int32
+  package var rawValue: Int32
 
-  public init(rawValue: Int32) {
+  package init(rawValue: Int32) {
     self.rawValue = rawValue
   }
 }
 
-public enum DLError: Swift.Error {
+package enum DLError: Swift.Error {
   case `open`(String)
   case close(String)
 }
 
-public func dlopen(_ path: String?, mode: DLOpenFlags) throws -> DLHandle {
+package func dlopen(_ path: String?, mode: DLOpenFlags) throws -> DLHandle {
   #if os(Windows)
   guard let handle = path?.withCString(encodedAs: UTF16.self, LoadLibraryW) else {
     throw DLError.open("LoadLibraryW failed: \(GetLastError())")
@@ -100,7 +100,7 @@ public func dlopen(_ path: String?, mode: DLOpenFlags) throws -> DLHandle {
   return DLHandle(rawValue: handle)
 }
 
-public func dlsym<T>(_ handle: DLHandle, symbol: String) -> T? {
+package func dlsym<T>(_ handle: DLHandle, symbol: String) -> T? {
   #if os(Windows)
   guard let ptr = GetProcAddress(handle.rawValue!, symbol) else {
     return nil
@@ -113,12 +113,12 @@ public func dlsym<T>(_ handle: DLHandle, symbol: String) -> T? {
   return unsafeBitCast(ptr, to: T.self)
 }
 
-public func dlclose(_ handle: DLHandle) throws {
+package func dlclose(_ handle: DLHandle) throws {
   try handle.close()
 }
 
 #if !os(Windows)
-public func dlerror() -> String? {
+package func dlerror() -> String? {
   if let err: UnsafeMutablePointer<Int8> = dlerror() {
     return String(cString: err)
   }

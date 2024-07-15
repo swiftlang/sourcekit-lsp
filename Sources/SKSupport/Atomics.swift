@@ -16,10 +16,10 @@ import CAtomics
 #warning("We should be able to use atomics in the stdlib when we raise the deployment target to require Swift 6")
 #endif
 
-public final class AtomicBool: Sendable {
+package final class AtomicBool: Sendable {
   private nonisolated(unsafe) let atomic: UnsafeMutablePointer<CAtomicUInt32>
 
-  public init(initialValue: Bool) {
+  package init(initialValue: Bool) {
     self.atomic = atomic_uint32_create(initialValue ? 1 : 0)
   }
 
@@ -27,7 +27,7 @@ public final class AtomicBool: Sendable {
     atomic_uint32_destroy(atomic)
   }
 
-  public var value: Bool {
+  package var value: Bool {
     get {
       atomic_uint32_get(atomic) != 0
     }
@@ -37,10 +37,10 @@ public final class AtomicBool: Sendable {
   }
 }
 
-public final class AtomicUInt8: Sendable {
+package final class AtomicUInt8: Sendable {
   private nonisolated(unsafe) let atomic: UnsafeMutablePointer<CAtomicUInt32>
 
-  public init(initialValue: UInt8) {
+  package init(initialValue: UInt8) {
     self.atomic = atomic_uint32_create(UInt32(initialValue))
   }
 
@@ -48,7 +48,7 @@ public final class AtomicUInt8: Sendable {
     atomic_uint32_destroy(atomic)
   }
 
-  public var value: UInt8 {
+  package var value: UInt8 {
     get {
       UInt8(atomic_uint32_get(atomic))
     }
@@ -58,14 +58,14 @@ public final class AtomicUInt8: Sendable {
   }
 }
 
-public final class AtomicUInt32: Sendable {
+package final class AtomicUInt32: Sendable {
   private nonisolated(unsafe) let atomic: UnsafeMutablePointer<CAtomicUInt32>
 
-  public init(initialValue: UInt32) {
+  package init(initialValue: UInt32) {
     self.atomic = atomic_uint32_create(initialValue)
   }
 
-  public var value: UInt32 {
+  package var value: UInt32 {
     get {
       atomic_uint32_get(atomic)
     }
@@ -78,7 +78,7 @@ public final class AtomicUInt32: Sendable {
     atomic_uint32_destroy(atomic)
   }
 
-  public func fetchAndIncrement() -> UInt32 {
+  package func fetchAndIncrement() -> UInt32 {
     return atomic_uint32_fetch_and_increment(atomic)
   }
 }

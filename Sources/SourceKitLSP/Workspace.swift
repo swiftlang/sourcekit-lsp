@@ -46,16 +46,16 @@ fileprivate func firstNonNil<T>(
 /// "initialize" request has been made.
 ///
 /// Typically a workspace is contained in a root directory.
-public final class Workspace: Sendable {
+package final class Workspace: Sendable {
 
   /// The root directory of the workspace.
-  public let rootUri: DocumentURI?
+  package let rootUri: DocumentURI?
 
   /// Tracks dynamically registered server capabilities as well as the client's capabilities.
-  public let capabilityRegistry: CapabilityRegistry
+  package let capabilityRegistry: CapabilityRegistry
 
   /// The build system manager to use for documents in this workspace.
-  public let buildSystemManager: BuildSystemManager
+  package let buildSystemManager: BuildSystemManager
 
   let options: SourceKitLSPOptions
 
@@ -64,7 +64,7 @@ public final class Workspace: Sendable {
   /// Usually a checked index (retrieved using `index(checkedFor:)`) should be used instead of the unchecked index.
   private let _uncheckedIndex: ThreadSafeBox<UncheckedIndex?>
 
-  public var uncheckedIndex: UncheckedIndex? {
+  package var uncheckedIndex: UncheckedIndex? {
     return _uncheckedIndex.value
   }
 
@@ -210,7 +210,7 @@ public final class Workspace: Sendable {
     )
   }
 
-  @_spi(Testing) public static func forTesting(
+  package static func forTesting(
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     testHooks: TestHooks,
@@ -248,7 +248,7 @@ public final class Workspace: Sendable {
     _uncheckedIndex.value = nil
   }
 
-  public func filesDidChange(_ events: [FileEvent]) async {
+  package func filesDidChange(_ events: [FileEvent]) async {
     await buildSystemManager.filesDidChange(events)
     await syntacticTestIndex.filesDidChange(events)
     await semanticIndexManager?.filesDidChange(events)

@@ -21,7 +21,7 @@ struct GeneratedInterfaceInfo {
 }
 
 extension SwiftLanguageService {
-  public func openGeneratedInterface(
+  package func openGeneratedInterface(
     document: DocumentURI,
     moduleName: String,
     groupName: String?,

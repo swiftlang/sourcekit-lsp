@@ -11,8 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 @MainActor
-@_spi(Testing)
-public func reduceFrontendIssue(
+package func reduceFrontendIssue(
   frontendArgs: [String],
   using executor: SourceKitRequestExecutor,
   progressUpdate: (_ progress: Double, _ message: String) -> Void

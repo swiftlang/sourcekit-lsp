@@ -95,7 +95,7 @@ extension CodeAction {
   /// Describe a fixit's edit briefly.
   ///
   /// For example, "Replace 'x' with 'y'", or "Remove 'z'".
-  public static func fixitTitle(replace oldText: String, with newText: String) -> String {
+  package static func fixitTitle(replace oldText: String, with newText: String) -> String {
     switch (oldText.isEmpty, newText.isEmpty) {
     case (false, false):
       return "Replace '\(oldText)' with '\(newText)'"

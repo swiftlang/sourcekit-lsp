@@ -62,7 +62,7 @@ extension SyntaxRefactoringCodeActionProvider where Self.Context == Void {
 // Adapters for specific refactoring provides in swift-syntax.
 
 extension AddSeparatorsToIntegerLiteral: SyntaxRefactoringCodeActionProvider {
-  public static var title: String { "Add digit separators" }
+  package static var title: String { "Add digit separators" }
 
   static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
     return scope.innermostNodeContainingRange?.findParentOfSelf(
@@ -73,7 +73,7 @@ extension AddSeparatorsToIntegerLiteral: SyntaxRefactoringCodeActionProvider {
 }
 
 extension FormatRawStringLiteral: SyntaxRefactoringCodeActionProvider {
-  public static var title: String {
+  package static var title: String {
     "Convert string literal to minimal number of '#'s"
   }
 
@@ -89,7 +89,7 @@ extension FormatRawStringLiteral: SyntaxRefactoringCodeActionProvider {
 }
 
 extension MigrateToNewIfLetSyntax: SyntaxRefactoringCodeActionProvider {
-  public static var title: String { "Migrate to shorthand 'if let' syntax" }
+  package static var title: String { "Migrate to shorthand 'if let' syntax" }
 
   static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
     return scope.innermostNodeContainingRange?.findParentOfSelf(
@@ -100,7 +100,7 @@ extension MigrateToNewIfLetSyntax: SyntaxRefactoringCodeActionProvider {
 }
 
 extension OpaqueParameterToGeneric: SyntaxRefactoringCodeActionProvider {
-  public static var title: String { "Expand 'some' parameters to generic parameters" }
+  package static var title: String { "Expand 'some' parameters to generic parameters" }
 
   static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
     return scope.innermostNodeContainingRange?.findParentOfSelf(
@@ -111,7 +111,7 @@ extension OpaqueParameterToGeneric: SyntaxRefactoringCodeActionProvider {
 }
 
 extension RemoveSeparatorsFromIntegerLiteral: SyntaxRefactoringCodeActionProvider {
-  public static var title: String { "Remove digit separators" }
+  package static var title: String { "Remove digit separators" }
 
   static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
     return scope.innermostNodeContainingRange?.findParentOfSelf(

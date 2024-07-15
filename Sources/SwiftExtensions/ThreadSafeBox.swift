@@ -15,13 +15,13 @@ import Foundation
 /// A thread safe container that contains a value of type `T`.
 ///
 /// - Note: Unchecked sendable conformance because value is guarded by a lock.
-public class ThreadSafeBox<T: Sendable>: @unchecked Sendable {
+package class ThreadSafeBox<T: Sendable>: @unchecked Sendable {
   /// Lock guarding `_value`.
   private let lock = NSLock()
 
   private var _value: T
 
-  public var value: T {
+  package var value: T {
     get {
       return lock.withLock {
         return _value
@@ -39,11 +39,11 @@ public class ThreadSafeBox<T: Sendable>: @unchecked Sendable {
     }
   }
 
-  public init(initialValue: T) {
+  package init(initialValue: T) {
     _value = initialValue
   }
 
-  public func withLock<Result>(_ body: (inout T) -> Result) -> Result {
+  package func withLock<Result>(_ body: (inout T) -> Result) -> Result {
     return lock.withLock {
       return body(&_value)
     }
@@ -51,7 +51,7 @@ public class ThreadSafeBox<T: Sendable>: @unchecked Sendable {
 
   /// If the value in the box is an optional, return it and reset it to `nil`
   /// in an atomic operation.
-  public func takeValue<U>() -> T where U? == T {
+  package func takeValue<U>() -> T where U? == T {
     lock.withLock {
       guard let value = self._value else { return nil }
       self._value = nil

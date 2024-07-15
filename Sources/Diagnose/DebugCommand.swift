@@ -12,8 +12,8 @@
 
 import ArgumentParser
 
-public struct DebugCommand: ParsableCommand {
-  public static let configuration = CommandConfiguration(
+package struct DebugCommand: ParsableCommand {
+  package static let configuration = CommandConfiguration(
     commandName: "debug",
     abstract: "Commands to debug sourcekit-lsp. Intended for developers of sourcekit-lsp",
     subcommands: [
@@ -24,5 +24,5 @@ public struct DebugCommand: ParsableCommand {
     ]
   )
 
-  public init() {}
+  package init() {}
 }

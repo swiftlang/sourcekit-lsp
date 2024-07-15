@@ -28,7 +28,7 @@ private func xcrunMacOSSDKPath() -> String? {
 }
 
 /// The default sdk path to use.
-public let defaultSDKPath: String? = {
+package let defaultSDKPath: String? = {
   #if os(macOS)
   return xcrunMacOSSDKPath()
   #else

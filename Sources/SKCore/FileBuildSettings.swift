@@ -17,18 +17,18 @@ import LanguageServerProtocol
 ///
 /// Encapsulates all the settings needed to compile a single file, including the compiler arguments
 /// and working directory. FileBuildSettings are typically the result of a BuildSystem query.
-public struct FileBuildSettings: Equatable, Sendable {
+package struct FileBuildSettings: Equatable, Sendable {
 
   /// The compiler arguments to use for this file.
-  public var compilerArguments: [String]
+  package var compilerArguments: [String]
 
   /// The working directory to resolve any relative paths in `compilerArguments`.
-  public var workingDirectory: String? = nil
+  package var workingDirectory: String? = nil
 
   /// Whether the build settings were computed from a real build system or whether they are synthesized fallback arguments while the build system is still busy computing build settings.
-  public var isFallback: Bool
+  package var isFallback: Bool
 
-  public init(compilerArguments: [String], workingDirectory: String? = nil, isFallback: Bool = false) {
+  package init(compilerArguments: [String], workingDirectory: String? = nil, isFallback: Bool = false) {
     self.compilerArguments = compilerArguments
     self.workingDirectory = workingDirectory
     self.isFallback = isFallback
@@ -49,7 +49,7 @@ private extension String {
   }
 }
 
-public extension FileBuildSettings {
+package extension FileBuildSettings {
   /// Return arguments suitable for use by `newFile`.
   ///
   /// This patches the arguments by searching for the argument corresponding to

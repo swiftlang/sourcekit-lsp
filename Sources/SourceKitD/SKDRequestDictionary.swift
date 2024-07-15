@@ -29,7 +29,7 @@ import Bionic
 ///   switch exhaustively over this protocol.
 ///   Do not add new conformances without adding a new case in the subscript and
 ///   `append` function.
-public protocol SKDRequestValue {}
+package protocol SKDRequestValue {}
 
 extension String: SKDRequestValue {}
 extension Int: SKDRequestValue {}
@@ -42,7 +42,7 @@ extension Optional: SKDRequestValue where Wrapped: SKDRequestValue {}
 
 extension SourceKitD {
   /// Create a `SKDRequestDictionary` from the given dictionary.
-  public func dictionary(_ dict: [sourcekitd_api_uid_t: SKDRequestValue]) -> SKDRequestDictionary {
+  package func dictionary(_ dict: [sourcekitd_api_uid_t: SKDRequestValue]) -> SKDRequestDictionary {
     let result = SKDRequestDictionary(sourcekitd: self)
     for (key, value) in dict {
       result.set(key, to: value)
@@ -51,11 +51,11 @@ extension SourceKitD {
   }
 }
 
-public final class SKDRequestDictionary: Sendable {
+package final class SKDRequestDictionary: Sendable {
   nonisolated(unsafe) let dict: sourcekitd_api_object_t
   private let sourcekitd: SourceKitD
 
-  public init(_ dict: sourcekitd_api_object_t? = nil, sourcekitd: SourceKitD) {
+  package init(_ dict: sourcekitd_api_object_t? = nil, sourcekitd: SourceKitD) {
     self.dict = dict ?? sourcekitd.api.request_dictionary_create(nil, nil, 0)!
     self.sourcekitd = sourcekitd
   }
@@ -64,7 +64,7 @@ public final class SKDRequestDictionary: Sendable {
     sourcekitd.api.request_release(dict)
   }
 
-  public func set(_ key: sourcekitd_api_uid_t, to newValue: SKDRequestValue) {
+  package func set(_ key: sourcekitd_api_uid_t, to newValue: SKDRequestValue) {
     switch newValue {
     case let newValue as String:
       sourcekitd.api.request_dictionary_set_string(dict, key, newValue)
@@ -91,7 +91,7 @@ public final class SKDRequestDictionary: Sendable {
 }
 
 extension SKDRequestDictionary: CustomStringConvertible {
-  public var description: String {
+  package var description: String {
     let ptr = sourcekitd.api.request_description_copy(dict)!
     defer { free(ptr) }
     return String(cString: ptr)
@@ -99,7 +99,7 @@ extension SKDRequestDictionary: CustomStringConvertible {
 }
 
 extension SKDRequestDictionary: CustomLogStringConvertible {
-  public var redactedDescription: String {
+  package var redactedDescription: String {
     // FIXME: (logging) Implement a better redacted log that contains keys,
     // number of elements in an array but not the data itself.
     return "<\(description.filter(\.isNewline).count) lines>"

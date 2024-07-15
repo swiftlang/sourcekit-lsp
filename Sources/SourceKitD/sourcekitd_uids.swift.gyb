@@ -91,13 +91,13 @@
 import Csourcekitd
 % for (struct_type, uids) in TYPES_AND_KEYS:
 
-public struct ${struct_type} {
+package struct ${struct_type} {
 % for key in uids:
   /// `${key.externalName}`
-  public let ${variable_name(key.internalName)}: sourcekitd_api_uid_t
+  package let ${variable_name(key.internalName)}: sourcekitd_api_uid_t
 % end
 
-  public init(api: sourcekitd_api_functions_t) {
+  package init(api: sourcekitd_api_functions_t) {
 % for key in uids:
     ${variable_name(key.internalName)} = api.uid_get_from_cstr("${key.externalName}")!
 % end

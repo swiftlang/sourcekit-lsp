@@ -23,7 +23,7 @@ import CRT
 import Bionic
 #endif
 
-public final class SKDResponse: Sendable {
+package final class SKDResponse: Sendable {
   private nonisolated(unsafe) let response: sourcekitd_api_response_t
   let sourcekitd: SourceKitD
 
@@ -31,7 +31,7 @@ public final class SKDResponse: Sendable {
   ///
   /// - Important: When this `SKDResponse` object gets destroyed, it will dispose the response. It is thus illegal to
   ///   have two `SDKResponse` objects managing the same `sourcekitd_api_response_t`.
-  public init(_ response: sourcekitd_api_response_t, sourcekitd: SourceKitD) {
+  package init(_ response: sourcekitd_api_response_t, sourcekitd: SourceKitD) {
     self.response = response
     self.sourcekitd = sourcekitd
   }
@@ -40,7 +40,7 @@ public final class SKDResponse: Sendable {
     sourcekitd.api.response_dispose(response)
   }
 
-  public var error: SKDError? {
+  package var error: SKDError? {
     if !sourcekitd.api.response_is_error(response) {
       return nil
     }
@@ -53,7 +53,7 @@ public final class SKDResponse: Sendable {
     }
   }
 
-  public var value: SKDResponseDictionary? {
+  package var value: SKDResponseDictionary? {
     if sourcekitd.api.response_is_error(response) {
       return nil
     }
@@ -62,7 +62,7 @@ public final class SKDResponse: Sendable {
 }
 
 extension SKDResponse: CustomStringConvertible {
-  public var description: String {
+  package var description: String {
     let ptr = sourcekitd.api.response_description_copy(response)!
     defer { free(ptr) }
     return String(cString: ptr)
@@ -70,7 +70,7 @@ extension SKDResponse: CustomStringConvertible {
 }
 
 extension SKDResponse: CustomLogStringConvertible {
-  public var redactedDescription: String {
+  package var redactedDescription: String {
     // FIXME: (logging) Implement a better redacted log that contains keys,
     // number of elements in an array but not the data itself.
     return "<\(description.filter(\.isNewline).count) lines>"

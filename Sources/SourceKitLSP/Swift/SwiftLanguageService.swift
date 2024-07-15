@@ -70,17 +70,17 @@ fileprivate func diagnosticsEnabled(for document: DocumentURI) -> Bool {
 }
 
 /// A swift compiler command derived from a `FileBuildSettingsChange`.
-public struct SwiftCompileCommand: Sendable, Equatable {
+package struct SwiftCompileCommand: Sendable, Equatable {
 
   /// The compiler arguments, including working directory. This is required since sourcekitd only
   /// accepts the working directory via the compiler arguments.
-  public let compilerArgs: [String]
+  package let compilerArgs: [String]
 
   /// Whether the compiler arguments are considered fallback - we withhold diagnostics for
   /// fallback arguments and represent the file state differently.
-  public let isFallback: Bool
+  package let isFallback: Bool
 
-  public init(_ settings: FileBuildSettings) {
+  package init(_ settings: FileBuildSettings) {
     let baseArgs = settings.compilerArguments
     // Add working directory arguments if needed.
     if let workingDirectory = settings.workingDirectory, !baseArgs.contains("-working-directory") {
@@ -92,7 +92,7 @@ public struct SwiftCompileCommand: Sendable, Equatable {
   }
 }
 
-public actor SwiftLanguageService: LanguageService, Sendable {
+package actor SwiftLanguageService: LanguageService, Sendable {
   /// The ``SourceKitLSPServer`` instance that created this `SwiftLanguageService`.
   weak var sourceKitLSPServer: SourceKitLSPServer?
 
@@ -175,7 +175,7 @@ public actor SwiftLanguageService: LanguageService, Sendable {
   /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the `SwiftLanguageService` asks its
   /// parent server to reopen all of its documents.
   /// Returns `nil` if `sourcekitd` couldn't be found.
-  public init?(
+  package init?(
     sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
     options: SourceKitLSPOptions,
@@ -218,7 +218,7 @@ public actor SwiftLanguageService: LanguageService, Sendable {
   }
 
   /// - Important: For testing only
-  @_spi(Testing) public func setReusedNodeCallback(_ callback: (@Sendable (_ node: Syntax) -> ())?) async {
+  package func setReusedNodeCallback(_ callback: (@Sendable (_ node: Syntax) -> ())?) async {
     await self.syntaxTreeManager.setReusedNodeCallback(callback)
   }
 
@@ -251,7 +251,7 @@ public actor SwiftLanguageService: LanguageService, Sendable {
     )
   }
 
-  public nonisolated func canHandle(workspace: Workspace) -> Bool {
+  package nonisolated func canHandle(workspace: Workspace) -> Bool {
     // We have a single sourcekitd instance for all workspaces.
     return true
   }
@@ -280,7 +280,7 @@ public actor SwiftLanguageService: LanguageService, Sendable {
     }
   }
 
-  public func addStateChangeHandler(
+  package func addStateChangeHandler(
     handler: @Sendable @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void
   ) {
     self.stateChangeHandlers.append(handler)
@@ -289,7 +289,7 @@ public actor SwiftLanguageService: LanguageService, Sendable {
 
 extension SwiftLanguageService {
 
-  public func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult {
+  package func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult {
     await sourcekitd.addNotificationHandler(self)
 
     return InitializeResult(
@@ -336,15 +336,15 @@ extension SwiftLanguageService {
     )
   }
 
-  public func clientInitialized(_: InitializedNotification) {
+  package func clientInitialized(_: InitializedNotification) {
     // Nothing to do.
   }
 
-  public func shutdown() async {
+  package func shutdown() async {
     await self.sourcekitd.removeNotificationHandler(self)
   }
 
-  public func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
+  package func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
     guard let snapshot = try? documentManager.latestSnapshot(uri) else {
       return nil
     }
@@ -360,7 +360,7 @@ extension SwiftLanguageService {
   }
 
   /// Tell sourcekitd to crash itself. For testing purposes only.
-  public func crash() async {
+  package func crash() async {
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.crashWithExit
     ])
@@ -369,7 +369,7 @@ extension SwiftLanguageService {
 
   // MARK: - Build System Integration
 
-  public func reopenDocument(_ notification: ReopenTextDocumentNotification) async {
+  package func reopenDocument(_ notification: ReopenTextDocumentNotification) async {
     let snapshot = orLog("Getting snapshot to re-open document") {
       try documentManager.latestSnapshot(notification.textDocument.uri)
     }
@@ -399,7 +399,7 @@ extension SwiftLanguageService {
     }
   }
 
-  public func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
+  package func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
     // Close and re-open the document internally to inform sourcekitd to update the compile command. At the moment
     // there's no better way to do this.
     // Schedule the document re-open in the SourceKit-LSP server. This ensures that the re-open happens exclusively with
@@ -407,7 +407,7 @@ extension SwiftLanguageService {
     sourceKitLSPServer?.handle(ReopenTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
   }
 
-  public func documentDependenciesUpdated(_ uri: DocumentURI) async {
+  package func documentDependenciesUpdated(_ uri: DocumentURI) async {
     await orLog("Sending dependencyUpdated request to sourcekitd") {
       let req = sourcekitd.dictionary([
         keys.request: requests.dependencyUpdated
@@ -444,7 +444,7 @@ extension SwiftLanguageService {
     ])
   }
 
-  public func openDocument(_ notification: DidOpenTextDocumentNotification, snapshot: DocumentSnapshot) async {
+  package func openDocument(_ notification: DidOpenTextDocumentNotification, snapshot: DocumentSnapshot) async {
     cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
     await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
 
@@ -455,7 +455,7 @@ extension SwiftLanguageService {
     await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
   }
 
-  public func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
+  package func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
     cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
     inFlightPublishDiagnosticsTasks[notification.textDocument.uri] = nil
     await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
@@ -540,7 +540,7 @@ extension SwiftLanguageService {
     }
   }
 
-  public func changeDocument(
+  package func changeDocument(
     _ notification: DidChangeTextDocumentNotification,
     preEditSnapshot: DocumentSnapshot,
     postEditSnapshot: DocumentSnapshot,
@@ -591,25 +591,25 @@ extension SwiftLanguageService {
     await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
   }
 
-  public func willSaveDocument(_ notification: WillSaveTextDocumentNotification) {
+  package func willSaveDocument(_ notification: WillSaveTextDocumentNotification) {
 
   }
 
-  public func didSaveDocument(_ notification: DidSaveTextDocumentNotification) {
+  package func didSaveDocument(_ notification: DidSaveTextDocumentNotification) {
 
   }
 
   // MARK: - Language features
 
-  public func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
+  package func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
     throw ResponseError.unknown("unsupported method")
   }
 
-  public func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse? {
+  package func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse? {
     throw ResponseError.unknown("unsupported method")
   }
 
-  public func hover(_ req: HoverRequest) async throws -> HoverResponse? {
+  package func hover(_ req: HoverRequest) async throws -> HoverResponse? {
     let uri = req.textDocument.uri
     let position = req.position
     let cursorInfoResults = try await cursorInfo(uri, position..<position).cursorInfo
@@ -671,7 +671,7 @@ extension SwiftLanguageService {
     )
   }
 
-  public func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
+  package func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
 
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
@@ -727,7 +727,7 @@ extension SwiftLanguageService {
     return colorLiteralFinder.result
   }
 
-  public func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {
+  package func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {
     let color = req.color
     // Empty string as a label breaks VSCode color picker
     let label = "Color Literal"
@@ -737,7 +737,7 @@ extension SwiftLanguageService {
     return [presentation]
   }
 
-  public func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
+  package func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
 
     let relatedIdentifiers = try await self.relatedIdentifiers(
@@ -753,7 +753,7 @@ extension SwiftLanguageService {
     }
   }
 
-  public func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
+  package func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
     let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind?)] = [
       (retrieveSyntaxCodeActions, nil),
       (retrieveRefactorCodeActions, .refactor),
@@ -895,7 +895,7 @@ extension SwiftLanguageService {
     return codeActions
   }
 
-  public func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
+  package func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
     let uri = req.textDocument.uri
     let infos = try await variableTypeInfos(uri, req.range)
     let hints = infos
@@ -921,7 +921,7 @@ extension SwiftLanguageService {
     return Array(hints)
   }
 
-  public func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
+  package func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
     do {
       await semanticIndexManager?.prepareFileForEditorFunctionality(req.textDocument.uri)
       let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
@@ -950,11 +950,11 @@ extension SwiftLanguageService {
     }
   }
 
-  public func indexedRename(_ request: IndexedRenameRequest) async throws -> WorkspaceEdit? {
+  package func indexedRename(_ request: IndexedRenameRequest) async throws -> WorkspaceEdit? {
     throw ResponseError.unknown("unsupported method")
   }
 
-  public func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
+  package func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
     if let command = req.swiftCommand(ofType: SemanticRefactorCommand.self) {
       try await semanticRefactoring(command)
     } else if let command = req.swiftCommand(ofType: ExpandMacroCommand.self),
@@ -971,7 +971,7 @@ extension SwiftLanguageService {
 }
 
 extension SwiftLanguageService: SKDNotificationHandler {
-  public nonisolated func notification(_ notification: SKDResponse) {
+  package nonisolated func notification(_ notification: SKDResponse) {
     sourcekitdNotificationHandlingQueue.async {
       await self.notificationImpl(notification)
     }

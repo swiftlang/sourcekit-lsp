@@ -17,8 +17,7 @@ extension Toolchain {
   /// The path to `swift-frontend` in the toolchain, found relative to `swift`.
   ///
   /// - Note: Not discovered as part of the toolchain because `swift-frontend` is only needed in the diagnose commands.
-  @_spi(Testing)
-  public var swiftFrontend: URL? {
+  package var swiftFrontend: URL? {
     return swift?.asURL.deletingLastPathComponent().appendingPathComponent("swift-frontend")
   }
 }

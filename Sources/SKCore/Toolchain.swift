@@ -23,20 +23,20 @@ import class TSCBasic.Process
 import var TSCBasic.localFileSystem
 
 /// A Swift version consisting of the major and minor component.
-public struct SwiftVersion: Sendable, Comparable, CustomStringConvertible {
-  public let major: Int
-  public let minor: Int
+package struct SwiftVersion: Sendable, Comparable, CustomStringConvertible {
+  package let major: Int
+  package let minor: Int
 
-  public static func < (lhs: SwiftVersion, rhs: SwiftVersion) -> Bool {
+  package static func < (lhs: SwiftVersion, rhs: SwiftVersion) -> Bool {
     return (lhs.major, lhs.minor) < (rhs.major, rhs.minor)
   }
 
-  public init(_ major: Int, _ minor: Int) {
+  package init(_ major: Int, _ minor: Int) {
     self.major = major
     self.minor = minor
   }
 
-  public var description: String {
+  package var description: String {
     return "\(major).\(minor)"
   }
 }
@@ -69,44 +69,44 @@ public final class Toolchain: Sendable {
   ///
   /// For an xctoolchain, this is a reverse domain name e.g. "com.apple.dt.toolchain.XcodeDefault".
   /// Otherwise, it is typically derived from `path`.
-  public let identifier: String
+  package let identifier: String
 
   /// The human-readable name for the toolchain.
-  public let displayName: String
+  package let displayName: String
 
   /// The path to this toolchain, if applicable.
   ///
   /// For example, this may be the path to an ".xctoolchain" directory.
-  public let path: AbsolutePath?
+  package let path: AbsolutePath?
 
   // MARK: Tool Paths
 
   /// The path to the Clang compiler if available.
-  public let clang: AbsolutePath?
+  package let clang: AbsolutePath?
 
   /// The path to the Swift driver if available.
-  public let swift: AbsolutePath?
+  package let swift: AbsolutePath?
 
   /// The path to the Swift compiler if available.
-  public let swiftc: AbsolutePath?
+  package let swiftc: AbsolutePath?
 
   /// The path to the swift-format executable, if available.
-  public let swiftFormat: AbsolutePath?
+  package let swiftFormat: AbsolutePath?
 
   /// The path to the clangd language server if available.
-  public let clangd: AbsolutePath?
+  package let clangd: AbsolutePath?
 
   /// The path to the Swift language server if available.
-  public let sourcekitd: AbsolutePath?
+  package let sourcekitd: AbsolutePath?
 
   /// The path to the indexstore library if available.
-  public let libIndexStore: AbsolutePath?
+  package let libIndexStore: AbsolutePath?
 
   private let swiftVersionTask = ThreadSafeBox<Task<SwiftVersion, any Error>?>(initialValue: nil)
 
   /// The Swift version installed in the toolchain. Throws an error if the version could not be parsed or if no Swift
   /// compiler is installed in the toolchain.
-  public var swiftVersion: SwiftVersion {
+  package var swiftVersion: SwiftVersion {
     get async throws {
       let task = swiftVersionTask.withLock { task in
         if let task {
@@ -214,7 +214,7 @@ extension Toolchain {
   ///
   /// If `path` contains an ".xctoolchain", we try to read an Info.plist file to provide the
   /// toolchain identifier, etc.  Otherwise this information is derived from the path.
-  convenience public init?(_ path: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) {
+  convenience package init?(_ path: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) {
     // Properties that need to be initialized
     let identifier: String
     let displayName: String

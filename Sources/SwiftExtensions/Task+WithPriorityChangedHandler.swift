@@ -16,7 +16,7 @@
 /// `pollingInterval`.
 /// The function assumes that the original priority of the task is `initialPriority`. If the task priority changed
 /// compared to `initialPriority`, the `taskPriorityChanged` will be called.
-public func withTaskPriorityChangedHandler<T: Sendable>(
+package func withTaskPriorityChangedHandler<T: Sendable>(
   initialPriority: TaskPriority = Task.currentPriority,
   pollingInterval: Duration = .seconds(0.1),
   @_inheritActorContext operation: @escaping @Sendable () async throws -> T,

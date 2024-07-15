@@ -28,7 +28,7 @@ extension Process {
   /// Wait for the process to exit. If the task gets cancelled, during this time, send a `SIGINT` to the process.
   /// Should the process not terminate on SIGINT after 2 seconds, it is killed using `SIGKILL`.
   @discardableResult
-  public func waitUntilExitStoppingProcessOnTaskCancellation() async throws -> ProcessResult {
+  package func waitUntilExitStoppingProcessOnTaskCancellation() async throws -> ProcessResult {
     let hasExited = AtomicBool(initialValue: false)
     return try await withTaskCancellationHandler {
       defer {
@@ -138,7 +138,7 @@ extension Process {
   ///
   /// The process's priority tracks the priority of the current task.
   @discardableResult
-  public static func run(
+  package static func run(
     arguments: [String],
     environmentBlock: ProcessEnvironmentBlock = ProcessEnv.block,
     workingDirectory: AbsolutePath?,

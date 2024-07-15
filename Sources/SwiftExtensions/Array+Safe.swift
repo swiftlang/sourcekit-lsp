@@ -13,7 +13,7 @@
 extension Array {
   /// Returns the element at the specified index if it is within the Array's
   /// bounds, otherwise `nil`.
-  public subscript(safe index: Index) -> Element? {
+  package subscript(safe index: Index) -> Element? {
     return index >= 0 && index < count ? self[index] : nil
   }
 }

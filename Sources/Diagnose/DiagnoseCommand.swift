@@ -40,8 +40,8 @@ fileprivate enum BundleComponent: String, CaseIterable, ExpressibleByArgument {
   case swiftFrontendCrashes = "swift-frontend-crashes"
 }
 
-public struct DiagnoseCommand: AsyncParsableCommand {
-  public static let configuration: CommandConfiguration = CommandConfiguration(
+package struct DiagnoseCommand: AsyncParsableCommand {
+  package static let configuration: CommandConfiguration = CommandConfiguration(
     commandName: "diagnose",
     abstract: "Creates a bundle containing information that help diagnose issues with sourcekit-lsp"
   )
@@ -109,7 +109,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     ["/Library/Logs/DiagnosticReports", "~/Library/Logs/DiagnosticReports"]
   }
 
-  public init() {}
+  package init() {}
 
   @MainActor
   private func addSourcekitdCrashReproducer(toBundle bundlePath: URL) async throws {
@@ -341,7 +341,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
   }
 
   @MainActor
-  public func run() async throws {
+  package func run() async throws {
     // IMPORTANT: When adding information to this message, also add it to the message displayed in VS Code
     // (captureDiagnostics.ts in the vscode-swift repository)
     print(

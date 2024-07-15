@@ -18,8 +18,8 @@ import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import class TSCUtility.PercentProgressAnimation
 
-public struct ReduceCommand: AsyncParsableCommand {
-  public static let configuration: CommandConfiguration = CommandConfiguration(
+package struct ReduceCommand: AsyncParsableCommand {
+  package static let configuration: CommandConfiguration = CommandConfiguration(
     commandName: "reduce",
     abstract: "Reduce a single sourcekitd crash"
   )
@@ -65,10 +65,10 @@ public struct ReduceCommand: AsyncParsableCommand {
     }
   }
 
-  public init() {}
+  package init() {}
 
   @MainActor
-  public func run() async throws {
+  package func run() async throws {
     guard let sourcekitd = try await toolchain?.sourcekitd else {
       throw ReductionError("Unable to find sourcekitd.framework")
     }

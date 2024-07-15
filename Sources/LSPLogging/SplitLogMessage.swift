@@ -17,7 +17,7 @@
 ///
 ///  - Note: This will only split along newline boundary. If a single line is longer than `maxChunkSize`, it won't be
 ///    split. This is fine for compiler argument splitting since a single argument is rarely longer than 800 characters.
-public func splitLongMultilineMessage(message: String, maxChunkSize: Int = 800) -> [String] {
+package func splitLongMultilineMessage(message: String, maxChunkSize: Int = 800) -> [String] {
   var chunks: [String] = []
   for line in message.split(separator: "\n", omittingEmptySubsequences: false) {
     if let lastChunk = chunks.last, lastChunk.utf8.count + line.utf8.count < maxChunkSize {

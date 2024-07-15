@@ -22,11 +22,15 @@ import struct TSCBasic.RelativePath
 
 /// Closures can be used to inspect or modify internal behavior in SourceKit-LSP.
 public struct TestHooks: Sendable {
-  public var indexTestHooks: IndexTestHooks
+  package var indexTestHooks: IndexTestHooks
 
-  public var swiftpmTestHooks: SwiftPMTestHooks
+  package var swiftpmTestHooks: SwiftPMTestHooks
 
-  public init(
+  public init() {
+    self.init(indexTestHooks: IndexTestHooks(), swiftpmTestHooks: SwiftPMTestHooks())
+  }
+
+  package init(
     indexTestHooks: IndexTestHooks = IndexTestHooks(),
     swiftpmTestHooks: SwiftPMTestHooks = SwiftPMTestHooks()
   ) {

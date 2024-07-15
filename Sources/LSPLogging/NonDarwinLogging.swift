@@ -15,7 +15,7 @@ import SwiftExtensions
 
 // MARK: - Log settings
 
-public enum LogConfig {
+package enum LogConfig {
   /// The globally set log level
   fileprivate static let logLevel: NonDarwinLogLevel = {
     if let envVar = ProcessInfo.processInfo.environment["SOURCEKITLSP_LOG_LEVEL"],
@@ -46,14 +46,14 @@ public enum LogConfig {
 ///
 /// For documentation of the different log levels see
 /// https://developer.apple.com/documentation/os/oslogtype.
-public enum NonDarwinLogLevel: Comparable, CustomStringConvertible, Sendable {
+package enum NonDarwinLogLevel: Comparable, CustomStringConvertible, Sendable {
   case debug
   case info
   case `default`
   case error
   case fault
 
-  public init?(_ value: String) {
+  package init?(_ value: String) {
     switch value.lowercased() {
     case "debug": self = .debug
     case "info": self = .info
@@ -69,7 +69,7 @@ public enum NonDarwinLogLevel: Comparable, CustomStringConvertible, Sendable {
     }
   }
 
-  public init?(_ value: Int) {
+  package init?(_ value: Int) {
     switch value {
     case 0: self = .fault
     case 1: self = .error
@@ -80,7 +80,7 @@ public enum NonDarwinLogLevel: Comparable, CustomStringConvertible, Sendable {
     }
   }
 
-  public var description: String {
+  package var description: String {
     switch self {
     case .debug:
       return "debug"
@@ -103,7 +103,7 @@ public enum NonDarwinLogLevel: Comparable, CustomStringConvertible, Sendable {
 ///
 /// For documentation of the different privacy levels see
 /// https://developer.apple.com/documentation/os/oslogprivacy.
-public enum NonDarwinLogPrivacy: Comparable, Sendable {
+package enum NonDarwinLogPrivacy: Comparable, Sendable {
   case `public`
   case `private`
   case sensitive
@@ -133,7 +133,7 @@ public enum NonDarwinLogPrivacy: Comparable, Sendable {
 /// sourcekit-lsp.
 ///
 /// This is used on platforms that don't have OSLog.
-public struct NonDarwinLogInterpolation: StringInterpolationProtocol, Sendable {
+package struct NonDarwinLogInterpolation: StringInterpolationProtocol, Sendable {
   private enum LogPiece: Sendable {
     /// A segment of the log message that will always be displayed.
     case string(String)
@@ -149,12 +149,12 @@ public struct NonDarwinLogInterpolation: StringInterpolationProtocol, Sendable {
 
   private var pieces: [LogPiece]
 
-  public init(literalCapacity: Int, interpolationCount: Int) {
+  package init(literalCapacity: Int, interpolationCount: Int) {
     self.pieces = []
     pieces.reserveCapacity(literalCapacity + interpolationCount)
   }
 
-  public mutating func appendLiteral(_ literal: String) {
+  package mutating func appendLiteral(_ literal: String) {
     pieces.append(.string(literal))
   }
 
@@ -177,26 +177,26 @@ public struct NonDarwinLogInterpolation: StringInterpolationProtocol, Sendable {
     }
   }
 
-  public mutating func appendInterpolation(_ message: StaticString, privacy: NonDarwinLogPrivacy = .public) {
+  package mutating func appendInterpolation(_ message: StaticString, privacy: NonDarwinLogPrivacy = .public) {
     append(description: message.description, redactedDescription: "<private>", privacy: privacy)
   }
 
   @_disfavoredOverload  // Prefer to use the StaticString overload when possible.
-  public mutating func appendInterpolation(
+  package mutating func appendInterpolation(
     _ message: some CustomStringConvertible & Sendable,
     privacy: NonDarwinLogPrivacy = .private
   ) {
     append(description: message.description, redactedDescription: "<private>", privacy: privacy)
   }
 
-  public mutating func appendInterpolation(
+  package mutating func appendInterpolation(
     _ message: some CustomLogStringConvertibleWrapper & Sendable,
     privacy: NonDarwinLogPrivacy = .private
   ) {
     append(description: message.description, redactedDescription: message.redactedDescription, privacy: privacy)
   }
 
-  public mutating func appendInterpolation(
+  package mutating func appendInterpolation(
     _ message: (some CustomLogStringConvertibleWrapper & Sendable)?,
     privacy: NonDarwinLogPrivacy = .private
   ) {
@@ -207,7 +207,7 @@ public struct NonDarwinLogInterpolation: StringInterpolationProtocol, Sendable {
     }
   }
 
-  public mutating func appendInterpolation(_ type: Any.Type, privacy: NonDarwinLogPrivacy = .public) {
+  package mutating func appendInterpolation(_ type: Any.Type, privacy: NonDarwinLogPrivacy = .public) {
     append(description: String(reflecting: type), redactedDescription: "<private>", privacy: privacy)
   }
 
@@ -235,14 +235,14 @@ public struct NonDarwinLogInterpolation: StringInterpolationProtocol, Sendable {
 /// sourcekit-lsp.
 ///
 /// This is used on platforms that don't have OSLog.
-public struct NonDarwinLogMessage: ExpressibleByStringInterpolation, ExpressibleByStringLiteral, Sendable {
+package struct NonDarwinLogMessage: ExpressibleByStringInterpolation, ExpressibleByStringLiteral, Sendable {
   fileprivate let value: NonDarwinLogInterpolation
 
-  public init(stringInterpolation: NonDarwinLogInterpolation) {
+  package init(stringInterpolation: NonDarwinLogInterpolation) {
     self.value = stringInterpolation
   }
 
-  public init(stringLiteral value: String) {
+  package init(stringLiteral value: String) {
     var interpolation = NonDarwinLogInterpolation(literalCapacity: 1, interpolationCount: 0)
     interpolation.appendLiteral(value)
     self.value = interpolation
@@ -284,7 +284,7 @@ private let loggingQueue = AsyncQueue<Serial>()
 /// not available.
 ///
 /// `overrideLogHandler` allows capturing of the logged messages for testing purposes.
-public struct NonDarwinLogger: Sendable {
+package struct NonDarwinLogger: Sendable {
   private let subsystem: String
   private let category: String
   private let logLevel: NonDarwinLogLevel
@@ -299,7 +299,7 @@ public struct NonDarwinLogger: Sendable {
   ///   - privacyLevel: The privacy level to log at. Any interpolation segments
   ///     with a higher privacy level will be masked.
   ///   - logHandler: The function that actually logs the message.
-  public init(
+  package init(
     subsystem: String,
     category: String,
     logLevel: NonDarwinLogLevel? = nil,
@@ -317,7 +317,7 @@ public struct NonDarwinLogger: Sendable {
   ///
   /// Logging is performed asynchronously to allow the execution of the main
   /// program to finish as quickly as possible.
-  public func log(
+  package func log(
     level: NonDarwinLogLevel,
     _ message: @autoclosure @escaping @Sendable () -> NonDarwinLogMessage
   ) {
@@ -345,27 +345,27 @@ public struct NonDarwinLogger: Sendable {
   }
 
   /// Log a message at the `debug` level.
-  public func debug(_ message: NonDarwinLogMessage) {
+  package func debug(_ message: NonDarwinLogMessage) {
     log(level: .debug, message)
   }
 
   /// Log a message at the `info` level.
-  public func info(_ message: NonDarwinLogMessage) {
+  package func info(_ message: NonDarwinLogMessage) {
     log(level: .info, message)
   }
 
   /// Log a message at the `default` level.
-  public func log(_ message: NonDarwinLogMessage) {
+  package func log(_ message: NonDarwinLogMessage) {
     log(level: .default, message)
   }
 
   /// Log a message at the `error` level.
-  public func error(_ message: NonDarwinLogMessage) {
+  package func error(_ message: NonDarwinLogMessage) {
     log(level: .error, message)
   }
 
   /// Log a message at the `fault` level.
-  public func fault(_ message: NonDarwinLogMessage) {
+  package func fault(_ message: NonDarwinLogMessage) {
     log(level: .fault, message)
   }
 
@@ -373,31 +373,30 @@ public struct NonDarwinLogger: Sendable {
   ///
   /// Useful for testing to make sure all asynchronous log calls have actually
   /// written their data.
-  @_spi(Testing)
-  public static func flush() async {
+  package static func flush() async {
     await loggingQueue.async {}.value
   }
 
-  public func makeSignposter() -> NonDarwinSignposter {
+  package func makeSignposter() -> NonDarwinSignposter {
     return NonDarwinSignposter()
   }
 }
 
 // MARK: - Signposter
 
-public struct NonDarwinSignpostID: Sendable {}
+package struct NonDarwinSignpostID: Sendable {}
 
-public struct NonDarwinSignpostIntervalState: Sendable {}
+package struct NonDarwinSignpostIntervalState: Sendable {}
 
 /// A type that is API-compatible to `OSLogMessage` for all uses within sourcekit-lsp.
 ///
 /// Since non-Darwin platforms don't have signposts, the type just has no-op operations.
-public struct NonDarwinSignposter: Sendable {
-  public func makeSignpostID() -> NonDarwinSignpostID {
+package struct NonDarwinSignposter: Sendable {
+  package func makeSignpostID() -> NonDarwinSignpostID {
     return NonDarwinSignpostID()
   }
 
-  public func beginInterval(
+  package func beginInterval(
     _ name: StaticString,
     id: NonDarwinSignpostID,
     _ message: NonDarwinLogMessage
@@ -405,8 +404,12 @@ public struct NonDarwinSignposter: Sendable {
     return NonDarwinSignpostIntervalState()
   }
 
-  public func emitEvent(_ name: StaticString, id: NonDarwinSignpostID, _ message: NonDarwinLogMessage = "") {}
+  package func emitEvent(_ name: StaticString, id: NonDarwinSignpostID, _ message: NonDarwinLogMessage = "") {}
 
-  public func endInterval(_ name: StaticString, _ state: NonDarwinSignpostIntervalState, _ message: StaticString = "") {
+  package func endInterval(
+    _ name: StaticString,
+    _ state: NonDarwinSignpostIntervalState,
+    _ message: StaticString = ""
+  ) {
   }
 }

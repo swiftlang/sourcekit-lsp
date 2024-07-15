@@ -43,8 +43,8 @@ func executable(_ name: String) -> String {
 ///
 /// Provides build settings from a build server launched based on a
 /// `buildServer.json` configuration file provided in the repo root.
-public actor BuildServerBuildSystem: MessageHandler {
-  public let projectRoot: AbsolutePath
+package actor BuildServerBuildSystem: MessageHandler {
+  package let projectRoot: AbsolutePath
   let serverConfig: BuildServerConfig
 
   var buildServer: JSONRPCConnection?
@@ -58,28 +58,28 @@ public actor BuildServerBuildSystem: MessageHandler {
   /// This ensures that messages from the build server are handled in the order
   /// they were received. Swift concurrency does not guarentee in-order
   /// execution of tasks.
-  public let bspMessageHandlingQueue = AsyncQueue<Serial>()
+  package let bspMessageHandlingQueue = AsyncQueue<Serial>()
 
   let searchPaths: [AbsolutePath]
 
-  public private(set) var indexDatabasePath: AbsolutePath?
-  public private(set) var indexStorePath: AbsolutePath?
+  package private(set) var indexDatabasePath: AbsolutePath?
+  package private(set) var indexStorePath: AbsolutePath?
 
   // FIXME: Add support for prefix mappings to the Build Server protocol.
-  public var indexPrefixMappings: [PathPrefixMapping] { return [] }
+  package var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
   /// Delegate to handle any build system events.
-  public weak var delegate: BuildSystemDelegate?
+  package weak var delegate: BuildSystemDelegate?
 
   /// - Note: Needed to set the delegate from a different actor isolation context
-  public func setDelegate(_ delegate: BuildSystemDelegate?) async {
+  package func setDelegate(_ delegate: BuildSystemDelegate?) async {
     self.delegate = delegate
   }
 
   /// The build settings that have been received from the build server.
   private var buildSettings: [DocumentURI: FileBuildSettings] = [:]
 
-  public init(
+  package init(
     projectRoot: AbsolutePath,
     fileSystem: FileSystem = localFileSystem
   ) async throws {
@@ -106,7 +106,7 @@ public actor BuildServerBuildSystem: MessageHandler {
   /// Creates a build system using the Build Server Protocol config.
   ///
   /// - Returns: nil if `projectRoot` has no config or there is an error parsing it.
-  public init?(projectRoot: AbsolutePath?) async {
+  package init?(projectRoot: AbsolutePath?) async {
     guard let projectRoot else { return nil }
 
     do {
@@ -188,7 +188,7 @@ public actor BuildServerBuildSystem: MessageHandler {
   /// the build server has sent us a notification.
   ///
   /// We need to notify the delegate about any updated build settings.
-  public nonisolated func handle(_ params: some NotificationType) {
+  package nonisolated func handle(_ params: some NotificationType) {
     logger.info(
       """
       Received notification from build server:
@@ -207,7 +207,7 @@ public actor BuildServerBuildSystem: MessageHandler {
   /// Handler for requests received **from** the build server.
   ///
   /// We currently can't handle any requests sent from the build server to us.
-  public nonisolated func handle<R: RequestType>(
+  package nonisolated func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
     reply: @escaping (LSPResult<R.Response>) -> Void
@@ -257,13 +257,13 @@ private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
 }
 
 extension BuildServerBuildSystem: BuildSystem {
-  public nonisolated var supportsPreparation: Bool { false }
+  package nonisolated var supportsPreparation: Bool { false }
 
   /// The build settings for the given file.
   ///
   /// Returns `nil` if no build settings have been received from the build
   /// server yet or if no build settings are available for this file.
-  public func buildSettings(
+  package func buildSettings(
     for document: DocumentURI,
     in target: ConfiguredTarget,
     language: Language
@@ -271,36 +271,36 @@ extension BuildServerBuildSystem: BuildSystem {
     return buildSettings[document]
   }
 
-  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+  package func defaultLanguage(for document: DocumentURI) async -> Language? {
     return nil
   }
 
-  public func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+  package func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
     return nil
   }
 
-  public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
+  package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
     return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }
 
-  public func generateBuildGraph(allowFileSystemWrites: Bool) {}
+  package func generateBuildGraph(allowFileSystemWrites: Bool) {}
 
-  public func topologicalSort(of targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
+  package func topologicalSort(of targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
     return nil
   }
 
-  public func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  package func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
   }
 
-  public func prepare(
+  package func prepare(
     targets: [ConfiguredTarget],
     logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     throw PrepareNotSupportedError()
   }
 
-  public func registerForChangeNotifications(for uri: DocumentURI) {
+  package func registerForChangeNotifications(for uri: DocumentURI) {
     let request = RegisterForChanges(uri: uri, action: .register)
     _ = self.buildServer?.send(request) { result in
       if let error = result.failure {
@@ -317,7 +317,7 @@ extension BuildServerBuildSystem: BuildSystem {
 
   /// Unregister the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
-  public func unregisterForChangeNotifications(for uri: DocumentURI) {
+  package func unregisterForChangeNotifications(for uri: DocumentURI) {
     let request = RegisterForChanges(uri: uri, action: .unregister)
     _ = self.buildServer?.send(request) { result in
       if let error = result.failure {
@@ -326,9 +326,9 @@ extension BuildServerBuildSystem: BuildSystem {
     }
   }
 
-  public func filesDidChange(_ events: [FileEvent]) {}
+  package func filesDidChange(_ events: [FileEvent]) {}
 
-  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
+  package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
     guard
       let fileUrl = uri.fileURL,
       let path = try? AbsolutePath(validating: fileUrl.path)
@@ -350,13 +350,13 @@ extension BuildServerBuildSystem: BuildSystem {
     return .unhandled
   }
 
-  public func sourceFiles() async -> [SourceFileInfo] {
+  package func sourceFiles() async -> [SourceFileInfo] {
     // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).
     return []
   }
 
-  public func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) {
+  package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) {
     // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).
   }
