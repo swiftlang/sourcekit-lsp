@@ -70,6 +70,7 @@ public let builtinRequests: [_RequestType.Type] = [
   ShutdownRequest.self,
   SignatureHelpRequest.self,
   SymbolInfoRequest.self,
+  TriggerReindexRequest.self,
   TypeDefinitionRequest.self,
   TypeHierarchyPrepareRequest.self,
   TypeHierarchySubtypesRequest.self,
