@@ -18,6 +18,8 @@ import Glibc
 import Musl
 #elseif canImport(CRT)
 import CRT
+#elseif canImport(Bionic)
+import Bionic
 #endif
 
 public final class SKDResponseArray: Sendable {
