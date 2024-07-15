@@ -14,7 +14,6 @@ import BuildSystemIntegration
 import LanguageServerProtocol
 import SKLogging
 import SKOptions
-import SKSwiftPMWorkspace
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath

@@ -20,7 +20,6 @@ import PackageLoading
 import SKLogging
 import SKOptions
 import SKSupport
-import SKSwiftPMWorkspace
 import SemanticIndex
 import SourceKitD
 import SwiftExtensions

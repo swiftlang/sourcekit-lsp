@@ -10,7 +10,7 @@ FIXME: Add link for BSP and version
 
 ### BuildSystemIntegration
 
-Defines the queries SourceKit-LSP can ask of a a build system, like getting compiler arguments for a file. Finding a target’s dependencies or preparing a target.
+Defines the queries SourceKit-LSP can ask of a build system, like getting compiler arguments for a file, finding a target’s dependencies or preparing a target.
 
 ### CAtomics
 
@@ -48,7 +48,7 @@ Contains the interface with which SourceKit-LSP queries the semantic index, addi
 
 ### SKLogging
 
-Types that are API-compatible with OSLog to allow logging to OSLog when building for Darwin platforms and logging to stderr or files on non-Darwin platforms. This should not be dependent on any LSP specific types and be portable to other packages.
+Types that are API-compatible with OSLog that allow logging to OSLog when building for Apple platforms and logging to stderr or files on non-Apple platforms. This should not be dependent on any LSP specific types and be portable to other packages.
 
 ### SKOptions
 
@@ -60,12 +60,6 @@ Contains SourceKit-LSP-specific helper functions. These fall into three differen
 -  Extensions on top of `swift-tools-support-core`
 - Functionality that can only be implemented by combining two lower-level modules that don't have a shared dependency, like `SKLogging` + `LanguageServerProtocol`
 - Types that should be sharable by the different modules that implement SourceKit-LSP but that are not generic enough to fit into `SwiftExtensions`, like `ExperimentalFeatures`.
-
-### SKSwiftPMWorkspace
-
-Implements the `BuildSystem` protocol for Swift packages.
-
-FIXME: Merge this into the BuildSystem module once BuildSystemIntegration is split.
 
 ### SKTestSupport
 

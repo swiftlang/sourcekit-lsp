@@ -82,7 +82,6 @@ target_link_libraries(SourceKitLSP PUBLIC
   SKLogging
   SKOptions
   SKSupport
-  SKSwiftPMWorkspace
   SourceKitD
   SwiftExtensions
   ToolchainRegistry

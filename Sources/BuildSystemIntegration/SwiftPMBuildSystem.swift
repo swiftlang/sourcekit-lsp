@@ -13,7 +13,6 @@
 import Basics
 import Build
 import BuildServerProtocol
-import BuildSystemIntegration
 import Dispatch
 import Foundation
 import LanguageServerProtocol
@@ -40,7 +39,7 @@ import var TSCBasic.localFileSystem
 import func TSCBasic.resolveSymlinks
 import class ToolchainRegistry.Toolchain
 
-typealias AbsolutePath = Basics.AbsolutePath
+fileprivate typealias AbsolutePath = Basics.AbsolutePath
 
 #if canImport(SPMBuildCore)
 import SPMBuildCore

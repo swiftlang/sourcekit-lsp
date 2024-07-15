@@ -63,6 +63,7 @@ let package = Package(
         "SourceKitD",
         "SwiftExtensions",
         "ToolchainRegistry",
+        .product(name: "SwiftPM-auto", package: "swift-package-manager"),
         .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
@@ -73,8 +74,10 @@ let package = Package(
       name: "BuildSystemIntegrationTests",
       dependencies: [
         "BuildSystemIntegration",
+        "LanguageServerProtocol",
         "SKOptions",
         "SKTestSupport",
+        "SourceKitLSP",
         "ToolchainRegistry",
       ]
     ),
@@ -267,39 +270,6 @@ let package = Package(
       ]
     ),
 
-    // MARK: SKSwiftPMWorkspace
-
-    .target(
-      name: "SKSwiftPMWorkspace",
-      dependencies: [
-        "BuildServerProtocol",
-        "BuildSystemIntegration",
-        "LanguageServerProtocol",
-        "SKLogging",
-        "SKOptions",
-        "SwiftExtensions",
-        "ToolchainRegistry",
-        .product(name: "SwiftPM-auto", package: "swift-package-manager"),
-        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-      ],
-      exclude: ["CMakeLists.txt"]
-    ),
-
-    .testTarget(
-      name: "SKSwiftPMWorkspaceTests",
-      dependencies: [
-        "BuildSystemIntegration",
-        "LanguageServerProtocol",
-        "SKOptions",
-        "SKSwiftPMWorkspace",
-        "SKTestSupport",
-        "SourceKitLSP",
-        "ToolchainRegistry",
-        .product(name: "SwiftPM-auto", package: "swift-package-manager"),
-        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-      ]
-    ),
-
     // MARK: SKTestSupport
 
     .target(
@@ -359,7 +329,6 @@ let package = Package(
         "SKLogging",
         "SKOptions",
         "SKSupport",
-        "SKSwiftPMWorkspace",
         "SourceKitD",
         "SwiftExtensions",
         "ToolchainRegistry",

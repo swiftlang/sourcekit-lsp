@@ -11,7 +11,8 @@ add_library(BuildSystemIntegration STATIC
   IndexTaskID.swift
   MainFilesProvider.swift
   PathPrefixMapping.swift
-  SplitShellCommand.swift)
+  SplitShellCommand.swift
+  SwiftPMBuildSystem.swift)
 set_target_properties(BuildSystemIntegration PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 target_link_libraries(BuildSystemIntegration PUBLIC
@@ -25,4 +26,6 @@ target_link_libraries(BuildSystemIntegration PUBLIC
   SwiftExtensions
   ToolchainRegistry
   PackageModel
-  TSCBasic)
+  TSCBasic
+  Build
+  SourceKitLSPAPI)
