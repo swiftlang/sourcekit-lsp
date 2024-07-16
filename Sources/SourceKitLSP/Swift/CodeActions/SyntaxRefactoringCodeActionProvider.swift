@@ -121,6 +121,28 @@ extension RemoveSeparatorsFromIntegerLiteral: SyntaxRefactoringCodeActionProvide
   }
 }
 
+extension ConvertZeroParameterFunctionToComputedProperty: SyntaxRefactoringCodeActionProvider {
+  static var title: String { "Convert to computed property" }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: FunctionDeclSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+    )
+  }
+}
+
+extension ConvertComputedPropertyToZeroParameterFunction: SyntaxRefactoringCodeActionProvider {
+  static var title: String { "Convert to zero parameter function" }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: VariableDeclSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+    )
+  }
+}
+
 extension SyntaxProtocol {
   /// Finds the innermost parent of the given type while not walking outside of nodes that satisfy `stoppingIf`.
   func findParentOfSelf<ParentType: SyntaxProtocol>(

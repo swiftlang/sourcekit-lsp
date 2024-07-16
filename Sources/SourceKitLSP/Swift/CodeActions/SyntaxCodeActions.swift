@@ -17,8 +17,10 @@ import SwiftRefactor
 let allSyntaxCodeActions: [SyntaxCodeActionProvider.Type] = [
   AddDocumentation.self,
   AddSeparatorsToIntegerLiteral.self,
+  ConvertComputedPropertyToZeroParameterFunction.self
   ConvertIntegerLiteral.self,
   ConvertJSONToCodableStruct.self,
+  ConvertZeroParameterFunctionToComputedProperty.self,
   FormatRawStringLiteral.self,
   MigrateToNewIfLetSyntax.self,
   OpaqueParameterToGeneric.self,

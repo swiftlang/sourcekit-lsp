@@ -1006,6 +1006,122 @@ final class CodeActionTests: XCTestCase {
     }
   }
 
+  func testConvertFunctionZeroParameterToComputedProperty() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      1️⃣func someFunction() -> String2️⃣ { return "" }3️⃣
+      """,
+      uri: uri
+    )
+
+    let request = CodeActionRequest(
+      range: positions["1️⃣"]..<positions["2️⃣"],
+      context: .init(),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let result = try await testClient.send(request)
+
+    guard case .codeActions(let codeActions) = result else {
+      XCTFail("Expected code actions")
+      return
+    }
+
+    let expectedCodeAction = CodeAction(
+      title: "Convert to computed property",
+      kind: .refactorInline,
+      diagnostics: nil,
+      edit: WorkspaceEdit(
+        changes: [
+          uri: [
+            TextEdit(
+              range: positions["1️⃣"]..<positions["3️⃣"],
+              newText: """
+                var someFunction: String { return "" }
+                """
+            )
+          ]
+        ]
+      ),
+      command: nil
+    )
+
+    XCTAssertTrue(codeActions.contains(expectedCodeAction))
+  }
+
+  func testConvertZeroParameterFunctionToComputedPropertyIsNotShownFromTheBody() async throws {
+    try await assertCodeActions(
+      ##"""
+      func someFunction() -> String 1️⃣{
+        2️⃣return ""
+      }3️⃣
+      """##,
+      exhaustive: false
+    ) { uri, positions in
+      []
+    }
+  }
+
+  func testConvertComputedPropertyToZeroParameterFunction() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      1️⃣var someFunction: String2️⃣ { return "" }3️⃣
+      """,
+      uri: uri
+    )
+
+    let request = CodeActionRequest(
+      range: positions["1️⃣"]..<positions["2️⃣"],
+      context: .init(),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let result = try await testClient.send(request)
+
+    guard case .codeActions(let codeActions) = result else {
+      XCTFail("Expected code actions")
+      return
+    }
+
+    let expectedCodeAction = CodeAction(
+      title: "Convert to zero parameter function",
+      kind: .refactorInline,
+      diagnostics: nil,
+      edit: WorkspaceEdit(
+        changes: [
+          uri: [
+            TextEdit(
+              range: positions["1️⃣"]..<positions["3️⃣"],
+              newText: """
+                func someFunction() -> String { return "" }
+                """
+            )
+          ]
+        ]
+      ),
+      command: nil
+    )
+
+    XCTAssertTrue(codeActions.contains(expectedCodeAction))
+  }
+
+  func testConvertComputedPropertyToZeroParameterFunctionIsNotShownFromTheBody() async throws {
+    try await assertCodeActions(
+      ##"""
+      var someFunction: String 1️⃣{
+        2️⃣return ""
+      }3️⃣
+      """##,
+      exhaustive: false
+    ) { uri, positions in
+      []
+    }
+  }
+
   /// Retrieves the code action at a set of markers and asserts that it matches a list of expected code actions.
   ///
   /// - Parameters:
