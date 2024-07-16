@@ -58,7 +58,7 @@ final class ExecuteCommandTests: XCTestCase {
       return ApplyEditResponse(applied: true, failureReason: nil)
     }
 
-    try await testClient.send(request)
+    let _ = try await testClient.send(request)
 
     try await fulfillmentOfOrThrow([expectation])
 
@@ -123,7 +123,7 @@ final class ExecuteCommandTests: XCTestCase {
       return ApplyEditResponse(applied: true, failureReason: nil)
     }
 
-    try await testClient.send(request)
+    let _ = try await testClient.send(request)
 
     try await fulfillmentOfOrThrow([expectation])
 

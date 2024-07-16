@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import SwiftExtensions
 
 /// Gathers data from a stdout or stderr pipe. When it has accumulated a full line, calls the handler to handle the
 /// string.
