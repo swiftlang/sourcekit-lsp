@@ -305,6 +305,57 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     )
   }
 
+  func testTargetWithCustomModuleName() async throws {
+    let packageManifestWithCustomModuleName = """
+      let package = Package(
+        name: "MyLibrary",
+        targets: [
+          .testTarget(
+            name: "MyLibraryTests",
+            swiftSettings: [
+              .unsafeFlags(["-module-name", "Foo", "-module-name", "Bar"])
+            ]
+          )
+        ]
+      )
+      """
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/MyLibraryTests/MyTests.swift": """
+        import XCTest
+
+        1️⃣class MyTests: XCTestCase {
+          2️⃣func testMyLibrary() {}3️⃣
+        }4️⃣
+        """
+      ],
+      manifest: packageManifestWithCustomModuleName
+    )
+
+    // Last argument takes precedence, so expect Bar as the module name.
+
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
+
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "Bar.MyTests",
+          label: "MyTests",
+          location: try project.location(from: "1️⃣", to: "4️⃣", in: "MyTests.swift"),
+          children: [
+            TestItem(
+              id: "Bar.MyTests/testMyLibrary()",
+              label: "testMyLibrary()",
+              location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift")
+            )
+          ]
+        )
+      ]
+    )
+  }
+
   func testMultipleTargetsWithSameXCTestClassName() async throws {
     let packageManifestWithTwoTestTargets = """
       let package = Package(
