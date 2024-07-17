@@ -687,7 +687,7 @@ extension SourceKitLSPServer {
     guard let workspace = await workspaceForDocument(uri: uri) else {
       throw ResponseError.workspaceNotOpen(uri)
     }
-    guard let primaryFileLanguageService = workspace.documentService.value[uri] else {
+    guard let primaryFileLanguageService = workspace.documentService(for: uri) else {
       return nil
     }
 

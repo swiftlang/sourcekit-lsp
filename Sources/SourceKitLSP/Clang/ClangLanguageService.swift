@@ -663,6 +663,10 @@ extension ClangLanguageService {
   func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
     return try await forwardRequestToClangd(req)
   }
+
+  func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
+    throw ResponseError.unknown("unsupported method")
+  }
 }
 
 /// Clang build settings derived from a `FileBuildSettingsChange`.

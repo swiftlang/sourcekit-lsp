@@ -62,7 +62,7 @@ extension SwiftLanguageService {
       throw ResponseError.unknown("Connection to the editor closed")
     }
 
-    guard let sourceFileURL = expandMacroCommand.textDocument.uri.fileURL else {
+    guard let primaryFileURL = expandMacroCommand.textDocument.uri.fileURL else {
       throw ResponseError.unknown("Given URI is not a file URL")
     }
 
@@ -71,57 +71,26 @@ extension SwiftLanguageService {
     var completeExpansionFileContent = ""
     var completeExpansionDirectoryName = ""
 
-    var macroExpansionFilePaths: [URL] = []
+    var macroExpansionReferenceDocumentURLs: [ReferenceDocumentURL] = []
     for macroEdit in expansion.edits {
       if let bufferName = macroEdit.bufferName {
-        // buffer name without ".swift"
-        let macroExpansionBufferDirectoryName =
-          bufferName.hasSuffix(".swift")
-          ? String(bufferName.dropLast(6))
-          : bufferName
+        let macroExpansionReferenceDocumentURLData =
+          ReferenceDocumentURL.macroExpansion(
+            MacroExpansionReferenceDocumentURLData(
+              macroExpansionEditRange: macroEdit.range,
+              primaryFileURL: primaryFileURL,
+              selectionRange: expandMacroCommand.positionRange,
+              bufferName: bufferName
+            )
+          )
 
-        let macroExpansionBufferDirectoryURL = self.generatedMacroExpansionsPath
-          .appendingPathComponent(macroExpansionBufferDirectoryName)
+        macroExpansionReferenceDocumentURLs.append(macroExpansionReferenceDocumentURLData)
 
         completeExpansionDirectoryName += "\(bufferName)-"
 
-        do {
-          try FileManager.default.createDirectory(
-            at: macroExpansionBufferDirectoryURL,
-            withIntermediateDirectories: true
-          )
-        } catch {
-          throw ResponseError.unknown(
-            "Failed to create directory for macro expansion buffer at path: \(macroExpansionBufferDirectoryURL.path)"
-          )
-        }
-
-        // name of the source file
-        let macroExpansionFileName = sourceFileURL.deletingPathExtension().lastPathComponent
-
-        // github permalink notation for position range
-        let macroExpansionPositionRangeIndicator =
-          "L\(macroEdit.range.lowerBound.line + 1)C\(macroEdit.range.lowerBound.utf16index + 1)-L\(macroEdit.range.upperBound.line + 1)C\(macroEdit.range.upperBound.utf16index + 1)"
-
-        let macroExpansionFilePath =
-          macroExpansionBufferDirectoryURL
-          .appendingPathComponent(
-            "\(macroExpansionFileName)_\(macroExpansionPositionRangeIndicator).\(sourceFileURL.pathExtension)"
-          )
-
-        do {
-          try macroEdit.newText.write(to: macroExpansionFilePath, atomically: true, encoding: .utf8)
-        } catch {
-          throw ResponseError.unknown(
-            "Unable to write macro expansion to file path: \"\(macroExpansionFilePath.path)\""
-          )
-        }
-
-        macroExpansionFilePaths.append(macroExpansionFilePath)
-
         let editContent =
           """
-          // \(sourceFileURL.lastPathComponent) @ \(macroEdit.range.lowerBound.line + 1):\(macroEdit.range.lowerBound.utf16index + 1) - \(macroEdit.range.upperBound.line + 1):\(macroEdit.range.upperBound.utf16index + 1)
+          // \(primaryFileURL.lastPathComponent) @ \(macroEdit.range.lowerBound.line + 1):\(macroEdit.range.lowerBound.utf16index + 1) - \(macroEdit.range.upperBound.line + 1):\(macroEdit.range.upperBound.utf16index + 1)
           \(macroEdit.newText)
 
 
@@ -132,53 +101,13 @@ extension SwiftLanguageService {
       }
     }
 
-    // removes superfluous newline
-    if completeExpansionFileContent.hasSuffix("\n\n") {
-      completeExpansionFileContent.removeLast()
-    }
-
-    if completeExpansionDirectoryName.hasSuffix("-") {
-      completeExpansionDirectoryName.removeLast()
-    }
-
-    var completeExpansionFilePath =
-      self.generatedMacroExpansionsPath.appendingPathComponent(
-        Insecure.MD5.hash(
-          data: Data(completeExpansionDirectoryName.utf8)
-        )
-        .map { String(format: "%02hhx", $0) }  // maps each byte of the hash to its hex equivalent `String`
-        .joined()
-      )
-
-    do {
-      try FileManager.default.createDirectory(
-        at: completeExpansionFilePath,
-        withIntermediateDirectories: true
-      )
-    } catch {
-      throw ResponseError.unknown(
-        "Failed to create directory for complete macro expansion at path: \(completeExpansionFilePath.path)"
-      )
-    }
-
-    completeExpansionFilePath =
-      completeExpansionFilePath.appendingPathComponent(sourceFileURL.lastPathComponent)
-    do {
-      try completeExpansionFileContent.write(to: completeExpansionFilePath, atomically: true, encoding: .utf8)
-    } catch {
-      throw ResponseError.unknown(
-        "Unable to write complete macro expansion to file path: \"\(completeExpansionFilePath.path)\""
-      )
-    }
-
-    let completeMacroExpansionFilePath = completeExpansionFilePath
-    let expansionURIs = macroExpansionFilePaths.map {
-      return DocumentURI($0)
-    }
-
     if case .dictionary(let experimentalCapabilities) = self.capabilityRegistry.clientCapabilities.experimental,
-      case .bool(true) = experimentalCapabilities["workspace/peekDocuments"]
+      case .bool(true) = experimentalCapabilities["workspace/peekDocuments"],
+      case .bool(true) = experimentalCapabilities["workspace/getReferenceDocument"]
     {
+      let expansionURIs = try macroExpansionReferenceDocumentURLs.map {
+        return DocumentURI(try $0.url)
+      }
       Task {
         let req = PeekDocumentsRequest(
           uri: expandMacroCommand.textDocument.uri,
@@ -195,6 +124,47 @@ extension SwiftLanguageService {
         }
       }
     } else {
+      // removes superfluous newline
+      if completeExpansionFileContent.hasSuffix("\n\n") {
+        completeExpansionFileContent.removeLast()
+      }
+
+      if completeExpansionDirectoryName.hasSuffix("-") {
+        completeExpansionDirectoryName.removeLast()
+      }
+
+      var completeExpansionFilePath =
+        self.generatedMacroExpansionsPath.appendingPathComponent(
+          Insecure.MD5.hash(
+            data: Data(completeExpansionDirectoryName.utf8)
+          )
+          .map { String(format: "%02hhx", $0) }  // maps each byte of the hash to its hex equivalent `String`
+          .joined()
+        )
+
+      do {
+        try FileManager.default.createDirectory(
+          at: completeExpansionFilePath,
+          withIntermediateDirectories: true
+        )
+      } catch {
+        throw ResponseError.unknown(
+          "Failed to create directory for complete macro expansion at path: \(completeExpansionFilePath.path)"
+        )
+      }
+
+      completeExpansionFilePath =
+        completeExpansionFilePath.appendingPathComponent(primaryFileURL.lastPathComponent)
+      do {
+        try completeExpansionFileContent.write(to: completeExpansionFilePath, atomically: true, encoding: .utf8)
+      } catch {
+        throw ResponseError.unknown(
+          "Unable to write complete macro expansion to file path: \"\(completeExpansionFilePath.path)\""
+        )
+      }
+
+      let completeMacroExpansionFilePath = completeExpansionFilePath
+
       Task {
         let req = ShowDocumentRequest(uri: DocumentURI(completeMacroExpansionFilePath))
 
@@ -207,5 +177,30 @@ extension SwiftLanguageService {
         }
       }
     }
+  }
+
+  func expandMacro(macroExpansionURLData: MacroExpansionReferenceDocumentURLData) async throws -> String {
+    guard let sourceKitLSPServer = self.sourceKitLSPServer else {
+      // `SourceKitLSPServer` has been destructed. We are tearing down the
+      // language server. Nothing left to do.
+      throw ResponseError.unknown("Connection to the editor closed")
+    }
+
+    let expandMacroCommand = ExpandMacroCommand(
+      positionRange: macroExpansionURLData.selectionRange,
+      textDocument: TextDocumentIdentifier(macroExpansionURLData.primaryFile)
+    )
+
+    let expansion = try await self.refactoring(expandMacroCommand)
+
+    guard
+      let macroExpansionEdit = expansion.edits.filter({
+        $0.bufferName == macroExpansionURLData.bufferName
+      }).only
+    else {
+      throw ResponseError.unknown("Macro expansion edit doesn't exist")
+    }
+
+    return macroExpansionEdit.newText
   }
 }
