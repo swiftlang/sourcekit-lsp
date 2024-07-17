@@ -17,6 +17,13 @@ import XCTest
 
 final class CodeLensTests: XCTestCase {
   func testNoLenses() async throws {
+    var codeLensCapabilities = TextDocumentClientCapabilities.CodeLens()
+    codeLensCapabilities.supportedCommands = [
+      "swift.run": "swift.run",
+      "swift.debug": "swift.debug"
+    ]
+    let capabilities = ClientCapabilities(textDocument: TextDocumentClientCapabilities(codeLens: codeLensCapabilities))
+
     let project = try await SwiftPMTestProject(
       files: [
         "Test.swift": """
@@ -24,7 +31,8 @@ final class CodeLensTests: XCTestCase {
           public static func main() {}
         }
         """
-      ]
+      ],
+      capabilities: capabilities
     )
     let (uri, _) = try project.openDocument("Test.swift")
 
@@ -35,7 +43,35 @@ final class CodeLensTests: XCTestCase {
     XCTAssertEqual(response, [])
   }
 
+  func testNoClientCodeLenses() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": """
+        @main
+        struct MyApp {
+          public static func main() {}
+        }
+        """
+      ]
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+
+    let response = try await project.testClient.send(
+      CodeLensRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+
+    XCTAssertEqual(response, [])
+  }
+
   func testSuccessfulCodeLensRequest() async throws {
+    var codeLensCapabilities = TextDocumentClientCapabilities.CodeLens()
+    codeLensCapabilities.supportedCommands = [
+      "swift.run": "swift.run",
+      "swift.debug": "swift.debug"
+    ]
+    let capabilities = ClientCapabilities(textDocument: TextDocumentClientCapabilities(codeLens: codeLensCapabilities))
+
     let project = try await SwiftPMTestProject(
       files: [
         "Test.swift": """
@@ -44,7 +80,8 @@ final class CodeLensTests: XCTestCase {
           public static func main() {}
         }
         """
-      ]
+      ],
+      capabilities: capabilities
     )
 
     let (uri, positions) = try project.openDocument("Test.swift")

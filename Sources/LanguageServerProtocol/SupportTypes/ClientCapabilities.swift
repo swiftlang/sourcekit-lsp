@@ -465,6 +465,31 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
     }
   }
 
+  public struct CodeLens: Hashable, Codable, Sendable {
+
+    /// Whether the client supports dynamic registration of this request.
+    public var dynamicRegistration: Bool?
+
+    public var supportedCommands: [String: String]
+
+    public init(dynamicRegistration: Bool? = nil, supportedCommands: [String: String] = [:]) {
+      self.dynamicRegistration = dynamicRegistration
+      self.supportedCommands = supportedCommands
+    }
+
+    public init(from decoder: any Decoder) throws {
+      let registration = try DynamicRegistrationCapability(from: decoder)
+      self = CodeLens(
+        dynamicRegistration: registration.dynamicRegistration
+      )
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+      let registration = DynamicRegistrationCapability(dynamicRegistration: self.dynamicRegistration)
+      try registration.encode(to: encoder)
+    }
+  }
+
   /// Capabilities specific to `textDocument/rename`.
   public struct Rename: Hashable, Codable, Sendable {
 
@@ -666,7 +691,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
 
   public var codeAction: CodeAction? = nil
 
-  public var codeLens: DynamicRegistrationCapability? = nil
+  public var codeLens: CodeLens? = nil
 
   public var documentLink: DynamicRegistrationCapability? = nil
 
@@ -715,7 +740,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
     documentHighlight: DynamicRegistrationCapability? = nil,
     documentSymbol: DocumentSymbol? = nil,
     codeAction: CodeAction? = nil,
-    codeLens: DynamicRegistrationCapability? = nil,
+    codeLens: CodeLens? = nil,
     documentLink: DynamicRegistrationCapability? = nil,
     colorProvider: DynamicRegistrationCapability? = nil,
     formatting: DynamicRegistrationCapability? = nil,

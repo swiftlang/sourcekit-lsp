@@ -963,14 +963,30 @@ extension SourceKitLSPServer {
     // The below is a workaround for the vscode-swift extension since it cannot set client capabilities.
     // It passes "workspace/peekDocuments" through the `initializationOptions`.
     var clientCapabilities = req.capabilities
-    if case .dictionary(let initializationOptions) = req.initializationOptions,
-      let peekDocuments = initializationOptions["workspace/peekDocuments"]
-    {
-      if case .dictionary(var experimentalCapabilities) = clientCapabilities.experimental {
-        experimentalCapabilities["workspace/peekDocuments"] = peekDocuments
-        clientCapabilities.experimental = .dictionary(experimentalCapabilities)
-      } else {
-        clientCapabilities.experimental = .dictionary(["workspace/peekDocuments": peekDocuments])
+    if case .dictionary(let initializationOptions) = req.initializationOptions {
+      if let peekDocuments = initializationOptions["workspace/peekDocuments"] {
+        if case .dictionary(var experimentalCapabilities) = clientCapabilities.experimental {
+          experimentalCapabilities["workspace/peekDocuments"] = peekDocuments
+          clientCapabilities.experimental = .dictionary(experimentalCapabilities)
+        } else {
+          clientCapabilities.experimental = .dictionary(["workspace/peekDocuments": peekDocuments])
+        }
+      }
+
+      // The client announces what CodeLenses it supports, and the LSP will only return
+      // ones found in the supportedCommands dictionary.
+      if let codeLens = initializationOptions["textDocument/codeLens"],
+        case let .dictionary(codeLensConfig) = codeLens,
+        case let .dictionary(supportedCommands) = codeLensConfig["supportedCommands"]
+      {
+        let commandMap = supportedCommands.compactMapValues({
+          if case let .string(val) = $0 {
+            return val
+          }
+          return nil
+        })
+
+        clientCapabilities.textDocument?.codeLens?.supportedCommands = commandMap
       }
     }
 
@@ -1102,7 +1118,7 @@ extension SourceKitLSPServer {
           supportsCodeActions: true
         )
       ),
-      codeLensProvider: CodeLensOptions(resolveProvider: false),
+      codeLensProvider: CodeLensOptions(),
       documentFormattingProvider: .value(DocumentFormattingOptions(workDoneProgress: false)),
       renameProvider: .value(RenameOptions(prepareProvider: true)),
       colorProvider: .bool(true),
@@ -1163,9 +1179,6 @@ extension SourceKitLSPServer {
     // whether it supports pull diagnostics.
     if let diagnosticOptions = server.diagnosticProvider {
       await registry.registerDiagnosticIfNeeded(options: diagnosticOptions, for: languages, server: self)
-    }
-    if let codeLensOptions = server.codeLensProvider {
-      await registry.registerCodeLensIfNeeded(options: codeLensOptions, for: languages, server: self)
     }
     if let commandOptions = server.executeCommandProvider {
       await registry.registerExecuteCommandIfNeeded(commands: commandOptions.commands, server: self)

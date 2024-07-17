@@ -16,13 +16,17 @@ import SwiftSyntax
 /// Scans a source file for classes or structs annotated with `@main` and returns a code lens for them.
 final class SwiftCodeLensScanner: SyntaxVisitor {
   /// The document snapshot of the syntax tree that is being walked.
-  private var snapshot: DocumentSnapshot
+  private let snapshot: DocumentSnapshot
 
   /// The collection of CodeLenses found in the document.
   private var result: [CodeLens] = []
 
-  private init(snapshot: DocumentSnapshot) {
+  /// The map of supported commands and their client side command names
+  private let supportedCommands: [String: String]
+
+  private init(snapshot: DocumentSnapshot, supportedCommands: [String: String]) {
     self.snapshot = snapshot
+    self.supportedCommands = supportedCommands
     super.init(viewMode: .fixedUp)
   }
 
@@ -30,15 +34,16 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
   /// and returns CodeLens's with Commands to run/debug the application.
   public static func findCodeLenses(
     in snapshot: DocumentSnapshot,
-    syntaxTreeManager: SyntaxTreeManager
+    syntaxTreeManager: SyntaxTreeManager,
+    supportedCommands: [String: String]
   ) async -> [CodeLens] {
-    guard snapshot.text.contains("@main") else {
+    guard snapshot.text.contains("@main") && !supportedCommands.isEmpty else {
       // This is intended to filter out files that obviously do not contain an entry point.
       return []
     }
 
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    let visitor = SwiftCodeLensScanner(snapshot: snapshot)
+    let visitor = SwiftCodeLensScanner(snapshot: snapshot, supportedCommands: supportedCommands)
     visitor.walk(syntaxTree)
     return visitor.result
   }
@@ -57,21 +62,25 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
     if attribute.trimmedDescription == "@main" {
       let range = self.snapshot.absolutePositionRange(of: attribute.trimmedRange)
 
-      // Return commands for running/debugging the executable.
-      // These command names must be recognized by the client and so should not be chosen arbitrarily.
-      self.result.append(
-        CodeLens(
-          range: range,
-          command: Command(title: "Run", command: "swift.run", arguments: nil)
+      if let runCommand = supportedCommands["swift.run"] {
+        // Return commands for running/debugging the executable.
+        // These command names must be recognized by the client and so should not be chosen arbitrarily.
+        self.result.append(
+          CodeLens(
+            range: range,
+            command: Command(title: "Run", command: runCommand, arguments: nil)
+          )
         )
-      )
+      }
 
-      self.result.append(
-        CodeLens(
-          range: range,
-          command: Command(title: "Debug", command: "swift.debug", arguments: nil)
+      if let debugCommand = supportedCommands["swift.debug"] {
+        self.result.append(
+          CodeLens(
+            range: range,
+            command: Command(title: "Debug", command: debugCommand, arguments: nil)
+          )
         )
-      )
+      }
     }
   }
 }

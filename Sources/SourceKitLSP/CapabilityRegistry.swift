@@ -83,6 +83,10 @@ package final actor CapabilityRegistry {
     clientCapabilities.textDocument?.publishDiagnostics?.codeDescriptionSupport == true
   }
 
+  public var supportedCodeLensCommands: [String: String] {
+    clientCapabilities.textDocument?.codeLens?.supportedCommands ?? [:]
+  }
+
   /// Since LSP 3.17.0, diagnostics can be reported through pull-based requests in addition to the existing push-based
   /// publish notifications.
   ///
@@ -315,29 +319,6 @@ package final actor CapabilityRegistry {
       in: server,
       registrationDict: pullDiagnostics,
       setRegistrationDict: { pullDiagnostics[$0] = $1 }
-    )
-  }
-
-  /// Dynamically register code lens capabilities,
-  /// if the client supports it.
-  public func registerCodeLensIfNeeded(
-    options: CodeLensOptions,
-    for languages: [Language],
-    server: SourceKitLSPServer
-  ) async {
-    guard clientHasDynamicDocumentCodeLensRegistration else { return }
-
-    await registerLanguageSpecificCapability(
-      options: CodeLensRegistrationOptions(
-        // Code lenses should only apply to saved files
-        documentSelector: DocumentSelector(for: languages, scheme: "file"),
-        codeLensOptions: options
-      ),
-      forMethod: CodeLensRequest.method,
-      languages: languages,
-      in: server,
-      registrationDict: codeLens,
-      setRegistrationDict: { codeLens[$0] = $1 }
     )
   }
 
