@@ -139,22 +139,9 @@ Once you've pushed your branch, you should see an option on this repository's pa
 
 ## Opening a PR for Release Branch
 
-In order for a pull request to be considered for inclusion in a release branch (e.g. `release/6.0`) after it has been cut, it must meet the following requirements:
+See the [dedicated section][section] on the Swift project website.
 
-1. The title of the PR should start with the tag `[{swift version number}]`. For example, `[6.0]` for the Swift 6.0 release branch.
-
-1. [This][form] should be filled out in the description of the PR.
-   To use this template when creating a PR, append the `template=release.md`
-   query parameter to the current URL and refresh.
-   For example:
-   ```diff
-   -https://github.com/swiftlang/sourcekit-lsp/compare/main...my-branch?quick_pull=1
-   +https://github.com/swiftlang/sourcekit-lsp/compare/main...my-branch?quick_pull=1&template=release.md
-   ```
-
-All changes going into a release branch must go through pull requests that are approved and merged by the corresponding release manager.
-
-[form]: https://github.com/swiftlang/.github/blob/main/PULL_REQUEST_TEMPLATE/release.md?plain=1
+[section]: https://www.swift.org/contributing/#release-branch-pull-requests
 
 ## Review and CI Testing
 
