@@ -455,8 +455,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
     return buildPath.appending(components: "index", "db")
   }
 
-  package var indexPrefixMappings: [PathPrefixMapping] { return [] }
-
   /// Return the compiler arguments for the given source file within a target, making any necessary adjustments to
   /// account for differences in the SwiftPM versions being linked into SwiftPM and being installed in the toolchain.
   private func compilerArguments(for file: DocumentURI, in buildTarget: any SwiftBuildTarget) async throws -> [String] {

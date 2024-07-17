@@ -72,9 +72,6 @@ package actor BuildServerBuildSystem: MessageHandler {
   package private(set) var indexDatabasePath: AbsolutePath?
   package private(set) var indexStorePath: AbsolutePath?
 
-  // FIXME: Add support for prefix mappings to the Build Server protocol.
-  package var indexPrefixMappings: [PathPrefixMapping] { return [] }
-
   /// Delegate to handle any build system events.
   package weak var delegate: BuildSystemDelegate?
 
