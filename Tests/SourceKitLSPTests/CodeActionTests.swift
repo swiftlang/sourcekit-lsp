@@ -1006,6 +1006,93 @@ final class CodeActionTests: XCTestCase {
     }
   }
 
+  func testApplyDeMorganLawReducedBoolean() async throws {
+    try await assertCodeActions(
+      """
+      case 0 where 1️⃣((((((a !== !(2️⃣b || c)))) && !d)))3️⃣:
+      """,
+      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "3️⃣"), ("2️⃣", "3️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert ((((((a !== !(b || c)))) && !d))) to !((((((a === !(b || c)))) || d)))",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["3️⃣"],
+                  newText: "!((((((a === !(b || c)))) || d)))"
+                )
+              ]
+            ]
+          ),
+          command: nil
+        )
+      ]
+    }
+  }
+
+  func testApplyDeMorganLawReducedBooleanNonNested() async throws {
+    try await assertCodeActions(
+      """
+      guard 1️⃣!a || 2️⃣!b || c 3️⃣!= d4️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "3️⃣"), ("2️⃣", "3️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert !a || !b || c != d to !(a && b && c == d)",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["4️⃣"],
+                  newText: "!(a && b && c == d)"
+                )
+              ]
+            ]
+          ),
+          command: nil
+        )
+      ]
+    }
+  }
+
+  func testApplyDeMorganLawSpreadBitwise() async throws {
+    try await assertCodeActions(
+      """
+      a = 1️⃣~((b 2️⃣| c | d | e))3️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "3️⃣"), ("2️⃣", "3️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert ~((b | c | d | e)) to ((~b & ~c & ~d & ~e))",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["3️⃣"],
+                  newText: "((~b & ~c & ~d & ~e))"
+                )
+              ]
+            ]
+          ),
+          command: nil
+        )
+      ]
+    }
+  }
+
   /// Retrieves the code action at a set of markers and asserts that it matches a list of expected code actions.
   ///
   /// - Parameters:
