@@ -13,6 +13,10 @@
 import Csourcekitd
 import LSPLogging
 
+#if canImport(stdlib_h)
+import stdlib_h
+#endif
+
 #if canImport(Glibc)
 import Glibc
 #elseif canImport(Musl)
