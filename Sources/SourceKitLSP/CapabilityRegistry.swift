@@ -38,9 +38,6 @@ package final actor CapabilityRegistry {
   /// Dynamically registered pull diagnostics options.
   private var pullDiagnostics: [CapabilityRegistration: DiagnosticRegistrationOptions] = [:]
 
-  /// Dynamically registered code lens options.
-  private var codeLens: [CapabilityRegistration: CodeLensRegistrationOptions] = [:]
-
   /// Dynamically registered file watchers.
   private var didChangeWatchedFiles: DidChangeWatchedFilesRegistrationOptions?
 
@@ -83,7 +80,7 @@ package final actor CapabilityRegistry {
     clientCapabilities.textDocument?.publishDiagnostics?.codeDescriptionSupport == true
   }
 
-  public var supportedCodeLensCommands: [String: String] {
+  public var supportedCodeLensCommands: [SupportedCodeLensCommand: String] {
     clientCapabilities.textDocument?.codeLens?.supportedCommands ?? [:]
   }
 

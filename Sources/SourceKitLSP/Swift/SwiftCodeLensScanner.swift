@@ -22,9 +22,9 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
   private var result: [CodeLens] = []
 
   /// The map of supported commands and their client side command names
-  private let supportedCommands: [String: String]
+  private let supportedCommands: [SupportedCodeLensCommand: String]
 
-  private init(snapshot: DocumentSnapshot, supportedCommands: [String: String]) {
+  private init(snapshot: DocumentSnapshot, supportedCommands: [SupportedCodeLensCommand: String]) {
     self.snapshot = snapshot
     self.supportedCommands = supportedCommands
     super.init(viewMode: .fixedUp)
@@ -35,7 +35,7 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
   public static func findCodeLenses(
     in snapshot: DocumentSnapshot,
     syntaxTreeManager: SyntaxTreeManager,
-    supportedCommands: [String: String]
+    supportedCommands: [SupportedCodeLensCommand: String]
   ) async -> [CodeLens] {
     guard snapshot.text.contains("@main") && !supportedCommands.isEmpty else {
       // This is intended to filter out files that obviously do not contain an entry point.
@@ -62,7 +62,7 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
     if attribute.trimmedDescription == "@main" {
       let range = self.snapshot.absolutePositionRange(of: attribute.trimmedRange)
 
-      if let runCommand = supportedCommands["swift.run"] {
+      if let runCommand = supportedCommands[SupportedCodeLensCommand.run] {
         // Return commands for running/debugging the executable.
         // These command names must be recognized by the client and so should not be chosen arbitrarily.
         self.result.append(
@@ -73,7 +73,7 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
         )
       }
 
-      if let debugCommand = supportedCommands["swift.debug"] {
+      if let debugCommand = supportedCommands[SupportedCodeLensCommand.debug] {
         self.result.append(
           CodeLens(
             range: range,

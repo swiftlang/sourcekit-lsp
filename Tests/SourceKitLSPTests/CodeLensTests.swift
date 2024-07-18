@@ -19,8 +19,8 @@ final class CodeLensTests: XCTestCase {
   func testNoLenses() async throws {
     var codeLensCapabilities = TextDocumentClientCapabilities.CodeLens()
     codeLensCapabilities.supportedCommands = [
-      "swift.run": "swift.run",
-      "swift.debug": "swift.debug"
+      SupportedCodeLensCommand.run: "swift.run",
+      SupportedCodeLensCommand.debug: "swift.debug",
     ]
     let capabilities = ClientCapabilities(textDocument: TextDocumentClientCapabilities(codeLens: codeLensCapabilities))
 
@@ -67,8 +67,8 @@ final class CodeLensTests: XCTestCase {
   func testSuccessfulCodeLensRequest() async throws {
     var codeLensCapabilities = TextDocumentClientCapabilities.CodeLens()
     codeLensCapabilities.supportedCommands = [
-      "swift.run": "swift.run",
-      "swift.debug": "swift.debug"
+      SupportedCodeLensCommand.run: "swift.run",
+      SupportedCodeLensCommand.debug: "swift.debug",
     ]
     let capabilities = ClientCapabilities(textDocument: TextDocumentClientCapabilities(codeLens: codeLensCapabilities))
 

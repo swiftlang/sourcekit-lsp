@@ -979,14 +979,14 @@ extension SourceKitLSPServer {
         case let .dictionary(codeLensConfig) = codeLens,
         case let .dictionary(supportedCommands) = codeLensConfig["supportedCommands"]
       {
-        let commandMap = supportedCommands.compactMapValues({
-          if case let .string(val) = $0 {
-            return val
+        let commandMap = supportedCommands.compactMap { (key, value) in
+          if case let .string(clientCommand) = value {
+            return (SupportedCodeLensCommand(rawValue: key), clientCommand)
           }
           return nil
-        })
+        }
 
-        clientCapabilities.textDocument?.codeLens?.supportedCommands = commandMap
+        clientCapabilities.textDocument?.codeLens?.supportedCommands = Dictionary(uniqueKeysWithValues: commandMap)
       }
     }
 

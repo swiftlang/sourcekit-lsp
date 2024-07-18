@@ -470,23 +470,17 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
     /// Whether the client supports dynamic registration of this request.
     public var dynamicRegistration: Bool?
 
-    public var supportedCommands: [String: String]
+    /// Dictionary of supported commands announced by the client.
+    /// The key is the CodeLens name recognized by SourceKit-LSP and the
+    /// value is the command as recognized by the client.
+    public var supportedCommands: [SupportedCodeLensCommand: String]?
 
-    public init(dynamicRegistration: Bool? = nil, supportedCommands: [String: String] = [:]) {
+    public init(
+      dynamicRegistration: Bool? = nil,
+      supportedCommands: [SupportedCodeLensCommand: String] = [:]
+    ) {
       self.dynamicRegistration = dynamicRegistration
       self.supportedCommands = supportedCommands
-    }
-
-    public init(from decoder: any Decoder) throws {
-      let registration = try DynamicRegistrationCapability(from: decoder)
-      self = CodeLens(
-        dynamicRegistration: registration.dynamicRegistration
-      )
-    }
-
-    public func encode(to encoder: any Encoder) throws {
-      let registration = DynamicRegistrationCapability(dynamicRegistration: self.dynamicRegistration)
-      try registration.encode(to: encoder)
     }
   }
 
