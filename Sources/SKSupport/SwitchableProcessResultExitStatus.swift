@@ -14,7 +14,7 @@ import struct TSCBasic.ProcessResult
 
 /// Same as `ProcessResult.ExitStatus` in tools-support-core but has the same cases on all platforms and is thus easier
 /// to switch over
-public enum SwitchableProcessResultExitStatus {
+package enum SwitchableProcessResultExitStatus {
   /// The process was terminated normally with a exit code.
   case terminated(code: Int32)
   /// The process was terminated abnormally.
@@ -23,7 +23,7 @@ public enum SwitchableProcessResultExitStatus {
   case signalled(signal: Int32)
 
   /// A description of the exit status that can be used in sentences like `Finished with <exit status description>`.
-  public var description: String {
+  package var description: String {
     switch self {
     case .terminated(code: let code):
       "exit code \(code)"
@@ -36,7 +36,7 @@ public enum SwitchableProcessResultExitStatus {
 }
 
 extension ProcessResult.ExitStatus {
-  public var exhaustivelySwitchable: SwitchableProcessResultExitStatus {
+  package var exhaustivelySwitchable: SwitchableProcessResultExitStatus {
     #if os(Windows)
     switch self {
     case .terminated(let code):

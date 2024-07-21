@@ -13,7 +13,7 @@
 extension Swift.Result {
 
   /// Project out the .success value, or nil.
-  public var success: Success? {
+  package var success: Success? {
     switch self {
     case .success(let value):
       return value
@@ -23,7 +23,7 @@ extension Swift.Result {
   }
 
   /// Project out the .failure value, or nil.
-  public var failure: Failure? {
+  package var failure: Failure? {
     switch self {
     case .failure(let error):
       return error

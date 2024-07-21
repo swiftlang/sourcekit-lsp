@@ -17,7 +17,7 @@ import SourceKitD
 import SwiftBasicFormat
 
 extension SwiftLanguageService {
-  public func completion(_ req: CompletionRequest) async throws -> CompletionList {
+  package func completion(_ req: CompletionRequest) async throws -> CompletionList {
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
 
     let completionPos = await adjustPositionToStartOfIdentifier(req.position, in: snapshot)

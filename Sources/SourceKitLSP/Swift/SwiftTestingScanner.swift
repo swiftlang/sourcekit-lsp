@@ -191,7 +191,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
   }
 
   /// Public entry point. Scans the syntax tree of the given snapshot for swift-testing tests.
-  public static func findTestSymbols(
+  package static func findTestSymbols(
     in snapshot: DocumentSnapshot,
     syntaxTreeManager: SyntaxTreeManager
   ) async -> [AnnotatedTestItem] {

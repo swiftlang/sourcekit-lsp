@@ -19,7 +19,7 @@ import XCTest
 /// correct result.
 ///
 /// If `bodyHasOneSecondDelay` is true, it is assume that the body already has a one-second delay between iterations.
-public func repeatUntilExpectedResult(
+package func repeatUntilExpectedResult(
   _ body: () async throws -> Bool,
   bodyHasOneSecondDelay: Bool = false,
   timeout: TimeInterval = defaultTimeout,

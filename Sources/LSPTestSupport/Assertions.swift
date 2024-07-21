@@ -13,7 +13,7 @@
 import XCTest
 
 /// Same as `XCTAssertNoThrow` but executes the trailing closure.
-public func assertNoThrow<T>(
+package func assertNoThrow<T>(
   _ expression: () throws -> T,
   _ message: @autoclosure () -> String = "",
   file: StaticString = #filePath,
@@ -23,7 +23,7 @@ public func assertNoThrow<T>(
 }
 
 /// Same as `assertNoThrow` but allows the closure to be `async`.
-public func assertNoThrow<T>(
+package func assertNoThrow<T>(
   _ expression: () async throws -> T,
   _ message: @autoclosure () -> String = "",
   file: StaticString = #filePath,
@@ -37,7 +37,7 @@ public func assertNoThrow<T>(
 }
 
 /// Same as `XCTAssertThrows` but allows the expression to be async
-public func assertThrowsError<T>(
+package func assertThrowsError<T>(
   _ expression: @autoclosure () async throws -> T,
   _ message: @autoclosure () -> String = "",
   file: StaticString = #filePath,
@@ -59,7 +59,7 @@ public func assertThrowsError<T>(
 
 /// Same as `XCTAssertEqual` but doesn't take autoclosures and thus `expression1`
 /// and `expression2` can contain `await`.
-public func assertEqual<T: Equatable>(
+package func assertEqual<T: Equatable>(
   _ expression1: T,
   _ expression2: T,
   _ message: @autoclosure () -> String = "",
@@ -70,7 +70,7 @@ public func assertEqual<T: Equatable>(
 }
 
 /// Same as `XCTAssertTrue` but doesn't take autoclosures and thus `expression` can contain `await`.
-public func assertTrue(
+package func assertTrue(
   _ expression: Bool,
   _ message: @autoclosure () -> String = "",
   file: StaticString = #filePath,
@@ -81,7 +81,7 @@ public func assertTrue(
 
 /// Same as `XCTAssertNil` but doesn't take autoclosures and thus `expression`
 /// can contain `await`.
-public func assertNil<T>(
+package func assertNil<T>(
   _ expression: T?,
   _ message: @autoclosure () -> String = "",
   file: StaticString = #filePath,
@@ -92,7 +92,7 @@ public func assertNil<T>(
 
 /// Same as `XCTAssertNotNil` but doesn't take autoclosures and thus `expression`
 /// can contain `await`.
-public func assertNotNil<T>(
+package func assertNotNil<T>(
   _ expression: T?,
   _ message: @autoclosure () -> String = "",
   file: StaticString = #filePath,
@@ -103,7 +103,7 @@ public func assertNotNil<T>(
 
 /// Same as `XCTUnwrap` but doesn't take autoclosures and thus `expression`
 /// can contain `await`.
-public func unwrap<T>(
+package func unwrap<T>(
   _ expression: T?,
   _ message: @autoclosure () -> String = "",
   file: StaticString = #filePath,
@@ -126,7 +126,7 @@ extension XCTestCase {
 
   /// Wait for the given expectations to be fulfilled. If the expectations aren't
   /// fulfilled within `timeout`, throw an error, aborting the test execution.
-  public func fulfillmentOfOrThrow(
+  package func fulfillmentOfOrThrow(
     _ expectations: [XCTestExpectation],
     timeout: TimeInterval = defaultTimeout,
     enforceOrder enforceOrderOfFulfillment: Bool = false

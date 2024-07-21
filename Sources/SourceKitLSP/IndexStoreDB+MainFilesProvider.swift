@@ -17,7 +17,7 @@ import SKCore
 import SemanticIndex
 
 extension UncheckedIndex {
-  public func mainFilesContainingFile(_ uri: DocumentURI) -> Set<DocumentURI> {
+  package func mainFilesContainingFile(_ uri: DocumentURI) -> Set<DocumentURI> {
     let mainFiles: Set<DocumentURI>
     if let url = uri.fileURL {
       let mainFilePaths = Set(self.underlyingIndexStoreDB.mainFilesContainingFile(path: url.path))

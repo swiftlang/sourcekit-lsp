@@ -29,7 +29,7 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
     super.init(viewMode: .fixedUp)
   }
 
-  public static func findTestSymbols(
+  package static func findTestSymbols(
     in snapshot: DocumentSnapshot,
     syntaxTreeManager: SyntaxTreeManager
   ) async -> [AnnotatedTestItem] {

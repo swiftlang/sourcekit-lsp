@@ -37,7 +37,7 @@ extension Language {
 
 extension DocumentURI {
   /// Construct a `DocumentURI` by creating a unique URI for a document of the given language.
-  public init(for language: Language, testName: String = #function) {
+  package init(for language: Language, testName: String = #function) {
     let testBaseName = testName.prefix(while: \.isLetter)
 
     #if os(Windows)
@@ -50,10 +50,10 @@ extension DocumentURI {
   }
 }
 
-public let cleanScratchDirectories = (ProcessInfo.processInfo.environment["SOURCEKITLSP_KEEP_TEST_SCRATCH_DIR"] == nil)
+package let cleanScratchDirectories = (ProcessInfo.processInfo.environment["SOURCEKITLSP_KEEP_TEST_SCRATCH_DIR"] == nil)
 
 /// An empty directory in which a test with `#function` name `testName` can store temporary data.
-public func testScratchDir(testName: String = #function) throws -> URL {
+package func testScratchDir(testName: String = #function) throws -> URL {
   let testBaseName = testName.prefix(while: \.isLetter)
 
   var uuid = UUID().uuidString[...]
@@ -74,7 +74,7 @@ public func testScratchDir(testName: String = #function) throws -> URL {
 ///
 /// The temporary directory will be deleted at the end of `directory` unless the
 /// `SOURCEKITLSP_KEEP_TEST_SCRATCH_DIR` environment variable is set.
-public func withTestScratchDir<T>(
+package func withTestScratchDir<T>(
   @_inheritActorContext _ body: @Sendable (AbsolutePath) async throws -> T,
   testName: String = #function
 ) async throws -> T {

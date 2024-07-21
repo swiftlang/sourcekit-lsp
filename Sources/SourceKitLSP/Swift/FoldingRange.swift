@@ -253,7 +253,7 @@ fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
 }
 
 extension SwiftLanguageService {
-  public func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
+  package func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
     let foldingRangeCapabilities = capabilityRegistry.clientCapabilities.textDocument?.foldingRange
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
 

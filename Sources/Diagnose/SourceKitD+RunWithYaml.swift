@@ -14,8 +14,7 @@ import SourceKitD
 
 extension SourceKitD {
   /// Parse the request from YAML and execute it.
-  @_spi(Testing)
-  public func run(requestYaml: String) async throws -> SKDResponse {
+  package func run(requestYaml: String) async throws -> SKDResponse {
     let request = try requestYaml.cString(using: .utf8)?.withUnsafeBufferPointer { buffer in
       var error: UnsafeMutablePointer<CChar>?
       let req = api.request_create_from_yaml(buffer.baseAddress!, &error)

@@ -21,15 +21,15 @@ import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 
 /// A simple BuildSystem suitable as a fallback when accurate settings are unknown.
-public actor FallbackBuildSystem {
+package actor FallbackBuildSystem {
   private let options: SourceKitLSPOptions.FallbackBuildSystemOptions
 
-  public init(options: SourceKitLSPOptions.FallbackBuildSystemOptions) {
+  package init(options: SourceKitLSPOptions.FallbackBuildSystemOptions) {
     self.options = options
   }
 
   /// The path to the SDK.
-  public lazy var sdkpath: AbsolutePath? = {
+  package lazy var sdkpath: AbsolutePath? = {
     guard Platform.current == .darwin else { return nil }
     return try? AbsolutePath(
       validating: Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx")
@@ -37,24 +37,20 @@ public actor FallbackBuildSystem {
     )
   }()
 
-  @_spi(Testing) public func setSdkPath(_ newValue: AbsolutePath?) {
-    self.sdkpath = newValue
-  }
-
   /// Delegate to handle any build system events.
-  public weak var delegate: BuildSystemDelegate? = nil
+  package weak var delegate: BuildSystemDelegate? = nil
 
-  public func setDelegate(_ delegate: BuildSystemDelegate?) async {
+  package func setDelegate(_ delegate: BuildSystemDelegate?) async {
     self.delegate = delegate
   }
 
-  public var indexStorePath: AbsolutePath? { return nil }
+  package var indexStorePath: AbsolutePath? { return nil }
 
-  public var indexDatabasePath: AbsolutePath? { return nil }
+  package var indexDatabasePath: AbsolutePath? { return nil }
 
-  public var indexPrefixMappings: [PathPrefixMapping] { return [] }
+  package var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
-  public func buildSettings(for uri: DocumentURI, language: Language) -> FileBuildSettings? {
+  package func buildSettings(for uri: DocumentURI, language: Language) -> FileBuildSettings? {
     var fileBuildSettings: FileBuildSettings?
     switch language {
     case .swift:

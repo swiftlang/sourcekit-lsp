@@ -30,7 +30,7 @@ actor TestBuildSystem: BuildSystem {
 
   weak var delegate: BuildSystemDelegate?
 
-  public func setDelegate(_ delegate: BuildSystemDelegate?) async {
+  func setDelegate(_ delegate: BuildSystemDelegate?) async {
     self.delegate = delegate
   }
 
@@ -44,7 +44,7 @@ actor TestBuildSystem: BuildSystem {
     buildSettingsByFile[uri] = buildSettings
   }
 
-  public nonisolated var supportsPreparation: Bool { false }
+  nonisolated var supportsPreparation: Bool { false }
 
   func buildSettings(
     for document: DocumentURI,
@@ -54,32 +54,32 @@ actor TestBuildSystem: BuildSystem {
     return buildSettingsByFile[document]
   }
 
-  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+  func defaultLanguage(for document: DocumentURI) async -> Language? {
     return nil
   }
 
-  public func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+  func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
     return nil
   }
 
-  public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
+  func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
     return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }
 
-  public func prepare(
+  func prepare(
     targets: [ConfiguredTarget],
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     throw PrepareNotSupportedError()
   }
 
-  public func generateBuildGraph(allowFileSystemWrites: Bool) {}
+  func generateBuildGraph(allowFileSystemWrites: Bool) {}
 
-  public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
   }
 
-  public func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
   }
 
@@ -93,7 +93,7 @@ actor TestBuildSystem: BuildSystem {
 
   func filesDidChange(_ events: [FileEvent]) {}
 
-  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
+  func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
     if buildSettingsByFile[uri] != nil {
       return .handled
     } else {

@@ -29,7 +29,7 @@ extension sourcekitd_api_request_handle_t: @unchecked Sendable {}
 ///
 /// *Implementors* are expected to handle initialization and shutdown, e.g. during `init` and
 /// `deinit` or by wrapping an existing sourcekitd session that outlives this object.
-public protocol SourceKitD: AnyObject, Sendable {
+package protocol SourceKitD: AnyObject, Sendable {
   /// The sourcekitd API functions.
   var api: sourcekitd_api_functions_t { get }
 
@@ -70,7 +70,7 @@ public protocol SourceKitD: AnyObject, Sendable {
   func logRequestCancellation(request: SKDRequestDictionary)
 }
 
-public enum SKDError: Error, Equatable {
+package enum SKDError: Error, Equatable {
   /// The service has crashed.
   case connectionInterrupted
 
@@ -99,7 +99,7 @@ extension SourceKitD {
   ///     declare the request as having timed out.
   ///   - fileContents: The contents of the file that the request operates on. If sourcekitd crashes, the file contents
   ///     will be logged.
-  public func send(
+  package func send(
     _ request: SKDRequestDictionary,
     timeout: Duration,
     fileContents: String?
@@ -138,6 +138,6 @@ extension SourceKitD {
 }
 
 /// A sourcekitd notification handler in a class to allow it to be uniquely referenced.
-public protocol SKDNotificationHandler: AnyObject, Sendable {
+package protocol SKDNotificationHandler: AnyObject, Sendable {
   func notification(_: SKDResponse) -> Void
 }

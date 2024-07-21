@@ -29,10 +29,10 @@ import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 import var TSCBasic.localFileSystem
 
-public typealias URL = Foundation.URL
+package typealias URL = Foundation.URL
 
 /// Disambiguate LanguageServerProtocol.Language and IndexstoreDB.Language
-public typealias Language = LanguageServerProtocol.Language
+package typealias Language = LanguageServerProtocol.Language
 
 /// A request and a callback that returns the request's reply
 fileprivate final class RequestAndReply<Params: RequestType>: Sendable {
@@ -42,7 +42,7 @@ fileprivate final class RequestAndReply<Params: RequestType>: Sendable {
   /// Whether a reply has been made. Every request must reply exactly once.
   private let replied: AtomicBool = AtomicBool(initialValue: false)
 
-  public init(_ request: Params, reply: @escaping @Sendable (LSPResult<Params.Response>) -> Void) {
+  package init(_ request: Params, reply: @escaping @Sendable (LSPResult<Params.Response>) -> Void) {
     self.params = request
     self.replyBlock = reply
   }
@@ -68,7 +68,7 @@ fileprivate final class RequestAndReply<Params: RequestType>: Sendable {
 /// This is the client-facing language server implementation, providing indexing, multiple-toolchain
 /// and cross-language support. Requests may be dispatched to language-specific services or handled
 /// centrally, but this is transparent to the client.
-public actor SourceKitLSPServer {
+package actor SourceKitLSPServer {
   /// The queue on which all messages (notifications, requests, responses) are
   /// handled.
   ///
@@ -91,7 +91,7 @@ public actor SourceKitLSPServer {
   private let workspaceQueue = AsyncQueue<Serial>()
 
   /// The connection to the editor.
-  public let client: Connection
+  package let client: Connection
 
   /// Set to `true` after the `SourceKitLSPServer` has send the reply to the `InitializeRequest`.
   ///
@@ -110,11 +110,11 @@ public actor SourceKitLSPServer {
 
   let toolchainRegistry: ToolchainRegistry
 
-  public var capabilityRegistry: CapabilityRegistry?
+  package var capabilityRegistry: CapabilityRegistry?
 
   var languageServices: [LanguageServerType: [LanguageService]] = [:]
 
-  @_spi(Testing) public let documentManager = DocumentManager()
+  package let documentManager = DocumentManager()
 
   /// The `TaskScheduler` that schedules all background indexing tasks.
   ///
@@ -167,8 +167,7 @@ public actor SourceKitLSPServer {
     return workspacesAndIsImplicit.map(\.workspace)
   }
 
-  @_spi(Testing)
-  public func setWorkspaces(_ newValue: [(workspace: Workspace, isImplicit: Bool)]) {
+  package func setWorkspaces(_ newValue: [(workspace: Workspace, isImplicit: Bool)]) {
     workspaceQueue.async {
       self.workspacesAndIsImplicit = newValue
     }
@@ -200,7 +199,7 @@ public actor SourceKitLSPServer {
   var onExit: () -> Void
 
   /// Creates a language server for the given client.
-  public init(
+  package init(
     client: Connection,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
@@ -289,7 +288,7 @@ public actor SourceKitLSPServer {
     return nil
   }
 
-  public func workspaceForDocument(uri: DocumentURI) async -> Workspace? {
+  package func workspaceForDocument(uri: DocumentURI) async -> Workspace? {
     if let cachedWorkspace = self.uriToWorkspaceCache[uri]?.value {
       return cachedWorkspace
     }
@@ -385,12 +384,12 @@ public actor SourceKitLSPServer {
   }
 
   /// Send the given notification to the editor.
-  public nonisolated func sendNotificationToClient(_ notification: some NotificationType) {
+  package nonisolated func sendNotificationToClient(_ notification: some NotificationType) {
     client.send(notification)
   }
 
   /// Send the given request to the editor.
-  public func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response {
+  package func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response {
     return try await client.send(request)
   }
 
@@ -513,7 +512,7 @@ public actor SourceKitLSPServer {
     }
   }
 
-  @_spi(Testing) public func languageService(
+  package func languageService(
     for uri: DocumentURI,
     _ language: Language,
     in workspace: Workspace
@@ -555,7 +554,7 @@ public actor SourceKitLSPServer {
 private let notificationIDForLogging = AtomicUInt32(initialValue: 1)
 
 extension SourceKitLSPServer: MessageHandler {
-  public nonisolated func handle(_ params: some NotificationType) {
+  package nonisolated func handle(_ params: some NotificationType) {
     let notificationID = notificationIDForLogging.fetchAndIncrement()
     withLoggingScope("notification-\(notificationID % 100)") {
       if let params = params as? CancelRequestNotification {
@@ -612,7 +611,7 @@ extension SourceKitLSPServer: MessageHandler {
     }
   }
 
-  public nonisolated func handle<R: RequestType>(
+  package nonisolated func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
     reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
@@ -777,7 +776,7 @@ extension SourceKitLSPServer: MessageHandler {
 // MARK: - Build System Delegate
 
 extension SourceKitLSPServer: BuildSystemDelegate {
-  public func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
+  package func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
     // TODO: do something with these changes once build target support is in place
   }
 
@@ -796,7 +795,7 @@ extension SourceKitLSPServer: BuildSystemDelegate {
   /// This has two primary cases:
   /// - Initial settings reported for a given file, now we can fully open it
   /// - Changed settings for an already open file
-  public func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
+  package func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
     for uri in changedFiles {
       guard self.documentManager.openDocuments.contains(uri) else {
         continue
@@ -813,7 +812,7 @@ extension SourceKitLSPServer: BuildSystemDelegate {
   /// Handle a dependencies updated notification from the `BuildSystem`.
   /// We inform the respective language services as long as the given file is open
   /// (not queued for opening).
-  public func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
+  package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
     // Split the changedFiles into the workspaces they belong to.
     // Then invoke affectedOpenDocumentsForChangeSet for each workspace with its affected files.
     let changedFilesAndWorkspace = await changedFiles.asyncMap {
@@ -833,7 +832,7 @@ extension SourceKitLSPServer: BuildSystemDelegate {
     }
   }
 
-  public func fileHandlingCapabilityChanged() {
+  package func fileHandlingCapabilityChanged() {
     workspaceQueue.async {
       logger.log("Resetting URI to workspace cache because file handling capability of a workspace changed")
       self.uriToWorkspaceCache = [:]
@@ -1207,7 +1206,7 @@ extension SourceKitLSPServer {
   /// The server shall not be used to handle more requests (other than possibly
   /// `shutdown` and `exit`) and should attempt to flush any buffered state
   /// immediately, such as sending index changes to disk.
-  public func prepareForExit() async {
+  package func prepareForExit() async {
     // Note: this method should be safe to call multiple times, since we want to
     // be resilient against multiple possible shutdown sequences, including
     // pipe failure.
@@ -2380,7 +2379,7 @@ private let minWorkspaceSymbolPatternLength = 3
 /// The maximum number of results to return from a `workspace/symbol` request.
 private let maxWorkspaceSymbolResults = 4096
 
-public typealias Diagnostic = LanguageServerProtocol.Diagnostic
+package typealias Diagnostic = LanguageServerProtocol.Diagnostic
 
 fileprivate extension CheckedIndex {
   /// If there are any definition occurrences of the given USR, return these.

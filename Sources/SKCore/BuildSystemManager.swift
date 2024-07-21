@@ -33,7 +33,7 @@ import os
 /// Since some `BuildSystem`s may require a bit of a time to compute their arguments asynchronously,
 /// this class has a configurable `buildSettings` timeout which denotes the amount of time to give
 /// the build system before applying the fallback arguments.
-public actor BuildSystemManager {
+package actor BuildSystemManager {
   /// The files for which the delegate has requested change notifications, ie.
   /// the files for which the delegate wants to get `filesDependenciesUpdated`
   /// callbacks if the file's build settings.
@@ -63,19 +63,19 @@ public actor BuildSystemManager {
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
   /// was found.
-  public var projectRoot: AbsolutePath? {
+  package var projectRoot: AbsolutePath? {
     get async {
       return await buildSystem?.projectRoot
     }
   }
 
-  public var supportsPreparation: Bool {
+  package var supportsPreparation: Bool {
     return buildSystem?.supportsPreparation ?? false
   }
 
   /// Create a BuildSystemManager that wraps the given build system. The new
   /// manager will modify the delegate of the underlying build system.
-  public init(
+  package init(
     buildSystem: BuildSystem?,
     fallbackBuildSystem: FallbackBuildSystem?,
     mainFilesProvider: MainFilesProvider?,
@@ -92,19 +92,19 @@ public actor BuildSystemManager {
     await self.buildSystem?.setDelegate(self)
   }
 
-  public func filesDidChange(_ events: [FileEvent]) async {
+  package func filesDidChange(_ events: [FileEvent]) async {
     await self.buildSystem?.filesDidChange(events)
   }
 }
 
 extension BuildSystemManager {
   /// - Note: Needed so we can set the delegate from a different isolation context.
-  public func setDelegate(_ delegate: BuildSystemDelegate?) {
+  package func setDelegate(_ delegate: BuildSystemDelegate?) {
     self.delegate = delegate
   }
 
   /// Returns the toolchain that should be used to process the given document.
-  public func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
+  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
     if let toolchain = await buildSystem?.toolchain(for: uri, language) {
       return toolchain
     }
@@ -120,13 +120,13 @@ extension BuildSystemManager {
   }
 
   /// - Note: Needed so we can set the delegate from a different isolation context.
-  public func setMainFilesProvider(_ mainFilesProvider: MainFilesProvider?) {
+  package func setMainFilesProvider(_ mainFilesProvider: MainFilesProvider?) {
     self.mainFilesProvider = mainFilesProvider
   }
 
   /// Returns the language that a document should be interpreted in for background tasks where the editor doesn't
   /// specify the document's language.
-  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+  package func defaultLanguage(for document: DocumentURI) async -> Language? {
     if let defaultLanguage = await buildSystem?.defaultLanguage(for: document) {
       return defaultLanguage
     }
@@ -141,12 +141,12 @@ extension BuildSystemManager {
   }
 
   /// Returns all the `ConfiguredTarget`s that the document is part of.
-  public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
+  package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
     return await buildSystem?.configuredTargets(for: document) ?? []
   }
 
   /// Returns the `ConfiguredTarget` that should be used for semantic functionality of the given document.
-  public func canonicalConfiguredTarget(for document: DocumentURI) async -> ConfiguredTarget? {
+  package func canonicalConfiguredTarget(for document: DocumentURI) async -> ConfiguredTarget? {
     // Sort the configured targets to deterministically pick the same `ConfiguredTarget` every time.
     // We could allow the user to specify a preference of one target over another. For now this is not necessary because
     // no build system currently returns multiple targets for a source file.
@@ -156,7 +156,7 @@ extension BuildSystemManager {
   }
 
   /// Returns the target's module name as parsed from the `ConfiguredTarget`'s compiler arguments.
-  public func moduleName(for document: DocumentURI, in target: ConfiguredTarget) async -> String? {
+  package func moduleName(for document: DocumentURI, in target: ConfiguredTarget) async -> String? {
     guard let language = await self.defaultLanguage(for: document),
       let buildSettings = await buildSettings(for: document, in: target, language: language)
     else {
@@ -210,7 +210,7 @@ extension BuildSystemManager {
   /// Only call this method if it is known that `document` is a main file. Prefer `buildSettingsInferredFromMainFile`
   /// otherwise. If `document` is a header file, this will most likely return fallback settings because header files
   /// don't have build settings by themselves.
-  public func buildSettings(
+  package func buildSettings(
     for document: DocumentURI,
     in target: ConfiguredTarget?,
     language: Language
@@ -246,7 +246,7 @@ extension BuildSystemManager {
   /// file of the document. In practice this means that we will compute the build
   /// settings of a C file that includes the header and replace any file
   /// references to that C file in the build settings by the header file.
-  public func buildSettingsInferredFromMainFile(
+  package func buildSettingsInferredFromMainFile(
     for document: DocumentURI,
     language: Language
   ) async -> FileBuildSettings? {
@@ -264,26 +264,26 @@ extension BuildSystemManager {
     return settings
   }
 
-  public func generateBuildGraph(allowFileSystemWrites: Bool) async throws {
+  package func generateBuildGraph(allowFileSystemWrites: Bool) async throws {
     try await self.buildSystem?.generateBuildGraph(allowFileSystemWrites: allowFileSystemWrites)
   }
 
-  public func topologicalSort(of targets: [ConfiguredTarget]) async throws -> [ConfiguredTarget]? {
+  package func topologicalSort(of targets: [ConfiguredTarget]) async throws -> [ConfiguredTarget]? {
     return await buildSystem?.topologicalSort(of: targets)
   }
 
-  public func targets(dependingOn targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
+  package func targets(dependingOn targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
     return await buildSystem?.targets(dependingOn: targets)
   }
 
-  public func prepare(
+  package func prepare(
     targets: [ConfiguredTarget],
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     try await buildSystem?.prepare(targets: targets, logMessageToIndexLog: logMessageToIndexLog)
   }
 
-  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
+  package func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
     logger.debug("registerForChangeNotifications(\(uri.forLogging))")
     let mainFile = await mainFile(for: uri, language: language)
     self.watchedFiles[uri] = (mainFile, language)
@@ -295,7 +295,7 @@ extension BuildSystemManager {
     await buildSystem?.registerForChangeNotifications(for: mainFile)
   }
 
-  public func unregisterForChangeNotifications(for uri: DocumentURI) async {
+  package func unregisterForChangeNotifications(for uri: DocumentURI) async {
     guard let mainFile = self.watchedFiles[uri]?.mainFile else {
       logger.fault("Unbalanced calls for registerForChangeNotifications and unregisterForChangeNotifications")
       return
@@ -309,18 +309,18 @@ extension BuildSystemManager {
     }
   }
 
-  public func fileHandlingCapability(for uri: DocumentURI) async -> FileHandlingCapability {
+  package func fileHandlingCapability(for uri: DocumentURI) async -> FileHandlingCapability {
     return max(
       await buildSystem?.fileHandlingCapability(for: uri) ?? .unhandled,
       fallbackBuildSystem != nil ? .fallback : .unhandled
     )
   }
 
-  public func sourceFiles() async -> [SourceFileInfo] {
+  package func sourceFiles() async -> [SourceFileInfo] {
     return await buildSystem?.sourceFiles() ?? []
   }
 
-  public func testFiles() async -> [DocumentURI] {
+  package func testFiles() async -> [DocumentURI] {
     return await sourceFiles().compactMap { (info: SourceFileInfo) -> DocumentURI? in
       guard info.isPartOfRootProject, info.mayContainTests else {
         return nil
@@ -343,7 +343,7 @@ extension BuildSystemManager: BuildSystemDelegate {
     )
   }
 
-  public func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
+  package func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
     let changedWatchedFiles = watchedFilesReferencing(mainFiles: changedFiles)
 
     if !changedWatchedFiles.isEmpty, let delegate = self.delegate {
@@ -351,7 +351,7 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
   }
 
-  public func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
+  package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
     // Empty changes --> assume everything has changed.
     guard !changedFiles.isEmpty else {
       if let delegate = self.delegate {
@@ -367,13 +367,13 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
   }
 
-  public func buildTargetsChanged(_ changes: [BuildTargetEvent]) async {
+  package func buildTargetsChanged(_ changes: [BuildTargetEvent]) async {
     if let delegate = self.delegate {
       await delegate.buildTargetsChanged(changes)
     }
   }
 
-  public func fileHandlingCapabilityChanged() async {
+  package func fileHandlingCapabilityChanged() async {
     if let delegate = self.delegate {
       await delegate.fileHandlingCapabilityChanged()
     }
@@ -387,7 +387,7 @@ extension BuildSystemManager {
   ///
   /// For all of these files, re-associate the file with the new main file and
   /// inform the delegate that the build settings for it might have changed.
-  public func mainFilesChanged() async {
+  package func mainFilesChanged() async {
     var changedMainFileAssociations: Set<DocumentURI> = []
     for (file, (oldMainFile, language)) in self.watchedFiles {
       let newMainFile = await self.mainFile(for: file, language: language, useCache: false)
@@ -419,7 +419,7 @@ extension BuildSystemManager {
   /// For Swift or normal C files, this will be the file itself. For header
   /// files, we pick a main file that includes the header since header files
   /// don't have build settings by themselves.
-  public func mainFile(for uri: DocumentURI, language: Language, useCache: Bool = true) async -> DocumentURI {
+  package func mainFile(for uri: DocumentURI, language: Language, useCache: Bool = true) async -> DocumentURI {
     if language == .swift {
       // Swift doesn't have main files. Skip the main file provider query.
       return uri
@@ -452,7 +452,7 @@ extension BuildSystemManager {
   /// Returns the main file used for `uri`, if this is a registered file.
   ///
   /// For testing purposes only.
-  @_spi(Testing) public func cachedMainFile(for uri: DocumentURI) -> DocumentURI? {
+  package func cachedMainFile(for uri: DocumentURI) -> DocumentURI? {
     return self.watchedFiles[uri]?.mainFile
   }
 }
@@ -460,12 +460,12 @@ extension BuildSystemManager {
 // MARK: - Build settings logger
 
 /// Shared logger that only logs build settings for a file once unless they change
-public actor BuildSettingsLogger {
-  public static let shared = BuildSettingsLogger()
+package actor BuildSettingsLogger {
+  package static let shared = BuildSettingsLogger()
 
   private var loggedSettings: [DocumentURI: FileBuildSettings] = [:]
 
-  public func log(level: LogLevel = .default, settings: FileBuildSettings, for uri: DocumentURI) {
+  package func log(level: LogLevel = .default, settings: FileBuildSettings, for uri: DocumentURI) {
     guard loggedSettings[uri] != settings else {
       return
     }
@@ -477,7 +477,7 @@ public actor BuildSettingsLogger {
   ///
   /// In contrast to the instance method `log`, this will always log the build settings. The instance method only logs
   /// the build settings if they have changed.
-  public static func log(level: LogLevel = .default, settings: FileBuildSettings, for uri: DocumentURI) {
+  package static func log(level: LogLevel = .default, settings: FileBuildSettings, for uri: DocumentURI) {
     let log = """
       Compiler Arguments:
       \(settings.compilerArguments.joined(separator: "\n"))

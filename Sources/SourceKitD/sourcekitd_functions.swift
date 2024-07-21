@@ -13,7 +13,7 @@
 import Csourcekitd
 
 extension sourcekitd_api_functions_t {
-  public init(_ sourcekitd: DLHandle) throws {
+  package init(_ sourcekitd: DLHandle) throws {
     func loadRequired<T>(_ symbol: String) throws -> T {
       guard let sym: T = dlsym(sourcekitd, symbol: symbol) else {
         throw SKDError.missingRequiredSymbol(symbol)

@@ -21,12 +21,12 @@ import struct TSCBasic.ProcessResult
 
 /// A SwiftPM package that gets written to disk and for which a Git repository is initialized with a commit tagged
 /// `1.0.0`. This repository can then be used as a dependency for another package, usually a `SwiftPMTestProject`.
-public class SwiftPMDependencyProject {
+package class SwiftPMDependencyProject {
   /// The scratch directory created for the dependency project.
-  public let scratchDirectory: URL
+  package let scratchDirectory: URL
 
   /// The directory in which the repository lives.
-  public var packageDirectory: URL {
+  package var packageDirectory: URL {
     return scratchDirectory.appendingPathComponent("MyDependency")
   }
 
@@ -54,7 +54,7 @@ public class SwiftPMDependencyProject {
     }
   }
 
-  public static let defaultPackageManifest: String = """
+  package static let defaultPackageManifest: String = """
     // swift-tools-version: 5.7
 
     import PackageDescription
@@ -66,7 +66,7 @@ public class SwiftPMDependencyProject {
     )
     """
 
-  public init(
+  package init(
     files: [RelativeFileLocation: String],
     manifest: String = defaultPackageManifest,
     testName: String = #function
@@ -89,7 +89,7 @@ public class SwiftPMDependencyProject {
     try await tag(changedFiles: files.keys.map { $0.url(relativeTo: packageDirectory) }, version: "1.0.0")
   }
 
-  public func tag(changedFiles: [URL], version: String) async throws {
+  package func tag(changedFiles: [URL], version: String) async throws {
     try await runGitCommand(
       ["add"] + changedFiles.map(\.path),
       workingDirectory: packageDirectory
@@ -110,7 +110,7 @@ public class SwiftPMDependencyProject {
 
   /// Function that makes sure the project stays alive until this is called. Otherwise, the `SwiftPMDependencyProject`
   /// might get deinitialized, which deletes the package on disk.
-  public func keepAlive() {
+  package func keepAlive() {
     withExtendedLifetime(self) { _ in }
   }
 }

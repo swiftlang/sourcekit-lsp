@@ -123,7 +123,7 @@ private func edits(from original: DocumentSnapshot, to edited: String) -> [TextE
 }
 
 extension SwiftLanguageService {
-  public func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]? {
+  package func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]? {
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
 
     guard let swiftFormat else {

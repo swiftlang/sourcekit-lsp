@@ -16,14 +16,14 @@ import SKSupport
 import SwiftExtensions
 
 /// See comment on ``TaskDescriptionProtocol/dependencies(to:taskPriority:)``
-public enum TaskDependencyAction<TaskDescription: TaskDescriptionProtocol> {
+package enum TaskDependencyAction<TaskDescription: TaskDescriptionProtocol> {
   case waitAndElevatePriorityOfDependency(TaskDescription)
   case cancelAndRescheduleDependency(TaskDescription)
 }
 
 private let taskSchedulerSubsystem = "org.swift.sourcekit-lsp.task-scheduler"
 
-public protocol TaskDescriptionProtocol: Identifiable, Sendable, CustomLogStringConvertible {
+package protocol TaskDescriptionProtocol: Identifiable, Sendable, CustomLogStringConvertible {
   /// Execute the task.
   ///
   ///  - Important: This should only be called from `TaskScheduler` and never be called manually.
@@ -78,7 +78,7 @@ public protocol TaskDescriptionProtocol: Identifiable, Sendable, CustomLogString
 }
 
 /// Parameter that's passed to `executionStateChangedCallback` to indicate the new state of a scheduled task.
-public enum TaskExecutionState {
+package enum TaskExecutionState {
   /// The task started executing.
   case executing
 
@@ -90,7 +90,7 @@ public enum TaskExecutionState {
   case finished
 }
 
-public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
+package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Result of `executionTask` / the tasks in `executionTaskCreatedContinuation`.
   /// See doc comment on `executionTask`.
   enum ExecutionTaskFinishStatus {
@@ -152,11 +152,11 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   private let _isExecuting: AtomicBool = .init(initialValue: false)
 
   /// Whether the task is currently executing or still queued to be executed later.
-  public nonisolated var isExecuting: Bool {
+  package nonisolated var isExecuting: Bool {
     return _isExecuting.value
   }
 
-  public nonisolated func cancel() {
+  package nonisolated func cancel() {
     resultTask.cancel()
   }
 
@@ -164,7 +164,7 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   ///
   /// If the tasks that waits for this queued task to finished is cancelled, the QueuedTask will still continue
   /// executing.
-  public func waitToFinish() async {
+  package func waitToFinish() async {
     return await resultTask.value
   }
 
@@ -173,7 +173,7 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// If the tasks that waits for this queued task to finished is cancelled, the QueuedTask will also be cancelled.
   /// This assumes that the caller of this method has unique control over the task and is the only one interested in its
   /// value.
-  public func waitToFinishPropagatingCancellation() async {
+  package func waitToFinishPropagatingCancellation() async {
     return await resultTask.valuePropagatingCancellation
   }
 
@@ -312,7 +312,7 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
 ///    interaction. This cancels the joint indexing of `A`, `B` and `C` so that `A` can be indexed as a standalone file
 ///    as quickly as possible. The joint indexing of `A`, `B` and `C` is then re-scheduled (again at low priority) and
 ///    will depend on `A` being indexed.
-public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
+package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   /// The tasks that are currently being executed.
   ///
   /// All tasks in this queue are guaranteed to trigger a call `poke` again once they finish. Thus, whenever there are
@@ -344,7 +344,7 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   ///  - `.background`: 2
   private let maxConcurrentTasksByPriority: [(priority: TaskPriority, maxConcurrentTasks: Int)]
 
-  public init(maxConcurrentTasksByPriority: [(priority: TaskPriority, maxConcurrentTasks: Int)]) {
+  package init(maxConcurrentTasksByPriority: [(priority: TaskPriority, maxConcurrentTasks: Int)]) {
     self.maxConcurrentTasksByPriority = maxConcurrentTasksByPriority.sorted(by: { $0.priority > $1.priority })
     precondition(maxConcurrentTasksByPriority.map(\.maxConcurrentTasks).isSorted(descending: true))
     precondition(!maxConcurrentTasksByPriority.isEmpty)
@@ -357,7 +357,7 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   ///   `TaskScheduler`. Otherwise we might end up in deadlocks, eg. if the inner task cannot be scheduled because the
   ///   outer task is claiming all execution slots in the `TaskScheduler`.
   @discardableResult
-  public func schedule(
+  package func schedule(
     priority: TaskPriority? = nil,
     _ taskDescription: TaskDescription,
     @_inheritActorContext executionStateChangedCallback: (
@@ -509,8 +509,7 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
 }
 
 extension TaskScheduler {
-  @_spi(Testing)
-  public static var forTesting: TaskScheduler {
+  package static var forTesting: TaskScheduler {
     return .init(maxConcurrentTasksByPriority: [
       (.low, ProcessInfo.processInfo.processorCount)
     ])

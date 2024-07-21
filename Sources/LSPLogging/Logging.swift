@@ -15,9 +15,9 @@ import Foundation
 #if canImport(os) && !SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER
 import os  // os_log
 
-public typealias LogLevel = os.OSLogType
-public typealias Logger = os.Logger
-public typealias Signposter = OSSignposter
+package typealias LogLevel = os.OSLogType
+package typealias Logger = os.Logger
+package typealias Signposter = OSSignposter
 
 #if compiler(<5.11)
 extension OSSignposter: @unchecked Sendable {}
@@ -30,17 +30,17 @@ extension OSSignpostIntervalState: @retroactive @unchecked Sendable {}
 #endif
 
 extension os.Logger {
-  public func makeSignposter() -> Signposter {
+  package func makeSignposter() -> Signposter {
     return OSSignposter(logger: self)
   }
 }
 #else
-public typealias LogLevel = NonDarwinLogLevel
-public typealias Logger = NonDarwinLogger
-public typealias Signposter = NonDarwinSignposter
+package typealias LogLevel = NonDarwinLogLevel
+package typealias Logger = NonDarwinLogger
+package typealias Signposter = NonDarwinSignposter
 #endif
 
 /// The logger that is used to log any messages.
-public var logger: Logger {
+package var logger: Logger {
   Logger(subsystem: LoggingScope.subsystem, category: LoggingScope.scope)
 }

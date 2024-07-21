@@ -36,16 +36,16 @@ open class PerfTestCase: XCTestCase {
   #else
   // In corelibs-xctest, these methods are public, not open, so we can only
   // shadow them.
-  public func startMeasuring() {}
-  public func stopMeasuring() {}
-  public func measureMetrics(
+  package func startMeasuring() {}
+  package func stopMeasuring() {}
+  package func measureMetrics(
     _: [XCTPerformanceMetric],
     automaticallyStartMeasuring: Bool,
     for block: () -> Void
   ) {
     block()
   }
-  public func measure(block: () -> Void) {
+  package func measure(block: () -> Void) {
     block()
   }
   #endif

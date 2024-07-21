@@ -19,7 +19,7 @@ extension ByteString {
   /// Access the contents of `self` as `Data`. The contents are not copied, so it is not safe to
   /// store a reference to the data object.
   @inlinable
-  public func withUnsafeData<R>(_ body: (Data) throws -> R) rethrows -> R {
+  package func withUnsafeData<R>(_ body: (Data) throws -> R) rethrows -> R {
     let contents = self.contents
     return try contents.withUnsafeBytes { buffer in
       guard let pointer = UnsafeMutableRawBufferPointer(mutating: buffer).baseAddress else {

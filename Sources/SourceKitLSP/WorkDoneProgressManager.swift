@@ -207,7 +207,7 @@ actor SharedWorkDoneProgressManager {
   private let title: String
   private let message: String?
 
-  public init(
+  package init(
     sourceKitLSPServer: SourceKitLSPServer,
     tokenPrefix: String,
     title: String,

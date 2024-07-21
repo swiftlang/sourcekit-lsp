@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public extension Collection where Index == Int {
+package extension Collection where Index == Int {
   /// Partition the elements of the collection into `numberOfBatches` roughly equally sized batches.
   ///
   /// Elements are assigned to the batches round-robin. This ensures that elements that are close to each other in the

@@ -52,7 +52,7 @@ fileprivate struct Marker {
   let range: Range<String.Index>
 }
 
-public func extractMarkers(_ markedText: String) -> (markers: [String: Int], textWithoutMarkers: String) {
+package func extractMarkers(_ markedText: String) -> (markers: [String: Int], textWithoutMarkers: String) {
   var text = ""
   var markers = [String: Int]()
   var lastIndex = markedText.startIndex

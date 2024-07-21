@@ -16,7 +16,7 @@ import SKCore
 import SwiftSyntax
 
 /// The state of a `ToolchainLanguageServer`
-public enum LanguageServerState {
+package enum LanguageServerState {
   /// The language server is running with semantic functionality enabled
   case connected
   /// The language server server has crashed and we are waiting for it to relaunch
@@ -25,14 +25,14 @@ public enum LanguageServerState {
   case semanticFunctionalityDisabled
 }
 
-public struct AnnotatedTestItem: Sendable {
+package struct AnnotatedTestItem: Sendable {
   /// The test item to be annotated
-  public var testItem: TestItem
+  package var testItem: TestItem
 
   /// Whether the `TestItem` is an extension.
-  public var isExtension: Bool
+  package var isExtension: Bool
 
-  public init(
+  package init(
     testItem: TestItem,
     isExtension: Bool
   ) {
@@ -41,7 +41,7 @@ public struct AnnotatedTestItem: Sendable {
   }
 }
 
-public struct RenameLocation: Sendable {
+package struct RenameLocation: Sendable {
   /// How the identifier at a given location is being used.
   ///
   /// This is primarily used to influence how argument labels should be renamed in Swift and if a location should be
@@ -78,11 +78,11 @@ public struct RenameLocation: Sendable {
 }
 
 /// The textual output of a module interface.
-public struct GeneratedInterfaceDetails: ResponseType, Hashable {
-  public var uri: DocumentURI
-  public var position: Position?
+package struct GeneratedInterfaceDetails: ResponseType, Hashable {
+  package var uri: DocumentURI
+  package var position: Position?
 
-  public init(uri: DocumentURI, position: Position?) {
+  package init(uri: DocumentURI, position: Position?) {
     self.uri = uri
     self.position = position
   }
@@ -92,7 +92,7 @@ public struct GeneratedInterfaceDetails: ResponseType, Hashable {
 ///
 /// For example, we may have a language service that provides semantic functionality for c-family using a clangd server,
 /// launched from a specific toolchain or from sourcekitd.
-public protocol LanguageService: AnyObject, Sendable {
+package protocol LanguageService: AnyObject, Sendable {
 
   // MARK: - Creation
 

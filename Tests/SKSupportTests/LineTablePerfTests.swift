@@ -20,11 +20,11 @@ fileprivate struct SimpleLCG: RandomNumberGenerator {
 
   var state: UInt64
 
-  public init(seed: UInt64) {
+  package init(seed: UInt64) {
     state = seed
   }
 
-  public mutating func next() -> UInt64 {
+  package mutating func next() -> UInt64 {
     state = state &* 6364136223846793005 &+ 1442695040888963407
     return state
   }

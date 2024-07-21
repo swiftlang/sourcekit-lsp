@@ -455,38 +455,38 @@ class ManualBuildSystem: BuildSystem {
     self.delegate = delegate
   }
 
-  public nonisolated var supportsPreparation: Bool { false }
+  package nonisolated var supportsPreparation: Bool { false }
 
   func buildSettings(for uri: DocumentURI, in buildTarget: ConfiguredTarget, language: Language) -> FileBuildSettings? {
     return map[uri]
   }
 
-  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+  package func defaultLanguage(for document: DocumentURI) async -> Language? {
     return nil
   }
 
-  public func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+  package func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
     return nil
   }
 
-  public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
+  package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
     return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }
 
-  public func prepare(
+  package func prepare(
     targets: [ConfiguredTarget],
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     throw PrepareNotSupportedError()
   }
 
-  public func generateBuildGraph(allowFileSystemWrites: Bool) {}
+  package func generateBuildGraph(allowFileSystemWrites: Bool) {}
 
-  public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  package func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
   }
 
-  public func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  package func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
   }
 
@@ -502,7 +502,7 @@ class ManualBuildSystem: BuildSystem {
 
   func filesDidChange(_ events: [FileEvent]) {}
 
-  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
+  package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
     if map[uri] != nil {
       return .handled
     } else {

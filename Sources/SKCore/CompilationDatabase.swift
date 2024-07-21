@@ -24,21 +24,21 @@ import func TSCBasic.resolveSymlinks
 /// A single compilation database command.
 ///
 /// See https://clang.llvm.org/docs/JSONCompilationDatabase.html
-public struct CompilationDatabaseCompileCommand: Equatable {
+package struct CompilationDatabaseCompileCommand: Equatable {
 
   /// The working directory for the compilation.
-  public var directory: String
+  package var directory: String
 
   /// The path of the main file for the compilation, which may be relative to `directory`.
-  public var filename: String
+  package var filename: String
 
   /// The compile command as a list of strings, with the program name first.
-  public var commandLine: [String]
+  package var commandLine: [String]
 
   /// The name of the build output, or nil.
-  public var output: String? = nil
+  package var output: String? = nil
 
-  public init(directory: String, filename: String, commandLine: [String], output: String? = nil) {
+  package init(directory: String, filename: String, commandLine: [String], output: String? = nil) {
     self.directory = directory
     self.filename = filename
     self.commandLine = commandLine
@@ -52,7 +52,7 @@ extension CompilationDatabase.Command {
   /// absolute, returns the concatenation. However, if both paths are relative,
   /// it falls back to `filename`, which is more likely to be the identifier
   /// that a caller will be looking for.
-  public var uri: DocumentURI {
+  package var uri: DocumentURI {
     if filename.hasPrefix("/") || !directory.hasPrefix("/") {
       return DocumentURI(filePath: filename, isDirectory: false)
     } else {
@@ -64,14 +64,14 @@ extension CompilationDatabase.Command {
 /// A clang-compatible compilation database.
 ///
 /// See https://clang.llvm.org/docs/JSONCompilationDatabase.html
-public protocol CompilationDatabase {
+package protocol CompilationDatabase {
   typealias Command = CompilationDatabaseCompileCommand
   subscript(_ uri: DocumentURI) -> [Command] { get }
   var allCommands: AnySequence<Command> { get }
 }
 
 /// Loads the compilation database located in `directory`, if one can be found in `additionalSearchPaths` or in the default search paths of "." and "build".
-public func tryLoadCompilationDatabase(
+package func tryLoadCompilationDatabase(
   directory: AbsolutePath,
   additionalSearchPaths: [RelativePath] = [],
   _ fileSystem: FileSystem = localFileSystem
@@ -110,13 +110,13 @@ public func tryLoadCompilationDatabase(
 /// ```
 ///
 /// See https://clang.llvm.org/docs/JSONCompilationDatabase.html under Alternatives
-public struct FixedCompilationDatabase: CompilationDatabase, Equatable {
-  public var allCommands: AnySequence<CompilationDatabaseCompileCommand> { AnySequence([]) }
+package struct FixedCompilationDatabase: CompilationDatabase, Equatable {
+  package var allCommands: AnySequence<CompilationDatabaseCompileCommand> { AnySequence([]) }
 
   private let fixedArgs: [String]
   private let directory: String
 
-  public subscript(path: DocumentURI) -> [CompilationDatabaseCompileCommand] {
+  package subscript(path: DocumentURI) -> [CompilationDatabaseCompileCommand] {
     [Command(directory: directory, filename: path.pseudoPath, commandLine: fixedArgs + [path.pseudoPath])]
   }
 }
@@ -124,14 +124,14 @@ public struct FixedCompilationDatabase: CompilationDatabase, Equatable {
 extension FixedCompilationDatabase {
   /// Loads the compilation database located in `directory`, if any.
   /// - Returns: `nil` if `compile_flags.txt` was not found
-  public init?(directory: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
+  package init?(directory: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
     let path = directory.appending(component: "compile_flags.txt")
     try self.init(file: path, fileSystem)
   }
 
   /// Loads the compilation database from `file`
   /// - Returns: `nil` if the file does not exist
-  public init?(file: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
+  package init?(file: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
     self.directory = file.dirname
 
     guard fileSystem.exists(file) else {
@@ -168,17 +168,17 @@ extension FixedCompilationDatabase {
 /// ```
 ///
 /// See https://clang.llvm.org/docs/JSONCompilationDatabase.html
-public struct JSONCompilationDatabase: CompilationDatabase, Equatable {
+package struct JSONCompilationDatabase: CompilationDatabase, Equatable {
   var pathToCommands: [DocumentURI: [Int]] = [:]
   var commands: [CompilationDatabaseCompileCommand] = []
 
-  public init(_ commands: [CompilationDatabaseCompileCommand] = []) {
+  package init(_ commands: [CompilationDatabaseCompileCommand] = []) {
     for command in commands {
       add(command)
     }
   }
 
-  public subscript(_ uri: DocumentURI) -> [CompilationDatabaseCompileCommand] {
+  package subscript(_ uri: DocumentURI) -> [CompilationDatabaseCompileCommand] {
     if let indices = pathToCommands[uri] {
       return indices.map { commands[$0] }
     }
@@ -188,9 +188,9 @@ public struct JSONCompilationDatabase: CompilationDatabase, Equatable {
     return []
   }
 
-  public var allCommands: AnySequence<CompilationDatabaseCompileCommand> { AnySequence(commands) }
+  package var allCommands: AnySequence<CompilationDatabaseCompileCommand> { AnySequence(commands) }
 
-  public mutating func add(_ command: CompilationDatabaseCompileCommand) {
+  package mutating func add(_ command: CompilationDatabaseCompileCommand) {
     let uri = command.uri
     pathToCommands[uri, default: []].append(commands.count)
 
@@ -208,14 +208,14 @@ public struct JSONCompilationDatabase: CompilationDatabase, Equatable {
 }
 
 extension JSONCompilationDatabase: Codable {
-  public init(from decoder: Decoder) throws {
+  package init(from decoder: Decoder) throws {
     var container = try decoder.unkeyedContainer()
     while !container.isAtEnd {
       self.add(try container.decode(Command.self))
     }
   }
 
-  public func encode(to encoder: Encoder) throws {
+  package func encode(to encoder: Encoder) throws {
     var container = encoder.unkeyedContainer()
     try commands.forEach { try container.encode($0) }
   }
@@ -225,14 +225,14 @@ extension JSONCompilationDatabase {
   /// Loads the compilation database located in `directory`, if any.
   ///
   /// - Returns: `nil` if `compile_commands.json` was not found
-  public init?(directory: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
+  package init?(directory: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
     let path = directory.appending(component: "compile_commands.json")
     try self.init(file: path, fileSystem)
   }
 
   /// Loads the compilation database from `file`
   /// - Returns: `nil` if the file does not exist
-  public init?(file: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
+  package init?(file: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
     guard fileSystem.exists(file) else {
       return nil
     }
@@ -257,7 +257,7 @@ extension CompilationDatabase.Command: Codable {
     case output
   }
 
-  public init(from decoder: Decoder) throws {
+  package init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     self.directory = try container.decode(String.self, forKey: .directory)
     self.filename = try container.decode(String.self, forKey: .file)
@@ -275,7 +275,7 @@ extension CompilationDatabase.Command: Codable {
     }
   }
 
-  public func encode(to encoder: Encoder) throws {
+  package func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(directory, forKey: .directory)
     try container.encode(filename, forKey: .file)

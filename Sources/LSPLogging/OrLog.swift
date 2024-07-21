@@ -22,7 +22,7 @@ private func logError(prefix: String, error: Error, level: LogLevel = .error) {
 }
 
 /// Like `try?`, but logs the error on failure.
-public func orLog<R>(
+package func orLog<R>(
   _ prefix: String,
   level: LogLevel = .error,
   _ block: () throws -> R?
@@ -38,7 +38,7 @@ public func orLog<R>(
 /// Like  ``orLog(_:level:_:)-66i2z`` but allows execution of an `async` body.
 ///
 /// - SeeAlso: ``orLog(_:level:_:)-66i2z``
-public func orLog<R>(
+package func orLog<R>(
   _ prefix: String,
   level: LogLevel = .error,
   @_inheritActorContext _ block: @Sendable () async throws -> R?

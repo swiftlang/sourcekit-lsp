@@ -26,7 +26,7 @@ import LanguageServerProtocol
 /// conn.send(...) // handled by server
 /// conn.close()
 /// ```
-public final class LocalConnection: Connection, Sendable {
+package final class LocalConnection: Connection, Sendable {
   private enum State {
     case ready, started, closed
   }
@@ -46,7 +46,7 @@ public final class LocalConnection: Connection, Sendable {
   /// - Important: Must only be accessed from `queue`
   nonisolated(unsafe) private var handler: MessageHandler? = nil
 
-  public init(name: String) {
+  package init(name: String) {
     self.name = name
   }
 
@@ -58,7 +58,7 @@ public final class LocalConnection: Connection, Sendable {
     }
   }
 
-  public func start(handler: MessageHandler) {
+  package func start(handler: MessageHandler) {
     queue.sync {
       precondition(state == .ready)
       state = .started
@@ -74,7 +74,7 @@ public final class LocalConnection: Connection, Sendable {
     state = .closed
   }
 
-  public func close() {
+  package func close() {
     queue.sync {
       closeAssumingOnQueue()
     }
@@ -87,7 +87,7 @@ public final class LocalConnection: Connection, Sendable {
     }
   }
 
-  public func send<Notification: NotificationType>(_ notification: Notification) {
+  package func send<Notification: NotificationType>(_ notification: Notification) {
     logger.info(
       """
       Sending notification to \(self.name, privacy: .public)
@@ -100,7 +100,7 @@ public final class LocalConnection: Connection, Sendable {
     handler.handle(notification)
   }
 
-  public func send<Request: RequestType>(
+  package func send<Request: RequestType>(
     _ request: Request,
     reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
   ) -> RequestID {

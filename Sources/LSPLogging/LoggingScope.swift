@@ -12,7 +12,7 @@
 
 import Foundation
 
-public final class LoggingScope {
+package final class LoggingScope {
   /// The name of the current logging subsystem or `nil` if no logging scope is set.
   @TaskLocal fileprivate static var _subsystem: String?
 
@@ -20,12 +20,12 @@ public final class LoggingScope {
   @TaskLocal fileprivate static var _scope: String?
 
   /// The name of the current logging subsystem.
-  public static var subsystem: String {
+  package static var subsystem: String {
     return _subsystem ?? "org.swift.sourcekit-lsp"
   }
 
   /// The name of the current logging scope.
-  public static var scope: String {
+  package static var scope: String {
     return _scope ?? "default"
   }
 }
@@ -36,7 +36,7 @@ public final class LoggingScope {
 ///
 /// - Note: Since this stores the logging subsystem in a task-local value, it only works when run inside a task.
 ///   Outside a task, this is a no-op.
-public func withLoggingSubsystemAndScope<Result>(
+package func withLoggingSubsystemAndScope<Result>(
   subsystem: String,
   scope: String?,
   @_inheritActorContext _ operation: @Sendable () throws -> Result
@@ -47,7 +47,7 @@ public func withLoggingSubsystemAndScope<Result>(
 }
 
 /// Same as `withLoggingSubsystemAndScope` but allows the operation to be `async`.
-public func withLoggingSubsystemAndScope<Result>(
+package func withLoggingSubsystemAndScope<Result>(
   subsystem: String,
   scope: String?,
   @_inheritActorContext _ operation: @Sendable () async throws -> Result
@@ -65,7 +65,7 @@ public func withLoggingSubsystemAndScope<Result>(
 ///   works when run inside a task. Outside a task, this is a no-op.
 /// - Warning: Be very careful with the dynamic creation of logging scopes. The logging scope is used as the os_log
 ///   category, os_log only supports 4000 different loggers and thus at most 4000 different scopes must be used.
-public func withLoggingScope<Result>(
+package func withLoggingScope<Result>(
   _ scope: String,
   _ operation: () throws -> Result
 ) rethrows -> Result {
@@ -78,7 +78,7 @@ public func withLoggingScope<Result>(
 /// Same as `withLoggingScope` but allows the operation to be `async`.
 ///
 /// - SeeAlso: ``withLoggingScope(_:_:)-6qtga``
-public func withLoggingScope<Result>(
+package func withLoggingScope<Result>(
   _ scope: String,
   @_inheritActorContext _ operation: @Sendable () async throws -> Result
 ) async rethrows -> Result {

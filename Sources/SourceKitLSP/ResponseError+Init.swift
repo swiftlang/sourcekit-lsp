@@ -14,7 +14,7 @@ import LanguageServerProtocol
 import SourceKitD
 
 extension ResponseError {
-  public init(_ error: some Error) {
+  package init(_ error: some Error) {
     switch error {
     case let error as ResponseError:
       self = error

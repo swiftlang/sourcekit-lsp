@@ -26,7 +26,7 @@ import var TSCBasic.localFileSystem
 ///
 /// Provides build settings from a `CompilationDatabase` found by searching a project. For now, only
 /// one compilation database, located at the project root.
-public actor CompilationDatabaseBuildSystem {
+package actor CompilationDatabaseBuildSystem {
   /// The compilation database.
   var compdb: CompilationDatabase? = nil {
     didSet {
@@ -37,16 +37,16 @@ public actor CompilationDatabaseBuildSystem {
   }
 
   /// Delegate to handle any build system events.
-  public weak var delegate: BuildSystemDelegate? = nil
+  package weak var delegate: BuildSystemDelegate? = nil
 
   /// Callbacks that should be called if the list of possible test files has changed.
-  public var testFilesDidChangeCallbacks: [() async -> Void] = []
+  package var testFilesDidChangeCallbacks: [() async -> Void] = []
 
-  public func setDelegate(_ delegate: BuildSystemDelegate?) async {
+  package func setDelegate(_ delegate: BuildSystemDelegate?) async {
     self.delegate = delegate
   }
 
-  public let projectRoot: AbsolutePath
+  package let projectRoot: AbsolutePath
 
   let searchPaths: [RelativePath]
 
@@ -57,7 +57,7 @@ public actor CompilationDatabaseBuildSystem {
   var watchedFiles: Set<DocumentURI> = []
 
   private var _indexStorePath: AbsolutePath?
-  public var indexStorePath: AbsolutePath? {
+  package var indexStorePath: AbsolutePath? {
     if let indexStorePath = _indexStorePath {
       return indexStorePath
     }
@@ -76,7 +76,7 @@ public actor CompilationDatabaseBuildSystem {
     return nil
   }
 
-  public init?(
+  package init?(
     projectRoot: AbsolutePath,
     searchPaths: [RelativePath],
     fileSystem: FileSystem = localFileSystem
@@ -93,15 +93,15 @@ public actor CompilationDatabaseBuildSystem {
 }
 
 extension CompilationDatabaseBuildSystem: BuildSystem {
-  public nonisolated var supportsPreparation: Bool { false }
+  package nonisolated var supportsPreparation: Bool { false }
 
-  public var indexDatabasePath: AbsolutePath? {
+  package var indexDatabasePath: AbsolutePath? {
     indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
   }
 
-  public var indexPrefixMappings: [PathPrefixMapping] { return [] }
+  package var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
-  public func buildSettings(
+  package func buildSettings(
     for document: DocumentURI,
     in buildTarget: ConfiguredTarget,
     language: Language
@@ -115,41 +115,41 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     )
   }
 
-  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+  package func defaultLanguage(for document: DocumentURI) async -> Language? {
     return nil
   }
 
-  public func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+  package func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
     return nil
   }
 
-  public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
+  package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
     return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }
 
-  public func prepare(
+  package func prepare(
     targets: [ConfiguredTarget],
     logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     throw PrepareNotSupportedError()
   }
 
-  public func generateBuildGraph(allowFileSystemWrites: Bool) {}
+  package func generateBuildGraph(allowFileSystemWrites: Bool) {}
 
-  public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  package func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
   }
 
-  public func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  package func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
   }
 
-  public func registerForChangeNotifications(for uri: DocumentURI) async {
+  package func registerForChangeNotifications(for uri: DocumentURI) async {
     self.watchedFiles.insert(uri)
   }
 
   /// We don't support change watching.
-  public func unregisterForChangeNotifications(for uri: DocumentURI) {
+  package func unregisterForChangeNotifications(for uri: DocumentURI) {
     self.watchedFiles.remove(uri)
   }
 
@@ -205,13 +205,13 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     }
   }
 
-  public func filesDidChange(_ events: [FileEvent]) async {
+  package func filesDidChange(_ events: [FileEvent]) async {
     if events.contains(where: { self.fileEventShouldTriggerCompilationDatabaseReload(event: $0) }) {
       await self.reloadCompilationDatabase()
     }
   }
 
-  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
+  package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
     if database(for: uri) != nil {
       return .handled
     } else {
@@ -219,7 +219,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     }
   }
 
-  public func sourceFiles() async -> [SourceFileInfo] {
+  package func sourceFiles() async -> [SourceFileInfo] {
     guard let compdb else {
       return []
     }
@@ -228,7 +228,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     }
   }
 
-  public func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {
+  package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {
     testFilesDidChangeCallbacks.append(callback)
   }
 }

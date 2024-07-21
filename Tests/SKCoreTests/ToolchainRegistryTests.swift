@@ -33,7 +33,7 @@ final class ToolchainRegistryTests: XCTestCase {
       ]
     )
     await assertEqual(tr.default?.identifier, "a")
-    await assertTrue(tr.default === tr.toolchain(identifier: "a"))
+    await assertTrue(tr.default === tr.toolchains(withIdentifier: "a").only)
   }
 
   func testFindXcodeDefaultToolchain() async throws {
@@ -400,7 +400,7 @@ final class ToolchainRegistryTests: XCTestCase {
       XCTAssertNotNil(t2.swiftc)
 
       let tr = ToolchainRegistry(toolchains: [Toolchain(path.parentDirectory, fs)!])
-      let t3 = try await unwrap(tr.toolchain(identifier: t2.identifier))
+      let t3 = try await unwrap(tr.toolchains(withIdentifier: t2.identifier).only)
       XCTAssertEqual(t3.sourcekitd, t2.sourcekitd)
       XCTAssertEqual(t3.clang, t2.clang)
       XCTAssertEqual(t3.clangd, t2.clangd)
@@ -466,10 +466,10 @@ final class ToolchainRegistryTests: XCTestCase {
       path: pathB
     )
     let tr = ToolchainRegistry(toolchains: [xcodeA, xcodeB])
-    await assertTrue(tr.toolchain(path: pathA) === xcodeA)
-    await assertTrue(tr.toolchain(path: pathB) === xcodeB)
+    await assertTrue(tr.toolchain(withPath: pathA) === xcodeA)
+    await assertTrue(tr.toolchain(withPath: pathB) === xcodeB)
 
-    let toolchains = await tr.toolchains(identifier: xcodeA.identifier)
+    let toolchains = await tr.toolchains(withIdentifier: xcodeA.identifier)
     XCTAssert(toolchains.count == 2)
     guard toolchains.count == 2 else {
       return

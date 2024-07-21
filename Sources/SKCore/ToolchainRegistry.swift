@@ -52,7 +52,7 @@ public final actor ToolchainRegistry {
   private let toolchainsAndReasons: [(toolchain: Toolchain, reason: ToolchainRegisterReason)]
 
   /// The toolchains, in the order they were registered.
-  public var toolchains: [Toolchain] {
+  package var toolchains: [Toolchain] {
     return toolchainsAndReasons.map(\.toolchain)
   }
 
@@ -67,12 +67,11 @@ public final actor ToolchainRegistry {
   private let toolchainsByPath: [AbsolutePath: Toolchain]
 
   /// The currently selected toolchain identifier on Darwin.
-  public let darwinToolchainOverride: String?
+  package let darwinToolchainOverride: String?
 
   /// Create a toolchain registry with a pre-defined list of toolchains.
   ///
   /// For testing purposes only.
-  @_spi(Testing)
   public init(toolchains: [Toolchain]) {
     self.init(
       toolchainsAndReasons: toolchains.map { ($0, .xcode) },
@@ -127,8 +126,7 @@ public final actor ToolchainRegistry {
   /// A toolchain registry used for testing that scans for toolchains based on environment variables and Xcode
   /// installations but not next to the `sourcekit-lsp` binary because there is no `sourcekit-lsp` binary during
   /// testing.
-  @_spi(Testing)
-  public static var forTesting: ToolchainRegistry {
+  package static var forTesting: ToolchainRegistry {
     ToolchainRegistry(localFileSystem)
   }
 
@@ -211,7 +209,7 @@ public final actor ToolchainRegistry {
   /// registered, if any.
   ///
   /// The default toolchain must be only of the registered toolchains.
-  public var `default`: Toolchain? {
+  package var `default`: Toolchain? {
     get {
       // Toolchains discovered from the `SOURCEKIT_TOOLCHAIN_PATH` environment variable or relative to sourcekit-lsp's
       // install path always take precedence over Xcode toolchains.
@@ -233,21 +231,19 @@ public final actor ToolchainRegistry {
   }
 
   /// The standard default toolchain identifier on Darwin.
-  @_spi(Testing)
-  public static let darwinDefaultToolchainIdentifier: String = "com.apple.dt.toolchain.XcodeDefault"
+  package static let darwinDefaultToolchainIdentifier: String = "com.apple.dt.toolchain.XcodeDefault"
 
   /// The current toolchain identifier on Darwin, which is either specified byt the `TOOLCHAINS`
   /// environment variable, or defaults to `darwinDefaultToolchainIdentifier`.
   ///
   /// The value of `default.identifier` may be different if the default toolchain has been
   /// explicitly overridden in code, or if there is no toolchain with this identifier.
-  @_spi(Testing)
-  public var darwinToolchainIdentifier: String {
+  package var darwinToolchainIdentifier: String {
     return darwinToolchainOverride ?? ToolchainRegistry.darwinDefaultToolchainIdentifier
   }
 
   /// Returns the preferred toolchain that contains all the tools at the given key paths.
-  public func preferredToolchain(containing requiredTools: [KeyPath<Toolchain, AbsolutePath?>]) -> Toolchain? {
+  package func preferredToolchain(containing requiredTools: [KeyPath<Toolchain, AbsolutePath?>]) -> Toolchain? {
     if let toolchain = self.default, requiredTools.allSatisfy({ toolchain[keyPath: $0] != nil }) {
       return toolchain
     }
@@ -264,18 +260,11 @@ public final actor ToolchainRegistry {
 
 /// Inspecting internal state for testing purposes.
 extension ToolchainRegistry {
-  @_spi(Testing)
-  public func toolchains(identifier: String) -> [Toolchain] {
+  package func toolchains(withIdentifier identifier: String) -> [Toolchain] {
     return toolchainsByIdentifier[identifier] ?? []
   }
 
-  @_spi(Testing)
-  public func toolchain(identifier: String) -> Toolchain? {
-    return toolchains(identifier: identifier).first
-  }
-
-  @_spi(Testing)
-  public func toolchain(path: AbsolutePath) -> Toolchain? {
+  package func toolchain(withPath path: AbsolutePath) -> Toolchain? {
     return toolchainsByPath[path]
   }
 }

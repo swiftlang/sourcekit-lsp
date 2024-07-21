@@ -24,13 +24,13 @@ private let preparationIDForLogging = AtomicUInt32(initialValue: 1)
 /// Describes a task to prepare a set of targets.
 ///
 /// This task description can be scheduled in a `TaskScheduler`.
-public struct PreparationTaskDescription: IndexTaskDescription {
-  public static let idPrefix = "prepare"
+package struct PreparationTaskDescription: IndexTaskDescription {
+  package static let idPrefix = "prepare"
 
-  public let id = preparationIDForLogging.fetchAndIncrement()
+  package let id = preparationIDForLogging.fetchAndIncrement()
 
   /// The targets that should be prepared.
-  public let targetsToPrepare: [ConfiguredTarget]
+  package let targetsToPrepare: [ConfiguredTarget]
 
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
@@ -44,15 +44,15 @@ public struct PreparationTaskDescription: IndexTaskDescription {
   private let testHooks: IndexTestHooks
 
   /// The task is idempotent because preparing the same target twice produces the same result as preparing it once.
-  public var isIdempotent: Bool { true }
+  package var isIdempotent: Bool { true }
 
-  public var estimatedCPUCoreCount: Int { 1 }
+  package var estimatedCPUCoreCount: Int { 1 }
 
-  public var description: String {
+  package var description: String {
     return self.redactedDescription
   }
 
-  public var redactedDescription: String {
+  package var redactedDescription: String {
     return "preparation-\(id)"
   }
 
@@ -70,7 +70,7 @@ public struct PreparationTaskDescription: IndexTaskDescription {
     self.testHooks = testHooks
   }
 
-  public func execute() async {
+  package func execute() async {
     // Only use the last two digits of the preparation ID for the logging scope to avoid creating too many scopes.
     // See comment in `withLoggingScope`.
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running preparation operations
@@ -119,7 +119,7 @@ public struct PreparationTaskDescription: IndexTaskDescription {
     }
   }
 
-  public func dependencies(
+  package func dependencies(
     to currentlyExecutingTasks: [PreparationTaskDescription]
   ) -> [TaskDependencyAction<PreparationTaskDescription>] {
     return currentlyExecutingTasks.compactMap { (other) -> TaskDependencyAction<PreparationTaskDescription>? in

@@ -17,7 +17,7 @@ import XCTest
 ///
 /// - parameter value: The value to encode/decode.
 /// - parameter json: The expected json encoding.
-public func checkCoding<T: Codable & Equatable>(
+package func checkCoding<T: Codable & Equatable>(
   _ value: T,
   json: String,
   file: StaticString = #filePath,
@@ -57,7 +57,7 @@ private struct WrapFragment<T>: Equatable, Codable where T: Equatable & Codable 
 ///
 /// - parameter value: The value to encode/decode.
 /// - parameter json: The expected json encoding.
-public func checkDecoding<T: Codable & Equatable>(
+package func checkDecoding<T: Codable & Equatable>(
   json: String,
   expected value: T,
   file: StaticString = #filePath,
@@ -72,7 +72,7 @@ public func checkDecoding<T: Codable & Equatable>(
   XCTAssertEqual(value, decodedValue, file: file, line: line)
 }
 
-public func checkCoding<T>(
+package func checkCoding<T>(
   _ value: T,
   json: String,
   userInfo: [CodingUserInfoKey: Any] = [:],

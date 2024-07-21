@@ -23,32 +23,32 @@ import SwiftSyntax
 /// data structure that is stored internally by the ``DocumentManager`` is a
 /// ``Document``. The purpose of a ``DocumentSnapshot`` is to be able to work
 /// with one version of a document without having to think about it changing.
-public struct DocumentSnapshot: Identifiable, Sendable {
+package struct DocumentSnapshot: Identifiable, Sendable {
   /// An ID that uniquely identifies the version of the document stored in this
   /// snapshot.
-  public struct ID: Hashable, Comparable, Sendable {
-    public let uri: DocumentURI
-    public let version: Int
+  package struct ID: Hashable, Comparable, Sendable {
+    package let uri: DocumentURI
+    package let version: Int
 
     /// Returns `true` if the snapshots reference the same document but rhs has a
     /// later version than `lhs`.
     ///
     /// Snapshot IDs of different documents are not comparable to each other and
     /// will always return `false`.
-    public static func < (lhs: DocumentSnapshot.ID, rhs: DocumentSnapshot.ID) -> Bool {
+    package static func < (lhs: DocumentSnapshot.ID, rhs: DocumentSnapshot.ID) -> Bool {
       return lhs.uri == rhs.uri && lhs.version < rhs.version
     }
   }
 
-  public let id: ID
-  public let language: Language
-  public let lineTable: LineTable
+  package let id: ID
+  package let language: Language
+  package let lineTable: LineTable
 
-  public var uri: DocumentURI { id.uri }
-  public var version: Int { id.version }
-  public var text: String { lineTable.content }
+  package var uri: DocumentURI { id.uri }
+  package var version: Int { id.version }
+  package var text: String { lineTable.content }
 
-  public init(
+  package init(
     uri: DocumentURI,
     language: Language,
     version: Int,
@@ -60,9 +60,9 @@ public struct DocumentSnapshot: Identifiable, Sendable {
   }
 }
 
-public final class Document {
-  public let uri: DocumentURI
-  public let language: Language
+package final class Document {
+  package let uri: DocumentURI
+  package let language: Language
   var latestVersion: Int
   var latestLineTable: LineTable
 
@@ -84,9 +84,9 @@ public final class Document {
   }
 }
 
-public final class DocumentManager: InMemoryDocumentManager, Sendable {
+package final class DocumentManager: InMemoryDocumentManager, Sendable {
 
-  public enum Error: Swift.Error {
+  package enum Error: Swift.Error {
     case alreadyOpen(DocumentURI)
     case missingDocument(DocumentURI)
   }
@@ -97,10 +97,10 @@ public final class DocumentManager: InMemoryDocumentManager, Sendable {
   // `nonisolated(unsafe)` is fine because `documents` is guarded by queue.
   nonisolated(unsafe) var documents: [DocumentURI: Document] = [:]
 
-  public init() {}
+  package init() {}
 
   /// All currently opened documents.
-  public var openDocuments: Set<DocumentURI> {
+  package var openDocuments: Set<DocumentURI> {
     return queue.sync {
       return Set(documents.keys)
     }
@@ -111,7 +111,7 @@ public final class DocumentManager: InMemoryDocumentManager, Sendable {
   /// - returns: The initial contents of the file.
   /// - throws: Error.alreadyOpen if the document is already open.
   @discardableResult
-  public func open(_ uri: DocumentURI, language: Language, version: Int, text: String) throws -> DocumentSnapshot {
+  package func open(_ uri: DocumentURI, language: Language, version: Int, text: String) throws -> DocumentSnapshot {
     return try queue.sync {
       let document = Document(uri: uri, language: language, version: version, text: text)
       if nil != documents.updateValue(document, forKey: uri) {
@@ -125,7 +125,7 @@ public final class DocumentManager: InMemoryDocumentManager, Sendable {
   ///
   /// - returns: The initial contents of the file.
   /// - throws: Error.missingDocument if the document is not open.
-  public func close(_ uri: DocumentURI) throws {
+  package func close(_ uri: DocumentURI) throws {
     try queue.sync {
       if nil == documents.removeValue(forKey: uri) {
         throw Error.missingDocument(uri)
@@ -145,7 +145,7 @@ public final class DocumentManager: InMemoryDocumentManager, Sendable {
   ///   the edits are expected to be applied in order and later values in this array
   ///   assume that previous edits are already applied.
   @discardableResult
-  public func edit(
+  package func edit(
     _ uri: DocumentURI,
     newVersion: Int,
     edits: [TextDocumentContentChangeEvent]
@@ -182,7 +182,7 @@ public final class DocumentManager: InMemoryDocumentManager, Sendable {
     }
   }
 
-  public func latestSnapshot(_ uri: DocumentURI) throws -> DocumentSnapshot {
+  package func latestSnapshot(_ uri: DocumentURI) throws -> DocumentSnapshot {
     return try queue.sync {
       guard let document = documents[uri] else {
         throw ResponseError.unknown("Failed to find snapshot for '\(uri)'")
@@ -191,7 +191,7 @@ public final class DocumentManager: InMemoryDocumentManager, Sendable {
     }
   }
 
-  public func fileHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
+  package func fileHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
     guard let document = try? latestSnapshot(uri), let fileURL = uri.fileURL else {
       return false
     }

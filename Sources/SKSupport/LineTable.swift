@@ -15,13 +15,13 @@ import LSPLogging
 import os
 #endif
 
-public struct LineTable: Hashable, Sendable {
+package struct LineTable: Hashable, Sendable {
   @usableFromInline
   var impl: [String.Index]
 
-  public var content: String
+  package var content: String
 
-  public init(_ string: String) {
+  package init(_ string: String) {
     content = string
 
     var i = string.startIndex
@@ -37,18 +37,18 @@ public struct LineTable: Hashable, Sendable {
 
   /// The number of lines.
   @inlinable
-  public var count: Int { return impl.count }
+  package var count: Int { return impl.count }
 
   /// Returns the given (zero-based) line as a Substring, including the newline.
   ///
   /// - parameter line: Line number (zero-based).
   @inlinable
-  public subscript(line: Int) -> Substring {
+  package subscript(line: Int) -> Substring {
     return content[impl[line]..<(line == count - 1 ? content.endIndex : impl[line + 1])]
   }
 
   /// Translate String.Index to logical line/utf16 pair.
-  public func lineAndUTF16ColumnOf(_ index: String.Index, fromLine: Int = 0) -> (line: Int, utf16Column: Int) {
+  package func lineAndUTF16ColumnOf(_ index: String.Index, fromLine: Int = 0) -> (line: Int, utf16Column: Int) {
     precondition(0 <= fromLine && fromLine < count)
 
     // Binary search.
@@ -72,11 +72,11 @@ public struct LineTable: Hashable, Sendable {
 }
 
 extension LineTable: RandomAccessCollection {
-  public var startIndex: Int {
+  package var startIndex: Int {
     return impl.startIndex
   }
 
-  public var endIndex: Int {
+  package var endIndex: Int {
     return impl.endIndex
   }
 }
@@ -93,7 +93,7 @@ extension LineTable {
   /// - parameter toOff: Ending UTF-16 column offset (zero-based).
   /// - parameter replacement: The new text for the given range.
   @inlinable
-  mutating public func replace(
+  mutating package func replace(
     fromLine: Int,
     utf16Offset fromOff: Int,
     toLine: Int,
@@ -115,7 +115,7 @@ extension LineTable {
   /// - parameter fromOff: Starting UTF-16 column offset (zero-based).
   /// - parameter utf16Length: The number of UTF-16 code units to replace.
   /// - parameter replacement: The new text for the given range.
-  mutating public func replace(
+  mutating package func replace(
     fromLine: Int,
     utf16Offset fromOff: Int,
     utf16Length: Int,
@@ -176,7 +176,7 @@ extension LineTable {
   /// - parameter line: Line number (zero-based).
   /// - parameter utf16Column: UTF-16 column offset (zero-based).
   @inlinable
-  public func stringIndexOf(
+  package func stringIndexOf(
     line: Int,
     utf16Column: Int,
     callerFile: StaticString = #fileID,
@@ -221,7 +221,7 @@ extension LineTable {
   /// - parameter line: Line number (zero-based).
   /// - parameter utf8Column: UTF-8 column offset (zero-based).
   @inlinable
-  public func stringIndexOf(
+  package func stringIndexOf(
     line: Int,
     utf8Column: Int,
     callerFile: StaticString = #fileID,
@@ -270,7 +270,7 @@ extension LineTable {
   /// - parameter line: Line number (zero-based).
   /// - parameter utf16Column: UTF-16 column offset (zero-based).
   @inlinable
-  public func utf8OffsetOf(
+  package func utf8OffsetOf(
     line: Int,
     utf16Column: Int,
     callerFile: StaticString = #fileID,
@@ -293,7 +293,7 @@ extension LineTable {
   /// - parameter line: Line number (zero-based).
   /// - parameter utf8Column: UTF-8 column offset (zero-based).
   @inlinable
-  public func utf8OffsetOf(
+  package func utf8OffsetOf(
     line: Int,
     utf8Column: Int,
     callerFile: StaticString = #fileID,
@@ -315,7 +315,7 @@ extension LineTable {
   ///
   /// - parameter utf8Offset: UTF-8 buffer offset (zero-based).
   @inlinable
-  public func lineAndUTF16ColumnOf(
+  package func lineAndUTF16ColumnOf(
     utf8Offset: Int,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
@@ -374,7 +374,7 @@ extension LineTable {
   /// - parameter line: Line number (zero-based).
   /// - parameter utf8Column: UTF-8 column offset (zero-based).
   @inlinable
-  public func utf16ColumnAt(
+  package func utf16ColumnAt(
     line: Int,
     utf8Column: Int,
     callerFile: StaticString = #fileID,
@@ -411,7 +411,7 @@ extension LineTable {
   /// - parameter line: Line number (zero-based).
   /// - parameter utf16Column: UTF-16 column offset (zero-based).
   @inlinable
-  public func utf8ColumnAt(
+  package func utf8ColumnAt(
     line: Int,
     utf16Column: Int,
     callerFile: StaticString = #fileID,

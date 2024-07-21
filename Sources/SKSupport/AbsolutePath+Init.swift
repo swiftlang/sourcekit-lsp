@@ -14,7 +14,7 @@ import struct TSCBasic.AbsolutePath
 
 extension AbsolutePath {
   /// Same as `init(validating:)` but returns `nil` on validation failure instead of throwing.
-  public init?(validatingOrNil string: String?) {
+  package init?(validatingOrNil string: String?) {
     guard let string, let path = try? AbsolutePath(validating: string) else {
       return nil
     }

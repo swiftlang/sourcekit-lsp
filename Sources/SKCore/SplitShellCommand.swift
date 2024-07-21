@@ -127,7 +127,7 @@ fileprivate struct UnixCommandParser {
 /// ```
 ///
 /// See clang's `unescapeCommandLine()`.
-public func splitShellEscapedCommand(_ cmd: String) -> [String] {
+package func splitShellEscapedCommand(_ cmd: String) -> [String] {
   var parser = UnixCommandParser(cmd[...])
   return parser.parse()
 }
@@ -340,7 +340,7 @@ fileprivate struct WindowsCommandParser {
 // CreateProcess or cmd.exe scans the pathname, it doesn't treat \ as
 // escaping the quote character, whereas when libc scans the rest of the
 // command line, it does.
-public func splitWindowsCommandLine(_ cmd: String, initialCommandName: Bool) -> [String] {
+package func splitWindowsCommandLine(_ cmd: String, initialCommandName: Bool) -> [String] {
   var parser = WindowsCommandParser(cmd, initialCommandName: initialCommandName)
   return parser.parse()
 }

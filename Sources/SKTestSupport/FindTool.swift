@@ -19,7 +19,7 @@ import WinSDK
 #endif
 
 // Returns the path to the given tool, as found by `xcrun --find` on macOS, or `which` on Linux.
-public func findTool(name: String) async -> URL? {
+package func findTool(name: String) async -> URL? {
   #if os(macOS)
   let cmd = ["/usr/bin/xcrun", "--find", name]
   #elseif os(Windows)

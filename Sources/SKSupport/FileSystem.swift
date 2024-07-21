@@ -15,14 +15,14 @@ import Foundation
 import struct TSCBasic.AbsolutePath
 
 /// The home directory of the current user (same as returned by Foundation's `NSHomeDirectory` method).
-public var homeDirectoryForCurrentUser: AbsolutePath {
+package var homeDirectoryForCurrentUser: AbsolutePath {
   try! AbsolutePath(validating: NSHomeDirectory())
 }
 
 extension AbsolutePath {
 
   /// Inititializes an absolute path from a string, expanding a leading `~` to `homeDirectoryForCurrentUser` first.
-  public init(expandingTilde path: String) throws {
+  package init(expandingTilde path: String) throws {
     if path.first == "~" {
       try self.init(homeDirectoryForCurrentUser, validating: String(path.dropFirst(2)))
     } else {
@@ -33,6 +33,6 @@ extension AbsolutePath {
 
 /// The default directory to write generated files
 /// `<TEMPORARY_DIRECTORY>/sourcekit-lsp/`
-public var defaultDirectoryForGeneratedFiles: AbsolutePath {
+package var defaultDirectoryForGeneratedFiles: AbsolutePath {
   try! AbsolutePath(validating: NSTemporaryDirectory()).appending(component: "sourcekit-lsp")
 }

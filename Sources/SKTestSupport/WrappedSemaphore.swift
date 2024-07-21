@@ -19,15 +19,15 @@ import XCTest
 ///
 /// This should only be used for tests that test priority escalation and thus cannot await a `Task` (which would cause
 /// priority elevations).
-public struct WrappedSemaphore: Sendable {
+package struct WrappedSemaphore: Sendable {
   private let name: String
   private let semaphore = DispatchSemaphore(value: 0)
 
-  public init(name: String) {
+  package init(name: String) {
     self.name = name
   }
 
-  public func signal(value: Int = 1) {
+  package func signal(value: Int = 1) {
     for _ in 0..<value {
       semaphore.signal()
     }
@@ -38,7 +38,7 @@ public struct WrappedSemaphore: Sendable {
   }
 
   /// Wait for a signal and throw an error if the semaphore is not signaled within `timeout`.
-  public func waitOrThrow(timeout: DispatchTime = DispatchTime.now() + .seconds(Int(defaultTimeout))) throws {
+  package func waitOrThrow(timeout: DispatchTime = DispatchTime.now() + .seconds(Int(defaultTimeout))) throws {
     struct TimeoutError: Error, CustomStringConvertible {
       let name: String
       var description: String { "\(name) timed out" }
@@ -52,7 +52,7 @@ public struct WrappedSemaphore: Sendable {
   }
 
   /// Wait for a signal and emit an XCTFail if the semaphore is not signaled within `timeout`.
-  public func waitOrXCTFail(timeout: DispatchTime = DispatchTime.now() + .seconds(Int(defaultTimeout))) {
+  package func waitOrXCTFail(timeout: DispatchTime = DispatchTime.now() + .seconds(Int(defaultTimeout))) {
     switch self.wait(timeout: timeout) {
     case .success:
       break

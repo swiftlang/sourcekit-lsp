@@ -23,7 +23,7 @@ import struct TSCBasic.ProcessResult
 
 private let updateIndexStoreIDForLogging = AtomicUInt32(initialValue: 1)
 
-public enum FileToIndex: CustomLogStringConvertible {
+package enum FileToIndex: CustomLogStringConvertible {
   /// A non-header file
   case indexableFile(DocumentURI)
 
@@ -34,7 +34,7 @@ public enum FileToIndex: CustomLogStringConvertible {
   ///
   /// This file might be a header file that doesn't have build settings associated with it. For the actual compiler
   /// invocation that updates the index store, the `mainFile` should be used.
-  public var sourceFile: DocumentURI {
+  package var sourceFile: DocumentURI {
     switch self {
     case .indexableFile(let uri): return uri
     case .headerFile(header: let header, mainFile: _): return header
@@ -52,7 +52,7 @@ public enum FileToIndex: CustomLogStringConvertible {
     }
   }
 
-  public var description: String {
+  package var description: String {
     switch self {
     case .indexableFile(let uri):
       return uri.description
@@ -61,7 +61,7 @@ public enum FileToIndex: CustomLogStringConvertible {
     }
   }
 
-  public var redactedDescription: String {
+  package var redactedDescription: String {
     switch self {
     case .indexableFile(let uri):
       return uri.redactedDescription
@@ -72,9 +72,9 @@ public enum FileToIndex: CustomLogStringConvertible {
 }
 
 /// A file to index and the target in which the file should be indexed.
-public struct FileAndTarget: Sendable {
-  public let file: FileToIndex
-  public let target: ConfiguredTarget
+package struct FileAndTarget: Sendable {
+  package let file: FileToIndex
+  package let target: ConfiguredTarget
 }
 
 private enum IndexKind {
@@ -96,12 +96,12 @@ private enum IndexKind {
 /// Describes a task to index a set of source files.
 ///
 /// This task description can be scheduled in a `TaskScheduler`.
-public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
-  public static let idPrefix = "update-indexstore"
-  public let id = updateIndexStoreIDForLogging.fetchAndIncrement()
+package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
+  package static let idPrefix = "update-indexstore"
+  package let id = updateIndexStoreIDForLogging.fetchAndIncrement()
 
   /// The files that should be indexed.
-  public let filesToIndex: [FileAndTarget]
+  package let filesToIndex: [FileAndTarget]
 
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
@@ -130,15 +130,15 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   private let testHooks: IndexTestHooks
 
   /// The task is idempotent because indexing the same file twice produces the same result as indexing it once.
-  public var isIdempotent: Bool { true }
+  package var isIdempotent: Bool { true }
 
-  public var estimatedCPUCoreCount: Int { 1 }
+  package var estimatedCPUCoreCount: Int { 1 }
 
-  public var description: String {
+  package var description: String {
     return self.redactedDescription
   }
 
-  public var redactedDescription: String {
+  package var redactedDescription: String {
     return "update-indexstore-\(id)"
   }
 
@@ -166,7 +166,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     self.testHooks = testHooks
   }
 
-  public func execute() async {
+  package func execute() async {
     // Only use the last two digits of the indexing ID for the logging scope to avoid creating too many scopes.
     // See comment in `withLoggingScope`.
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running indexing operation.
@@ -196,7 +196,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     }
   }
 
-  public func dependencies(
+  package func dependencies(
     to currentlyExecutingTasks: [UpdateIndexStoreTaskDescription]
   ) -> [TaskDependencyAction<UpdateIndexStoreTaskDescription>] {
     let selfMainFiles = Set(filesToIndex.map(\.file.mainFile))

@@ -73,7 +73,7 @@ extension SwiftLanguageService {
       .sorted { $0.start < $1.start }
   }
 
-  public func documentSemanticTokens(
+  package func documentSemanticTokens(
     _ req: DocumentSemanticTokensRequest
   ) async throws -> DocumentSemanticTokensResponse? {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
@@ -84,13 +84,13 @@ extension SwiftLanguageService {
     return DocumentSemanticTokensResponse(data: encodedTokens)
   }
 
-  public func documentSemanticTokensDelta(
+  package func documentSemanticTokensDelta(
     _ req: DocumentSemanticTokensDeltaRequest
   ) async throws -> DocumentSemanticTokensDeltaResponse? {
     return nil
   }
 
-  public func documentSemanticTokensRange(
+  package func documentSemanticTokensRange(
     _ req: DocumentSemanticTokensRangeRequest
   ) async throws -> DocumentSemanticTokensResponse? {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)

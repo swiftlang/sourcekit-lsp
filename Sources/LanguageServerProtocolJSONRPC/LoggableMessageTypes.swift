@@ -49,7 +49,7 @@ fileprivate struct AnyRequestType: CustomLogStringConvertible {
 }
 
 extension RequestType {
-  public var forLogging: CustomLogStringConvertibleWrapper {
+  package var forLogging: CustomLogStringConvertibleWrapper {
     return AnyRequestType(request: self).forLogging
   }
 }
@@ -72,7 +72,7 @@ fileprivate struct AnyNotificationType: CustomLogStringConvertible {
 }
 
 extension NotificationType {
-  public var forLogging: CustomLogStringConvertibleWrapper {
+  package var forLogging: CustomLogStringConvertibleWrapper {
     return AnyNotificationType(notification: self).forLogging
   }
 }
@@ -97,7 +97,7 @@ fileprivate struct AnyResponseType: CustomLogStringConvertible {
 }
 
 extension ResponseType {
-  public var forLogging: CustomLogStringConvertibleWrapper {
+  package var forLogging: CustomLogStringConvertibleWrapper {
     return AnyResponseType(response: self).forLogging
   }
 }

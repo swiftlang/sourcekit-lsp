@@ -724,7 +724,7 @@ final class BackgroundIndexingTests: XCTestCase {
     try libDPreparedForEditing.waitOrThrow()
   }
 
-  public func testProduceIndexLog() async throws {
+  func testProduceIndexLog() async throws {
     let didReceivePreparationIndexLogMessage = WrappedSemaphore(name: "Did receive preparation log message")
     let didReceiveIndexingLogMessage = WrappedSemaphore(name: "Did receive indexing log message")
     let updateIndexStoreTaskDidFinish = WrappedSemaphore(name: "Update index store task did finish")

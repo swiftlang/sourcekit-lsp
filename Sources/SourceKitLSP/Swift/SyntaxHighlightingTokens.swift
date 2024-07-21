@@ -15,16 +15,16 @@ import LanguageServerProtocol
 import SourceKitD
 
 /// A wrapper around an array of syntax highlighting tokens.
-public struct SyntaxHighlightingTokens: Sendable {
-  public var tokens: [SyntaxHighlightingToken]
+package struct SyntaxHighlightingTokens: Sendable {
+  package var tokens: [SyntaxHighlightingToken]
 
-  public init(tokens: [SyntaxHighlightingToken]) {
+  package init(tokens: [SyntaxHighlightingToken]) {
     self.tokens = tokens
   }
 
   /// The LSP representation of syntax highlighting tokens. Note that this
   /// requires the tokens in this array to be sorted.
-  public var lspEncoded: [UInt32] {
+  package var lspEncoded: [UInt32] {
     var previous = Position(line: 0, utf16index: 0)
     var rawTokens: [UInt32] = []
     rawTokens.reserveCapacity(tokens.count * 5)
@@ -57,18 +57,18 @@ public struct SyntaxHighlightingTokens: Sendable {
   /// Merges the tokens in this array into a new token array,
   /// preferring the given array's tokens if duplicate ranges are
   /// found.
-  public func mergingTokens(with other: SyntaxHighlightingTokens) -> SyntaxHighlightingTokens {
+  package func mergingTokens(with other: SyntaxHighlightingTokens) -> SyntaxHighlightingTokens {
     let otherRanges = Set(other.tokens.map(\.range))
     return SyntaxHighlightingTokens(tokens: tokens.filter { !otherRanges.contains($0.range) } + other.tokens)
   }
 
-  public func mergingTokens(with other: [SyntaxHighlightingToken]) -> SyntaxHighlightingTokens {
+  package func mergingTokens(with other: [SyntaxHighlightingToken]) -> SyntaxHighlightingTokens {
     let otherRanges = Set(other.map(\.range))
     return SyntaxHighlightingTokens(tokens: tokens.filter { !otherRanges.contains($0.range) } + other)
   }
 
   /// Sorts the tokens in this array by their start position.
-  public func sorted(
+  package func sorted(
     _ areInIncreasingOrder: (SyntaxHighlightingToken, SyntaxHighlightingToken) -> Bool
   ) -> SyntaxHighlightingTokens {
     SyntaxHighlightingTokens(tokens: tokens.sorted(by: areInIncreasingOrder))
@@ -77,7 +77,7 @@ public struct SyntaxHighlightingTokens: Sendable {
 
 extension SyntaxHighlightingTokens {
   /// Decodes the LSP representation of syntax highlighting tokens
-  public init(lspEncodedTokens rawTokens: [UInt32]) {
+  package init(lspEncodedTokens rawTokens: [UInt32]) {
     self.init(tokens: [])
     assert(rawTokens.count.isMultiple(of: 5))
     self.tokens.reserveCapacity(rawTokens.count / 5)

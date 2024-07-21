@@ -16,9 +16,9 @@ import LanguageServerProtocol
 import SemanticIndex
 import SwiftSyntax
 
-public enum TestStyle {
-  public static let xcTest = "XCTest"
-  public static let swiftTesting = "swift-testing"
+package enum TestStyle {
+  package static let xcTest = "XCTest"
+  package static let swiftTesting = "swift-testing"
 }
 
 fileprivate extension SymbolOccurrence {
@@ -504,7 +504,7 @@ extension TestItem {
 }
 
 extension SwiftLanguageService {
-  public func syntacticDocumentTests(
+  package func syntacticDocumentTests(
     for uri: DocumentURI,
     in workspace: Workspace
   ) async throws -> [AnnotatedTestItem]? {
@@ -525,7 +525,7 @@ extension SwiftLanguageService {
 }
 
 extension ClangLanguageService {
-  public func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async -> [AnnotatedTestItem]? {
+  package func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async -> [AnnotatedTestItem]? {
     return nil
   }
 }

@@ -1,3 +1,4 @@
+add_compile_options("$<$<COMPILE_LANGUAGE:Swift>:SHELL:-package-name SourceKitLSP>")
 add_subdirectory(BuildServerProtocol)
 add_subdirectory(CAtomics)
 add_subdirectory(Csourcekitd)

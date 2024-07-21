@@ -12,7 +12,7 @@
 
 extension Sequence {
   /// Just like `Sequence.map` but allows an `async` transform function.
-  public func asyncMap<T>(
+  package func asyncMap<T>(
     @_inheritActorContext _ transform: @Sendable (Element) async throws -> T
   ) async rethrows -> [T] {
     var result: [T] = []
@@ -26,7 +26,7 @@ extension Sequence {
   }
 
   /// Just like `Sequence.compactMap` but allows an `async` transform function.
-  public func asyncCompactMap<T>(
+  package func asyncCompactMap<T>(
     @_inheritActorContext _ transform: @Sendable (Element) async throws -> T?
   ) async rethrows -> [T] {
     var result: [T] = []
@@ -41,7 +41,7 @@ extension Sequence {
   }
 
   /// Just like `Sequence.map` but allows an `async` transform function.
-  public func asyncFilter(
+  package func asyncFilter(
     @_inheritActorContext _ predicate: @Sendable (Element) async throws -> Bool
   ) async rethrows -> [Element] {
     var result: [Element] = []

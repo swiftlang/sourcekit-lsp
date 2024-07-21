@@ -13,7 +13,7 @@
 import LanguageServerProtocol
 
 extension SwiftLanguageService {
-  public func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
+  package func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
     let uri = req.textDocument.uri
     let snapshot = try documentManager.latestSnapshot(uri)
     let position = await self.adjustPositionToStartOfIdentifier(req.position, in: snapshot)
