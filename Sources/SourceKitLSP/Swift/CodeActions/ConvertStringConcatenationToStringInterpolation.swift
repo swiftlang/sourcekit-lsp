@@ -56,11 +56,13 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
       [
         ExprSyntax(
           StringLiteralExprSyntax(
+            leadingTrivia: syntax.leadingTrivia,
             openingPounds: commonPounds,
             openingQuote: .stringQuoteToken(),
             segments: segments,
             closingQuote: .stringQuoteToken(),
-            closingPounds: commonPounds
+            closingPounds: commonPounds,
+            trailingTrivia: componentsOnly.last?.kind == .stringLiteralExpr ? syntax.trailingTrivia : nil
           )
         )
       ]

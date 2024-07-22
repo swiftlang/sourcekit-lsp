@@ -1009,8 +1009,10 @@ final class CodeActionTests: XCTestCase {
   func testConvertStringConcatenationToStringInterpolation() async throws {
     try await assertCodeActions(
       #"""
-      1️⃣#"["# + 2️⃣key + ": \(3️⃣d) " + 4️⃣value + ##"]"##5️⃣
+      0️⃣
+      1️⃣/*leading*/ #"["# + 2️⃣key + ": \(3️⃣d) " + 4️⃣value + ##"]"## /*trailing*/5️⃣
       """#,
+      markers: ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"],
       ranges: [("1️⃣", "2️⃣"), ("3️⃣", "4️⃣"), ("1️⃣", "5️⃣")],
       exhaustive: false
     ) { uri, positions in
@@ -1022,9 +1024,10 @@ final class CodeActionTests: XCTestCase {
             changes: [
               uri: [
                 TextEdit(
-                  range: positions["1️⃣"]..<positions["5️⃣"],
+                  range: positions["0️⃣"]..<positions["5️⃣"],
                   newText: ###"""
-                    ##"[\##(key): \##(d) \##(value)]"##
+
+                    /*leading*/ ##"[\##(key): \##(d) \##(value)]"## /*trailing*/
                     """###
                 )
               ]
