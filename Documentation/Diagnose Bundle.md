@@ -7,7 +7,7 @@ The diagnose bundle contains the following information:
   - From Xcode toolchains, just a stack trace.
   - For assert compilers (ie. nightly toolchains) also sometimes some source code that was currently compiled to cause the crash.
 - Log messages emitted by SourceKit
-  - We mark all information that may contain private information (source code, file names, …) as private in os_log so by default all of that will be redacted. Private logging can be enabled for SourceKit-LSP on macOS by running `sudo log config --subsystem org.swift.sourcekit-lsp --mode private_data:on`. These log messages are also included in a sysdiagnose.
+  - We mark all information that may contain private information (source code, file names, …) as private in os_log so by default all of that will be redacted. Private logging can be enabled for SourceKit-LSP as described in [Enable Extended Logging](#enable-extended-logging). These extended log messages are also included in a sysdiagnose.
   - On Linux and Windows, we currently don’t redact the private information, so users should always explicitly be asked before sharing these logs.
 - Versions of Swift installed on your system
   - We don’t consider this private information
@@ -15,3 +15,11 @@ The diagnose bundle contains the following information:
 - If possible, a minimized project that caused the Swift compiler to crash
   - Both minimized projects contain user code and are thus considered private. Hence we need to explicitly prompt the user before sharing this information.
   - As a future direction, it could be possible to remove any private information from the reduced examples by removing all comments and replacing all identifiers by obfuscated names.
+
+## Enable Extended logging
+
+Extended logging of SourceKit-LSP is not enabled by default because it contains information about your source code, directory structure and similar potentially sensitive information. Instead, the logging system redacts that information. If you are comfortable with sharing such information, you can enable extended SourceKit-LSP’s extended logging, which improves the ability of SourceKit-LSP developers to understand and fix issues.
+
+To enable extended logging on macOS, install the configuration profile from https://github.com/swiftlang/sourcekit-lsp/blob/main/Documentation/Enable%20Extended%20Logging.mobileconfig as described in https://support.apple.com/guide/mac-help/configuration-profiles-standardize-settings-mh35561/mac#mchlp41bd550. SourceKit-LSP will immediately stop redacting information and include them in the system log.
+
+To disable extended logging again, remove the configuration profile as described in https://support.apple.com/guide/mac-help/configuration-profiles-standardize-settings-mh35561/mac#mchlpa04df41.
