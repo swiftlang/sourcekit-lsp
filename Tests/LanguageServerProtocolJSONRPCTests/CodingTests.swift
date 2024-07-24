@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPTestSupport
 import LanguageServerProtocol
 @_spi(Testing) import LanguageServerProtocolJSONRPC
+import SKTestSupport
 import XCTest
 
 final class CodingTests: XCTestCase {

@@ -12,7 +12,6 @@
 
 import Foundation
 import ISDBTestSupport
-import LSPTestSupport
 import LanguageServerProtocol
 @_spi(Testing) import SKCore
 import SKSupport

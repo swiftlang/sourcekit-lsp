@@ -94,7 +94,6 @@ let package = Package(
       name: "DiagnoseTests",
       dependencies: [
         "Diagnose",
-        "LSPTestSupport",
         "SKCore",
         "SKLogging",
         "SKTestSupport",
@@ -128,7 +127,7 @@ let package = Package(
       name: "LanguageServerProtocolTests",
       dependencies: [
         "LanguageServerProtocol",
-        "LSPTestSupport",
+        "SKTestSupport",
       ]
     ),
 
@@ -147,20 +146,7 @@ let package = Package(
       name: "LanguageServerProtocolJSONRPCTests",
       dependencies: [
         "LanguageServerProtocolJSONRPC",
-        "LSPTestSupport",
-      ]
-    ),
-
-    // MARK: LSPTestSupport
-
-    .target(
-      name: "LSPTestSupport",
-      dependencies: [
-        "InProcessClient",
-        "LanguageServerProtocol",
-        "LanguageServerProtocolJSONRPC",
-        "SKSupport",
-        "SwiftExtensions",
+        "SKTestSupport",
       ]
     ),
 
@@ -250,7 +236,6 @@ let package = Package(
     .testTarget(
       name: "SKSupportTests",
       dependencies: [
-        "LSPTestSupport",
         "SKSupport",
         "SKTestSupport",
         "SwiftExtensions",
@@ -276,7 +261,6 @@ let package = Package(
     .testTarget(
       name: "SKSwiftPMWorkspaceTests",
       dependencies: [
-        "LSPTestSupport",
         "LanguageServerProtocol",
         "SKCore",
         "SKSwiftPMWorkspace",
@@ -295,9 +279,10 @@ let package = Package(
         "CSKTestSupport",
         "InProcessClient",
         "LanguageServerProtocol",
-        "LSPTestSupport",
+        "LanguageServerProtocolJSONRPC",
         "SKCore",
         "SKLogging",
+        "SKSupport",
         "SourceKitLSP",
         "SwiftExtensions",
         .product(name: "ISDBTestSupport", package: "indexstore-db"),
@@ -364,7 +349,6 @@ let package = Package(
       dependencies: [
         "BuildServerProtocol",
         "LanguageServerProtocol",
-        "LSPTestSupport",
         "SemanticIndex",
         "SKCore",
         "SKLogging",

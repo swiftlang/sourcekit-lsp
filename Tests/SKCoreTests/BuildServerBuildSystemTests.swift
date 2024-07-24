@@ -12,7 +12,6 @@
 
 import BuildServerProtocol
 import ISDBTestSupport
-import LSPTestSupport
 import LanguageServerProtocol
 import SKCore
 import SKTestSupport

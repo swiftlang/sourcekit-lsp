@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPTestSupport
 import LanguageServerProtocol
 @_spi(Testing) import SKCore
+import SKTestSupport
 import TSCBasic
 import XCTest
 

@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import Build
-import LSPTestSupport
 import LanguageServerProtocol
 import PackageModel
 @_spi(Testing) import SKCore

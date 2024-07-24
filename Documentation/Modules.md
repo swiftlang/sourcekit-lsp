@@ -38,10 +38,6 @@ Swift types to represent the [Language Server Protocol (LSP) specification, vers
 
 A connection to or from a SourceKit-LSP server. Since message parsing can fail, it needs to handle errors in some way and the design decision here is to use SKLogging, which hardcodes `org.swift.sourcekit-lsp` as the default logging subsystem and thus makes the module unsuitable for generic clients.
 
-### LSPTestSupport
-
-FIXME: Merge this module with SKTestSupport
-
 ### SemanticIndex
 
 Contains the interface with which SourceKit-LSP queries the semantic index, adding up-to-date checks on top of the indexstore-db API. Also implements the types that manage background indexing.

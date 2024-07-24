@@ -12,7 +12,6 @@
 
 @_spi(Testing) import Diagnose
 import Foundation
-import LSPTestSupport
 @_spi(Testing) import SKCore
 import SKLogging
 import SKTestSupport

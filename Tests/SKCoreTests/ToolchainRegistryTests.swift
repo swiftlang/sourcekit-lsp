@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPTestSupport
 @_spi(Testing) import SKCore
 import SKSupport
 import SKTestSupport
