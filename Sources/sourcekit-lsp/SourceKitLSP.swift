@@ -11,12 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import BuildSystemIntegration
 import Csourcekitd  // Not needed here, but fixes debugging...
 import Diagnose
 import Dispatch
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import SKCore
 import SKLogging
 import SKOptions
 import SKSupport

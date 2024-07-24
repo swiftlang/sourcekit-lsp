@@ -11,12 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
+import BuildSystemIntegration
 import Dispatch
 import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
 import PackageLoading
-import SKCore
 import SKLogging
 import SKOptions
 import SKSupport

@@ -8,6 +8,10 @@ Swift types to represent the [Build Server Protocol (BSP) specification, version
 
 FIXME: Add link for BSP and version
 
+### BuildSystemIntegration
+
+Defines the queries SourceKit-LSP can ask of a a build system, like getting compiler arguments for a file. Finding a target’s dependencies or preparing a target.
+
 ### CAtomics
 
 Implementation of atomics for Swift using C. Once we can raise our deployment target to use the `Atomic` type from the Swift standard library, this module should be removed.
@@ -42,31 +46,6 @@ A connection to or from a SourceKit-LSP server. Since message parsing can fail, 
 
 Contains the interface with which SourceKit-LSP queries the semantic index, adding up-to-date checks on top of the indexstore-db API. Also implements the types that manage background indexing.
 
-### SKCore
-
-FIXME: Currently serves two independent purposes and should be split up into two modules
-
-#### BuildSystem
-
-Defines the queries SourceKit-LSP can ask of a a build system, like getting compiler arguments for a file. Finding a target’s dependencies or preparing a target.
-
-This includes:
-- BuildConfiguration.swift
-- BuildServerBuildSystem.swift
-- BuildSetup.swift
-- BuildSystem.swift
-- BuildSystemDelegate.swift
-- BuildSystemManager.swift
-- CompilationDatabase.swift
-- CompilationDatabaseBuildSystem.swift
-- FallbackBuildSystem.swift
-- FileBuildSettings.swift
-- IndexTaskID.swift
-- MainFilesProvider.swift
-- PathPrefixMapping.swift
-- SplitShellCommand.swift
-- WorkspaceType.swift
-
 ### SKLogging
 
 Types that are API-compatible with OSLog to allow logging to OSLog when building for Darwin platforms and logging to stderr or files on non-Darwin platforms. This should not be dependent on any LSP specific types and be portable to other packages.
@@ -86,7 +65,7 @@ Contains SourceKit-LSP-specific helper functions. These fall into three differen
 
 Implements the `BuildSystem` protocol for Swift packages.
 
-FIXME: Merge this into the BuildSystem module once SKCore is split.
+FIXME: Merge this into the BuildSystem module once BuildSystemIntegration is split.
 
 ### SKTestSupport
 

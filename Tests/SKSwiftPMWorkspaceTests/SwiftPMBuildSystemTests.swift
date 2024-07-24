@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import Build
+@_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
 import PackageModel
-@_spi(Testing) import SKCore
 import SKOptions
 @_spi(Testing) import SKSwiftPMWorkspace
 import SKTestSupport

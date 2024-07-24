@@ -13,13 +13,13 @@
 import Basics
 import Build
 import BuildServerProtocol
+import BuildSystemIntegration
 import Dispatch
 import Foundation
 import LanguageServerProtocol
 import PackageGraph
 import PackageLoading
 import PackageModel
-import SKCore
 import SKLogging
 import SKOptions
 import SKSupport
@@ -122,9 +122,9 @@ package actor SwiftPMBuildSystem {
   }
 
   /// Delegate to handle any build system events.
-  package weak var delegate: SKCore.BuildSystemDelegate? = nil
+  package weak var delegate: BuildSystemIntegration.BuildSystemDelegate? = nil
 
-  package func setDelegate(_ delegate: SKCore.BuildSystemDelegate?) async {
+  package func setDelegate(_ delegate: BuildSystemIntegration.BuildSystemDelegate?) async {
     self.delegate = delegate
   }
 
@@ -440,7 +440,7 @@ fileprivate struct NonFileURIError: Error, CustomStringConvertible {
   }
 }
 
-extension SwiftPMBuildSystem: SKCore.BuildSystem {
+extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
   package nonisolated var supportsPreparation: Bool { true }
 
   package var buildPath: TSCAbsolutePath {

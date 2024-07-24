@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
+import BuildSystemIntegration
 import ISDBTestSupport
 import LanguageServerProtocol
-import SKCore
 import SKTestSupport
 import TSCBasic
 import XCTest

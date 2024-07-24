@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+@_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
 import SKOptions
 import SKTestSupport
 import TSCBasic

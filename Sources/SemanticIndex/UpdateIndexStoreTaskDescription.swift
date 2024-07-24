@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
-import SKCore
 import SKLogging
 import SKSupport
 import SwiftExtensions

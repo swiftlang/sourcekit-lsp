@@ -25,8 +25,8 @@ set_target_properties(Diagnose PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 
 target_link_libraries(Diagnose PUBLIC
+  BuildSystemIntegration
   InProcessClient
-  SKCore
   SKLogging
   SKOptions
   SourceKitD

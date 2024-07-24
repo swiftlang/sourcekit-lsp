@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
-import SKCore
 import SKLogging
 
 /// The logging subsystem that should be used for all index-related logging.

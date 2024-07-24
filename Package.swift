@@ -24,10 +24,10 @@ let package = Package(
     .executableTarget(
       name: "sourcekit-lsp",
       dependencies: [
+        "BuildSystemIntegration",
         "Diagnose",
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
-        "SKCore",
         "SKOptions",
         "SKSupport",
         "SourceKitLSP",
@@ -47,6 +47,36 @@ let package = Package(
         "LanguageServerProtocol"
       ],
       exclude: ["CMakeLists.txt"]
+    ),
+
+    // MARK: BuildSystemIntegration
+
+    .target(
+      name: "BuildSystemIntegration",
+      dependencies: [
+        "BuildServerProtocol",
+        "LanguageServerProtocol",
+        "LanguageServerProtocolJSONRPC",
+        "SKLogging",
+        "SKOptions",
+        "SKSupport",
+        "SourceKitD",
+        "SwiftExtensions",
+        "ToolchainRegistry",
+        .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
+        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+      ],
+      exclude: ["CMakeLists.txt"]
+    ),
+
+    .testTarget(
+      name: "BuildSystemIntegrationTests",
+      dependencies: [
+        "BuildSystemIntegration",
+        "SKOptions",
+        "SKTestSupport",
+        "ToolchainRegistry",
+      ]
     ),
 
     // MARK: CAtomics
@@ -76,8 +106,8 @@ let package = Package(
     .target(
       name: "Diagnose",
       dependencies: [
+        "BuildSystemIntegration",
         "InProcessClient",
-        "SKCore",
         "SKLogging",
         "SKOptions",
         "SKSupport",
@@ -97,8 +127,8 @@ let package = Package(
     .testTarget(
       name: "DiagnoseTests",
       dependencies: [
+        "BuildSystemIntegration",
         "Diagnose",
-        "SKCore",
         "SKLogging",
         "SKTestSupport",
         "SourceKitD",
@@ -112,8 +142,8 @@ let package = Package(
     .target(
       name: "InProcessClient",
       dependencies: [
+        "BuildSystemIntegration",
         "LanguageServerProtocol",
-        "SKCore",
         "SKLogging",
         "SKOptions",
         "SourceKitLSP",
@@ -162,8 +192,8 @@ let package = Package(
     .target(
       name: "SemanticIndex",
       dependencies: [
+        "BuildSystemIntegration",
         "LanguageServerProtocol",
-        "SKCore",
         "SKLogging",
         "SwiftExtensions",
         "ToolchainRegistry",
@@ -178,36 +208,6 @@ let package = Package(
         "SemanticIndex",
         "SKLogging",
         "SKTestSupport",
-      ]
-    ),
-
-    // MARK: SKCore
-
-    .target(
-      name: "SKCore",
-      dependencies: [
-        "BuildServerProtocol",
-        "LanguageServerProtocol",
-        "LanguageServerProtocolJSONRPC",
-        "SKLogging",
-        "SKOptions",
-        "SKSupport",
-        "SourceKitD",
-        "SwiftExtensions",
-        "ToolchainRegistry",
-        .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
-        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-      ],
-      exclude: ["CMakeLists.txt"]
-    ),
-
-    .testTarget(
-      name: "SKCoreTests",
-      dependencies: [
-        "SKCore",
-        "SKOptions",
-        "SKTestSupport",
-        "ToolchainRegistry",
       ]
     ),
 
@@ -273,8 +273,8 @@ let package = Package(
       name: "SKSwiftPMWorkspace",
       dependencies: [
         "BuildServerProtocol",
+        "BuildSystemIntegration",
         "LanguageServerProtocol",
-        "SKCore",
         "SKLogging",
         "SKOptions",
         "SwiftExtensions",
@@ -288,8 +288,8 @@ let package = Package(
     .testTarget(
       name: "SKSwiftPMWorkspaceTests",
       dependencies: [
+        "BuildSystemIntegration",
         "LanguageServerProtocol",
-        "SKCore",
         "SKOptions",
         "SKSwiftPMWorkspace",
         "SKTestSupport",
@@ -305,11 +305,11 @@ let package = Package(
     .target(
       name: "SKTestSupport",
       dependencies: [
+        "BuildSystemIntegration",
         "CSKTestSupport",
         "InProcessClient",
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
-        "SKCore",
         "SKLogging",
         "SKOptions",
         "SKSupport",
@@ -338,8 +338,8 @@ let package = Package(
     .testTarget(
       name: "SourceKitDTests",
       dependencies: [
+        "BuildSystemIntegration",
         "SourceKitD",
-        "SKCore",
         "SKTestSupport",
         "SwiftExtensions",
         "ToolchainRegistry",
@@ -352,10 +352,10 @@ let package = Package(
       name: "SourceKitLSP",
       dependencies: [
         "BuildServerProtocol",
+        "BuildSystemIntegration",
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
         "SemanticIndex",
-        "SKCore",
         "SKLogging",
         "SKOptions",
         "SKSupport",
@@ -382,9 +382,9 @@ let package = Package(
       name: "SourceKitLSPTests",
       dependencies: [
         "BuildServerProtocol",
+        "BuildSystemIntegration",
         "LanguageServerProtocol",
         "SemanticIndex",
-        "SKCore",
         "SKLogging",
         "SKOptions",
         "SKSupport",

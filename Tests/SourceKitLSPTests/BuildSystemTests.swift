@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
+@_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
 import SKOptions
 import SKTestSupport
 @_spi(Testing) import SemanticIndex

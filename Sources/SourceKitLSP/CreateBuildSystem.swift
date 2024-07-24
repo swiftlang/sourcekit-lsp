@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import LanguageServerProtocol
-import SKCore
 import SKLogging
 import SKOptions
 import SKSwiftPMWorkspace

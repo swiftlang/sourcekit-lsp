@@ -1,5 +1,5 @@
 
-add_library(SKCore STATIC
+add_library(BuildSystemIntegration STATIC
   BuildServerBuildSystem.swift
   BuildSystem.swift
   BuildSystemDelegate.swift
@@ -12,9 +12,9 @@ add_library(SKCore STATIC
   MainFilesProvider.swift
   PathPrefixMapping.swift
   SplitShellCommand.swift)
-set_target_properties(SKCore PROPERTIES
+set_target_properties(BuildSystemIntegration PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
-target_link_libraries(SKCore PUBLIC
+target_link_libraries(BuildSystemIntegration PUBLIC
   BuildServerProtocol
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC

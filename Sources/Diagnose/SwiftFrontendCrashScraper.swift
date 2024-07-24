@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import Foundation
-import SKCore
 
 struct SwiftFrontendCrashScraper {
   /// Information we care about in a `.ips` crash report.

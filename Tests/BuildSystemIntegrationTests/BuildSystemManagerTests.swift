@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
+@_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
 import SKOptions
 import SKTestSupport
 import TSCBasic
@@ -453,7 +453,7 @@ class ManualBuildSystem: BuildSystem {
 
   weak var delegate: BuildSystemDelegate? = nil
 
-  func setDelegate(_ delegate: SKCore.BuildSystemDelegate?) async {
+  func setDelegate(_ delegate: BuildSystemDelegate?) async {
     self.delegate = delegate
   }
 
