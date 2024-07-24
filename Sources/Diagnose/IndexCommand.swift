@@ -120,8 +120,4 @@ fileprivate extension SourceKitLSPServer {
   }
 }
 
-#if compiler(>=6)
-extension ExperimentalFeature: @retroactive ExpressibleByArgument {}
-#else
 extension ExperimentalFeature: ExpressibleByArgument {}
-#endif

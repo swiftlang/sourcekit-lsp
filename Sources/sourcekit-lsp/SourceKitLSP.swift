@@ -14,7 +14,6 @@ import ArgumentParser
 import Csourcekitd  // Not needed here, but fixes debugging...
 import Diagnose
 import Dispatch
-import Foundation
 import LSPLogging
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
@@ -25,6 +24,13 @@ import SourceKitLSP
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 import var TSCBasic.localFileSystem
+
+#if canImport(Darwin)
+import Foundation
+#else
+// FIMXE: (async-workaround) @preconcurrency needed because FileHandle is not marked as Sendable on Linux rdar://132378985
+@preconcurrency import Foundation
+#endif
 
 extension AbsolutePath {
   public init?(argument: String) {
@@ -81,23 +87,11 @@ extension PathPrefixMapping {
     )
   }
 }
-#if compiler(<5.11)
 extension PathPrefixMapping: ExpressibleByArgument {}
-#else
-extension PathPrefixMapping: @retroactive ExpressibleByArgument {}
-#endif
 
-#if compiler(<5.11)
 extension SKCore.BuildConfiguration: ExpressibleByArgument {}
-#else
-extension SKCore.BuildConfiguration: @retroactive ExpressibleByArgument {}
-#endif
 
-#if compiler(<5.11)
 extension SKCore.WorkspaceType: ExpressibleByArgument {}
-#else
-extension SKCore.WorkspaceType: @retroactive ExpressibleByArgument {}
-#endif
 
 @main
 struct SourceKitLSP: AsyncParsableCommand {

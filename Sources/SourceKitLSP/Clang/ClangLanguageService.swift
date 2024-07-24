@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
 import LSPLogging
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
@@ -21,8 +20,19 @@ import SwiftSyntax
 
 import struct TSCBasic.AbsolutePath
 
+#if canImport(Darwin)
+import Foundation
+#else
+// FIMXE: (async-workaround) @preconcurrency needed because Pipe is not marked as Sendable on Linux
+@preconcurrency import Foundation
+#endif
+
 #if os(Windows)
 import WinSDK
+#endif
+
+#if !canImport(Darwin)
+extension Process: @unchecked Sendable {}
 #endif
 
 /// A thin wrapper over a connection to a clangd server providing build setting handling.

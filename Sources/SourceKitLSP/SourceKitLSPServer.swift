@@ -1662,7 +1662,7 @@ extension SourceKitLSPServer {
   ///
   /// - Parameter location: The symbol index location
   /// - Returns: The LSP location
-  private func indexToLSPLocation(_ location: SymbolLocation) -> Location? {
+  private nonisolated func indexToLSPLocation(_ location: SymbolLocation) -> Location? {
     guard !location.path.isEmpty else { return nil }
     return Location(
       uri: location.documentUri,
@@ -2084,19 +2084,33 @@ extension SourceKitLSPServer {
       }
     }
 
+    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
+      return self.indexToLSPLocation(location)
+    }
+
+    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    func indexToLSPCallHierarchyItem2(
+      symbol: Symbol,
+      containerName: String?,
+      location: Location
+    ) -> CallHierarchyItem {
+      return self.indexToLSPCallHierarchyItem(symbol: symbol, containerName: containerName, location: location)
+    }
+
     let calls = callersToCalls.compactMap { (caller: Symbol, calls: [SymbolOccurrence]) -> CallHierarchyIncomingCall? in
       // Resolve the caller's definition to find its location
       let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: caller.usr)
       let definitionSymbolLocation = definition?.location
-      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation)
+      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation2)
 
-      let locations = calls.compactMap { indexToLSPLocation($0.location) }.sorted()
+      let locations = calls.compactMap { indexToLSPLocation2($0.location) }.sorted()
       guard !locations.isEmpty else {
         return nil
       }
 
       return CallHierarchyIncomingCall(
-        from: indexToLSPCallHierarchyItem(
+        from: indexToLSPCallHierarchyItem2(
           symbol: caller,
           containerName: definition?.containerName,
           location: definitionLocation ?? locations.first!
@@ -2113,23 +2127,38 @@ extension SourceKitLSPServer {
     else {
       return []
     }
+
+    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
+      return self.indexToLSPLocation(location)
+    }
+
+    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    func indexToLSPCallHierarchyItem2(
+      symbol: Symbol,
+      containerName: String?,
+      location: Location
+    ) -> CallHierarchyItem {
+      return self.indexToLSPCallHierarchyItem(symbol: symbol, containerName: containerName, location: location)
+    }
+
     let callableUsrs = [data.usr] + index.occurrences(relatedToUSR: data.usr, roles: .accessorOf).map(\.symbol.usr)
     let callOccurrences = callableUsrs.flatMap { index.occurrences(relatedToUSR: $0, roles: .containedBy) }
     let calls = callOccurrences.compactMap { occurrence -> CallHierarchyOutgoingCall? in
       guard occurrence.symbol.kind.isCallable else {
         return nil
       }
-      guard let location = indexToLSPLocation(occurrence.location) else {
+      guard let location = indexToLSPLocation2(occurrence.location) else {
         return nil
       }
 
       // Resolve the callee's definition to find its location
       let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr)
       let definitionSymbolLocation = definition?.location
-      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation)
+      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation2)
 
       return CallHierarchyOutgoingCall(
-        to: indexToLSPCallHierarchyItem(
+        to: indexToLSPCallHierarchyItem2(
           symbol: occurrence.symbol,
           containerName: definition?.containerName,
           location: definitionLocation ?? location  // Use occurrence location as fallback
@@ -2285,19 +2314,34 @@ extension SourceKitLSPServer {
       return index.occurrences(relatedToUSR: related.symbol.usr, roles: .baseOf)
     }
 
+    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
+      return self.indexToLSPLocation(location)
+    }
+
+    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    func indexToLSPTypeHierarchyItem2(
+      symbol: Symbol,
+      moduleName: String?,
+      location: Location,
+      index: CheckedIndex
+    ) -> TypeHierarchyItem {
+      return self.indexToLSPTypeHierarchyItem(symbol: symbol, moduleName: moduleName, location: location, index: index)
+    }
+
     // Convert occurrences to type hierarchy items
     let occurs = baseOccurs + retroactiveConformanceOccurs
     let types = occurs.compactMap { occurrence -> TypeHierarchyItem? in
-      guard let location = indexToLSPLocation(occurrence.location) else {
+      guard let location = indexToLSPLocation2(occurrence.location) else {
         return nil
       }
 
       // Resolve the supertype's definition to find its location
       let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr)
       let definitionSymbolLocation = definition?.location
-      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation)
+      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation2)
 
-      return indexToLSPTypeHierarchyItem(
+      return indexToLSPTypeHierarchyItem2(
         symbol: occurrence.symbol,
         moduleName: definitionSymbolLocation?.moduleName,
         location: definitionLocation ?? location,  // Use occurrence location as fallback
@@ -2317,6 +2361,21 @@ extension SourceKitLSPServer {
     // Resolve child types and extensions
     let occurs = index.occurrences(ofUSR: data.usr, roles: [.baseOf, .extendedBy])
 
+    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
+      return self.indexToLSPLocation(location)
+    }
+
+    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    func indexToLSPTypeHierarchyItem2(
+      symbol: Symbol,
+      moduleName: String?,
+      location: Location,
+      index: CheckedIndex
+    ) -> TypeHierarchyItem {
+      return self.indexToLSPTypeHierarchyItem(symbol: symbol, moduleName: moduleName, location: location, index: index)
+    }
+
     // Convert occurrences to type hierarchy items
     let types = occurs.compactMap { occurrence -> TypeHierarchyItem? in
       if occurrence.relations.count > 1 {
@@ -2325,7 +2384,7 @@ extension SourceKitLSPServer {
         // to.
         logger.fault("Expected at most extendedBy or baseOf relation but got \(occurrence.relations.count)")
       }
-      guard let related = occurrence.relations.sorted().first, let location = indexToLSPLocation(occurrence.location)
+      guard let related = occurrence.relations.sorted().first, let location = indexToLSPLocation2(occurrence.location)
       else {
         return nil
       }
@@ -2333,9 +2392,9 @@ extension SourceKitLSPServer {
       // Resolve the subtype's definition to find its location
       let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: related.symbol.usr)
       let definitionSymbolLocation = definition.map(\.location)
-      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation)
+      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation2)
 
-      return indexToLSPTypeHierarchyItem(
+      return indexToLSPTypeHierarchyItem2(
         symbol: related.symbol,
         moduleName: definitionSymbolLocation?.moduleName,
         location: definitionLocation ?? location,  // Use occurrence location as fallback

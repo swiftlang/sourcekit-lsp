@@ -187,10 +187,19 @@ extension SourceKitLSPServer {
     //  - All files that have in-memory modifications are syntactically scanned for tests here.
     let index = workspace.index(checkedFor: .inMemoryModifiedFiles(documentManager))
 
+    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    func documentManagerHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
+      return documentManager.fileHasInMemoryModifications(uri)
+    }
+
     let filesWithInMemoryState = documentManager.documents.keys.filter { uri in
       // Use the index to check for in-memory modifications so we can re-use its cache. If no index exits, ask the
       // document manager directly.
-      return index?.fileHasInMemoryModifications(uri) ?? documentManager.fileHasInMemoryModifications(uri)
+      if let index {
+        return index.fileHasInMemoryModifications(uri)
+      } else {
+        return documentManagerHasInMemoryModifications(uri)
+      }
     }
 
     let testsFromFilesWithInMemoryState = await filesWithInMemoryState.concurrentMap { (uri) -> [AnnotatedTestItem] in

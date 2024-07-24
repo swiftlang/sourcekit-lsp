@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SwiftExtensions
+
 #if os(Windows)
 import CRT
 import WinSDK
@@ -25,37 +27,45 @@ import Android
 
 package final class DLHandle: Sendable {
   #if os(Windows)
-  typealias Handle = HMODULE
+  struct Handle: @unchecked Sendable {
+    let handle: HMODULE
+  }
   #else
-  typealias Handle = UnsafeMutableRawPointer
+  struct Handle: @unchecked Sendable {
+    let handle: UnsafeMutableRawPointer
+  }
   #endif
-  var rawValue: Handle? = nil
+  let rawValue: ThreadSafeBox<Handle?>
 
   init(rawValue: Handle) {
-    self.rawValue = rawValue
+    self.rawValue = .init(initialValue: rawValue)
   }
 
   deinit {
-    precondition(rawValue == nil, "DLHandle must be closed or explicitly leaked before destroying")
+    precondition(rawValue.value == nil, "DLHandle must be closed or explicitly leaked before destroying")
   }
 
+  /// The handle must not be used anymore after calling `close`.
   package func close() throws {
-    if let handle = rawValue {
-      #if os(Windows)
-      guard FreeLibrary(handle) else {
-        throw DLError.close("Failed to FreeLibrary: \(GetLastError())")
+    try rawValue.withLock { rawValue in
+      if let handle = rawValue {
+        #if os(Windows)
+        guard FreeLibrary(handle.handle) else {
+          throw DLError.close("Failed to FreeLibrary: \(GetLastError())")
+        }
+        #else
+        guard dlclose(handle.handle) == 0 else {
+          throw DLError.close(dlerror() ?? "unknown error")
+        }
+        #endif
       }
-      #else
-      guard dlclose(handle) == 0 else {
-        throw DLError.close(dlerror() ?? "unknown error")
-      }
-      #endif
+      rawValue = nil
     }
-    rawValue = nil
   }
 
+  /// The handle must not be used anymore after calling `leak`.
   package func leak() {
-    rawValue = nil
+    rawValue.value = nil
   }
 }
 
@@ -97,16 +107,16 @@ package func dlopen(_ path: String?, mode: DLOpenFlags) throws -> DLHandle {
     throw DLError.open(dlerror() ?? "unknown error")
   }
   #endif
-  return DLHandle(rawValue: handle)
+  return DLHandle(rawValue: DLHandle.Handle(handle: handle))
 }
 
 package func dlsym<T>(_ handle: DLHandle, symbol: String) -> T? {
   #if os(Windows)
-  guard let ptr = GetProcAddress(handle.rawValue!, symbol) else {
+  guard let ptr = GetProcAddress(handle.rawValue.value!.handle, symbol) else {
     return nil
   }
   #else
-  guard let ptr = dlsym(handle.rawValue!, symbol) else {
+  guard let ptr = dlsym(handle.rawValue.value!.handle, symbol) else {
     return nil
   }
   #endif

@@ -181,7 +181,7 @@ final class PullDiagnosticsTests: XCTestCase {
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: aUri, type: .changed)])
     )
 
-    try await self.fulfillmentOfOrThrow([diagnosticsRefreshRequestReceived])
+    try await fulfillmentOfOrThrow([diagnosticsRefreshRequestReceived])
 
     let afterChangingFileA = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
@@ -250,7 +250,7 @@ final class PullDiagnosticsTests: XCTestCase {
       )
     )
 
-    try await self.fulfillmentOfOrThrow([diagnosticsRefreshRequestReceived])
+    try await fulfillmentOfOrThrow([diagnosticsRefreshRequestReceived])
 
     let afterChangingFileA = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
@@ -319,7 +319,7 @@ final class PullDiagnosticsTests: XCTestCase {
     let diagnosticRequestCancelled = self.expectation(description: "diagnostic request cancelled")
     var testHooks = TestHooks()
     testHooks.indexTestHooks.preparationTaskDidStart = { _ in
-      await self.fulfillment(of: [diagnosticRequestCancelled], timeout: defaultTimeout)
+      _ = await XCTWaiter.fulfillment(of: [diagnosticRequestCancelled], timeout: defaultTimeout)
       // Poll until the `CancelRequestNotification` has been propagated to the request handling.
       for _ in 0..<Int(defaultTimeout * 100) {
         if Task.isCancelled {

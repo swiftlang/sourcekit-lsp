@@ -34,8 +34,4 @@ extension UncheckedIndex {
   }
 }
 
-#if compiler(<5.11)
 extension UncheckedIndex: MainFilesProvider {}
-#else
-extension UncheckedIndex: @retroactive MainFilesProvider {}
-#endif
