@@ -10,10 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import RegexBuilder
 import SKLogging
-import SKSupport
 import SwiftExtensions
 
 import enum PackageLoading.Platform

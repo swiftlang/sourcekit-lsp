@@ -18,6 +18,7 @@ import PackageModel
 import SKTestSupport
 import SourceKitLSP
 import TSCBasic
+import ToolchainRegistry
 import XCTest
 
 import struct PackageModel.BuildFlags

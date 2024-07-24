@@ -16,6 +16,7 @@ import SKSupport
 import SKTestSupport
 import SemanticIndex
 import SourceKitLSP
+import ToolchainRegistry
 import XCTest
 
 import class TSCBasic.Process

@@ -15,6 +15,7 @@ import Dispatch
 import LanguageServerProtocol
 import SKLogging
 import SwiftExtensions
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 

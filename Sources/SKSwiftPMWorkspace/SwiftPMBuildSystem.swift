@@ -25,6 +25,7 @@ import SKSupport
 import SourceControl
 import SourceKitLSPAPI
 import SwiftExtensions
+import ToolchainRegistry
 import Workspace
 
 import struct Basics.AbsolutePath
@@ -36,6 +37,7 @@ import protocol TSCBasic.FileSystem
 import class TSCBasic.Process
 import var TSCBasic.localFileSystem
 import func TSCBasic.resolveSymlinks
+import class ToolchainRegistry.Toolchain
 
 typealias AbsolutePath = Basics.AbsolutePath
 
@@ -61,7 +63,7 @@ package typealias BuildServerTarget = BuildServerProtocol.BuildTarget
 ///
 /// Needed to work around a compiler crash that prevents us from accessing `toolchainRegistry.preferredToolchain` in
 /// `SwiftPMWorkspace.init`.
-private func preferredToolchain(_ toolchainRegistry: ToolchainRegistry) async -> SKCore.Toolchain? {
+private func preferredToolchain(_ toolchainRegistry: ToolchainRegistry) async -> Toolchain? {
   return await toolchainRegistry.preferredToolchain(containing: [
     \.clang, \.clangd, \.sourcekitd, \.swift, \.swiftc,
   ])
@@ -142,7 +144,7 @@ package actor SwiftPMBuildSystem {
   package let toolsBuildParameters: BuildParameters
   package let destinationBuildParameters: BuildParameters
   private let fileSystem: FileSystem
-  private let toolchain: SKCore.Toolchain
+  private let toolchain: Toolchain
 
   private var fileToTargets: [DocumentURI: [SwiftBuildTarget]] = [:]
   private var sourceDirToTargets: [DocumentURI: [SwiftBuildTarget]] = [:]
@@ -528,7 +530,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     return nil
   }
 
-  package func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
     return toolchain
   }
 

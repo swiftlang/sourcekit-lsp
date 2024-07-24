@@ -30,6 +30,7 @@ target_link_libraries(Diagnose PUBLIC
   SKLogging
   SourceKitD
   SwiftExtensions
+  ToolchainRegistry
   ArgumentParser
   SwiftSyntax::SwiftIDEUtils
   SwiftSyntax::SwiftSyntax

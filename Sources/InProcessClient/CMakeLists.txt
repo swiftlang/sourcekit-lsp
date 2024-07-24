@@ -10,4 +10,5 @@ target_link_libraries(InProcessClient PUBLIC
   SKCore
   SKLogging
   SourceKitLSP
+  ToolchainRegistry
 )

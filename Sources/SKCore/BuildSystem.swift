@@ -13,6 +13,7 @@
 import BuildServerProtocol
 import LanguageServerProtocol
 import SKLogging
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 

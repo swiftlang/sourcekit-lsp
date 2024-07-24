@@ -30,6 +30,7 @@ let package = Package(
         "SKCore",
         "SKSupport",
         "SourceKitLSP",
+        "ToolchainRegistry",
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
@@ -81,6 +82,7 @@ let package = Package(
         "SourceKitD",
         "SourceKitLSP",
         "SwiftExtensions",
+        "ToolchainRegistry",
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
         .product(name: "SwiftIDEUtils", package: "swift-syntax"),
         .product(name: "SwiftSyntax", package: "swift-syntax"),
@@ -98,6 +100,7 @@ let package = Package(
         "SKLogging",
         "SKTestSupport",
         "SourceKitD",
+        "ToolchainRegistry",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ]
     ),
@@ -111,6 +114,7 @@ let package = Package(
         "SKCore",
         "SKLogging",
         "SourceKitLSP",
+        "ToolchainRegistry",
       ],
       exclude: ["CMakeLists.txt"]
     ),
@@ -159,6 +163,7 @@ let package = Package(
         "SKCore",
         "SKLogging",
         "SwiftExtensions",
+        "ToolchainRegistry",
         .product(name: "IndexStoreDB", package: "indexstore-db"),
       ],
       exclude: ["CMakeLists.txt"]
@@ -185,6 +190,7 @@ let package = Package(
         "SKSupport",
         "SourceKitD",
         "SwiftExtensions",
+        "ToolchainRegistry",
         .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
@@ -196,6 +202,7 @@ let package = Package(
       dependencies: [
         "SKCore",
         "SKTestSupport",
+        "ToolchainRegistry",
       ]
     ),
 
@@ -252,6 +259,7 @@ let package = Package(
         "SKCore",
         "SKLogging",
         "SwiftExtensions",
+        "ToolchainRegistry",
         .product(name: "SwiftPM-auto", package: "swift-package-manager"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
@@ -266,6 +274,7 @@ let package = Package(
         "SKSwiftPMWorkspace",
         "SKTestSupport",
         "SourceKitLSP",
+        "ToolchainRegistry",
         .product(name: "SwiftPM-auto", package: "swift-package-manager"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ]
@@ -285,6 +294,7 @@ let package = Package(
         "SKSupport",
         "SourceKitLSP",
         "SwiftExtensions",
+        "ToolchainRegistry",
         .product(name: "ISDBTestSupport", package: "indexstore-db"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
@@ -311,6 +321,7 @@ let package = Package(
         "SKCore",
         "SKTestSupport",
         "SwiftExtensions",
+        "ToolchainRegistry",
       ]
     ),
 
@@ -329,6 +340,7 @@ let package = Package(
         "SKSwiftPMWorkspace",
         "SourceKitD",
         "SwiftExtensions",
+        "ToolchainRegistry",
         .product(name: "IndexStoreDB", package: "indexstore-db"),
         .product(name: "SwiftBasicFormat", package: "swift-syntax"),
         .product(name: "Crypto", package: "swift-crypto"),
@@ -356,6 +368,7 @@ let package = Package(
         "SKTestSupport",
         "SourceKitD",
         "SourceKitLSP",
+        "ToolchainRegistry",
         .product(name: "IndexStoreDB", package: "indexstore-db"),
         .product(name: "ISDBTestSupport", package: "indexstore-db"),
         .product(name: "SwiftParser", package: "swift-syntax"),
@@ -373,6 +386,30 @@ let package = Package(
     .target(
       name: "SwiftExtensions",
       exclude: ["CMakeLists.txt"]
+    ),
+
+    // MARK: ToolchainRegistry
+
+    .target(
+      name: "ToolchainRegistry",
+      dependencies: [
+        "SKLogging",
+        "SKSupport",
+        "SwiftExtensions",
+        .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
+        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+      ],
+      exclude: ["CMakeLists.txt"]
+    ),
+
+    .testTarget(
+      name: "ToolchainRegistryTests",
+      dependencies: [
+        "SKTestSupport",
+        "ToolchainRegistry",
+        .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
+        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+      ]
     ),
   ],
   swiftLanguageVersions: [.v5, .version("6")]

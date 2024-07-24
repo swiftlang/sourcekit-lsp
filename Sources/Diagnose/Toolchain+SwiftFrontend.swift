@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import SKCore
+import ToolchainRegistry
 
 extension Toolchain {
   /// The path to `swift-frontend` in the toolchain, found relative to `swift`.

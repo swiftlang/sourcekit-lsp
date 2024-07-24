@@ -23,6 +23,7 @@ import SKSwiftPMWorkspace
 import SemanticIndex
 import SourceKitD
 import SwiftExtensions
+import ToolchainRegistry
 
 import struct PackageModel.BuildFlags
 import struct TSCBasic.AbsolutePath

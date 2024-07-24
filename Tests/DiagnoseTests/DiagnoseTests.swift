@@ -16,6 +16,7 @@ import Foundation
 import SKLogging
 import SKTestSupport
 import SourceKitD
+import ToolchainRegistry
 import XCTest
 
 import struct TSCBasic.AbsolutePath

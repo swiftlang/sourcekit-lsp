@@ -14,6 +14,7 @@ import LanguageServerProtocol
 import SKCore
 import SKLogging
 import SKSwiftPMWorkspace
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath

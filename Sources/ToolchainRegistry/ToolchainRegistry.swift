@@ -11,8 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import Dispatch
-import Foundation
-import LanguageServerProtocol
 import SKSupport
 
 import struct TSCBasic.AbsolutePath

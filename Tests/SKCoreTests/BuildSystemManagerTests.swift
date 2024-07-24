@@ -15,6 +15,7 @@ import LanguageServerProtocol
 @_spi(Testing) import SKCore
 import SKTestSupport
 import TSCBasic
+import ToolchainRegistry
 import XCTest
 
 final class BuildSystemManagerTests: XCTestCase {
@@ -465,7 +466,7 @@ class ManualBuildSystem: BuildSystem {
     return nil
   }
 
-  package func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
     return nil
   }
 

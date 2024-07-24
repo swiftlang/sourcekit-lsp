@@ -18,6 +18,7 @@ import SKCore
 import SKSupport
 import SourceKitLSP
 import SwiftExtensions
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process

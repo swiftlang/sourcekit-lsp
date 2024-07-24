@@ -14,10 +14,7 @@ add_library(SKCore STATIC
   PathPrefixMapping.swift
   SourceKitLSPOptions.swift
   SplitShellCommand.swift
-  Toolchain.swift
-  ToolchainRegistry.swift
-  WorkspaceType.swift
-  XCToolchainPlist.swift)
+  WorkspaceType.swift)
 set_target_properties(SKCore PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 target_link_libraries(SKCore PUBLIC
@@ -28,5 +25,6 @@ target_link_libraries(SKCore PUBLIC
   SKSupport
   SourceKitD
   SwiftExtensions
+  ToolchainRegistry
   PackageModel
   TSCBasic)

@@ -17,6 +17,7 @@ import SKLogging
 import SKSupport
 import SemanticIndex
 import SwiftExtensions
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath

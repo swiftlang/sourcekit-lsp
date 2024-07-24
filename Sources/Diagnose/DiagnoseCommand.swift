@@ -12,7 +12,7 @@
 
 import ArgumentParser
 import Foundation
-import SKCore
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process

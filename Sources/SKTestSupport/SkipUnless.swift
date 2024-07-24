@@ -17,6 +17,7 @@ import RegexBuilder
 import SKLogging
 import SKTestSupport
 import SourceKitLSP
+import ToolchainRegistry
 import XCTest
 
 import enum PackageLoading.Platform

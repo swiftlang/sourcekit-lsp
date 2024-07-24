@@ -17,5 +17,6 @@ target_link_libraries(SemanticIndex PRIVATE
   SKCore
   SKLogging
   SwiftExtensions
+  ToolchainRegistry
   IndexStoreDB
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)

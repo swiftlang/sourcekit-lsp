@@ -16,6 +16,7 @@ import LanguageServerProtocolJSONRPC
 import SKLogging
 import SKSupport
 import SwiftExtensions
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
@@ -281,7 +282,7 @@ extension BuildServerBuildSystem: BuildSystem {
     return nil
   }
 
-  package func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
     return nil
   }
 

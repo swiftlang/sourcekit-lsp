@@ -15,6 +15,7 @@ import LanguageServerProtocol
 @_spi(Testing) import SKCore
 import SourceKitLSP
 import TSCBasic
+import ToolchainRegistry
 
 private struct SwiftSyntaxCShimsModulemapNotFoundError: Error {}
 

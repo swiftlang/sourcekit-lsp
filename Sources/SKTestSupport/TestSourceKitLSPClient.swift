@@ -20,6 +20,7 @@ import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
+import ToolchainRegistry
 import XCTest
 
 extension SourceKitLSPOptions {

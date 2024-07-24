@@ -23,6 +23,7 @@ import SwiftExtensions
 import SwiftParser
 import SwiftParserDiagnostics
 import SwiftSyntax
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 

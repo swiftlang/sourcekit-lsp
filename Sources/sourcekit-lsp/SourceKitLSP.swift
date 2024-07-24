@@ -20,6 +20,7 @@ import SKCore
 import SKLogging
 import SKSupport
 import SourceKitLSP
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath

@@ -17,6 +17,7 @@ import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import TSCBasic
+import ToolchainRegistry
 import XCTest
 
 final class WorkspaceTests: XCTestCase {

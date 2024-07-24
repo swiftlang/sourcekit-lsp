@@ -67,14 +67,6 @@ This includes:
 - SplitShellCommand.swift
 - WorkspaceType.swift
 
-#### ToolchainRegistry
-
-Discovers Swift toolchains on the system.
-
-- Toolchain.swift
-- ToolchainRegistry.swift
-- XCToolchainPlist.swift
-
 ### SKLogging
 
 Types that are API-compatible with OSLog to allow logging to OSLog when building for Darwin platforms and logging to stderr or files on non-Darwin platforms. This should not be dependent on any LSP specific types and be portable to other packages.
@@ -112,3 +104,6 @@ This is the core module that implements the SourceKit-LSP server.
 
 Extensions to the Swift standard library and Foundation. Should not have any other dependencies. Any types in here should theoretically make senses to put in the Swift standard library or Foundation and they shouldn't be specific to SourceKit-LSP
 
+#### ToolchainRegistry
+
+Discovers Swift toolchains on the system.

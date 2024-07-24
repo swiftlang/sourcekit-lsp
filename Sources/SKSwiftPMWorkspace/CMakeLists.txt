@@ -9,6 +9,7 @@ target_link_libraries(SKSwiftPMWorkspace PRIVATE
   SKCore
   SKLogging
   SwiftExtensions
+  ToolchainRegistry
   TSCBasic)
 target_link_libraries(SKSwiftPMWorkspace PUBLIC
   Build

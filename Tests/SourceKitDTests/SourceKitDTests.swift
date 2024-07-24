@@ -18,6 +18,7 @@ import SKSupport
 import SKTestSupport
 import SourceKitD
 import TSCBasic
+import ToolchainRegistry
 import XCTest
 
 import enum PackageLoading.Platform

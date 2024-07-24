@@ -9,6 +9,7 @@ target_link_libraries(sourcekit-lsp PRIVATE
   SKCore
   SKSupport
   SourceKitLSP
+  ToolchainRegistry
   ArgumentParser
   TSCBasic)
 target_compile_options(sourcekit-lsp PRIVATE
