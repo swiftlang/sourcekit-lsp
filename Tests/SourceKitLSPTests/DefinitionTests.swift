@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(Testing) import LSPLogging
+import LSPTestSupport
 import LanguageServerProtocol
 import SKTestSupport
 import XCTest

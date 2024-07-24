@@ -238,7 +238,10 @@ package final actor SemanticIndexManager {
   /// Returns immediately after scheduling that task.
   ///
   /// Indexing is being performed with a low priority.
-  private func scheduleBackgroundIndex(files: some Collection<DocumentURI>, indexFilesWithUpToDateUnit: Bool) async {
+  private func scheduleBackgroundIndex(
+    files: some Collection<DocumentURI> & Sendable,
+    indexFilesWithUpToDateUnit: Bool
+  ) async {
     _ = await self.scheduleIndexing(of: files, indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit, priority: .low)
   }
 
@@ -270,7 +273,9 @@ package final actor SemanticIndexManager {
         // potentially not knowing about unit files, which causes the corresponding source files to be re-indexed.
         index.pollForUnitChangesAndWait()
         await testHooks.buildGraphGenerationDidFinish?()
-        var filesToIndex: any Collection<DocumentURI> = await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
+        // FIXME: (async-workaround) Ideally this would be a type like any Collection<DocumentURI> & Sendable but that
+        // doesn't work due to rdar://132374933
+        var filesToIndex: [DocumentURI] = await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
         if !indexFilesWithUpToDateUnit {
           let index = index.checked(for: .modifiedFiles)
           filesToIndex = filesToIndex.filter { !index.hasUpToDateUnit(for: $0) }
@@ -318,7 +323,7 @@ package final actor SemanticIndexManager {
   ///
   /// This tries to produce an up-to-date index for the given files as quickly as possible. To achieve this, it might
   /// suspend previous target-wide index tasks in favor of index tasks that index a fewer files.
-  package func waitForUpToDateIndex(for uris: some Collection<DocumentURI>) async {
+  package func waitForUpToDateIndex(for uris: some Collection<DocumentURI> & Sendable) async {
     logger.info(
       "Waiting for up-to-date index for \(uris.map { $0.fileURL?.lastPathComponent ?? $0.stringValue }.joined(separator: ", "))"
     )
@@ -372,7 +377,7 @@ package final actor SemanticIndexManager {
   /// If `files` contains a header file, this will return a `FileToIndex` that re-indexes a main file which includes the
   /// header file to update the header file's index.
   private func filesToIndex(
-    toCover files: some Collection<DocumentURI>
+    toCover files: some Collection<DocumentURI> & Sendable
   ) async -> [FileToIndex] {
     let sourceFiles = Set(await buildSystemManager.sourceFiles().map(\.uri))
     let filesToReIndex = await files.asyncCompactMap { (uri) -> FileToIndex? in
@@ -564,7 +569,7 @@ package final actor SemanticIndexManager {
   ///
   /// The returned task finishes when all files are indexed.
   private func scheduleIndexing(
-    of files: some Collection<DocumentURI>,
+    of files: some Collection<DocumentURI> & Sendable,
     indexFilesWithUpToDateUnit: Bool,
     priority: TaskPriority?
   ) async -> Task<Void, Never> {

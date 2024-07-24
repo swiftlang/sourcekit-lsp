@@ -112,36 +112,34 @@ package func unwrap<T>(
   return try XCTUnwrap(expression, file: file, line: line)
 }
 
-extension XCTestCase {
-  private struct ExpectationNotFulfilledError: Error, CustomStringConvertible {
-    var expecatations: [XCTestExpectation]
+private struct ExpectationNotFulfilledError: Error, CustomStringConvertible {
+  var expecatations: [XCTestExpectation]
 
-    var description: String {
-      return """
-        One of the expectation was not fulfilled within timeout: \
-        \(expecatations.map(\.description).joined(separator: ", "))
-        """
-    }
+  var description: String {
+    return """
+      One of the expectation was not fulfilled within timeout: \
+      \(expecatations.map(\.description).joined(separator: ", "))
+      """
   }
+}
 
-  /// Wait for the given expectations to be fulfilled. If the expectations aren't
-  /// fulfilled within `timeout`, throw an error, aborting the test execution.
-  package func fulfillmentOfOrThrow(
-    _ expectations: [XCTestExpectation],
-    timeout: TimeInterval = defaultTimeout,
-    enforceOrder enforceOrderOfFulfillment: Bool = false
-  ) async throws {
-    // `XCTWaiter.fulfillment` was introduced in the macOS 13.3 SDK but marked as being available on macOS 10.15.
-    // At the same time that XCTWaiter.fulfillment was introduced `XCTWaiter.wait` was deprecated in async contexts.
-    // This means that we can't write code that compiles without warnings with both the macOS 13.3 and any previous SDK.
-    // Accepting the warning here when compiling with macOS 13.3 or later is the only thing that I know of that we can do here.
-    let started = await XCTWaiter.fulfillment(
-      of: expectations,
-      timeout: timeout,
-      enforceOrder: enforceOrderOfFulfillment
-    )
-    if started != .completed {
-      throw ExpectationNotFulfilledError(expecatations: expectations)
-    }
+/// Wait for the given expectations to be fulfilled. If the expectations aren't
+/// fulfilled within `timeout`, throw an error, aborting the test execution.
+package nonisolated func fulfillmentOfOrThrow(
+  _ expectations: [XCTestExpectation],
+  timeout: TimeInterval = defaultTimeout,
+  enforceOrder enforceOrderOfFulfillment: Bool = false
+) async throws {
+  // `XCTWaiter.fulfillment` was introduced in the macOS 13.3 SDK but marked as being available on macOS 10.15.
+  // At the same time that XCTWaiter.fulfillment was introduced `XCTWaiter.wait` was deprecated in async contexts.
+  // This means that we can't write code that compiles without warnings with both the macOS 13.3 and any previous SDK.
+  // Accepting the warning here when compiling with macOS 13.3 or later is the only thing that I know of that we can do here.
+  let started = await XCTWaiter.fulfillment(
+    of: expectations,
+    timeout: timeout,
+    enforceOrder: enforceOrderOfFulfillment
+  )
+  if started != .completed {
+    throw ExpectationNotFulfilledError(expecatations: expectations)
   }
 }

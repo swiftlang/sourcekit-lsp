@@ -84,7 +84,9 @@ package actor DynamicallyLoadedSourceKitD: SourceKitD {
     self.api.set_notification_handler(nil)
     self.api.shutdown()
     // FIXME: is it safe to dlclose() sourcekitd? If so, do that here. For now, let the handle leak.
-    dylib.leak()
+    Task.detached(priority: .background) { [dylib] in
+      await dylib.leak()
+    }
   }
 
   /// Adds a new notification handler (referenced weakly).

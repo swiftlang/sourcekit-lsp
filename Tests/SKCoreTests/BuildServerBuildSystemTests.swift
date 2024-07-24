@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
-import Foundation
 import ISDBTestSupport
 import LSPTestSupport
 import LanguageServerProtocol
@@ -19,6 +18,13 @@ import SKCore
 import SKTestSupport
 import TSCBasic
 import XCTest
+
+#if canImport(Darwin)
+import Foundation
+#else
+// FIMXE: (async-workaround) @preconcurrency needed because Pipe is not marked as Sendable on Linux rdar://132378792
+@preconcurrency import Foundation
+#endif
 
 /// The path to the INPUTS directory of shared test projects.
 private let skTestSupportInputsDirectory: URL = {

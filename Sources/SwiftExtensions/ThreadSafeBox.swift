@@ -43,9 +43,9 @@ package class ThreadSafeBox<T: Sendable>: @unchecked Sendable {
     _value = initialValue
   }
 
-  package func withLock<Result>(_ body: (inout T) -> Result) -> Result {
-    return lock.withLock {
-      return body(&_value)
+  package func withLock<Result>(_ body: (inout T) throws -> Result) rethrows -> Result {
+    return try lock.withLock {
+      return try body(&_value)
     }
   }
 

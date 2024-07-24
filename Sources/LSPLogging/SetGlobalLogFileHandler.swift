@@ -10,8 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
 import RegexBuilder
+
+#if canImport(Darwin)
+import Foundation
+#else
+// FIMXE: (async-workaround) @preconcurrency needed because DateFormatter and stderr are not marked as Sendable on Linux
+// rdar://125578486, rdar://132378589
+@preconcurrency import Foundation
+#endif
 
 #if os(Windows)
 import WinSDK
