@@ -13,9 +13,6 @@
 /// An experimental feature that can be enabled by passing `--experimental-feature` to `sourcekit-lsp` on the command
 /// line. The raw value of this feature is how it is named on the command line.
 public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
-  /// Add `--experimental-prepare-for-indexing` to the `swift build` command run to prepare a target for indexing.
-  case swiftpmPrepareForIndexing = "swiftpm-prepare-for-indexing"
-
   /// Enable showing macro expansions via `ShowDocumentRequest`
   case showMacroExpansions = "show-macro-expansions"
 }

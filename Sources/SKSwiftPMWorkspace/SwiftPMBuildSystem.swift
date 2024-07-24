@@ -636,8 +636,10 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     arguments += options.swiftPM.cxxCompilerFlags?.flatMap { ["-Xcxx", $0] } ?? []
     arguments += options.swiftPM.swiftCompilerFlags?.flatMap { ["-Xswiftc", $0] } ?? []
     arguments += options.swiftPM.linkerFlags?.flatMap { ["-Xlinker", $0] } ?? []
-    if options.hasExperimentalFeature(.swiftpmPrepareForIndexing) {
-      arguments.append("--experimental-prepare-for-indexing")
+    switch options.backgroundPreparationModeOrDefault {
+    case .build: break
+    case .noLazy: arguments += ["--experimental-prepare-for-indexing", "--experimental-prepare-for-indexing-no-lazy"]
+    case .enabled: arguments.append("--experimental-prepare-for-indexing")
     }
     if Task.isCancelled {
       return
