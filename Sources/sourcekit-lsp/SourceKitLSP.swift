@@ -18,6 +18,7 @@ import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKCore
 import SKLogging
+import SKOptions
 import SKSupport
 import SourceKitLSP
 import ToolchainRegistry
@@ -90,9 +91,9 @@ extension PathPrefixMapping {
 }
 extension PathPrefixMapping: ExpressibleByArgument {}
 
-extension SKCore.BuildConfiguration: ExpressibleByArgument {}
+extension SKOptions.BuildConfiguration: ExpressibleByArgument {}
 
-extension SKCore.WorkspaceType: ExpressibleByArgument {}
+extension SKOptions.WorkspaceType: ExpressibleByArgument {}
 
 @main
 struct SourceKitLSP: AsyncParsableCommand {
@@ -174,7 +175,7 @@ struct SourceKitLSP: AsyncParsableCommand {
   @Option(
     help: "Override default workspace type selection; one of 'swiftPM', 'compilationDatabase', or 'buildServer'"
   )
-  var defaultWorkspaceType: SKCore.WorkspaceType?
+  var defaultWorkspaceType: SKOptions.WorkspaceType?
 
   @Option(
     name: .customLong("compilation-db-search-path"),

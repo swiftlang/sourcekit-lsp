@@ -18,6 +18,7 @@ import LanguageServerProtocol
 import PackageLoading
 import SKCore
 import SKLogging
+import SKOptions
 import SKSupport
 import SKSwiftPMWorkspace
 import SemanticIndex

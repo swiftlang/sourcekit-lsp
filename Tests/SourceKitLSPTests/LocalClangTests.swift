@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import SKCore
 import SKTestSupport
 @_spi(Testing) import SourceKitLSP
 import XCTest

@@ -13,7 +13,6 @@
 import Foundation
 import ISDBTestSupport
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
 import SKSupport
 import SKTestSupport
 import SourceKitD

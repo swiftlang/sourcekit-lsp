@@ -13,6 +13,7 @@
 import Foundation
 import LanguageServerProtocol
 import SKCore
+import SKOptions
 import SwiftSyntax
 import ToolchainRegistry
 

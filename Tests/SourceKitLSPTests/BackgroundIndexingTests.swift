@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
+import SKOptions
 import SKSupport
 import SKTestSupport
 import SemanticIndex

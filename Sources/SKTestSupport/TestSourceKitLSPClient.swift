@@ -14,9 +14,8 @@ import Foundation
 import InProcessClient
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-@_spi(Testing) import SKCore
+import SKOptions
 import SKSupport
-import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax

@@ -12,7 +12,7 @@
 
 import Foundation
 import LanguageServerProtocol
-import SKCore
+import SKOptions
 import SourceKitLSP
 
 /// The location of a test file within test workspace.

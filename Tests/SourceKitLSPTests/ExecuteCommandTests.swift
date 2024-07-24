@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import SKCore
+import SKOptions
 import SKTestSupport
 @_spi(Testing) import SourceKitLSP
 import SwiftExtensions

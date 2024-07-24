@@ -12,8 +12,8 @@
 
 import Foundation
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
 import SKLogging
+import SKOptions
 import SKTestSupport
 import SourceKitLSP
 import TSCBasic

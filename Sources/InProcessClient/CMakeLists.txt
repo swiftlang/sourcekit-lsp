@@ -9,6 +9,7 @@ target_link_libraries(InProcessClient PUBLIC
   LanguageServerProtocol
   SKCore
   SKLogging
+  SKOptions
   SourceKitLSP
   ToolchainRegistry
 )

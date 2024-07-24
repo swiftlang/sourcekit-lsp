@@ -28,6 +28,7 @@ let package = Package(
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
         "SKCore",
+        "SKOptions",
         "SKSupport",
         "SourceKitLSP",
         "ToolchainRegistry",
@@ -78,6 +79,7 @@ let package = Package(
         "InProcessClient",
         "SKCore",
         "SKLogging",
+        "SKOptions",
         "SKSupport",
         "SourceKitD",
         "SourceKitLSP",
@@ -113,6 +115,7 @@ let package = Package(
         "LanguageServerProtocol",
         "SKCore",
         "SKLogging",
+        "SKOptions",
         "SourceKitLSP",
         "ToolchainRegistry",
       ],
@@ -187,6 +190,7 @@ let package = Package(
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
         "SKLogging",
+        "SKOptions",
         "SKSupport",
         "SourceKitD",
         "SwiftExtensions",
@@ -201,6 +205,7 @@ let package = Package(
       name: "SKCoreTests",
       dependencies: [
         "SKCore",
+        "SKOptions",
         "SKTestSupport",
         "ToolchainRegistry",
       ]
@@ -224,6 +229,19 @@ let package = Package(
         "SKLogging",
         "SKTestSupport",
       ]
+    ),
+
+    // MARK: SKOptions
+
+    .target(
+      name: "SKOptions",
+      dependencies: [
+        "LanguageServerProtocol",
+        "SKLogging",
+        "SKSupport",
+        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+      ],
+      exclude: ["CMakeLists.txt"]
     ),
 
     // MARK: SKSupport
@@ -258,6 +276,7 @@ let package = Package(
         "LanguageServerProtocol",
         "SKCore",
         "SKLogging",
+        "SKOptions",
         "SwiftExtensions",
         "ToolchainRegistry",
         .product(name: "SwiftPM-auto", package: "swift-package-manager"),
@@ -271,6 +290,7 @@ let package = Package(
       dependencies: [
         "LanguageServerProtocol",
         "SKCore",
+        "SKOptions",
         "SKSwiftPMWorkspace",
         "SKTestSupport",
         "SourceKitLSP",
@@ -291,6 +311,7 @@ let package = Package(
         "LanguageServerProtocolJSONRPC",
         "SKCore",
         "SKLogging",
+        "SKOptions",
         "SKSupport",
         "SourceKitLSP",
         "SwiftExtensions",
@@ -336,6 +357,7 @@ let package = Package(
         "SemanticIndex",
         "SKCore",
         "SKLogging",
+        "SKOptions",
         "SKSupport",
         "SKSwiftPMWorkspace",
         "SourceKitD",
@@ -364,6 +386,7 @@ let package = Package(
         "SemanticIndex",
         "SKCore",
         "SKLogging",
+        "SKOptions",
         "SKSupport",
         "SKTestSupport",
         "SourceKitD",

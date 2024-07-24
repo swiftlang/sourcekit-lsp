@@ -12,7 +12,6 @@
 
 import Foundation
 import LanguageServerProtocol
-import SKCore
 import SKSupport
 import SKSwiftPMWorkspace
 import SemanticIndex

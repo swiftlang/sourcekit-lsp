@@ -12,6 +12,7 @@
 
 import LanguageServerProtocol
 import SKCore
+import SKOptions
 import SKSupport
 import SourceKitLSP
 import ToolchainRegistry

@@ -13,9 +13,7 @@
 import Foundation
 import LanguageServerProtocol
 import RegexBuilder
-@_spi(Testing) import SKCore
 import SKLogging
-import SKTestSupport
 import SourceKitLSP
 import ToolchainRegistry
 import XCTest

@@ -14,6 +14,7 @@ import Build
 import LanguageServerProtocol
 import PackageModel
 @_spi(Testing) import SKCore
+import SKOptions
 @_spi(Testing) import SKSwiftPMWorkspace
 import SKTestSupport
 import SourceKitLSP

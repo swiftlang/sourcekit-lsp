@@ -28,6 +28,7 @@ target_link_libraries(Diagnose PUBLIC
   InProcessClient
   SKCore
   SKLogging
+  SKOptions
   SourceKitD
   SwiftExtensions
   ToolchainRegistry

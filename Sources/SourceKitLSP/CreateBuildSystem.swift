@@ -13,6 +13,7 @@
 import LanguageServerProtocol
 import SKCore
 import SKLogging
+import SKOptions
 import SKSwiftPMWorkspace
 import ToolchainRegistry
 

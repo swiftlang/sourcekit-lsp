@@ -7,6 +7,7 @@ target_link_libraries(sourcekit-lsp PRIVATE
   LanguageServerProtocolJSONRPC
   SemanticIndex
   SKCore
+  SKOptions
   SKSupport
   SourceKitLSP
   ToolchainRegistry

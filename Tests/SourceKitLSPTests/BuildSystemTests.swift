@@ -13,6 +13,7 @@
 import BuildServerProtocol
 import LanguageServerProtocol
 @_spi(Testing) import SKCore
+import SKOptions
 import SKTestSupport
 @_spi(Testing) import SemanticIndex
 @_spi(Testing) import SourceKitLSP

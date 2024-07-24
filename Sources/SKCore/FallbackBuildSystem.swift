@@ -14,6 +14,7 @@ import BuildServerProtocol
 import Dispatch
 import Foundation
 import LanguageServerProtocol
+import SKOptions
 import SKSupport
 
 import enum PackageLoading.Platform

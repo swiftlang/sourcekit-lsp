@@ -80,6 +80,7 @@ target_link_libraries(SourceKitLSP PUBLIC
   SemanticIndex
   SKCore
   SKLogging
+  SKOptions
   SKSupport
   SKSwiftPMWorkspace
   SourceKitD

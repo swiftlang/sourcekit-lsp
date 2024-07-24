@@ -71,6 +71,10 @@ This includes:
 
 Types that are API-compatible with OSLog to allow logging to OSLog when building for Darwin platforms and logging to stderr or files on non-Darwin platforms. This should not be dependent on any LSP specific types and be portable to other packages.
 
+### SKOptions
+
+Configuration options to change how SourceKit-LSP behaves, based on [Configuration files](Configuration%20File.md).
+
 ### SKSupport
 
 Contains SourceKit-LSP-specific helper functions. These fall into three different categories:

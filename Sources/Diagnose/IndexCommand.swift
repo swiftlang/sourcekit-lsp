@@ -14,7 +14,7 @@ import ArgumentParser
 import Foundation
 import InProcessClient
 import LanguageServerProtocol
-import SKCore
+import SKOptions
 import SKSupport
 import SourceKitLSP
 import SwiftExtensions

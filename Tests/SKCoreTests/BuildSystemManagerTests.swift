@@ -13,6 +13,7 @@
 import BuildServerProtocol
 import LanguageServerProtocol
 @_spi(Testing) import SKCore
+import SKOptions
 import SKTestSupport
 import TSCBasic
 import ToolchainRegistry

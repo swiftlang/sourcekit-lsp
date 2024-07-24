@@ -21,6 +21,7 @@ import PackageLoading
 import PackageModel
 import SKCore
 import SKLogging
+import SKOptions
 import SKSupport
 import SourceControl
 import SourceKitLSPAPI
