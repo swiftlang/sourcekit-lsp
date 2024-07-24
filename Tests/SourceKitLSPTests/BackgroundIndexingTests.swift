@@ -1066,7 +1066,55 @@ final class BackgroundIndexingTests: XCTestCase {
 
   func testCrossModuleFunctionalityEvenIfLowLevelModuleHasErrors() async throws {
     try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
-    let options = SourceKitLSPOptions.testDefault(experimentalFeatures: [.swiftpmPrepareForIndexing])
+    var options = SourceKitLSPOptions.testDefault()
+    options.backgroundPreparationMode = SourceKitLSPOptions.BackgroundPreparationMode.enabled.rawValue
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": """
+        public func test() -> Invalid {
+          return ""
+        }
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+
+        public func 1️⃣libBTest() -> Int {
+          return libATest()
+        }
+        """,
+        "MyExec/MyExec.swift": """
+        import LibB
+
+        func test() -> Int {
+          return 2️⃣libBTest()
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+           .executableTarget(name: "MyExec", dependencies: ["LibB"]),
+          ]
+        )
+        """,
+      options: options,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("MyExec.swift")
+    let response = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "LibB.swift")]))
+  }
+
+  func testCrossModuleFunctionalityWithPreparationNoSkipping() async throws {
+    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
+    var options = SourceKitLSPOptions.testDefault()
+    options.backgroundPreparationMode = SourceKitLSPOptions.BackgroundPreparationMode.noLazy.rawValue
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
@@ -1250,7 +1298,8 @@ final class BackgroundIndexingTests: XCTestCase {
     try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
     try SkipUnless.longTestsEnabled()
 
-    var options = SourceKitLSPOptions.testDefault(experimentalFeatures: [.swiftpmPrepareForIndexing])
+    var options = SourceKitLSPOptions.testDefault()
+    options.backgroundPreparationMode = SourceKitLSPOptions.BackgroundPreparationMode.enabled.rawValue
     options.index.updateIndexStoreTimeout = 1 /* second */
 
     let dateStarted = Date()

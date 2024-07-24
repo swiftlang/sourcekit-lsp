@@ -178,6 +178,19 @@ public struct SourceKitLSPOptions: Sendable, Codable {
     }
   }
 
+  public enum BackgroundPreparationMode: String {
+    /// Build a target to prepare it
+    case build
+
+    /// Prepare a target without generating object files but do not do lazy type checking.
+    ///
+    /// This uses SwiftPM's `--experimental-prepare-for-indexing-no-lazy` flag.
+    case noLazy
+
+    /// Prepare a target without generating object files.
+    case enabled
+  }
+
   public var swiftPM: SwiftPMOptions
   public var compilationDatabase: CompilationDatabaseOptions
   public var fallbackBuildSystem: FallbackBuildSystemOptions
@@ -193,6 +206,15 @@ public struct SourceKitLSPOptions: Sendable, Codable {
 
   public var backgroundIndexingOrDefault: Bool {
     return backgroundIndexing ?? false
+  }
+
+  public var backgroundPreparationMode: String?
+
+  public var backgroundPreparationModeOrDefault: BackgroundPreparationMode {
+    if let backgroundPreparationMode, let parsed = BackgroundPreparationMode(rawValue: backgroundPreparationMode) {
+      return parsed
+    }
+    return .build
   }
 
   /// Experimental features that are enabled.
@@ -250,6 +272,7 @@ public struct SourceKitLSPOptions: Sendable, Codable {
     defaultWorkspaceType: WorkspaceType? = nil,
     generatedFilesPath: String? = nil,
     backgroundIndexing: Bool? = nil,
+    backgroundPreparationMode: String? = nil,
     experimentalFeatures: Set<ExperimentalFeature>? = nil,
     swiftPublishDiagnosticsDebounceDuration: Double? = nil,
     workDoneProgressDebounceDuration: Double? = nil,
@@ -263,6 +286,7 @@ public struct SourceKitLSPOptions: Sendable, Codable {
     self.generatedFilesPath = generatedFilesPath
     self.defaultWorkspaceType = defaultWorkspaceType
     self.backgroundIndexing = backgroundIndexing
+    self.backgroundPreparationMode = backgroundPreparationMode
     self.experimentalFeatures = experimentalFeatures
     self.swiftPublishDiagnosticsDebounceDuration = swiftPublishDiagnosticsDebounceDuration
     self.workDoneProgressDebounceDuration = workDoneProgressDebounceDuration
@@ -315,6 +339,7 @@ public struct SourceKitLSPOptions: Sendable, Codable {
       defaultWorkspaceType: override?.defaultWorkspaceType ?? base.defaultWorkspaceType,
       generatedFilesPath: override?.generatedFilesPath ?? base.generatedFilesPath,
       backgroundIndexing: override?.backgroundIndexing ?? base.backgroundIndexing,
+      backgroundPreparationMode: override?.backgroundPreparationMode ?? base.backgroundPreparationMode,
       experimentalFeatures: override?.experimentalFeatures ?? base.experimentalFeatures,
       swiftPublishDiagnosticsDebounceDuration: override?.swiftPublishDiagnosticsDebounceDuration
         ?? base.swiftPublishDiagnosticsDebounceDuration,
