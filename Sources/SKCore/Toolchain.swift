@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
 import LanguageServerProtocol
 import RegexBuilder
+import SKLogging
 import SKSupport
 import SwiftExtensions
 

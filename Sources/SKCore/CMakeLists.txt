@@ -24,7 +24,7 @@ target_link_libraries(SKCore PUBLIC
   BuildServerProtocol
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
-  LSPLogging
+  SKLogging
   SKSupport
   SourceKitD
   SwiftExtensions

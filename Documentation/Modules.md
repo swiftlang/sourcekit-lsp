@@ -36,13 +36,7 @@ Swift types to represent the [Language Server Protocol (LSP) specification, vers
 
 ### LanguageServerProtocolJSONRPC
 
-A connection to or from a SourceKit-LSP server. Since message parsing can fail, it needs to handle errors in some way and the design decision here is to use LSPLogging, which hardcodes `org.swift.sourcekit-lsp` as the default logging subsystem and thus makes the module unsuitable for generic clients.
-
-### LSPLogging
-
-Types that are API-compatible with OSLog to allow logging to OSLog when building for Darwin platforms and logging to stderr or files on non-Darwin platforms. This should not be dependent on any LSP specific types and be portable to other packages.
-
-FIXME: Rename the module to SKLogging
+A connection to or from a SourceKit-LSP server. Since message parsing can fail, it needs to handle errors in some way and the design decision here is to use SKLogging, which hardcodes `org.swift.sourcekit-lsp` as the default logging subsystem and thus makes the module unsuitable for generic clients.
 
 ### LSPTestSupport
 
@@ -85,12 +79,15 @@ Discovers Swift toolchains on the system.
 - ToolchainRegistry.swift
 - XCToolchainPlist.swift
 
+### SKLogging
+
+Types that are API-compatible with OSLog to allow logging to OSLog when building for Darwin platforms and logging to stderr or files on non-Darwin platforms. This should not be dependent on any LSP specific types and be portable to other packages.
 
 ### SKSupport
 
 Contains SourceKit-LSP-specific helper functions. These fall into three different categories:
 -  Extensions on top of `swift-tools-support-core`
-- Functionality that can only be implemented by combining two lower-level modules that don't have a shared dependency, like `LSPLogging` + `LanguageServerProtocol`
+- Functionality that can only be implemented by combining two lower-level modules that don't have a shared dependency, like `SKLogging` + `LanguageServerProtocol`
 - Types that should be sharable by the different modules that implement SourceKit-LSP but that are not generic enough to fit into `SwiftExtensions`, like `ExperimentalFeatures`.
 
 ### SKSwiftPMWorkspace

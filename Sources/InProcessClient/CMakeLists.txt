@@ -7,7 +7,7 @@ set_target_properties(InProcessClient PROPERTIES
 
 target_link_libraries(InProcessClient PUBLIC
   LanguageServerProtocol
-  LSPLogging
   SKCore
+  SKLogging
   SourceKitLSP
 )

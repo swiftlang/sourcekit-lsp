@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import Dispatch
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 
 /// A connection between two message handlers in the same process.
 ///

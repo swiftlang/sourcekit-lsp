@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SKSupport
 
 /// A class which tracks the client's capabilities as well as our dynamic

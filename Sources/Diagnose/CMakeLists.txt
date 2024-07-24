@@ -26,8 +26,8 @@ set_target_properties(Diagnose PROPERTIES
 
 target_link_libraries(Diagnose PUBLIC
   InProcessClient
-  LSPLogging
   SKCore
+  SKLogging
   SourceKitD
   SwiftExtensions
   ArgumentParser

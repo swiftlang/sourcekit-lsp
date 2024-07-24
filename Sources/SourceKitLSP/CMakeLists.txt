@@ -77,9 +77,9 @@ target_link_libraries(SourceKitLSP PUBLIC
   BuildServerProtocol
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
-  LSPLogging
   SemanticIndex
   SKCore
+  SKLogging
   SKSupport
   SKSwiftPMWorkspace
   SourceKitD

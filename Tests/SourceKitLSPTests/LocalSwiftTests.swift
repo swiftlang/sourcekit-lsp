@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
 import LSPTestSupport
 import LanguageServerProtocol
 import SKCore
+import SKLogging
 import SKTestSupport
 import SourceKitD
 @_spi(Testing) import SourceKitLSP

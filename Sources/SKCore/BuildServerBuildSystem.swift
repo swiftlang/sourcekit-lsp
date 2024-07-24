@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
-import LSPLogging
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
+import SKLogging
 import SKSupport
 import SwiftExtensions
 

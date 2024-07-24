@@ -19,7 +19,7 @@ target_link_libraries(SKSupport PUBLIC
 )
 target_link_libraries(SKSupport PRIVATE
   LanguageServerProtocol
-  LSPLogging
+  SKLogging
   SwiftExtensions
   TSCBasic
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)

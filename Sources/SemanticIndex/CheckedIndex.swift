@@ -12,8 +12,8 @@
 
 import Foundation
 @preconcurrency import IndexStoreDB
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 
 /// Essentially a `DocumentManager` from the `SourceKitLSP` module.
 ///

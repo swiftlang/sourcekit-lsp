@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
+import SKLogging
 import SourceKitD
 @_spi(FixItApplier) import SwiftIDEUtils
 import SwiftParser

@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
 import LanguageServerProtocol
 import SKCore
+import SKLogging
 import SemanticIndex
 import XCTest
 

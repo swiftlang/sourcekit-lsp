@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 
 /// `clangd` might use a different semantic token legend than SourceKit-LSP.
 ///

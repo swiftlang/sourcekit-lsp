@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SKSupport
 
 /// Represents metadata that SourceKit-LSP injects at every command returned by code actions.

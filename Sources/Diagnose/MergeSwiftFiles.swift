@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
+import SKLogging
 
 extension RequestInfo {
   /// Check if the issue reproduces when merging all `.swift` input files into a single file.

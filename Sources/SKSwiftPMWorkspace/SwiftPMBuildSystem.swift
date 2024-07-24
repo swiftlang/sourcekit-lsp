@@ -15,12 +15,12 @@ import Build
 import BuildServerProtocol
 import Dispatch
 import Foundation
-import LSPLogging
 import LanguageServerProtocol
 import PackageGraph
 import PackageLoading
 import PackageModel
 import SKCore
+import SKLogging
 import SKSupport
 import SourceControl
 import SourceKitLSPAPI

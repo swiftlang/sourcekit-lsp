@@ -38,7 +38,6 @@ let package = Package(
     ),
 
     // MARK: BuildServerProtocol
-    // Connection between build server and language server to provide build and index info
 
     .target(
       name: "BuildServerProtocol",
@@ -49,19 +48,21 @@ let package = Package(
     ),
 
     // MARK: CAtomics
+
     .target(
       name: "CAtomics",
       dependencies: []
     ),
 
     // MARK: CSKTestSupport
+
     .target(
       name: "CSKTestSupport",
       dependencies: []
     ),
 
     // MARK: Csourcekitd
-    // C modules wrapper for sourcekitd.
+
     .target(
       name: "Csourcekitd",
       dependencies: [],
@@ -74,8 +75,8 @@ let package = Package(
       name: "Diagnose",
       dependencies: [
         "InProcessClient",
-        "LSPLogging",
         "SKCore",
+        "SKLogging",
         "SKSupport",
         "SourceKitD",
         "SourceKitLSP",
@@ -93,11 +94,11 @@ let package = Package(
       name: "DiagnoseTests",
       dependencies: [
         "Diagnose",
-        "LSPLogging",
         "LSPTestSupport",
-        "SourceKitD",
         "SKCore",
+        "SKLogging",
         "SKTestSupport",
+        "SourceKitD",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ]
     ),
@@ -108,15 +109,15 @@ let package = Package(
       name: "InProcessClient",
       dependencies: [
         "LanguageServerProtocol",
-        "LSPLogging",
         "SKCore",
+        "SKLogging",
         "SourceKitLSP",
       ],
       exclude: ["CMakeLists.txt"]
     ),
 
     // MARK: LanguageServerProtocol
-    // The core LSP types, suitable for any LSP implementation.
+
     .target(
       name: "LanguageServerProtocol",
       dependencies: [],
@@ -132,13 +133,12 @@ let package = Package(
     ),
 
     // MARK: LanguageServerProtocolJSONRPC
-    // LSP connection using jsonrpc over pipes.
 
     .target(
       name: "LanguageServerProtocolJSONRPC",
       dependencies: [
         "LanguageServerProtocol",
-        "LSPLogging",
+        "SKLogging",
       ],
       exclude: ["CMakeLists.txt"]
     ),
@@ -148,27 +148,6 @@ let package = Package(
       dependencies: [
         "LanguageServerProtocolJSONRPC",
         "LSPTestSupport",
-      ]
-    ),
-
-    // MARK: LSPLogging
-    // Logging support used in LSP modules.
-
-    .target(
-      name: "LSPLogging",
-      dependencies: [
-        "SwiftExtensions",
-        .product(name: "Crypto", package: "swift-crypto"),
-      ],
-      exclude: ["CMakeLists.txt"],
-      swiftSettings: lspLoggingSwiftSettings
-    ),
-
-    .testTarget(
-      name: "LSPLoggingTests",
-      dependencies: [
-        "LSPLogging",
-        "SKTestSupport",
       ]
     ),
 
@@ -191,8 +170,8 @@ let package = Package(
       name: "SemanticIndex",
       dependencies: [
         "LanguageServerProtocol",
-        "LSPLogging",
         "SKCore",
+        "SKLogging",
         "SwiftExtensions",
         .product(name: "IndexStoreDB", package: "indexstore-db"),
       ],
@@ -202,15 +181,13 @@ let package = Package(
     .testTarget(
       name: "SemanticIndexTests",
       dependencies: [
-        "LSPLogging",
         "SemanticIndex",
+        "SKLogging",
         "SKTestSupport",
       ]
     ),
 
     // MARK: SKCore
-    // Data structures and algorithms useful across the project, but not necessarily
-    // suitable for use in other packages.
 
     .target(
       name: "SKCore",
@@ -218,7 +195,7 @@ let package = Package(
         "BuildServerProtocol",
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
-        "LSPLogging",
+        "SKLogging",
         "SKSupport",
         "SourceKitD",
         "SwiftExtensions",
@@ -236,16 +213,34 @@ let package = Package(
       ]
     ),
 
+    // MARK: SKLogging
+
+    .target(
+      name: "SKLogging",
+      dependencies: [
+        "SwiftExtensions",
+        .product(name: "Crypto", package: "swift-crypto"),
+      ],
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: lspLoggingSwiftSettings
+    ),
+
+    .testTarget(
+      name: "SKLoggingTests",
+      dependencies: [
+        "SKLogging",
+        "SKTestSupport",
+      ]
+    ),
+
     // MARK: SKSupport
-    // Data structures, algorithms and platform-abstraction code that might be generally useful to any Swift package.
-    // Similar in spirit to SwiftPM's Basic module.
 
     .target(
       name: "SKSupport",
       dependencies: [
         "CAtomics",
         "LanguageServerProtocol",
-        "LSPLogging",
+        "SKLogging",
         "SwiftExtensions",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
@@ -269,8 +264,8 @@ let package = Package(
       dependencies: [
         "BuildServerProtocol",
         "LanguageServerProtocol",
-        "LSPLogging",
         "SKCore",
+        "SKLogging",
         "SwiftExtensions",
         .product(name: "SwiftPM-auto", package: "swift-package-manager"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
@@ -301,8 +296,8 @@ let package = Package(
         "InProcessClient",
         "LanguageServerProtocol",
         "LSPTestSupport",
-        "LSPLogging",
         "SKCore",
+        "SKLogging",
         "SourceKitLSP",
         "SwiftExtensions",
         .product(name: "ISDBTestSupport", package: "indexstore-db"),
@@ -312,13 +307,12 @@ let package = Package(
     ),
 
     // MARK: SourceKitD
-    // Swift bindings for sourcekitd.
 
     .target(
       name: "SourceKitD",
       dependencies: [
         "Csourcekitd",
-        "LSPLogging",
+        "SKLogging",
         "SwiftExtensions",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
@@ -343,9 +337,9 @@ let package = Package(
         "BuildServerProtocol",
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
-        "LSPLogging",
         "SemanticIndex",
         "SKCore",
+        "SKLogging",
         "SKSupport",
         "SKSwiftPMWorkspace",
         "SourceKitD",
@@ -369,11 +363,11 @@ let package = Package(
       name: "SourceKitLSPTests",
       dependencies: [
         "BuildServerProtocol",
-        "LSPLogging",
-        "LSPTestSupport",
         "LanguageServerProtocol",
+        "LSPTestSupport",
         "SemanticIndex",
         "SKCore",
+        "SKLogging",
         "SKSupport",
         "SKTestSupport",
         "SourceKitD",

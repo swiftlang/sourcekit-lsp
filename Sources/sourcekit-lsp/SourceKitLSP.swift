@@ -14,10 +14,10 @@ import ArgumentParser
 import Csourcekitd  // Not needed here, but fixes debugging...
 import Diagnose
 import Dispatch
-import LSPLogging
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKCore
+import SKLogging
 import SKSupport
 import SourceKitLSP
 

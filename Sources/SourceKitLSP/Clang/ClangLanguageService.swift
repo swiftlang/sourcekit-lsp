@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKCore
+import SKLogging
 import SKSupport
 import SwiftExtensions
 import SwiftSyntax

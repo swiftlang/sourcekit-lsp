@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
+import SKLogging
 import SKSupport
 import SwiftExtensions
 

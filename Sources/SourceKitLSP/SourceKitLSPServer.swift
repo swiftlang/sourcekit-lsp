@@ -14,10 +14,10 @@ import BuildServerProtocol
 import Dispatch
 import Foundation
 import IndexStoreDB
-import LSPLogging
 import LanguageServerProtocol
 import PackageLoading
 import SKCore
+import SKLogging
 import SKSupport
 import SKSwiftPMWorkspace
 import SemanticIndex

@@ -11,11 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
 import LSPTestSupport
 import LanguageServerProtocol
 import RegexBuilder
 @_spi(Testing) import SKCore
+import SKLogging
 import SourceKitLSP
 import XCTest
 

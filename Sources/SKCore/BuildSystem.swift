@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 
 import struct TSCBasic.AbsolutePath
 
