@@ -20,8 +20,8 @@ import struct TSCBasic.AbsolutePath
 /// Options that can be used to modify SourceKit-LSP's behavior.
 ///
 /// See `ConfigurationFile.md` for a description of the configuration file's behavior.
-public struct SourceKitLSPOptions: Sendable, Codable {
-  public struct SwiftPMOptions: Sendable, Codable {
+public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible {
+  public struct SwiftPMOptions: Sendable, Codable, CustomLogStringConvertible {
     /// Build configuration (debug|release).
     ///
     /// Equivalent to SwiftPM's `--configuration` option.
@@ -88,9 +88,17 @@ public struct SourceKitLSPOptions: Sendable, Codable {
         linkerFlags: override?.linkerFlags ?? base.linkerFlags
       )
     }
+
+    public var description: String {
+      recursiveDescription(of: self)
+    }
+
+    public var redactedDescription: String {
+      recursiveRedactedDescription(of: self)
+    }
   }
 
-  public struct CompilationDatabaseOptions: Sendable, Codable {
+  public struct CompilationDatabaseOptions: Sendable, Codable, CustomLogStringConvertible {
     /// Additional paths to search for a compilation database, relative to a workspace root.
     public var searchPaths: [String]?
 
@@ -104,9 +112,17 @@ public struct SourceKitLSPOptions: Sendable, Codable {
     ) -> CompilationDatabaseOptions {
       return CompilationDatabaseOptions(searchPaths: override?.searchPaths ?? base.searchPaths)
     }
+
+    public var description: String {
+      recursiveDescription(of: self)
+    }
+
+    public var redactedDescription: String {
+      recursiveRedactedDescription(of: self)
+    }
   }
 
-  public struct FallbackBuildSystemOptions: Sendable, Codable {
+  public struct FallbackBuildSystemOptions: Sendable, Codable, CustomLogStringConvertible {
     public var cCompilerFlags: [String]?
     public var cxxCompilerFlags: [String]?
     public var swiftCompilerFlags: [String]?
@@ -131,9 +147,17 @@ public struct SourceKitLSPOptions: Sendable, Codable {
         swiftCompilerFlags: override?.swiftCompilerFlags ?? base.swiftCompilerFlags
       )
     }
+
+    public var description: String {
+      recursiveDescription(of: self)
+    }
+
+    public var redactedDescription: String {
+      recursiveRedactedDescription(of: self)
+    }
   }
 
-  public struct IndexOptions: Sendable, Codable {
+  public struct IndexOptions: Sendable, Codable, CustomLogStringConvertible {
     public var indexStorePath: String?
     public var indexDatabasePath: String?
     public var indexPrefixMap: [String: String]?
@@ -175,6 +199,14 @@ public struct SourceKitLSPOptions: Sendable, Codable {
           ?? base.maxCoresPercentageToUseForBackgroundIndexing,
         updateIndexStoreTimeout: override?.updateIndexStoreTimeout ?? base.updateIndexStoreTimeout
       )
+    }
+
+    public var description: String {
+      recursiveDescription(of: self)
+    }
+
+    public var redactedDescription: String {
+      recursiveRedactedDescription(of: self)
     }
   }
 
@@ -391,5 +423,13 @@ public struct SourceKitLSPOptions: Sendable, Codable {
       Double.self,
       forKey: CodingKeys.workDoneProgressDebounceDuration
     )
+  }
+
+  public var description: String {
+    recursiveDescription(of: self)
+  }
+
+  public var redactedDescription: String {
+    recursiveRedactedDescription(of: self)
   }
 }

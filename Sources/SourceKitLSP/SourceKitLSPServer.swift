@@ -897,6 +897,7 @@ extension SourceKitLSPServer {
           .appendingPathComponent("config.json")
       )
     )
+    logger.log("Creating workspace at \(workspaceFolder.uri.forLogging) with options: \(options.forLogging)")
     let buildSystem = await createBuildSystem(
       rootUri: workspaceFolder.uri,
       options: options,
@@ -997,6 +998,8 @@ extension SourceKitLSPServer {
       base: self.options,
       override: orLog("Parsing SourceKitLSPOptions", { try SourceKitLSPOptions(fromLSPAny: req.initializationOptions) })
     )
+
+    logger.log("Initialized SourceKit-LSP with options: \(self.options.forLogging)")
 
     await workspaceQueue.async { [testHooks] in
       if let workspaceFolders = req.workspaceFolders {
