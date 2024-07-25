@@ -39,7 +39,7 @@ func assertSingleFileRename(
   expectedPrepareRenamePlaceholder: String,
   expected: String,
   testName: String = #function,
-  file: StaticString = #file,
+  file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
   try await SkipUnless.sourcekitdSupportsRename()
@@ -99,7 +99,7 @@ func assertRenamedSourceMatches(
   in ws: MultiFileTestProject,
   message: String,
   testName: String = #function,
-  file: StaticString = #file,
+  file: StaticString = #filePath,
   line: UInt = #line
 ) throws {
   for (expectedFileLocation, expectedRenamed) in expected {
@@ -138,7 +138,7 @@ func assertMultiFileRename(
   manifest: String = SwiftPMTestProject.defaultPackageManifest,
   preRenameActions: (SwiftPMTestProject) throws -> Void = { _ in },
   testName: String = #function,
-  file: StaticString = #file,
+  file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
   try await SkipUnless.sourcekitdSupportsRename()

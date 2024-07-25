@@ -176,7 +176,7 @@ final class HoverTests: XCTestCase {
 private func assertHover(
   _ markedSource: String,
   expectedContent: String,
-  file: StaticString = #file,
+  file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
   let testClient = try await TestSourceKitLSPClient()

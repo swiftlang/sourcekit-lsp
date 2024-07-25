@@ -1,5 +1,4 @@
 add_library(Diagnose STATIC
-  CommandConfiguration+Sendable.swift
   CommandLineArgumentsReducer.swift
   DebugCommand.swift
   DiagnoseCommand.swift

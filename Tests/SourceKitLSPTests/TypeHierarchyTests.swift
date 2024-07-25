@@ -225,7 +225,7 @@ fileprivate extension TypeHierarchyItem {
 fileprivate func assertEqualIgnoringData(
   _ actual: [TypeHierarchyItem]?,
   _ expected: [TypeHierarchyItem],
-  file: StaticString = #file,
+  file: StaticString = #filePath,
   line: UInt = #line
 ) {
   guard let actual else {

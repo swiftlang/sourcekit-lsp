@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import Dispatch
-import SKTestSupport
 import XCTest
 
 /// Wrapper around `DispatchSemaphore` so that Swift Concurrency doesn't complain about the usage of semaphores in the
