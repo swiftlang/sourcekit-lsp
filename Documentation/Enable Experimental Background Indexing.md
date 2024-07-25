@@ -11,9 +11,12 @@ Background indexing in SourceKit-LSP is available as an experimental feature. Th
      - When installing the Xcode 16 beta `"swift.path": "/Applications/Xcode-beta.app/Library/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin"`
    - In VS Code on other platforms, you need to set the `swift.path` to the `usr/bin` directory of your toolchain’s install location.
    - Other editors likely also have a way to pick the Swift toolchain, the exact steps vary by your setup.
-3. Enable the experimental `background-indexing` feature.
-   - In VS Code, add the following to your `settings.json`: `"swift.sourcekit-lsp.serverArguments": [ "--experimental-feature", "background-indexing" ]`
-   - In other editors, change the invocation that launches `sourcekit-lsp` to pass the `--experimental-feature background-indexing` command line arguments. The exact steps vary by your setup.
+3. Enable the experimental `background-indexing` feature by creating a [configuration file](Configuration%20File.md) with the following contents at `~/.sourcekit-lsp/config.json` with the following contents:
+```json
+{
+  "backgroundIndexing": true
+}
+```
 
 ## Known issues
 
