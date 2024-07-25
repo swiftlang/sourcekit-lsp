@@ -317,6 +317,7 @@ extension SwiftLanguageService {
             supportsCodeActions: true
           )
         ),
+        codeLensProvider: CodeLensOptions(),
         colorProvider: .bool(true),
         foldingRangeProvider: .bool(true),
         executeCommandProvider: ExecuteCommandOptions(
@@ -919,6 +920,15 @@ extension SwiftLanguageService {
       }
 
     return Array(hints)
+  }
+
+  package func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens] {
+    let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
+    return await SwiftCodeLensScanner.findCodeLenses(
+      in: snapshot,
+      syntaxTreeManager: self.syntaxTreeManager,
+      supportedCommands: self.capabilityRegistry.supportedCodeLensCommands
+    )
   }
 
   package func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {

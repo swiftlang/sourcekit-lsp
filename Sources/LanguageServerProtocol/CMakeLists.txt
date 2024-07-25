@@ -125,6 +125,7 @@ add_library(LanguageServerProtocol STATIC
   SupportTypes/SemanticTokenTypes.swift
   SupportTypes/ServerCapabilities.swift
   SupportTypes/StringOrMarkupContent.swift
+  SupportTypes/SupportedCodeLensCommand.swift
   SupportTypes/SymbolKind.swift
   SupportTypes/TestItem.swift
   SupportTypes/TextDocumentContentChangeEvent.swift

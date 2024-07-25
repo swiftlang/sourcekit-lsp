@@ -80,6 +80,10 @@ package final actor CapabilityRegistry {
     clientCapabilities.textDocument?.publishDiagnostics?.codeDescriptionSupport == true
   }
 
+  public var supportedCodeLensCommands: [SupportedCodeLensCommand: String] {
+    clientCapabilities.textDocument?.codeLens?.supportedCommands ?? [:]
+  }
+
   /// Since LSP 3.17.0, diagnostics can be reported through pull-based requests in addition to the existing push-based
   /// publish notifications.
   ///
@@ -279,6 +283,7 @@ package final actor CapabilityRegistry {
     server: SourceKitLSPServer
   ) async {
     guard clientHasDynamicInlayHintRegistration else { return }
+
     await registerLanguageSpecificCapability(
       options: InlayHintRegistrationOptions(
         documentSelector: DocumentSelector(for: languages),
@@ -345,7 +350,7 @@ package final actor CapabilityRegistry {
 }
 
 fileprivate extension DocumentSelector {
-  init(for languages: [Language]) {
-    self.init(languages.map { DocumentFilter(language: $0.rawValue) })
+  init(for languages: [Language], scheme: String? = nil) {
+    self.init(languages.map { DocumentFilter(language: $0.rawValue, scheme: scheme) })
   }
 }

@@ -700,6 +700,8 @@ extension SourceKitLSPServer: MessageHandler {
       await self.handleRequest(for: request, requestHandler: self.prepareCallHierarchy)
     case let request as RequestAndReply<CodeActionRequest>:
       await self.handleRequest(for: request, requestHandler: self.codeAction)
+    case let request as RequestAndReply<CodeLensRequest>:
+      await self.handleRequest(for: request, requestHandler: self.codeLens)
     case let request as RequestAndReply<ColorPresentationRequest>:
       await self.handleRequest(for: request, requestHandler: self.colorPresentation)
     case let request as RequestAndReply<CompletionRequest>:
@@ -961,14 +963,30 @@ extension SourceKitLSPServer {
     // The below is a workaround for the vscode-swift extension since it cannot set client capabilities.
     // It passes "workspace/peekDocuments" through the `initializationOptions`.
     var clientCapabilities = req.capabilities
-    if case .dictionary(let initializationOptions) = req.initializationOptions,
-      let peekDocuments = initializationOptions["workspace/peekDocuments"]
-    {
-      if case .dictionary(var experimentalCapabilities) = clientCapabilities.experimental {
-        experimentalCapabilities["workspace/peekDocuments"] = peekDocuments
-        clientCapabilities.experimental = .dictionary(experimentalCapabilities)
-      } else {
-        clientCapabilities.experimental = .dictionary(["workspace/peekDocuments": peekDocuments])
+    if case .dictionary(let initializationOptions) = req.initializationOptions {
+      if let peekDocuments = initializationOptions["workspace/peekDocuments"] {
+        if case .dictionary(var experimentalCapabilities) = clientCapabilities.experimental {
+          experimentalCapabilities["workspace/peekDocuments"] = peekDocuments
+          clientCapabilities.experimental = .dictionary(experimentalCapabilities)
+        } else {
+          clientCapabilities.experimental = .dictionary(["workspace/peekDocuments": peekDocuments])
+        }
+      }
+
+      // The client announces what CodeLenses it supports, and the LSP will only return
+      // ones found in the supportedCommands dictionary.
+      if let codeLens = initializationOptions["textDocument/codeLens"],
+        case let .dictionary(codeLensConfig) = codeLens,
+        case let .dictionary(supportedCommands) = codeLensConfig["supportedCommands"]
+      {
+        let commandMap = supportedCommands.compactMap { (key, value) in
+          if case let .string(clientCommand) = value {
+            return (SupportedCodeLensCommand(rawValue: key), clientCommand)
+          }
+          return nil
+        }
+
+        clientCapabilities.textDocument?.codeLens?.supportedCommands = Dictionary(uniqueKeysWithValues: commandMap)
       }
     }
 
@@ -1100,6 +1118,7 @@ extension SourceKitLSPServer {
           supportsCodeActions: true
         )
       ),
+      codeLensProvider: CodeLensOptions(),
       documentFormattingProvider: .value(DocumentFormattingOptions(workDoneProgress: false)),
       renameProvider: .value(RenameOptions(prepareProvider: true)),
       colorProvider: .bool(true),
@@ -1640,6 +1659,14 @@ extension SourceKitLSPServer {
   ) async throws -> CodeActionRequestResponse? {
     let response = try await languageService.codeAction(req)
     return req.injectMetadata(toResponse: response)
+  }
+
+  func codeLens(
+    _ req: CodeLensRequest,
+    workspace: Workspace,
+    languageService: LanguageService
+  ) async throws -> [CodeLens] {
+    return try await languageService.codeLens(req)
   }
 
   func inlayHint(

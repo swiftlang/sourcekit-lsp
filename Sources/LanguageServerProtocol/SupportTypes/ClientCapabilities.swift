@@ -465,6 +465,25 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
     }
   }
 
+  public struct CodeLens: Hashable, Codable, Sendable {
+
+    /// Whether the client supports dynamic registration of this request.
+    public var dynamicRegistration: Bool?
+
+    /// Dictionary of supported commands announced by the client.
+    /// The key is the CodeLens name recognized by SourceKit-LSP and the
+    /// value is the command as recognized by the client.
+    public var supportedCommands: [SupportedCodeLensCommand: String]?
+
+    public init(
+      dynamicRegistration: Bool? = nil,
+      supportedCommands: [SupportedCodeLensCommand: String] = [:]
+    ) {
+      self.dynamicRegistration = dynamicRegistration
+      self.supportedCommands = supportedCommands
+    }
+  }
+
   /// Capabilities specific to `textDocument/rename`.
   public struct Rename: Hashable, Codable, Sendable {
 
@@ -666,7 +685,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
 
   public var codeAction: CodeAction? = nil
 
-  public var codeLens: DynamicRegistrationCapability? = nil
+  public var codeLens: CodeLens? = nil
 
   public var documentLink: DynamicRegistrationCapability? = nil
 
@@ -715,7 +734,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
     documentHighlight: DynamicRegistrationCapability? = nil,
     documentSymbol: DocumentSymbol? = nil,
     codeAction: CodeAction? = nil,
-    codeLens: DynamicRegistrationCapability? = nil,
+    codeLens: CodeLens? = nil,
     documentLink: DynamicRegistrationCapability? = nil,
     colorProvider: DynamicRegistrationCapability? = nil,
     formatting: DynamicRegistrationCapability? = nil,
