@@ -1420,6 +1420,67 @@ final class BackgroundIndexingTests: XCTestCase {
     // also testing that we don't wait for type checking of Test.swift to finish.
     XCTAssert(Date().timeIntervalSince(dateStarted) < 30)
   }
+
+  func testRedirectSymlink() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "/original.swift": """
+        func original() {
+          foo()
+        }
+        """,
+        "/updated.swift": """
+        func updated() {
+          foo()
+        }
+        """,
+        "test.swift": """
+        func 1️⃣foo() {}
+        """,
+      ],
+      workspaces: { scratchDirectory in
+        let symlink =
+          scratchDirectory
+          .appendingPathComponent("Sources")
+          .appendingPathComponent("MyLibrary")
+          .appendingPathComponent("symlink.swift")
+        try FileManager.default.createSymbolicLink(
+          at: symlink,
+          withDestinationURL: scratchDirectory.appendingPathComponent("original.swift")
+        )
+        return [WorkspaceFolder(uri: DocumentURI(scratchDirectory))]
+      },
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("test.swift")
+
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let callsBeforeRedirect = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(callsBeforeRedirect?.only?.from.name, "original()")
+
+    let symlink =
+      project.scratchDirectory
+      .appendingPathComponent("Sources")
+      .appendingPathComponent("MyLibrary")
+      .appendingPathComponent("symlink.swift")
+    try FileManager.default.removeItem(at: symlink)
+    try FileManager.default.createSymbolicLink(
+      at: symlink,
+      withDestinationURL: project.scratchDirectory.appendingPathComponent("updated.swift")
+    )
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: DocumentURI(symlink), type: .changed)])
+    )
+    try await project.testClient.send(PollIndexRequest())
+
+    let callsAfterRedirect = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(callsAfterRedirect?.only?.from.name, "updated()")
+  }
 }
 
 extension HoverResponseContents {
