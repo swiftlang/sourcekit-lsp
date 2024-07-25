@@ -1,4 +1,4 @@
-add_library(LSPLogging STATIC
+add_library(SKLogging STATIC
   CustomLogStringConvertible.swift
   Error+ForLogging.swift
   Logging.swift
@@ -7,10 +7,10 @@ add_library(LSPLogging STATIC
   OrLog.swift
   SetGlobalLogFileHandler.swift
   SplitLogMessage.swift)
-set_target_properties(LSPLogging PROPERTIES
+set_target_properties(SKLogging PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
-target_link_libraries(LSPLogging PRIVATE
+target_link_libraries(SKLogging PRIVATE
   SwiftExtensions
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)
-target_link_libraries(LSPLogging PUBLIC
+target_link_libraries(SKLogging PUBLIC
   Crypto)

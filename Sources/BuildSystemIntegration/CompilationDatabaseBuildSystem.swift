@@ -12,9 +12,10 @@
 
 import BuildServerProtocol
 import Dispatch
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SKSupport
+import ToolchainRegistry
 
 import struct Foundation.URL
 import struct TSCBasic.AbsolutePath
@@ -119,7 +120,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     return nil
   }
 
-  package func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
     return nil
   }
 

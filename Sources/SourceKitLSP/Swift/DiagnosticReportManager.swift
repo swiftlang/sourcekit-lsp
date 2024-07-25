@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
 import LanguageServerProtocol
-import SKCore
+import SKLogging
+import SKOptions
 import SKSupport
 import SourceKitD
 import SwiftExtensions

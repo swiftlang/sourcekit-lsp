@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
+import SKLogging
 import SKTestSupport
 import SemanticIndex
 import XCTest

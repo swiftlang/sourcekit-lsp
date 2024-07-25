@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKCore
-
 /// Protocol of tasks that are executed on the index task scheduler.
 ///
 /// It is assumed that `IndexTaskDescription` of different types are allowed to execute in parallel.

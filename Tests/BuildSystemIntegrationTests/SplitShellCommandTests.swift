@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKCore
+import BuildSystemIntegration
 import XCTest
 
 /// Assert that splitting `str` into its command line components results in `expected`.

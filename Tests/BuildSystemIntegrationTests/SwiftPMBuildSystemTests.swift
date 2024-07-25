@@ -11,14 +11,14 @@
 //===----------------------------------------------------------------------===//
 
 import Build
-import LSPTestSupport
+@_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
 import PackageModel
-@_spi(Testing) import SKCore
-@_spi(Testing) import SKSwiftPMWorkspace
+import SKOptions
 import SKTestSupport
 import SourceKitLSP
 import TSCBasic
+import ToolchainRegistry
 import XCTest
 
 import struct PackageModel.BuildFlags

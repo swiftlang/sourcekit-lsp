@@ -11,13 +11,14 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
-import LSPTestSupport
+@_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
+import SKOptions
 import SKTestSupport
 @_spi(Testing) import SemanticIndex
 @_spi(Testing) import SourceKitLSP
 import TSCBasic
+import ToolchainRegistry
 import XCTest
 
 /// Build system to be used for testing BuildSystem and BuildSystemDelegate functionality with SourceKitLSPServer
@@ -58,7 +59,7 @@ actor TestBuildSystem: BuildSystem {
     return nil
   }
 
-  func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+  func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
     return nil
   }
 

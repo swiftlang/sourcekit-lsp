@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import SKCore
+import ToolchainRegistry
 
 /// Create a folder that contains all files that should be necessary to reproduce a sourcekitd crash.
 /// - Parameters:

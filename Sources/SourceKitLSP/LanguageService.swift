@@ -12,8 +12,9 @@
 
 import Foundation
 import LanguageServerProtocol
-import SKCore
+import SKOptions
 import SwiftSyntax
+import ToolchainRegistry
 
 /// The state of a `ToolchainLanguageServer`
 package enum LanguageServerState {

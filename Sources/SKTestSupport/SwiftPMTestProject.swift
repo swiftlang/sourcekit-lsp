@@ -12,9 +12,10 @@
 
 import Foundation
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
+import SKOptions
 import SourceKitLSP
 import TSCBasic
+import ToolchainRegistry
 
 private struct SwiftSyntaxCShimsModulemapNotFoundError: Error {}
 

@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import IndexStoreDB
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SemanticIndex
 import SwiftSyntax
 

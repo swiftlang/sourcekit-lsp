@@ -11,13 +11,13 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
-import LSPTestSupport
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
+import SKLogging
+import SKOptions
 import SKTestSupport
 import SourceKitLSP
 import TSCBasic
+import ToolchainRegistry
 import XCTest
 
 final class WorkspaceTests: XCTestCase {

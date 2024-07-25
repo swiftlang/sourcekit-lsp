@@ -12,8 +12,8 @@
 
 import Dispatch
 import Foundation
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 
 #if canImport(CDispatch)
 import struct CDispatch.dispatch_fd_t

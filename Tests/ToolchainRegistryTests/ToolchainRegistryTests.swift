@@ -10,11 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPTestSupport
-@_spi(Testing) import SKCore
-import SKSupport
 import SKTestSupport
 import TSCBasic
+import ToolchainRegistry
 import XCTest
 
 import enum PackageLoading.Platform

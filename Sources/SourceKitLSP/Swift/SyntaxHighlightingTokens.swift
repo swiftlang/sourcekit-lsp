@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SourceKitD
 
 /// A wrapper around an array of syntax highlighting tokens.

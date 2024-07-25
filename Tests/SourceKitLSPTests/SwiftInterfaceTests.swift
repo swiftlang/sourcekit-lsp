@@ -12,9 +12,8 @@
 
 import Foundation
 import ISDBTestSupport
-import LSPLogging
-import LSPTestSupport
 import LanguageServerProtocol
+import SKLogging
 import SKSupport
 import SKTestSupport
 import SourceKitLSP

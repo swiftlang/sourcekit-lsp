@@ -12,8 +12,7 @@
 
 import Dispatch
 import IndexStoreDB
-import LSPLogging
-import SKCore
+import SKLogging
 import SKSupport
 import SwiftExtensions
 

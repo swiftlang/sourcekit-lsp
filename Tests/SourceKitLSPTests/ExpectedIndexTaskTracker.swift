@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
+import BuildSystemIntegration
 import LanguageServerProtocol
-import SKCore
+import SKLogging
 import SemanticIndex
 import XCTest
 

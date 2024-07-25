@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SwiftSyntax
 
 // MARK: - Attribute parsing

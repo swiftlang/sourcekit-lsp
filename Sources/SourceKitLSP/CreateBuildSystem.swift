@@ -10,10 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
+import BuildSystemIntegration
 import LanguageServerProtocol
-import SKCore
-import SKSwiftPMWorkspace
+import SKLogging
+import SKOptions
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath

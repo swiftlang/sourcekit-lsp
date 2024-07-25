@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SourceKitD
 
 /// Detailed information about the result of a specific refactoring operation.

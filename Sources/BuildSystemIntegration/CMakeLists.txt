@@ -1,6 +1,5 @@
 
-add_library(SKCore STATIC
-  BuildConfiguration.swift
+add_library(BuildSystemIntegration STATIC
   BuildServerBuildSystem.swift
   BuildSystem.swift
   BuildSystemDelegate.swift
@@ -12,21 +11,21 @@ add_library(SKCore STATIC
   IndexTaskID.swift
   MainFilesProvider.swift
   PathPrefixMapping.swift
-  SourceKitLSPOptions.swift
   SplitShellCommand.swift
-  Toolchain.swift
-  ToolchainRegistry.swift
-  WorkspaceType.swift
-  XCToolchainPlist.swift)
-set_target_properties(SKCore PROPERTIES
+  SwiftPMBuildSystem.swift)
+set_target_properties(BuildSystemIntegration PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
-target_link_libraries(SKCore PUBLIC
+target_link_libraries(BuildSystemIntegration PUBLIC
   BuildServerProtocol
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
-  LSPLogging
+  SKLogging
+  SKOptions
   SKSupport
   SourceKitD
   SwiftExtensions
+  ToolchainRegistry
   PackageModel
-  TSCBasic)
+  TSCBasic
+  Build
+  SourceKitLSPAPI)

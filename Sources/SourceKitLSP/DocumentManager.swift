@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import Dispatch
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SKSupport
 import SemanticIndex
 import SwiftSyntax

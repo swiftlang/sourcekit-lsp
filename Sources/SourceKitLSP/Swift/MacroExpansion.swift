@@ -12,8 +12,8 @@
 
 import Crypto
 import Foundation
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SourceKitD
 
 /// Detailed information about the result of a macro expansion operation.

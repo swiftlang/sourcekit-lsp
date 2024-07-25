@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
+import SKLogging
 
 #if canImport(os)
 import os

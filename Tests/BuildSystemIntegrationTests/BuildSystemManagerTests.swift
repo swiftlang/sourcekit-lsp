@@ -11,10 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
-import LSPTestSupport
+@_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
+import SKOptions
+import SKTestSupport
 import TSCBasic
+import ToolchainRegistry
 import XCTest
 
 final class BuildSystemManagerTests: XCTestCase {
@@ -451,7 +453,7 @@ class ManualBuildSystem: BuildSystem {
 
   weak var delegate: BuildSystemDelegate? = nil
 
-  func setDelegate(_ delegate: SKCore.BuildSystemDelegate?) async {
+  func setDelegate(_ delegate: BuildSystemDelegate?) async {
     self.delegate = delegate
   }
 
@@ -465,7 +467,7 @@ class ManualBuildSystem: BuildSystem {
     return nil
   }
 
-  package func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
     return nil
   }
 

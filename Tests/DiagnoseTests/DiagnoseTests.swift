@@ -12,11 +12,10 @@
 
 @_spi(Testing) import Diagnose
 import Foundation
-import LSPLogging
-import LSPTestSupport
-@_spi(Testing) import SKCore
+import SKLogging
 import SKTestSupport
 import SourceKitD
+import ToolchainRegistry
 import XCTest
 
 import struct TSCBasic.AbsolutePath

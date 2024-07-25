@@ -8,6 +8,10 @@ Swift types to represent the [Build Server Protocol (BSP) specification, version
 
 FIXME: Add link for BSP and version
 
+### BuildSystemIntegration
+
+Defines the queries SourceKit-LSP can ask of a build system, like getting compiler arguments for a file, finding a target’s dependencies or preparing a target.
+
 ### CAtomics
 
 Implementation of atomics for Swift using C. Once we can raise our deployment target to use the `Atomic` type from the Swift standard library, this module should be removed.
@@ -36,68 +40,26 @@ Swift types to represent the [Language Server Protocol (LSP) specification, vers
 
 ### LanguageServerProtocolJSONRPC
 
-A connection to or from a SourceKit-LSP server. Since message parsing can fail, it needs to handle errors in some way and the design decision here is to use LSPLogging, which hardcodes `org.swift.sourcekit-lsp` as the default logging subsystem and thus makes the module unsuitable for generic clients.
-
-### LSPLogging
-
-Types that are API-compatible with OSLog to allow logging to OSLog when building for Darwin platforms and logging to stderr or files on non-Darwin platforms. This should not be dependent on any LSP specific types and be portable to other packages.
-
-FIXME: Rename the module to SKLogging
-
-### LSPTestSupport
-
-FIXME: Merge this module with SKTestSupport
+A connection to or from a SourceKit-LSP server. Since message parsing can fail, it needs to handle errors in some way and the design decision here is to use SKLogging, which hardcodes `org.swift.sourcekit-lsp` as the default logging subsystem and thus makes the module unsuitable for generic clients.
 
 ### SemanticIndex
 
 Contains the interface with which SourceKit-LSP queries the semantic index, adding up-to-date checks on top of the indexstore-db API. Also implements the types that manage background indexing.
 
-### SKCore
+### SKLogging
 
-FIXME: Currently serves two independent purposes and should be split up into two modules
+Types that are API-compatible with OSLog that allow logging to OSLog when building for Apple platforms and logging to stderr or files on non-Apple platforms. This should not be dependent on any LSP specific types and be portable to other packages.
 
-#### BuildSystem
+### SKOptions
 
-Defines the queries SourceKit-LSP can ask of a a build system, like getting compiler arguments for a file. Finding a target’s dependencies or preparing a target.
-
-This includes:
-- BuildConfiguration.swift
-- BuildServerBuildSystem.swift
-- BuildSetup.swift
-- BuildSystem.swift
-- BuildSystemDelegate.swift
-- BuildSystemManager.swift
-- CompilationDatabase.swift
-- CompilationDatabaseBuildSystem.swift
-- FallbackBuildSystem.swift
-- FileBuildSettings.swift
-- IndexTaskID.swift
-- MainFilesProvider.swift
-- PathPrefixMapping.swift
-- SplitShellCommand.swift
-- WorkspaceType.swift
-
-#### ToolchainRegistry
-
-Discovers Swift toolchains on the system.
-
-- Toolchain.swift
-- ToolchainRegistry.swift
-- XCToolchainPlist.swift
-
+Configuration options to change how SourceKit-LSP behaves, based on [Configuration files](Configuration%20File.md).
 
 ### SKSupport
 
 Contains SourceKit-LSP-specific helper functions. These fall into three different categories:
 -  Extensions on top of `swift-tools-support-core`
-- Functionality that can only be implemented by combining two lower-level modules that don't have a shared dependency, like `LSPLogging` + `LanguageServerProtocol`
+- Functionality that can only be implemented by combining two lower-level modules that don't have a shared dependency, like `SKLogging` + `LanguageServerProtocol`
 - Types that should be sharable by the different modules that implement SourceKit-LSP but that are not generic enough to fit into `SwiftExtensions`, like `ExperimentalFeatures`.
-
-### SKSwiftPMWorkspace
-
-Implements the `BuildSystem` protocol for Swift packages.
-
-FIXME: Merge this into the BuildSystem module once SKCore is split.
 
 ### SKTestSupport
 
@@ -119,3 +81,6 @@ This is the core module that implements the SourceKit-LSP server.
 
 Extensions to the Swift standard library and Foundation. Should not have any other dependencies. Any types in here should theoretically make senses to put in the Swift standard library or Foundation and they shouldn't be specific to SourceKit-LSP
 
+#### ToolchainRegistry
+
+Discovers Swift toolchains on the system.

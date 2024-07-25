@@ -10,13 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
+import BuildSystemIntegration
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import SKCore
+import SKLogging
+import SKOptions
 import SKSupport
 import SwiftExtensions
 import SwiftSyntax
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 

@@ -10,11 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
-import SKCore
 import SKSupport
-import SKSwiftPMWorkspace
 import SemanticIndex
 
 import struct TSCBasic.AbsolutePath

@@ -15,16 +15,17 @@ import Build
 import BuildServerProtocol
 import Dispatch
 import Foundation
-import LSPLogging
 import LanguageServerProtocol
 import PackageGraph
 import PackageLoading
 import PackageModel
-import SKCore
+import SKLogging
+import SKOptions
 import SKSupport
 import SourceControl
 import SourceKitLSPAPI
 import SwiftExtensions
+import ToolchainRegistry
 import Workspace
 
 import struct Basics.AbsolutePath
@@ -36,8 +37,9 @@ import protocol TSCBasic.FileSystem
 import class TSCBasic.Process
 import var TSCBasic.localFileSystem
 import func TSCBasic.resolveSymlinks
+import class ToolchainRegistry.Toolchain
 
-typealias AbsolutePath = Basics.AbsolutePath
+fileprivate typealias AbsolutePath = Basics.AbsolutePath
 
 #if canImport(SPMBuildCore)
 import SPMBuildCore
@@ -61,7 +63,7 @@ package typealias BuildServerTarget = BuildServerProtocol.BuildTarget
 ///
 /// Needed to work around a compiler crash that prevents us from accessing `toolchainRegistry.preferredToolchain` in
 /// `SwiftPMWorkspace.init`.
-private func preferredToolchain(_ toolchainRegistry: ToolchainRegistry) async -> SKCore.Toolchain? {
+private func preferredToolchain(_ toolchainRegistry: ToolchainRegistry) async -> Toolchain? {
   return await toolchainRegistry.preferredToolchain(containing: [
     \.clang, \.clangd, \.sourcekitd, \.swift, \.swiftc,
   ])
@@ -119,9 +121,9 @@ package actor SwiftPMBuildSystem {
   }
 
   /// Delegate to handle any build system events.
-  package weak var delegate: SKCore.BuildSystemDelegate? = nil
+  package weak var delegate: BuildSystemIntegration.BuildSystemDelegate? = nil
 
-  package func setDelegate(_ delegate: SKCore.BuildSystemDelegate?) async {
+  package func setDelegate(_ delegate: BuildSystemIntegration.BuildSystemDelegate?) async {
     self.delegate = delegate
   }
 
@@ -142,7 +144,7 @@ package actor SwiftPMBuildSystem {
   package let toolsBuildParameters: BuildParameters
   package let destinationBuildParameters: BuildParameters
   private let fileSystem: FileSystem
-  private let toolchain: SKCore.Toolchain
+  private let toolchain: Toolchain
 
   private var fileToTargets: [DocumentURI: [SwiftBuildTarget]] = [:]
   private var sourceDirToTargets: [DocumentURI: [SwiftBuildTarget]] = [:]
@@ -437,7 +439,7 @@ fileprivate struct NonFileURIError: Error, CustomStringConvertible {
   }
 }
 
-extension SwiftPMBuildSystem: SKCore.BuildSystem {
+extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
   package nonisolated var supportsPreparation: Bool { true }
 
   package var buildPath: TSCAbsolutePath {
@@ -528,7 +530,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     return nil
   }
 
-  package func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
     return toolchain
   }
 

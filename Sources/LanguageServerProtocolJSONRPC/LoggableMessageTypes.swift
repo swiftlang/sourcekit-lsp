@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 
 fileprivate extension Encodable {
   var prettyPrintJSON: String {

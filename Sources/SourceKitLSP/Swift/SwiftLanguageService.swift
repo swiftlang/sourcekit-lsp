@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import Dispatch
 import Foundation
 import IndexStoreDB
-import LSPLogging
 import LanguageServerProtocol
-import SKCore
+import SKLogging
+import SKOptions
 import SKSupport
 import SemanticIndex
 import SourceKitD
@@ -23,6 +24,7 @@ import SwiftExtensions
 import SwiftParser
 import SwiftParserDiagnostics
 import SwiftSyntax
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 

@@ -10,8 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(Testing) import LSPLogging
-import LSPTestSupport
+@_spi(Testing) import SKLogging
 import SKTestSupport
 import XCTest
 
@@ -189,7 +188,7 @@ final class LoggingTests: XCTestCase {
 
     await assertLogging(
       privacyLevel: .public,
-      expected: ["logging from LSPLoggingTests.LoggingTests"]
+      expected: ["logging from SKLoggingTests.LoggingTests"]
     ) {
       $0.log("logging from \(LoggingTests.self)")
     }

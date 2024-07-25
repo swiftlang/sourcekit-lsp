@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPTestSupport
 import SKSupport
+import SKTestSupport
 import SwiftExtensions
 import XCTest
 

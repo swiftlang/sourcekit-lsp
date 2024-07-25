@@ -11,15 +11,17 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import BuildSystemIntegration
 import Csourcekitd  // Not needed here, but fixes debugging...
 import Diagnose
 import Dispatch
-import LSPLogging
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import SKCore
+import SKLogging
+import SKOptions
 import SKSupport
 import SourceKitLSP
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
@@ -89,9 +91,9 @@ extension PathPrefixMapping {
 }
 extension PathPrefixMapping: ExpressibleByArgument {}
 
-extension SKCore.BuildConfiguration: ExpressibleByArgument {}
+extension SKOptions.BuildConfiguration: ExpressibleByArgument {}
 
-extension SKCore.WorkspaceType: ExpressibleByArgument {}
+extension SKOptions.WorkspaceType: ExpressibleByArgument {}
 
 @main
 struct SourceKitLSP: AsyncParsableCommand {
@@ -173,7 +175,7 @@ struct SourceKitLSP: AsyncParsableCommand {
   @Option(
     help: "Override default workspace type selection; one of 'swiftPM', 'compilationDatabase', or 'buildServer'"
   )
-  var defaultWorkspaceType: SKCore.WorkspaceType?
+  var defaultWorkspaceType: SKOptions.WorkspaceType?
 
   @Option(
     name: .customLong("compilation-db-search-path"),

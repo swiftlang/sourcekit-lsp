@@ -12,9 +12,9 @@
 
 import ArgumentParser
 import Foundation
-import SKCore
 import SKSupport
 import SourceKitD
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 

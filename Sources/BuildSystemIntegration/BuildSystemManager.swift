@@ -12,9 +12,10 @@
 
 import BuildServerProtocol
 import Dispatch
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SwiftExtensions
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 

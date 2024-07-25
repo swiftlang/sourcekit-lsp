@@ -10,11 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+@_spi(Testing) import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
+import SKOptions
 import SourceKitLSP
 import TSCBasic
+import ToolchainRegistry
 
 package struct IndexedSingleSwiftFileTestProject {
   enum Error: Swift.Error {

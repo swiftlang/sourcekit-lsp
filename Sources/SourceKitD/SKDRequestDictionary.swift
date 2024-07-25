@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Csourcekitd
-import LSPLogging
+import SKLogging
 
 #if canImport(Darwin)
 import Darwin

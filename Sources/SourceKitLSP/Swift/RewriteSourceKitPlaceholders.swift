@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
+import SKLogging
 @_spi(SourceKitLSP) import SwiftRefactor
 
 func rewriteSourceKitPlaceholders(in string: String, clientSupportsSnippets: Bool) -> String {

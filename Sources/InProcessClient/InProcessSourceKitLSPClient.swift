@@ -10,10 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import LanguageServerProtocol
-import SKCore
+import SKOptions
 import SKSupport
 import SourceKitLSP
+import ToolchainRegistry
 
 /// Launches a `SourceKitLSPServer` in-process and allows sending messages to it.
 public final class InProcessSourceKitLSPClient: Sendable {

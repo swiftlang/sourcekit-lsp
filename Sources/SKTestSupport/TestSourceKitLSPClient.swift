@@ -12,14 +12,14 @@
 
 import Foundation
 import InProcessClient
-import LSPTestSupport
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-@_spi(Testing) import SKCore
+import SKOptions
 import SKSupport
 import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
+import ToolchainRegistry
 import XCTest
 
 extension SourceKitLSPOptions {

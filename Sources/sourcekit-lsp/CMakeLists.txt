@@ -2,13 +2,15 @@
 add_executable(sourcekit-lsp
   SourceKitLSP.swift)
 target_link_libraries(sourcekit-lsp PRIVATE
+  BuildSystemIntegration
   Diagnose
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
   SemanticIndex
-  SKCore
+  SKOptions
   SKSupport
   SourceKitLSP
+  ToolchainRegistry
   ArgumentParser
   TSCBasic)
 target_compile_options(sourcekit-lsp PRIVATE

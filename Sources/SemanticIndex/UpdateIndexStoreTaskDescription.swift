@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import Foundation
-import LSPLogging
 import LanguageServerProtocol
-import SKCore
+import SKLogging
 import SKSupport
 import SwiftExtensions
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process

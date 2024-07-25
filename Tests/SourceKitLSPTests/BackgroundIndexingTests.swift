@@ -10,13 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPTestSupport
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
+import SKOptions
 import SKSupport
 import SKTestSupport
 import SemanticIndex
 import SourceKitLSP
+import ToolchainRegistry
 import XCTest
 
 import class TSCBasic.Process

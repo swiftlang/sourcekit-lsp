@@ -10,12 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+@_spi(Testing) import BuildSystemIntegration
 import Foundation
-import LSPTestSupport
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
 import SKTestSupport
 @_spi(Testing) import SourceKitLSP
+import ToolchainRegistry
 import XCTest
 
 private let packageManifestWithTestTarget = """

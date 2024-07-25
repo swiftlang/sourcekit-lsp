@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPTestSupport
 import LanguageServerProtocol
+import SKTestSupport
 import XCTest
 
 class ConnectionTests: XCTestCase {

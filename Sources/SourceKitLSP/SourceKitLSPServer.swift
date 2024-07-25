@@ -11,18 +11,19 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
+import BuildSystemIntegration
 import Dispatch
 import Foundation
 import IndexStoreDB
-import LSPLogging
 import LanguageServerProtocol
 import PackageLoading
-import SKCore
+import SKLogging
+import SKOptions
 import SKSupport
-import SKSwiftPMWorkspace
 import SemanticIndex
 import SourceKitD
 import SwiftExtensions
+import ToolchainRegistry
 
 import struct PackageModel.BuildFlags
 import struct TSCBasic.AbsolutePath

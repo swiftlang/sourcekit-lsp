@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPTestSupport
 import SKSupport
 import SKTestSupport
 import XCTest

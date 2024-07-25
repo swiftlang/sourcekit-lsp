@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import Foundation
-import LSPLogging
 import LanguageServerProtocol
-import SKCore
+import SKLogging
 import SKSupport
 
 import struct TSCBasic.AbsolutePath

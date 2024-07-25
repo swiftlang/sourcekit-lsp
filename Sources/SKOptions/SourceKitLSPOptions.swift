@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SKSupport
 
 import struct TSCBasic.AbsolutePath
@@ -309,7 +309,7 @@ public struct SourceKitLSPOptions: Sendable, Codable {
   }
 
   public init?(path: URL?) {
-    guard let path, let contents = try? String(contentsOf: path, encoding: .utf8) else {
+    guard let path, let contents = try? Data(contentsOf: path) else {
       return nil
     }
     guard
