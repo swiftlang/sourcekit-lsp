@@ -1,6 +1,6 @@
 # Contributing
 
-This document contains notes about development and testing of SourceKit-LSP.
+This document contains notes about development and testing of SourceKit-LSP, the [Contributor Documentation](Contributor%20Documentation/) folder has some more detailed documentation.
 
 ## Building & Testing
 
