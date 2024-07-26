@@ -38,5 +38,7 @@ The structure of the file is currently not guaranteed to be stable. Options may 
     - `updateIndexStoreTimeout: int`: Number of seconds to wait for an update index store task to finish before killing it.
 - `defaultWorkspaceType: "buildserver"|"compdb"|"swiftpm"`: Overrides workspace type selection logic.
 - `generatedFilesPath: string`: Directory in which generated interfaces and macro expansions should be stored.
+- `backgroundIndexing: bool`: Explicitly enable or disable background indexing.
+- `backgroundPreparationMode: "build"|"noLazy"|"enabled"`: Determines how background indexing should prepare a target. Possible values are: `build`: Build a target to prepare it, `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping, `enabled`: Prepare a target without generating object files and the like
 - `experimentalFeatures: string[]`: Experimental features to enable
 - `swiftPublishDiagnosticsDebounce`: The time that `SwiftLanguageService` should wait after an edit before starting to compute diagnostics and sending a `PublishDiagnosticsNotification`.
