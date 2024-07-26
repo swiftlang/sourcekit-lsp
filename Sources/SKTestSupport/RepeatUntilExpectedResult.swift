@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKTestSupport
 import XCTest
 
 /// Runs the body repeatedly once per second until it returns `true`, giving up after `timeout`.

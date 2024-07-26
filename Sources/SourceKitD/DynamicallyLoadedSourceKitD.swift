@@ -85,7 +85,7 @@ package actor DynamicallyLoadedSourceKitD: SourceKitD {
     self.api.shutdown()
     // FIXME: is it safe to dlclose() sourcekitd? If so, do that here. For now, let the handle leak.
     Task.detached(priority: .background) { [dylib] in
-      await dylib.leak()
+      dylib.leak()
     }
   }
 

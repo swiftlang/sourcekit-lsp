@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@preconcurrency import IndexStoreDB
+import IndexStoreDB
 import LanguageServerProtocol
 import SKLogging
 import SKSupport

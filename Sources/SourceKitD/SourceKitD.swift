@@ -15,11 +15,10 @@ import Dispatch
 import Foundation
 import SwiftExtensions
 
-#if compiler(>=6)
-extension sourcekitd_api_request_handle_t: @retroactive @unchecked Sendable {}
-#else
-extension sourcekitd_api_request_handle_t: @unchecked Sendable {}
-#endif
+fileprivate struct SourceKitDRequestHandle: Sendable {
+  /// `nonisolated(unsafe)` is fine because we just use the handle as an opaque value.
+  nonisolated(unsafe) let handle: sourcekitd_api_request_handle_t
+}
 
 /// Access to sourcekitd API, taking care of initialization, shutdown, and notification handler
 /// multiplexing.
@@ -107,16 +106,19 @@ extension SourceKitD {
     log(request: request)
 
     let sourcekitdResponse = try await withTimeout(timeout) {
-      return try await withCancellableCheckedThrowingContinuation { continuation in
+      return try await withCancellableCheckedThrowingContinuation { (continuation) -> SourceKitDRequestHandle? in
         var handle: sourcekitd_api_request_handle_t? = nil
         self.api.send_request(request.dict, &handle) { response in
           continuation.resume(returning: SKDResponse(response!, sourcekitd: self))
         }
-        return handle
-      } cancel: { handle in
+        if let handle {
+          return SourceKitDRequestHandle(handle: handle)
+        }
+        return nil
+      } cancel: { (handle: SourceKitDRequestHandle?) in
         if let handle {
           self.logRequestCancellation(request: request)
-          self.api.cancel_request(handle)
+          self.api.cancel_request(handle.handle)
         }
       }
     }
