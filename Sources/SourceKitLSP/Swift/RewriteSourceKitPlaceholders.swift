@@ -38,6 +38,10 @@ fileprivate extension EditorPlaceholderData {
     switch self {
     case .basic(text: let text): return text
     case .typed(text: let text, type: _): return text
+    #if RESILIENT_LIBRARIES
+    @unknown default:
+      fatalError("Unknown case")
+    #endif
     }
   }
 }

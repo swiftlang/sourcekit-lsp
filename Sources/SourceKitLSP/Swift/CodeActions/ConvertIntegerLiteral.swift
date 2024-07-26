@@ -51,6 +51,10 @@ struct ConvertIntegerLiteral: SyntaxCodeActionProvider {
         prefix = "0x"
       case .decimal:
         prefix = ""
+      #if RESILIENT_LIBRARIES
+      @unknown default:
+        fatalError("Unknown case")
+      #endif
       }
 
       let convertedValue: ExprSyntax =
