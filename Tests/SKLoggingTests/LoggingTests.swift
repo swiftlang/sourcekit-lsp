@@ -237,5 +237,21 @@ final class LoggingTests: XCTestCase {
       recursiveRedactedDescription(of: ("abc" as String?) as Any),
       "MD5 digest: 900150983cd24fb0d6963f7d28e17f72"
     )
+
+    struct Something: CustomLogStringConvertible {
+      let x = 1
+      let y = "hi"
+
+      var redactedDescription: String {
+        recursiveRedactedDescription(of: self)
+      }
+
+      var description: String { "" }
+    }
+
+    XCTAssertEqual(
+      Something().redactedDescription,
+      "{x: 1, y: MD5 digest: 49f68a5c8493ec2c0bf489821c21fc3b}"
+    )
   }
 }
