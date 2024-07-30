@@ -85,3 +85,55 @@ extension Optional where Wrapped: CustomLogStringConvertible {
     return CustomLogStringConvertibleWrapper(OptionalWrapper(optional: self))
   }
 }
+
+/// A JSON-like description of the object.
+public func recursiveDescription(of subject: Any) -> String {
+  return "{"
+    + Mirror(reflecting: subject).children.map { (key, value) in
+      "\(key ?? "<nil>"): \(String(describing: value))"
+    }.joined(separator: ", ")
+    + "}"
+}
+
+fileprivate protocol OptionalProtocol {
+  associatedtype Wrapped
+  var asOptional: Wrapped? { get }
+}
+extension Optional: OptionalProtocol {
+  var asOptional: Wrapped? { self }
+}
+
+/// A JSON-like description of the object that shows trivial values but redacts values that might contain sensitive
+/// information.
+public func recursiveRedactedDescription(of value: Any) -> String {
+  switch value {
+  case let value as Bool:
+    return value.description
+  case let value as Int:
+    return value.description
+  case let value as Double:
+    return value.description
+  case let value as String:
+    return value.hashForLogging
+  case let value as any CustomLogStringConvertible:
+    return value.redactedDescription
+  case let value as any OptionalProtocol:
+    if let value = value.asOptional {
+      return recursiveRedactedDescription(of: value)
+    } else {
+      return "nil"
+    }
+  default:
+    break
+  }
+
+  let children = Mirror(reflecting: value).children.sorted { $0.label ?? "" < $1.label ?? "" }
+  if !children.isEmpty {
+    return "{"
+      + children.map { (label, value) -> String in
+        "\(label ?? "<nil>"): \(recursiveRedactedDescription(of: value))"
+      }.joined(separator: ", ")
+      + "}"
+  }
+  return "<private>"
+}
