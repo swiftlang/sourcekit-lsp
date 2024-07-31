@@ -115,8 +115,6 @@ public func recursiveRedactedDescription(of value: Any) -> String {
     return value.description
   case let value as String:
     return value.hashForLogging
-  case let value as any CustomLogStringConvertible:
-    return value.redactedDescription
   case let value as any OptionalProtocol:
     if let value = value.asOptional {
       return recursiveRedactedDescription(of: value)
@@ -129,11 +127,17 @@ public func recursiveRedactedDescription(of value: Any) -> String {
 
   let children = Mirror(reflecting: value).children.sorted { $0.label ?? "" < $1.label ?? "" }
   if !children.isEmpty {
-    return "{"
-      + children.map { (label, value) -> String in
-        "\(label ?? "<nil>"): \(recursiveRedactedDescription(of: value))"
-      }.joined(separator: ", ")
-      + "}"
+    let childrenKeyValuePairs = children.map { (label, value) -> String in
+      let label = label ?? "<nil>"
+      let value =
+        if let value = value as? any CustomLogStringConvertible {
+          value.redactedDescription
+        } else {
+          recursiveRedactedDescription(of: value)
+        }
+      return "\(label): \(value)"
+    }
+    return "{" + childrenKeyValuePairs.joined(separator: ", ") + "}"
   }
   return "<private>"
 }
