@@ -22,8 +22,6 @@ import XCTest
 /// The path to the INPUTS directory of shared test projects.
 private let skTestSupportInputsDirectory: URL = {
   #if os(macOS)
-  // FIXME: Use Bundle.module.resourceURL once the fix for SR-12912 is released.
-
   var resources =
     productsDirectory
     .appendingPathComponent("SourceKitLSP_SKTestSupport.bundle")

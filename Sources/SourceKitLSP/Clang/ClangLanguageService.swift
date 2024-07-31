@@ -187,8 +187,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     self.clangd = connectionToClangd
 
     connectionToClangd.start(receiveHandler: self) {
-      // FIXME: keep the pipes alive until we close the connection. This
-      // should be fixed systemically.
+      // Keep the pipes alive until we close the connection.
       withExtendedLifetime((usToClangd, clangdToUs)) {}
     }
 
@@ -262,7 +261,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
       self.clangRestartScheduled = false
       do {
         try self.startClangdProcess()
-        // FIXME: We assume that clangd will return the same capabilities after restarting.
+        // We assume that clangd will return the same capabilities after restarting.
         // Theoretically they could have changed and we would need to inform SourceKitLSPServer about them.
         // But since SourceKitLSPServer more or less ignores them right now anyway, this should be fine for now.
         _ = try await self.initialize(initializeRequest)
@@ -353,13 +352,11 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     // Since `clangd` doesn't have a method to crash it, kill it.
     #if os(Windows)
     if self.hClangd != INVALID_HANDLE_VALUE {
-      // FIXME(compnerd) this is a bad idea - we can potentially deadlock the
-      // process if a kobject is a pending state.  Unfortunately, the
-      // `OpenProcess(PROCESS_TERMINATE, ...)`, `CreateRemoteThread`,
-      // `ExitProcess` dance, while safer, can also indefinitely hang as
-      // `CreateRemoteThread` may not be serviced depending on the state of
-      // the process.  This just attempts to terminate the process, risking a
-      // deadlock and resource leaks.
+      // We can potentially deadlock the process if a kobject is a pending state.
+      // Unfortunately, the `OpenProcess(PROCESS_TERMINATE, ...)`, `CreateRemoteThread`, `ExitProcess` dance, while
+      // safer, can also indefinitely hang as `CreateRemoteThread` may not be serviced depending on the state of
+      // the process. This just attempts to terminate the process, risking a deadlock and resource leaks, which is fine
+      // since we only use `crash` from tests.
       _ = TerminateProcess(self.hClangd, 0)
     }
     #else
@@ -483,7 +480,6 @@ extension ClangLanguageService {
 
   package func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
     guard let url = uri.fileURL else {
-      // FIXME: The clang workspace can probably be reworked to support non-file URIs.
       logger.error("Received updated build settings for non-file URI '\(uri.forLogging)'. Ignoring the update.")
       return
     }
@@ -680,9 +676,9 @@ private struct ClangBuildSettings: Equatable {
       ])
     }
     if let workingDirectory = settings.workingDirectory {
-      // FIXME: this is a workaround for clangd not respecting the compilation
+      // TODO: This is a workaround for clangd not respecting the compilation
       // database's "directory" field for relative -fmodules-cache-path.
-      // rdar://63984913
+      // Remove once rdar://63984913 is fixed
       arguments.append(contentsOf: [
         "-working-directory", workingDirectory,
       ])

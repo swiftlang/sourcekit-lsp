@@ -59,13 +59,11 @@ package final class TestJSONRPCConnection: Sendable {
     server = TestServer(client: serverToClientConnection)
 
     clientToServerConnection.start(receiveHandler: client) {
-      // FIXME: keep the pipes alive until we close the connection. This
-      // should be fixed systemically.
+      // Keep the pipes alive until we close the connection.
       withExtendedLifetime(self) {}
     }
     serverToClientConnection.start(receiveHandler: server) {
-      // FIXME: keep the pipes alive until we close the connection. This
-      // should be fixed systemically.
+      // Keep the pipes alive until we close the connection.
       withExtendedLifetime(self) {}
     }
   }

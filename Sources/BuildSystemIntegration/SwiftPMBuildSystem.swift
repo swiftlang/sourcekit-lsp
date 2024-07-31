@@ -530,8 +530,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
   }
 
   package func defaultLanguage(for document: DocumentURI) -> Language? {
-    // TODO (indexing): Query The SwiftPM build system for the document's language.
-    // https://github.com/swiftlang/sourcekit-lsp/issues/1267
+    // TODO: Query The SwiftPM build system for the document's language. (https://github.com/swiftlang/sourcekit-lsp/issues/1267)
     return nil
   }
 
@@ -602,8 +601,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
     targets: [ConfiguredTarget],
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
-    // TODO (indexing): Support preparation of multiple targets at once.
-    // https://github.com/swiftlang/sourcekit-lsp/issues/1262
+    // TODO: Support preparation of multiple targets at once. (https://github.com/swiftlang/sourcekit-lsp/issues/1262)
     for target in targets {
       await orLog("Preparing") { try await prepare(singleTarget: target, logMessageToIndexLog: logMessageToIndexLog) }
     }
@@ -620,8 +618,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
       return
     }
 
-    // TODO (indexing): Add a proper 'prepare' job in SwiftPM instead of building the target.
-    // https://github.com/swiftlang/sourcekit-lsp/issues/1254
+    // TODO: Add a proper 'prepare' job in SwiftPM instead of building the target. (https://github.com/swiftlang/sourcekit-lsp/issues/1254)
     guard let swift = toolchain.swift else {
       logger.error(
         "Not preparing because toolchain at \(self.toolchain.identifier) does not contain a Swift compiler"
@@ -757,7 +754,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
     if events.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
       logger.log("Reloading package because of file change")
       await orLog("Reloading package") {
-        // TODO: It should not be necessary to reload the entire package just to get build settings for one file.
         try await self.reloadPackage(forceResolvedVersions: !isForIndexBuild)
       }
     }

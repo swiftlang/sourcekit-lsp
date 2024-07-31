@@ -104,7 +104,6 @@ extension RandomAccessCollection where Element: Equatable {
       return nil
     }
 
-    // FIXME: use a better algorithm (e.g. Boyer-Moore-Horspool).
     var i = startIndex
     for _ in 0..<(count - pattern.count + 1) {
       if self[i...].starts(with: pattern) {
