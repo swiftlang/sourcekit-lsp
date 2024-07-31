@@ -23,7 +23,8 @@ extension RequestInfo {
     progressUpdate: (_ progress: Double, _ message: String) -> Void
   ) async throws -> RequestInfo? {
     let swiftFilePaths = compilerArgs.filter { $0.hasSuffix(".swift") }
-    let mergedFile = try swiftFilePaths.map { try String(contentsOfFile: $0) }.joined(separator: "\n\n\n\n")
+    let mergedFile = try swiftFilePaths.map { try String(contentsOfFile: $0, encoding: .utf8) }
+      .joined(separator: "\n\n\n\n")
 
     progressUpdate(0, "Merging all .swift files into a single file")
 

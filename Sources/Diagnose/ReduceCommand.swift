@@ -78,7 +78,7 @@ package struct ReduceCommand: AsyncParsableCommand {
 
     let progressBar = PercentProgressAnimation(stream: stderrStreamConcurrencySafe, header: "Reducing sourcekitd issue")
 
-    let request = try String(contentsOfFile: sourcekitdRequestPath)
+    let request = try String(contentsOfFile: sourcekitdRequestPath, encoding: .utf8)
     let requestInfo = try RequestInfo(request: request)
 
     let executor = OutOfProcessSourceKitRequestExecutor(

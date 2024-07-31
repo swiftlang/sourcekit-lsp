@@ -104,7 +104,7 @@ package struct RequestInfo: Sendable {
 
     self.requestTemplate = requestTemplate
 
-    fileContents = try String(contentsOf: URL(fileURLWithPath: sourceFilePath))
+    fileContents = try String(contentsOf: URL(fileURLWithPath: sourceFilePath), encoding: .utf8)
   }
 
   /// Create a `RequestInfo` that is used to reduce a `swift-frontend issue`
@@ -126,7 +126,7 @@ package struct RequestInfo: Sendable {
         guard let fileList = iterator.next() else {
           throw ReductionError("Expected file path after -filelist command line argument")
         }
-        frontendArgsWithFilelistInlined += try String(contentsOfFile: fileList)
+        frontendArgsWithFilelistInlined += try String(contentsOfFile: fileList, encoding: .utf8)
           .split(separator: "\n")
           .map { String($0) }
       default:
