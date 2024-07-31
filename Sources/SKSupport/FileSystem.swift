@@ -11,20 +11,19 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
-
-/// The home directory of the current user (same as returned by Foundation's `NSHomeDirectory` method).
-package var homeDirectoryForCurrentUser: AbsolutePath {
-  try! AbsolutePath(validating: NSHomeDirectory())
-}
 
 extension AbsolutePath {
 
   /// Inititializes an absolute path from a string, expanding a leading `~` to `homeDirectoryForCurrentUser` first.
   package init(expandingTilde path: String) throws {
     if path.first == "~" {
-      try self.init(homeDirectoryForCurrentUser, validating: String(path.dropFirst(2)))
+      try self.init(
+        AbsolutePath(validating: FileManager.default.sanitizedHomeDirectoryForCurrentUser.path),
+        validating: String(path.dropFirst(2))
+      )
     } else {
       try self.init(validating: path)
     }

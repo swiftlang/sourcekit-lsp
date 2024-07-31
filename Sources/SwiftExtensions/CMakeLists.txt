@@ -5,6 +5,7 @@ add_library(SwiftExtensions STATIC
   AsyncUtils.swift
   Collection+Only.swift
   Collection+PartitionIntoBatches.swift
+  FileManager+SanitizedHomeDirectoryOfCurrentUser.swift
   NSLock+WithLock.swift
   PipeAsStringHandler.swift
   ResultExtensions.swift

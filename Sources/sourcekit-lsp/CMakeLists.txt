@@ -10,6 +10,7 @@ target_link_libraries(sourcekit-lsp PRIVATE
   SKOptions
   SKSupport
   SourceKitLSP
+  SwiftExtensions
   ToolchainRegistry
   ArgumentParser
   TSCBasic)
