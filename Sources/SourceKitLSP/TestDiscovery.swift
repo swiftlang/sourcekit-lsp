@@ -151,16 +151,15 @@ extension SourceKitLSPServer {
           testItem(for: $0, documentManager: documentManager, context: context + [testSymbolOccurrence.symbol.name])
         }
       return AnnotatedTestItem(
-        testItem: TestItem(
-          id: id,
-          label: testSymbolOccurrence.symbol.name,
-          disabled: false,
-          style: TestStyle.xcTest,
-          location: location,
-          children: children.map(\.testItem),
-          tags: []
-        ),
-        isExtension: false
+        id: id,
+        label: testSymbolOccurrence.symbol.name,
+        disabled: false,
+        style: TestStyle.xcTest,
+        location: location,
+        children: children,
+        tags: [],
+        isExtension: false,
+        ambiguousTestDifferentiator: id
       )
     }
 
@@ -222,17 +221,16 @@ extension SourceKitLSPServer {
       for: semanticTestSymbolOccurrences,
       resolveLocation: { uri, position in Location(uri: uri, range: Range(position)) }
     )
-    let filesWithTestsFromSemanticIndex = Set(testsFromSemanticIndex.map(\.testItem.location.uri))
+    let filesWithTestsFromSemanticIndex = Set(testsFromSemanticIndex.map(\.location.uri))
 
     let indexOnlyDiscardingDeletedFiles = workspace.index(checkedFor: .deletedFiles)
 
     let syntacticTestsToInclude =
       testsFromSyntacticIndex
-      .compactMap { (item) -> AnnotatedTestItem? in
-        let testItem = item.testItem
+      .compactMap { (testItem) -> AnnotatedTestItem? in
         if testItem.style == TestStyle.swiftTesting {
           // Swift-testing tests aren't part of the semantic index. Always include them.
-          return item
+          return testItem
         }
         if filesWithTestsFromSemanticIndex.contains(testItem.location.uri) {
           // If we have an semantic tests from this file, then the semantic index is up-to-date for this file. We thus
@@ -258,7 +256,9 @@ extension SourceKitLSPServer {
         if let filtered = testItem.filterUsing(
           semanticSymbols: indexOnlyDiscardingDeletedFiles?.symbols(inFilePath: testItem.location.uri.pseudoPath)
         ) {
-          return AnnotatedTestItem(testItem: filtered, isExtension: item.isExtension)
+          var newFiltered = filtered
+          newFiltered.isExtension = testItem.isExtension
+          return newFiltered
         }
         return nil
       }
@@ -271,8 +271,9 @@ extension SourceKitLSPServer {
     return await self.workspaces
       .concurrentMap { await self.tests(in: $0).prefixTestsWithModuleName(workspace: $0) }
       .flatMap { $0 }
-      .sorted { $0.testItem.location < $1.testItem.location }
+      .sorted { $0.location < $1.location }
       .mergingTestsInExtensions()
+      .mapToTestItem()
   }
 
   func documentTests(
@@ -283,6 +284,7 @@ extension SourceKitLSPServer {
     return try await documentTestsWithoutMergingExtensions(req, workspace: workspace, languageService: languageService)
       .prefixTestsWithModuleName(workspace: workspace)
       .mergingTestsInExtensions()
+      .mapToTestItem()
   }
 
   private func documentTestsWithoutMergingExtensions(
@@ -306,7 +308,7 @@ extension SourceKitLSPServer {
 
     if let index = workspace.index(checkedFor: indexCheckLevel) {
       var syntacticSwiftTestingTests: [AnnotatedTestItem] {
-        syntacticTests?.filter { $0.testItem.style == TestStyle.swiftTesting } ?? []
+        syntacticTests?.filter { $0.style == TestStyle.swiftTesting } ?? []
       }
 
       let testSymbols =
@@ -343,7 +345,7 @@ extension SourceKitLSPServer {
   }
 }
 
-extension TestItem {
+extension AnnotatedTestItem {
   /// Use out-of-date semantic information to filter syntactic symbols.
   ///
   /// If the syntactic index found a test item, check if the semantic index knows about a symbol with that name. If it
@@ -352,7 +354,7 @@ extension TestItem {
   ///
   /// `semanticSymbols` should be all the symbols in the source file that this `TestItem` occurs in, retrieved using
   /// `symbols(inFilePath:)` from the index.
-  fileprivate func filterUsing(semanticSymbols: [Symbol]?) -> TestItem? {
+  fileprivate func filterUsing(semanticSymbols: [Symbol]?) -> AnnotatedTestItem? {
     guard let semanticSymbols else {
       return self
     }
@@ -368,20 +370,6 @@ extension TestItem {
     }
     var test = self
     test.children = test.children.compactMap { $0.filterUsing(semanticSymbols: semanticSymbols) }
-    return test
-  }
-}
-
-extension AnnotatedTestItem {
-  /// Use out-of-date semantic information to filter syntactic symbols.
-  ///
-  /// Delegates to the `TestItem`'s `filterUsing(semanticSymbols:)` method to perform the filtering.
-  fileprivate func filterUsing(semanticSymbols: [Symbol]?) -> AnnotatedTestItem? {
-    guard let testItem = self.testItem.filterUsing(semanticSymbols: semanticSymbols) else {
-      return nil
-    }
-    var test = self
-    test.testItem = testItem
     return test
   }
 }
@@ -431,20 +419,20 @@ fileprivate extension Array<AnnotatedTestItem> {
   ///   - `twoIsThree`
   ///
   /// A node's parent is identified by the node's ID with the last component dropped.
-  func mergingTestsInExtensions() -> [TestItem] {
+  func mergingTestsInExtensions() -> [AnnotatedTestItem] {
     var itemDict: [String: AnnotatedTestItem] = [:]
     for item in self {
-      let id = item.testItem.id
+      let id = item.id
       if var rootItem = itemDict[id] {
         // If we've encountered an extension first, and this is the
         // type declaration, then use the type declaration TestItem
         // as the root item.
         if rootItem.isExtension && !item.isExtension {
           var newItem = item
-          newItem.testItem.children += rootItem.testItem.children
+          newItem.children += rootItem.children
           rootItem = newItem
         } else {
-          rootItem.testItem.children += item.testItem.children
+          rootItem.children += item.children
         }
 
         itemDict[id] = rootItem
@@ -459,28 +447,27 @@ fileprivate extension Array<AnnotatedTestItem> {
 
     var mergedIds = Set<String>()
     for item in self {
-      let id = item.testItem.id
+      let id = item.id
       let parentID = id.components(separatedBy: "/").dropLast().joined(separator: "/")
       // If the parent exists, add the current item to its children and remove it from the root
       if var parent = itemDict[parentID] {
-        parent.testItem.children.append(item.testItem)
-        mergedIds.insert(parent.testItem.id)
-        itemDict[parent.testItem.id] = parent
+        parent.children.append(item)
+        mergedIds.insert(parent.id)
+        itemDict[parent.id] = parent
         itemDict[id] = nil
       }
     }
 
     // Sort the tests by location, prioritizing TestItems not in extensions.
     let sortedItems = itemDict.values
-      .sorted { ($0.isExtension != $1.isExtension) ? !$0.isExtension : ($0.testItem.location < $1.testItem.location) }
+      .sorted { ($0.isExtension != $1.isExtension) ? !$0.isExtension : ($0.location < $1.location) }
 
     let result = sortedItems.map {
-      guard !$0.testItem.children.isEmpty, mergedIds.contains($0.testItem.id) else {
-        return $0.testItem
+      guard !$0.children.isEmpty, mergedIds.contains($0.id) else {
+        return $0
       }
-      var newItem = $0.testItem
+      var newItem = $0
       newItem.children = newItem.children
-        .map { AnnotatedTestItem(testItem: $0, isExtension: false) }
         .mergingTestsInExtensions()
       return newItem
     }
@@ -489,16 +476,31 @@ fileprivate extension Array<AnnotatedTestItem> {
 
   func prefixTestsWithModuleName(workspace: Workspace) async -> Self {
     return await self.asyncMap({
-      return AnnotatedTestItem(
-        testItem: await $0.testItem.prefixIDWithModuleName(workspace: workspace),
-        isExtension: $0.isExtension
-      )
+      var item = await $0.prefixIDWithModuleName(workspace: workspace)
+      item.isExtension = $0.isExtension
+      return item
     })
+  }
+
+  func mapToTestItem() -> [TestItem] {
+    return self.map {
+      TestItem(
+        id: $0.id,
+        label: $0.label,
+        description: $0.description,
+        sortText: $0.sortText,
+        disabled: $0.disabled,
+        style: $0.style,
+        location: $0.location,
+        children: $0.children.mapToTestItem(),
+        tags: $0.tags
+      )
+    }
   }
 }
 
-extension TestItem {
-  fileprivate func prefixIDWithModuleName(workspace: Workspace) async -> TestItem {
+extension AnnotatedTestItem {
+  fileprivate func prefixIDWithModuleName(workspace: Workspace) async -> AnnotatedTestItem {
     guard let configuredTarget = await workspace.buildSystemManager.canonicalConfiguredTarget(for: self.location.uri),
       let moduleName = await workspace.buildSystemManager.moduleName(for: self.location.uri, in: configuredTarget)
     else {
@@ -529,7 +531,7 @@ extension SwiftLanguageService {
       in: snapshot,
       syntaxTreeManager: syntaxTreeManager
     )
-    return (xctestSymbols + swiftTestingSymbols).sorted { $0.testItem.location < $1.testItem.location }
+    return (xctestSymbols + swiftTestingSymbols).sorted { $0.location < $1.location }
   }
 }
 

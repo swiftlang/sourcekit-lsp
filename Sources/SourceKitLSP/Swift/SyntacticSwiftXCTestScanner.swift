@@ -45,8 +45,8 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
     return visitor.result
   }
 
-  private func findTestMethods(in members: MemberBlockItemListSyntax, containerName: String) -> [TestItem] {
-    return members.compactMap { (member) -> TestItem? in
+  private func findTestMethods(in members: MemberBlockItemListSyntax, containerName: String) -> [AnnotatedTestItem] {
+    return members.compactMap { (member) -> AnnotatedTestItem? in
       guard let function = member.decl.as(FunctionDeclSyntax.self) else {
         return nil
       }
@@ -67,15 +67,17 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
       let range = snapshot.absolutePositionRange(
         of: function.positionAfterSkippingLeadingTrivia..<function.endPositionBeforeTrailingTrivia
       )
-
-      return TestItem(
-        id: "\(containerName)/\(function.name.text)()",
+      let id = "\(containerName)/\(function.name.text)()"
+      return AnnotatedTestItem(
+        id: id,
         label: "\(function.name.text)()",
         disabled: false,
         style: TestStyle.xcTest,
         location: Location(uri: snapshot.uri, range: range),
         children: [],
-        tags: []
+        tags: [],
+        isExtension: false,
+        ambiguousTestDifferentiator: id
       )
     }
   }
@@ -102,16 +104,15 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
       of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia
     )
     let testItem = AnnotatedTestItem(
-      testItem: TestItem(
-        id: node.name.text,
-        label: node.name.text,
-        disabled: false,
-        style: TestStyle.xcTest,
-        location: Location(uri: snapshot.uri, range: range),
-        children: testMethods,
-        tags: []
-      ),
-      isExtension: false
+      id: node.name.text,
+      label: node.name.text,
+      disabled: false,
+      style: TestStyle.xcTest,
+      location: Location(uri: snapshot.uri, range: range),
+      children: testMethods,
+      tags: [],
+      isExtension: false,
+      ambiguousTestDifferentiator: node.name.text
     )
     result.append(testItem)
     return .visitChildren
@@ -119,7 +120,11 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
 
   override func visit(_ node: ExtensionDeclSyntax) -> SyntaxVisitorContinueKind {
     result += findTestMethods(in: node.memberBlock.members, containerName: node.extendedType.trimmedDescription)
-      .map { AnnotatedTestItem(testItem: $0, isExtension: true) }
+      .map {
+        var item = $0
+        item.isExtension = true
+        return item
+      }
     return .visitChildren
   }
 }

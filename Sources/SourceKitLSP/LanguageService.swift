@@ -27,18 +27,68 @@ package enum LanguageServerState {
 }
 
 package struct AnnotatedTestItem: Sendable {
-  /// The test item to be annotated
-  package var testItem: TestItem
+  /// Identifier for the `AnnotatedTestItem`.
+  ///
+  /// This identifier uniquely identifies the test case or test suite. It can be used to run an individual test (suite).
+  public var id: String
+
+  /// Display name describing the test.
+  public var label: String
+
+  /// Optional description that appears next to the label.
+  public var description: String?
+
+  /// A string that should be used when comparing this item with other items.
+  ///
+  /// When `nil` the `label` is used.
+  public var sortText: String?
+
+  /// Whether the test is disabled.
+  public var disabled: Bool
+
+  /// The type of test, eg. the testing framework that was used to declare the test.
+  public var style: String
+
+  /// The location of the test item in the source code.
+  public var location: Location
+
+  /// The children of this test item.
+  ///
+  /// For a test suite, this may contain the individual test cases or nested suites.
+  public var children: [AnnotatedTestItem]
+
+  /// Tags associated with this test item.
+  public var tags: [TestTag]
 
   /// Whether the `TestItem` is an extension.
   package var isExtension: Bool
 
+  public var ambiguousTestDifferentiator: String
+
   package init(
-    testItem: TestItem,
-    isExtension: Bool
+    id: String,
+    label: String,
+    description: String? = nil,
+    sortText: String? = nil,
+    disabled: Bool,
+    style: String,
+    location: Location,
+    children: [AnnotatedTestItem],
+    tags: [TestTag],
+    isExtension: Bool,
+    ambiguousTestDifferentiator: String
   ) {
-    self.testItem = testItem
+    self.id = id
+    self.label = label
+    self.description = description
+    self.sortText = sortText
+    self.disabled = disabled
+    self.style = style
+    self.location = location
+    self.children = children
+    self.tags = tags
     self.isExtension = isExtension
+    self.ambiguousTestDifferentiator = ambiguousTestDifferentiator
   }
 }
 

@@ -253,19 +253,19 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     )
 
     let location = location(range: range)
+    let id = (parentTypeNames + typeNames + [location]).joined(separator: "/")
 
     // Members won't be extensions since extensions will only be at the top level.
     let testItem = AnnotatedTestItem(
-      testItem: TestItem(
-        id: (parentTypeNames + typeNames + [location]).joined(separator: "/"),
-        label: attributeData?.displayName ?? typeNames.last!,
-        disabled: (attributeData?.isDisabled ?? false) || allTestsDisabled,
-        style: TestStyle.swiftTesting,
-        location: Location(uri: snapshot.uri, range: range),
-        children: memberScanner.result.map(\.testItem),
-        tags: attributeData?.tags.map(TestTag.init(id:)) ?? []
-      ),
-      isExtension: node.is(ExtensionDeclSyntax.self)
+      id: id,
+      label: attributeData?.displayName ?? typeNames.last!,
+      disabled: (attributeData?.isDisabled ?? false) || allTestsDisabled,
+      style: TestStyle.swiftTesting,
+      location: Location(uri: snapshot.uri, range: range),
+      children: memberScanner.result,
+      tags: attributeData?.tags.map(TestTag.init(id:)) ?? [],
+      isExtension: node.is(ExtensionDeclSyntax.self),
+      ambiguousTestDifferentiator: id + ""
     )
     result.append(testItem)
     return .skipChildren
@@ -330,18 +330,18 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     )
 
     let location = location(range: range)
+    let id = (parentTypeNames + [name] + [location]).joined(separator: "/")
 
     let testItem = AnnotatedTestItem(
-      testItem: TestItem(
-        id: (parentTypeNames + [name] + [location]).joined(separator: "/"),
-        label: attributeData.displayName ?? name,
-        disabled: attributeData.isDisabled || allTestsDisabled,
-        style: TestStyle.swiftTesting,
-        location: Location(uri: snapshot.uri, range: range),
-        children: [],
-        tags: attributeData.tags.map(TestTag.init(id:))
-      ),
-      isExtension: false
+      id: id,
+      label: attributeData.displayName ?? name,
+      disabled: attributeData.isDisabled || allTestsDisabled,
+      style: TestStyle.swiftTesting,
+      location: Location(uri: snapshot.uri, range: range),
+      children: [],
+      tags: attributeData.tags.map(TestTag.init(id:)),
+      isExtension: false,
+      ambiguousTestDifferentiator: id
     )
     result.append(testItem)
     return .visitChildren
