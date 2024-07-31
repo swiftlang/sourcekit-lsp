@@ -423,6 +423,10 @@ fileprivate extension SwiftDiagnostics.DiagnosticSeverity {
     case .warning: return .warning
     case .note: return .information
     case .remark: return .hint
+    #if RESILIENT_LIBRARIES
+    @unknown default:
+      fatalError("Unknown case")
+    #endif
     }
   }
 }

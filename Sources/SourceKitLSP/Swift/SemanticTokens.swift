@@ -151,6 +151,10 @@ extension SyntaxClassification {
       return (.comment, .documentation)
     case .argumentLabel:
       return (.function, [])
+    #if RESILIENT_LIBRARIES
+    @unknown default:
+      fatalError("Unknown case")
+    #endif
     }
   }
 }

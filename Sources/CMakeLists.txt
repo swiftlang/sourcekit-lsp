@@ -1,4 +1,6 @@
 add_compile_options("$<$<COMPILE_LANGUAGE:Swift>:SHELL:-package-name SourceKitLSP>")
+add_compile_options("$<$<COMPILE_LANGUAGE:Swift>:SHELL:-DRESILIENT_LIBRARIES>")
+add_compile_options("$<$<COMPILE_LANGUAGE:Swift>:SHELL:-swift-version 6>")
 add_subdirectory(BuildServerProtocol)
 add_subdirectory(BuildSystemIntegration)
 add_subdirectory(CAtomics)
