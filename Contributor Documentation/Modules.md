@@ -4,9 +4,7 @@ The SourceKit-LSP package contains the following non-testing modules.
 
 ### BuildServerProtocol
 
-Swift types to represent the [Build Server Protocol (BSP) specification, version TODO](TODO). These types should also be usable when implementing a BSP client and thus this module should not have any dependencies other than the LanguageServerProtocol module, with which it shares some types.
-
-FIXME: Add link for BSP and version
+Swift types to represent the [Build Server Protocol (BSP) specification](https://build-server-protocol.github.io/docs/specification). These types should also be usable when implementing a BSP client and thus this module should not have any dependencies other than the LanguageServerProtocol module, with which it shares some types.
 
 ### BuildSystemIntegration
 
@@ -18,11 +16,12 @@ Implementation of atomics for Swift using C. Once we can raise our deployment ta
 
 ### CSKTestSupport
 
-FIXME: Can we remove this?
+For testing, overrides `__cxa_atexit` to prevent registration of static destructors due to work around https://github.com/swiftlang/swift/issues/55112.
+
 
 ### Csourcekitd
 
-Header file defining the interface to sourcekitd. This should stay in sync with [sourcekitd.h](TODO) in the Swift repository.
+Header file defining the interface to sourcekitd. This should stay in sync with [sourcekitd.h](https://github.com/swiftlang/swift/blob/main/tools/SourceKit/tools/sourcekitd/include/sourcekitd/sourcekitd.h) in the Swift repository.
 
 ### Diagnose
 
