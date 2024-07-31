@@ -36,6 +36,10 @@ public struct DocumentURI: Codable, Hashable, Sendable {
     }
   }
 
+  /// The URL representation of the URI. Note that this URL can have an arbitrary scheme and might
+  /// not represent a file URL.
+  public var arbitrarySchemeURL: URL { storage }
+
   /// The document's URL scheme, if present.
   public var scheme: String? {
     return storage.scheme

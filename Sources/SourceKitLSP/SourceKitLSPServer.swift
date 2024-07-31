@@ -357,7 +357,7 @@ package actor SourceKitLSPServer {
 
     // This should be created as soon as we receive an open call, even if the document
     // isn't yet ready.
-    guard let languageService = workspace.documentService.value[doc] else {
+    guard let languageService = workspace.documentService(for: doc) else {
       return
     }
 
@@ -377,7 +377,7 @@ package actor SourceKitLSPServer {
       guard let workspace = await self.workspaceForDocument(uri: request.textDocument.uri) else {
         throw ResponseError.workspaceNotOpen(request.textDocument.uri)
       }
-      guard let languageService = workspace.documentService.value[doc] else {
+      guard let languageService = workspace.documentService(for: doc) else {
         throw ResponseError.unknown("No language service for '\(request.textDocument.uri)' found")
       }
       return try await requestHandler(request, workspace, languageService)
@@ -400,7 +400,7 @@ package actor SourceKitLSPServer {
       guard let workspace = await self.workspaceForDocument(uri: documentUri) else {
         continue
       }
-      guard workspace.documentService.value[documentUri] === languageService else {
+      guard workspace.documentService(for: documentUri) === languageService else {
         continue
       }
       guard let snapshot = try? self.documentManager.latestSnapshot(documentUri) else {
@@ -518,7 +518,7 @@ package actor SourceKitLSPServer {
     _ language: Language,
     in workspace: Workspace
   ) async -> LanguageService? {
-    if let service = workspace.documentService.value[uri] {
+    if let service = workspace.documentService(for: uri) {
       return service
     }
 
@@ -536,17 +536,7 @@ package actor SourceKitLSPServer {
       """
     )
 
-    return workspace.documentService.withLock { documentService in
-      if let concurrentlySetService = documentService[uri] {
-        // Since we await the construction of `service`, another call to this
-        // function might have happened and raced us, setting
-        // `workspace.documentServices[uri]`. If this is the case, return the
-        // existing value and discard the service that we just retrieved.
-        return concurrentlySetService
-      }
-      documentService[uri] = service
-      return service
-    }
+    return workspace.setDocumentService(for: uri, service)
   }
 }
 
@@ -733,6 +723,8 @@ extension SourceKitLSPServer: MessageHandler {
       await request.reply { try await executeCommand(request.params) }
     case let request as RequestAndReply<FoldingRangeRequest>:
       await self.handleRequest(for: request, requestHandler: self.foldingRange)
+    case let request as RequestAndReply<GetReferenceDocumentRequest>:
+      await request.reply { try await getReferenceDocument(request.params) }
     case let request as RequestAndReply<HoverRequest>:
       await self.handleRequest(for: request, requestHandler: self.hover)
     case let request as RequestAndReply<ImplementationRequest>:
@@ -804,7 +796,7 @@ extension SourceKitLSPServer: BuildSystemDelegate {
         continue
       }
 
-      guard let service = await self.workspaceForDocument(uri: uri)?.documentService.value[uri] else {
+      guard let service = await self.workspaceForDocument(uri: uri)?.documentService(for: uri) else {
         continue
       }
 
@@ -828,7 +820,7 @@ extension SourceKitLSPServer: BuildSystemDelegate {
       }
       for uri in self.affectedOpenDocumentsForChangeSet(changedFilesForWorkspace, self.documentManager) {
         logger.log("Dependencies updated for opened file \(uri.forLogging)")
-        if let service = workspace.documentService.value[uri] {
+        if let service = workspace.documentService(for: uri) {
           await service.documentDependenciesUpdated(uri)
         }
       }
@@ -964,6 +956,8 @@ extension SourceKitLSPServer {
     //
     // The below is a workaround for the vscode-swift extension since it cannot set client capabilities.
     // It passes "workspace/peekDocuments" through the `initializationOptions`.
+    //
+    // Similarly, for "workspace/getReferenceDocument".
     var clientCapabilities = req.capabilities
     if case .dictionary(let initializationOptions) = req.initializationOptions {
       if let peekDocuments = initializationOptions["workspace/peekDocuments"] {
@@ -972,6 +966,15 @@ extension SourceKitLSPServer {
           clientCapabilities.experimental = .dictionary(experimentalCapabilities)
         } else {
           clientCapabilities.experimental = .dictionary(["workspace/peekDocuments": peekDocuments])
+        }
+      }
+
+      if let getReferenceDocument = initializationOptions["workspace/getReferenceDocument"] {
+        if case .dictionary(var experimentalCapabilities) = clientCapabilities.experimental {
+          experimentalCapabilities["workspace/getReferenceDocument"] = getReferenceDocument
+          clientCapabilities.experimental = .dictionary(experimentalCapabilities)
+        } else {
+          clientCapabilities.experimental = .dictionary(["workspace/getReferenceDocument": getReferenceDocument])
         }
       }
 
@@ -1143,6 +1146,7 @@ extension SourceKitLSPServer {
         "workspace/tests": .dictionary(["version": .int(2)]),
         "textDocument/tests": .dictionary(["version": .int(2)]),
         "workspace/triggerReindex": .dictionary(["version": .int(1)]),
+        "workspace/getReferenceDocument": .dictionary(["version": .int(1)]),
       ])
     )
   }
@@ -1342,7 +1346,7 @@ extension SourceKitLSPServer {
       )
       return
     }
-    await workspace.documentService.value[uri]?.reopenDocument(notification)
+    await workspace.documentService(for: uri)?.reopenDocument(notification)
   }
 
   func closeDocument(_ notification: DidCloseTextDocumentNotification, workspace: Workspace) async {
@@ -1356,7 +1360,7 @@ extension SourceKitLSPServer {
 
     await workspace.buildSystemManager.unregisterForChangeNotifications(for: uri)
 
-    await workspace.documentService.value[uri]?.closeDocument(notification)
+    await workspace.documentService(for: uri)?.closeDocument(notification)
   }
 
   func changeDocument(_ notification: DidChangeTextDocumentNotification) async {
@@ -1382,7 +1386,7 @@ extension SourceKitLSPServer {
       // Already logged failure
       return
     }
-    await workspace.documentService.value[uri]?.changeDocument(
+    await workspace.documentService(for: uri)?.changeDocument(
       notification,
       preEditSnapshot: preEditSnapshot,
       postEditSnapshot: postEditSnapshot,
@@ -1645,7 +1649,7 @@ extension SourceKitLSPServer {
     guard let workspace = await workspaceForDocument(uri: uri) else {
       throw ResponseError.workspaceNotOpen(uri)
     }
-    guard let languageService = workspace.documentService.value[uri] else {
+    guard let languageService = workspace.documentService(for: uri) else {
       return nil
     }
 
@@ -1654,6 +1658,21 @@ extension SourceKitLSPServer {
       arguments: req.argumentsWithoutSourceKitMetadata
     )
     return try await languageService.executeCommand(executeCommand)
+  }
+
+  func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
+    let referenceDocumentURL = try ReferenceDocumentURL(from: req.uri)
+    let primaryFileURI = referenceDocumentURL.primaryFile
+
+    guard let workspace = await workspaceForDocument(uri: primaryFileURI) else {
+      throw ResponseError.workspaceNotOpen(primaryFileURI)
+    }
+
+    guard let languageService = workspace.documentService(for: primaryFileURI) else {
+      throw ResponseError.unknown("No Language Service for URI: \(primaryFileURI)")
+    }
+
+    return try await languageService.getReferenceDocument(req)
   }
 
   func codeAction(

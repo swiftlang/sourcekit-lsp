@@ -252,6 +252,8 @@ package protocol LanguageService: AnyObject, Sendable {
 
   func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny?
 
+  func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse
+
   /// Perform a syntactic scan of the file at the given URI for test cases and test classes.
   ///
   /// This is used as a fallback to show the test cases in a file if the index for a given file is not up-to-date.

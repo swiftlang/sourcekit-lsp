@@ -48,6 +48,7 @@ public let builtinRequests: [_RequestType.Type] = [
   DocumentTestsRequest.self,
   ExecuteCommandRequest.self,
   FoldingRangeRequest.self,
+  GetReferenceDocumentRequest.self,
   HoverRequest.self,
   ImplementationRequest.self,
   InitializeRequest.self,

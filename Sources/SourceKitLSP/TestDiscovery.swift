@@ -203,7 +203,7 @@ extension SourceKitLSPServer {
     }
 
     let testsFromFilesWithInMemoryState = await filesWithInMemoryState.concurrentMap { (uri) -> [AnnotatedTestItem] in
-      guard let languageService = workspace.documentService.value[uri] else {
+      guard let languageService = workspace.documentService(for: uri) else {
         return []
       }
       return await orLog("Getting document tests for \(uri)") {
