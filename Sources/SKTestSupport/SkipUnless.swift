@@ -493,6 +493,37 @@ package actor SkipUnless {
       }
     }
   }
+
+  /// Checks if sourcekitd contains https://github.com/swiftlang/swift/pull/71049
+  package static func solverBasedCursorInfoWorksForMemoryOnlyFiles(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    struct ExpectedLocationsResponse: Error {}
+
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+      let testClient = try await TestSourceKitLSPClient()
+      let uri = DocumentURI(for: .swift)
+      let positions = testClient.openDocument(
+        """
+        func foo() -> Int { 1 }
+        func foo() -> String { "" }
+        func test() {
+          _ = 3️⃣foo()
+        }
+        """,
+        uri: uri
+      )
+
+      let response = try await testClient.send(
+        DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+      )
+      guard case .locations(let locations) = response else {
+        throw ExpectedLocationsResponse()
+      }
+      return locations.count > 0
+    }
+  }
 }
 
 // MARK: - Parsing Swift compiler version

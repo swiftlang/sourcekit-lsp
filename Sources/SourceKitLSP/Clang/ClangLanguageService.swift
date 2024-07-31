@@ -486,17 +486,15 @@ extension ClangLanguageService {
     let clangBuildSettings = await self.buildSettings(for: uri)
 
     // The compile command changed, send over the new one.
-    // FIXME: what should we do if we no longer have valid build settings?
     if let compileCommand = clangBuildSettings?.compileCommand,
       let pathString = (try? AbsolutePath(validating: url.path))?.pathString
     {
       let notification = DidChangeConfigurationNotification(
-        settings: .clangd(
-          ClangWorkspaceSettings(
-            compilationDatabaseChanges: [pathString: compileCommand])
-        )
+        settings: .clangd(ClangWorkspaceSettings(compilationDatabaseChanges: [pathString: compileCommand]))
       )
       clangd.send(notification)
+    } else {
+      logger.error("No longer have build settings for \(url.path) but can't send null build settings to clangd")
     }
   }
 

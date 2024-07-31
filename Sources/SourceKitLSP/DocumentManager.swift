@@ -191,6 +191,15 @@ package final class DocumentManager: InMemoryDocumentManager, Sendable {
     }
   }
 
+  /// Returns the latest open snapshot of `uri` or, if no document with that URI is open, reads the file contents of
+  /// that file from disk.
+  package func latestSnapshotOrDisk(_ uri: DocumentURI, language: Language) -> DocumentSnapshot? {
+    if let snapshot = try? self.latestSnapshot(uri) {
+      return snapshot
+    }
+    return try? DocumentSnapshot(withContentsFromDisk: uri, language: language)
+  }
+
   package func fileHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
     guard let document = try? latestSnapshot(uri), let fileURL = uri.fileURL else {
       return false
