@@ -21,6 +21,7 @@ import SKLogging
 import SKOptions
 import SKSupport
 import SourceKitLSP
+import SwiftExtensions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
@@ -238,7 +239,9 @@ struct SourceKitLSP: AsyncParsableCommand {
     var options = SourceKitLSPOptions.merging(
       base: commandLineOptions(),
       override: SourceKitLSPOptions(
-        path: URL(fileURLWithPath: ("~/.sourcekit-lsp/config.json" as NSString).expandingTildeInPath)
+        path: FileManager.default.sanitizedHomeDirectoryForCurrentUser
+          .appendingPathComponent(".sourcekit-lsp")
+          .appendingPathComponent("config.json")
       )
     )
     #if canImport(Darwin)
@@ -282,7 +285,9 @@ struct SourceKitLSP: AsyncParsableCommand {
     let realStdoutHandle = FileHandle(fileDescriptor: realStdout, closeOnDealloc: false)
 
     // Directory should match the directory we are searching for logs in `DiagnoseCommand.addNonDarwinLogs`.
-    let logFileDirectoryURL = URL(fileURLWithPath: ("~/.sourcekit-lsp/logs" as NSString).expandingTildeInPath)
+    let logFileDirectoryURL = FileManager.default.sanitizedHomeDirectoryForCurrentUser
+      .appendingPathComponent(".sourcekit-lsp")
+      .appendingPathComponent("logs")
     await setUpGlobalLogFileHandler(
       logFileDirectory: logFileDirectoryURL,
       logFileMaxBytes: 5_000_000,
