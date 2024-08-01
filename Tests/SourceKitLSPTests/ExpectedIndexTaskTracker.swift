@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
+import BuildSystemIntegration
 import LanguageServerProtocol
-import SKCore
+import SKLogging
 import SemanticIndex
 import XCTest
 
@@ -22,17 +22,17 @@ struct ExpectedPreparation {
 
   /// A closure that will be executed when a preparation task starts.
   /// This allows the artificial delay of a preparation task to force two preparation task to race.
-  let didStart: (() -> Void)?
+  let didStart: (@Sendable () -> Void)?
 
   /// A closure that will be executed when a preparation task finishes.
   /// This allows the artificial delay of a preparation task to force two preparation task to race.
-  let didFinish: (() -> Void)?
+  let didFinish: (@Sendable () -> Void)?
 
   internal init(
     targetID: String,
     runDestinationID: String,
-    didStart: (() -> Void)? = nil,
-    didFinish: (() -> Void)? = nil
+    didStart: (@Sendable () -> Void)? = nil,
+    didFinish: (@Sendable () -> Void)? = nil
   ) {
     self.targetID = targetID
     self.runDestinationID = runDestinationID

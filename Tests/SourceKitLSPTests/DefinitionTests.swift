@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(Testing) import LSPLogging
 import LanguageServerProtocol
+@_spi(Testing) import SKLogging
 import SKTestSupport
 import XCTest
 

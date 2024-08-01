@@ -15,16 +15,16 @@ import Foundation
 /// Wrapper around a task that allows multiple clients to depend on the task's value.
 ///
 /// If all of the dependents are cancelled, the underlying task is cancelled as well.
-public actor RefCountedCancellableTask<Success: Sendable> {
-  public let task: Task<Success, Error>
+package actor RefCountedCancellableTask<Success: Sendable> {
+  package let task: Task<Success, Error>
 
   /// The number of clients that depend on the task's result and that are not cancelled.
   private var refCount: Int = 0
 
   /// Whether the task has been cancelled.
-  public private(set) var isCancelled: Bool = false
+  package private(set) var isCancelled: Bool = false
 
-  public init(priority: TaskPriority? = nil, operation: @escaping @Sendable () async throws -> Success) {
+  package init(priority: TaskPriority? = nil, operation: @escaping @Sendable () async throws -> Success) {
     self.task = Task(priority: priority, operation: operation)
   }
 
@@ -38,7 +38,7 @@ public actor RefCountedCancellableTask<Success: Sendable> {
   /// Get the task's value.
   ///
   /// If all callers of `value` are cancelled, the underlying task gets cancelled as well.
-  public var value: Success {
+  package var value: Success {
     get async throws {
       if isCancelled {
         throw CancellationError()
@@ -55,13 +55,13 @@ public actor RefCountedCancellableTask<Success: Sendable> {
   }
 
   /// Cancel the task and throw a `CancellationError` to all clients that are awaiting the value.
-  public func cancel() {
+  package func cancel() {
     isCancelled = true
     task.cancel()
   }
 }
 
-public extension Task {
+package extension Task {
   /// Awaits the value of the result.
   ///
   /// If the current task is cancelled, this will cancel the subtask as well.
@@ -76,7 +76,7 @@ public extension Task {
   }
 }
 
-public extension Task where Failure == Never {
+package extension Task where Failure == Never {
   /// Awaits the value of the result.
   ///
   /// If the current task is cancelled, this will cancel the subtask as well.
@@ -98,7 +98,7 @@ public extension Task where Failure == Never {
 ///
 /// If the task executing `withCancellableCheckedThrowingContinuation` gets
 /// cancelled, `cancel` is invoked with the handle that `operation` provided.
-public func withCancellableCheckedThrowingContinuation<Handle: Sendable, Result>(
+package func withCancellableCheckedThrowingContinuation<Handle: Sendable, Result>(
   _ operation: (_ continuation: CheckedContinuation<Result, any Error>) -> Handle,
   cancel: @Sendable (Handle) -> Void
 ) async throws -> Result {
@@ -134,7 +134,7 @@ public func withCancellableCheckedThrowingContinuation<Handle: Sendable, Result>
 
 extension Collection where Element: Sendable {
   /// Transforms all elements in the collection concurrently and returns the transformed collection.
-  public func concurrentMap<TransformedElement: Sendable>(
+  package func concurrentMap<TransformedElement: Sendable>(
     maxConcurrentTasks: Int = ProcessInfo.processInfo.processorCount,
     _ transform: @escaping @Sendable (Element) async -> TransformedElement
   ) async -> [TransformedElement] {
@@ -167,12 +167,12 @@ extension Collection where Element: Sendable {
   }
 }
 
-public struct TimeoutError: Error, CustomStringConvertible {
-  public var description: String { "Timed out" }
+package struct TimeoutError: Error, CustomStringConvertible {
+  package var description: String { "Timed out" }
 }
 
 /// Executes `body`. If it doesn't finish after `duration`, throws a `TimeoutError`.
-public func withTimeout<T: Sendable>(
+package func withTimeout<T: Sendable>(
   _ duration: Duration,
   _ body: @escaping @Sendable () async throws -> T
 ) async throws -> T {

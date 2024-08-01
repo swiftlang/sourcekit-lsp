@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import Dispatch
 import Foundation
 import IndexStoreDB
-import LSPLogging
 import LanguageServerProtocol
-import SKCore
+import SKLogging
+import SKOptions
 import SKSupport
 import SemanticIndex
 import SourceKitD
@@ -23,6 +24,7 @@ import SwiftExtensions
 import SwiftParser
 import SwiftParserDiagnostics
 import SwiftSyntax
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 
@@ -70,17 +72,17 @@ fileprivate func diagnosticsEnabled(for document: DocumentURI) -> Bool {
 }
 
 /// A swift compiler command derived from a `FileBuildSettingsChange`.
-public struct SwiftCompileCommand: Sendable, Equatable {
+package struct SwiftCompileCommand: Sendable, Equatable {
 
   /// The compiler arguments, including working directory. This is required since sourcekitd only
   /// accepts the working directory via the compiler arguments.
-  public let compilerArgs: [String]
+  package let compilerArgs: [String]
 
   /// Whether the compiler arguments are considered fallback - we withhold diagnostics for
   /// fallback arguments and represent the file state differently.
-  public let isFallback: Bool
+  package let isFallback: Bool
 
-  public init(_ settings: FileBuildSettings) {
+  package init(_ settings: FileBuildSettings) {
     let baseArgs = settings.compilerArguments
     // Add working directory arguments if needed.
     if let workingDirectory = settings.workingDirectory, !baseArgs.contains("-working-directory") {
@@ -92,8 +94,8 @@ public struct SwiftCompileCommand: Sendable, Equatable {
   }
 }
 
-public actor SwiftLanguageService: LanguageService, Sendable {
-  /// The ``SourceKitLSPServer`` instance that created this `ClangLanguageService`.
+package actor SwiftLanguageService: LanguageService, Sendable {
+  /// The ``SourceKitLSPServer`` instance that created this `SwiftLanguageService`.
   weak var sourceKitLSPServer: SourceKitLSPServer?
 
   let sourcekitd: SourceKitD
@@ -107,13 +109,19 @@ public actor SwiftLanguageService: LanguageService, Sendable {
 
   let capabilityRegistry: CapabilityRegistry
 
-  let serverOptions: SourceKitLSPServer.Options
+  let testHooks: TestHooks
+
+  let options: SourceKitLSPOptions
 
   /// Directory where generated Swift interfaces will be stored.
-  let generatedInterfacesPath: URL
+  var generatedInterfacesPath: URL {
+    options.generatedFilesAbsolutePath.asURL.appendingPathComponent("GeneratedInterfaces")
+  }
 
-  // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
-  var documentManager: DocumentManager
+  /// Directory where generated Macro expansions  will be stored.
+  var generatedMacroExpansionsPath: URL {
+    options.generatedFilesAbsolutePath.asURL.appendingPathComponent("GeneratedMacroExpansions")
+  }
 
   /// For each edited document, the last task that was triggered to send a `PublishDiagnosticsNotification`.
   ///
@@ -132,44 +140,21 @@ public actor SwiftLanguageService: LanguageService, Sendable {
   nonisolated var requests: sourcekitd_api_requests { return sourcekitd.requests }
   nonisolated var values: sourcekitd_api_values { return sourcekitd.values }
 
-  /// When sourcekitd is crashed, a `WorkDoneProgressManager` that display the sourcekitd crash status in the client.
-  private var sourcekitdCrashedWorkDoneProgress: WorkDoneProgressManager?
-
-  private var state: LanguageServerState {
-    didSet {
-      for handler in stateChangeHandlers {
-        handler(oldValue, state)
-      }
-
-      guard let sourceKitLSPServer else {
-        Task {
-          await sourcekitdCrashedWorkDoneProgress?.end()
-        }
-        sourcekitdCrashedWorkDoneProgress = nil
-        return
-      }
-      switch state {
-      case .connected:
-        Task {
-          await sourcekitdCrashedWorkDoneProgress?.end()
-        }
-        sourcekitdCrashedWorkDoneProgress = nil
-      case .connectionInterrupted, .semanticFunctionalityDisabled:
-        if sourcekitdCrashedWorkDoneProgress == nil {
-          sourcekitdCrashedWorkDoneProgress = WorkDoneProgressManager(
-            server: sourceKitLSPServer,
-            capabilityRegistry: capabilityRegistry,
-            title: "SourceKit-LSP: Restoring functionality",
-            message: "Please run 'sourcekit-lsp diagnose' to file an issue"
-          )
-        }
-      }
-    }
-  }
+  /// - Important: Use `setState` to change the state, which notifies the state change handlers
+  private var state: LanguageServerState
 
   private var stateChangeHandlers: [(_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void] = []
 
   private var diagnosticReportManager: DiagnosticReportManager!
+
+  var documentManager: DocumentManager {
+    get throws {
+      guard let sourceKitLSPServer = self.sourceKitLSPServer else {
+        throw ResponseError.unknown("Connection to the editor closed")
+      }
+      return sourceKitLSPServer.documentManager
+    }
+  }
 
   /// Calling `scheduleCall` on `refreshDiagnosticsDebouncer` schedules a `DiagnosticsRefreshRequest` to be sent to
   /// to the client.
@@ -192,10 +177,11 @@ public actor SwiftLanguageService: LanguageService, Sendable {
   /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the `SwiftLanguageService` asks its
   /// parent server to reopen all of its documents.
   /// Returns `nil` if `sourcekitd` couldn't be found.
-  public init?(
+  package init?(
     sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
-    options: SourceKitLSPServer.Options,
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
     workspace: Workspace
   ) async throws {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
@@ -204,12 +190,10 @@ public actor SwiftLanguageService: LanguageService, Sendable {
     self.sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(dylibPath: sourcekitd)
     self.capabilityRegistry = workspace.capabilityRegistry
     self.semanticIndexManager = workspace.semanticIndexManager
-    self.serverOptions = options
-    self.documentManager = DocumentManager()
+    self.testHooks = testHooks
     self.state = .connected
-    self.generatedInterfacesPath = options.generatedInterfacesPath.asURL
-    try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
     self.diagnosticReportManager = nil  // Needed to work around rdar://116221716
+    self.options = options
 
     // The debounce duration of 500ms was chosen arbitrarily without scientific research.
     self.refreshDiagnosticsDebouncer = Debouncer(debounceDuration: .milliseconds(500)) { [weak sourceKitLSPServer] in
@@ -221,16 +205,22 @@ public actor SwiftLanguageService: LanguageService, Sendable {
         try await sourceKitLSPServer.sendRequestToClient(DiagnosticsRefreshRequest())
       }
     }
+
     self.diagnosticReportManager = DiagnosticReportManager(
       sourcekitd: self.sourcekitd,
+      options: options,
       syntaxTreeManager: syntaxTreeManager,
-      documentManager: documentManager,
+      documentManager: try documentManager,
       clientHasDiagnosticsCodeDescriptionSupport: await self.clientHasDiagnosticsCodeDescriptionSupport
     )
+
+    // Create sub-directories for each type of generated file
+    try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: generatedMacroExpansionsPath, withIntermediateDirectories: true)
   }
 
   /// - Important: For testing only
-  @_spi(Testing) public func setReusedNodeCallback(_ callback: (@Sendable (_ node: Syntax) -> ())?) async {
+  package func setReusedNodeCallback(_ callback: (@Sendable (_ node: Syntax) -> ())?) async {
     await self.syntaxTreeManager.setReusedNodeCallback(callback)
   }
 
@@ -252,12 +242,47 @@ public actor SwiftLanguageService: LanguageService, Sendable {
     }
   }
 
-  public nonisolated func canHandle(workspace: Workspace) -> Bool {
+  func sendSourcekitdRequest(
+    _ request: SKDRequestDictionary,
+    fileContents: String?
+  ) async throws -> SKDResponseDictionary {
+    try await sourcekitd.send(
+      request,
+      timeout: options.sourcekitdRequestTimeoutOrDefault,
+      fileContents: fileContents
+    )
+  }
+
+  package nonisolated func canHandle(workspace: Workspace) -> Bool {
     // We have a single sourcekitd instance for all workspaces.
     return true
   }
 
-  public func addStateChangeHandler(
+  private func setState(_ newState: LanguageServerState) async {
+    let oldState = state
+    state = newState
+    for handler in stateChangeHandlers {
+      handler(oldState, newState)
+    }
+
+    guard let sourceKitLSPServer else {
+      return
+    }
+    switch (oldState, newState) {
+    case (.connected, .connectionInterrupted), (.connected, .semanticFunctionalityDisabled):
+      await sourceKitLSPServer.sourcekitdCrashedWorkDoneProgress.start()
+    case (.connectionInterrupted, .connected), (.semanticFunctionalityDisabled, .connected):
+      await sourceKitLSPServer.sourcekitdCrashedWorkDoneProgress.end()
+    case (.connected, .connected),
+      (.connectionInterrupted, .connectionInterrupted),
+      (.connectionInterrupted, .semanticFunctionalityDisabled),
+      (.semanticFunctionalityDisabled, .connectionInterrupted),
+      (.semanticFunctionalityDisabled, .semanticFunctionalityDisabled):
+      break
+    }
+  }
+
+  package func addStateChangeHandler(
     handler: @Sendable @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void
   ) {
     self.stateChangeHandlers.append(handler)
@@ -266,7 +291,7 @@ public actor SwiftLanguageService: LanguageService, Sendable {
 
 extension SwiftLanguageService {
 
-  public func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult {
+  package func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult {
     await sourcekitd.addNotificationHandler(self)
 
     return InitializeResult(
@@ -294,16 +319,14 @@ extension SwiftLanguageService {
             supportsCodeActions: true
           )
         ),
+        codeLensProvider: CodeLensOptions(),
         colorProvider: .bool(true),
         foldingRangeProvider: .bool(true),
         executeCommandProvider: ExecuteCommandOptions(
           commands: builtinSwiftCommands
         ),
         semanticTokensProvider: SemanticTokensOptions(
-          legend: SemanticTokensLegend(
-            tokenTypes: SemanticTokenTypes.all.map(\.name),
-            tokenModifiers: SemanticTokenModifiers.all.compactMap(\.name)
-          ),
+          legend: SemanticTokensLegend.sourceKitLSPLegend,
           range: .bool(true),
           full: .bool(true)
         ),
@@ -316,15 +339,15 @@ extension SwiftLanguageService {
     )
   }
 
-  public func clientInitialized(_: InitializedNotification) {
+  package func clientInitialized(_: InitializedNotification) {
     // Nothing to do.
   }
 
-  public func shutdown() async {
+  package func shutdown() async {
     await self.sourcekitd.removeNotificationHandler(self)
   }
 
-  public func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
+  package func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
     guard let snapshot = try? documentManager.latestSnapshot(uri) else {
       return nil
     }
@@ -340,16 +363,16 @@ extension SwiftLanguageService {
   }
 
   /// Tell sourcekitd to crash itself. For testing purposes only.
-  public func crash() async {
+  package func crash() async {
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.crashWithExit
     ])
-    _ = try? await sourcekitd.send(req, fileContents: nil)
+    _ = try? await sendSourcekitdRequest(req, fileContents: nil)
   }
 
   // MARK: - Build System Integration
 
-  public func reopenDocument(_ notification: ReopenTextDocumentNotification) async {
+  package func reopenDocument(_ notification: ReopenTextDocumentNotification) async {
     let snapshot = orLog("Getting snapshot to re-open document") {
       try documentManager.latestSnapshot(notification.textDocument.uri)
     }
@@ -360,13 +383,17 @@ extension SwiftLanguageService {
     await diagnosticReportManager.removeItemsFromCache(with: snapshot.uri)
 
     let closeReq = closeDocumentSourcekitdRequest(uri: snapshot.uri)
-    _ = await orLog("Closing document to re-open it") { try await self.sourcekitd.send(closeReq, fileContents: nil) }
+    _ = await orLog("Closing document to re-open it") {
+      try await self.sendSourcekitdRequest(closeReq, fileContents: nil)
+    }
 
     let openReq = openDocumentSourcekitdRequest(
       snapshot: snapshot,
       compileCommand: await buildSettings(for: snapshot.uri)
     )
-    _ = await orLog("Re-opening document") { try await self.sourcekitd.send(openReq, fileContents: snapshot.text) }
+    _ = await orLog("Re-opening document") {
+      try await self.sendSourcekitdRequest(openReq, fileContents: snapshot.text)
+    }
 
     if await capabilityRegistry.clientSupportsPullDiagnostics(for: .swift) {
       await self.refreshDiagnosticsDebouncer.scheduleCall()
@@ -375,7 +402,7 @@ extension SwiftLanguageService {
     }
   }
 
-  public func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
+  package func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
     // Close and re-open the document internally to inform sourcekitd to update the compile command. At the moment
     // there's no better way to do this.
     // Schedule the document re-open in the SourceKit-LSP server. This ensures that the re-open happens exclusively with
@@ -383,12 +410,12 @@ extension SwiftLanguageService {
     sourceKitLSPServer?.handle(ReopenTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
   }
 
-  public func documentDependenciesUpdated(_ uri: DocumentURI) async {
+  package func documentDependenciesUpdated(_ uri: DocumentURI) async {
     await orLog("Sending dependencyUpdated request to sourcekitd") {
       let req = sourcekitd.dictionary([
         keys.request: requests.dependencyUpdated
       ])
-      _ = try await self.sourcekitd.send(req, fileContents: nil)
+      _ = try await self.sendSourcekitdRequest(req, fileContents: nil)
     }
     // `documentUpdatedBuildSettings` already handles reopening the document, so we do that here as well.
     await self.documentUpdatedBuildSettings(uri)
@@ -420,31 +447,24 @@ extension SwiftLanguageService {
     ])
   }
 
-  public func openDocument(_ notification: DidOpenTextDocumentNotification) async {
+  package func openDocument(_ notification: DidOpenTextDocumentNotification, snapshot: DocumentSnapshot) async {
     cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
     await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
-
-    guard let snapshot = self.documentManager.open(notification) else {
-      // Already logged failure.
-      return
-    }
 
     let buildSettings = await self.buildSettings(for: snapshot.uri)
 
     let req = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: buildSettings)
-    _ = try? await self.sourcekitd.send(req, fileContents: snapshot.text)
+    _ = try? await self.sendSourcekitdRequest(req, fileContents: snapshot.text)
     await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
   }
 
-  public func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
+  package func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
     cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
     inFlightPublishDiagnosticsTasks[notification.textDocument.uri] = nil
     await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
 
-    self.documentManager.close(notification)
-
     let req = closeDocumentSourcekitdRequest(uri: notification.textDocument.uri)
-    _ = try? await self.sourcekitd.send(req, fileContents: nil)
+    _ = try? await self.sendSourcekitdRequest(req, fileContents: nil)
   }
 
   /// Cancels any in-flight tasks to send a `PublishedDiagnosticsNotification` after edits.
@@ -479,9 +499,7 @@ extension SwiftLanguageService {
         // Sleep for a little bit until triggering the diagnostic generation. This effectively de-bounces diagnostic
         // generation since any later edit will cancel the previous in-flight task, which will thus never go on to send
         // the `DocumentDiagnosticsRequest`.
-        try await Task.sleep(
-          nanoseconds: UInt64(sourceKitLSPServer.options.swiftPublishDiagnosticsDebounceDuration * 1_000_000_000)
-        )
+        try await Task.sleep(for: sourceKitLSPServer.options.swiftPublishDiagnosticsDebounceDurationOrDefault)
       } catch {
         return
       }
@@ -507,7 +525,7 @@ extension SwiftLanguageService {
           throw CancellationError()
         }
 
-        await sourceKitLSPServer.sendNotificationToClient(
+        sourceKitLSPServer.sendNotificationToClient(
           PublishDiagnosticsNotification(
             uri: document,
             diagnostics: diagnosticReport.items
@@ -525,7 +543,12 @@ extension SwiftLanguageService {
     }
   }
 
-  public func changeDocument(_ notification: DidChangeTextDocumentNotification) async {
+  package func changeDocument(
+    _ notification: DidChangeTextDocumentNotification,
+    preEditSnapshot: DocumentSnapshot,
+    postEditSnapshot: DocumentSnapshot,
+    edits: [SourceEdit]
+  ) async {
     cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
 
     let keys = self.keys
@@ -533,10 +556,6 @@ extension SwiftLanguageService {
       let offset: Int
       let length: Int
       let replacement: String
-    }
-
-    guard let (preEditSnapshot, postEditSnapshot, edits) = self.documentManager.edit(notification) else {
-      return
     }
 
     for edit in edits {
@@ -552,7 +571,7 @@ extension SwiftLanguageService {
         keys.sourceText: edit.replacement,
       ])
       do {
-        _ = try await self.sourcekitd.send(req, fileContents: nil)
+        _ = try await self.sendSourcekitdRequest(req, fileContents: nil)
       } catch {
         logger.fault(
           """
@@ -575,25 +594,25 @@ extension SwiftLanguageService {
     await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
   }
 
-  public func willSaveDocument(_ notification: WillSaveTextDocumentNotification) {
+  package func willSaveDocument(_ notification: WillSaveTextDocumentNotification) {
 
   }
 
-  public func didSaveDocument(_ notification: DidSaveTextDocumentNotification) {
+  package func didSaveDocument(_ notification: DidSaveTextDocumentNotification) {
 
   }
 
   // MARK: - Language features
 
-  public func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
+  package func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
     throw ResponseError.unknown("unsupported method")
   }
 
-  public func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse? {
+  package func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse? {
     throw ResponseError.unknown("unsupported method")
   }
 
-  public func hover(_ req: HoverRequest) async throws -> HoverResponse? {
+  package func hover(_ req: HoverRequest) async throws -> HoverResponse? {
     let uri = req.textDocument.uri
     let position = req.position
     let cursorInfoResults = try await cursorInfo(uri, position..<position).cursorInfo
@@ -655,7 +674,7 @@ extension SwiftLanguageService {
     )
   }
 
-  public func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
+  package func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
 
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
@@ -711,7 +730,7 @@ extension SwiftLanguageService {
     return colorLiteralFinder.result
   }
 
-  public func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {
+  package func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {
     let color = req.color
     // Empty string as a label breaks VSCode color picker
     let label = "Color Literal"
@@ -721,7 +740,7 @@ extension SwiftLanguageService {
     return [presentation]
   }
 
-  public func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
+  package func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
 
     let relatedIdentifiers = try await self.relatedIdentifiers(
@@ -737,7 +756,7 @@ extension SwiftLanguageService {
     }
   }
 
-  public func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
+  package func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
     let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind?)] = [
       (retrieveSyntaxCodeActions, nil),
       (retrieveRefactorCodeActions, .refactor),
@@ -801,15 +820,28 @@ extension SwiftLanguageService {
       additionalParameters: additionalCursorInfoParameters
     )
 
-    return cursorInfoResponse.refactorActions.compactMap {
-      do {
-        let lspCommand = try $0.asCommand()
-        return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
-      } catch {
-        logger.log("Failed to convert SwiftCommand to Command type: \(error.forLogging)")
-        return nil
+    var canInlineMacro = false
+
+    let showMacroExpansionsIsEnabled =
+      await self.sourceKitLSPServer?.options.hasExperimentalFeature(.showMacroExpansions) ?? false
+
+    var refactorActions = cursorInfoResponse.refactorActions.compactMap {
+      let lspCommand = $0.asCommand()
+      if !canInlineMacro, showMacroExpansionsIsEnabled {
+        canInlineMacro = $0.actionString == "source.refactoring.kind.inline.macro"
       }
+
+      return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
     }
+
+    if canInlineMacro {
+      let expandMacroCommand = ExpandMacroCommand(positionRange: params.range, textDocument: params.textDocument)
+        .asCommand()
+
+      refactorActions.append(CodeAction(title: expandMacroCommand.title, kind: .refactor, command: expandMacroCommand))
+    }
+
+    return refactorActions
   }
 
   func retrieveQuickFixCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
@@ -866,7 +898,7 @@ extension SwiftLanguageService {
     return codeActions
   }
 
-  public func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
+  package func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
     let uri = req.textDocument.uri
     let infos = try await variableTypeInfos(uri, req.range)
     let hints = infos
@@ -892,7 +924,16 @@ extension SwiftLanguageService {
     return Array(hints)
   }
 
-  public func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
+  package func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens] {
+    let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
+    return await SwiftCodeLensScanner.findCodeLenses(
+      in: snapshot,
+      syntaxTreeManager: self.syntaxTreeManager,
+      supportedCommands: self.capabilityRegistry.supportedCodeLensCommands
+    )
+  }
+
+  package func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
     do {
       await semanticIndexManager?.prepareFileForEditorFunctionality(req.textDocument.uri)
       let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
@@ -921,39 +962,39 @@ extension SwiftLanguageService {
     }
   }
 
-  public func indexedRename(_ request: IndexedRenameRequest) async throws -> WorkspaceEdit? {
+  package func indexedRename(_ request: IndexedRenameRequest) async throws -> WorkspaceEdit? {
     throw ResponseError.unknown("unsupported method")
   }
 
-  public func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
-    // TODO: If there's support for several types of commands, we might need to structure this similarly to the code actions request.
-    guard let sourceKitLSPServer else {
-      // `SourceKitLSPServer` has been destructed. We are tearing down the language
-      // server. Nothing left to do.
-      throw ResponseError.unknown("Connection to the editor closed")
+  package func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
+    if let command = req.swiftCommand(ofType: SemanticRefactorCommand.self) {
+      try await semanticRefactoring(command)
+    } else if let command = req.swiftCommand(ofType: ExpandMacroCommand.self),
+      let experimentalFeatures = await self.sourceKitLSPServer?.options.experimentalFeatures,
+      experimentalFeatures.contains(.showMacroExpansions)
+    {
+      try await expandMacro(command)
+    } else {
+      throw ResponseError.unknown("unknown command \(req.command)")
     }
-    guard let swiftCommand = req.swiftCommand(ofType: SemanticRefactorCommand.self) else {
-      throw ResponseError.unknown("semantic refactoring: unknown command \(req.command)")
+
+    return nil
+  }
+
+  package func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
+    let referenceDocumentURL = try ReferenceDocumentURL(from: req.uri)
+
+    switch referenceDocumentURL {
+    case let .macroExpansion(data):
+      return GetReferenceDocumentResponse(
+        content: try await expandMacro(macroExpansionURLData: data)
+      )
     }
-    let refactor = try await semanticRefactoring(swiftCommand)
-    let edit = refactor.edit
-    let req = ApplyEditRequest(label: refactor.title, edit: edit)
-    let response = try await sourceKitLSPServer.sendRequestToClient(req)
-    if !response.applied {
-      let reason: String
-      if let failureReason = response.failureReason {
-        reason = " reason: \(failureReason)"
-      } else {
-        reason = ""
-      }
-      logger.error("Client refused to apply edit for \(refactor.title, privacy: .public)!\(reason)")
-    }
-    return edit.encodeToLSPAny()
   }
 }
 
 extension SwiftLanguageService: SKDNotificationHandler {
-  public nonisolated func notification(_ notification: SKDResponse) {
+  package nonisolated func notification(_ notification: SKDResponse) {
     sourcekitdNotificationHandlingQueue.async {
       await self.notificationImpl(notification)
     }
@@ -968,13 +1009,14 @@ extension SwiftLanguageService: SKDNotificationHandler {
     )
     // Check if we need to update our `state` based on the contents of the notification.
     if notification.value?[self.keys.notification] == self.values.semaEnabledNotification {
-      self.state = .connected
+      await self.setState(.connected)
+      return
     }
 
     if self.state == .connectionInterrupted {
       // If we get a notification while we are restoring the connection, it means that the server has restarted.
       // We still need to wait for semantic functionality to come back up.
-      self.state = .semanticFunctionalityDisabled
+      await self.setState(.semanticFunctionalityDisabled)
 
       // Ask our parent to re-open all of our documents.
       if let sourceKitLSPServer {
@@ -985,11 +1027,7 @@ extension SwiftLanguageService: SKDNotificationHandler {
     }
 
     if notification.error == .connectionInterrupted {
-      self.state = .connectionInterrupted
-
-      // We don't have any open documents anymore after sourcekitd crashed.
-      // Reset the document manager to reflect that.
-      self.documentManager = DocumentManager()
+      await self.setState(.connectionInterrupted)
     }
   }
 }

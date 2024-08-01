@@ -53,23 +53,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
-              id: "MyTests/testMyLibrary()",
+              id: "MyLibraryTests.MyTests/testMyLibrary()",
               label: "testMyLibrary()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: try project.uri(for: "MyTests.swift"), range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: try project.uri(for: "MyTests.swift"), range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -100,21 +93,14 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/testMyLibrary()",
               label: "testMyLibrary()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -156,29 +142,22 @@ final class DocumentTestDiscoveryTests: XCTestCase {
       syntacticTests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
-              id: "MyTests/testMyLibrary()",
+              id: "MyLibraryTests.MyTests/testMyLibrary()",
               label: "testMyLibrary()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
 
     try await SwiftPMTestProject.build(at: project.scratchDirectory)
-    _ = try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(PollIndexRequest())
 
     // After indexing, we know that `LooksLikeTestCaseButIsNot` does not inherit from `XCTestCase` and we don't report any tests.
     let indexBasedTests = try await project.testClient.send(
@@ -212,21 +191,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -256,27 +230,22 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: project.fileURI, range: project.positions["1️⃣"]..<project.positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: project.fileURI, range: project.positions["2️⃣"]..<project.positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: project.fileURI, range: project.positions["2️⃣"]..<project.positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
   }
 
-  func testNestedSwiftTestingSuites() async throws {
+  func testSwiftTestingNestedSuites() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -303,37 +272,30 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["6️⃣"]),
           children: [
             TestItem(
               id: "MyTests/Inner",
               label: "Inner",
-              disabled: false,
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["5️⃣"]),
               children: [
                 TestItem(
                   id: "MyTests/Inner/oneIsTwo()",
                   label: "oneIsTwo()",
-                  disabled: false,
                   style: TestStyle.swiftTesting,
-                  location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"]),
-                  children: [],
-                  tags: []
+                  location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"])
                 )
-              ],
-              tags: []
+              ]
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
   }
 
-  func testParameterizedSwiftTestingTest() async throws {
+  func testSwiftTestingParameterizedTest() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -358,27 +320,22 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/numbersAreOne(x:)",
               label: "numbersAreOne(x:)",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
   }
 
-  func testParameterizedSwiftTestingTestWithAnonymousArgument() async throws {
+  func testSwiftTestingParameterizedTestWithAnonymousArgument() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -403,14 +360,12 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/numbersAreOne(_:)",
               label: "numbersAreOne(_:)",
-              disabled: false,
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
               children: [],
@@ -423,7 +378,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
-  func testParameterizedSwiftTestingTestWithCommentInSignature() async throws {
+  func testSwiftTestingParameterizedTestWithCommentInSignature() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -448,21 +403,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/numbersAreOne(x:)",
               label: "numbersAreOne(x:)",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -490,11 +440,8 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
-          children: [],
-          tags: []
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"])
         )
       ]
     )
@@ -522,11 +469,8 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "My tests",
-          disabled: false,
           style: TestStyle.swiftTesting,
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
-          children: [],
-          tags: []
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"])
         )
       ]
     )
@@ -555,11 +499,8 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "oneIsTwo()",
           label: "One is two",
-          disabled: false,
           style: TestStyle.swiftTesting,
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
-          children: [],
-          tags: []
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"])
         )
       ]
     )
@@ -597,36 +538,28 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo(foo:)",
               label: "oneIsTwo(foo:)",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             ),
             TestItem(
               id: "MyTests/twoIsThree()",
               label: "twoIsThree()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["6️⃣"]..<positions["7️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["6️⃣"]..<positions["7️⃣"])
             ),
-          ],
-          tags: []
+          ]
         )
       ]
     )
   }
 
-  func testDisabledSwiftTestingTest() async throws {
+  func testSwiftTestingTestDisabledTest() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -651,9 +584,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
           label: "One is two",
           disabled: true,
           style: TestStyle.swiftTesting,
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
-          children: [],
-          tags: []
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"])
         )
       ]
     )
@@ -694,18 +625,15 @@ final class DocumentTestDiscoveryTests: XCTestCase {
               label: "oneIsTwo()",
               disabled: true,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
   }
 
-  func testHiddenSwiftTestingTest() async throws {
+  func testSwiftTestingHiddenTest() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -754,17 +682,14 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
               tags: [TestTag(id: "red"), TestTag(id: "blue")]
             )
           ],
@@ -811,17 +736,14 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
               tags: [
                 TestTag(id: "foo"),
                 TestTag(id: "Nested.foo"),
@@ -875,23 +797,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             ),
             TestItem(
               id: "MyTests/twoIsThree()",
               label: "twoIsThree()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["6️⃣"]..<positions["7️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["6️⃣"]..<positions["7️⃣"])
             ),
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -923,74 +838,22 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             ),
             TestItem(
               id: "MyTests/twoIsThree()",
               label: "twoIsThree()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"])
             ),
-          ],
-          tags: []
-        )
-      ]
-    )
-  }
-
-  func testXCTestTestsWithExtension() async throws {
-    let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI(for: .swift)
-
-    let positions = testClient.openDocument(
-      """
-      import XCTest
-
-      1️⃣final class MyTests: XCTestCase {}2️⃣
-
-      extension MyTests {
-        3️⃣func testOneIsTwo() {}4️⃣
-      }
-      """,
-      uri: uri
-    )
-
-    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
-    XCTAssertEqual(
-      tests,
-      [
-        TestItem(
-          id: "MyTests",
-          label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
-          children: [
-            TestItem(
-              id: "MyTests/testOneIsTwo()",
-              label: "testOneIsTwo()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"]),
-              children: [],
-              tags: []
-            )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -1024,40 +887,30 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "Outer",
           label: "Outer",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
           children: [
             TestItem(
               id: "Outer/Inner",
               label: "Inner",
-              disabled: false,
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"]),
               children: [
                 TestItem(
                   id: "Outer/Inner/oneIsTwo()",
                   label: "oneIsTwo()",
-                  disabled: false,
                   style: TestStyle.swiftTesting,
-                  location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"]),
-                  children: [],
-                  tags: []
+                  location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"])
                 ),
                 TestItem(
                   id: "Outer/Inner/twoIsThree()",
                   label: "twoIsThree()",
-                  disabled: false,
                   style: TestStyle.swiftTesting,
-                  location: Location(uri: uri, range: positions["7️⃣"]..<positions["8️⃣"]),
-                  children: [],
-                  tags: []
+                  location: Location(uri: uri, range: positions["7️⃣"]..<positions["8️⃣"])
                 ),
-              ],
-              tags: []
+              ]
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -1088,21 +941,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -1137,21 +985,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests/Inner",
           label: "Inner",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/Inner/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -1183,14 +1026,12 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"]),
               children: [],
@@ -1199,20 +1040,96 @@ final class DocumentTestDiscoveryTests: XCTestCase {
             TestItem(
               id: "MyTests/twoIsThree()",
               label: "twoIsThree()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"])
             ),
-          ],
-          tags: []
+          ]
         )
       ]
     )
   }
 
-  func testFullyQualifySwiftTestingTestAttribute() async throws {
+  func testSwiftTestingEnumSuite() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      1️⃣enum MyTests {
+        2️⃣@Test
+        static func oneIsTwo() {
+          #expect(1 == 2)
+        }3️⃣
+      }4️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/oneIsTwo()",
+              label: "oneIsTwo()",
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
+            )
+          ]
+        )
+      ]
+    )
+  }
+
+  func testSwiftTestingActorSuite() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      1️⃣actor MyTests {
+        2️⃣@Test
+        static func oneIsTwo() {
+          #expect(1 == 2)
+        }3️⃣
+      }4️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/oneIsTwo()",
+              label: "oneIsTwo()",
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
+            )
+          ]
+        )
+      ]
+    )
+  }
+
+  func testSwiftTestingFullyQualifyTestAttribute() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -1238,21 +1155,87 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "My Tests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/oneIsTwo()",
               label: "one is two",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
+        )
+      ]
+    )
+  }
+
+  func testXCTestTestsWithExtension() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import XCTest
+
+      1️⃣final class MyTests: XCTestCase {}2️⃣
+
+      extension MyTests {
+        3️⃣func testOneIsTwo() {}4️⃣
+      }
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/testOneIsTwo()",
+              label: "testOneIsTwo()",
+              location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"])
+            )
+          ]
+        )
+      ]
+    )
+  }
+
+  func testXCTestInvalidXCTestSuiteConstructions() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import XCTest
+
+      // This comment contains the string XCTestCase
+      final class NSObjectInheritance: NSObject {}
+      final class BaseClass {}
+      final class MyEmptyTests: BaseClass {}
+      1️⃣final class MyTests: XCTestCase {
+        static func testStaticFuncIsNotATest() {}
+      }2️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
+          children: []
         )
       ]
     )
@@ -1364,23 +1347,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
-              id: "MyTests/testSomething",
+              id: "MyLibraryTests.MyTests/testSomething",
               label: "testSomething",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -1434,23 +1410,16 @@ final class DocumentTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
-              id: "MyTests/testSomething",
+              id: "MyLibraryTests.MyTests/testSomething",
               label: "testSomething",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )

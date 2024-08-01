@@ -33,10 +33,8 @@ import SwiftSyntax
 /// /// - Returns:
 /// static func refactor(syntax: DeclSyntax, in context: Void) -> DeclSyntax? {}
 /// ```
-@_spi(Testing)
-public struct AddDocumentation: EditRefactoringProvider {
-  @_spi(Testing)
-  public static func textRefactor(syntax: DeclSyntax, in context: Void) -> [SourceEdit] {
+package struct AddDocumentation: EditRefactoringProvider {
+  package static func textRefactor(syntax: DeclSyntax, in context: Void) -> [SourceEdit] {
     let hasDocumentation = syntax.leadingTrivia.contains { trivia in
       switch trivia {
       case .blockComment, .docBlockComment, .lineComment, .docLineComment:

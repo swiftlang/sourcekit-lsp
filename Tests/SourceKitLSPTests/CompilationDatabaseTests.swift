@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
-import SKCore
 import SKTestSupport
 import TSCBasic
 import XCTest
@@ -65,7 +65,7 @@ final class CompilationDatabaseTests: XCTestCase {
     )
 
     // Ensure that the DidChangeWatchedFilesNotification is handled before we continue.
-    _ = try await project.testClient.send(BarrierRequest())
+    try await project.testClient.send(BarrierRequest())
 
     // DocumentHighlight should now point to the definition in the `#else` block.
 

@@ -14,14 +14,14 @@ import ArgumentParser
 import Foundation
 import InProcessClient
 import LanguageServerProtocol
-import SKCore
+import SKOptions
 import SKSupport
 import SourceKitLSP
 import SwiftExtensions
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
-import var TSCBasic.stderrStream
 import class TSCUtility.PercentProgressAnimation
 
 private actor IndexLogMessageHandler: MessageHandler {
@@ -53,8 +53,8 @@ private actor IndexLogMessageHandler: MessageHandler {
 
 }
 
-public struct IndexCommand: AsyncParsableCommand {
-  public static let configuration: CommandConfiguration = CommandConfiguration(
+package struct IndexCommand: AsyncParsableCommand {
+  package static let configuration: CommandConfiguration = CommandConfiguration(
     commandName: "index",
     abstract: "Index a project and print all the processes executed for it as well as their outputs"
   )
@@ -80,12 +80,13 @@ public struct IndexCommand: AsyncParsableCommand {
   @Option(help: "The path to the project that should be indexed")
   var project: String
 
-  public init() {}
+  package init() {}
 
-  public func run() async throws {
-    var serverOptions = SourceKitLSPServer.Options()
-    serverOptions.experimentalFeatures = Set(experimentalFeatures)
-    serverOptions.experimentalFeatures.insert(.backgroundIndexing)
+  package func run() async throws {
+    let options = SourceKitLSPOptions(
+      backgroundIndexing: true,
+      experimentalFeatures: Set(experimentalFeatures)
+    )
 
     let installPath =
       if let toolchainOverride, let toolchain = Toolchain(try AbsolutePath(validating: toolchainOverride)) {
@@ -97,7 +98,7 @@ public struct IndexCommand: AsyncParsableCommand {
     let messageHandler = IndexLogMessageHandler()
     let inProcessClient = try await InProcessSourceKitLSPClient(
       toolchainRegistry: ToolchainRegistry(installPath: installPath),
-      serverOptions: serverOptions,
+      options: options,
       workspaceFolders: [WorkspaceFolder(uri: DocumentURI(URL(fileURLWithPath: project)))],
       messageHandler: messageHandler
     )
@@ -120,8 +121,4 @@ fileprivate extension SourceKitLSPServer {
   }
 }
 
-#if compiler(>=6)
-extension ExperimentalFeature: @retroactive ExpressibleByArgument {}
-#else
 extension ExperimentalFeature: ExpressibleByArgument {}
-#endif

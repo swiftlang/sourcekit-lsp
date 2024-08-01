@@ -1,4 +1,4 @@
-// swift-tools-version:5.8
+// swift-tools-version: 5.9
 
 import Foundation
 import PackageDescription
@@ -24,12 +24,15 @@ let package = Package(
     .executableTarget(
       name: "sourcekit-lsp",
       dependencies: [
+        "BuildSystemIntegration",
         "Diagnose",
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
-        "SKCore",
+        "SKOptions",
         "SKSupport",
         "SourceKitLSP",
+        "SwiftExtensions",
+        "ToolchainRegistry",
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
@@ -38,31 +41,64 @@ let package = Package(
     ),
 
     // MARK: BuildServerProtocol
-    // Connection between build server and language server to provide build and index info
 
     .target(
       name: "BuildServerProtocol",
       dependencies: [
         "LanguageServerProtocol"
       ],
-      exclude: ["CMakeLists.txt"],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      exclude: ["CMakeLists.txt"]
+    ),
+
+    // MARK: BuildSystemIntegration
+
+    .target(
+      name: "BuildSystemIntegration",
+      dependencies: [
+        "BuildServerProtocol",
+        "LanguageServerProtocol",
+        "LanguageServerProtocolJSONRPC",
+        "SKLogging",
+        "SKOptions",
+        "SKSupport",
+        "SourceKitD",
+        "SwiftExtensions",
+        "ToolchainRegistry",
+        .product(name: "SwiftPM-auto", package: "swift-package-manager"),
+        .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
+        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+      ],
+      exclude: ["CMakeLists.txt"]
+    ),
+
+    .testTarget(
+      name: "BuildSystemIntegrationTests",
+      dependencies: [
+        "BuildSystemIntegration",
+        "LanguageServerProtocol",
+        "SKOptions",
+        "SKTestSupport",
+        "SourceKitLSP",
+        "ToolchainRegistry",
+      ]
     ),
 
     // MARK: CAtomics
+
     .target(
       name: "CAtomics",
       dependencies: []
     ),
 
     // MARK: CSKTestSupport
+
     .target(
       name: "CSKTestSupport",
       dependencies: []
     ),
 
     // MARK: Csourcekitd
-    // C modules wrapper for sourcekitd.
+
     .target(
       name: "Csourcekitd",
       dependencies: [],
@@ -74,13 +110,15 @@ let package = Package(
     .target(
       name: "Diagnose",
       dependencies: [
+        "BuildSystemIntegration",
         "InProcessClient",
-        "LSPLogging",
-        "SKCore",
+        "SKLogging",
+        "SKOptions",
         "SKSupport",
         "SourceKitD",
         "SourceKitLSP",
         "SwiftExtensions",
+        "ToolchainRegistry",
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
         .product(name: "SwiftIDEUtils", package: "swift-syntax"),
         .product(name: "SwiftSyntax", package: "swift-syntax"),
@@ -93,12 +131,12 @@ let package = Package(
     .testTarget(
       name: "DiagnoseTests",
       dependencies: [
+        "BuildSystemIntegration",
         "Diagnose",
-        "LSPLogging",
-        "LSPTestSupport",
-        "SourceKitD",
-        "SKCore",
+        "SKLogging",
         "SKTestSupport",
+        "SourceKitD",
+        "ToolchainRegistry",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ]
     ),
@@ -108,83 +146,48 @@ let package = Package(
     .target(
       name: "InProcessClient",
       dependencies: [
+        "BuildSystemIntegration",
         "LanguageServerProtocol",
-        "LSPLogging",
-        "SKCore",
+        "SKLogging",
+        "SKOptions",
         "SourceKitLSP",
+        "ToolchainRegistry",
       ],
       exclude: ["CMakeLists.txt"]
     ),
 
     // MARK: LanguageServerProtocol
-    // The core LSP types, suitable for any LSP implementation.
+
     .target(
       name: "LanguageServerProtocol",
       dependencies: [],
-      exclude: ["CMakeLists.txt"],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      exclude: ["CMakeLists.txt"]
     ),
 
     .testTarget(
       name: "LanguageServerProtocolTests",
       dependencies: [
         "LanguageServerProtocol",
-        "LSPTestSupport",
+        "SKTestSupport",
       ]
     ),
 
     // MARK: LanguageServerProtocolJSONRPC
-    // LSP connection using jsonrpc over pipes.
 
     .target(
       name: "LanguageServerProtocolJSONRPC",
       dependencies: [
         "LanguageServerProtocol",
-        "LSPLogging",
+        "SKLogging",
       ],
-      exclude: ["CMakeLists.txt"],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      exclude: ["CMakeLists.txt"]
     ),
 
     .testTarget(
       name: "LanguageServerProtocolJSONRPCTests",
       dependencies: [
         "LanguageServerProtocolJSONRPC",
-        "LSPTestSupport",
-      ]
-    ),
-
-    // MARK: LSPLogging
-    // Logging support used in LSP modules.
-
-    .target(
-      name: "LSPLogging",
-      dependencies: [
-        "SwiftExtensions",
-        .product(name: "Crypto", package: "swift-crypto"),
-      ],
-      exclude: ["CMakeLists.txt"],
-      swiftSettings: lspLoggingSwiftSettings + [.enableExperimentalFeature("StrictConcurrency")]
-    ),
-
-    .testTarget(
-      name: "LSPLoggingTests",
-      dependencies: [
-        "LSPLogging",
         "SKTestSupport",
-      ]
-    ),
-
-    // MARK: LSPTestSupport
-
-    .target(
-      name: "LSPTestSupport",
-      dependencies: [
-        "InProcessClient",
-        "LanguageServerProtocol",
-        "LanguageServerProtocolJSONRPC",
-        "SKSupport",
-        "SwiftExtensions",
       ]
     ),
 
@@ -193,10 +196,11 @@ let package = Package(
     .target(
       name: "SemanticIndex",
       dependencies: [
+        "BuildSystemIntegration",
         "LanguageServerProtocol",
-        "LSPLogging",
-        "SKCore",
+        "SKLogging",
         "SwiftExtensions",
+        "ToolchainRegistry",
         .product(name: "IndexStoreDB", package: "indexstore-db"),
       ],
       exclude: ["CMakeLists.txt"]
@@ -205,94 +209,65 @@ let package = Package(
     .testTarget(
       name: "SemanticIndexTests",
       dependencies: [
-        "SemanticIndex"
-      ]
-    ),
-
-    // MARK: SKCore
-    // Data structures and algorithms useful across the project, but not necessarily
-    // suitable for use in other packages.
-
-    .target(
-      name: "SKCore",
-      dependencies: [
-        "BuildServerProtocol",
-        "LanguageServerProtocol",
-        "LanguageServerProtocolJSONRPC",
-        "LSPLogging",
-        "SKSupport",
-        "SourceKitD",
-        "SwiftExtensions",
-        .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
-        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-      ],
-      exclude: ["CMakeLists.txt"],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
-    ),
-
-    .testTarget(
-      name: "SKCoreTests",
-      dependencies: [
-        "SKCore",
+        "SemanticIndex",
+        "SKLogging",
         "SKTestSupport",
       ]
     ),
 
+    // MARK: SKLogging
+
+    .target(
+      name: "SKLogging",
+      dependencies: [
+        "SwiftExtensions",
+        .product(name: "Crypto", package: "swift-crypto"),
+      ],
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: lspLoggingSwiftSettings
+    ),
+
+    .testTarget(
+      name: "SKLoggingTests",
+      dependencies: [
+        "SKLogging",
+        "SKTestSupport",
+      ]
+    ),
+
+    // MARK: SKOptions
+
+    .target(
+      name: "SKOptions",
+      dependencies: [
+        "LanguageServerProtocol",
+        "SKLogging",
+        "SKSupport",
+        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+      ],
+      exclude: ["CMakeLists.txt"]
+    ),
+
     // MARK: SKSupport
-    // Data structures, algorithms and platform-abstraction code that might be generally useful to any Swift package.
-    // Similar in spirit to SwiftPM's Basic module.
 
     .target(
       name: "SKSupport",
       dependencies: [
         "CAtomics",
         "LanguageServerProtocol",
-        "LSPLogging",
+        "SKLogging",
         "SwiftExtensions",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      exclude: ["CMakeLists.txt"],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      exclude: ["CMakeLists.txt"]
     ),
 
     .testTarget(
       name: "SKSupportTests",
       dependencies: [
-        "LSPTestSupport",
         "SKSupport",
         "SKTestSupport",
         "SwiftExtensions",
-      ]
-    ),
-
-    // MARK: SKSwiftPMWorkspace
-
-    .target(
-      name: "SKSwiftPMWorkspace",
-      dependencies: [
-        "BuildServerProtocol",
-        "LanguageServerProtocol",
-        "LSPLogging",
-        "SKCore",
-        "SwiftExtensions",
-        .product(name: "SwiftPM-auto", package: "swift-package-manager"),
-        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-      ],
-      exclude: ["CMakeLists.txt"],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
-    ),
-
-    .testTarget(
-      name: "SKSwiftPMWorkspaceTests",
-      dependencies: [
-        "LSPTestSupport",
-        "LanguageServerProtocol",
-        "SKCore",
-        "SKSwiftPMWorkspace",
-        "SKTestSupport",
-        "SourceKitLSP",
-        .product(name: "SwiftPM-auto", package: "swift-package-manager"),
-        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ]
     ),
 
@@ -301,45 +276,44 @@ let package = Package(
     .target(
       name: "SKTestSupport",
       dependencies: [
+        "BuildSystemIntegration",
         "CSKTestSupport",
         "InProcessClient",
         "LanguageServerProtocol",
-        "LSPTestSupport",
-        "LSPLogging",
-        "SKCore",
+        "LanguageServerProtocolJSONRPC",
+        "SKLogging",
+        "SKOptions",
+        "SKSupport",
         "SourceKitLSP",
         "SwiftExtensions",
+        "ToolchainRegistry",
         .product(name: "ISDBTestSupport", package: "indexstore-db"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      resources: [
-        .copy("INPUTS")
-      ]
+      resources: [.copy("INPUTS")]
     ),
 
     // MARK: SourceKitD
-    // Swift bindings for sourcekitd.
 
     .target(
       name: "SourceKitD",
       dependencies: [
         "Csourcekitd",
-        "LSPLogging",
-        "SKSupport",
+        "SKLogging",
         "SwiftExtensions",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      exclude: ["CMakeLists.txt", "sourcekitd_uids.swift.gyb"],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      exclude: ["CMakeLists.txt", "sourcekitd_uids.swift.gyb"]
     ),
 
     .testTarget(
       name: "SourceKitDTests",
       dependencies: [
+        "BuildSystemIntegration",
         "SourceKitD",
-        "SKCore",
         "SKTestSupport",
         "SwiftExtensions",
+        "ToolchainRegistry",
       ]
     ),
 
@@ -349,17 +323,19 @@ let package = Package(
       name: "SourceKitLSP",
       dependencies: [
         "BuildServerProtocol",
+        "BuildSystemIntegration",
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
-        "LSPLogging",
         "SemanticIndex",
-        "SKCore",
+        "SKLogging",
+        "SKOptions",
         "SKSupport",
-        "SKSwiftPMWorkspace",
         "SourceKitD",
         "SwiftExtensions",
+        "ToolchainRegistry",
         .product(name: "IndexStoreDB", package: "indexstore-db"),
         .product(name: "SwiftBasicFormat", package: "swift-syntax"),
+        .product(name: "Crypto", package: "swift-crypto"),
         .product(name: "SwiftDiagnostics", package: "swift-syntax"),
         .product(name: "SwiftIDEUtils", package: "swift-syntax"),
         .product(name: "SwiftParser", package: "swift-syntax"),
@@ -376,14 +352,16 @@ let package = Package(
       name: "SourceKitLSPTests",
       dependencies: [
         "BuildServerProtocol",
-        "LSPLogging",
-        "LSPTestSupport",
+        "BuildSystemIntegration",
         "LanguageServerProtocol",
-        "SKCore",
+        "SemanticIndex",
+        "SKLogging",
+        "SKOptions",
         "SKSupport",
         "SKTestSupport",
         "SourceKitD",
         "SourceKitLSP",
+        "ToolchainRegistry",
         .product(name: "IndexStoreDB", package: "indexstore-db"),
         .product(name: "ISDBTestSupport", package: "indexstore-db"),
         .product(name: "SwiftParser", package: "swift-syntax"),
@@ -402,7 +380,32 @@ let package = Package(
       name: "SwiftExtensions",
       exclude: ["CMakeLists.txt"]
     ),
-  ]
+
+    // MARK: ToolchainRegistry
+
+    .target(
+      name: "ToolchainRegistry",
+      dependencies: [
+        "SKLogging",
+        "SKSupport",
+        "SwiftExtensions",
+        .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
+        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+      ],
+      exclude: ["CMakeLists.txt"]
+    ),
+
+    .testTarget(
+      name: "ToolchainRegistryTests",
+      dependencies: [
+        "SKTestSupport",
+        "ToolchainRegistry",
+        .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
+        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+      ]
+    ),
+  ],
+  swiftLanguageVersions: [.v5, .version("6")]
 )
 
 // MARK: - Parse build arguments
@@ -445,14 +448,14 @@ var dependencies: [Package.Dependency] {
     let relatedDependenciesBranch = "main"
 
     return [
-      .package(url: "https://github.com/apple/indexstore-db.git", branch: relatedDependenciesBranch),
-      .package(url: "https://github.com/apple/swift-package-manager.git", branch: relatedDependenciesBranch),
+      .package(url: "https://github.com/swiftlang/indexstore-db.git", branch: relatedDependenciesBranch),
+      .package(url: "https://github.com/swiftlang/swift-package-manager.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/apple/swift-tools-support-core.git", branch: relatedDependenciesBranch),
-      .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.2"),
-      .package(url: "https://github.com/apple/swift-syntax.git", branch: relatedDependenciesBranch),
+      .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.4.0"),
+      .package(url: "https://github.com/swiftlang/swift-syntax.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
       // Not a build dependency. Used so the "Format Source Code" command plugin can be used to format sourcekit-lsp
-      .package(url: "https://github.com/apple/swift-format.git", branch: relatedDependenciesBranch),
+      .package(url: "https://github.com/swiftlang/swift-format.git", branch: relatedDependenciesBranch),
     ]
   }
 }

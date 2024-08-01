@@ -12,16 +12,19 @@
 
 import Dispatch
 import Foundation
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 
 #if canImport(CDispatch)
 import struct CDispatch.dispatch_fd_t
 #endif
 
-/// A connection between a message handler (e.g. language server) in the same process as the connection object and a remote message handler (e.g. language client) that may run in another process using JSON RPC messages sent over a pair of in/out file descriptors.
+/// A connection between a message handler (e.g. language server) in the same process as the connection object and a
+/// remote message handler (e.g. language client) that may run in another process using JSON RPC messages sent over a
+// pair of in/out file descriptors.
 ///
-/// For example, inside a language server, the `JSONRPCConnection` takes the language service implementation as its `receiveHandler` and itself provides the client connection for sending notifications and callbacks.
+/// For example, inside a language server, the `JSONRPCConnection` takes the language service implementation as its
+// `receiveHandler` and itself provides the client connection for sending notifications and callbacks.
 public final class JSONRPCConnection: Connection {
 
   /// A name of the endpoint for this connection, used for logging, e.g. `clangd`.

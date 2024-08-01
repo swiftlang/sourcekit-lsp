@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPTestSupport
 import LanguageServerProtocol
 import SKSupport
 import SKTestSupport
@@ -42,7 +41,7 @@ final class PullDiagnosticsTests: XCTestCase {
     XCTAssertEqual(diagnostic.range, Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9))
   }
 
-  /// Test that we can get code actions for pulled diagnostics (https://github.com/apple/sourcekit-lsp/issues/776)
+  /// Test that we can get code actions for pulled diagnostics (https://github.com/swiftlang/sourcekit-lsp/issues/776)
   func testCodeActions() async throws {
     let testClient = try await TestSourceKitLSPClient(
       capabilities: ClientCapabilities(
@@ -181,7 +180,7 @@ final class PullDiagnosticsTests: XCTestCase {
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: aUri, type: .changed)])
     )
 
-    try await self.fulfillmentOfOrThrow([diagnosticsRefreshRequestReceived])
+    try await fulfillmentOfOrThrow([diagnosticsRefreshRequestReceived])
 
     let afterChangingFileA = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
@@ -250,7 +249,7 @@ final class PullDiagnosticsTests: XCTestCase {
       )
     )
 
-    try await self.fulfillmentOfOrThrow([diagnosticsRefreshRequestReceived])
+    try await fulfillmentOfOrThrow([diagnosticsRefreshRequestReceived])
 
     let afterChangingFileA = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
@@ -260,8 +259,8 @@ final class PullDiagnosticsTests: XCTestCase {
 
   func testDiagnosticsWaitForDocumentToBePrepared() async throws {
     let diagnosticRequestSent = AtomicBool(initialValue: false)
-    var serverOptions = SourceKitLSPServer.Options.testDefault
-    serverOptions.indexTestHooks.preparationTaskDidStart = { @Sendable taskDescription in
+    var testHooks = TestHooks()
+    testHooks.indexTestHooks.preparationTaskDidStart = { @Sendable taskDescription in
       // Only start preparation after we sent the diagnostic request. In almost all cases, this should not give
       // preparation enough time to finish before the diagnostic request is handled unless we wait for preparation in
       // the diagnostic request.
@@ -297,7 +296,7 @@ final class PullDiagnosticsTests: XCTestCase {
           ]
         )
         """,
-      serverOptions: serverOptions,
+      testHooks: testHooks,
       enableBackgroundIndexing: true,
       pollIndex: false
     )
@@ -317,9 +316,9 @@ final class PullDiagnosticsTests: XCTestCase {
 
   func testDontReturnEmptyDiagnosticsIfDiagnosticRequestIsCancelled() async throws {
     let diagnosticRequestCancelled = self.expectation(description: "diagnostic request cancelled")
-    var serverOptions = SourceKitLSPServer.Options.testDefault
-    serverOptions.indexTestHooks.preparationTaskDidStart = { _ in
-      await self.fulfillment(of: [diagnosticRequestCancelled], timeout: defaultTimeout)
+    var testHooks = TestHooks()
+    testHooks.indexTestHooks.preparationTaskDidStart = { _ in
+      _ = await XCTWaiter.fulfillment(of: [diagnosticRequestCancelled], timeout: defaultTimeout)
       // Poll until the `CancelRequestNotification` has been propagated to the request handling.
       for _ in 0..<Int(defaultTimeout * 100) {
         if Task.isCancelled {
@@ -332,7 +331,7 @@ final class PullDiagnosticsTests: XCTestCase {
       files: [
         "Lib.swift": "let x: String = 1"
       ],
-      serverOptions: serverOptions,
+      testHooks: testHooks,
       enableBackgroundIndexing: true,
       pollIndex: false
     )
@@ -348,5 +347,31 @@ final class PullDiagnosticsTests: XCTestCase {
     project.testClient.send(CancelRequestNotification(id: requestID))
     diagnosticRequestCancelled.fulfill()
     try await fulfillmentOfOrThrow([diagnosticResponseReceived])
+  }
+
+  func testNoteInSecondaryFile() async throws {
+    let project = try await SwiftPMTestProject(files: [
+      "FileA.swift": """
+      @available(*, unavailable)
+      struct 1️⃣Test {}
+      """,
+      "FileB.swift": """
+      func test() {
+          _ = Test()
+      }
+      """,
+    ])
+
+    let (uri, _) = try project.openDocument("FileB.swift")
+    let diagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    guard case .full(let diagnostics) = diagnostics else {
+      XCTFail("Expected full diagnostics report")
+      return
+    }
+    let diagnostic = try XCTUnwrap(diagnostics.items.only)
+    let note = try XCTUnwrap(diagnostic.relatedInformation?.only)
+    XCTAssertEqual(note.location, try project.location(from: "1️⃣", to: "1️⃣", in: "FileA.swift"))
   }
 }

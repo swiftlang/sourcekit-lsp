@@ -11,17 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
-import SKSupport
+import SKLogging
 import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 
-#if compiler(<5.11)
-extension DLHandle: @unchecked Sendable {}
-#else
-extension DLHandle: @unchecked @retroactive Sendable {}
-#endif
 extension sourcekitd_api_keys: @unchecked Sendable {}
 extension sourcekitd_api_requests: @unchecked Sendable {}
 extension sourcekitd_api_values: @unchecked Sendable {}
@@ -31,31 +25,31 @@ extension sourcekitd_api_values: @unchecked Sendable {}
 ///
 /// Users of this class should not call the api functions `initialize`, `shutdown`, or
 /// `set_notification_handler`, which are global state managed internally by this class.
-public actor DynamicallyLoadedSourceKitD: SourceKitD {
+package actor DynamicallyLoadedSourceKitD: SourceKitD {
   /// The path to the sourcekitd dylib.
-  public let path: AbsolutePath
+  package let path: AbsolutePath
 
   /// The handle to the dylib.
   let dylib: DLHandle
 
   /// The sourcekitd API functions.
-  public let api: sourcekitd_api_functions_t
+  package let api: sourcekitd_api_functions_t
 
   /// Convenience for accessing known keys.
-  public let keys: sourcekitd_api_keys
+  package let keys: sourcekitd_api_keys
 
   /// Convenience for accessing known keys.
-  public let requests: sourcekitd_api_requests
+  package let requests: sourcekitd_api_requests
 
   /// Convenience for accessing known keys.
-  public let values: sourcekitd_api_values
+  package let values: sourcekitd_api_values
 
   private nonisolated let notificationHandlingQueue = AsyncQueue<Serial>()
 
   /// List of notification handlers that will be called for each notification.
   private var notificationHandlers: [WeakSKDNotificationHandler] = []
 
-  public static func getOrCreate(dylibPath: AbsolutePath) async throws -> SourceKitD {
+  package static func getOrCreate(dylibPath: AbsolutePath) async throws -> SourceKitD {
     try await SourceKitDRegistry.shared
       .getOrAdd(dylibPath, create: { try DynamicallyLoadedSourceKitD(dylib: dylibPath) })
   }
@@ -90,21 +84,23 @@ public actor DynamicallyLoadedSourceKitD: SourceKitD {
     self.api.set_notification_handler(nil)
     self.api.shutdown()
     // FIXME: is it safe to dlclose() sourcekitd? If so, do that here. For now, let the handle leak.
-    dylib.leak()
+    Task.detached(priority: .background) { [dylib] in
+      dylib.leak()
+    }
   }
 
   /// Adds a new notification handler (referenced weakly).
-  public func addNotificationHandler(_ handler: SKDNotificationHandler) {
+  package func addNotificationHandler(_ handler: SKDNotificationHandler) {
     notificationHandlers.removeAll(where: { $0.value == nil })
     notificationHandlers.append(.init(handler))
   }
 
   /// Removes a previously registered notification handler.
-  public func removeNotificationHandler(_ handler: SKDNotificationHandler) {
+  package func removeNotificationHandler(_ handler: SKDNotificationHandler) {
     notificationHandlers.removeAll(where: { $0.value == nil || $0.value === handler })
   }
 
-  public nonisolated func log(request: SKDRequestDictionary) {
+  package nonisolated func log(request: SKDRequestDictionary) {
     logger.info(
       """
       Sending sourcekitd request:
@@ -113,7 +109,7 @@ public actor DynamicallyLoadedSourceKitD: SourceKitD {
     )
   }
 
-  public nonisolated func log(response: SKDResponse) {
+  package nonisolated func log(response: SKDResponse) {
     logger.log(
       level: (response.error == nil || response.error == .requestCancelled) ? .debug : .error,
       """
@@ -123,7 +119,7 @@ public actor DynamicallyLoadedSourceKitD: SourceKitD {
     )
   }
 
-  public nonisolated func log(crashedRequest req: SKDRequestDictionary, fileContents: String?) {
+  package nonisolated func log(crashedRequest req: SKDRequestDictionary, fileContents: String?) {
     let log = """
       Request:
       \(req.description)
@@ -142,7 +138,7 @@ public actor DynamicallyLoadedSourceKitD: SourceKitD {
     }
   }
 
-  public nonisolated func logRequestCancellation(request: SKDRequestDictionary) {
+  package nonisolated func logRequestCancellation(request: SKDRequestDictionary) {
     // We don't need to log which request has been cancelled because we can associate the cancellation log message with
     // the send message via the log
     logger.info(

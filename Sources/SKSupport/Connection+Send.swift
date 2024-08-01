@@ -22,7 +22,7 @@ extension Connection {
   /// - Warning: Because this message is `async`, it does not provide any ordering
   ///   guarantees. If you need to guarantee that messages are sent in-order
   ///   use the version with a completion handler.
-  public func send<R: RequestType>(_ request: R) async throws -> R.Response {
+  package func send<R: RequestType>(_ request: R) async throws -> R.Response {
     return try await withCancellableCheckedThrowingContinuation { continuation in
       return self.send(request) { result in
         continuation.resume(with: result)

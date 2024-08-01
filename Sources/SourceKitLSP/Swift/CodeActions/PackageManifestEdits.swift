@@ -35,7 +35,7 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
   ) -> [CodeAction] {
     do {
       var actions: [CodeAction] = []
-      let variants: [(TargetDescription.TargetType, String)] = [
+      let variants: [(TargetDescription.TargetKind, String)] = [
         (.regular, "library"),
         (.executable, "executable"),
         (.macro, "macro"),

@@ -10,13 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPTestSupport
 import LanguageServerProtocol
-import SKCore
+import SKOptions
+import SKSupport
 import SKTestSupport
 import SemanticIndex
 import SourceKitLSP
+import ToolchainRegistry
 import XCTest
+
+import class TSCBasic.Process
 
 final class BackgroundIndexingTests: XCTestCase {
   func testBackgroundIndexingOfSingleFile() async throws {
@@ -157,11 +160,11 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testBackgroundIndexingHappensWithLowPriority() async throws {
-    var serverOptions = SourceKitLSPServer.Options.testDefault
-    serverOptions.indexTestHooks.preparationTaskDidFinish = { taskDescription in
+    var testHooks = TestHooks()
+    testHooks.indexTestHooks.preparationTaskDidFinish = { taskDescription in
       XCTAssert(Task.currentPriority == .low, "\(taskDescription) ran with priority \(Task.currentPriority)")
     }
-    serverOptions.indexTestHooks.updateIndexStoreTaskDidFinish = { taskDescription in
+    testHooks.indexTestHooks.updateIndexStoreTaskDidFinish = { taskDescription in
       XCTAssert(Task.currentPriority == .low, "\(taskDescription) ran with priority \(Task.currentPriority)")
     }
     let project = try await SwiftPMTestProject(
@@ -185,13 +188,13 @@ final class BackgroundIndexingTests: XCTestCase {
           ]
         )
         """,
-      serverOptions: serverOptions,
+      testHooks: testHooks,
       enableBackgroundIndexing: true,
       pollIndex: false
     )
 
     // Wait for indexing to finish without elevating the priority
-    let semaphore = WrappedSemaphore()
+    let semaphore = WrappedSemaphore(name: "Indexing finished")
     let testClient = project.testClient
     Task(priority: .low) {
       await assertNoThrow {
@@ -199,7 +202,7 @@ final class BackgroundIndexingTests: XCTestCase {
       }
       semaphore.signal()
     }
-    semaphore.wait()
+    try semaphore.waitOrThrow()
   }
 
   func testBackgroundIndexingOfPackageDependency() async throws {
@@ -318,19 +321,19 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testBackgroundIndexingStatusWorkDoneProgress() async throws {
-    let receivedBeginProgressNotification = self.expectation(
-      description: "Received work done progress saying build graph generation"
+    let receivedBeginProgressNotification = WrappedSemaphore(
+      name: "Received work done progress saying build graph generation"
     )
-    let receivedReportProgressNotification = self.expectation(
-      description: "Received work done progress saying indexing"
+    let receivedReportProgressNotification = WrappedSemaphore(
+      name: "Received work done progress saying indexing"
     )
-    var serverOptions = SourceKitLSPServer.Options.testDefault
-    serverOptions.indexTestHooks = IndexTestHooks(
+    var testHooks = TestHooks()
+    testHooks.indexTestHooks = IndexTestHooks(
       buildGraphGenerationDidFinish: {
-        await self.fulfillment(of: [receivedBeginProgressNotification], timeout: defaultTimeout)
+        receivedBeginProgressNotification.waitOrXCTFail()
       },
       updateIndexStoreTaskDidFinish: { _ in
-        await self.fulfillment(of: [receivedReportProgressNotification], timeout: defaultTimeout)
+        receivedReportProgressNotification.waitOrXCTFail()
       }
     )
     let project = try await SwiftPMTestProject(
@@ -343,7 +346,7 @@ final class BackgroundIndexingTests: XCTestCase {
         """
       ],
       capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
-      serverOptions: serverOptions,
+      testHooks: testHooks,
       enableBackgroundIndexing: true,
       pollIndex: false,
       preInitialization: { testClient in
@@ -362,7 +365,7 @@ final class BackgroundIndexingTests: XCTestCase {
         return data.title == "Indexing"
       }
     )
-    receivedBeginProgressNotification.fulfill()
+    receivedBeginProgressNotification.signal()
     guard case .begin(let beginData) = beginNotification.value else {
       XCTFail("Expected begin notification")
       return
@@ -382,7 +385,7 @@ final class BackgroundIndexingTests: XCTestCase {
         return true
       }
     )
-    receivedReportProgressNotification.fulfill()
+    receivedReportProgressNotification.signal()
 
     _ = try await project.testClient.nextNotification(
       ofType: WorkDoneProgress.self,
@@ -435,7 +438,7 @@ final class BackgroundIndexingTests: XCTestCase {
     )
 
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: otherFileUri, type: .changed)]))
-    _ = try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(PollIndexRequest())
 
     let callsAfterEdit = try await project.testClient.send(
       CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
@@ -501,7 +504,7 @@ final class BackgroundIndexingTests: XCTestCase {
     )
 
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: .changed)]))
-    _ = try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(PollIndexRequest())
 
     let callsAfterEdit = try await project.testClient.send(
       CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
@@ -529,7 +532,7 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testPrepareTargetAfterEditToDependency() async throws {
-    var serverOptions = SourceKitLSPServer.Options.testDefault
+    var testHooks = TestHooks()
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       [
         ExpectedPreparation(targetID: "LibA", runDestinationID: "destination"),
@@ -539,7 +542,7 @@ final class BackgroundIndexingTests: XCTestCase {
         ExpectedPreparation(targetID: "LibB", runDestinationID: "destination")
       ],
     ])
-    serverOptions.indexTestHooks = expectedPreparationTracker.testHooks
+    testHooks.indexTestHooks = expectedPreparationTracker.testHooks
 
     let project = try await SwiftPMTestProject(
       files: [
@@ -561,7 +564,7 @@ final class BackgroundIndexingTests: XCTestCase {
         )
         """,
       capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
-      serverOptions: serverOptions,
+      testHooks: testHooks,
       enableBackgroundIndexing: true,
       cleanUp: { expectedPreparationTracker.keepAlive() }
     )
@@ -592,9 +595,10 @@ final class BackgroundIndexingTests: XCTestCase {
       return VoidResponse()
     }
 
-    project.testClient.handleMultipleRequests { [weak project] (_: DiagnosticsRefreshRequest) in
-      Task { [weak project] in
-        let updatedDiagnostics = try await project?.testClient.send(
+    let testClient = project.testClient
+    project.testClient.handleMultipleRequests { [weak testClient] (_: DiagnosticsRefreshRequest) in
+      Task { [weak testClient] in
+        let updatedDiagnostics = try await testClient?.send(
           DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
         )
         guard case .full(let updatedDiagnostics) = updatedDiagnostics else {
@@ -631,11 +635,11 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testDontStackTargetPreparationForEditorFunctionality() async throws {
-    let allDocumentsOpened = self.expectation(description: "All documents opened")
-    let libBStartedPreparation = self.expectation(description: "LibB started preparing")
-    let libDPreparedForEditing = self.expectation(description: "LibD prepared for editing")
+    let allDocumentsOpened = WrappedSemaphore(name: "All documents opened")
+    let libBStartedPreparation = WrappedSemaphore(name: "LibB started preparing")
+    let libDPreparedForEditing = WrappedSemaphore(name: "LibD prepared for editing")
 
-    var serverOptions = SourceKitLSPServer.Options.testDefault
+    var testHooks = TestHooks()
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       // Preparation of targets during the initial of the target
       [
@@ -649,8 +653,8 @@ final class BackgroundIndexingTests: XCTestCase {
         ExpectedPreparation(
           targetID: "LibB",
           runDestinationID: "destination",
-          didStart: { libBStartedPreparation.fulfill() },
-          didFinish: { self.wait(for: [allDocumentsOpened], timeout: defaultTimeout) }
+          didStart: { libBStartedPreparation.signal() },
+          didFinish: { allDocumentsOpened.waitOrXCTFail() }
         )
       ],
       // And now we just want to prepare LibD, and not LibC
@@ -658,11 +662,11 @@ final class BackgroundIndexingTests: XCTestCase {
         ExpectedPreparation(
           targetID: "LibD",
           runDestinationID: "destination",
-          didFinish: { libDPreparedForEditing.fulfill() }
+          didFinish: { libDPreparedForEditing.signal() }
         )
       ],
     ])
-    serverOptions.indexTestHooks = expectedPreparationTracker.testHooks
+    testHooks.indexTestHooks = expectedPreparationTracker.testHooks
 
     let project = try await SwiftPMTestProject(
       files: [
@@ -682,7 +686,7 @@ final class BackgroundIndexingTests: XCTestCase {
           ]
         )
         """,
-      serverOptions: serverOptions,
+      testHooks: testHooks,
       enableBackgroundIndexing: true,
       cleanUp: { expectedPreparationTracker.keepAlive() }
     )
@@ -692,43 +696,55 @@ final class BackgroundIndexingTests: XCTestCase {
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: try project.uri(for: "LibA.swift"), type: .changed)])
     )
 
-    // Quickly flip through all files
+    // Quickly flip through all files. The way the test is designed to work is as follows:
+    //  - LibB.swift gets opened and prepared. Preparation is simulated to take a long time until both LibC.swift and
+    //    LibD.swift have been opened.
+    //  - LibC.swift gets opened. This queues preparation of LibC but doesn't cancel preparation of LibB because we
+    //    don't cancel in-progress preparation tasks to guarantee forward progress (see comment at the end of
+    //    `SemanticIndexManager.prepare`).
+    //  - Now LibD.swift gets opened. This cancels preparation of LibC which actually cancels LibC's preparation for
+    //    real because LibC's preparation hasn't started yet (it's only queued).
+    // Thus, the only targets that are being prepared are LibB and LibD, which is checked by the
+    // `ExpectedIndexTaskTracker`.
     _ = try project.openDocument("LibB.swift")
-    try await self.fulfillmentOfOrThrow([libBStartedPreparation])
+    try libBStartedPreparation.waitOrThrow()
 
     _ = try project.openDocument("LibC.swift")
 
     // Ensure that LibC gets opened before LibD, so that LibD is the latest document. Two open requests don't have
     // dependencies between each other, so SourceKit-LSP is free to execute them in parallel or re-order them without
     // the barrier.
-    _ = try await project.testClient.send(BarrierRequest())
+    try await project.testClient.send(BarrierRequest())
     _ = try project.openDocument("LibD.swift")
 
-    allDocumentsOpened.fulfill()
-    try await self.fulfillmentOfOrThrow([libDPreparedForEditing])
+    // Send a barrier request to ensure we have finished opening LibD before allowing the preparation of LibB to finish.
+    try await project.testClient.send(BarrierRequest())
+
+    allDocumentsOpened.signal()
+    try libDPreparedForEditing.waitOrThrow()
   }
 
-  public func testProduceIndexLog() async throws {
-    let didReceivePreparationIndexLogMessage = self.expectation(description: "Did receive preparation log message")
-    let didReceiveIndexingLogMessage = self.expectation(description: "Did receive indexing log message")
-    let updateIndexStoreTaskDidFinish = self.expectation(description: "Update index store task did finish")
+  func testProduceIndexLog() async throws {
+    let didReceivePreparationIndexLogMessage = WrappedSemaphore(name: "Did receive preparation log message")
+    let didReceiveIndexingLogMessage = WrappedSemaphore(name: "Did receive indexing log message")
+    let updateIndexStoreTaskDidFinish = WrappedSemaphore(name: "Update index store task did finish")
 
     // Block the index tasks until we have received a log notification to make sure we stream out results as they come
     // in and not only when the indexing task has finished
-    var serverOptions = SourceKitLSPServer.Options.testDefault
-    serverOptions.indexTestHooks.preparationTaskDidFinish = { _ in
-      await self.fulfillment(of: [didReceivePreparationIndexLogMessage], timeout: defaultTimeout)
+    var testHooks = TestHooks()
+    testHooks.indexTestHooks.preparationTaskDidFinish = { _ in
+      didReceivePreparationIndexLogMessage.waitOrXCTFail()
     }
-    serverOptions.indexTestHooks.updateIndexStoreTaskDidFinish = { _ in
-      await self.fulfillment(of: [didReceiveIndexingLogMessage], timeout: defaultTimeout)
-      updateIndexStoreTaskDidFinish.fulfill()
+    testHooks.indexTestHooks.updateIndexStoreTaskDidFinish = { _ in
+      didReceiveIndexingLogMessage.waitOrXCTFail()
+      updateIndexStoreTaskDidFinish.signal()
     }
 
     let project = try await SwiftPMTestProject(
       files: [
         "MyFile.swift": ""
       ],
-      serverOptions: serverOptions,
+      testHooks: testHooks,
       enableBackgroundIndexing: true,
       pollIndex: false
     )
@@ -738,54 +754,54 @@ final class BackgroundIndexingTests: XCTestCase {
         return notification.message.contains("Preparing MyLibrary")
       }
     )
-    didReceivePreparationIndexLogMessage.fulfill()
+    didReceivePreparationIndexLogMessage.signal()
     _ = try await project.testClient.nextNotification(
       ofType: LogMessageNotification.self,
       satisfying: { notification in
         notification.message.contains("Indexing \(try project.uri(for: "MyFile.swift").pseudoPath)")
       }
     )
-    didReceiveIndexingLogMessage.fulfill()
-    try await fulfillmentOfOrThrow([updateIndexStoreTaskDidFinish])
+    didReceiveIndexingLogMessage.signal()
+    try updateIndexStoreTaskDidFinish.waitOrThrow()
   }
 
   func testIndexingHappensInParallel() async throws {
-    let fileAIndexingStarted = self.expectation(description: "FileA indexing started")
-    let fileBIndexingStarted = self.expectation(description: "FileB indexing started")
+    let fileAIndexingStarted = WrappedSemaphore(name: "FileA indexing started")
+    let fileBIndexingStarted = WrappedSemaphore(name: "FileB indexing started")
 
-    var serverOptions = SourceKitLSPServer.Options.testDefault
+    var testHooks = TestHooks()
     let expectedIndexTaskTracker = ExpectedIndexTaskTracker(
       expectedIndexStoreUpdates: [
         [
           ExpectedIndexStoreUpdate(
             sourceFileName: "FileA.swift",
             didStart: {
-              fileAIndexingStarted.fulfill()
+              fileAIndexingStarted.signal()
             },
             didFinish: {
-              self.wait(for: [fileBIndexingStarted], timeout: defaultTimeout)
+              fileBIndexingStarted.waitOrXCTFail()
             }
           ),
           ExpectedIndexStoreUpdate(
             sourceFileName: "FileB.swift",
             didStart: {
-              fileBIndexingStarted.fulfill()
+              fileBIndexingStarted.signal()
             },
             didFinish: {
-              self.wait(for: [fileAIndexingStarted], timeout: defaultTimeout)
+              fileAIndexingStarted.waitOrXCTFail()
             }
           ),
         ]
       ]
     )
-    serverOptions.indexTestHooks = expectedIndexTaskTracker.testHooks
+    testHooks.indexTestHooks = expectedIndexTaskTracker.testHooks
 
     _ = try await SwiftPMTestProject(
       files: [
         "FileA.swift": "",
         "FileB.swift": "",
       ],
-      serverOptions: serverOptions,
+      testHooks: testHooks,
       enableBackgroundIndexing: true,
       cleanUp: { expectedIndexTaskTracker.keepAlive() }
     )
@@ -816,7 +832,7 @@ final class BackgroundIndexingTests: XCTestCase {
       enableBackgroundIndexing: true
     )
 
-    var otherClientOptions = SourceKitLSPServer.Options.testDefault
+    var otherClientOptions = TestHooks()
     otherClientOptions.indexTestHooks = IndexTestHooks(
       preparationTaskDidStart: { taskDescription in
         XCTFail("Did not expect any target preparation, got \(taskDescription.targetsToPrepare)")
@@ -826,13 +842,13 @@ final class BackgroundIndexingTests: XCTestCase {
       }
     )
     let otherClient = try await TestSourceKitLSPClient(
-      serverOptions: otherClientOptions,
+      testHooks: otherClientOptions,
       enableBackgroundIndexing: true,
       workspaceFolders: [
         WorkspaceFolder(uri: DocumentURI(project.scratchDirectory))
       ]
     )
-    _ = try await otherClient.send(PollIndexRequest())
+    try await otherClient.send(PollIndexRequest())
   }
 
   func testOpeningFileThatIsNotPartOfThePackageDoesntGenerateABuildFolderThere() async throws {
@@ -885,7 +901,7 @@ final class BackgroundIndexingTests: XCTestCase {
       return VoidResponse()
     }
     _ = try project.openDocument("Lib.swift")
-    _ = try await project.testClient.send(BarrierRequest())
+    try await project.testClient.send(BarrierRequest())
   }
 
   func testImportPreparedModuleWithFunctionBodiesSkipped() async throws {
@@ -952,8 +968,8 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testUseBuildFlagsDuringPreparation() async throws {
-    var serverOptions = SourceKitLSPServer.Options.testDefault
-    serverOptions.buildSetup.flags.swiftCompilerFlags += ["-D", "MY_FLAG"]
+    var options = SourceKitLSPOptions.testDefault()
+    options.swiftPM.swiftCompilerFlags = ["-D", "MY_FLAG"]
     let project = try await SwiftPMTestProject(
       files: [
         "Lib/Lib.swift": """
@@ -978,7 +994,7 @@ final class BackgroundIndexingTests: XCTestCase {
           ]
         )
         """,
-      serverOptions: serverOptions,
+      options: options,
       enableBackgroundIndexing: true
     )
 
@@ -1050,8 +1066,8 @@ final class BackgroundIndexingTests: XCTestCase {
 
   func testCrossModuleFunctionalityEvenIfLowLevelModuleHasErrors() async throws {
     try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
-    var serverOptions = SourceKitLSPServer.Options.testDefault
-    serverOptions.experimentalFeatures.insert(.swiftpmPrepareForIndexing)
+    var options = SourceKitLSPOptions.testDefault()
+    options.backgroundPreparationMode = SourceKitLSPOptions.BackgroundPreparationMode.enabled.rawValue
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
@@ -1084,7 +1100,7 @@ final class BackgroundIndexingTests: XCTestCase {
           ]
         )
         """,
-      serverOptions: serverOptions,
+      options: options,
       enableBackgroundIndexing: true
     )
 
@@ -1093,5 +1109,385 @@ final class BackgroundIndexingTests: XCTestCase {
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
     XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "LibB.swift")]))
+  }
+
+  func testCrossModuleFunctionalityWithPreparationNoSkipping() async throws {
+    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
+    var options = SourceKitLSPOptions.testDefault()
+    options.backgroundPreparationMode = SourceKitLSPOptions.BackgroundPreparationMode.noLazy.rawValue
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": """
+        public func test() -> Invalid {
+          return ""
+        }
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+
+        public func 1️⃣libBTest() -> Int {
+          return libATest()
+        }
+        """,
+        "MyExec/MyExec.swift": """
+        import LibB
+
+        func test() -> Int {
+          return 2️⃣libBTest()
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+           .executableTarget(name: "MyExec", dependencies: ["LibB"]),
+          ]
+        )
+        """,
+      options: options,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("MyExec.swift")
+    let response = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "LibB.swift")]))
+  }
+
+  func testUpdatePackageDependency() async throws {
+    try SkipUnless.longTestsEnabled()
+
+    let dependencyProject = try await SwiftPMDependencyProject(files: [
+      "Sources/MyDependency/Dependency.swift": """
+      /// Do something v1.0.0
+      public func doSomething() {}
+      """
+    ])
+    let dependencySwiftURL = dependencyProject.packageDirectory
+      .appendingPathComponent("Sources")
+      .appendingPathComponent("MyDependency")
+      .appendingPathComponent("Dependency.swift")
+    defer { dependencyProject.keepAlive() }
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": """
+        import MyDependency
+
+        func test() {
+          1️⃣doSomething()
+        }
+        """
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          dependencies: [.package(url: "\(dependencyProject.packageDirectory)", from: "1.0.0")],
+          targets: [
+            .target(
+              name: "MyLibrary",
+              dependencies: [.product(name: "MyDependency", package: "MyDependency")]
+            )
+          ]
+        )
+        """,
+      enableBackgroundIndexing: true
+    )
+    let packageResolvedURL = project.scratchDirectory.appendingPathComponent("Package.resolved")
+
+    let originalPackageResolvedContents = try String(contentsOf: packageResolvedURL)
+
+    // First check our setup to see that we get the expected hover response before changing the dependency project.
+    let (uri, positions) = try project.openDocument("Test.swift")
+    let hoverBeforeUpdate = try await project.testClient.send(
+      HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssert(
+      hoverBeforeUpdate?.contents.markupContent?.value.contains("Do something v1.0.0") ?? false,
+      "Did not contain expected string: \(String(describing: hoverBeforeUpdate))"
+    )
+
+    // Just committing a new version of the dependency shouldn't change anything because we didn't update the package
+    // dependencies.
+    try """
+    /// Do something v1.1.0
+    public func doSomething() {}
+    """.write(to: dependencySwiftURL, atomically: true, encoding: .utf8)
+    try await dependencyProject.tag(changedFiles: [dependencySwiftURL], version: "1.1.0")
+
+    let hoverAfterNewVersionCommit = try await project.testClient.send(
+      HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssert(
+      hoverAfterNewVersionCommit?.contents.markupContent?.value.contains("Do something v1.0.0") ?? false,
+      "Did not contain expected string: \(String(describing: hoverBeforeUpdate))"
+    )
+
+    // Updating Package.swift causes a package reload but should not cause dependencies to be updated.
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("Package.resolved")), type: .changed)
+      ])
+    )
+    try await project.testClient.send(PollIndexRequest())
+    XCTAssertEqual(try String(contentsOf: packageResolvedURL), originalPackageResolvedContents)
+
+    // Simulate a package update which goes as follows:
+    //  - The user runs `swift package update`
+    //  - This updates `Package.resolved`, which we watch
+    //  - We reload the package, which updates `Dependency.swift` in `.index-build/checkouts`, which we also watch.
+    try await Process.run(
+      arguments: [
+        unwrap(ToolchainRegistry.forTesting.default?.swift?.pathString),
+        "package", "update",
+        "--package-path", project.scratchDirectory.path,
+      ],
+      workingDirectory: nil
+    )
+    XCTAssertNotEqual(try String(contentsOf: packageResolvedURL), originalPackageResolvedContents)
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("Package.resolved")), type: .changed)
+      ])
+    )
+    try await project.testClient.send(PollIndexRequest())
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(
+        changes: FileManager.default.findFiles(named: "Dependency.swift", in: project.scratchDirectory).map {
+          FileEvent(uri: DocumentURI($0), type: .changed)
+        }
+      )
+    )
+
+    try await repeatUntilExpectedResult {
+      let hoverAfterPackageUpdate = try await project.testClient.send(
+        HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      )
+      return hoverAfterPackageUpdate?.contents.markupContent?.value.contains("Do something v1.1.0") ?? false
+    }
+  }
+
+  func testAddingRandomSwiftFileDoesNotTriggerPackageReload() async throws {
+    let packageInitialized = AtomicBool(initialValue: false)
+
+    var testHooks = TestHooks()
+    testHooks.swiftpmTestHooks.reloadPackageDidStart = {
+      if packageInitialized.value {
+        XCTFail("Build graph should not get reloaded when random file gets added")
+      }
+    }
+    let project = try await SwiftPMTestProject(
+      files: ["Test.swift": ""],
+      testHooks: testHooks,
+      enableBackgroundIndexing: true
+    )
+    packageInitialized.value = true
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("random.swift")), type: .created)
+      ])
+    )
+    _ = try await project.testClient.send(PollIndexRequest())
+  }
+
+  func testManualReindex() async throws {
+    // This test relies on the issue described in https://github.com/apple/sourcekit-lsp/issues/1264 that we don't
+    // re-index dependent files if a function of a low-level module gains a new default parameter, which changes the
+    // function's USR but is API compatible with all dependencies.
+    // Check that after running the re-index request, the index gets updated.
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": """
+        public func 1️⃣getInt() -> Int {
+          return 1
+        }
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+
+        public func 2️⃣test() -> Int {
+          return 3️⃣getInt()
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """,
+      enableBackgroundIndexing: true
+    )
+
+    let expectedCallHierarchyItem = CallHierarchyIncomingCall(
+      from: CallHierarchyItem(
+        name: "test()",
+        kind: .function,
+        tags: nil,
+        uri: try project.uri(for: "LibB.swift"),
+        range: try project.range(from: "2️⃣", to: "2️⃣", in: "LibB.swift"),
+        selectionRange: try project.range(from: "2️⃣", to: "2️⃣", in: "LibB.swift"),
+        data: .dictionary([
+          "usr": .string("s:4LibB4testSiyF"),
+          "uri": .string(try project.uri(for: "LibB.swift").stringValue),
+        ])
+      ),
+      fromRanges: [try project.range(from: "3️⃣", to: "3️⃣", in: "LibB.swift")]
+    )
+
+    /// Start by making a call hierarchy request to check that we get the expected results without any edits.
+    let (uri, positions) = try project.openDocument("LibA.swift")
+    let prepareBeforeUpdate = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let callHierarchyBeforeUpdate = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: XCTUnwrap(prepareBeforeUpdate?.only))
+    )
+    XCTAssertEqual(callHierarchyBeforeUpdate, [expectedCallHierarchyItem])
+
+    // Now add a new default parameter to `getInt`.
+    project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
+    let newLibAContents = """
+      public func getInt(value: Int = 1) -> Int {
+        return value
+      }
+      """
+    try newLibAContents.write(to: XCTUnwrap(uri.fileURL), atomically: true, encoding: .utf8)
+    project.testClient.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(uri: uri, language: .swift, version: 0, text: newLibAContents)
+      )
+    )
+    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: .changed)]))
+    _ = try await project.testClient.send(PollIndexRequest())
+
+    // The USR of `getInt` has changed but LibB.swift has not been re-indexed due to
+    // https://github.com/apple/sourcekit-lsp/issues/1264. We expect to get an empty call hierarchy.
+    let prepareAfterUpdate = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let callHierarchyAfterUpdate = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: XCTUnwrap(prepareAfterUpdate?.only))
+    )
+    XCTAssertEqual(callHierarchyAfterUpdate, [])
+
+    // After re-indexing, we expect to get a full call hierarchy again.
+    _ = try await project.testClient.send(TriggerReindexRequest())
+    _ = try await project.testClient.send(PollIndexRequest())
+
+    let prepareAfterReindex = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let callHierarchyAfterReindex = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: XCTUnwrap(prepareAfterReindex?.only))
+    )
+    XCTAssertEqual(callHierarchyAfterReindex, [expectedCallHierarchyItem])
+  }
+
+  func testCancelIndexing() async throws {
+    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
+    try SkipUnless.longTestsEnabled()
+
+    var options = SourceKitLSPOptions.testDefault()
+    options.backgroundPreparationMode = SourceKitLSPOptions.BackgroundPreparationMode.enabled.rawValue
+    options.index.updateIndexStoreTimeout = 1 /* second */
+
+    let dateStarted = Date()
+    _ = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": """
+        func slow(x: Invalid1, y: Invalid2) {
+          x / y / x / y / x / y / x / y
+        }
+        """
+      ],
+      options: options,
+      enableBackgroundIndexing: true
+    )
+    // Creating the `SwiftPMTestProject` implicitly waits for background indexing to finish.
+    // Preparation of `Test.swift` should finish instantly because it doesn't type check the function body.
+    // Type-checking the body relies on rdar://80582770, which makes the line hard to type check. We should hit the
+    // timeout of 1s. Adding another 2s to escalate a SIGINT (to which swift-frontend doesn't respond) to a SIGKILL mean
+    // that the initial indexing should be done in ~3s. 30s should be enough to always finish within this time while
+    // also testing that we don't wait for type checking of Test.swift to finish.
+    XCTAssert(Date().timeIntervalSince(dateStarted) < 30)
+  }
+
+  func testRedirectSymlink() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "/original.swift": """
+        func original() {
+          foo()
+        }
+        """,
+        "/updated.swift": """
+        func updated() {
+          foo()
+        }
+        """,
+        "test.swift": """
+        func 1️⃣foo() {}
+        """,
+      ],
+      workspaces: { scratchDirectory in
+        let symlink =
+          scratchDirectory
+          .appendingPathComponent("Sources")
+          .appendingPathComponent("MyLibrary")
+          .appendingPathComponent("symlink.swift")
+        try FileManager.default.createSymbolicLink(
+          at: symlink,
+          withDestinationURL: scratchDirectory.appendingPathComponent("original.swift")
+        )
+        return [WorkspaceFolder(uri: DocumentURI(scratchDirectory))]
+      },
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("test.swift")
+
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let callsBeforeRedirect = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(callsBeforeRedirect?.only?.from.name, "original()")
+
+    let symlink =
+      project.scratchDirectory
+      .appendingPathComponent("Sources")
+      .appendingPathComponent("MyLibrary")
+      .appendingPathComponent("symlink.swift")
+    try FileManager.default.removeItem(at: symlink)
+    try FileManager.default.createSymbolicLink(
+      at: symlink,
+      withDestinationURL: project.scratchDirectory.appendingPathComponent("updated.swift")
+    )
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: DocumentURI(symlink), type: .changed)])
+    )
+    try await project.testClient.send(PollIndexRequest())
+
+    let callsAfterRedirect = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(callsAfterRedirect?.only?.from.name, "updated()")
+  }
+}
+
+extension HoverResponseContents {
+  var markupContent: MarkupContent? {
+    switch self {
+    case .markupContent(let markupContent): return markupContent
+    default: return nil
+    }
   }
 }

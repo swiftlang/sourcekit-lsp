@@ -11,12 +11,14 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
-import LSPTestSupport
+@_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
+import SKOptions
 import SKTestSupport
+@_spi(Testing) import SemanticIndex
 @_spi(Testing) import SourceKitLSP
 import TSCBasic
+import ToolchainRegistry
 import XCTest
 
 /// Build system to be used for testing BuildSystem and BuildSystemDelegate functionality with SourceKitLSPServer
@@ -29,7 +31,7 @@ actor TestBuildSystem: BuildSystem {
 
   weak var delegate: BuildSystemDelegate?
 
-  public func setDelegate(_ delegate: BuildSystemDelegate?) async {
+  func setDelegate(_ delegate: BuildSystemDelegate?) async {
     self.delegate = delegate
   }
 
@@ -43,7 +45,7 @@ actor TestBuildSystem: BuildSystem {
     buildSettingsByFile[uri] = buildSettings
   }
 
-  public nonisolated var supportsPreparation: Bool { false }
+  nonisolated var supportsPreparation: Bool { false }
 
   func buildSettings(
     for document: DocumentURI,
@@ -53,32 +55,32 @@ actor TestBuildSystem: BuildSystem {
     return buildSettingsByFile[document]
   }
 
-  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+  func defaultLanguage(for document: DocumentURI) async -> Language? {
     return nil
   }
 
-  public func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+  func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
     return nil
   }
 
-  public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
+  func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
     return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }
 
-  public func prepare(
+  func prepare(
     targets: [ConfiguredTarget],
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     throw PrepareNotSupportedError()
   }
 
-  public func generateBuildGraph(allowFileSystemWrites: Bool) {}
+  func generateBuildGraph(allowFileSystemWrites: Bool) {}
 
-  public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
   }
 
-  public func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
   }
 
@@ -92,7 +94,7 @@ actor TestBuildSystem: BuildSystem {
 
   func filesDidChange(_ events: [FileEvent]) {}
 
-  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
+  func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
     if buildSettingsByFile[uri] != nil {
       return .handled
     } else {
@@ -137,7 +139,8 @@ final class BuildSystemTests: XCTestCase {
 
     self.workspace = await Workspace.forTesting(
       toolchainRegistry: ToolchainRegistry.forTesting,
-      options: SourceKitLSPServer.Options.testDefault,
+      options: SourceKitLSPOptions.testDefault(),
+      testHooks: TestHooks(),
       underlyingBuildSystem: buildSystem,
       indexTaskScheduler: .forTesting
     )
@@ -187,20 +190,15 @@ final class BuildSystemTests: XCTestCase {
 
     await buildSystem.delegate?.fileBuildSettingsChanged([doc])
 
-    var receivedCorrectDiagnostic = false
-    for _ in 0..<Int(defaultTimeout) {
+    try await repeatUntilExpectedResult {
       let refreshedDiags = try await testClient.nextDiagnosticsNotification(timeout: .seconds(1))
-      if refreshedDiags.diagnostics.count == 0, try text == documentManager.latestSnapshot(doc).text {
-        receivedCorrectDiagnostic = true
-        break
-      }
+      return try text == documentManager.latestSnapshot(doc).text && refreshedDiags.diagnostics.count == 0
     }
-    XCTAssert(receivedCorrectDiagnostic)
   }
 
   func testSwiftDocumentUpdatedBuildSettings() async throws {
     let doc = DocumentURI(for: .swift)
-    let args = await FallbackBuildSystem(buildSetup: .default)
+    let args = await FallbackBuildSystem(options: SourceKitLSPOptions.FallbackBuildSystemOptions())
       .buildSettings(for: doc, language: .swift)!
       .compilerArguments
 
@@ -271,7 +269,8 @@ final class BuildSystemTests: XCTestCase {
     let doc = DocumentURI(for: .swift)
 
     // Primary settings must be different than the fallback settings.
-    var primarySettings = await FallbackBuildSystem(buildSetup: .default).buildSettings(for: doc, language: .swift)!
+    var primarySettings = await FallbackBuildSystem(options: SourceKitLSPOptions.FallbackBuildSystemOptions())
+      .buildSettings(for: doc, language: .swift)!
     primarySettings.isFallback = false
     primarySettings.compilerArguments.append("-DPRIMARY")
 

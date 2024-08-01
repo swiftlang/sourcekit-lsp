@@ -1,6 +1,6 @@
 # Contributing
 
-This document contains notes about development and testing of SourceKit-LSP.
+This document contains notes about development and testing of SourceKit-LSP, the [Contributor Documentation](Contributor%20Documentation/) folder has some more detailed documentation.
 
 ## Building & Testing
 
@@ -68,6 +68,9 @@ If you want test your changes to SourceKit-LSP inside your editor, you can point
 "swift.sourcekit-lsp.serverPath": "/path/to/sourcekit-lsp/.build/arm64-apple-macosx/debug/sourcekit-lsp",
 ```
 
+> [!NOTE]
+> VS Code will note that that the `swift.sourcekit-lsp.serverPath` setting is deprecated. That’s because mixing and matching versions of sourcekit-lsp and Swift toolchains is generally not supported, so the settings is reserved for developers of SourceKit-LSP, which includes you. You can ignore this warning, If you have the `swift.path` setting to a recent [Swift Development Snapshot](https://www.swift.org/install).
+
 > [!TIP]
 > The easiest way to debug SourceKit-LSP is usually to write a test case that reproduces the behavior and then debug that. If that’s not possible, you can attach LLDB to the sourcekit-lsp launched by your and set breakpoints to debug. To do so on the command line, run
 > ```bash
@@ -106,7 +109,7 @@ To enable more verbose logging on non-macOS platforms, launch sourcekit-lsp with
 
 ## Formatting
 
-SourceKit-LSP is formatted using [swift-format](http://github.com/apple/swift-format) to ensure a consistent style.
+SourceKit-LSP is formatted using [swift-format](http://github.com/swiftlang/swift-format) to ensure a consistent style.
 
 To format your changes run the formatter using the following command
 ```bash
@@ -131,33 +134,14 @@ For more information and instructions, read the GitHub docs on [forking a repo](
 
 Once you've pushed your branch, you should see an option on this repository's page to create a PR from a branch in your fork.
 
+> [!TIP]
+> If you are stuck, it’s encouraged to submit a PR that describes the issue you’re having, e.g. if there are tests that are failing, build failures you can’t resolve, or if you have architectural questions. We’re happy to work with you to resolve those issues.
+
 ## Opening a PR for Release Branch
 
-In order for a pull request to be considered for inclusion in a release branch (e.g. `release/6.0`) after it has been cut, it must meet the following requirements:
+See the [dedicated section][section] on the Swift project website.
 
-1. The title of the PR should start with the tag `[{swift version number}]`. For example, `[6.0]` for the Swift 6.0 release branch.
-
-1. The PR description must include the following information:
-
-    ```md
-    * **Explanation**: A description of the issue being fixed or enhancement being made. This can be brief, but it should be clear.
-    * **Scope**: An assessment of the impact/importance of the change. For example, is the change a source-breaking language change, etc.
-    * **Issue**: The GitHub Issue link if the change fixes/implements an issue/enhancement.
-    * **Original PR**: Pull Request link from the `main` branch.
-    * **Risk**: What is the (specific) risk to the release for taking this change?
-    * **Testing**: What specific testing has been done or needs to be done to further validate any impact of this change?
-    * **Reviewer**: One or more code owners for the impacted components should review the change. Technical review can be delegated by a code owner or otherwise requested as deemed appropriate or useful.
-    ```
-
-> [!TIP]
-> The PR description can be generated using the [release_branch.md](https://github.com/apple/sourcekit-lsp/blob/main/.github/PULL_REQUEST_TEMPLATE/release_branch.md) [pull request template](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/about-issue-and-pull-request-templates). To use this template when creating a PR, you need to add the query parameter:
-> ```
-> ?expand=1&template=release_branch.md
-> ```
-> to the PR URL, as described in the [GitHub documentation on using query parameters to create a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/using-query-parameters-to-create-a-pull-request).
-> This is necessary because GitHub does not currently provide a UI to choose a PR template.
-
-All changes going into a release branch must go through pull requests that are approved and merged by the corresponding release manager.
+[section]: https://www.swift.org/contributing/#release-branch-pull-requests
 
 ## Review and CI Testing
 

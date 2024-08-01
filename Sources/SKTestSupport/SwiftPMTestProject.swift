@@ -12,19 +12,20 @@
 
 import Foundation
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
+import SKOptions
 import SourceKitLSP
 import TSCBasic
+import ToolchainRegistry
 
 private struct SwiftSyntaxCShimsModulemapNotFoundError: Error {}
 
-public class SwiftPMTestProject: MultiFileTestProject {
+package class SwiftPMTestProject: MultiFileTestProject {
   enum Error: Swift.Error {
     /// The `swift` executable could not be found.
     case swiftNotFound
   }
 
-  public static let defaultPackageManifest: String = """
+  package static let defaultPackageManifest: String = """
     // swift-tools-version: 5.7
 
     import PackageDescription
@@ -42,7 +43,7 @@ public class SwiftPMTestProject: MultiFileTestProject {
   /// It builds the macro using the swift-syntax that was already built as part of the SourceKit-LSP build.
   /// Re-using the SwiftSyntax modules that are already built is significantly faster than building swift-syntax in
   /// each test case run and does not require internet access.
-  public static var macroPackageManifest: String {
+  package static var macroPackageManifest: String {
     get async throws {
       // Directories that we should search for the swift-syntax package.
       // We prefer a checkout in the build folder. If that doesn't exist, we are probably using local dependencies
@@ -146,24 +147,26 @@ public class SwiftPMTestProject: MultiFileTestProject {
   /// Create a new SwiftPM package with the given files.
   ///
   /// If `index` is `true`, then the package will be built, indexing all modules within the package.
-  public init(
+  package init(
     files: [RelativeFileLocation: String],
     manifest: String = SwiftPMTestProject.defaultPackageManifest,
     workspaces: (URL) async throws -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
+    initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
-    serverOptions: SourceKitLSPServer.Options = .testDefault,
+    options: SourceKitLSPOptions = .testDefault(),
+    testHooks: TestHooks = TestHooks(),
     enableBackgroundIndexing: Bool = false,
     usePullDiagnostics: Bool = true,
     pollIndex: Bool = true,
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
-    cleanUp: (() -> Void)? = nil,
+    cleanUp: (@Sendable () -> Void)? = nil,
     testName: String = #function
   ) async throws {
     var filesByPath: [RelativeFileLocation: String] = [:]
     for (fileLocation, contents) in files {
       let directories =
         switch fileLocation.directories.first {
-        case "Sources", "Tests", "Plugins":
+        case "Sources", "Tests", "Plugins", "":
           fileLocation.directories
         case nil:
           ["Sources", "MyLibrary"]
@@ -189,8 +192,10 @@ public class SwiftPMTestProject: MultiFileTestProject {
     try await super.init(
       files: filesByPath,
       workspaces: workspaces,
+      initializationOptions: initializationOptions,
       capabilities: capabilities,
-      serverOptions: serverOptions,
+      options: options,
+      testHooks: testHooks,
       enableBackgroundIndexing: enableBackgroundIndexing,
       usePullDiagnostics: usePullDiagnostics,
       preInitialization: preInitialization,
@@ -200,12 +205,12 @@ public class SwiftPMTestProject: MultiFileTestProject {
 
     if pollIndex {
       // Wait for the indexstore-db to finish indexing
-      _ = try await testClient.send(PollIndexRequest())
+      try await testClient.send(PollIndexRequest())
     }
   }
 
   /// Build a SwiftPM package package manifest is located in the directory at `path`.
-  public static func build(at path: URL) async throws {
+  package static func build(at path: URL) async throws {
     guard let swift = await ToolchainRegistry.forTesting.default?.swift?.asURL else {
       throw Error.swiftNotFound
     }
@@ -230,7 +235,7 @@ public class SwiftPMTestProject: MultiFileTestProject {
   }
 
   /// Resolve package dependencies for the package at `path`.
-  public static func resolvePackageDependencies(at path: URL) async throws {
+  package static func resolvePackageDependencies(at path: URL) async throws {
     guard let swift = await ToolchainRegistry.forTesting.default?.swift?.asURL else {
       throw Error.swiftNotFound
     }

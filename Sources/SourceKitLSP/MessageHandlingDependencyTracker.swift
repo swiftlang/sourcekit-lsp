@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SKSupport
 import SwiftExtensions
 
@@ -198,6 +198,8 @@ enum MessageHandlingDependencyTracker: DependencyTracker {
     case is ShowMessageRequest:
       self = .freestanding
     case is ShutdownRequest:
+      self = .globalConfigurationChange
+    case is TriggerReindexRequest:
       self = .globalConfigurationChange
     case is TypeHierarchySubtypesRequest:
       self = .freestanding

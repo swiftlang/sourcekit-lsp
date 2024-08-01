@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SourceKitD
 
 /// Parses tokens from sourcekitd response dictionaries.
@@ -205,7 +205,7 @@ struct SyntaxHighlightingTokenParser {
 
 extension Range<Position> {
   /// Splits a potentially multi-line range to multiple single-line ranges.
-  @_spi(Testing) public func splitToSingleLineRanges(in snapshot: DocumentSnapshot) -> [Self] {
+  package func splitToSingleLineRanges(in snapshot: DocumentSnapshot) -> [Self] {
     if isEmpty {
       return []
     }

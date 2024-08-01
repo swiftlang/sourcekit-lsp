@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-@preconcurrency import IndexStoreDB
-import LSPLogging
+import IndexStoreDB
 import LanguageServerProtocol
+import SKLogging
 import SKSupport
 import SemanticIndex
 import SourceKitD
@@ -345,7 +345,7 @@ extension SwiftLanguageService {
     in uri: DocumentURI,
     name: CompoundDeclName
   ) async throws -> String {
-    guard let snapshot = documentManager.latestSnapshotOrDisk(uri, language: .swift) else {
+    guard let snapshot = try? documentManager.latestSnapshotOrDisk(uri, language: .swift) else {
       throw ResponseError.unknown("Failed to get contents of \(uri.forLogging) to translate Swift name to clang name")
     }
 
@@ -359,7 +359,7 @@ extension SwiftLanguageService {
       keys.argNames: sourcekitd.array(name.parameters.map { $0.stringOrWildcard }),
     ])
 
-    let response = try await sourcekitd.send(req, fileContents: snapshot.text)
+    let response = try await sendSourcekitdRequest(req, fileContents: snapshot.text)
 
     guard let isZeroArgSelector: Int = response[keys.isZeroArgSelector],
       let selectorPieces: SKDResponseArray = response[keys.selectorPieces]
@@ -416,7 +416,7 @@ extension SwiftLanguageService {
       req.set(keys.baseName, to: name)
     }
 
-    let response = try await sourcekitd.send(req, fileContents: snapshot.text)
+    let response = try await sendSourcekitdRequest(req, fileContents: snapshot.text)
 
     guard let baseName: String = response[keys.baseName] else {
       throw NameTranslationError.malformedClangToSwiftTranslateNameResponse(response)
@@ -445,7 +445,7 @@ extension SwiftLanguageService {
 /// These names might differ. For example, an Objective-C method gets translated by the clang importer to form the Swift
 /// name or it could have a `SWIFT_NAME` attribute that defines the method's name in Swift. Similarly, a Swift symbol
 /// might specify the name by which it gets exposed to Objective-C using the `@objc` attribute.
-public struct CrossLanguageName: Sendable {
+package struct CrossLanguageName: Sendable {
   /// The name of the symbol in clang languages or `nil` if the symbol is defined in Swift, doesn't have any references
   /// from clang languages and thus hasn't been translated.
   fileprivate let clangName: String?
@@ -687,7 +687,7 @@ extension SourceKitLSPServer {
     guard let workspace = await workspaceForDocument(uri: uri) else {
       throw ResponseError.workspaceNotOpen(uri)
     }
-    guard let primaryFileLanguageService = workspace.documentService.value[uri] else {
+    guard let primaryFileLanguageService = workspace.documentService(for: uri) else {
       return nil
     }
 
@@ -914,7 +914,7 @@ extension SwiftLanguageService {
       keys.renameLocations: locations,
     ])
 
-    let syntacticRenameRangesResponse = try await sourcekitd.send(skreq, fileContents: snapshot.text)
+    let syntacticRenameRangesResponse = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
     guard let categorizedRanges: SKDResponseArray = syntacticRenameRangesResponse[keys.categorizedRanges] else {
       throw ResponseError.internalError("sourcekitd did not return categorized ranges")
     }
@@ -1056,7 +1056,7 @@ extension SwiftLanguageService {
     return (functionLikeRange.lowerBound, baseNameSymbolInfo?.only?.usr, functionLikeRange)
   }
 
-  public func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
+  package func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
     let snapshot = try self.documentManager.latestSnapshot(request.textDocument.uri)
 
     let (renamePosition, usr, _) = await symbolToRename(at: request.position, in: snapshot)
@@ -1105,7 +1105,7 @@ extension SwiftLanguageService {
     return (edits: WorkspaceEdit(changes: [snapshot.uri: edits]), usr: usr)
   }
 
-  public func editsToRenameParametersInFunctionBody(
+  package func editsToRenameParametersInFunctionBody(
     snapshot: DocumentSnapshot,
     renameLocation: RenameLocation,
     newName: CrossLanguageName
@@ -1268,7 +1268,7 @@ extension SwiftLanguageService {
     }
   }
 
-  public func editsToRename(
+  package func editsToRename(
     locations renameLocations: [RenameLocation],
     in snapshot: DocumentSnapshot,
     oldName oldCrossLanguageName: CrossLanguageName,
@@ -1350,7 +1350,7 @@ extension SwiftLanguageService {
     }
   }
 
-  public func prepareRename(
+  package func prepareRename(
     _ request: PrepareRenameRequest
   ) async throws -> (prepareRename: PrepareRenameResponse, usr: String?)? {
     let snapshot = try self.documentManager.latestSnapshot(request.textDocument.uri)
@@ -1424,7 +1424,7 @@ extension ClangLanguageService {
     }
   }
 
-  public func prepareRename(
+  package func prepareRename(
     _ request: PrepareRenameRequest
   ) async throws -> (prepareRename: PrepareRenameResponse, usr: String?)? {
     guard let prepareRename = try await forwardRequestToClangd(request) else {
@@ -1436,7 +1436,7 @@ extension ClangLanguageService {
     return (prepareRename, symbolInfo.only?.usr)
   }
 
-  public func editsToRenameParametersInFunctionBody(
+  package func editsToRenameParametersInFunctionBody(
     snapshot: DocumentSnapshot,
     renameLocation: RenameLocation,
     newName: CrossLanguageName

@@ -2,43 +2,32 @@
 
 Background indexing in SourceKit-LSP is available as an experimental feature. This guide shows how to set up background indexing and which caveats to expect.
 
-> [!WARNING]
-> Background indexing is still an experimental feature and still has some non-trivial limitations and bugs (see the known issues).
-
 ## Set Up
 
-Background indexing is still under active, rapid development, so please build SourceKit-LSP from the `main` branch using the following commands. Things are changing rapidly, so rebuilding daily is not a bad practice.
-
-```bash
-$ git clone https://github.com/apple/sourcekit-lsp.git
-$ cd sourcekit-lsp
-$ swift package update
-$ swift build -c release
-```
-
-Next, point your editor to use the just-built copy of SourceKit-LSP and enable background indexing by passing `--experimental-feature background-indexing` to sourcekit-lsp. In VS Code, this can be done by adding the following to your settings.json
+1. Install a `main` or `release/6.0` Swift Development Snapshot from https://www.swift.org/install or install the [Xcode 16 beta](https://developer.apple.com/xcode/).
+2. Point your editor to the newly installed toolchain.
+   - In VS Code on macOS this can be done by adding the following to your `settings.json`:
+     - For open source toolchains `"swift.path": "/Library/Developer/Toolchains/swift-latest.xctoolchain/usr/bin"`
+     - When installing the Xcode 16 beta `"swift.path": "/Applications/Xcode-beta.app/Library/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin"`
+   - In VS Code on other platforms, you need to set the `swift.path` to the `usr/bin` directory of your toolchain’s install location.
+   - Other editors likely also have a way to pick the Swift toolchain, the exact steps vary by your setup.
+3. Enable the experimental `background-indexing` feature by creating a [configuration file](Configuration%20File.md) with the following contents at `~/.sourcekit-lsp/config.json` with the following contents:
 ```json
-"swift.sourcekit-lsp.serverPath": "/path/to/sourcekit-lsp/.build/release/sourcekit-lsp",
-"swift.sourcekit-lsp.serverArguments": [ "--experimental-feature", "background-indexing" ],
+{
+  "backgroundIndexing": true
+}
 ```
-
-Background indexing requires a Swift 6 toolchain. You can download Swift 6 nightly toolchains from https://www.swift.org/download/#swift-60-development.
 
 ## Known issues
 
-- Not really a background indexing related issue but Swift nightly toolchain snapshots are crashing on macOS 14.4 and 14.5 (swift#73327)[https://github.com/apple/swift/issues/73327]
-  - Workaround: Run the toolchains on an older version of macOS, if possible
-- Background Indexing is only supported for SwiftPM projects [#1269](https://github.com/apple/sourcekit-lsp/issues/1269), [#1271](https://github.com/apple/sourcekit-lsp/issues/1271)
-- If a module or one of its dependencies has a compilation error, it cannot be properly prepared for indexing because we are running a regular `swift build` to generate its modules [#1254](https://github.com/apple/sourcekit-lsp/issues/1254) rdar://128683404
-  - Workaround: Ensure that your files dependencies are in a buildable state to get an up-to-date index and proper cross-module functionality
-- If you change a function in a way that changes its USR but keeps it API compatible (such as adding a defaulted parameter), references to it will be lost and not re-indexed automatically [#1264](https://github.com/apple/sourcekit-lsp/issues/1264)
+- Background Indexing is only supported for SwiftPM projects [#1269](https://github.com/swiftlang/sourcekit-lsp/issues/1269), [#1271](https://github.com/swiftlang/sourcekit-lsp/issues/1271)
+- If you change a function in a way that changes its USR but keeps it API compatible (such as adding a defaulted parameter), references to it will be lost and not re-indexed automatically [#1264](https://github.com/swiftlang/sourcekit-lsp/issues/1264)
   - Workaround: Make some edit to the files that had references to re-index them
-- The index build is currently completely separate from the command line build generated using `swift build`. Building *does not* update the index (break your habits of always building!) [#1270](https://github.com/apple/sourcekit-lsp/issues/1270)
-- The initial indexing might take 2-3x more time than a regular build [#1254](https://github.com/apple/sourcekit-lsp/issues/1254), [#1262](https://github.com/apple/sourcekit-lsp/issues/1262), [#1268](https://github.com/apple/sourcekit-lsp/issues/1268)
-- Spurious re-indexing of ~10-20 source files when `swift build` writes a header to the build directory [rdar://128573306](rdar://128573306)
+- The index build is currently completely separate from the command line build generated using `swift build`. Building *does not* update the index (break your habits of always building!) [#1270](https://github.com/swiftlang/sourcekit-lsp/issues/1270)
+- The initial indexing might take 2-3x more time than a regular build [#1262](https://github.com/swiftlang/sourcekit-lsp/issues/1262), [#1268](https://github.com/swiftlang/sourcekit-lsp/issues/1268)
 
 ## Filing issues
 
-If you hit any issues that are not mentioned above, please [file a GitHub issue](https://github.com/apple/sourcekit-lsp/issues/new/choose) and attach the following information, if possible:
-- A diagnostic bundle generated by running `path/to/sourcekit-lsp diagnose --toolchain path/to/the/toolchain/you/are/using`
-- Your project including the `.index-build` folder.
+If you hit any issues that are not mentioned above, please [file a GitHub issue](https://github.com/swiftlang/sourcekit-lsp/issues/new/choose) and attach the following information, if possible:
+- A diagnostic bundle generated by running `path/to/sourcekit-lsp diagnose`.
+- Your project including the `.index-build` folder, if possible.

@@ -13,7 +13,7 @@
 import LanguageServerProtocol
 import SKSupport
 
-public extension DocumentSnapshot {
+package extension DocumentSnapshot {
   /// Creates a `DocumentSnapshot` with the file contents from disk.
   ///
   /// Throws an error if the file could not be read.

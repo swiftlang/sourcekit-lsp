@@ -12,11 +12,10 @@
 
 @_spi(Testing) import Diagnose
 import Foundation
-import LSPLogging
-import LSPTestSupport
-@_spi(Testing) import SKCore
+import SKLogging
 import SKTestSupport
 import SourceKitD
+import ToolchainRegistry
 import XCTest
 
 import struct TSCBasic.AbsolutePath
@@ -325,7 +324,7 @@ private class InProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
     logger.info("Received response: \(response.description)")
 
     switch response.error {
-    case .requestFailed, .requestInvalid, .requestCancelled, .missingRequiredSymbol, .connectionInterrupted:
+    case .requestFailed, .requestInvalid, .requestCancelled, .timedOut, .missingRequiredSymbol, .connectionInterrupted:
       return .error
     case nil:
       if reproducerPredicate.evaluate(with: response.description) {

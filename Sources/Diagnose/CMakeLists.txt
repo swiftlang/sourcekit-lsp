@@ -1,5 +1,4 @@
 add_library(Diagnose STATIC
-  CommandConfiguration+Sendable.swift
   CommandLineArgumentsReducer.swift
   DebugCommand.swift
   DiagnoseCommand.swift
@@ -25,11 +24,13 @@ set_target_properties(Diagnose PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 
 target_link_libraries(Diagnose PUBLIC
+  BuildSystemIntegration
   InProcessClient
-  LSPLogging
-  SKCore
+  SKLogging
+  SKOptions
   SourceKitD
   SwiftExtensions
+  ToolchainRegistry
   ArgumentParser
   SwiftSyntax::SwiftIDEUtils
   SwiftSyntax::SwiftSyntax

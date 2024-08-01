@@ -262,6 +262,10 @@ def handle_invocation(swift_exec: str, args: argparse.Namespace) -> None:
     """
     Depending on the action in 'args', build the package, installs the package or run tests.
     """
+    if args.clean:
+        print('Cleaning ' + args.build_path)
+        shutil.rmtree(args.build_path, ignore_errors=True)
+
     if args.action == 'build':
         build_single_product("sourcekit-lsp", swift_exec, args)
     elif args.action == 'test':
@@ -287,7 +291,7 @@ def parse_args() -> argparse.Namespace:
         parser.add_argument('--no-local-deps', action='store_true', help='use normal remote dependencies when building')
         parser.add_argument('--sanitize', action='append', help='build using the given sanitizer(s) (address|thread|undefined)')
         parser.add_argument('--sanitize-all', action='store_true', help='build using every available sanitizer in sub-directories of build path')
-        parser.add_argument('--no-clean', action='store_true', help='Don\'t clean the build directory prior to performing the action')
+        parser.add_argument('--clean', action='store_true', help='Clean the build directory prior to performing the action')
         parser.add_argument('--verbose', '-v', action='store_true', help='enable verbose output')
         parser.add_argument('--cross-compile-host', help='cross-compile for another host instead')
         parser.add_argument('--cross-compile-config', help='an SPM JSON destination file containing Swift cross-compilation flags')

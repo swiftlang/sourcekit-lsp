@@ -12,10 +12,12 @@
 
 import Foundation
 import LanguageServerProtocol
-import SKCore
+import SKOptions
+import SwiftSyntax
+import ToolchainRegistry
 
 /// The state of a `ToolchainLanguageServer`
-public enum LanguageServerState {
+package enum LanguageServerState {
   /// The language server is running with semantic functionality enabled
   case connected
   /// The language server server has crashed and we are waiting for it to relaunch
@@ -24,14 +26,14 @@ public enum LanguageServerState {
   case semanticFunctionalityDisabled
 }
 
-public struct AnnotatedTestItem: Sendable {
+package struct AnnotatedTestItem: Sendable {
   /// The test item to be annotated
-  public var testItem: TestItem
+  package var testItem: TestItem
 
   /// Whether the `TestItem` is an extension.
-  public var isExtension: Bool
+  package var isExtension: Bool
 
-  public init(
+  package init(
     testItem: TestItem,
     isExtension: Bool
   ) {
@@ -40,7 +42,7 @@ public struct AnnotatedTestItem: Sendable {
   }
 }
 
-public struct RenameLocation: Sendable {
+package struct RenameLocation: Sendable {
   /// How the identifier at a given location is being used.
   ///
   /// This is primarily used to influence how argument labels should be renamed in Swift and if a location should be
@@ -76,18 +78,30 @@ public struct RenameLocation: Sendable {
   let usage: Usage
 }
 
+/// The textual output of a module interface.
+package struct GeneratedInterfaceDetails: ResponseType, Hashable {
+  package var uri: DocumentURI
+  package var position: Position?
+
+  package init(uri: DocumentURI, position: Position?) {
+    self.uri = uri
+    self.position = position
+  }
+}
+
 /// Provides language specific functionality to sourcekit-lsp from a specific toolchain.
 ///
 /// For example, we may have a language service that provides semantic functionality for c-family using a clangd server,
 /// launched from a specific toolchain or from sourcekitd.
-public protocol LanguageService: AnyObject, Sendable {
+package protocol LanguageService: AnyObject, Sendable {
 
   // MARK: - Creation
 
   init?(
     sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
-    options: SourceKitLSPServer.Options,
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
     workspace: Workspace
   ) async throws
 
@@ -112,9 +126,9 @@ public protocol LanguageService: AnyObject, Sendable {
   // MARK: - Text synchronization
 
   /// Sent to open up a document on the Language Server.
-  /// This may be called before or after a corresponding
-  /// `documentUpdatedBuildSettings` call for the same document.
-  func openDocument(_ notification: DidOpenTextDocumentNotification) async
+  ///
+  /// This may be called before or after a corresponding `documentUpdatedBuildSettings` call for the same document.
+  func openDocument(_ notification: DidOpenTextDocumentNotification, snapshot: DocumentSnapshot) async
 
   /// Sent to close a document on the Language Server.
   func closeDocument(_ notification: DidCloseTextDocumentNotification) async
@@ -126,7 +140,12 @@ public protocol LanguageService: AnyObject, Sendable {
   /// Only intended for `SwiftLanguageService`.
   func reopenDocument(_ notification: ReopenTextDocumentNotification) async
 
-  func changeDocument(_ notification: DidChangeTextDocumentNotification) async
+  func changeDocument(
+    _ notification: DidChangeTextDocumentNotification,
+    preEditSnapshot: DocumentSnapshot,
+    postEditSnapshot: DocumentSnapshot,
+    edits: [SourceEdit]
+  ) async
   func willSaveDocument(_ notification: WillSaveTextDocumentNotification) async
   func didSaveDocument(_ notification: DidSaveTextDocumentNotification) async
 
@@ -146,7 +165,20 @@ public protocol LanguageService: AnyObject, Sendable {
   func completion(_ req: CompletionRequest) async throws -> CompletionList
   func hover(_ req: HoverRequest) async throws -> HoverResponse?
   func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails]
-  func openGeneratedInterface(_ request: OpenGeneratedInterfaceRequest) async throws -> GeneratedInterfaceDetails?
+
+  /// Request a generated interface of a module to display in the IDE.
+  ///
+  /// - Parameters:
+  ///   - document: The document whose compiler arguments should be used to generate the interface.
+  ///   - moduleName: The module to generate an index for.
+  ///   - groupName: The module group name.
+  ///   - symbol: The symbol USR to search for in the generated module interface.
+  func openGeneratedInterface(
+    document: DocumentURI,
+    moduleName: String,
+    groupName: String?,
+    symbolUSR symbol: String?
+  ) async throws -> GeneratedInterfaceDetails?
 
   /// - Note: Only called as a fallback if the definition could not be found in the index.
   func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse?
@@ -166,6 +198,7 @@ public protocol LanguageService: AnyObject, Sendable {
   func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation]
   func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse?
   func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint]
+  func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens]
   func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport
   func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]?
 
@@ -218,6 +251,8 @@ public protocol LanguageService: AnyObject, Sendable {
   // MARK: - Other
 
   func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny?
+
+  func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse
 
   /// Perform a syntactic scan of the file at the given URI for test cases and test classes.
   ///

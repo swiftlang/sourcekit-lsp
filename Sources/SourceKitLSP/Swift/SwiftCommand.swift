@@ -14,19 +14,22 @@ import LanguageServerProtocol
 /// The set of known Swift commands.
 ///
 /// All commands from the Swift LSP should be listed here.
-public let builtinSwiftCommands: [String] = [
-  SemanticRefactorCommand.self
-].map { $0.identifier }
+package let builtinSwiftCommands: [String] = [
+  SemanticRefactorCommand.self,
+  ExpandMacroCommand.self,
+].map { (command: any SwiftCommand.Type) in
+  command.identifier
+}
 
 /// A `Command` that should be executed by Swift's language server.
-public protocol SwiftCommand: Codable, Hashable, LSPAnyCodable {
+package protocol SwiftCommand: Codable, Hashable, LSPAnyCodable {
   static var identifier: String { get }
   var title: String { get set }
 }
 
 extension SwiftCommand {
   /// Converts this `SwiftCommand` to a generic LSP `Command` object.
-  public func asCommand() throws -> Command {
+  package func asCommand() -> Command {
     let argument = encodeToLSPAny()
     return Command(title: title, command: Self.identifier, arguments: [argument])
   }
@@ -38,7 +41,7 @@ extension ExecuteCommandRequest {
   ///
   /// - Parameters:
   ///   - type: The `SwiftCommand` metatype to convert to.
-  public func swiftCommand<T: SwiftCommand>(ofType type: T.Type) -> T? {
+  package func swiftCommand<T: SwiftCommand>(ofType type: T.Type) -> T? {
     guard type.identifier == command else {
       return nil
     }

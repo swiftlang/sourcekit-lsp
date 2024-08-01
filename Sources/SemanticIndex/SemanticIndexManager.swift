@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import Foundation
-import LSPLogging
 import LanguageServerProtocol
-import SKCore
+import SKLogging
 
 /// The logging subsystem that should be used for all index-related logging.
 let indexLoggingSubsystem = "org.swift.sourcekit-lsp.indexing"
@@ -59,7 +59,7 @@ private enum InProgressIndexStore {
 }
 
 /// Status of document indexing / target preparation in `inProgressIndexAndPreparationTasks`.
-public enum IndexTaskStatus: Comparable {
+package enum IndexTaskStatus: Comparable {
   case scheduled
   case executing
 }
@@ -69,13 +69,13 @@ public enum IndexTaskStatus: Comparable {
 /// In reality, these status are not exclusive. Eg. the index might be preparing one target for editor functionality,
 /// re-generating the build graph and indexing files at the same time. To avoid showing too many concurrent status
 /// messages to the user, we only show the highest priority task.
-public enum IndexProgressStatus {
+package enum IndexProgressStatus: Sendable {
   case preparingFileForEditorFunctionality
   case generatingBuildGraph
   case indexing(preparationTasks: [ConfiguredTarget: IndexTaskStatus], indexTasks: [DocumentURI: IndexTaskStatus])
   case upToDate
 
-  public func merging(with other: IndexProgressStatus) -> IndexProgressStatus {
+  package func merging(with other: IndexProgressStatus) -> IndexProgressStatus {
     switch (self, other) {
     case (_, .preparingFileForEditorFunctionality), (.preparingFileForEditorFunctionality, _):
       return .preparingFileForEditorFunctionality
@@ -125,13 +125,18 @@ fileprivate struct InProgressPreparationTask {
 }
 
 /// Schedules index tasks and keeps track of the index status of files.
-public final actor SemanticIndexManager {
+package final actor SemanticIndexManager {
   /// The underlying index. This is used to check if the index of a file is already up-to-date, in which case it doesn't
   /// need to be indexed again.
   private let index: UncheckedIndex
 
   /// The build system manager that is used to get compiler arguments for a file.
   private let buildSystemManager: BuildSystemManager
+
+  /// How long to wait until we cancel an update indexstore task. This timeout should be long enough that all
+  /// `swift-frontend` tasks finish within it. It prevents us from blocking the index if the type checker gets stuck on
+  /// an expression for a long time.
+  package var updateIndexStoreTimeout: Duration
 
   private let testHooks: IndexTestHooks
 
@@ -182,7 +187,7 @@ public final actor SemanticIndexManager {
   // MARK: - Public API
 
   /// A summary of the tasks that this `SemanticIndexManager` has currently scheduled or is currently indexing.
-  public var progressStatus: IndexProgressStatus {
+  package var progressStatus: IndexProgressStatus {
     if inProgressPreparationTasks.values.contains(where: { $0.purpose == .forEditorFunctionality }) {
       return .preparingFileForEditorFunctionality
     }
@@ -206,9 +211,10 @@ public final actor SemanticIndexManager {
     return .indexing(preparationTasks: preparationTasks, indexTasks: indexTasks)
   }
 
-  public init(
+  package init(
     index: UncheckedIndex,
     buildSystemManager: BuildSystemManager,
+    updateIndexStoreTimeout: Duration,
     testHooks: IndexTestHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
@@ -217,6 +223,7 @@ public final actor SemanticIndexManager {
   ) {
     self.index = index
     self.buildSystemManager = buildSystemManager
+    self.updateIndexStoreTimeout = updateIndexStoreTimeout
     self.testHooks = testHooks
     self.indexTaskScheduler = indexTaskScheduler
     self.logMessageToIndexLog = logMessageToIndexLog
@@ -231,15 +238,18 @@ public final actor SemanticIndexManager {
   /// Returns immediately after scheduling that task.
   ///
   /// Indexing is being performed with a low priority.
-  private func scheduleBackgroundIndex(files: some Collection<DocumentURI>) async {
-    _ = await self.scheduleIndexing(of: files, priority: .low)
+  private func scheduleBackgroundIndex(
+    files: some Collection<DocumentURI> & Sendable,
+    indexFilesWithUpToDateUnit: Bool
+  ) async {
+    _ = await self.scheduleIndexing(of: files, indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit, priority: .low)
   }
 
   /// Regenerate the build graph (also resolving package dependencies) and then index all the source files known to the
   /// build system that don't currently have a unit with a timestamp that matches the mtime of the file.
   ///
   /// This method is intended to initially update the index of a project after it is opened.
-  public func scheduleBuildGraphGenerationAndBackgroundIndexAllFiles() async {
+  package func scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(indexFilesWithUpToDateUnit: Bool = false) async {
     generateBuildGraphTask = Task(priority: .low) {
       await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "build-graph-generation") {
         logger.log(
@@ -263,18 +273,30 @@ public final actor SemanticIndexManager {
         // potentially not knowing about unit files, which causes the corresponding source files to be re-indexed.
         index.pollForUnitChangesAndWait()
         await testHooks.buildGraphGenerationDidFinish?()
-        let index = index.checked(for: .modifiedFiles)
-        let filesToIndex = await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
-          .filter { !index.hasUpToDateUnit(for: $0) }
-        await scheduleBackgroundIndex(files: filesToIndex)
+        // FIXME: (async-workaround) Ideally this would be a type like any Collection<DocumentURI> & Sendable but that
+        // doesn't work due to rdar://132374933
+        var filesToIndex: [DocumentURI] = await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
+        if !indexFilesWithUpToDateUnit {
+          let index = index.checked(for: .modifiedFiles)
+          filesToIndex = filesToIndex.filter { !index.hasUpToDateUnit(for: $0) }
+        }
+        await scheduleBackgroundIndex(files: filesToIndex, indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit)
         generateBuildGraphTask = nil
       }
     }
     indexProgressStatusDidChange()
   }
 
+  /// Causes all files to be re-indexed even if the unit file for the source file is up to date.
+  /// See `TriggerReindexRequest`.
+  package func scheduleReindex() async {
+    await indexStoreUpToDateTracker.markAllKnownOutOfDate()
+    await preparationUpToDateTracker.markAllKnownOutOfDate()
+    await scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(indexFilesWithUpToDateUnit: true)
+  }
+
   /// Wait for all in-progress index tasks to finish.
-  public func waitForUpToDateIndex() async {
+  package func waitForUpToDateIndex() async {
     logger.info("Waiting for up-to-date index")
     // Wait for a build graph update first, if one is in progress. This will add all index tasks to `indexStatus`, so we
     // can await the index tasks below.
@@ -301,7 +323,7 @@ public final actor SemanticIndexManager {
   ///
   /// This tries to produce an up-to-date index for the given files as quickly as possible. To achieve this, it might
   /// suspend previous target-wide index tasks in favor of index tasks that index a fewer files.
-  public func waitForUpToDateIndex(for uris: some Collection<DocumentURI>) async {
+  package func waitForUpToDateIndex(for uris: some Collection<DocumentURI> & Sendable) async {
     logger.info(
       "Waiting for up-to-date index for \(uris.map { $0.fileURL?.lastPathComponent ?? $0.stringValue }.joined(separator: ", "))"
     )
@@ -312,12 +334,12 @@ public final actor SemanticIndexManager {
     // Create a new index task for the files that aren't up-to-date. The newly scheduled index tasks will
     // - Wait for the existing index operations to finish if they have the same number of files.
     // - Reschedule the background index task in favor of an index task with fewer source files.
-    await self.scheduleIndexing(of: uris, priority: nil).value
+    await self.scheduleIndexing(of: uris, indexFilesWithUpToDateUnit: false, priority: nil).value
     index.pollForUnitChangesAndWait()
     logger.debug("Done waiting for up-to-date index")
   }
 
-  public func filesDidChange(_ events: [FileEvent]) async {
+  package func filesDidChange(_ events: [FileEvent]) async {
     // We only re-index the files that were changed and don't re-index any of their dependencies. See the
     // `Documentation/Files_To_Reindex.md` file.
     let changedFiles = events.map(\.uri)
@@ -347,7 +369,7 @@ public final actor SemanticIndexManager {
       await preparationUpToDateTracker.markOutOfDate(inProgressPreparationTasks.keys)
     }
 
-    await scheduleBackgroundIndex(files: changedFiles)
+    await scheduleBackgroundIndex(files: changedFiles, indexFilesWithUpToDateUnit: false)
   }
 
   /// Returns the files that should be indexed to get up-to-date index information for the given files.
@@ -355,7 +377,7 @@ public final actor SemanticIndexManager {
   /// If `files` contains a header file, this will return a `FileToIndex` that re-indexes a main file which includes the
   /// header file to update the header file's index.
   private func filesToIndex(
-    toCover files: some Collection<DocumentURI>
+    toCover files: some Collection<DocumentURI> & Sendable
   ) async -> [FileToIndex] {
     let sourceFiles = Set(await buildSystemManager.sourceFiles().map(\.uri))
     let filesToReIndex = await files.asyncCompactMap { (uri) -> FileToIndex? in
@@ -382,7 +404,7 @@ public final actor SemanticIndexManager {
   /// Schedule preparation of the target that contains the given URI, building all modules that the file depends on.
   ///
   /// This is intended to be called when the user is interacting with the document at the given URI.
-  public func schedulePreparationForEditorFunctionality(of uri: DocumentURI, priority: TaskPriority? = nil) {
+  package func schedulePreparationForEditorFunctionality(of uri: DocumentURI, priority: TaskPriority? = nil) {
     if inProgressPrepareForEditorTask?.document == uri {
       // We are already preparing this document, so nothing to do. This is necessary to avoid the following scenario:
       // Determining the canonical configured target for a document takes 1s and we get a new document request for the
@@ -416,7 +438,7 @@ public final actor SemanticIndexManager {
   /// preparation has finished.
   ///
   /// If file's target is known to be up-to-date, this returns almost immediately.
-  public func prepareFileForEditorFunctionality(_ uri: DocumentURI) async {
+  package func prepareFileForEditorFunctionality(_ uri: DocumentURI) async {
     guard let target = await buildSystemManager.canonicalConfiguredTarget(for: uri) else {
       return
     }
@@ -500,6 +522,7 @@ public final actor SemanticIndexManager {
   /// Update the index store for the given files, assuming that their targets have already been prepared.
   private func updateIndexStore(
     for filesAndTargets: [FileAndTarget],
+    indexFilesWithUpToDateUnit: Bool,
     preparationTaskID: UUID,
     priority: TaskPriority?
   ) async {
@@ -509,7 +532,9 @@ public final actor SemanticIndexManager {
         buildSystemManager: self.buildSystemManager,
         index: index,
         indexStoreUpToDateTracker: indexStoreUpToDateTracker,
+        indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit,
         logMessageToIndexLog: logMessageToIndexLog,
+        timeout: updateIndexStoreTimeout,
         testHooks: testHooks
       )
     )
@@ -544,7 +569,8 @@ public final actor SemanticIndexManager {
   ///
   /// The returned task finishes when all files are indexed.
   private func scheduleIndexing(
-    of files: some Collection<DocumentURI>,
+    of files: some Collection<DocumentURI> & Sendable,
+    indexFilesWithUpToDateUnit: Bool,
     priority: TaskPriority?
   ) async -> Task<Void, Never> {
     // Perform a quick initial check to whether the files is up-to-date, in which case we don't need to schedule a
@@ -602,7 +628,7 @@ public final actor SemanticIndexManager {
 
     // TODO (indexing): When we can index multiple targets concurrently in SwiftPM, increase the batch size to half the
     // processor count, so we can get parallelism during preparation.
-    // https://github.com/apple/sourcekit-lsp/issues/1262
+    // https://github.com/swiftlang/sourcekit-lsp/issues/1262
     for targetsBatch in sortedTargets.partition(intoBatchesOfSize: 1) {
       let preparationTaskID = UUID()
       let indexTask = Task(priority: priority) {
@@ -614,11 +640,12 @@ public final actor SemanticIndexManager {
           for target in targetsBatch {
             // TODO (indexing): Once swiftc supports indexing of multiple files in a single invocation, increase the
             // batch size to allow it to share AST builds between multiple files within a target.
-            // https://github.com/apple/sourcekit-lsp/issues/1268
+            // https://github.com/swiftlang/sourcekit-lsp/issues/1268
             for fileBatch in filesByTarget[target]!.partition(intoBatchesOfSize: 1) {
               taskGroup.addTask {
                 await self.updateIndexStore(
                   for: fileBatch.map { FileAndTarget(file: $0, target: target) },
+                  indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit,
                   preparationTaskID: preparationTaskID,
                   priority: priority
                 )

@@ -10,9 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPTestSupport
 import LanguageServerProtocol
-import SKCore
 import SKTestSupport
 import SourceKitLSP
 import XCTest
@@ -201,16 +199,12 @@ final class MainFilesProviderTests: XCTestCase {
     // `clangd` may return diagnostics from the old build settings sometimes (I believe when it's still building the
     // preamble for shared.h when the new build settings come in). Check that it eventually returns the correct
     // diagnostics.
-    var receivedCorrectDiagnostic = false
-    for _ in 0..<Int(defaultTimeout) {
+    try await repeatUntilExpectedResult {
       let refreshedDiags = try await project.testClient.nextDiagnosticsNotification(timeout: .seconds(1))
-      if let diagnostic = refreshedDiags.diagnostics.only,
-        diagnostic.message == "Unused variable 'fromMyFancyLibrary'"
-      {
-        receivedCorrectDiagnostic = true
-        break
+      guard let diagnostic = refreshedDiags.diagnostics.only else {
+        return false
       }
+      return diagnostic.message == "Unused variable 'fromMyFancyLibrary'"
     }
-    XCTAssert(receivedCorrectDiagnostic)
   }
 }

@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(Testing) public struct CompilerCommandLineOption {
+package struct CompilerCommandLineOption {
   /// Return value of `matches(argument:)`.
-  public enum Match {
+  package enum Match {
     /// The `CompilerCommandLineOption` matched the command line argument. The next element in the command line is a
     /// separate argument and should not be removed.
     case removeOption
@@ -22,12 +22,12 @@
     case removeOptionAndNextArgument
   }
 
-  public enum DashSpelling {
+  package enum DashSpelling {
     case singleDash
     case doubleDash
   }
 
-  public enum ArgumentStyles {
+  package enum ArgumentStyles {
     /// A command line option where arguments can be passed without a space such as `-MT/file.txt`.
     case noSpace
     /// A command line option where the argument is passed, separated by a space (eg. `--serialize-diagnostics /file.txt`)
@@ -46,12 +46,12 @@
   /// argument.
   private let argumentStyles: [ArgumentStyles]
 
-  public static func flag(_ name: String, _ dashSpellings: [DashSpelling]) -> CompilerCommandLineOption {
+  package static func flag(_ name: String, _ dashSpellings: [DashSpelling]) -> CompilerCommandLineOption {
     precondition(!dashSpellings.isEmpty)
     return CompilerCommandLineOption(name: name, dashSpellings: dashSpellings, argumentStyles: [])
   }
 
-  public static func option(
+  package static func option(
     _ name: String,
     _ dashSpellings: [DashSpelling],
     _ argumentStyles: [ArgumentStyles]
@@ -61,7 +61,7 @@
     return CompilerCommandLineOption(name: name, dashSpellings: dashSpellings, argumentStyles: argumentStyles)
   }
 
-  public func matches(argument: String) -> Match? {
+  package func matches(argument: String) -> Match? {
     let argumentName: Substring
     if argument.hasPrefix("--") {
       if dashSpellings.contains(.doubleDash) {

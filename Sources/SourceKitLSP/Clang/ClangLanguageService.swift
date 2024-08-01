@@ -10,18 +10,31 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
-import LSPLogging
+import BuildSystemIntegration
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import SKCore
+import SKLogging
+import SKOptions
 import SKSupport
 import SwiftExtensions
+import SwiftSyntax
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 
+#if canImport(Darwin)
+import Foundation
+#else
+// FIMXE: (async-workaround) @preconcurrency needed because Pipe is not marked as Sendable on Linux
+@preconcurrency import Foundation
+#endif
+
 #if os(Windows)
 import WinSDK
+#endif
+
+#if !canImport(Darwin)
+extension Process: @unchecked Sendable {}
 #endif
 
 /// A thin wrapper over a connection to a clangd server providing build setting handling.
@@ -41,7 +54,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   /// Since we are blindly forwarding requests from clangd to the editor, we
   /// cannot allow concurrent requests. This should be fine since the number of
   /// requests and notifications sent from clangd to the client is quite small.
-  public let clangdMessageHandlingQueue = AsyncQueue<Serial>()
+  package let clangdMessageHandlingQueue = AsyncQueue<Serial>()
 
   /// The ``SourceKitLSPServer`` instance that created this `ClangLanguageService`.
   ///
@@ -95,6 +108,9 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   /// opened with.
   private var openDocuments: [DocumentURI: Language] = [:]
 
+  /// Type to map `clangd`'s semantic token legend to SourceKit-LSP's.
+  private var semanticTokensTranslator: SemanticTokensLegendTranslator? = nil
+
   /// While `clangd` is running, its PID.
   #if os(Windows)
   private var hClangd: HANDLE = INVALID_HANDLE_VALUE
@@ -104,10 +120,11 @@ actor ClangLanguageService: LanguageService, MessageHandler {
 
   /// Creates a language server for the given client referencing the clang binary specified in `toolchain`.
   /// Returns `nil` if `clangd` can't be found.
-  public init?(
+  package init?(
     sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
-    options: SourceKitLSPServer.Options,
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
     workspace: Workspace
   ) async throws {
     guard let clangdPath = toolchain.clangd else {
@@ -115,7 +132,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     }
     self.clangPath = toolchain.clang
     self.clangdPath = clangdPath
-    self.clangdOptions = options.clangdOptions
+    self.clangdOptions = options.clangdOptions ?? []
     self.workspace = WeakWorkspace(workspace)
     self.state = .connected
     self.sourceKitLSPServer = sourceKitLSPServer
@@ -338,7 +355,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     return try await clangd.send(request)
   }
 
-  public func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
+  package func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
     return nil
   }
 
@@ -388,7 +405,7 @@ extension ClangLanguageService {
     }
     if buildSettings?.isFallback ?? true {
       // Fallback: send empty publish notification instead.
-      await sourceKitLSPServer.sendNotificationToClient(
+      sourceKitLSPServer.sendNotificationToClient(
         PublishDiagnosticsNotification(
           uri: notification.uri,
           version: notification.version,
@@ -396,7 +413,7 @@ extension ClangLanguageService {
         )
       )
     } else {
-      await sourceKitLSPServer.sendNotificationToClient(notification)
+      sourceKitLSPServer.sendNotificationToClient(notification)
     }
   }
 
@@ -412,14 +429,20 @@ extension ClangLanguageService {
 
     let result = try await clangd.send(initialize)
     self.capabilities = result.capabilities
+    if let legend = result.capabilities.semanticTokensProvider?.legend {
+      self.semanticTokensTranslator = SemanticTokensLegendTranslator(
+        clangdLegend: legend,
+        sourceKitLSPLegend: SemanticTokensLegend.sourceKitLSPLegend
+      )
+    }
     return result
   }
 
-  public func clientInitialized(_ initialized: InitializedNotification) {
+  package func clientInitialized(_ initialized: InitializedNotification) {
     clangd.send(initialized)
   }
 
-  public func shutdown() async {
+  package func shutdown() async {
     let clangd = clangd!
     await withCheckedContinuation { continuation in
       _ = clangd.send(ShutdownRequest()) { _ in
@@ -433,7 +456,7 @@ extension ClangLanguageService {
 
   // MARK: - Text synchronization
 
-  public func openDocument(_ notification: DidOpenTextDocumentNotification) async {
+  package func openDocument(_ notification: DidOpenTextDocumentNotification, snapshot: DocumentSnapshot) async {
     openDocuments[notification.textDocument.uri] = notification.textDocument.language
     // Send clangd the build settings for the new file. We need to do this before
     // sending the open notification, so that the initial diagnostics already
@@ -442,28 +465,33 @@ extension ClangLanguageService {
     clangd.send(notification)
   }
 
-  public func closeDocument(_ notification: DidCloseTextDocumentNotification) {
+  package func closeDocument(_ notification: DidCloseTextDocumentNotification) {
     openDocuments[notification.textDocument.uri] = nil
     clangd.send(notification)
   }
 
   func reopenDocument(_ notification: ReopenTextDocumentNotification) {}
 
-  public func changeDocument(_ notification: DidChangeTextDocumentNotification) {
+  package func changeDocument(
+    _ notification: DidChangeTextDocumentNotification,
+    preEditSnapshot: DocumentSnapshot,
+    postEditSnapshot: DocumentSnapshot,
+    edits: [SourceEdit]
+  ) {
     clangd.send(notification)
   }
 
-  public func willSaveDocument(_ notification: WillSaveTextDocumentNotification) {
+  package func willSaveDocument(_ notification: WillSaveTextDocumentNotification) {
 
   }
 
-  public func didSaveDocument(_ notification: DidSaveTextDocumentNotification) {
+  package func didSaveDocument(_ notification: DidSaveTextDocumentNotification) {
     clangd.send(notification)
   }
 
   // MARK: - Build System Integration
 
-  public func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
+  package func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
     guard let url = uri.fileURL else {
       // FIXME: The clang workspace can probably be reworked to support non-file URIs.
       logger.error("Received updated build settings for non-file URI '\(uri.forLogging)'. Ignoring the update.")
@@ -486,7 +514,7 @@ extension ClangLanguageService {
     }
   }
 
-  public func documentDependenciesUpdated(_ uri: DocumentURI) {
+  package func documentDependenciesUpdated(_ uri: DocumentURI) {
     // In order to tell clangd to reload an AST, we send it an empty `didChangeTextDocument`
     // with `forceRebuild` set in case any missing header files have been added.
     // This works well for us as the moment since clangd ignores the document version.
@@ -500,12 +528,12 @@ extension ClangLanguageService {
 
   // MARK: - Text Document
 
-  public func definition(_ req: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
+  package func definition(_ req: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
     // We handle it to provide jump-to-header support for #import/#include.
     return try await self.forwardRequestToClangd(req)
   }
 
-  public func declaration(_ req: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse? {
+  package func declaration(_ req: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse? {
     return try await forwardRequestToClangd(req)
   }
 
@@ -537,19 +565,50 @@ extension ClangLanguageService {
   }
 
   func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse? {
-    return try await forwardRequestToClangd(req)
+    guard var response = try await forwardRequestToClangd(req) else {
+      return nil
+    }
+    if let semanticTokensTranslator {
+      response.data = semanticTokensTranslator.translate(response.data)
+    }
+    return response
   }
 
   func documentSemanticTokensDelta(
     _ req: DocumentSemanticTokensDeltaRequest
   ) async throws -> DocumentSemanticTokensDeltaResponse? {
-    return try await forwardRequestToClangd(req)
+    guard var response = try await forwardRequestToClangd(req) else {
+      return nil
+    }
+    if let semanticTokensTranslator {
+      switch response {
+      case .tokens(var tokens):
+        tokens.data = semanticTokensTranslator.translate(tokens.data)
+        response = .tokens(tokens)
+      case .delta(var delta):
+        delta.edits = delta.edits.map {
+          var edit = $0
+          if let data = edit.data {
+            edit.data = semanticTokensTranslator.translate(data)
+          }
+          return edit
+        }
+        response = .delta(delta)
+      }
+    }
+    return response
   }
 
   func documentSemanticTokensRange(
     _ req: DocumentSemanticTokensRangeRequest
   ) async throws -> DocumentSemanticTokensResponse? {
-    return try await forwardRequestToClangd(req)
+    guard var response = try await forwardRequestToClangd(req) else {
+      return nil
+    }
+    if let semanticTokensTranslator {
+      response.data = semanticTokensTranslator.translate(response.data)
+    }
+    return response
   }
 
   func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {
@@ -575,6 +634,10 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
+  func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens] {
+    return try await forwardRequestToClangd(req) ?? []
+  }
+
   func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
     guard self.capabilities?.foldingRangeProvider?.isSupported ?? false else {
       return nil
@@ -582,7 +645,12 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
-  func openGeneratedInterface(_ request: OpenGeneratedInterfaceRequest) async throws -> GeneratedInterfaceDetails? {
+  func openGeneratedInterface(
+    document: DocumentURI,
+    moduleName: String,
+    groupName: String?,
+    symbolUSR symbol: String?
+  ) async throws -> GeneratedInterfaceDetails? {
     throw ResponseError.unknown("unsupported method")
   }
 
@@ -595,21 +663,25 @@ extension ClangLanguageService {
   func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
     return try await forwardRequestToClangd(req)
   }
+
+  func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
+    throw ResponseError.unknown("unsupported method")
+  }
 }
 
 /// Clang build settings derived from a `FileBuildSettingsChange`.
 private struct ClangBuildSettings: Equatable {
   /// The compiler arguments, including the program name, argv[0].
-  public let compilerArgs: [String]
+  package let compilerArgs: [String]
 
   /// The working directory for the invocation.
-  public let workingDirectory: String
+  package let workingDirectory: String
 
   /// Whether the compiler arguments are considered fallback - we withhold diagnostics for
   /// fallback arguments and represent the file state differently.
-  public let isFallback: Bool
+  package let isFallback: Bool
 
-  public init(_ settings: FileBuildSettings, clangPath: AbsolutePath?) {
+  package init(_ settings: FileBuildSettings, clangPath: AbsolutePath?) {
     var arguments = [clangPath?.pathString ?? "clang"] + settings.compilerArguments
     if arguments.contains("-fmodules") {
       // Clangd is not built with support for the 'obj' format.
@@ -631,7 +703,7 @@ private struct ClangBuildSettings: Equatable {
     self.isFallback = settings.isFallback
   }
 
-  public var compileCommand: ClangCompileCommand {
+  package var compileCommand: ClangCompileCommand {
     return ClangCompileCommand(
       compilationCommand: self.compilerArgs,
       workingDirectory: self.workingDirectory

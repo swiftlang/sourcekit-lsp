@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SourceKitD
 import SwiftIDEUtils
 import SwiftParser
@@ -30,7 +30,7 @@ extension SwiftLanguageService {
       keys.compilerArgs: buildSettings.compilerArgs as [SKDRequestValue],
     ])
 
-    let dict = try await sourcekitd.send(skreq, fileContents: snapshot.text)
+    let dict = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
 
     guard let skTokens: SKDResponseArray = dict[keys.semanticTokens] else {
       return nil
@@ -73,7 +73,7 @@ extension SwiftLanguageService {
       .sorted { $0.start < $1.start }
   }
 
-  public func documentSemanticTokens(
+  package func documentSemanticTokens(
     _ req: DocumentSemanticTokensRequest
   ) async throws -> DocumentSemanticTokensResponse? {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
@@ -84,13 +84,13 @@ extension SwiftLanguageService {
     return DocumentSemanticTokensResponse(data: encodedTokens)
   }
 
-  public func documentSemanticTokensDelta(
+  package func documentSemanticTokensDelta(
     _ req: DocumentSemanticTokensDeltaRequest
   ) async throws -> DocumentSemanticTokensDeltaResponse? {
     return nil
   }
 
-  public func documentSemanticTokensRange(
+  package func documentSemanticTokensRange(
     _ req: DocumentSemanticTokensRangeRequest
   ) async throws -> DocumentSemanticTokensResponse? {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
@@ -151,6 +151,10 @@ extension SyntaxClassification {
       return (.comment, .documentation)
     case .argumentLabel:
       return (.function, [])
+    #if RESILIENT_LIBRARIES
+    @unknown default:
+      fatalError("Unknown case")
+    #endif
     }
   }
 }

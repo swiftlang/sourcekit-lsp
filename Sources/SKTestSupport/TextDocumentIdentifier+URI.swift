@@ -15,13 +15,13 @@ import LanguageServerProtocol
 
 import struct TSCBasic.AbsolutePath
 
-public extension TextDocumentIdentifier {
+package extension TextDocumentIdentifier {
   init(_ url: URL) {
     self.init(DocumentURI(url))
   }
 }
 
-public extension AbsolutePath {
+package extension AbsolutePath {
   var asURI: DocumentURI {
     return DocumentURI(asURL)
   }

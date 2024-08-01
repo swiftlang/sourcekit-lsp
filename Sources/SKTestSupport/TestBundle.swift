@@ -13,7 +13,7 @@
 import Foundation
 
 /// The bundle of the currently executing test.
-public let testBundle: Bundle = {
+package let testBundle: Bundle = {
   #if os(macOS)
   if let bundle = Bundle.allBundles.first(where: { $0.bundlePath.hasSuffix(".xctest") }) {
     return bundle
@@ -25,7 +25,7 @@ public let testBundle: Bundle = {
 }()
 
 /// The path to the built products directory, ie. `.build/debug/arm64-apple-macosx` or the platform-specific equivalent.
-public let productsDirectory: URL = {
+package let productsDirectory: URL = {
   #if os(macOS)
   return testBundle.bundleURL.deletingLastPathComponent()
   #else

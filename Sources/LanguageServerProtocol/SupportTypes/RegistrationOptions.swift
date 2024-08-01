@@ -242,6 +242,48 @@ public struct DiagnosticRegistrationOptions: RegistrationOptions, TextDocumentRe
   }
 }
 
+/// Describe options to be used when registering for code lenses.
+public struct CodeLensRegistrationOptions: RegistrationOptions, TextDocumentRegistrationOptionsProtocol {
+  public var textDocumentRegistrationOptions: TextDocumentRegistrationOptions
+  public var codeLensOptions: CodeLensOptions
+
+  public init(
+    documentSelector: DocumentSelector? = nil,
+    codeLensOptions: CodeLensOptions
+  ) {
+    textDocumentRegistrationOptions = TextDocumentRegistrationOptions(documentSelector: documentSelector)
+    self.codeLensOptions = codeLensOptions
+  }
+
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+    self.codeLensOptions = CodeLensOptions()
+
+    if case .bool(let resolveProvider) = dictionary["resolveProvider"] {
+      self.codeLensOptions.resolveProvider = resolveProvider
+    }
+
+    guard let textDocumentRegistrationOptions = TextDocumentRegistrationOptions(fromLSPDictionary: dictionary) else {
+      return nil
+    }
+
+    self.textDocumentRegistrationOptions = textDocumentRegistrationOptions
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    var dict: [String: LSPAny] = [:]
+
+    if let resolveProvider = codeLensOptions.resolveProvider {
+      dict["resolveProvider"] = .bool(resolveProvider)
+    }
+
+    if case .dictionary(let dictionary) = textDocumentRegistrationOptions.encodeToLSPAny() {
+      dict.merge(dictionary) { (current, _) in current }
+    }
+
+    return .dictionary(dict)
+  }
+}
+
 /// Describe options to be used when registering for file system change events.
 public struct DidChangeWatchedFilesRegistrationOptions: RegistrationOptions {
   /// The watchers to register.

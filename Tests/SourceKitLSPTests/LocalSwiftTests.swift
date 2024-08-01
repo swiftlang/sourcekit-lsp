@@ -10,11 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
-import LSPTestSupport
 import LanguageServerProtocol
-import SKCore
+import SKLogging
+import SKOptions
 import SKTestSupport
+import SourceKitD
 @_spi(Testing) import SourceKitLSP
 import SwiftExtensions
 import SwiftParser
@@ -1400,11 +1400,8 @@ final class LocalSwiftTests: XCTestCase {
   func testDebouncePublishDiagnosticsNotification() async throws {
     try SkipUnless.longTestsEnabled()
 
-    var serverOptions = SourceKitLSPServer.Options.testDefault
-    serverOptions.swiftPublishDiagnosticsDebounceDuration = 1 /* 1s */
-
-    // Construct our own  `TestSourceKitLSPClient` instead of the one from set up because we want a higher debounce interval.
-    let testClient = try await TestSourceKitLSPClient(serverOptions: serverOptions, usePullDiagnostics: false)
+    let options = SourceKitLSPOptions(swiftPublishDiagnosticsDebounceDuration: 1 /* second */)
+    let testClient = try await TestSourceKitLSPClient(options: options, usePullDiagnostics: false)
 
     let uri = DocumentURI(URL(fileURLWithPath: "/\(UUID())/a.swift"))
     testClient.openDocument("foo", uri: uri)
@@ -1426,5 +1423,52 @@ final class LocalSwiftTests: XCTestCase {
 
     // Ensure that we don't get a second `PublishDiagnosticsNotification`
     await assertThrowsError(try await testClient.nextDiagnosticsNotification(timeout: .seconds(2)))
+  }
+
+  func testSourceKitdTimeout() async throws {
+    var options = SourceKitLSPOptions.testDefault()
+    options.sourcekitdRequestTimeout = 1 /* second */
+
+    let testClient = try await TestSourceKitLSPClient(options: options)
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      1️⃣class Foo {
+        func slow(x: Invalid1, y: Invalid2) {
+          x / y / x / y / x / y / x / y.
+        }
+      }2️⃣
+      """,
+      uri: uri
+    )
+
+    let responseBeforeEdit = try await testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    /// The diagnostic request times out, which causes us to return empty diagnostics.
+    XCTAssertEqual(responseBeforeEdit, .full(RelatedFullDocumentDiagnosticReport(items: [])))
+
+    // Now check that sourcekitd is not blocked.
+    // Replacing the file and sending another diagnostic request should return proper diagnostics.
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
+        contentChanges: [
+          TextDocumentContentChangeEvent(range: positions["1️⃣"]..<positions["2️⃣"], text: "let x: String = 1")
+        ]
+      )
+    )
+    let responseAfterEdit = try await testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    guard case .full(let responseAfterEdit) = responseAfterEdit else {
+      XCTFail("Expected full diagnostics")
+      return
+    }
+    XCTAssertEqual(
+      responseAfterEdit.items.map(\.message),
+      ["Cannot convert value of type 'Int' to specified type 'String'"]
+    )
   }
 }

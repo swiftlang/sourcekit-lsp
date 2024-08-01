@@ -10,16 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SKSupport
 
 /// A class which tracks the client's capabilities as well as our dynamic
 /// capability registrations in order to avoid registering conflicting
 /// capabilities.
-public final actor CapabilityRegistry {
+package final actor CapabilityRegistry {
   /// The client's capabilities as they were reported when sourcekit-lsp was launched.
-  public let clientCapabilities: ClientCapabilities
+  package let clientCapabilities: ClientCapabilities
 
   // MARK: Tracking capabilities dynamically registered in the client
 
@@ -46,38 +46,42 @@ public final actor CapabilityRegistry {
 
   // MARK: Query if client has dynamic registration
 
-  public var clientHasDynamicCompletionRegistration: Bool {
+  package var clientHasDynamicCompletionRegistration: Bool {
     clientCapabilities.textDocument?.completion?.dynamicRegistration == true
   }
 
-  public var clientHasDynamicFoldingRangeRegistration: Bool {
+  package var clientHasDynamicFoldingRangeRegistration: Bool {
     clientCapabilities.textDocument?.foldingRange?.dynamicRegistration == true
   }
 
-  public var clientHasDynamicSemanticTokensRegistration: Bool {
+  package var clientHasDynamicSemanticTokensRegistration: Bool {
     clientCapabilities.textDocument?.semanticTokens?.dynamicRegistration == true
   }
 
-  public var clientHasDynamicInlayHintRegistration: Bool {
+  package var clientHasDynamicInlayHintRegistration: Bool {
     clientCapabilities.textDocument?.inlayHint?.dynamicRegistration == true
   }
 
-  public var clientHasDynamicDocumentDiagnosticsRegistration: Bool {
+  package var clientHasDynamicDocumentDiagnosticsRegistration: Bool {
     clientCapabilities.textDocument?.diagnostic?.dynamicRegistration == true
   }
 
-  public var clientHasDynamicExecuteCommandRegistration: Bool {
+  package var clientHasDynamicExecuteCommandRegistration: Bool {
     clientCapabilities.workspace?.executeCommand?.dynamicRegistration == true
   }
 
-  public var clientHasDynamicDidChangeWatchedFilesRegistration: Bool {
+  package var clientHasDynamicDidChangeWatchedFilesRegistration: Bool {
     clientCapabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration == true
   }
 
   // MARK: Other capability queries
 
-  public var clientHasDiagnosticsCodeDescriptionSupport: Bool {
+  package var clientHasDiagnosticsCodeDescriptionSupport: Bool {
     clientCapabilities.textDocument?.publishDiagnostics?.codeDescriptionSupport == true
+  }
+
+  public var supportedCodeLensCommands: [SupportedCodeLensCommand: String] {
+    clientCapabilities.textDocument?.codeLens?.supportedCommands ?? [:]
   }
 
   /// Since LSP 3.17.0, diagnostics can be reported through pull-based requests in addition to the existing push-based
@@ -86,13 +90,13 @@ public final actor CapabilityRegistry {
   /// The `DiagnosticOptions` were added at the same time as the pull diagnostics request and allow specification of
   /// options for the pull diagnostics request. If the client doesn't reject this dynamic capability registration,
   /// it supports the pull diagnostics request.
-  public func clientSupportsPullDiagnostics(for language: Language) -> Bool {
+  package func clientSupportsPullDiagnostics(for language: Language) -> Bool {
     registration(for: [language], in: pullDiagnostics) != nil
   }
 
   // MARK: Initializer
 
-  public init(clientCapabilities: ClientCapabilities) {
+  package init(clientCapabilities: ClientCapabilities) {
     self.clientCapabilities = clientCapabilities
   }
 
@@ -173,7 +177,7 @@ public final actor CapabilityRegistry {
   /// Dynamically register completion capabilities if the client supports it and
   /// we haven't yet registered any completion capabilities for the given
   /// languages.
-  public func registerCompletionIfNeeded(
+  package func registerCompletionIfNeeded(
     options: CompletionOptions,
     for languages: [Language],
     server: SourceKitLSPServer
@@ -193,7 +197,7 @@ public final actor CapabilityRegistry {
     )
   }
 
-  public func registerDidChangeWatchedFiles(
+  package func registerDidChangeWatchedFiles(
     watchers: [FileSystemWatcher],
     server: SourceKitLSPServer
   ) async {
@@ -227,7 +231,7 @@ public final actor CapabilityRegistry {
   /// Dynamically register folding range capabilities if the client supports it and
   /// we haven't yet registered any folding range capabilities for the given
   /// languages.
-  public func registerFoldingRangeIfNeeded(
+  package func registerFoldingRangeIfNeeded(
     options: FoldingRangeOptions,
     for languages: [Language],
     server: SourceKitLSPServer
@@ -250,7 +254,7 @@ public final actor CapabilityRegistry {
   /// Dynamically register semantic tokens capabilities if the client supports
   /// it and we haven't yet registered any semantic tokens capabilities for the
   /// given languages.
-  public func registerSemanticTokensIfNeeded(
+  package func registerSemanticTokensIfNeeded(
     options: SemanticTokensOptions,
     for languages: [Language],
     server: SourceKitLSPServer
@@ -273,12 +277,13 @@ public final actor CapabilityRegistry {
   /// Dynamically register inlay hint capabilities if the client supports
   /// it and we haven't yet registered any inlay hint capabilities for the
   /// given languages.
-  public func registerInlayHintIfNeeded(
+  package func registerInlayHintIfNeeded(
     options: InlayHintOptions,
     for languages: [Language],
     server: SourceKitLSPServer
   ) async {
     guard clientHasDynamicInlayHintRegistration else { return }
+
     await registerLanguageSpecificCapability(
       options: InlayHintRegistrationOptions(
         documentSelector: DocumentSelector(for: languages),
@@ -294,7 +299,7 @@ public final actor CapabilityRegistry {
 
   /// Dynamically register (pull model) diagnostic capabilities,
   /// if the client supports it.
-  public func registerDiagnosticIfNeeded(
+  package func registerDiagnosticIfNeeded(
     options: DiagnosticOptions,
     for languages: [Language],
     server: SourceKitLSPServer
@@ -316,7 +321,7 @@ public final actor CapabilityRegistry {
 
   /// Dynamically register executeCommand with the given IDs if the client supports
   /// it and we haven't yet registered the given command IDs yet.
-  public func registerExecuteCommandIfNeeded(
+  package func registerExecuteCommandIfNeeded(
     commands: [String],
     server: SourceKitLSPServer
   ) {
@@ -345,7 +350,7 @@ public final actor CapabilityRegistry {
 }
 
 fileprivate extension DocumentSelector {
-  init(for languages: [Language]) {
-    self.init(languages.map { DocumentFilter(language: $0.rawValue) })
+  init(for languages: [Language], scheme: String? = nil) {
+    self.init(languages.map { DocumentFilter(language: $0.rawValue, scheme: scheme) })
   }
 }

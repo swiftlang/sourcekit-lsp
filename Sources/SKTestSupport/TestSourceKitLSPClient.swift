@@ -12,19 +12,24 @@
 
 import Foundation
 import InProcessClient
-import LSPTestSupport
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-@_spi(Testing) import SKCore
+import SKOptions
 import SKSupport
 import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
+import ToolchainRegistry
 import XCTest
 
-extension SourceKitLSPServer.Options {
-  /// The default SourceKitLSPServer options for testing.
-  public static let testDefault = Self(swiftPublishDiagnosticsDebounceDuration: 0)
+extension SourceKitLSPOptions {
+  package static func testDefault(experimentalFeatures: Set<ExperimentalFeature>? = nil) -> SourceKitLSPOptions {
+    return SourceKitLSPOptions(
+      experimentalFeatures: experimentalFeatures,
+      swiftPublishDiagnosticsDebounceDuration: 0,
+      workDoneProgressDebounceDuration: 0
+    )
+  }
 }
 
 fileprivate struct NotificationTimeoutError: Error, CustomStringConvertible {
@@ -36,15 +41,15 @@ fileprivate struct NotificationTimeoutError: Error, CustomStringConvertible {
 ///
 /// It can send requests to the LSP server and receive requests or notifications
 /// that the server sends to the client.
-public final class TestSourceKitLSPClient: MessageHandler {
+package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   /// A function that takes a request and returns the request's response.
-  public typealias RequestHandler<Request: RequestType> = @Sendable (Request) -> Request.Response
+  package typealias RequestHandler<Request: RequestType> = @Sendable (Request) -> Request.Response
 
   /// The ID that should be assigned to the next request sent to the `server`.
   private let nextRequestID = AtomicUInt32(initialValue: 0)
 
   /// The server that handles the requests.
-  public let server: SourceKitLSPServer
+  package let server: SourceKitLSPServer
 
   /// Whether pull or push-model diagnostics should be used.
   ///
@@ -93,8 +98,9 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///   - cleanUp: A closure that is called when the `TestSourceKitLSPClient` is destructed.
   ///     This allows e.g. a `IndexedSingleSwiftFileTestProject` to delete its temporary files when they are no longer
   ///     needed.
-  public init(
-    serverOptions: SourceKitLSPServer.Options = .testDefault,
+  package init(
+    options: SourceKitLSPOptions = .testDefault(),
+    testHooks: TestHooks = TestHooks(),
     initialize: Bool = true,
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
@@ -104,13 +110,12 @@ public final class TestSourceKitLSPClient: MessageHandler {
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
     cleanUp: @Sendable @escaping () -> Void = {}
   ) async throws {
-    var serverOptions = serverOptions
+    var options = options
     if let globalModuleCache {
-      serverOptions.buildSetup.flags.swiftCompilerFlags += ["-module-cache-path", globalModuleCache.path]
+      options.swiftPM.swiftCompilerFlags =
+        (options.swiftPM.swiftCompilerFlags ?? []) + ["-module-cache-path", globalModuleCache.path]
     }
-    if enableBackgroundIndexing {
-      serverOptions.experimentalFeatures.insert(.backgroundIndexing)
-    }
+    options.backgroundIndexing = enableBackgroundIndexing
 
     var notificationYielder: AsyncStream<any NotificationType>.Continuation!
     self.notifications = AsyncStream { continuation in
@@ -123,7 +128,8 @@ public final class TestSourceKitLSPClient: MessageHandler {
     server = SourceKitLSPServer(
       client: serverToClientConnection,
       toolchainRegistry: ToolchainRegistry.forTesting,
-      options: serverOptions,
+      options: options,
+      testHooks: testHooks,
       onExit: {
         serverToClientConnection.close()
       }
@@ -184,7 +190,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   // MARK: - Sending messages
 
   /// Send the request to `server` and return the request result.
-  public func send<R: RequestType>(_ request: R) async throws -> R.Response {
+  package func send<R: RequestType>(_ request: R) async throws -> R.Response {
     return try await withCheckedThrowingContinuation { continuation in
       self.send(request) { result in
         continuation.resume(with: result)
@@ -192,14 +198,19 @@ public final class TestSourceKitLSPClient: MessageHandler {
     }
   }
 
+  /// Variant of `send` above that allows the response to be discarded if it is a `VoidResponse`.
+  package func send<R: RequestType>(_ request: R) async throws where R.Response == VoidResponse {
+    let _: VoidResponse = try await self.send(request)
+  }
+
   /// Send the request to `server` and return the result via a completion handler.
   ///
   /// This version of the `send` function should only be used if some action needs to be performed after the request is
   /// sent but before it returns a result.
   @discardableResult
-  public func send<R: RequestType>(
+  package func send<R: RequestType>(
     _ request: R,
-    completionHandler: @escaping (LSPResult<R.Response>) -> Void
+    completionHandler: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) -> RequestID {
     let requestID = RequestID.number(Int(nextRequestID.fetchAndIncrement()))
     server.handle(request, id: requestID) { result in
@@ -209,7 +220,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   }
 
   /// Send the notification to `server`.
-  public func send(_ notification: some NotificationType) {
+  package func send(_ notification: some NotificationType) {
     server.handle(notification)
   }
 
@@ -219,7 +230,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///
   /// - Note: This also returns any notifications sent before the call to
   ///   `nextNotification`.
-  public func nextNotification(timeout: Duration = .seconds(defaultTimeout)) async throws -> any NotificationType {
+  package func nextNotification(timeout: Duration = .seconds(defaultTimeout)) async throws -> any NotificationType {
     return try await withThrowingTaskGroup(of: (any NotificationType).self) { taskGroup in
       taskGroup.addTask {
         for await notification in self.notifications {
@@ -241,7 +252,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///
   /// If the next notification is not a `PublishDiagnosticsNotification`, this
   /// methods throws.
-  public func nextDiagnosticsNotification(
+  package func nextDiagnosticsNotification(
     timeout: Duration = .seconds(defaultTimeout)
   ) async throws -> PublishDiagnosticsNotification {
     guard !usePullDiagnostics else {
@@ -255,7 +266,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
 
   /// Waits for the next notification of the given type to be sent to the client that satisfies the given predicate.
   /// Ignores any notifications that are of a different type or that don't satisfy the predicate.
-  public func nextNotification<ExpectedNotificationType: NotificationType>(
+  package func nextNotification<ExpectedNotificationType: NotificationType>(
     ofType: ExpectedNotificationType.Type,
     satisfying predicate: (ExpectedNotificationType) throws -> Bool = { _ in true },
     timeout: Duration = .seconds(defaultTimeout)
@@ -276,7 +287,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///
   /// The duration should not be 0 because we need to allow `nextNotification` some time to get the notification out of
   /// the `notifications` `AsyncStream`.
-  public func assertDoesNotReceiveNotification<ExpectedNotificationType: NotificationType>(
+  package func assertDoesNotReceiveNotification<ExpectedNotificationType: NotificationType>(
     ofType: ExpectedNotificationType.Type,
     satisfying predicate: (ExpectedNotificationType) -> Bool = { _ in true },
     within duration: Duration = .seconds(0.2)
@@ -295,24 +306,24 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///
   /// The request handler will only handle a single request. If the request is called again, the request handler won't
   /// call again
-  public func handleSingleRequest<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
+  package func handleSingleRequest<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
     requestHandlers.value.append((requestHandler: requestHandler, isOneShot: true))
   }
 
   /// Handle all requests of the given type that are sent to the client.
-  public func handleMultipleRequests<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
+  package func handleMultipleRequests<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
     requestHandlers.value.append((requestHandler: requestHandler, isOneShot: false))
   }
 
   // MARK: - Conformance to MessageHandler
 
   /// - Important: Implementation detail of `TestSourceKitLSPServer`. Do not call from tests.
-  public func handle(_ params: some NotificationType) {
+  package func handle(_ params: some NotificationType) {
     notificationYielder.yield(params)
   }
 
   /// - Important: Implementation detail of `TestSourceKitLSPClient`. Do not call from tests.
-  public func handle<Request: RequestType>(
+  package func handle<Request: RequestType>(
     _ params: Request,
     id: LanguageServerProtocol.RequestID,
     reply: @escaping (LSPResult<Request.Response>) -> Void
@@ -345,7 +356,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   /// If the text contained location markers like `1️⃣`, then these are stripped from the opened document and
   /// `DocumentPositions` are returned that map these markers to their position in the source file.
   @discardableResult
-  public func openDocument(
+  package func openDocument(
     _ markedText: String,
     uri: DocumentURI,
     version: Int = 0,
@@ -380,7 +391,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
 // MARK: - DocumentPositions
 
 /// Maps location marker like `1️⃣` to their position within a source file.
-public struct DocumentPositions {
+package struct DocumentPositions {
   private let positions: [String: Position]
 
   fileprivate init(markers: [String: Int], textWithoutMarkers: String) {
@@ -397,7 +408,7 @@ public struct DocumentPositions {
     }
   }
 
-  public init(markedText: String) {
+  package init(markedText: String) {
     let (markers, textWithoutMarker) = extractMarkers(markedText)
     self.init(markers: markers, textWithoutMarkers: textWithoutMarker)
   }
@@ -408,7 +419,7 @@ public struct DocumentPositions {
 
   /// Returns the position of the given marker and traps if the document from which these `DocumentPositions` were
   /// derived didn't contain the marker.
-  public subscript(_ marker: String) -> Position {
+  package subscript(_ marker: String) -> Position {
     guard let position = positions[marker] else {
       preconditionFailure("Could not find marker '\(marker)' in source code")
     }
@@ -416,7 +427,7 @@ public struct DocumentPositions {
   }
 
   /// Returns all position makers within these `DocumentPositions`.
-  public var allMarkers: [String] {
+  package var allMarkers: [String] {
     return positions.keys.sorted()
   }
 }

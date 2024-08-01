@@ -55,6 +55,7 @@ add_library(LanguageServerProtocol STATIC
   Requests/ExecuteCommandRequest.swift
   Requests/FoldingRangeRequest.swift
   Requests/FormattingRequests.swift
+  Requests/GetReferenceDocumentRequest.swift
   Requests/HoverRequest.swift
   Requests/ImplementationRequest.swift
   Requests/IndexedRenameRequest.swift
@@ -66,17 +67,19 @@ add_library(LanguageServerProtocol STATIC
   Requests/InlineValueRequest.swift
   Requests/LinkedEditingRangeRequest.swift
   Requests/MonikersRequest.swift
-  Requests/OpenInterfaceRequest.swift
+  Requests/PeekDocumentsRequest.swift
   Requests/PollIndexRequest.swift
   Requests/PrepareRenameRequest.swift
   Requests/ReferencesRequest.swift
   Requests/RegisterCapabilityRequest.swift
   Requests/RenameRequest.swift
   Requests/SelectionRangeRequest.swift
+  Requests/ShowDocumentRequest.swift
   Requests/ShowMessageRequest.swift
   Requests/ShutdownRequest.swift
   Requests/SignatureHelpRequest.swift
   Requests/SymbolInfoRequest.swift
+  Requests/TriggerReindexRequest.swift
   Requests/TypeDefinitionRequest.swift
   Requests/TypeHierarchyPrepareRequest.swift
   Requests/TypeHierarchySubtypesRequest.swift
@@ -122,8 +125,8 @@ add_library(LanguageServerProtocol STATIC
   SupportTypes/SemanticTokens.swift
   SupportTypes/SemanticTokenTypes.swift
   SupportTypes/ServerCapabilities.swift
-  SupportTypes/SKCompletionOptions.swift
   SupportTypes/StringOrMarkupContent.swift
+  SupportTypes/SupportedCodeLensCommand.swift
   SupportTypes/SymbolKind.swift
   SupportTypes/TestItem.swift
   SupportTypes/TextDocumentContentChangeEvent.swift

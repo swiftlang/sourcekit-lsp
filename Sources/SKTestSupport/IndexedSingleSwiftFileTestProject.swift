@@ -10,21 +10,23 @@
 //
 //===----------------------------------------------------------------------===//
 
+@_spi(Testing) import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
+import SKOptions
 import SourceKitLSP
 import TSCBasic
+import ToolchainRegistry
 
-public struct IndexedSingleSwiftFileTestProject {
+package struct IndexedSingleSwiftFileTestProject {
   enum Error: Swift.Error {
     case swiftcNotFound
   }
 
-  public let testClient: TestSourceKitLSPClient
-  public let fileURI: DocumentURI
-  public let positions: DocumentPositions
-  public let indexDBURL: URL
+  package let testClient: TestSourceKitLSPClient
+  package let fileURI: DocumentURI
+  package let positions: DocumentPositions
+  package let indexDBURL: URL
 
   /// Writes a single file to a temporary directory on disk and compiles it to index it.
   ///
@@ -35,7 +37,7 @@ public struct IndexedSingleSwiftFileTestProject {
   ///   - workspaceDirectory: If specified, the temporary files will be put in this directory. If `nil` a temporary
   ///     scratch directory will be created based on `testName`.
   ///   - cleanUp: Whether to remove the temporary directory when the SourceKit-LSP server shuts down.
-  public init(
+  package init(
     _ markedText: String,
     indexSystemModules: Bool = false,
     allowBuildFailure: Bool = false,
@@ -118,13 +120,10 @@ public struct IndexedSingleSwiftFileTestProject {
     }
 
     // Create the test client
-    var options = SourceKitLSPServer.Options.testDefault
-    options.indexOptions = IndexOptions(
-      indexStorePath: try AbsolutePath(validating: indexURL.path),
-      indexDatabasePath: try AbsolutePath(validating: indexDBURL.path)
-    )
+    var options = SourceKitLSPOptions.testDefault()
+    options.index = SourceKitLSPOptions.IndexOptions(indexStorePath: indexURL.path, indexDatabasePath: indexDBURL.path)
     self.testClient = try await TestSourceKitLSPClient(
-      serverOptions: options,
+      options: options,
       workspaceFolders: [
         WorkspaceFolder(uri: DocumentURI(testWorkspaceDirectory))
       ],
@@ -136,7 +135,7 @@ public struct IndexedSingleSwiftFileTestProject {
     )
 
     // Wait for the indexstore-db to finish indexing
-    _ = try await testClient.send(PollIndexRequest())
+    try await testClient.send(PollIndexRequest())
 
     // Open the document
     self.fileURI = DocumentURI(testFileURL)

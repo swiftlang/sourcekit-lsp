@@ -23,7 +23,7 @@ import struct TSCBasic.AbsolutePath
 /// * To remove an existing instance, use `remove("path")`, but be aware that if there are any other
 ///   references to the instances in the program, it can be resurrected if `getOrAdd` is called with
 ///   the same path. See note on `remove(_:)`
-public actor SourceKitDRegistry {
+package actor SourceKitDRegistry {
 
   /// Mapping from path to active SourceKitD instance.
   private var active: [AbsolutePath: SourceKitD] = [:]
@@ -32,13 +32,13 @@ public actor SourceKitDRegistry {
   private var cemetary: [AbsolutePath: WeakSourceKitD] = [:]
 
   /// Initialize an empty registry.
-  public init() {}
+  package init() {}
 
   /// The global shared SourceKitD registry.
-  public static let shared: SourceKitDRegistry = SourceKitDRegistry()
+  package static let shared: SourceKitDRegistry = SourceKitDRegistry()
 
   /// Returns the existing SourceKitD for the given path, or creates it and registers it.
-  public func getOrAdd(
+  package func getOrAdd(
     _ key: AbsolutePath,
     create: @Sendable () throws -> SourceKitD
   ) rethrows -> SourceKitD {
@@ -62,7 +62,7 @@ public actor SourceKitDRegistry {
   /// is converted to a weak reference until it is no longer referenced anywhere by the program. If
   /// the same path is looked up again before the original service is deinitialized, the original
   /// service is resurrected rather than creating a new instance.
-  public func remove(_ key: AbsolutePath) -> SourceKitD? {
+  package func remove(_ key: AbsolutePath) -> SourceKitD? {
     let existing = active.removeValue(forKey: key)
     if let existing = existing {
       assert(self.cemetary[key]?.value == nil)

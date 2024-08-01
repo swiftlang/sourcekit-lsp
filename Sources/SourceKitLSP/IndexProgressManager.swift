@@ -10,9 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPLogging
 import LanguageServerProtocol
-import SKCore
+import SKLogging
 import SKSupport
 import SemanticIndex
 import SwiftExtensions
@@ -127,7 +126,8 @@ actor IndexProgressManager {
     } else {
       workDoneProgress = await WorkDoneProgressManager(
         server: sourceKitLSPServer,
-        initialDebounce: sourceKitLSPServer.options.workDoneProgressDebounceDuration,
+        tokenPrefix: "indexing",
+        initialDebounce: sourceKitLSPServer.options.workDoneProgressDebounceDurationOrDefault,
         title: "Indexing",
         message: message,
         percentage: percentage

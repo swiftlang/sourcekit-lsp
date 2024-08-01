@@ -9,26 +9,28 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
+
 import LanguageServerProtocol
 import SourceKitD
 
-public struct SemanticRefactorCommand: SwiftCommand {
+package struct SemanticRefactorCommand: RefactorCommand {
+  typealias Response = SemanticRefactoring
 
-  public static let identifier: String = "semantic.refactor.command"
+  package static let identifier: String = "semantic.refactor.command"
 
   /// The name of this refactoring action.
-  public var title: String
+  package var title: String
 
   /// The sourcekitd identifier of the refactoring action.
-  public var actionString: String
+  package var actionString: String
 
   /// The range to refactor.
-  public var positionRange: Range<Position>
+  package var positionRange: Range<Position>
 
   /// The text document related to the refactoring action.
-  public var textDocument: TextDocumentIdentifier
+  package var textDocument: TextDocumentIdentifier
 
-  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+  package init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard case .dictionary(let documentDict)? = dictionary[CodingKeys.textDocument.stringValue],
       case .string(let title)? = dictionary[CodingKeys.title.stringValue],
       case .string(let actionString)? = dictionary[CodingKeys.actionString.stringValue],
@@ -49,15 +51,19 @@ public struct SemanticRefactorCommand: SwiftCommand {
     )
   }
 
-  public init(title: String, actionString: String, positionRange: Range<Position>, textDocument: TextDocumentIdentifier)
-  {
+  package init(
+    title: String,
+    actionString: String,
+    positionRange: Range<Position>,
+    textDocument: TextDocumentIdentifier
+  ) {
     self.title = title
     self.actionString = actionString
     self.positionRange = positionRange
     self.textDocument = textDocument
   }
 
-  public func encodeToLSPAny() -> LSPAny {
+  package func encodeToLSPAny() -> LSPAny {
     return .dictionary([
       CodingKeys.title.stringValue: .string(title),
       CodingKeys.actionString.stringValue: .string(actionString),
@@ -78,7 +84,7 @@ extension Array where Element == SemanticRefactorCommand {
     guard let results = array else {
       return nil
     }
-    var commands = [SemanticRefactorCommand]()
+    var commands: [SemanticRefactorCommand] = []
     results.forEach { _, value in
       if let name: String = value[keys.actionName],
         let actionuid: sourcekitd_api_uid_t = value[keys.actionUID],

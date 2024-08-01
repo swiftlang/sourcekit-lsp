@@ -12,17 +12,21 @@
 
 import Csourcekitd
 
-#if canImport(Glibc)
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
 import Glibc
 #elseif canImport(Musl)
 import Musl
 #elseif canImport(CRT)
 import CRT
+#elseif canImport(Bionic)
+import Bionic
 #endif
 
 extension SourceKitD {
   /// Create a `SKDRequestArray` from the given array.
-  public func array(_ array: [SKDRequestValue]) -> SKDRequestArray {
+  package func array(_ array: [SKDRequestValue]) -> SKDRequestArray {
     let result = SKDRequestArray(sourcekitd: self)
     for element in array {
       result.append(element)
@@ -31,11 +35,11 @@ extension SourceKitD {
   }
 }
 
-public final class SKDRequestArray: Sendable {
+package final class SKDRequestArray: Sendable {
   nonisolated(unsafe) let array: sourcekitd_api_object_t
   private let sourcekitd: SourceKitD
 
-  public init(_ array: sourcekitd_api_object_t? = nil, sourcekitd: SourceKitD) {
+  package init(_ array: sourcekitd_api_object_t? = nil, sourcekitd: SourceKitD) {
     self.array = array ?? sourcekitd.api.request_array_create(nil, 0)!
     self.sourcekitd = sourcekitd
   }
@@ -44,7 +48,7 @@ public final class SKDRequestArray: Sendable {
     sourcekitd.api.request_release(array)
   }
 
-  public func append(_ newValue: SKDRequestValue) {
+  package func append(_ newValue: SKDRequestValue) {
     switch newValue {
     case let newValue as String:
       sourcekitd.api.request_array_set_string(array, -1, newValue)
@@ -69,7 +73,7 @@ public final class SKDRequestArray: Sendable {
     }
   }
 
-  public static func += (array: SKDRequestArray, other: some Sequence<SKDRequestValue>) {
+  package static func += (array: SKDRequestArray, other: some Sequence<SKDRequestValue>) {
     for item in other {
       array.append(item)
     }
@@ -77,7 +81,7 @@ public final class SKDRequestArray: Sendable {
 }
 
 extension SKDRequestArray: CustomStringConvertible {
-  public var description: String {
+  package var description: String {
     let ptr = sourcekitd.api.request_description_copy(array)!
     defer { free(ptr) }
     return String(cString: ptr)

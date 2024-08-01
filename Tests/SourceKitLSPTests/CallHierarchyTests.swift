@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import ISDBTestSupport
-import LSPTestSupport
 import LanguageServerProtocol
 import SKTestSupport
 import TSCBasic

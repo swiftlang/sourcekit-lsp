@@ -10,14 +10,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import Foundation
-import LSPLogging
 import LanguageServerProtocol
-import SKCore
+import SKLogging
 import SemanticIndex
 
 extension UncheckedIndex {
-  public func mainFilesContainingFile(_ uri: DocumentURI) -> Set<DocumentURI> {
+  package func mainFilesContainingFile(_ uri: DocumentURI) -> Set<DocumentURI> {
     let mainFiles: Set<DocumentURI>
     if let url = uri.fileURL {
       let mainFilePaths = Set(self.underlyingIndexStoreDB.mainFilesContainingFile(path: url.path))
@@ -34,8 +34,4 @@ extension UncheckedIndex {
   }
 }
 
-#if compiler(<5.11)
 extension UncheckedIndex: MainFilesProvider {}
-#else
-extension UncheckedIndex: @retroactive MainFilesProvider {}
-#endif

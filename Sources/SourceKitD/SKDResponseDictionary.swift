@@ -12,29 +12,33 @@
 
 import Csourcekitd
 
-#if canImport(Glibc)
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
 import Glibc
 #elseif canImport(Musl)
 import Musl
 #elseif canImport(CRT)
 import CRT
+#elseif canImport(Bionic)
+import Bionic
 #endif
 
-public final class SKDResponseDictionary: Sendable {
+package final class SKDResponseDictionary: Sendable {
   private let dict: sourcekitd_api_variant_t
   private let resp: SKDResponse
 
-  public var sourcekitd: SourceKitD { return resp.sourcekitd }
+  package var sourcekitd: SourceKitD { return resp.sourcekitd }
 
-  public init(_ dict: sourcekitd_api_variant_t, response: SKDResponse) {
+  package init(_ dict: sourcekitd_api_variant_t, response: SKDResponse) {
     self.dict = dict
     self.resp = response
   }
 
-  public subscript(key: sourcekitd_api_uid_t) -> String? {
+  package subscript(key: sourcekitd_api_uid_t) -> String? {
     return sourcekitd.api.variant_dictionary_get_string(dict, key).map(String.init(cString:))
   }
-  public subscript(key: sourcekitd_api_uid_t) -> Int? {
+  package subscript(key: sourcekitd_api_uid_t) -> Int? {
     let value = sourcekitd.api.variant_dictionary_get_value(dict, key)
     if sourcekitd.api.variant_get_type(value) == SOURCEKITD_API_VARIANT_TYPE_INT64 {
       return Int(sourcekitd.api.variant_int64_get_value(value))
@@ -42,7 +46,7 @@ public final class SKDResponseDictionary: Sendable {
       return nil
     }
   }
-  public subscript(key: sourcekitd_api_uid_t) -> Bool? {
+  package subscript(key: sourcekitd_api_uid_t) -> Bool? {
     let value = sourcekitd.api.variant_dictionary_get_value(dict, key)
     if sourcekitd.api.variant_get_type(value) == SOURCEKITD_API_VARIANT_TYPE_BOOL {
       return sourcekitd.api.variant_bool_get_value(value)
@@ -50,10 +54,10 @@ public final class SKDResponseDictionary: Sendable {
       return nil
     }
   }
-  public subscript(key: sourcekitd_api_uid_t) -> sourcekitd_api_uid_t? {
+  package subscript(key: sourcekitd_api_uid_t) -> sourcekitd_api_uid_t? {
     return sourcekitd.api.variant_dictionary_get_uid(dict, key)
   }
-  public subscript(key: sourcekitd_api_uid_t) -> SKDResponseArray? {
+  package subscript(key: sourcekitd_api_uid_t) -> SKDResponseArray? {
     let value = sourcekitd.api.variant_dictionary_get_value(dict, key)
     if sourcekitd.api.variant_get_type(value) == SOURCEKITD_API_VARIANT_TYPE_ARRAY {
       return SKDResponseArray(value, response: resp)
@@ -64,7 +68,7 @@ public final class SKDResponseDictionary: Sendable {
 }
 
 extension SKDResponseDictionary: CustomStringConvertible {
-  public var description: String {
+  package var description: String {
     let ptr = sourcekitd.api.variant_description_copy(dict)!
     defer { free(ptr) }
     return String(cString: ptr)

@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPTestSupport
 import LanguageServerProtocol
 import SKTestSupport
 import SourceKitLSP
@@ -763,7 +762,7 @@ final class DocumentSymbolTests: XCTestCase {
 fileprivate func assertDocumentSymbols(
   _ markedText: String,
   _ expectedDocumentSymbols: (DocumentPositions) -> [DocumentSymbol],
-  file: StaticString = #file,
+  file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
   let testClient = try await TestSourceKitLSPClient()

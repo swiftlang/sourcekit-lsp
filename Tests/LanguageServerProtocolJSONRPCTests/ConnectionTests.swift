@@ -10,10 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPTestSupport
 import LanguageServerProtocol
 @_spi(Testing) import LanguageServerProtocolJSONRPC
+import SKTestSupport
 import XCTest
+
+#if canImport(Darwin)
+import class Foundation.Pipe
+#else
+// FIMXE: (async-workaround) @preconcurrency needed because Pipe is not marked as Sendable on Linux rdar://132378792
+@preconcurrency import class Foundation.Pipe
+#endif
 
 #if os(Windows)
 import WinSDK
@@ -297,7 +304,7 @@ class ConnectionTests: XCTestCase {
       """
     connection.clientToServerConnection.send(message: messageContents)
 
-    try await self.fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow([expectation])
   }
 }
 

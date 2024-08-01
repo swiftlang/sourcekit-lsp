@@ -1,5 +1,6 @@
 
 add_library(SourceKitD STATIC
+  dlopen.swift
   SKDRequestArray.swift
   SKDRequestDictionary.swift
   SKDResponse.swift
@@ -15,7 +16,7 @@ set_target_properties(SourceKitD PROPERTIES
 target_link_libraries(SourceKitD PUBLIC
   Csourcekitd)
 target_link_libraries(SourceKitD PRIVATE
-  LSPLogging
+  SKLogging
   SKSupport
   SwiftExtensions
   TSCBasic

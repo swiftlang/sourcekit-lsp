@@ -11,23 +11,27 @@ add_library(SourceKitLSP STATIC
   MessageHandlingDependencyTracker.swift
   Rename.swift
   ResponseError+Init.swift
+  SemanticTokensLegend+SourceKitLSPLegend.swift
   SourceKitIndexDelegate.swift
   SourceKitLSPCommandMetadata.swift
   SourceKitLSPServer.swift
-  SourceKitLSPServer+Options.swift
   SymbolLocation+DocumentURI.swift
   TestDiscovery.swift
+  TestHooks.swift
   TextEdit+IsNoop.swift
   WorkDoneProgressManager.swift
   Workspace.swift
 )
 target_sources(SourceKitLSP PRIVATE
-  Clang/ClangLanguageService.swift)
+  Clang/ClangLanguageService.swift
+  Clang/SemanticTokenTranslator.swift
+)
 target_sources(SourceKitLSP PRIVATE
   Swift/AdjustPositionToStartOfIdentifier.swift
   Swift/CodeActions/AddDocumentation.swift
   Swift/CodeActions/ConvertIntegerLiteral.swift
   Swift/CodeActions/ConvertJSONToCodableStruct.swift
+  Swift/CodeActions/ConvertStringConcatenationToStringInterpolation.swift
   Swift/CodeActions/PackageManifestEdits.swift
   Swift/CodeActions/SyntaxCodeActionProvider.swift
   Swift/CodeActions/SyntaxCodeActions.swift
@@ -40,14 +44,22 @@ target_sources(SourceKitLSP PRIVATE
   Swift/DiagnosticReportManager.swift
   Swift/DocumentFormatting.swift
   Swift/DocumentSymbols.swift
+  Swift/ExpandMacroCommand.swift
   Swift/FoldingRange.swift
+  Swift/MacroExpansion.swift
+  Swift/MacroExpansionReferenceDocumentURLData.swift
   Swift/OpenInterface.swift
+  Swift/RefactoringResponse.swift
+  Swift/RefactoringEdit.swift
+  Swift/RefactorCommand.swift
+  Swift/ReferenceDocumentURL.swift
   Swift/RelatedIdentifiers.swift
   Swift/RewriteSourceKitPlaceholders.swift
   Swift/SemanticRefactorCommand.swift
   Swift/SemanticRefactoring.swift
   Swift/SemanticTokens.swift
   Swift/SourceKitD+ResponseError.swift
+  Swift/SwiftCodeLensScanner.swift
   Swift/SwiftCommand.swift
   Swift/SwiftLanguageService.swift
   Swift/SwiftTestingScanner.swift
@@ -65,15 +77,16 @@ set_target_properties(SourceKitLSP PROPERTIES
 # TODO(compnerd) reduce the exposure here, why is everything PUBLIC-ly linked?
 target_link_libraries(SourceKitLSP PUBLIC
   BuildServerProtocol
+  BuildSystemIntegration
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
-  LSPLogging
   SemanticIndex
-  SKCore
+  SKLogging
+  SKOptions
   SKSupport
-  SKSwiftPMWorkspace
   SourceKitD
   SwiftExtensions
+  ToolchainRegistry
   IndexStoreDB
   SwiftSyntax::SwiftBasicFormat
   SwiftSyntax::SwiftDiagnostics

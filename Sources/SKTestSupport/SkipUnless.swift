@@ -11,12 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
-import LSPTestSupport
 import LanguageServerProtocol
 import RegexBuilder
-@_spi(Testing) import SKCore
+import SKLogging
 import SourceKitLSP
+import ToolchainRegistry
 import XCTest
 
 import enum PackageLoading.Platform
@@ -27,7 +26,7 @@ import enum TSCBasic.ProcessEnv
 // MARK: - Skip checks
 
 /// Namespace for functions that are used to skip unsupported tests.
-public actor SkipUnless {
+package actor SkipUnless {
   private enum FeatureCheckResult {
     case featureSupported
     case featureUnsupported(skipMessage: String)
@@ -106,7 +105,7 @@ public actor SkipUnless {
     }
   }
 
-  public static func sourcekitdHasSemanticTokensRequest(
+  package static func sourcekitdHasSemanticTokensRequest(
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
@@ -137,7 +136,7 @@ public actor SkipUnless {
     }
   }
 
-  public static func sourcekitdSupportsRename(
+  package static func sourcekitdSupportsRename(
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
@@ -158,7 +157,7 @@ public actor SkipUnless {
 
   /// Checks whether the sourcekitd contains a fix to rename labels of enum cases correctly
   /// (https://github.com/apple/swift/pull/74241).
-  public static func sourcekitdCanRenameEnumCaseLabels(
+  package static func sourcekitdCanRenameEnumCaseLabels(
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
@@ -182,7 +181,7 @@ public actor SkipUnless {
   }
 
   /// Whether clangd has support for the `workspace/indexedRename` request.
-  public static func clangdSupportsIndexBasedRename(
+  package static func clangdSupportsIndexBasedRename(
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
@@ -207,8 +206,8 @@ public actor SkipUnless {
   }
 
   /// SwiftPM moved the location where it stores Swift modules to a subdirectory in
-  /// https://github.com/apple/swift-package-manager/pull/7103.
-  public static func swiftpmStoresModulesInSubdirectory(
+  /// https://github.com/swiftlang/swift-package-manager/pull/7103.
+  package static func swiftpmStoresModulesInSubdirectory(
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
@@ -224,7 +223,7 @@ public actor SkipUnless {
     }
   }
 
-  public static func toolchainContainsSwiftFormat(
+  package static func toolchainContainsSwiftFormat(
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
@@ -234,7 +233,7 @@ public actor SkipUnless {
   }
 
   /// Checks if the toolchain contains https://github.com/apple/swift/pull/74080.
-  public static func sourcekitdReportsOverridableFunctionDefinitionsAsDynamic(
+  package static func sourcekitdReportsOverridableFunctionDefinitionsAsDynamic(
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
@@ -264,7 +263,7 @@ public actor SkipUnless {
     }
   }
 
-  public static func sourcekitdReturnsRawDocumentationResponse(
+  package static func sourcekitdReturnsRawDocumentationResponse(
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
@@ -295,7 +294,7 @@ public actor SkipUnless {
 
   /// Checks whether the index contains a fix that prevents it from adding relations to non-indexed locals
   /// (https://github.com/apple/swift/pull/72930).
-  public static func indexOnlyHasContainedByRelationsToIndexedDecls(
+  package static func indexOnlyHasContainedByRelationsToIndexedDecls(
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
@@ -343,7 +342,7 @@ public actor SkipUnless {
     }
   }
 
-  public static func swiftPMStoresModulesForTargetAndHostInSeparateFolders(
+  package static func swiftPMStoresModulesForTargetAndHostInSeparateFolders(
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
@@ -405,17 +404,17 @@ public actor SkipUnless {
   }
 
   /// A long test is a test that takes longer than 1-2s to execute.
-  public static func longTestsEnabled() throws {
+  package static func longTestsEnabled() throws {
     if let value = ProcessInfo.processInfo.environment["SKIP_LONG_TESTS"], value == "1" || value == "YES" {
       throw XCTSkip("Long tests disabled using the `SKIP_LONG_TESTS` environment variable")
     }
   }
 
-  public static func platformIsDarwin(_ message: String) throws {
+  package static func platformIsDarwin(_ message: String) throws {
     try XCTSkipUnless(Platform.current == .darwin, message)
   }
 
-  public static func platformSupportsTaskPriorityElevation() throws {
+  package static func platformSupportsTaskPriorityElevation() throws {
     #if os(macOS)
     guard #available(macOS 14.0, *) else {
       // Priority elevation was implemented by https://github.com/apple/swift/pull/63019, which is available in the
@@ -427,7 +426,7 @@ public actor SkipUnless {
 
   /// Check if we can use the build artifacts in the sourcekit-lsp build directory to build a macro package without
   /// re-building swift-syntax.
-  public static func canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild(
+  package static func canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild(
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
@@ -459,6 +458,35 @@ public actor SkipUnless {
             \(error)
             """
         )
+      }
+    }
+  }
+
+  package static func canCompileForWasm(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+      let swiftFrontend = try await unwrap(ToolchainRegistry.forTesting.default?.swift).parentDirectory
+        .appending(component: "swift-frontend")
+      return try await withTestScratchDir { scratchDirectory in
+        let input = scratchDirectory.appending(component: "Input.swift")
+        FileManager.default.createFile(atPath: input.pathString, contents: nil)
+        // If we can't compile for wasm, this fails complaining that it can't find the stdlib for wasm.
+        let process = Process(
+          args: swiftFrontend.pathString,
+          "-typecheck",
+          input.pathString,
+          "-triple",
+          "wasm32-unknown-none-wasm",
+          "-enable-experimental-feature",
+          "Embedded",
+          "-Xcc",
+          "-fdeclspec"
+        )
+        try process.launch()
+        let result = try await process.waitUntilExit()
+        return result.exitStatus == .terminated(code: 0)
       }
     }
   }

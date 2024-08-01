@@ -50,7 +50,18 @@ public struct SemanticTokenTypes: Hashable, Sendable {
   /// since 3.17.0
   public static let decorator = Self("decorator")
 
-  public static let predefined: [Self] = [
+  // The following are LSP extensions from clangd
+  public static let bracket = Self("bracket")
+  public static let label = Self("label")
+  public static let concept = Self("concept")
+  public static let unknown = Self("unknown")
+
+  /// An identifier that hasn't been further classified
+  ///
+  /// **(LSP Extension)**
+  public static let identifier = Self("identifier")
+
+  public static let all: [Self] = [
     .namespace,
     .type,
     .class,
@@ -73,5 +84,11 @@ public struct SemanticTokenTypes: Hashable, Sendable {
     .number,
     .regexp,
     .operator,
+    .decorator,
+    .bracket,
+    .label,
+    .concept,
+    .unknown,
+    .identifier,
   ]
 }

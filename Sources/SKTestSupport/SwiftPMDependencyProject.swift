@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import ISDBTibs
+import SKSupport
 import XCTest
 
 import struct TSCBasic.AbsolutePath
@@ -21,12 +21,12 @@ import struct TSCBasic.ProcessResult
 
 /// A SwiftPM package that gets written to disk and for which a Git repository is initialized with a commit tagged
 /// `1.0.0`. This repository can then be used as a dependency for another package, usually a `SwiftPMTestProject`.
-public class SwiftPMDependencyProject {
+package class SwiftPMDependencyProject {
   /// The scratch directory created for the dependency project.
-  public let scratchDirectory: URL
+  package let scratchDirectory: URL
 
   /// The directory in which the repository lives.
-  public var packageDirectory: URL {
+  package var packageDirectory: URL {
     return scratchDirectory.appendingPathComponent("MyDependency")
   }
 
@@ -35,7 +35,7 @@ public class SwiftPMDependencyProject {
       case cannotFindGit
       case processedTerminatedWithNonZeroExitCode(ProcessResult)
     }
-    guard let toolUrl = findTool(name: "git") else {
+    guard let git = await findTool(name: "git") else {
       if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] == nil {
         // Never skip the test in CI, similar to what SkipUnless does.
         throw XCTSkip("git cannot be found")
@@ -45,7 +45,7 @@ public class SwiftPMDependencyProject {
     // We can't use `workingDirectory` because Amazon Linux doesn't support working directories (or at least
     // TSCBasic.Process doesn't support working directories on Amazon Linux)
     let process = TSCBasic.Process(
-      arguments: [toolUrl.path, "-C", workingDirectory.path] + arguments
+      arguments: [git.path, "-C", workingDirectory.path] + arguments
     )
     try process.launch()
     let processResult = try await process.waitUntilExit()
@@ -54,7 +54,7 @@ public class SwiftPMDependencyProject {
     }
   }
 
-  public static let defaultPackageManifest: String = """
+  package static let defaultPackageManifest: String = """
     // swift-tools-version: 5.7
 
     import PackageDescription
@@ -66,7 +66,7 @@ public class SwiftPMDependencyProject {
     )
     """
 
-  public init(
+  package init(
     files: [RelativeFileLocation: String],
     manifest: String = defaultPackageManifest,
     testName: String = #function
@@ -86,15 +86,20 @@ public class SwiftPMDependencyProject {
     }
 
     try await runGitCommand(["init"], workingDirectory: packageDirectory)
+    try await tag(changedFiles: files.keys.map { $0.url(relativeTo: packageDirectory) }, version: "1.0.0")
+  }
+
+  package func tag(changedFiles: [URL], version: String) async throws {
     try await runGitCommand(
-      ["add"] + files.keys.map { $0.url(relativeTo: packageDirectory).path },
+      ["add"] + changedFiles.map(\.path),
       workingDirectory: packageDirectory
     )
     try await runGitCommand(
-      ["-c", "user.name=Dummy", "-c", "user.email=noreply@swift.org", "commit", "-m", "Initial commit"],
+      ["-c", "user.name=Dummy", "-c", "user.email=noreply@swift.org", "commit", "-m", "Version \(version)"],
       workingDirectory: packageDirectory
     )
-    try await runGitCommand(["tag", "1.0.0"], workingDirectory: packageDirectory)
+
+    try await runGitCommand(["tag", version], workingDirectory: self.packageDirectory)
   }
 
   deinit {
@@ -105,7 +110,7 @@ public class SwiftPMDependencyProject {
 
   /// Function that makes sure the project stays alive until this is called. Otherwise, the `SwiftPMDependencyProject`
   /// might get deinitialized, which deletes the package on disk.
-  public func keepAlive() {
+  package func keepAlive() {
     withExtendedLifetime(self) { _ in }
   }
 }

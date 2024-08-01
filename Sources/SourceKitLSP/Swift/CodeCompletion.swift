@@ -11,20 +11,18 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SourceKitD
 import SwiftBasicFormat
 
 extension SwiftLanguageService {
-  public func completion(_ req: CompletionRequest) async throws -> CompletionList {
+  package func completion(_ req: CompletionRequest) async throws -> CompletionList {
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
 
     let completionPos = await adjustPositionToStartOfIdentifier(req.position, in: snapshot)
     let offset = snapshot.utf8Offset(of: completionPos)
     let filterText = String(snapshot.text[snapshot.indexOf(utf8Offset: offset)..<snapshot.index(of: req.position)])
-
-    let options = req.sourcekitlspOptions ?? serverOptions.completionOptions
 
     let clientSupportsSnippets =
       capabilityRegistry.clientCapabilities.textDocument?.completion?.completionItem?.snippetSupport ?? false
@@ -35,12 +33,12 @@ extension SwiftLanguageService {
     return try await CodeCompletionSession.completionList(
       sourcekitd: sourcekitd,
       snapshot: snapshot,
+      options: options,
       indentationWidth: inferredIndentationWidth,
       completionPosition: completionPos,
       completionUtf8Offset: offset,
       cursorPosition: req.position,
       compileCommand: buildSettings,
-      options: options,
       clientSupportsSnippets: clientSupportsSnippets,
       filterText: filterText
     )

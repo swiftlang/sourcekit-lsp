@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import SKCore
 
 /// Keeps track of whether an item (a target or file to index) is up-to-date.
 actor UpToDateTracker<Item: Hashable> {

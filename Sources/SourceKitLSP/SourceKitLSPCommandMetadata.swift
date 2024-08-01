@@ -11,18 +11,18 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SKSupport
 
 /// Represents metadata that SourceKit-LSP injects at every command returned by code actions.
 /// The ExecuteCommand is not a TextDocumentRequest, so metadata is injected to allow SourceKit-LSP
 /// to determine where a command should be executed.
-public struct SourceKitLSPCommandMetadata: Codable, Hashable {
+package struct SourceKitLSPCommandMetadata: Codable, Hashable {
 
-  public var sourcekitlsp_textDocument: TextDocumentIdentifier
+  package var sourcekitlsp_textDocument: TextDocumentIdentifier
 
-  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+  package init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     let textDocumentKey = CodingKeys.sourcekitlsp_textDocument.stringValue
     guard case .dictionary(let textDocumentDict)? = dictionary[textDocumentKey],
       let textDocument = TextDocumentIdentifier(fromLSPDictionary: textDocumentDict)
@@ -32,11 +32,11 @@ public struct SourceKitLSPCommandMetadata: Codable, Hashable {
     self.init(textDocument: textDocument)
   }
 
-  public init(textDocument: TextDocumentIdentifier) {
+  package init(textDocument: TextDocumentIdentifier) {
     self.sourcekitlsp_textDocument = textDocument
   }
 
-  public func encodeToLSPAny() -> LSPAny {
+  package func encodeToLSPAny() -> LSPAny {
     return .dictionary([
       CodingKeys.sourcekitlsp_textDocument.stringValue: sourcekitlsp_textDocument.encodeToLSPAny()
     ])
@@ -44,7 +44,7 @@ public struct SourceKitLSPCommandMetadata: Codable, Hashable {
 }
 
 extension CodeActionRequest {
-  public func injectMetadata(toResponse response: CodeActionRequestResponse?) -> CodeActionRequestResponse? {
+  package func injectMetadata(toResponse response: CodeActionRequestResponse?) -> CodeActionRequestResponse? {
     let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
     let metadataArgument = metadata.encodeToLSPAny()
     switch response {
@@ -66,12 +66,12 @@ extension CodeActionRequest {
 
 extension ExecuteCommandRequest {
   /// The document in which the command was invoked.
-  public var textDocument: TextDocumentIdentifier? {
+  package var textDocument: TextDocumentIdentifier? {
     return metadata?.sourcekitlsp_textDocument
   }
 
   /// Optional metadata containing SourceKit-LSP information about this command.
-  public var metadata: SourceKitLSPCommandMetadata? {
+  package var metadata: SourceKitLSPCommandMetadata? {
     guard case .dictionary(let dictionary)? = arguments?.last else {
       return nil
     }
@@ -83,7 +83,7 @@ extension ExecuteCommandRequest {
   }
 
   /// Returns this Command's arguments without SourceKit-LSP's injected metadata, if it exists.
-  public var argumentsWithoutSourceKitMetadata: [LSPAny]? {
+  package var argumentsWithoutSourceKitMetadata: [LSPAny]? {
     guard metadata != nil else {
       return arguments
     }

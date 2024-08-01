@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
+import SKLogging
 import SourceKitD
 @_spi(FixItApplier) import SwiftIDEUtils
 import SwiftParser
@@ -20,9 +20,8 @@ import SwiftSyntax
 // MARK: - Entry point
 
 extension RequestInfo {
-  @_spi(Testing)
   @MainActor
-  public func reduceInputFile(
+  package func reduceInputFile(
     using executor: SourceKitRequestExecutor,
     progressUpdate: (_ progress: Double, _ message: String) -> Void
   ) async throws -> RequestInfo {

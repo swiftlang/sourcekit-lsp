@@ -11,14 +11,14 @@
 //===----------------------------------------------------------------------===//
 
 import IndexStoreDB
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SemanticIndex
 import SwiftSyntax
 
-public enum TestStyle {
-  public static let xcTest = "XCTest"
-  public static let swiftTesting = "swift-testing"
+package enum TestStyle {
+  package static let xcTest = "XCTest"
+  package static let swiftTesting = "swift-testing"
 }
 
 fileprivate extension SymbolOccurrence {
@@ -187,14 +187,23 @@ extension SourceKitLSPServer {
     //  - All files that have in-memory modifications are syntactically scanned for tests here.
     let index = workspace.index(checkedFor: .inMemoryModifiedFiles(documentManager))
 
+    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    func documentManagerHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
+      return documentManager.fileHasInMemoryModifications(uri)
+    }
+
     let filesWithInMemoryState = documentManager.documents.keys.filter { uri in
       // Use the index to check for in-memory modifications so we can re-use its cache. If no index exits, ask the
       // document manager directly.
-      return index?.fileHasInMemoryModifications(uri) ?? documentManager.fileHasInMemoryModifications(uri)
+      if let index {
+        return index.fileHasInMemoryModifications(uri)
+      } else {
+        return documentManagerHasInMemoryModifications(uri)
+      }
     }
 
     let testsFromFilesWithInMemoryState = await filesWithInMemoryState.concurrentMap { (uri) -> [AnnotatedTestItem] in
-      guard let languageService = workspace.documentService.value[uri] else {
+      guard let languageService = workspace.documentService(for: uri) else {
         return []
       }
       return await orLog("Getting document tests for \(uri)") {
@@ -260,7 +269,7 @@ extension SourceKitLSPServer {
 
   func workspaceTests(_ req: WorkspaceTestsRequest) async throws -> [TestItem] {
     return await self.workspaces
-      .concurrentMap { await self.tests(in: $0) }
+      .concurrentMap { await self.tests(in: $0).prefixTestsWithModuleName(workspace: $0) }
       .flatMap { $0 }
       .sorted { $0.testItem.location < $1.testItem.location }
       .mergingTestsInExtensions()
@@ -272,6 +281,7 @@ extension SourceKitLSPServer {
     languageService: LanguageService
   ) async throws -> [TestItem] {
     return try await documentTestsWithoutMergingExtensions(req, workspace: workspace, languageService: languageService)
+      .prefixTestsWithModuleName(workspace: workspace)
       .mergingTestsInExtensions()
   }
 
@@ -476,10 +486,34 @@ fileprivate extension Array<AnnotatedTestItem> {
     }
     return result
   }
+
+  func prefixTestsWithModuleName(workspace: Workspace) async -> Self {
+    return await self.asyncMap({
+      return AnnotatedTestItem(
+        testItem: await $0.testItem.prefixIDWithModuleName(workspace: workspace),
+        isExtension: $0.isExtension
+      )
+    })
+  }
+}
+
+extension TestItem {
+  fileprivate func prefixIDWithModuleName(workspace: Workspace) async -> TestItem {
+    guard let configuredTarget = await workspace.buildSystemManager.canonicalConfiguredTarget(for: self.location.uri),
+      let moduleName = await workspace.buildSystemManager.moduleName(for: self.location.uri, in: configuredTarget)
+    else {
+      return self
+    }
+
+    var newTest = self
+    newTest.id = "\(moduleName).\(newTest.id)"
+    newTest.children = await newTest.children.asyncMap({ await $0.prefixIDWithModuleName(workspace: workspace) })
+    return newTest
+  }
 }
 
 extension SwiftLanguageService {
-  public func syntacticDocumentTests(
+  package func syntacticDocumentTests(
     for uri: DocumentURI,
     in workspace: Workspace
   ) async throws -> [AnnotatedTestItem]? {
@@ -500,7 +534,7 @@ extension SwiftLanguageService {
 }
 
 extension ClangLanguageService {
-  public func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async -> [AnnotatedTestItem]? {
+  package func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async -> [AnnotatedTestItem]? {
     return nil
   }
 }

@@ -13,14 +13,12 @@
 @_exported import Csourcekitd
 import Dispatch
 import Foundation
-import SKSupport
 import SwiftExtensions
 
-#if compiler(>=6)
-extension sourcekitd_api_request_handle_t: @retroactive @unchecked Sendable {}
-#else
-extension sourcekitd_api_request_handle_t: @unchecked Sendable {}
-#endif
+fileprivate struct SourceKitDRequestHandle: Sendable {
+  /// `nonisolated(unsafe)` is fine because we just use the handle as an opaque value.
+  nonisolated(unsafe) let handle: sourcekitd_api_request_handle_t
+}
 
 /// Access to sourcekitd API, taking care of initialization, shutdown, and notification handler
 /// multiplexing.
@@ -30,7 +28,7 @@ extension sourcekitd_api_request_handle_t: @unchecked Sendable {}
 ///
 /// *Implementors* are expected to handle initialization and shutdown, e.g. during `init` and
 /// `deinit` or by wrapping an existing sourcekitd session that outlives this object.
-public protocol SourceKitD: AnyObject, Sendable {
+package protocol SourceKitD: AnyObject, Sendable {
   /// The sourcekitd API functions.
   var api: sourcekitd_api_functions_t { get }
 
@@ -71,7 +69,7 @@ public protocol SourceKitD: AnyObject, Sendable {
   func logRequestCancellation(request: SKDRequestDictionary)
 }
 
-public enum SKDError: Error, Equatable {
+package enum SKDError: Error, Equatable {
   /// The service has crashed.
   case connectionInterrupted
 
@@ -84,31 +82,44 @@ public enum SKDError: Error, Equatable {
   /// The request was cancelled.
   case requestCancelled
 
+  /// The request exceeded the maximum allowed duration.
+  case timedOut
+
   /// Loading a required symbol from the sourcekitd library failed.
   case missingRequiredSymbol(String)
 }
 
 extension SourceKitD {
-
   // MARK: - Convenience API for requests.
 
   /// - Parameters:
-  ///   - req: The request to send to sourcekitd.
+  ///   - request: The request to send to sourcekitd.
+  ///   - timeout: The maximum duration how long to wait for a response. If no response is returned within this time,
+  ///     declare the request as having timed out.
   ///   - fileContents: The contents of the file that the request operates on. If sourcekitd crashes, the file contents
   ///     will be logged.
-  public func send(_ request: SKDRequestDictionary, fileContents: String?) async throws -> SKDResponseDictionary {
+  package func send(
+    _ request: SKDRequestDictionary,
+    timeout: Duration,
+    fileContents: String?
+  ) async throws -> SKDResponseDictionary {
     log(request: request)
 
-    let sourcekitdResponse: SKDResponse = try await withCancellableCheckedThrowingContinuation { continuation in
-      var handle: sourcekitd_api_request_handle_t? = nil
-      api.send_request(request.dict, &handle) { response in
-        continuation.resume(returning: SKDResponse(response!, sourcekitd: self))
-      }
-      return handle
-    } cancel: { handle in
-      if let handle {
-        logRequestCancellation(request: request)
-        api.cancel_request(handle)
+    let sourcekitdResponse = try await withTimeout(timeout) {
+      return try await withCancellableCheckedThrowingContinuation { (continuation) -> SourceKitDRequestHandle? in
+        var handle: sourcekitd_api_request_handle_t? = nil
+        self.api.send_request(request.dict, &handle) { response in
+          continuation.resume(returning: SKDResponse(response!, sourcekitd: self))
+        }
+        if let handle {
+          return SourceKitDRequestHandle(handle: handle)
+        }
+        return nil
+      } cancel: { (handle: SourceKitDRequestHandle?) in
+        if let handle {
+          self.logRequestCancellation(request: request)
+          self.api.cancel_request(handle.handle)
+        }
       }
     }
 
@@ -118,6 +129,9 @@ extension SourceKitD {
       if sourcekitdResponse.error == .connectionInterrupted {
         log(crashedRequest: request, fileContents: fileContents)
       }
+      if sourcekitdResponse.error == .requestCancelled && !Task.isCancelled {
+        throw SKDError.timedOut
+      }
       throw sourcekitdResponse.error!
     }
 
@@ -126,6 +140,6 @@ extension SourceKitD {
 }
 
 /// A sourcekitd notification handler in a class to allow it to be uniquely referenced.
-public protocol SKDNotificationHandler: AnyObject, Sendable {
+package protocol SKDNotificationHandler: AnyObject, Sendable {
   func notification(_: SKDResponse) -> Void
 }

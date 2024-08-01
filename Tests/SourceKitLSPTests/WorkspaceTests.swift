@@ -11,13 +11,13 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
-import LSPTestSupport
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
+import SKLogging
+import SKOptions
 import SKTestSupport
 import SourceKitLSP
 import TSCBasic
+import ToolchainRegistry
 import XCTest
 
 final class WorkspaceTests: XCTestCase {
@@ -77,7 +77,7 @@ final class WorkspaceTests: XCTestCase {
       },
       enableBackgroundIndexing: true
     )
-    _ = try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(PollIndexRequest())
 
     let (bUri, bPositions) = try project.openDocument("execB.swift")
 
@@ -191,6 +191,49 @@ final class WorkspaceTests: XCTestCase {
     XCTAssertEqual(diags, .full(RelatedFullDocumentDiagnosticReport(items: [])))
   }
 
+  func testCorrectWorkspaceForPackageSwiftInMultiSwiftPMWorkspaceSetup() async throws {
+    let project = try await MultiFileTestProject(
+      files: [
+        // PackageA
+        "PackageA/Sources/MyLibrary/libA.swift": "",
+        "PackageA/Package.swift": SwiftPMTestProject.defaultPackageManifest,
+
+        // PackageB
+        "PackageB/Sources/MyLibrary/libB.swift": "",
+        "PackageB/Package.swift": SwiftPMTestProject.defaultPackageManifest,
+      ],
+      workspaces: { scratchDir in
+        return [
+          WorkspaceFolder(uri: DocumentURI(scratchDir)),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageA"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageB"))),
+        ]
+      }
+    )
+
+    let pkgA = DocumentURI(
+      project.scratchDirectory
+        .appendingPathComponent("PackageA")
+        .appendingPathComponent("Package.swift")
+    )
+
+    let pkgB = DocumentURI(
+      project.scratchDirectory
+        .appendingPathComponent("PackageB")
+        .appendingPathComponent("Package.swift")
+    )
+
+    assertEqual(
+      await project.testClient.server.workspaceForDocument(uri: pkgA)?.rootUri,
+      DocumentURI(project.scratchDirectory.appendingPathComponent("PackageA"))
+    )
+
+    assertEqual(
+      await project.testClient.server.workspaceForDocument(uri: pkgB)?.rootUri,
+      DocumentURI(project.scratchDirectory.appendingPathComponent("PackageB"))
+    )
+  }
+
   func testSwiftPMPackageInSubfolder() async throws {
     let packageManifest = """
       // swift-tools-version: 5.7
@@ -229,7 +272,7 @@ final class WorkspaceTests: XCTestCase {
 
     let (uri, positions) = try project.openDocument("execA.swift")
 
-    _ = try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(PollIndexRequest())
 
     let otherCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
@@ -320,7 +363,7 @@ final class WorkspaceTests: XCTestCase {
       enableBackgroundIndexing: true
     )
 
-    _ = try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(PollIndexRequest())
 
     let (bUri, bPositions) = try project.openDocument("execB.swift")
 
@@ -362,7 +405,7 @@ final class WorkspaceTests: XCTestCase {
 
     let (aUri, aPositions) = try project.openDocument("execA.swift")
 
-    _ = try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(PollIndexRequest())
 
     let otherCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(aUri), position: aPositions["1️⃣"])
@@ -723,46 +766,6 @@ final class WorkspaceTests: XCTestCase {
       ]
     )
   }
-
-  public func testWorkspaceSpecificBuildSettings() async throws {
-    let project = try await SwiftPMTestProject(
-      files: [
-        "test.swift": """
-        #if MY_FLAG
-        let a: Int = ""
-        #endif
-        """
-      ],
-      workspaces: {
-        [
-          WorkspaceFolder(
-            uri: DocumentURI($0),
-            buildSetup: WorkspaceBuildSetup(
-              buildConfiguration: nil,
-              scratchPath: nil,
-              cFlags: nil,
-              cxxFlags: nil,
-              linkerFlags: nil,
-              swiftFlags: ["-DMY_FLAG"]
-            )
-          )
-        ]
-      }
-    )
-
-    _ = try project.openDocument("test.swift")
-    let report = try await project.testClient.send(
-      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(project.uri(for: "test.swift")))
-    )
-    guard case .full(let fullReport) = report else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
-    XCTAssertEqual(fullReport.items.count, 1)
-    let diag = try XCTUnwrap(fullReport.items.first)
-    XCTAssertEqual(diag.message, "Cannot convert value of type 'String' to specified type 'Int'")
-  }
-
   func testIntegrationTest() async throws {
     // This test is doing the same as `test-sourcekit-lsp` in the `swift-integration-tests` repo.
 
@@ -869,5 +872,100 @@ final class WorkspaceTests: XCTestCase {
     )
     // rdar://73762053: This should also suggest clib_other
     XCTAssert(cCompletionResponse.items.contains(where: { $0.insertText == "clib_func" }))
+  }
+
+  func testWorkspaceOptions() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "/.sourcekit-lsp/config.json": """
+        {
+          "swiftPM": {
+            "swiftCompilerFlags": ["-D", "TEST"]
+          }
+        }
+        """,
+        "Test.swift": """
+        func test() {
+        #if TEST
+          let x: String = 1
+        #endif
+        }
+        """,
+      ]
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+    let diagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    guard case .full(let diagnostics) = diagnostics else {
+      XCTFail("Expected full diagnostics")
+      return
+    }
+    XCTAssertEqual(diagnostics.items.map(\.message), ["Cannot convert value of type 'Int' to specified type 'String'"])
+  }
+
+  func testOptionsInInitializeRequest() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": """
+        func test() {
+        #if TEST
+          let x: String = 1
+        #endif
+        }
+        """
+      ],
+      initializationOptions: SourceKitLSPOptions(
+        swiftPM: SourceKitLSPOptions.SwiftPMOptions(swiftCompilerFlags: ["-D", "TEST"])
+      ).asLSPAny
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+    let diagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    guard case .full(let diagnostics) = diagnostics else {
+      XCTFail("Expected full diagnostics")
+      return
+    }
+    XCTAssertEqual(diagnostics.items.map(\.message), ["Cannot convert value of type 'Int' to specified type 'String'"])
+  }
+
+  func testWorkspaceOptionsOverrideGlobalOptions() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "/.sourcekit-lsp/config.json": """
+        {
+          "swiftPM": {
+            "swiftCompilerFlags": ["-D", "TEST"]
+          }
+        }
+        """,
+        "Test.swift": """
+        func test() {
+        #if TEST
+          let x: String = 1
+        #endif
+        #if OTHER
+          let x: String = 1.0
+        #endif
+        }
+        """,
+      ],
+      initializationOptions: SourceKitLSPOptions(
+        swiftPM: SourceKitLSPOptions.SwiftPMOptions(swiftCompilerFlags: ["-D", "OTHER"])
+      ).asLSPAny
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+    let diagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    guard case .full(let diagnostics) = diagnostics else {
+      XCTFail("Expected full diagnostics")
+      return
+    }
+    XCTAssertEqual(diagnostics.items.map(\.message), ["Cannot convert value of type 'Int' to specified type 'String'"])
   }
 }

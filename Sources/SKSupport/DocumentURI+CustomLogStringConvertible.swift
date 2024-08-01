@@ -11,18 +11,14 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 
 // MARK: - DocumentURI
 
 extension DocumentURI {
-  public var redactedDescription: String {
+  package var redactedDescription: String {
     return "<DocumentURI length=\(description.count) hash=\(description.hashForLogging)>"
   }
 }
-#if compiler(<5.11)
 extension DocumentURI: CustomLogStringConvertible {}
-#else
-extension DocumentURI: @retroactive CustomLogStringConvertible {}
-#endif

@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
 import LanguageServerProtocol
+import SKLogging
 import SwiftParser
 import SwiftSyntax
 
@@ -123,7 +123,7 @@ private func edits(from original: DocumentSnapshot, to edited: String) -> [TextE
 }
 
 extension SwiftLanguageService {
-  public func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]? {
+  package func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]? {
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
 
     guard let swiftFormat else {
@@ -144,7 +144,7 @@ extension SwiftLanguageService {
     writeStream.send(snapshot.text)
     try writeStream.close()
 
-    let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+    let result = try await process.waitUntilExitStoppingProcessOnTaskCancellation()
     guard result.exitStatus == .terminated(code: 0) else {
       let swiftFormatErrorMessage: String
       switch result.stderrOutput {

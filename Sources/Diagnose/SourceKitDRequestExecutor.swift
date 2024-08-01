@@ -18,8 +18,7 @@ import class TSCBasic.Process
 import struct TSCBasic.ProcessResult
 
 /// The different states in which a sourcekitd request can finish.
-@_spi(Testing)
-public enum SourceKitDRequestResult: Sendable {
+package enum SourceKitDRequestResult: Sendable {
   /// The request succeeded.
   case success(response: String)
 
@@ -44,8 +43,7 @@ fileprivate extension String {
 }
 
 /// An executor that can run a sourcekitd request and indicate whether the request reprodes a specified issue.
-@_spi(Testing)
-public protocol SourceKitRequestExecutor {
+package protocol SourceKitRequestExecutor {
   @MainActor func runSourceKitD(request: RequestInfo) async throws -> SourceKitDRequestResult
   @MainActor func runSwiftFrontend(request: RequestInfo) async throws -> SourceKitDRequestResult
 }
@@ -62,8 +60,7 @@ extension SourceKitRequestExecutor {
 }
 
 /// Runs `sourcekit-lsp run-sourcekitd-request` to check if a sourcekit-request crashes.
-@_spi(Testing)
-public class OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
+package class OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
   /// The path to `sourcekitd.framework/sourcekitd`.
   private let sourcekitd: URL
 
@@ -80,8 +77,7 @@ public class OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
   /// considered to reproduce the issue.
   private let reproducerPredicate: NSPredicate?
 
-  @_spi(Testing)
-  public init(sourcekitd: URL, swiftFrontend: URL, reproducerPredicate: NSPredicate?) {
+  package init(sourcekitd: URL, swiftFrontend: URL, reproducerPredicate: NSPredicate?) {
     self.sourcekitd = sourcekitd
     self.swiftFrontend = swiftFrontend
     self.reproducerPredicate = reproducerPredicate
@@ -139,8 +135,7 @@ public class OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
     }
   }
 
-  @_spi(Testing)
-  public func runSwiftFrontend(request: RequestInfo) async throws -> SourceKitDRequestResult {
+  package func runSwiftFrontend(request: RequestInfo) async throws -> SourceKitDRequestResult {
     try request.fileContents.write(to: temporarySourceFile, atomically: true, encoding: .utf8)
 
     let arguments = request.compilerArgs.replacing(["$FILE"], with: [temporarySourceFile.path])
@@ -152,8 +147,7 @@ public class OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
     return requestResult(for: result)
   }
 
-  @_spi(Testing)
-  public func runSourceKitD(request: RequestInfo) async throws -> SourceKitDRequestResult {
+  package func runSourceKitD(request: RequestInfo) async throws -> SourceKitDRequestResult {
     try request.fileContents.write(to: temporarySourceFile, atomically: true, encoding: .utf8)
     let requestString = try request.request(for: temporarySourceFile)
     try requestString.write(to: temporaryRequestFile, atomically: true, encoding: .utf8)

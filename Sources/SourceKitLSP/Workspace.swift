@@ -10,13 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import IndexStoreDB
-import LSPLogging
 import LanguageServerProtocol
-import SKCore
+import SKLogging
+import SKOptions
 import SKSupport
 import SemanticIndex
 import SwiftExtensions
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
@@ -46,26 +48,25 @@ fileprivate func firstNonNil<T>(
 /// "initialize" request has been made.
 ///
 /// Typically a workspace is contained in a root directory.
-public final class Workspace: Sendable {
+package final class Workspace: Sendable {
 
   /// The root directory of the workspace.
-  public let rootUri: DocumentURI?
+  package let rootUri: DocumentURI?
 
   /// Tracks dynamically registered server capabilities as well as the client's capabilities.
-  public let capabilityRegistry: CapabilityRegistry
+  package let capabilityRegistry: CapabilityRegistry
 
   /// The build system manager to use for documents in this workspace.
-  public let buildSystemManager: BuildSystemManager
+  package let buildSystemManager: BuildSystemManager
 
-  /// Build setup
-  public let buildSetup: BuildSetup
+  let options: SourceKitLSPOptions
 
   /// The source code index, if available.
   ///
   /// Usually a checked index (retrieved using `index(checkedFor:)`) should be used instead of the unchecked index.
   private let _uncheckedIndex: ThreadSafeBox<UncheckedIndex?>
 
-  public var uncheckedIndex: UncheckedIndex? {
+  package var uncheckedIndex: UncheckedIndex? {
     return _uncheckedIndex.value
   }
 
@@ -76,7 +77,7 @@ public final class Workspace: Sendable {
   private let documentManager: DocumentManager
 
   /// Language service for an open document, if available.
-  let documentService: ThreadSafeBox<[DocumentURI: LanguageService]> = ThreadSafeBox(initialValue: [:])
+  private let documentService: ThreadSafeBox<[DocumentURI: LanguageService]> = ThreadSafeBox(initialValue: [:])
 
   /// The `SemanticIndexManager` that keeps track of whose file's index is up-to-date in the workspace and schedules
   /// indexing and preparation tasks for files with out-of-date index.
@@ -89,7 +90,8 @@ public final class Workspace: Sendable {
     rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
     toolchainRegistry: ToolchainRegistry,
-    options: SourceKitLSPServer.Options,
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
     underlyingBuildSystem: BuildSystem?,
     index uncheckedIndex: UncheckedIndex?,
     indexDelegate: SourceKitIndexDelegate?,
@@ -99,24 +101,22 @@ public final class Workspace: Sendable {
     indexProgressStatusDidChange: @escaping @Sendable () -> Void
   ) async {
     self.documentManager = documentManager
-    self.buildSetup = options.buildSetup
     self.rootUri = rootUri
     self.capabilityRegistry = capabilityRegistry
+    self.options = options
     self._uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
     self.buildSystemManager = await BuildSystemManager(
       buildSystem: underlyingBuildSystem,
-      fallbackBuildSystem: FallbackBuildSystem(buildSetup: buildSetup),
+      fallbackBuildSystem: FallbackBuildSystem(options: options.fallbackBuildSystem),
       mainFilesProvider: uncheckedIndex,
       toolchainRegistry: toolchainRegistry
     )
-    if options.experimentalFeatures.contains(.backgroundIndexing),
-      let uncheckedIndex,
-      await buildSystemManager.supportsPreparation
-    {
+    if options.backgroundIndexingOrDefault, let uncheckedIndex, await buildSystemManager.supportsPreparation {
       self.semanticIndexManager = SemanticIndexManager(
         index: uncheckedIndex,
         buildSystemManager: buildSystemManager,
-        testHooks: options.indexTestHooks,
+        updateIndexStoreTimeout: options.index.updateIndexStoreTimeoutOrDefault,
+        testHooks: testHooks.indexTestHooks,
         indexTaskScheduler: indexTaskScheduler,
         logMessageToIndexLog: logMessageToIndexLog,
         indexTasksWereScheduled: indexTasksWereScheduled,
@@ -153,8 +153,8 @@ public final class Workspace: Sendable {
     capabilityRegistry: CapabilityRegistry,
     buildSystem: BuildSystem?,
     toolchainRegistry: ToolchainRegistry,
-    options: SourceKitLSPServer.Options,
-    indexOptions: IndexOptions = IndexOptions(),
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     indexTasksWereScheduled: @Sendable @escaping (Int) -> Void,
@@ -163,22 +163,30 @@ public final class Workspace: Sendable {
     var index: IndexStoreDB? = nil
     var indexDelegate: SourceKitIndexDelegate? = nil
 
-    let indexOptions = options.indexOptions
-    if let storePath = await firstNonNil(indexOptions.indexStorePath, await buildSystem?.indexStorePath),
-      let dbPath = await firstNonNil(indexOptions.indexDatabasePath, await buildSystem?.indexDatabasePath),
+    let indexOptions = options.index
+    if let storePath = await firstNonNil(
+      AbsolutePath(validatingOrNil: indexOptions.indexStorePath),
+      await buildSystem?.indexStorePath
+    ),
+      let dbPath = await firstNonNil(
+        AbsolutePath(validatingOrNil: indexOptions.indexDatabasePath),
+        await buildSystem?.indexDatabasePath
+      ),
       let libPath = await toolchainRegistry.default?.libIndexStore
     {
       do {
         let lib = try IndexStoreLibrary(dylibPath: libPath.pathString)
         indexDelegate = SourceKitIndexDelegate()
         let prefixMappings =
-          await firstNonNil(indexOptions.indexPrefixMappings, await buildSystem?.indexPrefixMappings) ?? []
+          await firstNonNil(
+            indexOptions.indexPrefixMap?.map { PathPrefixMapping(original: $0.key, replacement: $0.value) },
+            await buildSystem?.indexPrefixMappings
+          ) ?? []
         index = try IndexStoreDB(
           storePath: storePath.pathString,
           databasePath: dbPath.pathString,
           library: lib,
           delegate: indexDelegate,
-          listenToUnitEvents: indexOptions.listenToUnitEvents,
           prefixMappings: prefixMappings.map { PathMapping(original: $0.original, replacement: $0.replacement) }
         )
         logger.debug("Opened IndexStoreDB at \(dbPath) with store path \(storePath)")
@@ -193,6 +201,7 @@ public final class Workspace: Sendable {
       capabilityRegistry: capabilityRegistry,
       toolchainRegistry: toolchainRegistry,
       options: options,
+      testHooks: testHooks,
       underlyingBuildSystem: buildSystem,
       index: UncheckedIndex(index),
       indexDelegate: indexDelegate,
@@ -203,9 +212,10 @@ public final class Workspace: Sendable {
     )
   }
 
-  @_spi(Testing) public static func forTesting(
+  package static func forTesting(
     toolchainRegistry: ToolchainRegistry,
-    options: SourceKitLSPServer.Options,
+    options: SourceKitLSPOptions,
+    testHooks: TestHooks,
     underlyingBuildSystem: BuildSystem,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async -> Workspace {
@@ -215,6 +225,7 @@ public final class Workspace: Sendable {
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
       toolchainRegistry: toolchainRegistry,
       options: options,
+      testHooks: testHooks,
       underlyingBuildSystem: underlyingBuildSystem,
       index: nil,
       indexDelegate: nil,
@@ -239,10 +250,29 @@ public final class Workspace: Sendable {
     _uncheckedIndex.value = nil
   }
 
-  public func filesDidChange(_ events: [FileEvent]) async {
+  package func filesDidChange(_ events: [FileEvent]) async {
     await buildSystemManager.filesDidChange(events)
     await syntacticTestIndex.filesDidChange(events)
     await semanticIndexManager?.filesDidChange(events)
+  }
+
+  func documentService(for uri: DocumentURI) -> LanguageService? {
+    return documentService.value[uri]
+  }
+
+  /// Set a language service for a document uri and returns if none exists already.
+  /// If a language service already exists for this document, eg. because two requests start creating a language
+  /// service for a document and race, `newLanguageService` is dropped and the existing language service for the
+  /// document is returned.
+  func setDocumentService(for uri: DocumentURI, _ newLanguageService: any LanguageService) -> LanguageService {
+    return documentService.withLock { service in
+      if let languageService = service[uri] {
+        return languageService
+      }
+
+      service[uri] = newLanguageService
+      return newLanguageService
+    }
   }
 }
 
@@ -252,40 +282,5 @@ struct WeakWorkspace {
 
   init(_ value: Workspace? = nil) {
     self.value = value
-  }
-}
-
-public struct IndexOptions: Sendable {
-
-  /// Override the index-store-path provided by the build system.
-  public var indexStorePath: AbsolutePath?
-
-  /// Override the index-database-path provided by the build system.
-  public var indexDatabasePath: AbsolutePath?
-
-  /// Override the index prefix mappings provided by the build system.
-  public var indexPrefixMappings: [PathPrefixMapping]?
-
-  /// *For Testing* Whether the index should listen to unit events, or wait for
-  /// explicit calls to pollForUnitChangesAndWait().
-  public var listenToUnitEvents: Bool
-
-  /// The percentage of the machine's cores that should at most be used for background indexing.
-  ///
-  /// Setting this to a value < 1 ensures that background indexing doesn't use all CPU resources.
-  public var maxCoresPercentageToUseForBackgroundIndexing: Double
-
-  public init(
-    indexStorePath: AbsolutePath? = nil,
-    indexDatabasePath: AbsolutePath? = nil,
-    indexPrefixMappings: [PathPrefixMapping]? = nil,
-    listenToUnitEvents: Bool = true,
-    maxCoresPercentageToUseForBackgroundIndexing: Double = 1
-  ) {
-    self.indexStorePath = indexStorePath
-    self.indexDatabasePath = indexDatabasePath
-    self.indexPrefixMappings = indexPrefixMappings
-    self.listenToUnitEvents = listenToUnitEvents
-    self.maxCoresPercentageToUseForBackgroundIndexing = maxCoresPercentageToUseForBackgroundIndexing
   }
 }

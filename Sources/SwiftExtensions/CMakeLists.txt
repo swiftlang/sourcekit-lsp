@@ -1,10 +1,15 @@
 
 add_library(SwiftExtensions STATIC
+  Array+Safe.swift
   AsyncQueue.swift
   AsyncUtils.swift
+  CartesianProduct.swift
   Collection+Only.swift
   Collection+PartitionIntoBatches.swift
+  FileManager+SanitizedHomeDirectoryOfCurrentUser.swift
   NSLock+WithLock.swift
+  PipeAsStringHandler.swift
+  ResultExtensions.swift
   Sequence+AsyncMap.swift
   Task+WithPriorityChangedHandler.swift
   ThreadSafeBox.swift

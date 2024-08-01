@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
+import SKLogging
 import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
@@ -26,12 +26,30 @@ import WinSDK
 
 extension Process {
   /// Wait for the process to exit. If the task gets cancelled, during this time, send a `SIGINT` to the process.
+  /// Should the process not terminate on SIGINT after 2 seconds, it is killed using `SIGKILL`.
   @discardableResult
-  public func waitUntilExitSendingSigIntOnTaskCancellation() async throws -> ProcessResult {
+  package func waitUntilExitStoppingProcessOnTaskCancellation() async throws -> ProcessResult {
+    let hasExited = AtomicBool(initialValue: false)
     return try await withTaskCancellationHandler {
-      try await waitUntilExit()
+      defer {
+        hasExited.value = true
+      }
+      return try await waitUntilExit()
     } onCancel: {
       signal(SIGINT)
+      Task {
+        // Give the process 2 seconds to react to a SIGINT. If that doesn't work, kill the process.
+        try await Task.sleep(for: .seconds(2))
+        if !hasExited.value {
+          #if os(Windows)
+          // Windows does not define SIGKILL. Process.signal sends a `terminate` to the underlying Foundation process
+          // for any signal that is not SIGINT. Use `SIGABRT` to terminate the process.
+          signal(SIGABRT)
+          #else
+          signal(SIGKILL)
+          #endif
+        }
+      }
     }
   }
 
@@ -43,7 +61,7 @@ extension Process {
     arguments: [String],
     environmentBlock: ProcessEnvironmentBlock = ProcessEnv.block,
     workingDirectory: AbsolutePath?,
-    outputRedirection: OutputRedirection = .collect,
+    outputRedirection: OutputRedirection = .collect(redirectStderr: false),
     startNewProcessGroup: Bool = true,
     loggingHandler: LoggingHandler? = .none
   ) throws -> Process {
@@ -69,9 +87,33 @@ extension Process {
     do {
       try process.launch()
     } catch Process.Error.workingDirectoryNotSupported where workingDirectory != nil {
-      // TODO (indexing): We need to figure out how to set the working directory on all platforms.
+      return try Process.launchWithWorkingDirectoryUsingSh(
+        arguments: arguments,
+        environmentBlock: environmentBlock,
+        workingDirectory: workingDirectory!,
+        outputRedirection: outputRedirection,
+        startNewProcessGroup: startNewProcessGroup,
+        loggingHandler: loggingHandler
+      )
+    }
+    return process
+  }
+
+  private static func launchWithWorkingDirectoryUsingSh(
+    arguments: [String],
+    environmentBlock: ProcessEnvironmentBlock = ProcessEnv.block,
+    workingDirectory: AbsolutePath,
+    outputRedirection: OutputRedirection = .collect,
+    startNewProcessGroup: Bool = true,
+    loggingHandler: LoggingHandler? = .none
+  ) throws -> Process {
+    let shPath = "/usr/bin/sh"
+    guard FileManager.default.fileExists(atPath: shPath) else {
       logger.error(
-        "Working directory not supported on the platform. Launching process without working directory \(workingDirectory!.pathString)"
+        """
+        Working directory not supported on the platform and 'sh' could not be found. \
+        Launching process without working directory \(workingDirectory.pathString)
+        """
       )
       return try Process.launch(
         arguments: arguments,
@@ -82,18 +124,25 @@ extension Process {
         loggingHandler: loggingHandler
       )
     }
-    return process
+    return try Process.launch(
+      arguments: [shPath, "-c", #"cd "$0"; exec "$@""#, workingDirectory.pathString] + arguments,
+      environmentBlock: environmentBlock,
+      workingDirectory: nil,
+      outputRedirection: outputRedirection,
+      startNewProcessGroup: startNewProcessGroup,
+      loggingHandler: loggingHandler
+    )
   }
 
   /// Runs a new process with the given parameters and waits for it to exit, sending SIGINT if this task is cancelled.
   ///
   /// The process's priority tracks the priority of the current task.
   @discardableResult
-  public static func run(
+  package static func run(
     arguments: [String],
     environmentBlock: ProcessEnvironmentBlock = ProcessEnv.block,
     workingDirectory: AbsolutePath?,
-    outputRedirection: OutputRedirection = .collect,
+    outputRedirection: OutputRedirection = .collect(redirectStderr: false),
     startNewProcessGroup: Bool = true,
     loggingHandler: LoggingHandler? = .none
   ) async throws -> ProcessResult {
@@ -107,7 +156,7 @@ extension Process {
     )
     return try await withTaskPriorityChangedHandler(initialPriority: Task.currentPriority) { @Sendable in
       setProcessPriority(pid: process.processID, newPriority: Task.currentPriority)
-      return try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+      return try await process.waitUntilExitStoppingProcessOnTaskCancellation()
     } taskPriorityChanged: {
       setProcessPriority(pid: process.processID, newPriority: Task.currentPriority)
     }

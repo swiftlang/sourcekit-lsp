@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKCore
+import BuildSystemIntegration
 import SourceKitLSP
 import XCTest
 

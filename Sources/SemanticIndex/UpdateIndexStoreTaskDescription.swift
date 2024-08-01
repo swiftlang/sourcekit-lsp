@@ -10,19 +10,21 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import Foundation
-import LSPLogging
 import LanguageServerProtocol
-import SKCore
+import SKLogging
 import SKSupport
 import SwiftExtensions
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
+import struct TSCBasic.ProcessResult
 
 private let updateIndexStoreIDForLogging = AtomicUInt32(initialValue: 1)
 
-public enum FileToIndex: CustomLogStringConvertible {
+package enum FileToIndex: CustomLogStringConvertible {
   /// A non-header file
   case indexableFile(DocumentURI)
 
@@ -33,7 +35,7 @@ public enum FileToIndex: CustomLogStringConvertible {
   ///
   /// This file might be a header file that doesn't have build settings associated with it. For the actual compiler
   /// invocation that updates the index store, the `mainFile` should be used.
-  public var sourceFile: DocumentURI {
+  package var sourceFile: DocumentURI {
     switch self {
     case .indexableFile(let uri): return uri
     case .headerFile(header: let header, mainFile: _): return header
@@ -51,7 +53,7 @@ public enum FileToIndex: CustomLogStringConvertible {
     }
   }
 
-  public var description: String {
+  package var description: String {
     switch self {
     case .indexableFile(let uri):
       return uri.description
@@ -60,7 +62,7 @@ public enum FileToIndex: CustomLogStringConvertible {
     }
   }
 
-  public var redactedDescription: String {
+  package var redactedDescription: String {
     switch self {
     case .indexableFile(let uri):
       return uri.redactedDescription
@@ -71,9 +73,9 @@ public enum FileToIndex: CustomLogStringConvertible {
 }
 
 /// A file to index and the target in which the file should be indexed.
-public struct FileAndTarget: Sendable {
-  public let file: FileToIndex
-  public let target: ConfiguredTarget
+package struct FileAndTarget: Sendable {
+  package let file: FileToIndex
+  package let target: ConfiguredTarget
 }
 
 private enum IndexKind {
@@ -95,38 +97,49 @@ private enum IndexKind {
 /// Describes a task to index a set of source files.
 ///
 /// This task description can be scheduled in a `TaskScheduler`.
-public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
-  public static let idPrefix = "update-indexstore"
-  public let id = updateIndexStoreIDForLogging.fetchAndIncrement()
+package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
+  package static let idPrefix = "update-indexstore"
+  package let id = updateIndexStoreIDForLogging.fetchAndIncrement()
 
   /// The files that should be indexed.
-  public let filesToIndex: [FileAndTarget]
+  package let filesToIndex: [FileAndTarget]
 
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
-
-  private let indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>
 
   /// A reference to the underlying index store. Used to check if the index is already up-to-date for a file, in which
   /// case we don't need to index it again.
   private let index: UncheckedIndex
 
+  private let indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>
+
+  /// Whether files that have an up-to-date unit file should be indexed.
+  ///
+  /// In general, this should be `false`. The only situation when this should be set to `true` is when the user
+  /// explicitly requested a re-index of all files.
+  private let indexFilesWithUpToDateUnit: Bool
+
   /// See `SemanticIndexManager.logMessageToIndexLog`.
   private let logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
+
+  /// How long to wait until we cancel an update indexstore task. This timeout should be long enough that all
+  /// `swift-frontend` tasks finish within it. It prevents us from blocking the index if the type checker gets stuck on
+  /// an expression for a long time.
+  private let timeout: Duration
 
   /// Test hooks that should be called when the index task finishes.
   private let testHooks: IndexTestHooks
 
   /// The task is idempotent because indexing the same file twice produces the same result as indexing it once.
-  public var isIdempotent: Bool { true }
+  package var isIdempotent: Bool { true }
 
-  public var estimatedCPUCoreCount: Int { 1 }
+  package var estimatedCPUCoreCount: Int { 1 }
 
-  public var description: String {
+  package var description: String {
     return self.redactedDescription
   }
 
-  public var redactedDescription: String {
+  package var redactedDescription: String {
     return "update-indexstore-\(id)"
   }
 
@@ -139,18 +152,22 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     buildSystemManager: BuildSystemManager,
     index: UncheckedIndex,
     indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>,
+    indexFilesWithUpToDateUnit: Bool,
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
+    timeout: Duration,
     testHooks: IndexTestHooks
   ) {
     self.filesToIndex = filesToIndex
     self.buildSystemManager = buildSystemManager
     self.index = index
     self.indexStoreUpToDateTracker = indexStoreUpToDateTracker
+    self.indexFilesWithUpToDateUnit = indexFilesWithUpToDateUnit
     self.logMessageToIndexLog = logMessageToIndexLog
+    self.timeout = timeout
     self.testHooks = testHooks
   }
 
-  public func execute() async {
+  package func execute() async {
     // Only use the last two digits of the indexing ID for the logging scope to avoid creating too many scopes.
     // See comment in `withLoggingScope`.
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running indexing operation.
@@ -169,7 +186,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       let filesToIndex = filesToIndex.sorted(by: { $0.file.sourceFile.stringValue < $1.file.sourceFile.stringValue })
       // TODO (indexing): Once swiftc supports it, we should group files by target and index files within the same
       // target together in one swiftc invocation.
-      // https://github.com/apple/sourcekit-lsp/issues/1268
+      // https://github.com/swiftlang/sourcekit-lsp/issues/1268
       for file in filesToIndex {
         await updateIndexStore(forSingleFile: file.file, in: file.target)
       }
@@ -180,7 +197,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     }
   }
 
-  public func dependencies(
+  package func dependencies(
     to currentlyExecutingTasks: [UpdateIndexStoreTaskDescription]
   ) -> [TaskDependencyAction<UpdateIndexStoreTaskDescription>] {
     let selfMainFiles = Set(filesToIndex.map(\.file.mainFile))
@@ -206,7 +223,9 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       // If we know that the file is up-to-date without having ot hit the index, do that because it's fastest.
       return
     }
-    guard !index.checked(for: .modifiedFiles).hasUpToDateUnit(for: file.sourceFile, mainFile: file.mainFile)
+    guard
+      indexFilesWithUpToDateUnit
+        || !index.checked(for: .modifiedFiles).hasUpToDateUnit(for: file.sourceFile, mainFile: file.mainFile)
     else {
       logger.debug("Not indexing \(file.forLogging) because index has an up-to-date unit")
       // We consider a file's index up-to-date if we have any up-to-date unit. Changing build settings does not
@@ -356,19 +375,21 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     let stdoutHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
     let stderrHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
 
-    // Time out updating of the index store after 2 minutes. We don't expect any single file compilation to take longer
-    // than 2 minutes in practice, so this indicates that the compiler has entered a loop and we probably won't make any
-    // progress here. We will try indexing the file again when it is edited or when the project is re-opened.
-    // 2 minutes have been chosen arbitrarily.
-    let result = try await withTimeout(.seconds(120)) {
-      try await Process.run(
-        arguments: processArguments,
-        workingDirectory: workingDirectory,
-        outputRedirection: .stream(
-          stdout: { stdoutHandler.handleDataFromPipe(Data($0)) },
-          stderr: { stderrHandler.handleDataFromPipe(Data($0)) }
+    let result: ProcessResult
+    do {
+      result = try await withTimeout(timeout) {
+        try await Process.run(
+          arguments: processArguments,
+          workingDirectory: workingDirectory,
+          outputRedirection: .stream(
+            stdout: { stdoutHandler.handleDataFromPipe(Data($0)) },
+            stderr: { stderrHandler.handleDataFromPipe(Data($0)) }
+          )
         )
-      )
+      }
+    } catch {
+      logMessageToIndexLog(logID, "Finished error in \(start.duration(to: .now)): \(error)")
+      throw error
     }
     let exitStatus = result.exitStatus.exhaustivelySwitchable
     logMessageToIndexLog(logID, "Finished with \(exitStatus.description) in \(start.duration(to: .now))")

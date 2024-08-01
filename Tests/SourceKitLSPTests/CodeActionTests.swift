@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPTestSupport
 import LanguageServerProtocol
 import SKTestSupport
 import SourceKitLSP
@@ -1001,6 +1000,108 @@ final class CodeActionTests: XCTestCase {
       """
       var x = 1; var 1️⃣y = 2
       """
+    ) { uri, positions in
+      []
+    }
+  }
+
+  func testConvertStringConcatenationToStringInterpolation() async throws {
+    try await assertCodeActions(
+      #"""
+      0️⃣
+      1️⃣/*leading*/ #"["# + 2️⃣key + ": \(3️⃣d) " + 4️⃣value + ##"]"## /*trailing*/5️⃣
+      """#,
+      markers: ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"],
+      ranges: [("1️⃣", "2️⃣"), ("3️⃣", "4️⃣"), ("1️⃣", "5️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert String Concatenation to String Interpolation",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["0️⃣"]..<positions["5️⃣"],
+                  newText: ###"""
+
+                    /*leading*/ ##"[\##(key): \##(d) \##(value)]"## /*trailing*/
+                    """###
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertStringConcatenationToStringInterpolationWithInterspersingAndMultilineComments() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣"hello" + /*self.leading1*/   /**self.leading2*/   self   //self.trailing1
+      ///concat.leading1
+      2️⃣+/*concat.trailing1
+      line 1
+      line 2
+
+
+      line 3
+      */ value3️⃣
+      """,
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert String Concatenation to String Interpolation",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["3️⃣"],
+                  newText: #"""
+                    "hello\(/*self.leading1*/ /**self.leading2*/ self /*self.trailing1*/ /**concat.leading1*/)\(/*concat.trailing1 line 1 line 2   line 3 */ value)"
+                    """#
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertStringConcatenationToStringInterpolationNotShowUpMissingExpr() async throws {
+    try await assertCodeActions(
+      ###"""
+      1️⃣"Hello" + 2️⃣
+      """###,
+      ranges: [("1️⃣", "2️⃣")]
+    ) { uri, positions in
+      []
+    }
+  }
+
+  func testConvertStringConcatenationToStringInterpolationNotShowUpOnlyOneStringLiteral() async throws {
+    try await assertCodeActions(
+      ###"""
+      1️⃣"[\(2️⃣key): \(3️⃣d) 4️⃣\(value)]"5️⃣
+      """###,
+      ranges: [("1️⃣", "2️⃣"), ("3️⃣", "4️⃣"), ("1️⃣", "5️⃣")]
+    ) { uri, positions in
+      []
+    }
+  }
+
+  func testConvertStringConcatenationToStringInterpolationNotShowUpMultilineStringLiteral() async throws {
+    try await assertCodeActions(
+      ###"""
+      """
+      1️⃣Hello
+      """ + 2️⃣" World"
+      """###
     ) { uri, positions in
       []
     }

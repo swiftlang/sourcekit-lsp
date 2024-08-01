@@ -19,6 +19,7 @@ let allSyntaxCodeActions: [SyntaxCodeActionProvider.Type] = [
   AddSeparatorsToIntegerLiteral.self,
   ConvertIntegerLiteral.self,
   ConvertJSONToCodableStruct.self,
+  ConvertStringConcatenationToStringInterpolation.self,
   FormatRawStringLiteral.self,
   MigrateToNewIfLetSyntax.self,
   OpaqueParameterToGeneric.self,

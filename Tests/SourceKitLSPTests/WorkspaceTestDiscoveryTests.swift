@@ -10,12 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+@_spi(Testing) import BuildSystemIntegration
 import Foundation
-import LSPTestSupport
 import LanguageServerProtocol
-@_spi(Testing) import SKCore
 import SKTestSupport
 @_spi(Testing) import SourceKitLSP
+import ToolchainRegistry
 import XCTest
 
 private let packageManifestWithTestTarget = """
@@ -50,29 +50,22 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(
             uri: try project.uri(for: "MyTests.swift"),
             range: Range(try project.position(of: "1️⃣", in: "MyTests.swift"))
           ),
           children: [
             TestItem(
-              id: "MyTests/testMyLibrary()",
+              id: "MyLibraryTests.MyTests/testMyLibrary()",
               label: "testMyLibrary()",
-              disabled: false,
-              style: TestStyle.xcTest,
               location: Location(
                 uri: try project.uri(for: "MyTests.swift"),
                 range: Range(try project.position(of: "2️⃣", in: "MyTests.swift"))
-              ),
-              children: [],
-              tags: []
+              )
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -99,23 +92,16 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: try project.location(from: "1️⃣", to: "4️⃣", in: "MyTests.swift"),
           children: [
             TestItem(
-              id: "MyTests/testMyLibrary()",
+              id: "MyLibraryTests.MyTests/testMyLibrary()",
               label: "testMyLibrary()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift"),
-              children: [],
-              tags: []
+              location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift")
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -149,29 +135,22 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(
             uri: myTestsUri,
             range: Range(try project.position(of: "1️⃣", in: "MyTests.swift"))
           ),
           children: [
             TestItem(
-              id: "MyTests/testMyLibrary()",
+              id: "MyLibraryTests.MyTests/testMyLibrary()",
               label: "testMyLibrary()",
-              disabled: false,
-              style: TestStyle.xcTest,
               location: Location(
                 uri: myTestsUri,
                 range: Range(try project.position(of: "2️⃣", in: "MyTests.swift"))
-              ),
-              children: [],
-              tags: []
+              )
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -198,29 +177,22 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       testsAfterDocumentChanged,
       [
         TestItem(
-          id: "NotQuiteTests",
+          id: "MyLibraryTests.NotQuiteTests",
           label: "NotQuiteTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(
             uri: myTestsUri,
             range: newFilePositions["3️⃣"]..<newFilePositions["6️⃣"]
           ),
           children: [
             TestItem(
-              id: "NotQuiteTests/testSomething()",
+              id: "MyLibraryTests.NotQuiteTests/testSomething()",
               label: "testSomething()",
-              disabled: false,
-              style: TestStyle.xcTest,
               location: Location(
                 uri: myTestsUri,
                 range: newFilePositions["4️⃣"]..<newFilePositions["5️⃣"]
-              ),
-              children: [],
-              tags: []
+              )
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -256,23 +228,18 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: try project.location(from: "1️⃣", to: "4️⃣", in: "MyTests.swift"),
           children: [
             TestItem(
-              id: "MyTests/oneIsTwo()",
+              id: "MyLibraryTests.MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift"),
-              children: [],
-              tags: []
+              location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift")
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -308,42 +275,142 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: try project.location(from: "1️⃣", to: "4️⃣", in: "MyTests.swift"),
           children: [
             TestItem(
-              id: "MyTests/oneIsTwo()",
+              id: "MyLibraryTests.MyTests/oneIsTwo()",
               label: "oneIsTwo()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift"),
-              children: [],
-              tags: []
+              location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift")
             )
           ],
           tags: []
         ),
         TestItem(
-          id: "MyOldTests",
+          id: "MyLibraryTests.MyOldTests",
           label: "MyOldTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: try project.location(from: "5️⃣", to: "5️⃣", in: "MyTests.swift"),
           children: [
             TestItem(
-              id: "MyOldTests/testOld()",
+              id: "MyLibraryTests.MyOldTests/testOld()",
               label: "testOld()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: try project.location(from: "6️⃣", to: "6️⃣", in: "MyTests.swift"),
-              children: [],
-              tags: []
+              location: try project.location(from: "6️⃣", to: "6️⃣", in: "MyTests.swift")
             )
-          ],
-          tags: []
+          ]
+        ),
+      ]
+    )
+  }
+
+  func testTargetWithCustomModuleName() async throws {
+    let packageManifestWithCustomModuleName = """
+      let package = Package(
+        name: "MyLibrary",
+        targets: [
+          .testTarget(
+            name: "MyLibraryTests",
+            swiftSettings: [
+              .unsafeFlags(["-module-name", "Foo", "-module-name", "Bar"])
+            ]
+          )
+        ]
+      )
+      """
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/MyLibraryTests/MyTests.swift": """
+        import XCTest
+
+        1️⃣class MyTests: XCTestCase {
+          2️⃣func testMyLibrary() {}3️⃣
+        }4️⃣
+        """
+      ],
+      manifest: packageManifestWithCustomModuleName
+    )
+
+    // Last argument takes precedence, so expect Bar as the module name.
+
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
+
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "Bar.MyTests",
+          label: "MyTests",
+          location: try project.location(from: "1️⃣", to: "4️⃣", in: "MyTests.swift"),
+          children: [
+            TestItem(
+              id: "Bar.MyTests/testMyLibrary()",
+              label: "testMyLibrary()",
+              location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift")
+            )
+          ]
+        )
+      ]
+    )
+  }
+
+  func testMultipleTargetsWithSameXCTestClassName() async throws {
+    let packageManifestWithTwoTestTargets = """
+      let package = Package(
+        name: "MyLibrary",
+        targets: [.testTarget(name: "MyLibraryTests"), .testTarget(name: "MyLibraryTests2")]
+      )
+      """
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/MyLibraryTests/MyTests.swift": """
+        import XCTest
+
+        1️⃣class MyTests: XCTestCase {
+          2️⃣func testMyLibrary() {}3️⃣
+        }4️⃣
+        """,
+        "Tests/MyLibraryTests2/MyTests2.swift": """
+        import XCTest
+
+        5️⃣class MyTests: XCTestCase {
+          6️⃣func testMyLibrary() {}7️⃣
+        }8️⃣
+        """,
+      ],
+      manifest: packageManifestWithTwoTestTargets
+    )
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
+
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyLibraryTests.MyTests",
+          label: "MyTests",
+          location: try project.location(from: "1️⃣", to: "4️⃣", in: "MyTests.swift"),
+          children: [
+            TestItem(
+              id: "MyLibraryTests.MyTests/testMyLibrary()",
+              label: "testMyLibrary()",
+              location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift")
+            )
+          ]
+        ),
+        TestItem(
+          id: "MyLibraryTests2.MyTests",
+          label: "MyTests",
+          location: try project.location(from: "5️⃣", to: "8️⃣", in: "MyTests2.swift"),
+          children: [
+            TestItem(
+              id: "MyLibraryTests2.MyTests/testMyLibrary()",
+              label: "testMyLibrary()",
+              location: try project.location(from: "6️⃣", to: "7️⃣", in: "MyTests2.swift")
+            )
+          ]
         ),
       ]
     )
@@ -378,23 +445,16 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       testsAfterDocumentOpen,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: uri, range: positions["2️⃣"]..<positions["2️⃣"]),
           children: [
             TestItem(
-              id: "MyTests/testMyLibrary()",
+              id: "MyLibraryTests.MyTests/testMyLibrary()",
               label: "testMyLibrary()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: uri, range: positions["4️⃣"]..<positions["4️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["4️⃣"]..<positions["4️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -415,23 +475,16 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["6️⃣"]),
           children: [
             TestItem(
-              id: "MyTests/testMyLibraryUpdated()",
+              id: "MyLibraryTests.MyTests/testMyLibraryUpdated()",
               label: "testMyLibraryUpdated()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: uri, range: positions["3️⃣"]..<positions["5️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["3️⃣"]..<positions["5️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -475,42 +528,28 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "MyFirstTests",
+          id: "MyLibraryTests.MyFirstTests",
           label: "MyFirstTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
-              id: "MyFirstTests/testOneUpdated()",
+              id: "MyLibraryTests.MyFirstTests/testOneUpdated()",
               label: "testOneUpdated()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         ),
         TestItem(
-          id: "MySecondTests",
+          id: "MyLibraryTests.MySecondTests",
           label: "MySecondTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: try project.location(from: "5️⃣", to: "5️⃣", in: "MySecondTests.swift"),
           children: [
             TestItem(
-              id: "MySecondTests/testTwo()",
+              id: "MyLibraryTests.MySecondTests/testTwo()",
               label: "testTwo()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: try project.location(from: "6️⃣", to: "6️⃣", in: "MySecondTests.swift"),
-              children: [],
-              tags: []
+              location: try project.location(from: "6️⃣", to: "6️⃣", in: "MySecondTests.swift")
             )
-          ],
-          tags: []
+          ]
         ),
       ]
     )
@@ -597,23 +636,16 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["6️⃣"]),
           children: [
             TestItem(
-              id: "MyTests/testSomething()",
+              id: "MyLibraryTests.MyTests/testSomething()",
               label: "testSomething()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: uri, range: positions["3️⃣"]..<positions["5️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["3️⃣"]..<positions["5️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -641,21 +673,14 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["6️⃣"]),
           children: [
             TestItem(
               id: "MyTests/testSomething()",
               label: "testSomething()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: uri, range: positions["3️⃣"]..<positions["5️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["3️⃣"]..<positions["5️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -681,21 +706,14 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: project.fileURI, range: Range(project.positions["1️⃣"])),
           children: [
             TestItem(
               id: "MyTests/testSomething()",
               label: "testSomething()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: project.fileURI, range: Range(project.positions["2️⃣"])),
-              children: [],
-              tags: []
+              location: Location(uri: project.fileURI, range: Range(project.positions["2️⃣"]))
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -745,21 +763,14 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: try project.location(from: "1️⃣", to: "4️⃣", in: "MyTests.swift"),
           children: [
             TestItem(
               id: "MyTests/testSomething()",
               label: "testSomething()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift"),
-              children: [],
-              tags: []
+              location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift")
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -785,23 +796,16 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
 
     let expectedTests = [
       TestItem(
-        id: "MyTests",
+        id: "MyLibraryTests.MyTests",
         label: "MyTests",
-        disabled: false,
-        style: TestStyle.xcTest,
         location: try project.location(from: "1️⃣", to: "4️⃣", in: "MyTests.swift"),
         children: [
           TestItem(
-            id: "MyTests/testMyLibrary()",
+            id: "MyLibraryTests.MyTests/testMyLibrary()",
             label: "testMyLibrary()",
-            disabled: false,
-            style: TestStyle.xcTest,
-            location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift"),
-            children: [],
-            tags: []
+            location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift")
           )
-        ],
-        tags: []
+        ]
       )
     ]
 
@@ -868,7 +872,6 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       class NotQuiteTest: SomeClass {
         func testMyLibrary() {}
       }
-
       """
 
     let project = try await IndexedSingleSwiftFileTestProject(originalContents, allowBuildFailure: true)
@@ -931,23 +934,16 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: try project.location(from: "1️⃣", to: "1️⃣", in: "Test.m"),
           children: [
             TestItem(
-              id: "MyTests/testSomething",
+              id: "MyLibraryTests.MyTests/testSomething",
               label: "testSomething",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: try project.location(from: "2️⃣", to: "2️⃣", in: "Test.m"),
-              children: [],
-              tags: []
+              location: try project.location(from: "2️⃣", to: "2️⃣", in: "Test.m")
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -1001,23 +997,16 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
-              id: "MyTests/testSomething",
+              id: "MyLibraryTests.MyTests/testSomething",
               label: "testSomething",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
-          ],
-          tags: []
+          ]
         )
       ]
     )
@@ -1052,34 +1041,50 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       tests,
       [
         TestItem(
-          id: "MyTests",
+          id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          disabled: false,
           style: TestStyle.swiftTesting,
           location: Location(uri: fileBURI, range: fileBPositions["1️⃣"]..<fileBPositions["2️⃣"]),
           children: [
             TestItem(
-              id: "MyTests/inStruct()",
+              id: "MyLibraryTests.MyTests/inStruct()",
               label: "inStruct()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: fileBURI, range: fileBPositions["3️⃣"]..<fileBPositions["4️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: fileBURI, range: fileBPositions["3️⃣"]..<fileBPositions["4️⃣"])
             ),
             TestItem(
-              id: "MyTests/inExtension()",
+              id: "MyLibraryTests.MyTests/inExtension()",
               label: "inExtension()",
-              disabled: false,
               style: TestStyle.swiftTesting,
-              location: Location(uri: fileAURI, range: fileAPositions["5️⃣"]..<fileAPositions["6️⃣"]),
-              children: [],
-              tags: []
+              location: Location(uri: fileAURI, range: fileAPositions["5️⃣"]..<fileAPositions["6️⃣"])
             ),
-          ],
-          tags: []
+          ]
         )
       ]
+    )
+  }
+}
+
+extension TestItem {
+  init(
+    id: String,
+    label: String,
+    disabled: Bool = false,
+    style: String = TestStyle.xcTest,
+    location: Location,
+    children: [TestItem] = [],
+    tags: [TestTag] = []
+  ) {
+    self.init(
+      id: id,
+      label: label,
+      description: nil,
+      sortText: nil,
+      disabled: disabled,
+      style: style,
+      location: location,
+      children: children,
+      tags: tags
     )
   }
 }

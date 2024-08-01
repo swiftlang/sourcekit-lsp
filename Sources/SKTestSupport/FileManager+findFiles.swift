@@ -14,7 +14,7 @@ import Foundation
 
 extension FileManager {
   /// Returns the URLs of all files with the given file extension in the given directory (recursively).
-  public func findFiles(withExtension extensionName: String, in directory: URL) -> [URL] {
+  package func findFiles(withExtension extensionName: String, in directory: URL) -> [URL] {
     var result: [URL] = []
     let enumerator = self.enumerator(at: directory, includingPropertiesForKeys: nil)
     while let url = enumerator?.nextObject() as? URL {
@@ -26,7 +26,7 @@ extension FileManager {
   }
 
   /// Returns the URLs of all files with the given file name in the given directory (recursively).
-  public func findFiles(named name: String, in directory: URL) -> [URL] {
+  package func findFiles(named name: String, in directory: URL) -> [URL] {
     var result: [URL] = []
     let enumerator = self.enumerator(at: directory, includingPropertiesForKeys: nil)
     while let url = enumerator?.nextObject() as? URL {

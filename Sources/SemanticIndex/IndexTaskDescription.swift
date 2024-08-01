@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKCore
-
 /// Protocol of tasks that are executed on the index task scheduler.
 ///
 /// It is assumed that `IndexTaskDescription` of different types are allowed to execute in parallel.
@@ -41,41 +39,41 @@ extension IndexTaskDescription {
 }
 
 /// Type-erased wrapper of an `IndexTaskDescription`.
-public struct AnyIndexTaskDescription: TaskDescriptionProtocol {
+package struct AnyIndexTaskDescription: TaskDescriptionProtocol {
   let wrapped: any IndexTaskDescription
 
   init(_ wrapped: any IndexTaskDescription) {
     self.wrapped = wrapped
   }
 
-  public var isIdempotent: Bool {
+  package var isIdempotent: Bool {
     return wrapped.isIdempotent
   }
 
-  public var estimatedCPUCoreCount: Int {
+  package var estimatedCPUCoreCount: Int {
     return wrapped.estimatedCPUCoreCount
   }
 
-  public var id: String {
+  package var id: String {
     return "\(type(of: wrapped).idPrefix)-\(wrapped.id)"
   }
 
-  public var description: String {
+  package var description: String {
     return wrapped.description
   }
 
-  public var redactedDescription: String {
+  package var redactedDescription: String {
     return wrapped.redactedDescription
   }
 
-  public func execute() async {
+  package func execute() async {
     return await wrapped.execute()
   }
 
   /// Forward to the underlying task to compute the dependencies. Preparation and index tasks don't have any
   /// dependencies that are managed by `TaskScheduler`. `SemanticIndexManager` awaits the preparation of a target before
   /// indexing files within it.
-  public func dependencies(
+  package func dependencies(
     to currentlyExecutingTasks: [AnyIndexTaskDescription]
   ) -> [TaskDependencyAction<AnyIndexTaskDescription>] {
     return wrapped.dependencies(to: currentlyExecutingTasks)

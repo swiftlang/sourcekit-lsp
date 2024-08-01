@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPTestSupport
 import LanguageServerProtocol
 import SKTestSupport
 import XCTest
@@ -45,7 +44,7 @@ func assertFoldingRanges(
   expectedRanges: [FoldingRangeSpec],
   rangeLimit: Int? = nil,
   lineFoldingOnly: Bool = false,
-  file: StaticString = #file,
+  file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
   let capabilities = ClientCapabilities(

@@ -56,10 +56,8 @@ import SwiftSyntax
 ///   }
 /// }
 /// ```
-@_spi(Testing)
-public struct ConvertJSONToCodableStruct: EditRefactoringProvider {
-  @_spi(Testing)
-  public static func textRefactor(
+package struct ConvertJSONToCodableStruct: EditRefactoringProvider {
+  package static func textRefactor(
     syntax: Syntax,
     in context: Void
   ) -> [SourceEdit] {

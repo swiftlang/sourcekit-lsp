@@ -10,10 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPTestSupport
 import LanguageServerProtocol
+import SKOptions
 import SKTestSupport
-import SourceKitLSP
+@_spi(Testing) import SourceKitLSP
+import SwiftExtensions
 import XCTest
 
 final class ExecuteCommandTests: XCTestCase {
@@ -39,24 +40,33 @@ final class ExecuteCommandTests: XCTestCase {
 
     let metadata = SourceKitLSPCommandMetadata(textDocument: TextDocumentIdentifier(uri))
 
-    var command = try args.asCommand()
+    var command = args.asCommand()
     command.arguments?.append(metadata.encodeToLSPAny())
 
     let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
 
+    let expectation = self.expectation(description: "Handle ApplyEditRequest")
+    let applyEditTitle = ThreadSafeBox<String?>(initialValue: nil)
+    let applyEditWorkspaceEdit = ThreadSafeBox<WorkspaceEdit?>(initialValue: nil)
+
     testClient.handleSingleRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
+      applyEditTitle.value = req.label
+      applyEditWorkspaceEdit.value = req.edit
+      expectation.fulfill()
+
       return ApplyEditResponse(applied: true, failureReason: nil)
     }
 
-    let result = try await testClient.send(request)
+    let _ = try await testClient.send(request)
 
-    guard case .dictionary(let resultDict) = result else {
-      XCTFail("Result is not a dictionary.")
-      return
-    }
+    try await fulfillmentOfOrThrow([expectation])
 
+    let label = try XCTUnwrap(applyEditTitle.value)
+    let edit = try XCTUnwrap(applyEditWorkspaceEdit.value)
+
+    XCTAssertEqual(label, "Localize String")
     XCTAssertEqual(
-      WorkspaceEdit(fromLSPDictionary: resultDict),
+      edit,
       WorkspaceEdit(changes: [
         uri: [
           TextEdit(
@@ -95,24 +105,33 @@ final class ExecuteCommandTests: XCTestCase {
 
     let metadata = SourceKitLSPCommandMetadata(textDocument: TextDocumentIdentifier(uri))
 
-    var command = try args.asCommand()
+    var command = args.asCommand()
     command.arguments?.append(metadata.encodeToLSPAny())
 
     let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
 
+    let expectation = self.expectation(description: "Handle ApplyEditRequest")
+    let applyEditTitle = ThreadSafeBox<String?>(initialValue: nil)
+    let applyEditWorkspaceEdit = ThreadSafeBox<WorkspaceEdit?>(initialValue: nil)
+
     testClient.handleSingleRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
+      applyEditTitle.value = req.label
+      applyEditWorkspaceEdit.value = req.edit
+      expectation.fulfill()
+
       return ApplyEditResponse(applied: true, failureReason: nil)
     }
 
-    let result = try await testClient.send(request)
+    let _ = try await testClient.send(request)
 
-    guard case .dictionary(let resultDict) = result else {
-      XCTFail("Result is not a dictionary.")
-      return
-    }
+    try await fulfillmentOfOrThrow([expectation])
 
+    let label = try XCTUnwrap(applyEditTitle.value)
+    let edit = try XCTUnwrap(applyEditWorkspaceEdit.value)
+
+    XCTAssertEqual(label, "Extract Method")
     XCTAssertEqual(
-      WorkspaceEdit(fromLSPDictionary: resultDict),
+      edit,
       WorkspaceEdit(changes: [
         uri: [
           TextEdit(
@@ -134,6 +153,355 @@ final class ExecuteCommandTests: XCTestCase {
         ]
       ])
     )
+  }
+
+  func testFreestandingMacroExpansion() async throws {
+    try await SkipUnless.canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild()
+    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
+
+    let files: [RelativeFileLocation: String] = [
+      "MyMacros/MyMacros.swift": #"""
+      import SwiftCompilerPlugin
+      import SwiftSyntax
+      import SwiftSyntaxBuilder
+      import SwiftSyntaxMacros
+
+      public struct StringifyMacro: ExpressionMacro {
+        public static func expansion(
+          of node: some FreestandingMacroExpansionSyntax,
+          in context: some MacroExpansionContext
+        ) -> ExprSyntax {
+          guard let argument = node.argumentList.first?.expression else {
+            fatalError("compiler bug: the macro does not have any arguments")
+          }
+
+          return "(\(argument), \(literal: argument.description))"
+        }
+      }
+
+      @main
+      struct MyMacroPlugin: CompilerPlugin {
+        let providingMacros: [Macro.Type] = [
+          StringifyMacro.self,
+        ]
+      }
+      """#,
+      "MyMacroClient/MyMacroClient.swift": """
+      @freestanding(expression)
+      public macro stringify<T>(_ value: T) -> (T, String) = #externalMacro(module: "MyMacros", type: "StringifyMacro")
+
+      func test() {
+        1️⃣#2️⃣stringify3️⃣(1 + 2)
+      }
+      """,
+    ]
+
+    let options = SourceKitLSPOptions.testDefault(experimentalFeatures: [.showMacroExpansions])
+
+    for (getReferenceDocument, peekDocuments) in cartesianProduct([true, false], [true, false]) {
+      let project = try await SwiftPMTestProject(
+        files: files,
+        manifest: SwiftPMTestProject.macroPackageManifest,
+        capabilities: ClientCapabilities(experimental: [
+          "workspace/peekDocuments": .bool(peekDocuments),
+          "workspace/getReferenceDocument": .bool(getReferenceDocument),
+        ]),
+        options: options,
+        enableBackgroundIndexing: true
+      )
+
+      let (uri, positions) = try project.openDocument("MyMacroClient.swift")
+
+      let positionMarkersToBeTested = [
+        (start: "1️⃣", end: "1️⃣"),
+        (start: "2️⃣", end: "2️⃣"),
+        (start: "1️⃣", end: "3️⃣"),
+        (start: "2️⃣", end: "3️⃣"),
+      ]
+
+      for positionMarker in positionMarkersToBeTested {
+        let args = ExpandMacroCommand(
+          positionRange: positions[positionMarker.start]..<positions[positionMarker.end],
+          textDocument: TextDocumentIdentifier(uri)
+        )
+
+        let metadata = SourceKitLSPCommandMetadata(textDocument: TextDocumentIdentifier(uri))
+
+        var command = args.asCommand()
+        command.arguments?.append(metadata.encodeToLSPAny())
+
+        let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
+
+        if peekDocuments && getReferenceDocument {
+          let expectation = self.expectation(description: "Handle Peek Documents Request")
+          let peekDocumentsRequestURIs = ThreadSafeBox<[DocumentURI]?>(initialValue: nil)
+
+          project.testClient.handleSingleRequest { (req: PeekDocumentsRequest) in
+            peekDocumentsRequestURIs.value = req.locations
+            expectation.fulfill()
+            return PeekDocumentsResponse(success: true)
+          }
+
+          _ = try await project.testClient.send(request)
+
+          try await fulfillmentOfOrThrow([expectation])
+
+          let uris = try XCTUnwrap(
+            peekDocumentsRequestURIs.value,
+            "Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+          )
+
+          var filesContents = [String]()
+          for uri in uris {
+            let result = try await project.testClient.send(GetReferenceDocumentRequest(uri: uri))
+
+            filesContents.append(result.content)
+          }
+
+          XCTAssertEqual(
+            filesContents.only,
+            "(1 + 2, \"1 + 2\")",
+            "File doesn't contain macro expansion. Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+          )
+
+          let urls = uris.map { $0.arbitrarySchemeURL }
+
+          XCTAssertEqual(
+            urls.only?.lastPathComponent,
+            "L5C3-L5C20.swift",
+            "Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+          )
+        } else {
+          let expectation = self.expectation(description: "Handle Show Document Request")
+          let showDocumentRequestURI = ThreadSafeBox<DocumentURI?>(initialValue: nil)
+
+          project.testClient.handleSingleRequest { (req: ShowDocumentRequest) in
+            showDocumentRequestURI.value = req.uri
+            expectation.fulfill()
+            return ShowDocumentResponse(success: true)
+          }
+
+          _ = try await project.testClient.send(request)
+
+          try await fulfillmentOfOrThrow([expectation])
+
+          let url = try XCTUnwrap(
+            showDocumentRequestURI.value?.fileURL,
+            "Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+          )
+
+          let fileContents = try String(contentsOf: url, encoding: .utf8)
+
+          XCTAssertEqual(
+            fileContents,
+            """
+            // MyMacroClient.swift @ 5:3 - 5:20
+            (1 + 2, \"1 + 2\")
+
+            """,
+            "File doesn't contain macro expansion. Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+          )
+
+          XCTAssertEqual(
+            url.lastPathComponent,
+            "MyMacroClient.swift",
+            "Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+          )
+        }
+      }
+    }
+  }
+
+  func testAttachedMacroExpansion() async throws {
+    try await SkipUnless.canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild()
+    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
+
+    let files: [RelativeFileLocation: String] = [
+      "MyMacros/MyMacros.swift": #"""
+      import SwiftCompilerPlugin
+      import SwiftSyntax
+      import SwiftSyntaxBuilder
+      import SwiftSyntaxMacros
+
+      public struct DictionaryStorageMacro {}
+
+      extension DictionaryStorageMacro: MemberMacro {
+        public static func expansion(
+          of node: AttributeSyntax,
+          providingMembersOf declaration: some DeclGroupSyntax,
+          in context: some MacroExpansionContext
+        ) throws -> [DeclSyntax] {
+          return ["\n  var _storage: [String: Any] = [:]"]
+        }
+      }
+
+      extension DictionaryStorageMacro: MemberAttributeMacro {
+        public static func expansion(
+          of node: AttributeSyntax,
+          attachedTo declaration: some DeclGroupSyntax,
+          providingAttributesFor member: some DeclSyntaxProtocol,
+          in context: some MacroExpansionContext
+        ) throws -> [AttributeSyntax] {
+          return [
+            AttributeSyntax(
+              leadingTrivia: [.newlines(1), .spaces(2)],
+              attributeName: IdentifierTypeSyntax(
+                name: .identifier("DictionaryStorageProperty")
+              )
+            )
+          ]
+        }
+      }
+
+      @main
+      struct MyMacroPlugin: CompilerPlugin {
+        let providingMacros: [Macro.Type] = [
+          DictionaryStorageMacro.self
+        ]
+      }
+      """#,
+      "MyMacroClient/MyMacroClient.swift": #"""
+      @attached(memberAttribute)
+      @attached(member, names: named(_storage))
+      public macro DictionaryStorage() = #externalMacro(module: "MyMacros", type: "DictionaryStorageMacro")
+
+      1️⃣@2️⃣DictionaryStorage3️⃣
+      struct Point {
+        var x: Int = 1
+        var y: Int = 2
+      }
+      """#,
+    ]
+
+    let options = SourceKitLSPOptions.testDefault(experimentalFeatures: [.showMacroExpansions])
+
+    for (getReferenceDocument, peekDocuments) in cartesianProduct([true, false], [true, false]) {
+      let project = try await SwiftPMTestProject(
+        files: files,
+        manifest: SwiftPMTestProject.macroPackageManifest,
+        capabilities: ClientCapabilities(experimental: [
+          "workspace/peekDocuments": .bool(peekDocuments),
+          "workspace/getReferenceDocument": .bool(getReferenceDocument),
+        ]),
+        options: options,
+        enableBackgroundIndexing: true
+      )
+
+      let (uri, positions) = try project.openDocument("MyMacroClient.swift")
+
+      let positionMarkersToBeTested = [
+        (start: "1️⃣", end: "1️⃣"),
+        (start: "2️⃣", end: "2️⃣"),
+        (start: "1️⃣", end: "3️⃣"),
+        (start: "2️⃣", end: "3️⃣"),
+      ]
+
+      for positionMarker in positionMarkersToBeTested {
+        let args = ExpandMacroCommand(
+          positionRange: positions[positionMarker.start]..<positions[positionMarker.end],
+          textDocument: TextDocumentIdentifier(uri)
+        )
+
+        let metadata = SourceKitLSPCommandMetadata(textDocument: TextDocumentIdentifier(uri))
+
+        var command = args.asCommand()
+        command.arguments?.append(metadata.encodeToLSPAny())
+
+        let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
+
+        if peekDocuments && getReferenceDocument {
+          let expectation = self.expectation(description: "Handle Peek Documents Request")
+
+          let peekDocumentsRequestURIs = ThreadSafeBox<[DocumentURI]?>(initialValue: nil)
+
+          project.testClient.handleSingleRequest { (req: PeekDocumentsRequest) in
+            peekDocumentsRequestURIs.value = req.locations
+            expectation.fulfill()
+            return PeekDocumentsResponse(success: true)
+          }
+
+          _ = try await project.testClient.send(request)
+
+          try await fulfillmentOfOrThrow([expectation])
+
+          let uris = try XCTUnwrap(
+            peekDocumentsRequestURIs.value,
+            "Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+          )
+
+          var filesContents = [String]()
+          for uri in uris {
+            let result = try await project.testClient.send(GetReferenceDocumentRequest(uri: uri))
+
+            filesContents.append(result.content)
+          }
+
+          XCTAssertEqual(
+            filesContents,
+            [
+              "@DictionaryStorageProperty",
+              "@DictionaryStorageProperty",
+              "var _storage: [String: Any] = [:]",
+            ],
+            "Files doesn't contain correct macro expansion. Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+          )
+
+          let urls = uris.map { $0.arbitrarySchemeURL }
+
+          XCTAssertEqual(
+            urls.map { $0.lastPathComponent },
+            [
+              "L7C3-L7C3.swift",
+              "L8C3-L8C3.swift",
+              "L9C1-L9C1.swift",
+            ],
+            "Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+          )
+        } else {
+          let expectation = self.expectation(description: "Handle Show Document Request")
+          let showDocumentRequestURI = ThreadSafeBox<DocumentURI?>(initialValue: nil)
+
+          project.testClient.handleSingleRequest { (req: ShowDocumentRequest) in
+            showDocumentRequestURI.value = req.uri
+            expectation.fulfill()
+            return ShowDocumentResponse(success: true)
+          }
+
+          _ = try await project.testClient.send(request)
+
+          try await fulfillmentOfOrThrow([expectation])
+
+          let url = try XCTUnwrap(
+            showDocumentRequestURI.value?.fileURL,
+            "Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+          )
+
+          let fileContents = try String(contentsOf: url, encoding: .utf8)
+
+          XCTAssertEqual(
+            fileContents,
+            """
+            // MyMacroClient.swift @ 7:3 - 7:3
+            @DictionaryStorageProperty
+
+            // MyMacroClient.swift @ 8:3 - 8:3
+            @DictionaryStorageProperty
+
+            // MyMacroClient.swift @ 9:1 - 9:1
+            var _storage: [String: Any] = [:]
+
+            """,
+            "File doesn't contain macro expansion. Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+          )
+
+          XCTAssertEqual(
+            url.lastPathComponent,
+            "MyMacroClient.swift",
+            "Failed for position range between \(positionMarker.start) and \(positionMarker.end)"
+          )
+        }
+      }
+    }
   }
 
   func testLSPCommandMetadataRetrieval() {

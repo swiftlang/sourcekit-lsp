@@ -10,10 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-import TSCLibc
-
 import class TSCBasic.LocalFileOutputByteStream
 import class TSCBasic.ThreadSafeOutputByteStream
+
+#if canImport(Darwin)
+import TSCLibc
+#else
+// FIXME: (async-workaround) @preconcurrency needed because stderr is not sendable on Linux rdar://125578486
+@preconcurrency import TSCLibc
+#endif
 
 // A version of `stderrStream` from `TSCBasic` that is a `let` and can thus be used from Swift 6.
 let stderrStreamConcurrencySafe: ThreadSafeOutputByteStream = try! ThreadSafeOutputByteStream(
