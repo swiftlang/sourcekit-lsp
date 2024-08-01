@@ -59,12 +59,12 @@ package struct MacroExpansionReferenceDocumentURLData {
   }
 
   package init(displayName: String, queryItems: [URLQueryItem]) throws {
-    guard let primaryFilePath = queryItems.last { $0.name == Parameters.primaryFilePath }?.value,
-      let fromLine = Int(queryItems.last { $0.name == Parameters.fromLine }?.value ?? ""),
-      let fromColumn = Int(queryItems.last { $0.name == Parameters.fromColumn }?.value ?? ""),
-      let toLine = Int(queryItems.last { $0.name == Parameters.toLine }?.value ?? ""),
-      let toColumn = Int(queryItems.last { $0.name == Parameters.toColumn }?.value ?? ""),
-      let bufferName = queryItems.last { $0.name == Parameters.bufferName }?.value
+    guard let primaryFilePath = queryItems.last(where: { $0.name == Parameters.primaryFilePath })?.value,
+      let fromLine = Int(queryItems.last(where: { $0.name == Parameters.fromLine })?.value ?? ""),
+      let fromColumn = Int(queryItems.last(where: { $0.name == Parameters.fromColumn })?.value ?? ""),
+      let toLine = Int(queryItems.last(where: { $0.name == Parameters.toLine })?.value ?? ""),
+      let toColumn = Int(queryItems.last(where: { $0.name == Parameters.toColumn })?.value ?? ""),
+      let bufferName = queryItems.last(where: { $0.name == Parameters.bufferName })?.value
     else {
       throw ReferenceDocumentURLError(description: "Invalid queryItems for macro expansion reference document url")
     }

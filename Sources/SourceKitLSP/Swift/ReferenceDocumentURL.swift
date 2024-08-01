@@ -78,7 +78,7 @@ package enum ReferenceDocumentURL {
       throw ReferenceDocumentURLError(
         description: "Bad URL for reference document: \(url)"
       )
-    default:
+    case let documentType?:
       throw ReferenceDocumentURLError(
         description: "Invalid document type in URL for reference document: \(documentType)"
       )
