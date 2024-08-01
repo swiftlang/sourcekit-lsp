@@ -202,7 +202,7 @@ private let testMessageRegistry = MessageRegistry(
   notifications: [EchoNotification.self, ShowMessageNotification.self]
 )
 
-extension String: ResponseType {}
+extension String: LanguageServerProtocol.ResponseType {}
 
 package struct EchoRequest: RequestType {
   package static let method: String = "test_server/echo"

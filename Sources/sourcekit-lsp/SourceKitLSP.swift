@@ -84,11 +84,11 @@ extension PathPrefixMapping {
     )
   }
 }
-extension PathPrefixMapping: ExpressibleByArgument {}
+extension PathPrefixMapping: ArgumentParser.ExpressibleByArgument {}
 
-extension SKOptions.BuildConfiguration: ExpressibleByArgument {}
+extension SKOptions.BuildConfiguration: ArgumentParser.ExpressibleByArgument {}
 
-extension SKOptions.WorkspaceType: ExpressibleByArgument {}
+extension SKOptions.WorkspaceType: ArgumentParser.ExpressibleByArgument {}
 
 @main
 struct SourceKitLSP: AsyncParsableCommand {

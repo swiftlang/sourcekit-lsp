@@ -34,4 +34,4 @@ extension UncheckedIndex {
   }
 }
 
-extension UncheckedIndex: MainFilesProvider {}
+extension UncheckedIndex: BuildSystemIntegration.MainFilesProvider {}

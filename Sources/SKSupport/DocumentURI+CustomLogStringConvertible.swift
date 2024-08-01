@@ -21,4 +21,4 @@ extension DocumentURI {
     return "<DocumentURI length=\(description.count) hash=\(description.hashForLogging)>"
   }
 }
-extension DocumentURI: CustomLogStringConvertible {}
+extension DocumentURI: SKLogging.CustomLogStringConvertible {}
