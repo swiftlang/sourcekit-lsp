@@ -910,8 +910,14 @@ extension SourceKitLSPServer {
     }
 
     let projectRoot = await buildSystem?.projectRoot.pathString
+    let buildSystemType =
+      if let buildSystem {
+        String(describing: type(of: buildSystem))
+      } else {
+        "<fallback build system>"
+      }
     logger.log(
-      "Created workspace at \(workspaceFolder.uri.forLogging) as \(type(of: buildSystem)) with project root \(projectRoot ?? "<nil>")"
+      "Created workspace at \(workspaceFolder.uri.forLogging) as \(buildSystemType, privacy: .public) with project root \(projectRoot ?? "<nil>")"
     )
 
     let workspace = try? await Workspace(
