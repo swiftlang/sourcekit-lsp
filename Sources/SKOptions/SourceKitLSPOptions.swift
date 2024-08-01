@@ -53,6 +53,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
     /// Equivalent to SwiftPM's `-Xlinker` option
     public var linkerFlags: [String]?
 
+    /// Equivalent to SwiftPM's `--disable-sandbox` option
+    public var disableSandbox: Bool?
+
     public init(
       configuration: BuildConfiguration? = nil,
       scratchPath: String? = nil,
@@ -62,7 +65,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
       cCompilerFlags: [String]? = nil,
       cxxCompilerFlags: [String]? = nil,
       swiftCompilerFlags: [String]? = nil,
-      linkerFlags: [String]? = nil
+      linkerFlags: [String]? = nil,
+      disableSandbox: Bool? = nil
     ) {
       self.configuration = configuration
       self.scratchPath = scratchPath
@@ -73,6 +77,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
       self.cxxCompilerFlags = cxxCompilerFlags
       self.swiftCompilerFlags = swiftCompilerFlags
       self.linkerFlags = linkerFlags
+      self.disableSandbox = disableSandbox
     }
 
     static func merging(base: SwiftPMOptions, override: SwiftPMOptions?) -> SwiftPMOptions {
@@ -85,7 +90,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
         cCompilerFlags: override?.cCompilerFlags ?? base.cCompilerFlags,
         cxxCompilerFlags: override?.cxxCompilerFlags ?? base.cxxCompilerFlags,
         swiftCompilerFlags: override?.swiftCompilerFlags ?? base.swiftCompilerFlags,
-        linkerFlags: override?.linkerFlags ?? base.linkerFlags
+        linkerFlags: override?.linkerFlags ?? base.linkerFlags,
+        disableSandbox: override?.disableSandbox ?? base.disableSandbox
       )
     }
 

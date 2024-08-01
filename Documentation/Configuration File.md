@@ -23,6 +23,7 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `cxxCompilerFlags: string[]`: Extra arguments passed to the compiler for C++ files. Equivalent to SwiftPM's `-Xcxx` option.
   - `swiftCompilerFlags: string[]`: Extra arguments passed to the compiler for Swift files. Equivalent to SwiftPM's `-Xswiftc` option.
   - `linkerFlags: string[]`: Extra arguments passed to the linker. Equivalent to SwiftPM's `-Xlinker` option.
+  - `disableSandbox: bool`: Disables running subprocesses from SwiftPM in a sandbox. Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.
 - `compilationDatabase`: Dictionary with the following keys, defining options for workspaces with a compilation database
   - `searchPaths: string[]`: Additional paths to search for a compilation database, relative to a workspace root.
 - `fallbackBuildSystem`: Dictionary with the following keys, defining options for files that aren't managed by any build system
