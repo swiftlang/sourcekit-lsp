@@ -15,6 +15,7 @@ import BuildSystemIntegration
 import Csourcekitd  // Not needed here, but fixes debugging...
 import Diagnose
 import Dispatch
+import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKLogging
@@ -27,13 +28,6 @@ import ToolchainRegistry
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 import var TSCBasic.localFileSystem
-
-#if canImport(Darwin)
-import Foundation
-#else
-// FIMXE: (async-workaround) @preconcurrency needed because FileHandle is not marked as Sendable on Linux rdar://132378985
-@preconcurrency import Foundation
-#endif
 
 extension AbsolutePath {
   public init?(argument: String) {
@@ -90,11 +84,11 @@ extension PathPrefixMapping {
     )
   }
 }
-extension PathPrefixMapping: ExpressibleByArgument {}
+extension PathPrefixMapping: ArgumentParser.ExpressibleByArgument {}
 
-extension SKOptions.BuildConfiguration: ExpressibleByArgument {}
+extension SKOptions.BuildConfiguration: ArgumentParser.ExpressibleByArgument {}
 
-extension SKOptions.WorkspaceType: ExpressibleByArgument {}
+extension SKOptions.WorkspaceType: ArgumentParser.ExpressibleByArgument {}
 
 @main
 struct SourceKitLSP: AsyncParsableCommand {

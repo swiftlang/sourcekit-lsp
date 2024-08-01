@@ -213,7 +213,9 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     #if os(macOS)
     reportProgress(.collectingLogMessages(progress: 0), message: "Collecting log messages")
     let outputFileUrl = bundlePath.appendingPathComponent("log.txt")
-    FileManager.default.createFile(atPath: outputFileUrl.path, contents: nil)
+    guard FileManager.default.createFile(atPath: outputFileUrl.path, contents: nil) else {
+      throw ReductionError("Failed to create log.txt")
+    }
     let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
     var bytesCollected = 0
     // 50 MB is an average log size collected by sourcekit-lsp diagnose.
@@ -304,7 +306,9 @@ package struct DiagnoseCommand: AsyncParsableCommand {
   @MainActor
   private func addSwiftVersion(toBundle bundlePath: URL) async throws {
     let outputFileUrl = bundlePath.appendingPathComponent("swift-versions.txt")
-    FileManager.default.createFile(atPath: outputFileUrl.path, contents: nil)
+    guard FileManager.default.createFile(atPath: outputFileUrl.path, contents: nil) else {
+      throw ReductionError("Failed to create file at \(outputFileUrl)")
+    }
     let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
 
     let toolchains = try await toolchainRegistry.toolchains

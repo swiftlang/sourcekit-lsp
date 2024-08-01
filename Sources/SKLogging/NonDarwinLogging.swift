@@ -15,8 +15,7 @@ import SwiftExtensions
 #if canImport(Darwin)
 import Foundation
 #else
-// FIMXE: (async-workaround) @preconcurrency needed because DateFormatter and stderr are not marked as Sendable on Linux
-// rdar://125578486, rdar://132378589
+// TODO: @preconcurrency needed because stderr is not sendable on Linux https://github.com/swiftlang/swift/issues/75601
 @preconcurrency import Foundation
 #endif
 

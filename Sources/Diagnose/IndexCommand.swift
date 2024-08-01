@@ -121,4 +121,4 @@ fileprivate extension SourceKitLSPServer {
   }
 }
 
-extension ExperimentalFeature: ExpressibleByArgument {}
+extension ExperimentalFeature: ArgumentParser.ExpressibleByArgument {}

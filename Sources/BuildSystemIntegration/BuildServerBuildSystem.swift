@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
+import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKLogging
@@ -25,13 +26,6 @@ import func TSCBasic.getEnvSearchPaths
 import var TSCBasic.localFileSystem
 import func TSCBasic.lookupExecutablePath
 import func TSCBasic.resolveSymlinks
-
-#if canImport(Darwin)
-import Foundation
-#else
-// FIMXE: (async-workaround) @preconcurrency needed because Pipe is not marked as Sendable on Linux rdar://132378792
-@preconcurrency import Foundation
-#endif
 
 enum BuildServerTestError: Error {
   case executableNotFound(String)

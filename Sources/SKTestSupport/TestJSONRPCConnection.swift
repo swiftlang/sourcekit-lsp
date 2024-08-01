@@ -17,12 +17,7 @@ import SKSupport
 import SwiftExtensions
 import XCTest
 
-#if canImport(Darwin)
 import class Foundation.Pipe
-#else
-// FIMXE: (async-workaround) @preconcurrency needed because Pipe is not marked as Sendable on Linux rdar://132378792
-@preconcurrency import class Foundation.Pipe
-#endif
 
 package final class TestJSONRPCConnection: Sendable {
   package let clientToServer: Pipe = Pipe()
@@ -207,7 +202,7 @@ private let testMessageRegistry = MessageRegistry(
   notifications: [EchoNotification.self, ShowMessageNotification.self]
 )
 
-extension String: ResponseType {}
+extension String: LanguageServerProtocol.ResponseType {}
 
 package struct EchoRequest: RequestType {
   package static let method: String = "test_server/echo"

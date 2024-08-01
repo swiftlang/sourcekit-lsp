@@ -42,7 +42,7 @@ package struct RunSourceKitdRequestCommand: AsyncParsableCommand {
   package init() {}
 
   package func run() async throws {
-    var requestString = try String(contentsOf: URL(fileURLWithPath: sourcekitdRequestPath))
+    var requestString = try String(contentsOf: URL(fileURLWithPath: sourcekitdRequestPath), encoding: .utf8)
 
     let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
     let sourcekitdPath =

@@ -180,12 +180,6 @@ extension SwiftLanguageService {
   }
 
   func expandMacro(macroExpansionURLData: MacroExpansionReferenceDocumentURLData) async throws -> String {
-    guard let sourceKitLSPServer = self.sourceKitLSPServer else {
-      // `SourceKitLSPServer` has been destructed. We are tearing down the
-      // language server. Nothing left to do.
-      throw ResponseError.unknown("Connection to the editor closed")
-    }
-
     let expandMacroCommand = ExpandMacroCommand(
       positionRange: macroExpansionURLData.selectionRange,
       textDocument: TextDocumentIdentifier(macroExpansionURLData.primaryFile)

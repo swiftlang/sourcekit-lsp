@@ -29,7 +29,7 @@ package extension DocumentSnapshot {
   ///
   /// Throws an error if the file could not be read.
   init(withContentsFromDisk url: URL, language: Language) throws {
-    let contents = try String(contentsOf: url)
+    let contents = try String(contentsOf: url, encoding: .utf8)
     self.init(uri: DocumentURI(url), language: language, version: 0, lineTable: LineTable(contents))
   }
 }

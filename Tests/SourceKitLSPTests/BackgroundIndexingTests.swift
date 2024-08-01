@@ -1199,7 +1199,7 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     let packageResolvedURL = project.scratchDirectory.appendingPathComponent("Package.resolved")
 
-    let originalPackageResolvedContents = try String(contentsOf: packageResolvedURL)
+    let originalPackageResolvedContents = try String(contentsOf: packageResolvedURL, encoding: .utf8)
 
     // First check our setup to see that we get the expected hover response before changing the dependency project.
     let (uri, positions) = try project.openDocument("Test.swift")
@@ -1234,7 +1234,7 @@ final class BackgroundIndexingTests: XCTestCase {
       ])
     )
     try await project.testClient.send(PollIndexRequest())
-    XCTAssertEqual(try String(contentsOf: packageResolvedURL), originalPackageResolvedContents)
+    XCTAssertEqual(try String(contentsOf: packageResolvedURL, encoding: .utf8), originalPackageResolvedContents)
 
     // Simulate a package update which goes as follows:
     //  - The user runs `swift package update`
@@ -1248,7 +1248,7 @@ final class BackgroundIndexingTests: XCTestCase {
       ],
       workingDirectory: nil
     )
-    XCTAssertNotEqual(try String(contentsOf: packageResolvedURL), originalPackageResolvedContents)
+    XCTAssertNotEqual(try String(contentsOf: packageResolvedURL, encoding: .utf8), originalPackageResolvedContents)
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
         FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("Package.resolved")), type: .changed)
