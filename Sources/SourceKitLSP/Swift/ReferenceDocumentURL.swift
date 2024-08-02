@@ -63,6 +63,10 @@ package enum ReferenceDocumentURL {
 
     switch documentType {
     case MacroExpansionReferenceDocumentURLData.documentType:
+      guard let url = MacroExpansionReferenceDocumentURLData.applyEncodingOnlyForSourceFileComponent(in: url) else {
+        throw ReferenceDocumentURLError(description: "Invalid URL format for reference document")
+      }
+
       guard let queryItems = URLComponents(string: url.absoluteString)?.queryItems else {
         throw ReferenceDocumentURLError(
           description: "No queryItems passed for macro expansion reference document: \(url)"
@@ -85,6 +89,26 @@ package enum ReferenceDocumentURL {
     }
   }
 
+  /// The URI of the document which originally contains the contents of the reference document. This is used to
+  /// communicate with sourcekitd.
+  var actualFile: DocumentURI {
+    get throws {
+      switch self {
+      case let .macroExpansion(data):
+        return try data.actualFile
+      }
+    }
+  }
+
+  var sourceFile: DocumentURI {
+    get throws {
+      switch self {
+      case let .macroExpansion(data):
+        return try data.sourceFile
+      }
+    }
+  }
+
   /// The URI of the document from which this reference document was derived. This is used to determine the
   /// workspace and language service that is used to generate the reference document.
   var primaryFile: DocumentURI {
@@ -92,6 +116,21 @@ package enum ReferenceDocumentURL {
     case let .macroExpansion(data):
       return data.primaryFile
     }
+  }
+}
+
+extension DocumentURI {
+  var actualFile: DocumentURI {
+    if let referenceDocument = try? ReferenceDocumentURL(from: self),
+    let actualFile = try? referenceDocument.actualFile {
+      actualFile
+    } else {
+      self
+    }
+  }
+
+  func isReferenceDocument() -> Bool {
+    (try? ReferenceDocumentURL(from: self)) != nil
   }
 }
 

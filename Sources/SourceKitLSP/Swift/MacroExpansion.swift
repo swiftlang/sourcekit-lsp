@@ -62,9 +62,9 @@ extension SwiftLanguageService {
       throw ResponseError.unknown("Connection to the editor closed")
     }
 
-    guard let primaryFileURL = expandMacroCommand.textDocument.uri.fileURL else {
-      throw ResponseError.unknown("Given URI is not a file URL")
-    }
+    var primaryFileURL = expandMacroCommand.textDocument.uri.arbitrarySchemeURL
+    let referenceDocumentURL = try? ReferenceDocumentURL(from: expandMacroCommand.textDocument.uri)
+    primaryFileURL = referenceDocumentURL?.primaryFile.arbitrarySchemeURL ?? primaryFileURL
 
     let expansion = try await self.refactoring(expandMacroCommand)
 
@@ -74,15 +74,28 @@ extension SwiftLanguageService {
     var macroExpansionReferenceDocumentURLs: [ReferenceDocumentURL] = []
     for macroEdit in expansion.edits {
       if let bufferName = macroEdit.bufferName {
-        let macroExpansionReferenceDocumentURLData =
+        let macroExpansionReferenceDocumentURLData = if let referenceDocumentURL, case let .macroExpansion(referenceDocumentURLData) = referenceDocumentURL {
           ReferenceDocumentURL.macroExpansion(
             MacroExpansionReferenceDocumentURLData(
               macroExpansionEditRange: macroEdit.range,
               primaryFileURL: primaryFileURL,
+              sourceFileURL: expandMacroCommand.textDocument.uri.arbitrarySchemeURL, // correct for regular
               selectionRange: expandMacroCommand.positionRange,
               bufferName: bufferName
             )
           )
+        }
+        else {
+          ReferenceDocumentURL.macroExpansion(
+            MacroExpansionReferenceDocumentURLData(
+              macroExpansionEditRange: macroEdit.range,
+              primaryFileURL: primaryFileURL,
+              sourceFileURL: nil, // correct for regular
+              selectionRange: expandMacroCommand.positionRange,
+              bufferName: bufferName
+            )
+          )
+        }
 
         macroExpansionReferenceDocumentURLs.append(macroExpansionReferenceDocumentURLData)
 
@@ -108,10 +121,19 @@ extension SwiftLanguageService {
       let expansionURIs = try macroExpansionReferenceDocumentURLs.map {
         return DocumentURI(try $0.url)
       }
+
       Task {
+        var uri = expandMacroCommand.textDocument.uri // correct for regular
+        var position = expandMacroCommand.positionRange.lowerBound 
+
+        if let referenceDocumentURL, case let .macroExpansion(referenceDocumentURLData) = referenceDocumentURL {
+          uri = referenceDocumentURL.primaryFile
+          position = referenceDocumentURLData.macroExpansionEditRange.lowerBound
+        }
+        
         let req = PeekDocumentsRequest(
-          uri: expandMacroCommand.textDocument.uri,
-          position: expandMacroCommand.positionRange.lowerBound,
+          uri: uri,
+          position: position,
           locations: expansionURIs
         )
 
@@ -180,10 +202,18 @@ extension SwiftLanguageService {
   }
 
   func expandMacro(macroExpansionURLData: MacroExpansionReferenceDocumentURLData) async throws -> String {
-    let expandMacroCommand = ExpandMacroCommand(
-      positionRange: macroExpansionURLData.selectionRange,
-      textDocument: TextDocumentIdentifier(macroExpansionURLData.primaryFile)
-    )
+    var expandMacroCommand: ExpandMacroCommand
+    if let sourceFileURL = macroExpansionURLData.sourceFileURL {
+      expandMacroCommand = ExpandMacroCommand(
+        positionRange: macroExpansionURLData.selectionRange,
+        textDocument: TextDocumentIdentifier(DocumentURI(sourceFileURL))
+      )
+    } else {
+      expandMacroCommand = ExpandMacroCommand(
+        positionRange: macroExpansionURLData.selectionRange,
+        textDocument: TextDocumentIdentifier(macroExpansionURLData.primaryFile) // correct for regular
+      )
+    }
 
     let expansion = try await self.refactoring(expandMacroCommand)
 

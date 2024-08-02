@@ -69,10 +69,14 @@ extension SwiftLanguageService {
       keys.request: requests.relatedIdents,
       keys.cancelOnSubsequentRequest: 0,
       keys.offset: snapshot.utf8Offset(of: position),
-      keys.sourceFile: snapshot.uri.pseudoPath,
+      keys.sourceFile: snapshot.uri.actualFile.pseudoPath,
       keys.includeNonEditableBaseNames: includeNonEditableBaseNames ? 1 : 0,
       keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
     ])
+
+    if let referenceDocument = try? ReferenceDocumentURL(from: snapshot.uri) {
+      skreq.set(keys.primaryFile, to: referenceDocument.primaryFile.pseudoPath)
+    }
 
     let dict = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
 

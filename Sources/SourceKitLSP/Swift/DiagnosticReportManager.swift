@@ -104,9 +104,13 @@ actor DiagnosticReportManager {
 
     let skreq = sourcekitd.dictionary([
       keys.request: requests.diagnostics,
-      keys.sourceFile: snapshot.uri.pseudoPath,
+      keys.sourceFile: snapshot.uri.actualFile.pseudoPath,
       keys.compilerArgs: compilerArgs as [SKDRequestValue],
     ])
+
+    if let referenceDocument = try? ReferenceDocumentURL(from: snapshot.uri) {
+      skreq.set(keys.primaryFile, to: referenceDocument.primaryFile.pseudoPath)
+    }
 
     let dict = try await self.sourcekitd.send(
       skreq,
