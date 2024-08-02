@@ -11,12 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 import Basics
-import Build
+@preconcurrency import Build
 import BuildServerProtocol
 import Dispatch
 import Foundation
 import LanguageServerProtocol
-import PackageGraph
+@preconcurrency import PackageGraph
 import PackageLoading
 import PackageModel
 import SKLogging
@@ -26,7 +26,7 @@ import SourceControl
 import SourceKitLSPAPI
 import SwiftExtensions
 import ToolchainRegistry
-import Workspace
+@preconcurrency import Workspace
 
 import struct Basics.AbsolutePath
 import struct Basics.IdentifiableSet
@@ -42,7 +42,7 @@ import class ToolchainRegistry.Toolchain
 fileprivate typealias AbsolutePath = Basics.AbsolutePath
 
 #if canImport(SPMBuildCore)
-import SPMBuildCore
+@preconcurrency import SPMBuildCore
 #endif
 
 /// Parameter of `reloadPackageStatusCallback` in ``SwiftPMWorkspace``.
@@ -368,13 +368,13 @@ extension SwiftPMBuildSystem {
       }
     }
 
-    let modulesGraph = try self.workspace.loadPackageGraph(
+    let modulesGraph = try await self.workspace.loadPackageGraph(
       rootInput: PackageGraphRootInput(packages: [AbsolutePath(projectRoot)]),
       forceResolvedVersions: forceResolvedVersions,
       observabilityScope: observabilitySystem.topScope
     )
 
-    let plan = try BuildPlan(
+    let plan = try await BuildPlan(
       destinationBuildParameters: destinationBuildParameters,
       toolsBuildParameters: toolsBuildParameters,
       graph: modulesGraph,
