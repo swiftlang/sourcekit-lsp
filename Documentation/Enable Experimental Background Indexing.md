@@ -1,6 +1,10 @@
-# Background Indexing
+# Enable Experimental Background Indexing
 
 Background indexing in SourceKit-LSP is available as an experimental feature. This guide shows how to set up background indexing and which caveats to expect.
+
+## Behavior Without Background Indexing
+
+By default SourceKit-LSP does not update its global index in the background or build Swift modules in the background. Thus, a lot of cross-module or global functionality is limited if the project hasn't been built recently. For example consider two modules: `Lib` and `Exec`, where `Exec` depends on `Lib`: Without background indexing, if a function is added to `Lib`, completion/jump to definition/etc in `Exec` would not be able to see that function until after a build. Background indexing solves that issue.
 
 ## Set Up
 
