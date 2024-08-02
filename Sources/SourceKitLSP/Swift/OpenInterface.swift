@@ -44,12 +44,20 @@ extension SwiftLanguageService {
         symbol: symbol
       )
     } else {
+      let primaryDocument =
+        if let referenceDocument = try? ReferenceDocumentURL(from: document) {
+          referenceDocument.primaryFile
+        } else {
+          document
+        }
+
       let interfaceInfo = try await self.generatedInterfaceInfo(
-        document: document,
+        document: primaryDocument,
         moduleName: moduleName,
         groupName: groupName,
         interfaceURI: interfaceDocURI
       )
+
       try interfaceInfo.contents.write(to: interfaceFilePath, atomically: true, encoding: String.Encoding.utf8)
       let snapshot = DocumentSnapshot(
         uri: interfaceDocURI,

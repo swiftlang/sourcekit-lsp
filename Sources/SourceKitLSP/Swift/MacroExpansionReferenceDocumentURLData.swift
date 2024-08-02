@@ -71,7 +71,7 @@ package struct MacroExpansionReferenceDocumentURLData {
 
     guard let primaryFileURL = URL(string: "file://\(primaryFilePath)") else {
       throw ReferenceDocumentURLError(
-        description: "Unable to parse source file url"
+        description: "Unable to parse primary file url"
       )
     }
 
@@ -82,6 +82,61 @@ package struct MacroExpansionReferenceDocumentURLData {
     self.macroExpansionEditRange = try Self.parse(displayName: displayName)
   }
 
+  /// The file path of the document that originally contains the contents of this reference document.
+  /// This is used since `sourcekitd` cannot understand reference document urls.
+  ///
+  /// For any `ReferenceDocumentURL.macroExpansion`, its `actualFilePath` will be its sourcekitd `bufferName`
+  ///
+  /// *Example:*
+  ///
+  /// User's source File:
+  /// URL: `file:///path/to/swift_file.swift`
+  /// ```swift
+  /// let a = 10
+  /// let b = 5
+  /// print(#stringify(a + b))
+  /// ```
+  ///
+  /// Generated content of reference document url:
+  /// URL:
+  /// `sourcekit-lsp://swift-macro-expansion/L3C7-L3C23.swift?primaryFilePath=/path/to/swift_file.swift&fromLine=3&fromColumn=8&toLine=3&toColumn=8&bufferName=@__swift_macro_..._Stringify_.swift`
+  /// ```swift
+  /// (a + b, "a + b")
+  /// ```
+  ///
+  /// Here the `actualFilePath` of the reference document url is `@__swift_macro_..._Stringify_.swift`
+  ///
+  /// *NOTE*: In case of nested macro expansion reference documents, the `actualFilePath` will be their corresponding
+  /// `bufferName`s
+  package var actualFilePath: String {
+    bufferName
+  }
+
+  /// The URI of the document from which this reference document was derived.
+  /// This is used to determine the workspace and language service that is used to generate the reference document.
+  ///
+  /// *Example:*
+  ///
+  /// User's source File:
+  /// URL: `file://path/to/swift_file.swift`
+  /// ```swift
+  /// let a = 10
+  /// let b = 5
+  /// print(#stringify(a + b))
+  /// ```
+  ///
+  /// Generated content of reference document url:
+  /// URL:
+  /// `sourcekit-lsp://swift-macro-expansion/L3C7-L3C23.swift?primaryFilePath=/path/to/swift_file.swift&fromLine=3&fromColumn=8&toLine=3&toColumn=8&bufferName=@__swift_macro_..._Stringify_.swift`
+  /// ```swift
+  /// (a + b, "a + b")
+  /// ```
+  ///
+  /// Here the `primaryFile` of the reference document url is a `DocumentURI`
+  /// with the following url: `file:///path/to/swift_file.swift`
+  ///
+  /// *NOTE*: In case of nested macro expansion reference documents, they all will have the same `primaryFile`
+  /// as that of the first macro expansion reference document i.e. `primaryFile` doesn't change.
   package var primaryFile: DocumentURI {
     DocumentURI(primaryFileURL)
   }

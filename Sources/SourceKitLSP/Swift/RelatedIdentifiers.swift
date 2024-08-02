@@ -69,7 +69,8 @@ extension SwiftLanguageService {
       keys.request: requests.relatedIdents,
       keys.cancelOnSubsequentRequest: 0,
       keys.offset: snapshot.utf8Offset(of: position),
-      keys.sourceFile: snapshot.uri.pseudoPath,
+      keys.sourceFile: snapshot.uri.actualFilePath,
+      keys.primaryFile: (try? ReferenceDocumentURL(from: snapshot.uri))?.primaryFile.pseudoPath,
       keys.includeNonEditableBaseNames: includeNonEditableBaseNames ? 1 : 0,
       keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
     ])

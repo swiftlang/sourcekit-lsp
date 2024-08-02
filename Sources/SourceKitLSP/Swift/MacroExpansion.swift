@@ -44,6 +44,21 @@ struct MacroExpansion: RefactoringResponse {
   }
 }
 
+actor GeneratedMacroExpansionsStorage {
+  static var shared = GeneratedMacroExpansionsStorage()
+  private init() {}
+
+  private var generatedMacroExpansions: [String: String] = [:]
+
+  func addOrUpdateMacroExpansion(havingBufferName bufferName: String, withContents content: String) {
+    generatedMacroExpansions[bufferName] = content
+  }
+
+  func retrieveAndDeleteMacroExpansion(havingBufferName bufferName: String) -> String? {
+    return generatedMacroExpansions.removeValue(forKey: bufferName)
+  }
+}
+
 extension SwiftLanguageService {
   /// Handles the `ExpandMacroCommand`.
   ///
@@ -62,9 +77,9 @@ extension SwiftLanguageService {
       throw ResponseError.unknown("Connection to the editor closed")
     }
 
-    guard let primaryFileURL = expandMacroCommand.textDocument.uri.fileURL else {
-      throw ResponseError.unknown("Given URI is not a file URL")
-    }
+    let referenceDocumentURL = try? ReferenceDocumentURL(from: expandMacroCommand.textDocument.uri)
+    let primaryFileURL =
+      referenceDocumentURL?.primaryFile.arbitrarySchemeURL ?? expandMacroCommand.textDocument.uri.arbitrarySchemeURL
 
     let expansion = try await self.refactoring(expandMacroCommand)
 
@@ -74,6 +89,11 @@ extension SwiftLanguageService {
     var macroExpansionReferenceDocumentURLs: [ReferenceDocumentURL] = []
     for macroEdit in expansion.edits {
       if let bufferName = macroEdit.bufferName {
+        await GeneratedMacroExpansionsStorage.shared.addOrUpdateMacroExpansion(
+          havingBufferName: bufferName,
+          withContents: macroEdit.newText
+        )
+
         let macroExpansionReferenceDocumentURLData =
           ReferenceDocumentURL.macroExpansion(
             MacroExpansionReferenceDocumentURLData(
@@ -108,10 +128,24 @@ extension SwiftLanguageService {
       let expansionURIs = try macroExpansionReferenceDocumentURLs.map {
         return DocumentURI(try $0.url)
       }
+
       Task {
+        let (uri, position) =
+          if let referenceDocumentURL, case let .macroExpansion(referenceDocumentURLData) = referenceDocumentURL {
+            (
+              referenceDocumentURL.primaryFile,
+              referenceDocumentURLData.macroExpansionEditRange.lowerBound
+            )
+          } else {
+            (
+              expandMacroCommand.textDocument.uri,
+              expandMacroCommand.positionRange.lowerBound
+            )
+          }
+
         let req = PeekDocumentsRequest(
-          uri: expandMacroCommand.textDocument.uri,
-          position: expandMacroCommand.positionRange.lowerBound,
+          uri: uri,
+          position: position,
           locations: expansionURIs
         )
 
@@ -179,22 +213,15 @@ extension SwiftLanguageService {
     }
   }
 
-  func expandMacro(macroExpansionURLData: MacroExpansionReferenceDocumentURLData) async throws -> String {
-    let expandMacroCommand = ExpandMacroCommand(
-      positionRange: macroExpansionURLData.selectionRange,
-      textDocument: TextDocumentIdentifier(macroExpansionURLData.primaryFile)
-    )
-
-    let expansion = try await self.refactoring(expandMacroCommand)
-
+  func getMacroExpansion(macroExpansionURLData: MacroExpansionReferenceDocumentURLData) async throws -> String {
     guard
-      let macroExpansionEdit = expansion.edits.filter({
-        $0.bufferName == macroExpansionURLData.bufferName
-      }).only
+      let content = await GeneratedMacroExpansionsStorage.shared.retrieveAndDeleteMacroExpansion(
+        havingBufferName: macroExpansionURLData.bufferName
+      )
     else {
       throw ResponseError.unknown("Macro expansion edit doesn't exist")
     }
 
-    return macroExpansionEdit.newText
+    return content
   }
 }

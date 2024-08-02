@@ -102,28 +102,35 @@ extension SwiftLanguageService {
 
     let uri = refactorCommand.textDocument.uri
     let snapshot = try self.documentManager.latestSnapshot(uri)
+    let referenceDocument = try? ReferenceDocumentURL(from: snapshot.uri)
+
     let line = refactorCommand.positionRange.lowerBound.line
     let utf16Column = refactorCommand.positionRange.lowerBound.utf16index
     let utf8Column = snapshot.lineTable.utf8ColumnAt(line: line, utf16Column: utf16Column)
+    let length = snapshot.utf8OffsetRange(of: refactorCommand.positionRange).count
+    let buildSettings =
+      await self.buildSettings(for: referenceDocument?.primaryFile ?? snapshot.uri)?.compilerArgs as [SKDRequestValue]?
 
     let skreq = sourcekitd.dictionary([
       keys.request: self.requests.semanticRefactoring,
       // Preferred name for e.g. an extracted variable.
       // Empty string means sourcekitd chooses a name automatically.
       keys.name: "",
-      keys.sourceFile: uri.pseudoPath,
+      keys.sourceFile: uri.actualFilePath,
+      keys.primaryFile: referenceDocument?.primaryFile.pseudoPath,
       // LSP is zero based, but this request is 1 based.
       keys.line: line + 1,
       keys.column: utf8Column + 1,
-      keys.length: snapshot.utf8OffsetRange(of: refactorCommand.positionRange).count,
+      keys.length: length,
       keys.actionUID: self.sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!,
-      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
+      keys.compilerArgs: buildSettings,
     ])
 
     let dict = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
     guard let refactor = T.Response(refactorCommand.title, dict, snapshot, self.keys) else {
       throw SemanticRefactoringError.noEditsNeeded(uri)
     }
+
     return refactor
   }
 }
