@@ -122,7 +122,8 @@ package enum ReferenceDocumentURL {
 extension DocumentURI {
   var actualFile: DocumentURI {
     if let referenceDocument = try? ReferenceDocumentURL(from: self),
-    let actualFile = try? referenceDocument.actualFile {
+      let actualFile = try? referenceDocument.actualFile
+    {
       actualFile
     } else {
       self

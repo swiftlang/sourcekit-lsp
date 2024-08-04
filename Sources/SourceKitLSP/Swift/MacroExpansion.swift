@@ -74,28 +74,28 @@ extension SwiftLanguageService {
     var macroExpansionReferenceDocumentURLs: [ReferenceDocumentURL] = []
     for macroEdit in expansion.edits {
       if let bufferName = macroEdit.bufferName {
-        let macroExpansionReferenceDocumentURLData = if let referenceDocumentURL, case let .macroExpansion(referenceDocumentURLData) = referenceDocumentURL {
-          ReferenceDocumentURL.macroExpansion(
-            MacroExpansionReferenceDocumentURLData(
-              macroExpansionEditRange: macroEdit.range,
-              primaryFileURL: primaryFileURL,
-              sourceFileURL: expandMacroCommand.textDocument.uri.arbitrarySchemeURL, // correct for regular
-              selectionRange: expandMacroCommand.positionRange,
-              bufferName: bufferName
+        let macroExpansionReferenceDocumentURLData =
+          if let referenceDocumentURL, case .macroExpansion(_) = referenceDocumentURL {
+            ReferenceDocumentURL.macroExpansion(
+              MacroExpansionReferenceDocumentURLData(
+                macroExpansionEditRange: macroEdit.range,
+                primaryFileURL: primaryFileURL,
+                sourceFileURL: expandMacroCommand.textDocument.uri.arbitrarySchemeURL,
+                selectionRange: expandMacroCommand.positionRange,
+                bufferName: bufferName
+              )
             )
-          )
-        }
-        else {
-          ReferenceDocumentURL.macroExpansion(
-            MacroExpansionReferenceDocumentURLData(
-              macroExpansionEditRange: macroEdit.range,
-              primaryFileURL: primaryFileURL,
-              sourceFileURL: nil, // correct for regular
-              selectionRange: expandMacroCommand.positionRange,
-              bufferName: bufferName
+          } else {
+            ReferenceDocumentURL.macroExpansion(
+              MacroExpansionReferenceDocumentURLData(
+                macroExpansionEditRange: macroEdit.range,
+                primaryFileURL: primaryFileURL,
+                sourceFileURL: nil,
+                selectionRange: expandMacroCommand.positionRange,
+                bufferName: bufferName
+              )
             )
-          )
-        }
+          }
 
         macroExpansionReferenceDocumentURLs.append(macroExpansionReferenceDocumentURLData)
 
@@ -123,14 +123,14 @@ extension SwiftLanguageService {
       }
 
       Task {
-        var uri = expandMacroCommand.textDocument.uri // correct for regular
-        var position = expandMacroCommand.positionRange.lowerBound 
+        var uri = expandMacroCommand.textDocument.uri
+        var position = expandMacroCommand.positionRange.lowerBound
 
         if let referenceDocumentURL, case let .macroExpansion(referenceDocumentURLData) = referenceDocumentURL {
           uri = referenceDocumentURL.primaryFile
           position = referenceDocumentURLData.macroExpansionEditRange.lowerBound
         }
-        
+
         let req = PeekDocumentsRequest(
           uri: uri,
           position: position,
@@ -211,7 +211,7 @@ extension SwiftLanguageService {
     } else {
       expandMacroCommand = ExpandMacroCommand(
         positionRange: macroExpansionURLData.selectionRange,
-        textDocument: TextDocumentIdentifier(macroExpansionURLData.primaryFile) // correct for regular
+        textDocument: TextDocumentIdentifier(macroExpansionURLData.primaryFile)
       )
     }
 

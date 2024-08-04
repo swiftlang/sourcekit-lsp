@@ -1653,7 +1653,6 @@ extension SourceKitLSPServer {
       return nil
     }
 
-
     let referenceDocumentURL = try? ReferenceDocumentURL(from: uri)
     if let primaryFileURI = referenceDocumentURL?.primaryFile {
       uri = primaryFileURI

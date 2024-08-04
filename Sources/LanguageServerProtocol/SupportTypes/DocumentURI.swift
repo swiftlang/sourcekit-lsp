@@ -77,7 +77,7 @@ public struct DocumentURI: Codable, Hashable, Sendable {
   public init(_ url: URL) {
     self.storage = url
 
-    if(!self.storage.absoluteString.hasPrefix("@")) {
+    if !self.storage.absoluteString.hasPrefix("@") {
       assert(self.storage.scheme != nil, "Received invalid URI without a scheme '\(self.storage.absoluteString)'")
     }
   }

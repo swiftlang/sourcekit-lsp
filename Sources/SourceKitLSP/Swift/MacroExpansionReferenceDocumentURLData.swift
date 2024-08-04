@@ -59,7 +59,10 @@ package struct MacroExpansionReferenceDocumentURLData {
         URLQueryItem(name: Parameters.toColumn, value: String(selectionRange.upperBound.utf16index)),
         URLQueryItem(name: Parameters.bufferName, value: bufferName),
         URLQueryItem(name: Parameters.primaryFilePath, value: primaryFileURL.path(percentEncoded: false)),
-        URLQueryItem(name: Parameters.sourceFilePath, value: sourceFileURL.absoluteString.addingPercentEncoding(withAllowedCharacters: .alphanumerics)),
+        URLQueryItem(
+          name: Parameters.sourceFilePath,
+          value: sourceFileURL.absoluteString.addingPercentEncoding(withAllowedCharacters: .alphanumerics)
+        ),
       ]
     } else {
       [
@@ -89,9 +92,11 @@ package struct MacroExpansionReferenceDocumentURLData {
         description: "Unable to parse primary file url"
       )
     }
-    
+
     var sourceFileURL: URL? = nil
-    if let sourceFilePath = queryItems.last { $0.name == Parameters.sourceFilePath }?.value?.removingPercentEncoding {
+    if let sourceFilePath = queryItems.last(where: { $0.name == Parameters.sourceFilePath })?.value?
+      .removingPercentEncoding
+    {
       guard let url = URL(string: sourceFilePath) else {
         throw ReferenceDocumentURLError(
           description: "Unable to parse source file url"
@@ -111,18 +116,20 @@ package struct MacroExpansionReferenceDocumentURLData {
 
   package var actualFile: DocumentURI {
     get throws {
-        guard let uri = try? DocumentURI(string: bufferName) else {
-          throw ReferenceDocumentURLError(description: "Unable to retrieve actual file uri of macro expansion reference document")
-        }
+      guard let uri = try? DocumentURI(string: bufferName) else {
+        throw ReferenceDocumentURLError(
+          description: "Unable to retrieve actual file uri of macro expansion reference document"
+        )
+      }
 
-        return uri
+      return uri
     }
   }
 
   package var sourceFile: DocumentURI {
     get throws {
       var uri: DocumentURI?
-       if let sourceFileURL {
+      if let sourceFileURL {
         let referenceDocumentURL = try ReferenceDocumentURL(from: sourceFileURL)
         guard case let .macroExpansion(urlData) = referenceDocumentURL else {
           throw ReferenceDocumentURLError(
@@ -135,7 +142,9 @@ package struct MacroExpansionReferenceDocumentURLData {
       }
 
       guard let uri else {
-        throw ReferenceDocumentURLError(description: "Unable to retrieve source file uri of macro expansion reference document")
+        throw ReferenceDocumentURLError(
+          description: "Unable to retrieve source file uri of macro expansion reference document"
+        )
       }
 
       return uri
@@ -159,7 +168,7 @@ package struct MacroExpansionReferenceDocumentURLData {
   public static func applyEncodingOnlyForSourceFileComponent(in url: URL) -> URL? {
     let urlWithoutEncoding = url.absoluteString.removingPercentEncoding
 
-    guard var urlWithoutEncoding else {
+    guard let urlWithoutEncoding else {
       return nil
     }
 
@@ -174,7 +183,11 @@ package struct MacroExpansionReferenceDocumentURLData {
       let end = urlWithoutEncoding.endIndex
       let range = start..<end
 
-      guard let sourceFileURL = String(urlWithoutEncoding[range]).addingPercentEncoding(withAllowedCharacters: .alphanumerics) else {
+      guard
+        let sourceFileURL = String(urlWithoutEncoding[range]).addingPercentEncoding(
+          withAllowedCharacters: .alphanumerics
+        )
+      else {
         return nil
       }
 

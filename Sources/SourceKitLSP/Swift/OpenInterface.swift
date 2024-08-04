@@ -60,7 +60,7 @@ extension SwiftLanguageService {
           interfaceURI: interfaceDocURI
         )
       }
-      
+
       try interfaceInfo.contents.write(to: interfaceFilePath, atomically: true, encoding: String.Encoding.utf8)
       let snapshot = DocumentSnapshot(
         uri: interfaceDocURI,

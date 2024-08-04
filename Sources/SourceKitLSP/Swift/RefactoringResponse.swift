@@ -121,7 +121,7 @@ extension SwiftLanguageService {
       keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
     ])
 
-    if let referenceDocument{
+    if let referenceDocument {
       skreq.set(keys.sourceFile, to: try referenceDocument.actualFile.pseudoPath)
       skreq.set(keys.primaryFile, to: referenceDocument.primaryFile.pseudoPath)
     } else {
