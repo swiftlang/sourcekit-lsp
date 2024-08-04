@@ -378,7 +378,7 @@ extension SwiftLanguageService {
   // MARK: - Build System Integration
 
   package func reopenDocument(_ notification: ReopenTextDocumentNotification) async {
-    if(notification.textDocument.uri.scheme != "sourcekit-lsp") {
+    if notification.textDocument.uri.scheme != "sourcekit-lsp" {
       let snapshot = orLog("Getting snapshot to re-open document") {
         try documentManager.latestSnapshot(notification.textDocument.uri)
       }
@@ -455,7 +455,7 @@ extension SwiftLanguageService {
   }
 
   package func openDocument(_ notification: DidOpenTextDocumentNotification, snapshot: DocumentSnapshot) async {
-    if(notification.textDocument.uri.scheme != "sourcekit-lsp") {
+    if notification.textDocument.uri.scheme != "sourcekit-lsp" {
       cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
       await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
 
@@ -468,7 +468,7 @@ extension SwiftLanguageService {
   }
 
   package func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
-    if(notification.textDocument.uri.scheme != "sourcekit-lsp") {
+    if notification.textDocument.uri.scheme != "sourcekit-lsp" {
       cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
       inFlightPublishDiagnosticsTasks[notification.textDocument.uri] = nil
       await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
@@ -946,7 +946,7 @@ extension SwiftLanguageService {
 
   package func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
     do {
-      
+
       var document = req.textDocument.uri
       if let referenceDocument = try? ReferenceDocumentURL(from: document) {
         document = referenceDocument.primaryFile
