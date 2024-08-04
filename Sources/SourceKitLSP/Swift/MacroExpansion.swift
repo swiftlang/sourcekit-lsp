@@ -80,7 +80,7 @@ extension SwiftLanguageService {
               MacroExpansionReferenceDocumentURLData(
                 macroExpansionEditRange: macroEdit.range,
                 primaryFileURL: primaryFileURL,
-                sourceFileURL: expandMacroCommand.textDocument.uri.arbitrarySchemeURL,
+                parentReferenceDocumentURL: expandMacroCommand.textDocument.uri.arbitrarySchemeURL,
                 selectionRange: expandMacroCommand.positionRange,
                 bufferName: bufferName
               )
@@ -90,7 +90,7 @@ extension SwiftLanguageService {
               MacroExpansionReferenceDocumentURLData(
                 macroExpansionEditRange: macroEdit.range,
                 primaryFileURL: primaryFileURL,
-                sourceFileURL: nil,
+                parentReferenceDocumentURL: nil,
                 selectionRange: expandMacroCommand.positionRange,
                 bufferName: bufferName
               )
@@ -203,10 +203,10 @@ extension SwiftLanguageService {
 
   func expandMacro(macroExpansionURLData: MacroExpansionReferenceDocumentURLData) async throws -> String {
     var expandMacroCommand: ExpandMacroCommand
-    if let sourceFileURL = macroExpansionURLData.sourceFileURL {
+    if let parentReferenceDocumentURL = macroExpansionURLData.parentReferenceDocumentURL {
       expandMacroCommand = ExpandMacroCommand(
         positionRange: macroExpansionURLData.selectionRange,
-        textDocument: TextDocumentIdentifier(DocumentURI(sourceFileURL))
+        textDocument: TextDocumentIdentifier(DocumentURI(parentReferenceDocumentURL))  // usage
       )
     } else {
       expandMacroCommand = ExpandMacroCommand(

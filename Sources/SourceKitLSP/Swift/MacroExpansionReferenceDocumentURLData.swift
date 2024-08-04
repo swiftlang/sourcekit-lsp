@@ -15,7 +15,7 @@ import LanguageServerProtocol
 import RegexBuilder
 
 /// Represents url of macro expansion reference document as follows:
-/// `sourcekit-lsp://swift-macro-expansion/LaCb-LcCd.swift?primaryFilePath=&sourceFilePath=&fromLine=&fromColumn=&toLine=&toColumn=&bufferName=`
+/// `sourcekit-lsp://swift-macro-expansion/LaCb-LcCd.swift?primaryFilePath=&fromLine=&fromColumn=&toLine=&toColumn=&bufferName=&parentReferenceDocumentURL=`
 ///
 /// Here,
 ///  - `LaCb-LcCd.swift`, the `displayName`, represents where the macro will expand to or
@@ -23,11 +23,13 @@ import RegexBuilder
 ///  - `primaryFilePath` denoting the URL of the source file
 ///  - `fromLine`, `fromColumn`, `toLine`, `toColumn` represents the cursor's `selectionRange`
 ///  - `bufferName` denotes the buffer name of the specific macro expansion edit
+///  - `parentReferenceDocumentURL` the reference document url of the macro
+///    which expands to the current macro (optional)
 package struct MacroExpansionReferenceDocumentURLData {
   package static let documentType = "swift-macro-expansion"
 
   package var primaryFileURL: URL
-  package var sourceFileURL: URL?
+  package var parentReferenceDocumentURL: URL?
   package var selectionRange: Range<Position>
   package var bufferName: String
   package var macroExpansionEditRange: Range<Position>
@@ -35,12 +37,12 @@ package struct MacroExpansionReferenceDocumentURLData {
   package init(
     macroExpansionEditRange: Range<Position>,
     primaryFileURL: URL,
-    sourceFileURL: URL?,
+    parentReferenceDocumentURL: URL?,
     selectionRange: Range<Position>,
     bufferName: String
   ) {
     self.primaryFileURL = primaryFileURL
-    self.sourceFileURL = sourceFileURL
+    self.parentReferenceDocumentURL = parentReferenceDocumentURL
     self.selectionRange = selectionRange
     self.bufferName = bufferName
     self.macroExpansionEditRange = macroExpansionEditRange
@@ -51,7 +53,7 @@ package struct MacroExpansionReferenceDocumentURLData {
   }
 
   package var queryItems: [URLQueryItem] {
-    if let sourceFileURL {
+    if let parentReferenceDocumentURL {  // usage
       [
         URLQueryItem(name: Parameters.fromLine, value: String(selectionRange.lowerBound.line)),
         URLQueryItem(name: Parameters.fromColumn, value: String(selectionRange.lowerBound.utf16index)),
@@ -60,8 +62,8 @@ package struct MacroExpansionReferenceDocumentURLData {
         URLQueryItem(name: Parameters.bufferName, value: bufferName),
         URLQueryItem(name: Parameters.primaryFilePath, value: primaryFileURL.path(percentEncoded: false)),
         URLQueryItem(
-          name: Parameters.sourceFilePath,
-          value: sourceFileURL.absoluteString.addingPercentEncoding(withAllowedCharacters: .alphanumerics)
+          name: Parameters.parentReferenceDocumentURL,
+          value: parentReferenceDocumentURL.absoluteString.addingPercentEncoding(withAllowedCharacters: .alphanumerics)
         ),
       ]
     } else {
@@ -93,62 +95,30 @@ package struct MacroExpansionReferenceDocumentURLData {
       )
     }
 
-    var sourceFileURL: URL? = nil
-    if let sourceFilePath = queryItems.last(where: { $0.name == Parameters.sourceFilePath })?.value?
-      .removingPercentEncoding
-    {
-      guard let url = URL(string: sourceFilePath) else {
+    var parentReferenceDocumentURL: URL? = nil
+    if let parentReferenceDocumentURLString = queryItems.last(where: {
+      $0.name == Parameters.parentReferenceDocumentURL
+    })?.value?
+    .removingPercentEncoding {
+      guard let url = URL(string: parentReferenceDocumentURLString) else {
         throw ReferenceDocumentURLError(
           description: "Unable to parse source file url"
         )
       }
 
-      sourceFileURL = url
+      parentReferenceDocumentURL = url
     }
 
     self.primaryFileURL = primaryFileURL
-    self.sourceFileURL = sourceFileURL
+    self.parentReferenceDocumentURL = parentReferenceDocumentURL
     self.selectionRange =
       Position(line: fromLine, utf16index: fromColumn)..<Position(line: toLine, utf16index: toColumn)
     self.bufferName = bufferName
     self.macroExpansionEditRange = try Self.parse(displayName: displayName)
   }
 
-  package var actualFile: DocumentURI {
-    get throws {
-      guard let uri = try? DocumentURI(string: bufferName) else {
-        throw ReferenceDocumentURLError(
-          description: "Unable to retrieve actual file uri of macro expansion reference document"
-        )
-      }
-
-      return uri
-    }
-  }
-
-  package var sourceFile: DocumentURI {
-    get throws {
-      var uri: DocumentURI?
-      if let sourceFileURL {
-        let referenceDocumentURL = try ReferenceDocumentURL(from: sourceFileURL)
-        guard case let .macroExpansion(urlData) = referenceDocumentURL else {
-          throw ReferenceDocumentURLError(
-            description: "Unable to retrieve buffer name from source file"
-          )
-        }
-        uri = try? DocumentURI(string: urlData.bufferName)
-      } else {
-        uri = try? DocumentURI(string: bufferName)
-      }
-
-      guard let uri else {
-        throw ReferenceDocumentURLError(
-          description: "Unable to retrieve source file uri of macro expansion reference document"
-        )
-      }
-
-      return uri
-    }
+  package var actualFilePath: String {
+    bufferName
   }
 
   package var primaryFile: DocumentURI {
@@ -157,7 +127,7 @@ package struct MacroExpansionReferenceDocumentURLData {
 
   private struct Parameters {
     static let primaryFilePath = "primaryFilePath"
-    static let sourceFilePath = "sourceFilePath"
+    static let parentReferenceDocumentURL = "parentReferenceDocumentURL"
     static let fromLine = "fromLine"
     static let fromColumn = "fromColumn"
     static let toLine = "toLine"
@@ -173,8 +143,8 @@ package struct MacroExpansionReferenceDocumentURLData {
     }
 
     var result = URL(string: urlWithoutEncoding)
-    if urlWithoutEncoding.contains(Parameters.sourceFilePath) {
-      let location = urlWithoutEncoding.firstRange(of: "&\(Parameters.sourceFilePath)=")
+    if urlWithoutEncoding.contains(Parameters.parentReferenceDocumentURL) {
+      let location = urlWithoutEncoding.firstRange(of: "&\(Parameters.parentReferenceDocumentURL)=")
       guard let location else {
         return nil
       }
@@ -184,7 +154,7 @@ package struct MacroExpansionReferenceDocumentURLData {
       let range = start..<end
 
       guard
-        let sourceFileURL = String(urlWithoutEncoding[range]).addingPercentEncoding(
+        let parentReferenceDocumentURL = String(urlWithoutEncoding[range]).addingPercentEncoding(
           withAllowedCharacters: .alphanumerics
         )
       else {
@@ -195,9 +165,10 @@ package struct MacroExpansionReferenceDocumentURLData {
       let firstEnd = location.lowerBound
       let firstRange = firstStart..<firstEnd
 
-      let urlExceptSourceFileURL = String(urlWithoutEncoding[firstRange])
+      let urlExceptParentReferenceDocumentURL = String(urlWithoutEncoding[firstRange])
 
-      let finalURLString = urlExceptSourceFileURL + "&\(Parameters.sourceFilePath)=" + sourceFileURL
+      let finalURLString =
+        urlExceptParentReferenceDocumentURL + "&\(Parameters.parentReferenceDocumentURL)=" + parentReferenceDocumentURL
       result = URL(string: finalURLString)
     }
 

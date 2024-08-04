@@ -89,28 +89,17 @@ package enum ReferenceDocumentURL {
     }
   }
 
-  /// The URI of the document which originally contains the contents of the reference document. This is used to
+  /// The file path of the document which originally contains the contents of the reference document. This is used to
   /// communicate with sourcekitd.
-  var actualFile: DocumentURI {
-    get throws {
-      switch self {
-      case let .macroExpansion(data):
-        return try data.actualFile
-      }
+  var actualFilePath: String {
+    switch self {
+    case let .macroExpansion(data):
+      data.actualFilePath
     }
   }
 
-  var sourceFile: DocumentURI {
-    get throws {
-      switch self {
-      case let .macroExpansion(data):
-        return try data.sourceFile
-      }
-    }
-  }
-
-  /// The URI of the document from which this reference document was derived. This is used to determine the
-  /// workspace and language service that is used to generate the reference document.
+  /// The URI of the document from which this reference document and its parent reference document was derived.
+  /// This is used to determine the workspace and language service that is used to generate the reference document.
   var primaryFile: DocumentURI {
     switch self {
     case let .macroExpansion(data):
@@ -120,13 +109,11 @@ package enum ReferenceDocumentURL {
 }
 
 extension DocumentURI {
-  var actualFile: DocumentURI {
-    if let referenceDocument = try? ReferenceDocumentURL(from: self),
-      let actualFile = try? referenceDocument.actualFile
-    {
-      actualFile
+  var actualFilePath: String {
+    if let referenceDocument = try? ReferenceDocumentURL(from: self) {
+      referenceDocument.actualFilePath
     } else {
-      self
+      self.pseudoPath
     }
   }
 

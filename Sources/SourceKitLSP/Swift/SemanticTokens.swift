@@ -26,7 +26,7 @@ extension SwiftLanguageService {
 
     let skreq = sourcekitd.dictionary([
       keys.request: requests.semanticTokens,
-      keys.sourceFile: snapshot.uri.actualFile.pseudoPath,
+      keys.sourceFile: snapshot.uri.actualFilePath,
       keys.compilerArgs: buildSettings.compilerArgs as [SKDRequestValue],
     ])
 
