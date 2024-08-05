@@ -849,4 +849,50 @@ final class CallHierarchyTests: XCTestCase {
       ]
     )
   }
+
+  func testIncomingCallHierarchyFromComputedMember() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct Foo {
+        func 1️⃣foo() {}
+
+        var testVar: Int {
+          2️⃣get {
+            let myVar = 3️⃣foo()
+            return 2
+          }
+        }
+      }
+      """
+    )
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["1️⃣"]
+      )
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "Foo.getter:testVar",
+            kind: .method,
+            tags: nil,
+            uri: project.fileURI,
+            range: Range(project.positions["2️⃣"]),
+            selectionRange: Range(project.positions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test3FooV0A3VarSivg"),
+              "uri": .string(project.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(project.positions["3️⃣"])]
+        )
+      ]
+    )
+  }
 }
