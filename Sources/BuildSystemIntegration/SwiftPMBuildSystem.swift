@@ -261,7 +261,13 @@ package actor SwiftPMBuildSystem {
       fileSystem: fileSystem,
       location: location,
       configuration: configuration,
-      customHostToolchain: hostSwiftPMToolchain
+      customHostToolchain: hostSwiftPMToolchain,
+      customManifestLoader: ManifestLoader(
+        toolchain: hostSwiftPMToolchain,
+        isManifestSandboxEnabled: !(options.swiftPM.disableSandbox ?? false),
+        cacheDir: location.sharedManifestsCacheDirectory,
+        importRestrictions: configuration.manifestImportRestrictions
+      )
     )
 
     let buildConfiguration: PackageModel.BuildConfiguration
@@ -378,6 +384,7 @@ extension SwiftPMBuildSystem {
       destinationBuildParameters: destinationBuildParameters,
       toolsBuildParameters: toolsBuildParameters,
       graph: modulesGraph,
+      disableSandbox: options.swiftPM.disableSandbox ?? false,
       fileSystem: fileSystem,
       observabilityScope: observabilitySystem.topScope
     )
@@ -631,6 +638,9 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
       "--disable-index-store",
       "--target", target.targetID,
     ]
+    if options.swiftPM.disableSandbox ?? false {
+      arguments += ["--disable-sandbox"]
+    }
     if let configuration = options.swiftPM.configuration {
       arguments += ["-c", configuration.rawValue]
     }
