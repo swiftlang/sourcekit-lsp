@@ -98,14 +98,7 @@ Or to stream the logs as they are produced:
 log stream --predicate 'subsystem CONTAINS "org.swift.sourcekit-lsp"'  --level debug
 ```
 
-SourceKit-LSP masks data that may contain private information such as source file names and contents by default. To enable logging of this information, run
-
-```sh
-sudo log config --subsystem org.swift.sourcekit-lsp --mode private_data:on
-```
-
-To enable more verbose logging on non-macOS platforms, launch sourcekit-lsp with the `SOURCEKITLSP_LOG_LEVEL` environment variable set to `debug`.
-
+SourceKit-LSP masks data that may contain private information such as source file names and contents by default. To enable logging of this information, follow the instructions in [Diagnose Bundle.md](Documentation/Diagnose%20Bundle.md).
 
 ## Formatting
 

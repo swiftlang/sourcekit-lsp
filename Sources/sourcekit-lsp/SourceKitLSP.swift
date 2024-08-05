@@ -276,6 +276,16 @@ struct SourceKitLSP: AsyncParsableCommand {
       fatalError("failed to redirect stdout -> stderr: \(strerror(errno)!)")
     }
 
+    let globalConfigurationOptions = globalConfigurationOptions
+    if let logLevelStr = globalConfigurationOptions.logging.level, let logLevel = NonDarwinLogLevel(logLevelStr) {
+      LogConfig.logLevel.value = logLevel
+    }
+    if let privacyLevelStr = globalConfigurationOptions.logging.privacyLevel,
+      let privacyLevel = NonDarwinLogPrivacy(privacyLevelStr)
+    {
+      LogConfig.privacyLevel.value = privacyLevel
+    }
+
     let realStdoutHandle = FileHandle(fileDescriptor: realStdout, closeOnDealloc: false)
 
     // Directory should match the directory we are searching for logs in `DiagnoseCommand.addNonDarwinLogs`.

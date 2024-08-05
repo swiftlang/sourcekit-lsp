@@ -210,6 +210,36 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
     }
   }
 
+  public struct LoggingOptions: Sendable, Codable, CustomLogStringConvertible {
+    /// The level from which one onwards log messages should be written.
+    public var level: String?
+    /// Whether potentially sensitive information should be redacted.
+    public var privacyLevel: String?
+
+    public init(
+      level: String? = nil,
+      privacyLevel: String? = nil
+    ) {
+      self.level = level
+      self.privacyLevel = privacyLevel
+    }
+
+    static func merging(base: LoggingOptions, override: LoggingOptions?) -> LoggingOptions {
+      return LoggingOptions(
+        level: override?.level ?? base.level,
+        privacyLevel: override?.privacyLevel ?? base.privacyLevel
+      )
+    }
+
+    public var description: String {
+      recursiveDescription(of: self)
+    }
+
+    public var redactedDescription: String {
+      recursiveRedactedDescription(of: self)
+    }
+  }
+
   public enum BackgroundPreparationMode: String {
     /// Build a target to prepare it
     case build
@@ -228,6 +258,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
   public var fallbackBuildSystem: FallbackBuildSystemOptions
   public var clangdOptions: [String]?
   public var index: IndexOptions
+  public var logging: LoggingOptions
 
   /// Default workspace type (buildserver|compdb|swiftpm). Overrides workspace type selection logic.
   public var defaultWorkspaceType: WorkspaceType?
@@ -301,6 +332,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
     compilationDatabase: CompilationDatabaseOptions = .init(),
     clangdOptions: [String]? = nil,
     index: IndexOptions = .init(),
+    logging: LoggingOptions = .init(),
     defaultWorkspaceType: WorkspaceType? = nil,
     generatedFilesPath: String? = nil,
     backgroundIndexing: Bool? = nil,
@@ -315,6 +347,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
     self.compilationDatabase = compilationDatabase
     self.clangdOptions = clangdOptions
     self.index = index
+    self.logging = logging
     self.generatedFilesPath = generatedFilesPath
     self.defaultWorkspaceType = defaultWorkspaceType
     self.backgroundIndexing = backgroundIndexing
@@ -368,6 +401,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
       ),
       clangdOptions: override?.clangdOptions ?? base.clangdOptions,
       index: IndexOptions.merging(base: base.index, override: override?.index),
+      logging: LoggingOptions.merging(base: base.logging, override: override?.logging),
       defaultWorkspaceType: override?.defaultWorkspaceType ?? base.defaultWorkspaceType,
       generatedFilesPath: override?.generatedFilesPath ?? base.generatedFilesPath,
       backgroundIndexing: override?.backgroundIndexing ?? base.backgroundIndexing,
@@ -405,6 +439,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
       try container.decodeIfPresent(FallbackBuildSystemOptions.self, forKey: CodingKeys.fallbackBuildSystem) ?? .init()
     self.clangdOptions = try container.decodeIfPresent([String].self, forKey: CodingKeys.clangdOptions)
     self.index = try container.decodeIfPresent(IndexOptions.self, forKey: CodingKeys.index) ?? .init()
+    self.logging = try container.decodeIfPresent(LoggingOptions.self, forKey: .logging) ?? .init()
     self.defaultWorkspaceType = try container.decodeIfPresent(
       WorkspaceType.self,
       forKey: CodingKeys.defaultWorkspaceType

@@ -36,6 +36,9 @@ The structure of the file is currently not guaranteed to be stable. Options may 
     - `indexPrefixMap: [string: string]`: Path remappings for remapping index data for local use.
     - `maxCoresPercentageToUseForBackgroundIndexing: double`: A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting
     - `updateIndexStoreTimeout: int`: Number of seconds to wait for an update index store task to finish before killing it.
+- `logging`: Dictionary with the following keys, changing SourceKit-LSP’s logging behavior on non-Apple platforms. On Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging). These options can only be set globally and not per workspace.
+  - `logLevel: "debug"|"info"|"default"|"error"|"fault"`: The level from which one onwards log messages should be written.
+  - `privacyLevel: "public"|"private"|"sensitive"`: Whether potentially sensitive information should be redacted. Default is `public`, which redacts potentially sensitive information.
 - `defaultWorkspaceType: "buildserver"|"compdb"|"swiftpm"`: Overrides workspace type selection logic.
 - `generatedFilesPath: string`: Directory in which generated interfaces and macro expansions should be stored.
 - `backgroundIndexing: bool`: Explicitly enable or disable background indexing.
