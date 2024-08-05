@@ -100,8 +100,6 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
   }
 
-  package var indexPrefixMappings: [PathPrefixMapping] { return [] }
-
   package func buildSettings(
     for document: DocumentURI,
     in buildTarget: ConfiguredTarget,

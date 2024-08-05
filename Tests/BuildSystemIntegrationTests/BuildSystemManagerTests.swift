@@ -500,7 +500,6 @@ class ManualBuildSystem: BuildSystem {
 
   var indexStorePath: AbsolutePath? { nil }
   var indexDatabasePath: AbsolutePath? { nil }
-  var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
   func filesDidChange(_ events: [FileEvent]) {}
 

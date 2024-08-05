@@ -49,8 +49,6 @@ package actor FallbackBuildSystem {
 
   package var indexDatabasePath: AbsolutePath? { return nil }
 
-  package var indexPrefixMappings: [PathPrefixMapping] { return [] }
-
   package func buildSettings(for uri: DocumentURI, language: Language) -> FileBuildSettings? {
     var fileBuildSettings: FileBuildSettings?
     switch language {

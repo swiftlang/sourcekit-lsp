@@ -107,9 +107,6 @@ package protocol BuildSystem: AnyObject, Sendable {
   /// The path to put the index database, if any.
   var indexDatabasePath: AbsolutePath? { get async }
 
-  /// Path remappings for remapping index data for local use.
-  var indexPrefixMappings: [PathPrefixMapping] { get async }
-
   /// Delegate to handle any build system events such as file build settings initial reports as well as changes.
   ///
   /// The build system must not retain the delegate because the delegate can be the `BuildSystemManager`, which could

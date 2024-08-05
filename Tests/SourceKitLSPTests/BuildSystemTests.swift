@@ -27,7 +27,6 @@ actor TestBuildSystem: BuildSystem {
   let projectRoot: AbsolutePath = try! AbsolutePath(validating: "/")
   let indexStorePath: AbsolutePath? = nil
   let indexDatabasePath: AbsolutePath? = nil
-  let indexPrefixMappings: [PathPrefixMapping] = []
 
   weak var delegate: BuildSystemDelegate?
 

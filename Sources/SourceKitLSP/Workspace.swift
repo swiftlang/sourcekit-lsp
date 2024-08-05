@@ -178,10 +178,7 @@ package final class Workspace: Sendable {
         let lib = try IndexStoreLibrary(dylibPath: libPath.pathString)
         indexDelegate = SourceKitIndexDelegate()
         let prefixMappings =
-          await firstNonNil(
-            indexOptions.indexPrefixMap?.map { PathPrefixMapping(original: $0.key, replacement: $0.value) },
-            await buildSystem?.indexPrefixMappings
-          ) ?? []
+          indexOptions.indexPrefixMap?.map { PathPrefixMapping(original: $0.key, replacement: $0.value) } ?? []
         index = try IndexStoreDB(
           storePath: storePath.pathString,
           databasePath: dbPath.pathString,
