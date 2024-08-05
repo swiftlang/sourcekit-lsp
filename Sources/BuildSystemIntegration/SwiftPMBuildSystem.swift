@@ -389,8 +389,10 @@ extension SwiftPMBuildSystem {
     /// with only some properties modified.
     self.modulesGraph = modulesGraph
 
+    let allModules = buildDescription.allModules
+
     self.targets = Dictionary(
-      try buildDescription.allTargetsInTopologicalOrder(in: modulesGraph).enumerated().map { (index, target) in
+      allModules.enumerated().map { (index, target) in
         return (key: ConfiguredTarget(target), value: (index, target))
       },
       uniquingKeysWith: { first, second in
@@ -400,23 +402,17 @@ extension SwiftPMBuildSystem {
     )
 
     self.fileToTargets = [DocumentURI: [SwiftBuildTarget]](
-      modulesGraph.allModules.flatMap { target in
-        return target.sources.paths.compactMap { (filePath) -> (key: DocumentURI, value: [SwiftBuildTarget])? in
-          guard let buildTarget = buildDescription.getBuildTarget(for: target, in: modulesGraph) else {
-            return nil
-          }
-          return (key: DocumentURI(filePath.asURL), value: [buildTarget])
+      allModules.flatMap { module in
+        return module.paths.map { (filePath) -> (DocumentURI, [SwiftBuildTarget]) in
+          return (DocumentURI(filePath), value: [module])
         }
       },
       uniquingKeysWith: { $0 + $1 }
     )
 
     self.sourceDirToTargets = [DocumentURI: [SwiftBuildTarget]](
-      modulesGraph.allModules.compactMap { (target) -> (DocumentURI, [SwiftBuildTarget])? in
-        guard let buildTarget = buildDescription.getBuildTarget(for: target, in: modulesGraph) else {
-          return nil
-        }
-        return (key: DocumentURI(target.sources.root.asURL), value: [buildTarget])
+      allModules.map { (module) -> (DocumentURI, [SwiftBuildTarget]) in
+        return (key: DocumentURI(module.root), value: [module])
       },
       uniquingKeysWith: { $0 + $1 }
     )
