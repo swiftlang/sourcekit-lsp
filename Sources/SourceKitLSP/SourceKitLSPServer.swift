@@ -617,8 +617,12 @@ extension SourceKitLSPServer: MessageHandler {
       // See comment in `withLoggingScope`.
       // The last 2 digits should be sufficient to differentiate between multiple concurrently running requests.
       await withLoggingScope("request-\(id.numericValue % 100)") {
-        await self.handleImpl(params, id: id, reply: reply)
-        signposter.endInterval("Request", state, "Done")
+        await withTaskCancellationHandler {
+          await self.handleImpl(params, id: id, reply: reply)
+          signposter.endInterval("Request", state, "Done")
+        } onCancel: {
+          signposter.emitEvent("Cancelled", id: signpostID)
+        }
       }
       // We have handled the request and can't cancel it anymore.
       // Stop keeping track of it to free the memory.
