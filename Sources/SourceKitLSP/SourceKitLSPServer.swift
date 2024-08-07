@@ -1530,20 +1530,24 @@ extension SourceKitLSPServer {
     )
   }
 
-  /// Find all symbols in the workspace that include a string in their name.
-  /// - returns: An array of SymbolOccurrences that match the string.
-  func findWorkspaceSymbols(matching: String) throws -> [SymbolOccurrence] {
+  /// Handle a workspace/symbol request, returning the SymbolInformation.
+  /// - returns: An array with SymbolInformation for each matching symbol in the workspace.
+  func workspaceSymbols(_ req: WorkspaceSymbolsRequest) async throws -> [WorkspaceSymbolItem]? {
     // Ignore short queries since they are:
     // - noisy and slow, since they can match many symbols
     // - normally unintentional, triggered when the user types slowly or if the editor doesn't
     //   debounce events while the user is typing
-    guard matching.count >= minWorkspaceSymbolPatternLength else {
+    guard req.query.count >= minWorkspaceSymbolPatternLength else {
       return []
     }
-    var symbolOccurrenceResults: [SymbolOccurrence] = []
+    var symbolsAndIndex: [(symbol: SymbolOccurrence, index: CheckedIndex)] = []
     for workspace in workspaces {
-      workspace.index(checkedFor: .deletedFiles)?.forEachCanonicalSymbolOccurrence(
-        containing: matching,
+      guard let index = workspace.index(checkedFor: .deletedFiles) else {
+        continue
+      }
+      var symbolOccurrences: [SymbolOccurrence] = []
+      index.forEachCanonicalSymbolOccurrence(
+        containing: req.query,
         anchorStart: false,
         anchorEnd: false,
         subsequence: true,
@@ -1555,19 +1559,36 @@ extension SourceKitLSPServer {
         guard !symbol.location.isSystem && !symbol.roles.contains(.accessorOf) else {
           return true
         }
-        symbolOccurrenceResults.append(symbol)
+        symbolOccurrences.append(symbol)
         return true
       }
       try Task.checkCancellation()
+      symbolsAndIndex += symbolOccurrences.map {
+        return ($0, index)
+      }
     }
-    return symbolOccurrenceResults.sorted()
-  }
+    return symbolsAndIndex.sorted(by: { $0.symbol < $1.symbol }).map { symbolOccurrence, index in
+      let symbolPosition = Position(
+        line: symbolOccurrence.location.line - 1,  // 1-based -> 0-based
+        // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
+        utf16index: symbolOccurrence.location.utf8Column - 1
+      )
 
-  /// Handle a workspace/symbol request, returning the SymbolInformation.
-  /// - returns: An array with SymbolInformation for each matching symbol in the workspace.
-  func workspaceSymbols(_ req: WorkspaceSymbolsRequest) async throws -> [WorkspaceSymbolItem]? {
-    let symbols = try findWorkspaceSymbols(matching: req.query).map(WorkspaceSymbolItem.init)
-    return symbols
+      let symbolLocation = Location(
+        uri: symbolOccurrence.location.documentUri,
+        range: Range(symbolPosition)
+      )
+
+      return WorkspaceSymbolItem.symbolInformation(
+        SymbolInformation(
+          name: symbolOccurrence.symbol.name,
+          kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
+          deprecated: nil,
+          location: symbolLocation,
+          containerName: index.containerName(of: symbolOccurrence)
+        )
+      )
+    }
   }
 
   /// Forwards a SymbolInfoRequest to the appropriate toolchain service for this document.
@@ -2087,7 +2108,7 @@ extension SourceKitLSPServer {
       }
       return self.indexToLSPCallHierarchyItem(
         symbol: definition.symbol,
-        containerName: definition.containerName,
+        containerName: index.containerName(of: definition),
         location: location
       )
     }.sorted(by: { Location(uri: $0.uri, range: $0.range) < Location(uri: $1.uri, range: $1.range) })
@@ -2163,6 +2184,12 @@ extension SourceKitLSPServer {
       let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: caller.usr)
       let definitionSymbolLocation = definition?.location
       let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation2)
+      let containerName: String? =
+        if let definition {
+          index.containerName(of: definition)
+        } else {
+          nil
+        }
 
       let locations = calls.compactMap { indexToLSPLocation2($0.location) }.sorted()
       guard !locations.isEmpty else {
@@ -2172,7 +2199,7 @@ extension SourceKitLSPServer {
       return CallHierarchyIncomingCall(
         from: indexToLSPCallHierarchyItem2(
           symbol: caller,
-          containerName: definition?.containerName,
+          containerName: containerName,
           location: definitionLocation ?? locations.first!
         ),
         fromRanges: locations.map(\.range)
@@ -2216,11 +2243,17 @@ extension SourceKitLSPServer {
       let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr)
       let definitionSymbolLocation = definition?.location
       let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation2)
+      let containerName: String? =
+        if let definition {
+          index.containerName(of: definition)
+        } else {
+          nil
+        }
 
       return CallHierarchyOutgoingCall(
         to: indexToLSPCallHierarchyItem2(
           symbol: occurrence.symbol,
-          containerName: definition?.containerName,
+          containerName: containerName,
           location: definitionLocation ?? location  // Use occurrence location as fallback
         ),
         fromRanges: [location.range]
@@ -2522,6 +2555,35 @@ fileprivate extension CheckedIndex {
     }
     return result
   }
+
+  /// Get the name of the symbol that is a parent of this symbol, if one exists
+  func containerName(of symbol: SymbolOccurrence) -> String? {
+    // The container name of accessors is the container of the surrounding variable.
+    let accessorOf = symbol.relations.filter { $0.roles.contains(.accessorOf) }
+    if let primaryVariable = accessorOf.sorted().first {
+      if accessorOf.count > 1 {
+        logger.fault("Expected an occurrence to an accessor of at most one symbol, not multiple")
+      }
+      if let primaryVariable = primaryDefinitionOrDeclarationOccurrence(ofUSR: primaryVariable.symbol.usr) {
+        return containerName(of: primaryVariable)
+      }
+    }
+
+    let containers = symbol.relations.filter { $0.roles.contains(.childOf) }
+    if containers.count > 1 {
+      logger.fault("Expected an occurrence to a child of at most one symbol, not multiple")
+    }
+    return containers.filter {
+      switch $0.symbol.kind {
+      case .module, .namespace, .enum, .struct, .class, .protocol, .extension, .union:
+        return true
+      case .unknown, .namespaceAlias, .macro, .typealias, .function, .variable, .field, .enumConstant,
+        .instanceMethod, .classMethod, .staticMethod, .instanceProperty, .classProperty, .staticProperty, .constructor,
+        .destructor, .conversionFunction, .parameter, .using, .concept, .commentTag:
+        return false
+      }
+    }.sorted().first?.symbol.name
+  }
 }
 
 extension IndexSymbolKind {
@@ -2572,26 +2634,6 @@ extension IndexSymbolKind {
   }
 }
 
-extension SymbolOccurrence {
-  /// Get the name of the symbol that is a parent of this symbol, if one exists
-  var containerName: String? {
-    let containers = relations.filter { $0.roles.contains(.childOf) }
-    if containers.count > 1 {
-      logger.fault("Expected an occurrence to a child of at most one symbol, not multiple")
-    }
-    return containers.filter {
-      switch $0.symbol.kind {
-      case .module, .namespace, .enum, .struct, .class, .protocol, .extension, .union:
-        return true
-      case .unknown, .namespaceAlias, .macro, .typealias, .function, .variable, .field, .enumConstant,
-        .instanceMethod, .classMethod, .staticMethod, .instanceProperty, .classProperty, .staticProperty, .constructor,
-        .destructor, .conversionFunction, .parameter, .using, .concept, .commentTag:
-        return false
-      }
-    }.sorted().first?.symbol.name
-  }
-}
-
 /// Simple struct for pending notifications/requests, including a cancellation handler.
 /// For convenience the notifications/request handlers are type erased via wrapping.
 fileprivate struct NotificationRequestOperation {
@@ -2635,31 +2677,6 @@ fileprivate func transitiveSubtypeClosure(ofUsrs usrs: [String], index: CheckedI
     result += transitiveSubtypes
   }
   return result
-}
-
-extension WorkspaceSymbolItem {
-  init(_ symbolOccurrence: SymbolOccurrence) {
-    let symbolPosition = Position(
-      line: symbolOccurrence.location.line - 1,  // 1-based -> 0-based
-      // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
-      utf16index: symbolOccurrence.location.utf8Column - 1
-    )
-
-    let symbolLocation = Location(
-      uri: symbolOccurrence.location.documentUri,
-      range: Range(symbolPosition)
-    )
-
-    self = .symbolInformation(
-      SymbolInformation(
-        name: symbolOccurrence.symbol.name,
-        kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
-        deprecated: nil,
-        location: symbolLocation,
-        containerName: symbolOccurrence.containerName
-      )
-    )
-  }
 }
 
 fileprivate extension RequestID {
