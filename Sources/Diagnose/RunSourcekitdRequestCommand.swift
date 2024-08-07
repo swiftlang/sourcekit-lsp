@@ -32,9 +32,10 @@ package struct RunSourceKitdRequestCommand: AsyncParsableCommand {
 
   @Option(
     name: .customLong("request-file"),
-    help: "Path to a JSON sourcekitd request"
+    help:
+      "Path to a JSON sourcekitd request. Multiple may be passed to run them in sequence on the same sourcekitd instance"
   )
-  var sourcekitdRequestPath: String
+  var sourcekitdRequestPaths: [String]
 
   @Option(help: "line:column override for key.offset")
   var position: String?
@@ -42,8 +43,6 @@ package struct RunSourceKitdRequestCommand: AsyncParsableCommand {
   package init() {}
 
   package func run() async throws {
-    var requestString = try String(contentsOf: URL(fileURLWithPath: sourcekitdRequestPath), encoding: .utf8)
-
     let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
     let sourcekitdPath =
       if let sourcekitdPath {
@@ -58,54 +57,49 @@ package struct RunSourceKitdRequestCommand: AsyncParsableCommand {
       dylibPath: try! AbsolutePath(validating: sourcekitdPath)
     )
 
-    if let lineColumn = position?.split(separator: ":", maxSplits: 2).map(Int.init),
-      lineColumn.count == 2,
-      let line = lineColumn[0],
-      let column = lineColumn[1]
-    {
-      let requestInfo = try RequestInfo(request: requestString)
+    var lastResponse: SKDResponse?
 
-      let lineTable = LineTable(requestInfo.fileContents)
-      let offset = lineTable.utf8OffsetOf(line: line - 1, utf8Column: column - 1)
-      print("Adjusting request offset to \(offset)")
-      requestString.replace(#/key.offset: [0-9]+/#, with: "key.offset: \(offset)")
-    }
+    for sourcekitdRequestPath in sourcekitdRequestPaths {
+      var requestString = try String(contentsOf: URL(fileURLWithPath: sourcekitdRequestPath), encoding: .utf8)
+      if let lineColumn = position?.split(separator: ":", maxSplits: 2).map(Int.init),
+        lineColumn.count == 2,
+        let line = lineColumn[0],
+        let column = lineColumn[1]
+      {
+        let requestInfo = try RequestInfo(request: requestString)
 
-    let request = try requestString.cString(using: .utf8)!.withUnsafeBufferPointer { buffer in
-      var error: UnsafeMutablePointer<CChar>?
-      let req = sourcekitd.api.request_create_from_yaml(buffer.baseAddress!, &error)!
-      if let error {
-        throw ReductionError("Failed to parse sourcekitd request from JSON: \(String(cString: error))")
+        let lineTable = LineTable(requestInfo.fileContents)
+        let offset = lineTable.utf8OffsetOf(line: line - 1, utf8Column: column - 1)
+        print("Adjusting request offset to \(offset)")
+        requestString.replace(#/key.offset: [0-9]+/#, with: "key.offset: \(offset)")
       }
-      return req
-    }
-    let response: SKDResponse = await withCheckedContinuation { continuation in
-      var handle: sourcekitd_api_request_handle_t? = nil
-      sourcekitd.api.send_request(request, &handle) { resp in
-        continuation.resume(returning: SKDResponse(resp!, sourcekitd: sourcekitd))
+
+      let request = try requestString.cString(using: .utf8)!.withUnsafeBufferPointer { buffer in
+        var error: UnsafeMutablePointer<CChar>?
+        let req = sourcekitd.api.request_create_from_yaml(buffer.baseAddress!, &error)!
+        if let error {
+          throw ReductionError("Failed to parse sourcekitd request from JSON: \(String(cString: error))")
+        }
+        return req
       }
+      let response = await withCheckedContinuation { continuation in
+        var handle: sourcekitd_api_request_handle_t? = nil
+        sourcekitd.api.send_request(request, &handle) { resp in
+          continuation.resume(returning: SKDResponse(resp!, sourcekitd: sourcekitd))
+        }
+      }
+      lastResponse = response
+
+      print(response.description)
     }
 
-    switch response.error {
-    case .requestFailed(let message):
-      print(message)
-      throw ExitCode(1)
-    case .requestInvalid(let message):
-      print(message)
-      throw ExitCode(1)
-    case .requestCancelled:
-      print("request cancelled")
-      throw ExitCode(1)
-    case .timedOut:
-      print("request timed out")
-      throw ExitCode(1)
-    case .missingRequiredSymbol:
-      print("missing required symbol")
+    switch lastResponse?.error {
+    case .requestFailed, .requestInvalid, .requestCancelled, .timedOut, .missingRequiredSymbol:
       throw ExitCode(1)
     case .connectionInterrupted:
       throw ExitCode(255)
     case nil:
-      print(response.description)
+      break
     }
   }
 }
