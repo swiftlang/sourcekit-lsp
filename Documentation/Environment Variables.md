@@ -10,8 +10,8 @@ The following environment variables can be used to control some behavior in Sour
 
 ## Runtime
 
-- `SOURCEKITLSP_LOG_LEVEL`: When using `NonDarwinLogger`, specify the level at which messages should be logged. Defaults to `default`. Use `debug` to increase to the highest log level.
-- `SOURCEKITLSP_LOG_PRIVACY_LEVEL`: When using `NonDarwinLogger`, specifies whether information that might contain personal information (essentially source code) should be logged. Defaults to `private`, which logs this information. Set to `public` to redact this information.
+- `SOURCEKITLSP_LOG_LEVEL`: When using `NonDarwinLogger`, specify the level at which messages should be logged. Defaults to `debug` in debug build and `default` in release builds. Primarily used to increase the log level when running tests from a release build in Swift CI. To adjust the logging on user devices, use the [Configuration file](Configuration%20File.md).
+- `SOURCEKITLSP_LOG_PRIVACY_LEVEL`: When using `NonDarwinLogger`, specifies whether information that might contain sensitive information (essentially source code) should be logged. Defaults to `private` in debug build and `public` in release builds. Primarily used to log sensitive information when running tests from a release build in Swift CI. To adjust the logging on user devices, use the [Configuration file](Configuration%20File.md).
 
 ## Testing
 - `SKIP_LONG_TESTS`: Skip tests that typically take more than 1s to execute.

@@ -20,6 +20,20 @@ The diagnose bundle contains the following information:
 
 Extended logging of SourceKit-LSP is not enabled by default because it contains information about your source code, directory structure and similar potentially sensitive information. Instead, the logging system redacts that information. If you are comfortable with sharing such information, you can enable extended SourceKit-LSP’s extended logging, which improves the ability of SourceKit-LSP developers to understand and fix issues.
 
+### macOS
+
 To enable extended logging on macOS, install the configuration profile from https://github.com/swiftlang/sourcekit-lsp/blob/main/Documentation/Enable%20Extended%20Logging.mobileconfig as described in https://support.apple.com/guide/mac-help/configuration-profiles-standardize-settings-mh35561/mac#mchlp41bd550. SourceKit-LSP will immediately stop redacting information and include them in the system log.
 
 To disable extended logging again, remove the configuration profile as described in https://support.apple.com/guide/mac-help/configuration-profiles-standardize-settings-mh35561/mac#mchlpa04df41.
+
+### Non-Apple platforms
+
+Create a [configuration file](Configuration%20File.md) with the following contents at `~/.sourcekit-lsp/config.json` with the following contents:
+```json
+{
+  "logging": {
+    "level": "debug",
+    "privacyLevel": "private"
+  }
+}
+```
