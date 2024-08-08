@@ -842,6 +842,47 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       assertArgumentsContain(aswift.pathString, arguments: arguments)
     }
   }
+
+  func testPackageWithDependencyWithoutResolving() async throws {
+    // This package has a dependency but we haven't run `swift package resolve`. We don't want to resolve packages from
+    // SourceKit-LSP because it has side-effects to the build directory.
+    // But even without the dependency checked out, we should be able to create a SwiftPMBuildSystem and retrieve the
+    // existing source files.
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/PackageTests/PackageTests.swift": """
+        import Testing
+
+        1️⃣@Test func topLevelTestPassing() {}2️⃣
+        """
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          dependencies: [.package(url: "https://github.com/swiftlang/swift-testing.git", branch: "main")],
+          targets: [
+            .testTarget(name: "PackageTests", dependencies: [.product(name: "Testing", package: "swift-testing")]),
+          ]
+        )
+        """
+    )
+
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "PackageTests.topLevelTestPassing()",
+          label: "topLevelTestPassing()",
+          disabled: false,
+          style: "swift-testing",
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "PackageTests.swift"),
+          children: [],
+          tags: []
+        )
+      ]
+    )
+  }
 }
 
 private func assertArgumentsDoNotContain(
