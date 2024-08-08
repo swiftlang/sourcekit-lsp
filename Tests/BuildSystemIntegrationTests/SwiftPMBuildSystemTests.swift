@@ -891,7 +891,7 @@ private func assertArgumentsDoNotContain(
   file: StaticString = #filePath,
   line: UInt = #line
 ) {
-  if let index = arguments.firstIndex(of: pattern) {
+  if let index = arguments.firstRange(of: pattern)?.startIndex {
     XCTFail(
       "not-pattern \(pattern) unexpectedly found at \(index) in arguments \(arguments)",
       file: file,
@@ -908,12 +908,12 @@ private func assertArgumentsContain(
   file: StaticString = #filePath,
   line: UInt = #line
 ) {
-  guard let index = arguments.firstIndex(of: pattern) else {
+  guard let index = arguments.firstRange(of: pattern)?.startIndex else {
     XCTFail("pattern \(pattern) not found in arguments \(arguments)", file: file, line: line)
     return
   }
 
-  if !allowMultiple, let index2 = arguments[(index + 1)...].firstIndex(of: pattern) {
+  if !allowMultiple, let index2 = arguments[(index + 1)...].firstRange(of: pattern)?.startIndex {
     XCTFail(
       "pattern \(pattern) found twice (\(index), \(index2)) in \(arguments)",
       file: file,
