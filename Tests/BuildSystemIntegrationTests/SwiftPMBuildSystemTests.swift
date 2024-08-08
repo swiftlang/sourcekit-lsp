@@ -656,8 +656,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         .compilerArguments
       XCTAssertNotNil(argsManifest)
 
-      assertArgumentsDoNotContain(manifest.pathString, arguments: argsManifest ?? [])
-      assertArgumentsContain(try resolveSymlinks(manifest).pathString, arguments: argsManifest ?? [])
+      assertArgumentsContain(manifest.pathString, arguments: argsManifest ?? [])
+      assertArgumentsDoNotContain(try resolveSymlinks(manifest).pathString, arguments: argsManifest ?? [])
     }
   }
 
