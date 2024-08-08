@@ -7,3 +7,4 @@ The following documentation documents are intended for users of SourceKit-LSP.
 - [Editor Integration](Editor%20Integration.md)
 - [Enable Experimental Background Indexing](Enable%20Experimental%20Background%20Indexing.md)
 - [Environment Variables](Environment%20Variables.md)
+- [Using SourceKit-LSP with Embedded Projects](Using%20SourceKit-LSP%20with%20Embedded%20Projects.md)

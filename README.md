@@ -11,6 +11,9 @@ https://www.swift.org/tools has a list of popular editors that support LSP and c
 
 To learn more about SourceKit-LSP, refer to the [Documentation](Documentation).
 
+> [!NOTE]
+> If you are using SourceKit-LSP with a SwiftPM project in which you need to pass additional arguments to the `swift build` invocation, as is commonly the case for embedded projects, you need to teach SourceKit-LSP about those arguments as described in [Using SourceKit-LSP with Embedded Projects](Documentation/Using%20SourceKit-LSP%20with%20Embedded%20Projects.md).
+
 ## Reporting Issues
 
 If you should hit any issues while using SourceKit-LSP, we appreciate bug reports on [GitHub Issue](https://github.com/swiftlang/sourcekit-lsp/issues/new/choose).
