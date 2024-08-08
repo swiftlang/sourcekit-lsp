@@ -110,15 +110,20 @@ package struct SwiftPMTestHooks: Sendable {
 /// Package Manager (SwiftPM) package. The settings are determined by loading the Package.swift
 /// manifest using `libSwiftPM` and constructing a build plan using the default (debug) parameters.
 package actor SwiftPMBuildSystem {
-
   package enum Error: Swift.Error {
-
     /// Could not find a manifest (Package.swift file). This is not a package.
     case noManifest(workspacePath: TSCAbsolutePath)
 
     /// Could not determine an appropriate toolchain for swiftpm to use for manifest loading.
     case cannotDetermineHostToolchain
   }
+
+  // MARK: Integration with SourceKit-LSP
+
+  /// Options that allow the user to pass extra compiler flags.
+  private let options: SourceKitLSPOptions
+
+  private let testHooks: SwiftPMTestHooks
 
   /// Delegate to handle any build system events.
   package weak var delegate: BuildSystemIntegration.BuildSystemDelegate? = nil
@@ -127,39 +132,15 @@ package actor SwiftPMBuildSystem {
     self.delegate = delegate
   }
 
+  /// This callback is informed when `reloadPackage` starts and ends executing.
+  private var reloadPackageStatusCallback: (ReloadPackageStatus) async -> Void
+
   /// Callbacks that should be called if the list of possible test files has changed.
   private var testFilesDidChangeCallbacks: [() async -> Void] = []
-
-  private let workspacePath: TSCAbsolutePath
-
-  /// Options that allow the user to pass extra compiler flags.
-  private let options: SourceKitLSPOptions
-
-  /// The directory containing `Package.swift`.
-  package var projectRoot: TSCAbsolutePath
-
-  private var buildDescription: SourceKitLSPAPI.BuildDescription?
-  private var modulesGraph: ModulesGraph
-  private let workspace: Workspace
-  package let toolsBuildParameters: BuildParameters
-  package let destinationBuildParameters: BuildParameters
-  private let fileSystem: FileSystem
-  private let toolchain: Toolchain
-
-  private var fileToTargets: [DocumentURI: [SwiftBuildTarget]] = [:]
-  private var sourceDirToTargets: [DocumentURI: [SwiftBuildTarget]] = [:]
-
-  /// Maps configured targets ids to their SwiftPM build target as well as an index in their topological sorting.
-  ///
-  /// Targets with lower index are more low level, ie. targets with higher indices depend on targets with lower indices.
-  private var targets: [ConfiguredTarget: (index: Int, buildTarget: SwiftBuildTarget)] = [:]
 
   /// The URIs for which the delegate has registered for change notifications,
   /// mapped to the language the delegate specified when registering for change notifications.
   private var watchedFiles: Set<DocumentURI> = []
-
-  /// This callback is informed when `reloadPackage` starts and ends executing.
-  private var reloadPackageStatusCallback: (ReloadPackageStatus) async -> Void
 
   /// Debounces calls to `delegate.filesDependenciesUpdated`.
   ///
@@ -171,16 +152,45 @@ package actor SwiftPMBuildSystem {
   /// Force-unwrapped optional because initializing it requires access to `self`.
   private var fileDependenciesUpdatedDebouncer: Debouncer<Set<DocumentURI>>! = nil
 
+  /// Whether the `SwiftPMBuildSystem` is pointed at a `.index-build` directory that's independent of the
+  /// user's build.
+  private var isForIndexBuild: Bool { options.backgroundIndexingOrDefault }
+
+  // MARK: Build system options (set once and not modified)
+
+  /// The path at which the LSP workspace is opened. This might be a subdirectory of the path that contains the
+  /// `Package.swift`.
+  private let workspacePath: TSCAbsolutePath
+
+  /// The directory containing `Package.swift`.
+  package let projectRoot: TSCAbsolutePath
+
+  package let toolsBuildParameters: BuildParameters
+  package let destinationBuildParameters: BuildParameters
+
+  private let fileSystem: FileSystem
+  private let toolchain: Toolchain
+  private let workspace: Workspace
+
   /// A `ObservabilitySystem` from `SwiftPM` that logs.
   private let observabilitySystem = ObservabilitySystem({ scope, diagnostic in
     logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
   })
 
-  /// Whether the `SwiftPMBuildSystem` is pointed at a `.index-build` directory that's independent of the
-  /// user's build.
-  private var isForIndexBuild: Bool { options.backgroundIndexingOrDefault }
+  // MARK: Build system state (modified on package reload)
 
-  private let testHooks: SwiftPMTestHooks
+  /// The entry point via with we can access the `SourceKitLSPAPI` provided by SwiftPM.
+  private var buildDescription: SourceKitLSPAPI.BuildDescription?
+
+  private var modulesGraph: ModulesGraph
+
+  private var fileToTargets: [DocumentURI: [SwiftBuildTarget]] = [:]
+  private var sourceDirToTargets: [DocumentURI: [SwiftBuildTarget]] = [:]
+
+  /// Maps configured targets ids to their SwiftPM build target as well as an index in their topological sorting.
+  ///
+  /// Targets with lower index are more low level, ie. targets with higher indices depend on targets with lower indices.
+  private var targets: [ConfiguredTarget: (index: Int, buildTarget: SwiftBuildTarget)] = [:]
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
