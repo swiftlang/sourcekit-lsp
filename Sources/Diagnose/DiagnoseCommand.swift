@@ -256,7 +256,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     let destinationDir = bundlePath.appendingPathComponent("logs")
     try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true)
 
-    let logFileDirectoryURL = FileManager.default.sanitizedHomeDirectoryForCurrentUser
+    let logFileDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
       .appendingPathComponent(".sourcekit-lsp")
       .appendingPathComponent("logs")
     let enumerator = FileManager.default.enumerator(at: logFileDirectoryURL, includingPropertiesForKeys: nil)
