@@ -340,10 +340,8 @@ extension DiagnosticRelatedInformation {
     let snapshot: DocumentSnapshot
     if filePath == primaryDocumentSnapshot.uri.pseudoPath {
       snapshot = primaryDocumentSnapshot
-    } else if let inMemorySnapshot = try? documentManager.latestSnapshot(uri) {
-      snapshot = inMemorySnapshot
-    } else if let snapshotFromDisk = try? DocumentSnapshot(withContentsFromDisk: uri, language: .swift) {
-      snapshot = snapshotFromDisk
+    } else if let loadedSnapshot = documentManager.latestSnapshotOrDisk(uri, language: .swift) {
+      snapshot = loadedSnapshot
     } else {
       return nil
     }

@@ -1319,15 +1319,15 @@ extension sourcekitd_api_uid_t {
     case vals.declAssociatedType:
       return .typeParameter
     case vals.declTypeAlias:
-      return .typeParameter  // FIXME: is there a better choice?
+      return .typeParameter
     case vals.declGenericTypeParam:
       return .typeParameter
     case vals.declConstructor:
       return .constructor
     case vals.declDestructor:
-      return .value  // FIXME: is there a better choice?
+      return .value
     case vals.declSubscript:
-      return .method  // FIXME: is there a better choice?
+      return .method
     case vals.declMethodStatic:
       return .method
     case vals.declMethodInstance:

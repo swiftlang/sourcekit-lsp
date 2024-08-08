@@ -482,7 +482,6 @@ package actor SourceKitLSPServer {
         registry: workspace.capabilityRegistry
       )
 
-      // FIXME: store the server capabilities.
       var syncKind: TextDocumentSyncKind
       switch resp.capabilities.textDocumentSync {
       case .options(let options):
@@ -777,6 +776,7 @@ extension SourceKitLSPServer: MessageHandler {
 extension SourceKitLSPServer: BuildSystemDelegate {
   package func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
     // TODO: do something with these changes once build target support is in place
+    // (https://github.com/swiftlang/sourcekit-lsp/issues/1226)
   }
 
   private func affectedOpenDocumentsForChangeSet(
@@ -1570,7 +1570,8 @@ extension SourceKitLSPServer {
     return symbolsAndIndex.sorted(by: { $0.symbol < $1.symbol }).map { symbolOccurrence, index in
       let symbolPosition = Position(
         line: symbolOccurrence.location.line - 1,  // 1-based -> 0-based
-        // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
+        // Technically we would need to convert the UTF-8 column to a UTF-16 column. This would require reading the
+        // file. In practice they almost always coincide, so we accept the incorrectness here to avoid the file read.
         utf16index: symbolOccurrence.location.utf8Column - 1
       )
 
@@ -1752,7 +1753,8 @@ extension SourceKitLSPServer {
           // 1-based -> 0-based
           // Note that we still use max(0, ...) as a fallback if the location is zero.
           line: max(0, location.line - 1),
-          // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
+          // Technically we would need to convert the UTF-8 column to a UTF-16 column. This would require reading the
+          // file. In practice they almost always coincide, so we accept the incorrectness here to avoid the file read.
           utf16index: max(0, location.utf8Column - 1)
         )
       )
@@ -2165,12 +2167,12 @@ extension SourceKitLSPServer {
       }
     }
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
       return self.indexToLSPLocation(location)
     }
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPCallHierarchyItem2(
       symbol: Symbol,
       containerName: String?,
@@ -2215,12 +2217,12 @@ extension SourceKitLSPServer {
       return []
     }
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
       return self.indexToLSPLocation(location)
     }
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPCallHierarchyItem2(
       symbol: Symbol,
       containerName: String?,
@@ -2407,12 +2409,12 @@ extension SourceKitLSPServer {
       return index.occurrences(relatedToUSR: related.symbol.usr, roles: .baseOf)
     }
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
       return self.indexToLSPLocation(location)
     }
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPTypeHierarchyItem2(
       symbol: Symbol,
       moduleName: String?,
@@ -2454,12 +2456,12 @@ extension SourceKitLSPServer {
     // Resolve child types and extensions
     let occurs = index.occurrences(ofUSR: data.usr, roles: [.baseOf, .extendedBy])
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
       return self.indexToLSPLocation(location)
     }
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPTypeHierarchyItem2(
       symbol: Symbol,
       moduleName: String?,

@@ -262,8 +262,7 @@ class ConnectionTests: XCTestCase {
           // We get an error from XCTest if this is fulfilled more than once.
           expectation.fulfill()
 
-          // FIXME: keep the pipes alive until we close the connection. This
-          // should be fixed systemically.
+          // Keep the pipes alive until we close the connection.
           withExtendedLifetime((to, from)) {}
         }
       )

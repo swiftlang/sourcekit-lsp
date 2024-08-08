@@ -334,8 +334,9 @@ extension BuildServerBuildSystem: BuildSystem {
       return .unhandled
     }
 
-    // FIXME: We should not make any assumptions about which files the build server can handle.
-    // Instead we should query the build server which files it can handle (#492).
+    // TODO: We should not make any assumptions about which files the build server can handle.
+    // Instead we should query the build server which files it can handle
+    // (https://github.com/swiftlang/sourcekit-lsp/issues/492).
 
     if projectRoot.isAncestorOfOrEqual(to: path) {
       return .handled
@@ -399,8 +400,7 @@ private func makeJSONRPCBuildServer(
   )
 
   connection.start(receiveHandler: client) {
-    // FIXME: keep the pipes alive until we close the connection. This
-    // should be fixed systemically.
+    // Keep the pipes alive until we close the connection.
     withExtendedLifetime((clientToServer, serverToClient)) {}
   }
   let process = Foundation.Process()

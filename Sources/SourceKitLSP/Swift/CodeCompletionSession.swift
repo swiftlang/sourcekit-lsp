@@ -226,8 +226,6 @@ class CodeCompletionSession {
     position: Position,
     in snapshot: DocumentSnapshot
   ) async throws -> CompletionList {
-    // FIXME: Assertion for prefix of snapshot matching what we started with.
-
     logger.info("Updating code completion session: \(self.description) filter=\(filterText)")
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.codeCompleteUpdate,

@@ -16,7 +16,7 @@ import class TSCBasic.ThreadSafeOutputByteStream
 #if canImport(Darwin)
 import TSCLibc
 #else
-// FIXME: (async-workaround) @preconcurrency needed because stderr is not sendable on Linux rdar://125578486
+// TODO: @preconcurrency needed because stderr is not sendable on Linux https://github.com/swiftlang/swift/issues/75601
 @preconcurrency import TSCLibc
 #endif
 

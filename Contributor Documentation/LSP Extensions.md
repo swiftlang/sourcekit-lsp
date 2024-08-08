@@ -113,37 +113,37 @@ interface WorkspaceBuildSetup {
   /**
    * The configuration that the workspace should be built in.
    */
-  buildConfiguration?: BuildConfiguration
+  buildConfiguration?: BuildConfiguration;
 
   /**
    * The default workspace type to use for this workspace.
    */
-  defaultWorkspaceType?: WorkspaceType
+  defaultWorkspaceType?: WorkspaceType;
 
   /**
    * The build directory for the workspace.
    */
-  scratchPath?: DocumentURI
+  scratchPath?: DocumentURI;
 
   /**
    * Arguments to be passed to any C compiler invocations.
    */
-  cFlags?: string[]
+  cFlags?: string[];
 
   /**
    * Arguments to be passed to any C++ compiler invocations.
    */
-  cxxFlags?: string[]
+  cxxFlags?: string[];
 
   /**
    * Arguments to be passed to any linker invocations.
    */
-  linkerFlags?: string[]
+  linkerFlags?: string[];
 
   /**
    * Arguments to be passed to any Swift compiler invocations.
    */
-  swiftFlags?: string[]
+  swiftFlags?: string[];
 }
 ```
 
@@ -155,7 +155,7 @@ Added field:
 /**
  * Options to control code completion behavior in Swift
  */
-sourcekitlspOptions?: SKCompletionOptions
+sourcekitlspOptions?: SKCompletionOptions;
 ```
 
 with
@@ -165,7 +165,7 @@ interface SKCompletionOptions {
   /**
    * The maximum number of completion results to return, or `null` for unlimited.
    */
-  maxResults?: int
+  maxResults?: int;
 }
 ```
 
@@ -190,31 +190,31 @@ export interface SymbolInfoParams {
   /**
    * The document in which to lookup the symbol location.
    */
-  textDocument: TextDocumentIdentifier
+  textDocument: TextDocumentIdentifier;
 
   /**
    * The document location at which to lookup symbol information.
    */
-  position: Position
+  position: Position;
 }
 
 interface ModuleInfo {
   /**
    * The name of the module in which the symbol is defined.
    */
-  moduleName: string
+  moduleName: string;
 
   /**
    * If the symbol is defined within a subgroup of a module, the name of the group. Otherwise `nil`.
    */
-  groupName?: string
+  groupName?: string;
 }
 
 interface SymbolDetails {
   /**
    * The name of the symbol, if any.
    */
-  name?: string
+  name?: string;
 
   /**
    * The name of the containing type for the symbol, if any.
@@ -226,12 +226,12 @@ interface SymbolDetails {
    *   void foo() {}
    * }
    */
-  containerName?: string
+  containerName?: string;
 
   /**
    * The USR of the symbol, if any.
    */
-  usr?: string
+  usr?: string;
 
   /**
    * Best known declaration or definition location without global knowledge.
@@ -242,12 +242,12 @@ interface SymbolDetails {
    * the declaration location from a header as opposed to the definition in some other
    * translation unit.
    */
-  bestLocalDeclaration?: Location
+  bestLocalDeclaration?: Location;
 
   /**
    * The kind of the symbol
    */
-  kind?: SymbolKind
+  kind?: SymbolKind;
 
   /**
    * Whether the symbol is a dynamic call for which it isn't known which method will be invoked at runtime. This is
@@ -255,14 +255,14 @@ interface SymbolDetails {
    *
    * Optional because `clangd` does not return whether a symbol is dynamic.
    */
-  isDynamic?: bool
+  isDynamic?: bool;
 
   /**
    * Whether this symbol is defined in the SDK or standard library.
    *
    * This property only applies to Swift symbols
    */
-  isSystem?: bool
+  isSystem?: bool;
 
   /**
    * If the symbol is dynamic, the USRs of the types that might be called.
@@ -289,7 +289,7 @@ interface SymbolDetails {
    * receiver USR would be `B`, indicating that only overrides of subtypes in
    * `B` may be called dynamically.
    */
-  receiverUsrs?: string[]
+  receiverUsrs?: string[];
 
   /**
    * If the symbol is defined in a module that doesn't have source information associated with it, the name and group
@@ -297,7 +297,7 @@ interface SymbolDetails {
    *
    * This property only applies to Swift symbols.
    */
-  systemModule?: ModuleInfo
+  systemModule?: ModuleInfo;
 }
 ```
 
@@ -313,7 +313,7 @@ interface TestTag {
   /**
    * ID of the test tag. `TestTag` instances with the same ID are considered to be identical.
    */
-  id: string
+  id: string;
 }
 
 /**
@@ -329,51 +329,51 @@ interface TestItem {
    *
    * This identifier uniquely identifies the test case or test suite. It can be used to run an individual test (suite).
    */
-  id: string
+  id: string;
 
   /**
    * Display name describing the test.
    */
-  label: string
+  label: string;
 
   /**
    * Optional description that appears next to the label.
    */
-  description?: string
+  description?: string;
 
   /**
    * A string that should be used when comparing this item with other items.
    *
    * When `nil` the `label` is used.
    */
-  sortText?: string
+  sortText?: string;
 
   /**
    * Whether the test is disabled.
    */
-  disabled: bool
+  disabled: bool;
 
   /**
    * The type of test, eg. the testing framework that was used to declare the test.
    */
-  style: string
+  style: string;
 
   /**
    * The location of the test item in the source code.
    */
-  location: Location
+  location: Location;
 
   /**
    * The children of this test item.
    *
    * For a test suite, this may contain the individual test cases or nested suites.
    */
-  children: TestItem[]]
+  children: TestItem[];
 
   /**
    * Tags associated with this test item.
    */
-  tags: TestTag[]
+  tags: TestTag[];
 }
 
 export interface DocumentTestsParams {
@@ -386,7 +386,129 @@ export interface DocumentTestsParams {
 
 ## `textDocument/symbolInfo`
 
-TODO
+Request for semantic information about the symbol at a given location.
+This request looks up the symbol (if any) at a given text document location and returns `SymbolDetails` for that location, including information such as the symbol's USR. The symbolInfo request is not primarily designed for editors, but instead as an implementation detail of how one LSP implementation (e.g. SourceKit) gets information from another (e.g. clangd) to use in performing index queries or otherwise implementing the higher level requests such as definition.
+
+- params: `SymbolInfoParams`
+- result: `SymbolDetails[]`
+
+```ts
+export interface SymbolInfoParams {
+  /**
+   * The document in which to lookup the symbol location.
+   */
+  textDocument: TextDocumentIdentifier;
+
+  /**
+   * The document location at which to lookup symbol information.
+   */
+  position: Position;
+}
+
+export interface ModuleInfo {
+  /**
+   * The name of the module in which the symbol is defined.
+   */
+  moduleName: string;
+
+  /**
+   * If the symbol is defined within a subgroup of a module, the name of the group. Otherwise `nil`.
+   */
+  groupName?: string;
+}
+
+
+
+export interface SymbolDetails {
+  /**
+   * The name of the symbol, if any.
+   */
+  name?: string;
+
+  /**
+   * The name of the containing type for the symbol, if any.
+   *
+   * For example, in the following snippet, the `containerName` of `foo()` is `C`.
+   *
+   * ```c++
+   * class C {
+   *   void foo() {}
+   * }
+   * ```
+   */
+  containerName?: string;
+
+  /**
+   * The USR of the symbol, if any.
+   */
+  usr?: string;
+
+  /**
+   * Best known declaration or definition location without global knowledge.
+   *
+   * For a local or private variable, this is generally the canonical definition location -
+   * appropriate as a response to a `textDocument/definition` request. For global symbols this is
+   * the best known location within a single compilation unit. For example, in C++ this might be
+   * the declaration location from a header as opposed to the definition in some other
+   * translation unit.
+   */
+  bestLocalDeclaration?: Location;
+
+  /**
+   * The kind of the symbol
+   */
+  kind?: SymbolKind;
+
+  /**
+   * Whether the symbol is a dynamic call for which it isn't known which method will be invoked at runtime. This is
+   * the case for protocol methods and class functions.
+   *
+   * Optional because `clangd` does not return whether a symbol is dynamic.
+   */
+  isDynamic?: bool;
+
+  /**
+   * Whether this symbol is defined in the SDK or standard library.
+   *
+   * This property only applies to Swift symbols.
+   */
+  isSystem?: bool;
+
+  /**
+   * If the symbol is dynamic, the USRs of the types that might be called.
+   *
+   * This is relevant in the following cases
+   * ```swift
+   * class A {
+   *   func doThing() {}
+   * }
+   * class B: A {}
+   * class C: B {
+   *   override func doThing() {}
+   * }
+   * class D: A {
+   *   override func doThing() {}
+   * }
+   * func test(value: B) {
+   *   value.doThing()
+   * }
+   * ```
+   *
+   * The USR of the called function in `value.doThing` is `A.doThing` (or its
+   * mangled form) but it can never call `D.doThing`. In this case, the
+   * receiver USR would be `B`, indicating that only overrides of subtypes in
+   * `B` may be called dynamically.
+   */
+  receiverUsrs?: string[];
+
+  /**
+   * If the symbol is defined in a module that doesn't have source information associated with it, the name and group
+   * and group name that defines this symbol.
+   *
+   * This property only applies to Swift symbols.
+   */
+  systemModule?: ModuleInfo;
+```
 
 ## `window/logMessage`
 
@@ -398,7 +520,7 @@ Added field:
  *
  * Clients may ignore this parameter and add the message to the global log
  */
-logName?: string
+logName?: string;
 ```
 
 ## `workspace/_pollIndex`

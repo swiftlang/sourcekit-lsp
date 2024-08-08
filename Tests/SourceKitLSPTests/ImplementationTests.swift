@@ -253,8 +253,8 @@ final class ImplementationTests: XCTestCase {
   }
 
   func testOverrideProtocolFunc() async throws {
-    // FIXME: We should not be reporting locations 4, 5 and 7 because they don't actually contain myFunc.
-    // We should, however, be reporting location 6
+    // TODO: We should not be reporting locations 4, 5 and 7 because they don't actually contain myFunc.
+    // We should, however, be reporting location 6. (https://github.com/swiftlang/sourcekit-lsp/issues/1600)
 
     try await testImplementation(
       """

@@ -73,8 +73,9 @@ extension SKDResponse: CustomStringConvertible {
 
 extension SKDResponse: CustomLogStringConvertible {
   package var redactedDescription: String {
-    // FIXME: (logging) Implement a better redacted log that contains keys,
-    // number of elements in an array but not the data itself.
+    // TODO: Implement a better redacted log that contains keys, number of
+    // elements in an array but not the data itself.
+    // (https://github.com/swiftlang/sourcekit-lsp/issues/1598)
     return "<\(description.filter(\.isNewline).count) lines>"
   }
 }

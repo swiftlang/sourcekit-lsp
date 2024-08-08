@@ -321,10 +321,7 @@ struct SourceKitLSP: AsyncParsableCommand {
       receiveHandler: server,
       closeHandler: {
         await server.prepareForExit()
-        // FIXME: keep the FileHandle alive until we close the connection to
-        // workaround SR-13822.
-        withExtendedLifetime(realStdoutHandle) {}
-        // Use _Exit to avoid running static destructors due to SR-12668.
+        // Use _Exit to avoid running static destructors due to https://github.com/swiftlang/swift/issues/55112.
         _Exit(0)
       }
     )

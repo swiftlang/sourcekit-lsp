@@ -120,7 +120,6 @@ private struct XMLToMarkdown {
         toMarkdown(discussion.children)
         inParam = false
       }
-    // FIXME: closure parameters would go here.
 
     case "CodeListing":
       lineNumber = 0

@@ -70,7 +70,6 @@ public struct RefreshRegistrationCapability: Hashable, Codable, Sendable {
 }
 
 /// Capabilities of the client editor/IDE related to managing the workspace.
-// FIXME: Instead of making all of these optional, provide default values and make the deserialization handle missing values.
 public struct WorkspaceClientCapabilities: Hashable, Codable, Sendable {
 
   /// Capabilities specific to `WorkspaceEdit`.
@@ -223,7 +222,6 @@ public struct WorkspaceClientCapabilities: Hashable, Codable, Sendable {
 }
 
 /// Capabilities of the client editor/IDE related to the document.
-// FIXME: Instead of making all of these optional, provide default values and make the deserialization handle missing values.
 public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
 
   /// Capabilities specific to the `textDocument/...` change notifications.

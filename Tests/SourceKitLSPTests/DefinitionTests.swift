@@ -221,9 +221,10 @@ class DefinitionTests: XCTestCase {
   }
 
   func testAmbiguousDefinition() async throws {
-    // FIXME: This shouldn't have to be an indexed workspace but solver-based cursor info currently fails if the file
-    // does not exist on disk.
-    let project = try await IndexedSingleSwiftFileTestProject(
+    try await SkipUnless.solverBasedCursorInfoWorksForMemoryOnlyFiles()
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
       """
       func 1️⃣foo() -> Int { 1 }
       func 2️⃣foo() -> String { "" }
@@ -231,17 +232,17 @@ class DefinitionTests: XCTestCase {
         _ = 3️⃣foo()
       }
       """,
-      allowBuildFailure: true
+      uri: uri
     )
 
-    let response = try await project.testClient.send(
-      DefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["3️⃣"])
+    let response = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
     )
     XCTAssertEqual(
       response,
       .locations([
-        Location(uri: project.fileURI, range: Range(project.positions["1️⃣"])),
-        Location(uri: project.fileURI, range: Range(project.positions["2️⃣"])),
+        Location(uri: uri, range: Range(positions["1️⃣"])),
+        Location(uri: uri, range: Range(positions["2️⃣"])),
       ])
     )
   }

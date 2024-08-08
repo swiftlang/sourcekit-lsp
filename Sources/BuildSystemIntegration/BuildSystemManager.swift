@@ -198,11 +198,11 @@ extension BuildSystemManager {
     guard let buildSystem, let target else {
       return nil
     }
-    // FIXME: (async) We should only wait `fallbackSettingsTimeout` for build
-    // settings and return fallback afterwards. I am not sure yet, how best to
-    // implement that with Swift concurrency.
+    // TODO: We should only wait `fallbackSettingsTimeout` for build settings
+    // and return fallback afterwards.
     // For now, this should be fine because all build systems return
     // very quickly from `settings(for:language:)`.
+    // https://github.com/apple/sourcekit-lsp/issues/1181
     return try await buildSystem.buildSettings(for: document, in: target, language: language)
   }
 
@@ -382,7 +382,6 @@ extension BuildSystemManager: BuildSystemDelegate {
 }
 
 extension BuildSystemManager {
-  // FIXME: Consider debouncing/limiting this, seems to trigger often during a build.
   /// Checks if there are any files in `mainFileAssociations` where the main file
   /// that we have stored has changed.
   ///

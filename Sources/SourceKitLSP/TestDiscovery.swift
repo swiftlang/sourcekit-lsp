@@ -187,7 +187,7 @@ extension SourceKitLSPServer {
     //  - All files that have in-memory modifications are syntactically scanned for tests here.
     let index = workspace.index(checkedFor: .inMemoryModifiedFiles(documentManager))
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func documentManagerHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
       return documentManager.fileHasInMemoryModifications(uri)
     }

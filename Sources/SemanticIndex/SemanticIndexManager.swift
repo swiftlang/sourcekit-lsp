@@ -273,8 +273,8 @@ package final actor SemanticIndexManager {
         // potentially not knowing about unit files, which causes the corresponding source files to be re-indexed.
         index.pollForUnitChangesAndWait()
         await testHooks.buildGraphGenerationDidFinish?()
-        // FIXME: (async-workaround) Ideally this would be a type like any Collection<DocumentURI> & Sendable but that
-        // doesn't work due to rdar://132374933
+        // TODO: Ideally this would be a type like any Collection<DocumentURI> & Sendable but that doesn't work due to
+        // https://github.com/swiftlang/swift/issues/75602
         var filesToIndex: [DocumentURI] = await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
         if !indexFilesWithUpToDateUnit {
           let index = index.checked(for: .modifiedFiles)
@@ -626,9 +626,9 @@ package final actor SemanticIndexManager {
 
     var indexTasks: [Task<Void, Never>] = []
 
-    // TODO (indexing): When we can index multiple targets concurrently in SwiftPM, increase the batch size to half the
+    // TODO: When we can index multiple targets concurrently in SwiftPM, increase the batch size to half the
     // processor count, so we can get parallelism during preparation.
-    // https://github.com/swiftlang/sourcekit-lsp/issues/1262
+    // (https://github.com/swiftlang/sourcekit-lsp/issues/1262)
     for targetsBatch in sortedTargets.partition(intoBatchesOfSize: 1) {
       let preparationTaskID = UUID()
       let indexTask = Task(priority: priority) {
@@ -638,9 +638,9 @@ package final actor SemanticIndexManager {
         // And after preparation is done, index the files in the targets.
         await withTaskGroup(of: Void.self) { taskGroup in
           for target in targetsBatch {
-            // TODO (indexing): Once swiftc supports indexing of multiple files in a single invocation, increase the
-            // batch size to allow it to share AST builds between multiple files within a target.
-            // https://github.com/swiftlang/sourcekit-lsp/issues/1268
+            // TODO: Once swiftc supports indexing of multiple files in a single invocation, increase the batch size to
+            // allow it to share AST builds between multiple files within a target.
+            // (https://github.com/swiftlang/sourcekit-lsp/issues/1268)
             for fileBatch in filesByTarget[target]!.partition(intoBatchesOfSize: 1) {
               taskGroup.addTask {
                 await self.updateIndexStore(

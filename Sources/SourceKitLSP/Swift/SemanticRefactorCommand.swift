@@ -92,7 +92,6 @@ extension Array where Element == SemanticRefactorCommand {
       {
         let actionName = String(cString: ptr)
         guard !actionName.hasPrefix("source.refactoring.kind.rename.") else {
-          // TODO: Rename.
           return true
         }
         commands.append(

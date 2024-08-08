@@ -91,7 +91,7 @@ package final class DocumentManager: InMemoryDocumentManager, Sendable {
     case missingDocument(DocumentURI)
   }
 
-  // FIXME: (async) Migrate this to be an AsyncQueue
+  // TODO: Migrate this to be an AsyncQueue (https://github.com/swiftlang/sourcekit-lsp/issues/1597)
   private let queue: DispatchQueue = DispatchQueue(label: "document-manager-queue")
 
   // `nonisolated(unsafe)` is fine because `documents` is guarded by queue.
@@ -189,6 +189,15 @@ package final class DocumentManager: InMemoryDocumentManager, Sendable {
       }
       return document.latestSnapshot
     }
+  }
+
+  /// Returns the latest open snapshot of `uri` or, if no document with that URI is open, reads the file contents of
+  /// that file from disk.
+  package func latestSnapshotOrDisk(_ uri: DocumentURI, language: Language) -> DocumentSnapshot? {
+    if let snapshot = try? self.latestSnapshot(uri) {
+      return snapshot
+    }
+    return try? DocumentSnapshot(withContentsFromDisk: uri, language: language)
   }
 
   package func fileHasInMemoryModifications(_ uri: DocumentURI) -> Bool {

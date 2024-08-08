@@ -227,11 +227,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
         "-Xswiftc", "-module-cache-path", "-Xswiftc", globalModuleCache.path,
       ]
     }
-    var environment = ProcessEnv.block
-    // FIXME: SwiftPM does not index-while-building on non-Darwin platforms for C-family files (rdar://117744039).
-    // Force-enable index-while-building with the environment variable.
-    environment["SWIFTPM_ENABLE_CLANG_INDEX_STORE"] = "1"
-    try await Process.checkNonZeroExit(arguments: arguments, environmentBlock: environment)
+    try await Process.checkNonZeroExit(arguments: arguments)
   }
 
   /// Resolve package dependencies for the package at `path`.
