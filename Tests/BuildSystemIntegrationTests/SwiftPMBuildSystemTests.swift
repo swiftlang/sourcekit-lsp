@@ -408,23 +408,13 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         .compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: arguments)
       assertArgumentsDoNotContain(bswift.pathString, arguments: arguments)
-      // Temporary conditional to work around revlock between SourceKit-LSP and SwiftPM
-      // as a result of fix for SR-12050.  Can be removed when that fix has been merged.
-      if arguments.joined(separator: " ").contains("-Xcc -I -Xcc") {
-        assertArgumentsContain(
-          "-Xcc",
-          "-I",
-          "-Xcc",
-          packageRoot.appending(components: "Sources", "libC", "include").pathString,
-          arguments: arguments
-        )
-      } else {
-        assertArgumentsContain(
-          "-I",
-          packageRoot.appending(components: "Sources", "libC", "include").pathString,
-          arguments: arguments
-        )
-      }
+      assertArgumentsContain(
+        "-Xcc",
+        "-I",
+        "-Xcc",
+        packageRoot.appending(components: "Sources", "libC", "include").pathString,
+        arguments: arguments
+      )
 
       let argumentsB = try await unwrap(swiftpmBuildSystem.buildSettings(for: bswift.asURI, language: .swift))
         .compilerArguments
@@ -666,8 +656,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         .compilerArguments
       XCTAssertNotNil(argsManifest)
 
-      assertArgumentsDoNotContain(manifest.pathString, arguments: argsManifest ?? [])
-      assertArgumentsContain(try resolveSymlinks(manifest).pathString, arguments: argsManifest ?? [])
+      assertArgumentsContain(manifest.pathString, arguments: argsManifest ?? [])
+      assertArgumentsDoNotContain(try resolveSymlinks(manifest).pathString, arguments: argsManifest ?? [])
     }
   }
 
