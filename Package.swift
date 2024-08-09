@@ -31,7 +31,6 @@ let package = Package(
         "SKOptions",
         "SKSupport",
         "SourceKitLSP",
-        "SwiftExtensions",
         "ToolchainRegistry",
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),

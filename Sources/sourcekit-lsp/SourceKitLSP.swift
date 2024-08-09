@@ -233,7 +233,7 @@ struct SourceKitLSP: AsyncParsableCommand {
     var options = SourceKitLSPOptions.merging(
       base: commandLineOptions(),
       override: SourceKitLSPOptions(
-        path: FileManager.default.sanitizedHomeDirectoryForCurrentUser
+        path: FileManager.default.homeDirectoryForCurrentUser
           .appendingPathComponent(".sourcekit-lsp")
           .appendingPathComponent("config.json")
       )
@@ -289,7 +289,7 @@ struct SourceKitLSP: AsyncParsableCommand {
     let realStdoutHandle = FileHandle(fileDescriptor: realStdout, closeOnDealloc: false)
 
     // Directory should match the directory we are searching for logs in `DiagnoseCommand.addNonDarwinLogs`.
-    let logFileDirectoryURL = FileManager.default.sanitizedHomeDirectoryForCurrentUser
+    let logFileDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
       .appendingPathComponent(".sourcekit-lsp")
       .appendingPathComponent("logs")
     await setUpGlobalLogFileHandler(
