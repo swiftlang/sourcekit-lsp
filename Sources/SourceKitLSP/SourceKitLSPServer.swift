@@ -1674,10 +1674,16 @@ extension SourceKitLSPServer {
   }
 
   func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
-    guard let uri = req.textDocument?.uri else {
+    guard var uri = req.textDocument?.uri else {
       logger.error("Attempted to perform executeCommand request without an URL")
       return nil
     }
+
+    let referenceDocumentURL = try? ReferenceDocumentURL(from: uri)
+    if let primaryFileURI = referenceDocumentURL?.primaryFile {
+      uri = primaryFileURI
+    }
+
     guard let workspace = await workspaceForDocument(uri: uri) else {
       throw ResponseError.workspaceNotOpen(uri)
     }

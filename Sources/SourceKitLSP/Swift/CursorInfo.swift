@@ -158,9 +158,13 @@ extension SwiftLanguageService {
       keys.cancelOnSubsequentRequest: 0,
       keys.offset: offsetRange.lowerBound,
       keys.length: offsetRange.upperBound != offsetRange.lowerBound ? offsetRange.count : nil,
-      keys.sourceFile: snapshot.uri.pseudoPath,
+      keys.sourceFile: snapshot.uri.actualFilePath,
       keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDRequestValue]?,
     ])
+
+    if let referenceDocument = try? ReferenceDocumentURL(from: snapshot.uri) {
+      skreq.set(keys.primaryFile, to: referenceDocument.primaryFile.pseudoPath)
+    }
 
     appendAdditionalParameters?(skreq)
 

@@ -87,9 +87,13 @@ extension SwiftLanguageService {
 
     let skreq = sourcekitd.dictionary([
       keys.request: requests.collectVariableType,
-      keys.sourceFile: snapshot.uri.pseudoPath,
+      keys.sourceFile: snapshot.uri.actualFilePath,
       keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDRequestValue]?,
     ])
+
+    if let referenceDocument = try? ReferenceDocumentURL(from: snapshot.uri) {
+      skreq.set(keys.primaryFile, to: referenceDocument.primaryFile.pseudoPath)
+    }
 
     if let range = range {
       let start = snapshot.utf8Offset(of: range.lowerBound)
