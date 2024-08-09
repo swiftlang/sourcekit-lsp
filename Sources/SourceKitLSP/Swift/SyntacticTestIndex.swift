@@ -142,6 +142,27 @@ actor SyntacticTestIndex {
     }
   }
 
+  func ambigousTestIDs() -> [String] {
+    let allTestIds =
+      indexedTests
+      .mapValues { $0.tests }
+      .flatMap { $0.value }
+      .map { $0.id }
+
+    var seen = Set<String>()
+    var duplicates = [String]()
+
+    for id in allTestIds {
+      if seen.contains(id) {
+        duplicates.append(id)
+      } else {
+        seen.insert(id)
+      }
+    }
+
+    return duplicates
+  }
+
   /// Called when a list of files was updated. Re-scans those files
   private func rescanFiles(_ uris: [DocumentURI]) {
     logger.info("Syntactically scanning files for tests: \(uris)")
