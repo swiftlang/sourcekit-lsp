@@ -6,7 +6,6 @@ add_library(SwiftExtensions STATIC
   CartesianProduct.swift
   Collection+Only.swift
   Collection+PartitionIntoBatches.swift
-  FileManager+SanitizedHomeDirectoryOfCurrentUser.swift
   NSLock+WithLock.swift
   PipeAsStringHandler.swift
   ResultExtensions.swift
