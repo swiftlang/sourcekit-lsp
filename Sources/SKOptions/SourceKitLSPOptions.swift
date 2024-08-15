@@ -286,6 +286,14 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
     return .build
   }
 
+  /// Whether sending a `textDocument/didChange` or `textDocument/didClose` notification for a document should cancel
+  /// all pending requests for that document.
+  public var cancelTextDocumentRequestsOnEditAndClose: Bool? = nil
+
+  public var cancelTextDocumentRequestsOnEditAndCloseOrDefault: Bool {
+    return cancelTextDocumentRequestsOnEditAndClose ?? true
+  }
+
   /// Experimental features that are enabled.
   public var experimentalFeatures: Set<ExperimentalFeature>? = nil
 
@@ -343,6 +351,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
     generatedFilesPath: String? = nil,
     backgroundIndexing: Bool? = nil,
     backgroundPreparationMode: String? = nil,
+    cancelTextDocumentRequestsOnEditAndClose: Bool? = nil,
     experimentalFeatures: Set<ExperimentalFeature>? = nil,
     swiftPublishDiagnosticsDebounceDuration: Double? = nil,
     workDoneProgressDebounceDuration: Double? = nil,
@@ -358,6 +367,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
     self.defaultWorkspaceType = defaultWorkspaceType
     self.backgroundIndexing = backgroundIndexing
     self.backgroundPreparationMode = backgroundPreparationMode
+    self.cancelTextDocumentRequestsOnEditAndClose = cancelTextDocumentRequestsOnEditAndClose
     self.experimentalFeatures = experimentalFeatures
     self.swiftPublishDiagnosticsDebounceDuration = swiftPublishDiagnosticsDebounceDuration
     self.workDoneProgressDebounceDuration = workDoneProgressDebounceDuration
@@ -412,6 +422,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
       generatedFilesPath: override?.generatedFilesPath ?? base.generatedFilesPath,
       backgroundIndexing: override?.backgroundIndexing ?? base.backgroundIndexing,
       backgroundPreparationMode: override?.backgroundPreparationMode ?? base.backgroundPreparationMode,
+      cancelTextDocumentRequestsOnEditAndClose: override?.cancelTextDocumentRequestsOnEditAndClose
+        ?? base.cancelTextDocumentRequestsOnEditAndClose,
       experimentalFeatures: override?.experimentalFeatures ?? base.experimentalFeatures,
       swiftPublishDiagnosticsDebounceDuration: override?.swiftPublishDiagnosticsDebounceDuration
         ?? base.swiftPublishDiagnosticsDebounceDuration,

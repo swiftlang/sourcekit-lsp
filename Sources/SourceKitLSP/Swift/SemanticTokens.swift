@@ -36,6 +36,8 @@ extension SwiftLanguageService {
       return nil
     }
 
+    try Task.checkCancellation()
+
     return SyntaxHighlightingTokenParser(sourcekitd: sourcekitd).parseTokens(skTokens, in: snapshot)
   }
 
@@ -51,6 +53,8 @@ extension SwiftLanguageService {
     for snapshot: DocumentSnapshot,
     in range: Range<Position>? = nil
   ) async throws -> SyntaxHighlightingTokens {
+    try Task.checkCancellation()
+
     async let tree = syntaxTreeManager.syntaxTree(for: snapshot)
     let semanticTokens = await orLog("Loading semantic tokens") { try await semanticHighlightingTokens(for: snapshot) }
 
@@ -61,11 +65,15 @@ extension SwiftLanguageService {
         await tree.range
       }
 
+    try Task.checkCancellation()
+
     let tokens =
       await tree
       .classifications(in: range)
       .map { $0.highlightingTokens(in: snapshot) }
       .reduce(into: SyntaxHighlightingTokens(tokens: [])) { $0.tokens += $1.tokens }
+
+    try Task.checkCancellation()
 
     return
       tokens

@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import SKOptions
 import SKSupport
 import SKTestSupport
 import SourceKitD
@@ -942,6 +943,61 @@ final class SemanticTokensTests: XCTestCase {
         TokenSpec(marker: "1️⃣", length: 4, kind: .function, modifiers: [.declaration, .definition, .globalScope])
       ]
     )
+  }
+
+  func testImplicitCancellationOnEdit() async throws {
+    let testClient = try await TestSourceKitLSPClient(
+      testHooks: TestHooks(handleRequest: { request in
+        if request is DocumentSemanticTokensRequest {
+          // Sleep long enough for the edit to be handled
+          try? await Task.sleep(for: .seconds(10))
+        }
+      })
+    )
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument("1️⃣", uri: uri)
+
+    let receivedSemanticTokensResponse = self.expectation(description: "Received semantic tokens response")
+    testClient.send(DocumentSemanticTokensRequest(textDocument: TextDocumentIdentifier(uri))) { result in
+      XCTAssertEqual(result, .failure(ResponseError.cancelled))
+      receivedSemanticTokensResponse.fulfill()
+    }
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
+        contentChanges: [TextDocumentContentChangeEvent(range: Range(positions["1️⃣"]), text: "let x = 1")]
+      )
+    )
+    try await fulfillmentOfOrThrow([receivedSemanticTokensResponse])
+  }
+
+  func testNoImplicitCancellationOnEditIfImplicitCancellationIsDisabled() async throws {
+    try SkipUnless.longTestsEnabled()
+
+    let testClient = try await TestSourceKitLSPClient(
+      options: SourceKitLSPOptions(cancelTextDocumentRequestsOnEditAndClose: false),
+      testHooks: TestHooks(handleRequest: { request in
+        if request is DocumentSemanticTokensRequest {
+          // Sleep long enough for the edit to be handled
+          try? await Task.sleep(for: .seconds(2))
+        }
+      })
+    )
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument("1️⃣", uri: uri)
+
+    let receivedSemanticTokensResponse = self.expectation(description: "Received semantic tokens response")
+    testClient.send(DocumentSemanticTokensRequest(textDocument: TextDocumentIdentifier(uri))) { result in
+      XCTAssertEqual(result, .success(DocumentSemanticTokensResponse(data: [])))
+      receivedSemanticTokensResponse.fulfill()
+    }
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
+        contentChanges: [TextDocumentContentChangeEvent(range: Range(positions["1️⃣"]), text: "let x = 1")]
+      )
+    )
+    try await fulfillmentOfOrThrow([receivedSemanticTokensResponse])
   }
 }
 

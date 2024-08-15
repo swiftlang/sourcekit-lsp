@@ -177,7 +177,10 @@ package actor SourceKitLSPServer {
   /// The requests that we are currently handling.
   ///
   /// Used to cancel the tasks if the client requests cancellation.
-  private var inProgressRequests: [RequestID: Task<(), Never>] = [:]
+  private var inProgressRequestsByID: [RequestID: Task<(), Never>] = [:]
+
+  /// For all currently handled text document requests a mapping from the document to the corresponding request ID.
+  private var inProgressTextDocumentRequests: [DocumentURI: Set<RequestID>] = [:]
 
   /// Up to 10 request IDs that have recently finished.
   ///
@@ -187,12 +190,20 @@ package actor SourceKitLSPServer {
 
   /// - Note: Needed so we can set an in-progress request from a different
   ///   isolation context.
-  private func setInProgressRequest(for id: RequestID, task: Task<(), Never>?) {
-    self.inProgressRequests[id] = task
+  private func setInProgressRequest(for id: RequestID, _ request: some RequestType, task: Task<(), Never>?) {
+    self.inProgressRequestsByID[id] = task
     if task == nil {
       recentlyFinishedRequests.append(id)
       while recentlyFinishedRequests.count > 10 {
         recentlyFinishedRequests.removeFirst()
+      }
+    }
+
+    if let request = request as? any TextDocumentRequest {
+      if task == nil {
+        inProgressTextDocumentRequests[request.textDocument.uri, default: []].remove(id)
+      } else {
+        inProgressTextDocumentRequests[request.textDocument.uri, default: []].insert(id)
       }
     }
   }
@@ -547,12 +558,19 @@ extension SourceKitLSPServer: MessageHandler {
   package nonisolated func handle(_ params: some NotificationType) {
     let notificationID = notificationIDForLogging.fetchAndIncrement()
     withLoggingScope("notification-\(notificationID % 100)") {
-      if let params = params as? CancelRequestNotification {
-        // Request cancellation needs to be able to overtake any other message we
-        // are currently handling. Ordering is not important here. We thus don't
-        // need to execute it on `messageHandlingQueue`.
+      // Request cancellation needs to be able to overtake any other message we
+      // are currently handling. Ordering is not important here. We thus don't
+      // need to execute it on `messageHandlingQueue`.
+      switch params {
+      case let params as CancelRequestNotification:
         self.cancelRequest(params)
         return
+      case let params as DidChangeTextDocumentNotification:
+        self.cancelTextDocumentRequests(for: params.textDocument.uri)
+      case let params as DidCloseTextDocumentNotification:
+        self.cancelTextDocumentRequests(for: params.textDocument.uri)
+      default:
+        break
       }
 
       let signposter = Logger(subsystem: LoggingScope.subsystem, category: "message-handling")
@@ -617,6 +635,7 @@ extension SourceKitLSPServer: MessageHandler {
       // The last 2 digits should be sufficient to differentiate between multiple concurrently running requests.
       await withLoggingScope("request-\(id.numericValue % 100)") {
         await withTaskCancellationHandler {
+          await self.testHooks.handleRequest?(params)
           await self.handleImpl(params, id: id, reply: reply)
           signposter.endInterval("Request", state, "Done")
         } onCancel: {
@@ -626,14 +645,14 @@ extension SourceKitLSPServer: MessageHandler {
       // We have handled the request and can't cancel it anymore.
       // Stop keeping track of it to free the memory.
       self.cancellationMessageHandlingQueue.async(priority: .background) {
-        await self.setInProgressRequest(for: id, task: nil)
+        await self.setInProgressRequest(for: id, params, task: nil)
       }
     }
     // Keep track of the ID -> Task management with low priority. Once we cancel
     // a request, the cancellation task runs with a high priority and depends on
     // this task, which will elevate this task's priority.
     cancellationMessageHandlingQueue.async(priority: .background) {
-      await self.setInProgressRequest(for: id, task: task)
+      await self.setInProgressRequest(for: id, params, task: task)
     }
   }
 
@@ -1222,11 +1241,11 @@ extension SourceKitLSPServer {
     // Nothing to do.
   }
 
-  nonisolated func cancelRequest(_ notification: CancelRequestNotification) {
+  private nonisolated func cancelRequest(_ notification: CancelRequestNotification) {
     // Since the request is very cheap to execute and stops other requests
     // from performing more work, we execute it with a high priority.
     cancellationMessageHandlingQueue.async(priority: .high) {
-      if let task = await self.inProgressRequests[notification.id] {
+      if let task = await self.inProgressRequestsByID[notification.id] {
         task.cancel()
         return
       }
@@ -1235,6 +1254,38 @@ extension SourceKitLSPServer {
           "Cannot cancel request \(notification.id, privacy: .public) because it hasn't been scheduled for execution yet"
         )
       }
+    }
+  }
+
+  /// Cancel all in-progress text document requests for the given document.
+  ///
+  /// As a user makes an edit to a file, these requests are most likely no longer relevant. It also makes sure that a
+  /// long-running sourcekitd request can't block the entire language server if the client does not cancel all requests.
+  /// For example, consider the following sequence of requests:
+  ///  - `textDocument/semanticTokens/full` for document A
+  ///  - `textDocument/didChange` for document A
+  ///  - `textDocument/formatting` for document A
+  ///
+  /// If the editor is not cancelling the semantic tokens request on edit (like VS Code does), then the `didChange`
+  /// notification is blocked on the semantic tokens request finishing. Hence, we also can't run the
+  /// `textDocument/formatting` request. Cancelling the semantic tokens on the edit fixes the issue.
+  ///
+  /// This method is a no-op if `cancelTextDocumentRequestsOnEditAndClose` is disabled.
+  private nonisolated func cancelTextDocumentRequests(for uri: DocumentURI) {
+    // Since the request is very cheap to execute and stops other requests
+    // from performing more work, we execute it with a high priority.
+    cancellationMessageHandlingQueue.async(priority: .high) {
+      await self.cancelTextDocumentRequestsImpl(for: uri)
+    }
+  }
+
+  private func cancelTextDocumentRequestsImpl(for uri: DocumentURI) {
+    guard self.options.cancelTextDocumentRequestsOnEditAndCloseOrDefault else {
+      return
+    }
+    for requestID in self.inProgressTextDocumentRequests[uri, default: []] {
+      logger.info("Implicitly cancelling request \(requestID)")
+      self.inProgressRequestsByID[requestID]?.cancel()
     }
   }
 
