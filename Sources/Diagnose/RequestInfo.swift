@@ -35,7 +35,7 @@ package struct RequestInfo: Sendable {
     let encoder = JSONEncoder()
     encoder.outputFormatting = .prettyPrinted
     guard var compilerArgs = String(data: try encoder.encode(compilerArgs), encoding: .utf8) else {
-      throw ReductionError("Failed to encode compiler arguments")
+      throw GenericError("Failed to encode compiler arguments")
     }
     // Drop the opening `[` and `]`. The request template already contains them
     compilerArgs = String(compilerArgs.dropFirst().dropLast())
@@ -92,7 +92,7 @@ package struct RequestInfo: Sendable {
       "\""
     }
     guard let sourceFileMatch = requestTemplate.matches(of: sourceFileRegex).only else {
-      throw ReductionError("Failed to find key.sourcefile in the request")
+      throw GenericError("Failed to find key.sourcefile in the request")
     }
     let sourceFilePath = String(sourceFileMatch.1)
     requestTemplate.replace(sourceFileMatch.1, with: "$FILE")
@@ -124,7 +124,7 @@ package struct RequestInfo: Sendable {
         _ = iterator.next()
       case "-filelist":
         guard let fileList = iterator.next() else {
-          throw ReductionError("Expected file path after -filelist command line argument")
+          throw GenericError("Expected file path after -filelist command line argument")
         }
         frontendArgsWithFilelistInlined += try String(contentsOfFile: fileList, encoding: .utf8)
           .split(separator: "\n")

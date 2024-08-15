@@ -70,8 +70,7 @@ final class PullDiagnosticsTests: XCTestCase {
     }
     let diagnostics = fullReport.items
 
-    XCTAssertEqual(diagnostics.count, 1)
-    let diagnostic = try XCTUnwrap(diagnostics.first)
+    let diagnostic = try XCTUnwrap(diagnostics.only)
     XCTAssert(
       diagnostic.range == Range(positions["1️⃣"]) || diagnostic.range == Range(positions["2️⃣"]),
       "Unexpected range: \(diagnostic.range)"

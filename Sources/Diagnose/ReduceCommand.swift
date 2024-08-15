@@ -70,10 +70,10 @@ package struct ReduceCommand: AsyncParsableCommand {
   @MainActor
   package func run() async throws {
     guard let sourcekitd = try await toolchain?.sourcekitd else {
-      throw ReductionError("Unable to find sourcekitd.framework")
+      throw GenericError("Unable to find sourcekitd.framework")
     }
     guard let swiftFrontend = try await toolchain?.swiftFrontend else {
-      throw ReductionError("Unable to find sourcekitd.framework")
+      throw GenericError("Unable to find sourcekitd.framework")
     }
 
     let progressBar = PercentProgressAnimation(stream: stderrStreamConcurrencySafe, header: "Reducing sourcekitd issue")

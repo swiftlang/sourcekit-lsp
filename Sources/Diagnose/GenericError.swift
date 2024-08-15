@@ -10,8 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Generic error that can be thrown if reducing the crash failed in a non-recoverable way.
-struct ReductionError: Error, CustomStringConvertible {
+struct GenericError: Error, CustomStringConvertible {
   let description: String
 
   init(_ description: String) {
