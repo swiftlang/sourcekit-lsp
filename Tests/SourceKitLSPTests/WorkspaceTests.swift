@@ -188,7 +188,7 @@ final class WorkspaceTests: XCTestCase {
     let diags = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bPackageManifestUri))
     )
-    XCTAssertEqual(diags, .full(RelatedFullDocumentDiagnosticReport(items: [])))
+    XCTAssertEqual(diags.fullReport?.items, [])
   }
 
   func testCorrectWorkspaceForPackageSwiftInMultiSwiftPMWorkspaceSetup() async throws {
@@ -898,11 +898,10 @@ final class WorkspaceTests: XCTestCase {
     let diagnostics = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
-    guard case .full(let diagnostics) = diagnostics else {
-      XCTFail("Expected full diagnostics")
-      return
-    }
-    XCTAssertEqual(diagnostics.items.map(\.message), ["Cannot convert value of type 'Int' to specified type 'String'"])
+    XCTAssertEqual(
+      diagnostics.fullReport?.items.map(\.message),
+      ["Cannot convert value of type 'Int' to specified type 'String'"]
+    )
   }
 
   func testOptionsInInitializeRequest() async throws {
@@ -925,11 +924,10 @@ final class WorkspaceTests: XCTestCase {
     let diagnostics = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
-    guard case .full(let diagnostics) = diagnostics else {
-      XCTFail("Expected full diagnostics")
-      return
-    }
-    XCTAssertEqual(diagnostics.items.map(\.message), ["Cannot convert value of type 'Int' to specified type 'String'"])
+    XCTAssertEqual(
+      diagnostics.fullReport?.items.map(\.message),
+      ["Cannot convert value of type 'Int' to specified type 'String'"]
+    )
   }
 
   func testWorkspaceOptionsOverrideGlobalOptions() async throws {
@@ -962,10 +960,9 @@ final class WorkspaceTests: XCTestCase {
     let diagnostics = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
-    guard case .full(let diagnostics) = diagnostics else {
-      XCTFail("Expected full diagnostics")
-      return
-    }
-    XCTAssertEqual(diagnostics.items.map(\.message), ["Cannot convert value of type 'Int' to specified type 'String'"])
+    XCTAssertEqual(
+      diagnostics.fullReport?.items.map(\.message),
+      ["Cannot convert value of type 'Int' to specified type 'String'"]
+    )
   }
 }

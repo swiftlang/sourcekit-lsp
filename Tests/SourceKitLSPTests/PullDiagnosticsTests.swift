@@ -31,13 +31,9 @@ final class PullDiagnosticsTests: XCTestCase {
     )
 
     let report = try await testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri)))
-    guard case .full(let fullReport) = report else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
 
-    XCTAssertEqual(fullReport.items.count, 1)
-    let diagnostic = try XCTUnwrap(fullReport.items.first)
+    XCTAssertEqual(report.fullReport?.items.count, 1)
+    let diagnostic = try XCTUnwrap(report.fullReport?.items.first)
     XCTAssertEqual(diagnostic.range, Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9))
   }
 
@@ -64,11 +60,7 @@ final class PullDiagnosticsTests: XCTestCase {
       uri: uri
     )
     let report = try await testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri)))
-    guard case .full(let fullReport) = report else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
-    let diagnostics = fullReport.items
+    let diagnostics = try XCTUnwrap(report.fullReport?.items)
 
     XCTAssertEqual(diagnostics.count, 1)
     let diagnostic = try XCTUnwrap(diagnostics.first)
@@ -128,17 +120,11 @@ final class PullDiagnosticsTests: XCTestCase {
     let report = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
-    guard case .full(let fullReport) = report else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
-    XCTAssertEqual(fullReport.items.count, 1)
-    let diagnostic = try XCTUnwrap(fullReport.items.first)
+    let diagnostic = try XCTUnwrap(report.fullReport?.items.only)
     XCTAssertEqual(diagnostic.message, "expected '}' to end function")
     XCTAssertEqual(diagnostic.range, Range(positions["2️⃣"]))
 
-    XCTAssertEqual(diagnostic.relatedInformation?.count, 1)
-    let note = try XCTUnwrap(diagnostic.relatedInformation?.first)
+    let note = try XCTUnwrap(diagnostic.relatedInformation?.only)
     XCTAssertEqual(note.message, "to match this opening '{'")
     XCTAssertEqual(note.location.range, positions["1️⃣"]..<positions["2️⃣"])
   }
@@ -161,11 +147,9 @@ final class PullDiagnosticsTests: XCTestCase {
     let beforeChangingFileA = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
     )
-    guard case .full(let fullReportBeforeChangingFileA) = beforeChangingFileA else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
-    XCTAssert(fullReportBeforeChangingFileA.items.contains(where: { $0.message == "Cannot find 'sayHello' in scope" }))
+    XCTAssert(
+      (beforeChangingFileA.fullReport?.items ?? []).contains(where: { $0.message == "Cannot find 'sayHello' in scope" })
+    )
 
     let diagnosticsRefreshRequestReceived = self.expectation(description: "DiagnosticsRefreshRequest received")
     project.testClient.handleSingleRequest { (request: DiagnosticsRefreshRequest) in
@@ -185,7 +169,7 @@ final class PullDiagnosticsTests: XCTestCase {
     let afterChangingFileA = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
     )
-    XCTAssertEqual(afterChangingFileA, .full(RelatedFullDocumentDiagnosticReport(items: [])))
+    XCTAssertEqual(afterChangingFileA.fullReport?.items, [])
   }
 
   func testDiagnosticUpdatedAfterDependentModuleIsBuilt() async throws {
@@ -219,17 +203,14 @@ final class PullDiagnosticsTests: XCTestCase {
     let beforeBuilding = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
     )
-    guard case .full(let fullReportBeforeBuilding) = beforeBuilding else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
     XCTAssert(
-      fullReportBeforeBuilding.items.contains(where: {
+      (beforeBuilding.fullReport?.items ?? []).contains(where: {
         #if compiler(>=6.1)
         #warning("When we drop support for Swift 5.10 we no longer need to check for the Objective-C error message")
         #endif
         return $0.message == "No such module 'LibA'" || $0.message == "Could not build Objective-C module 'LibA'"
-      })
+      }
+      )
     )
 
     let diagnosticsRefreshRequestReceived = self.expectation(description: "DiagnosticsRefreshRequest received")
@@ -254,7 +235,7 @@ final class PullDiagnosticsTests: XCTestCase {
     let afterChangingFileA = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
     )
-    XCTAssertEqual(afterChangingFileA, .full(RelatedFullDocumentDiagnosticReport(items: [])))
+    XCTAssertEqual(afterChangingFileA.fullReport?.items, [])
   }
 
   func testDiagnosticsWaitForDocumentToBePrepared() async throws {
@@ -307,7 +288,7 @@ final class PullDiagnosticsTests: XCTestCase {
     // but before receiving a reply. The async variant doesn't allow this distinction.
     let receivedDiagnostics = self.expectation(description: "Received diagnostics")
     project.testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))) { diagnostics in
-      XCTAssertEqual(diagnostics.success, .full(RelatedFullDocumentDiagnosticReport(items: [])))
+      XCTAssertEqual(diagnostics.success?.fullReport?.items, [])
       receivedDiagnostics.fulfill()
     }
     diagnosticRequestSent.value = true
@@ -366,11 +347,7 @@ final class PullDiagnosticsTests: XCTestCase {
     let diagnostics = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
-    guard case .full(let diagnostics) = diagnostics else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
-    let diagnostic = try XCTUnwrap(diagnostics.items.only)
+    let diagnostic = try XCTUnwrap(diagnostics.fullReport?.items.only)
     let note = try XCTUnwrap(diagnostic.relatedInformation?.only)
     XCTAssertEqual(note.location, try project.location(from: "1️⃣", to: "1️⃣", in: "FileA.swift"))
   }
