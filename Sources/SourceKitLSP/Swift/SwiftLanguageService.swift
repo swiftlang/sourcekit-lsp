@@ -147,6 +147,9 @@ package actor SwiftLanguageService: LanguageService, Sendable {
 
   private var diagnosticReportManager: DiagnosticReportManager!
 
+  /// - Note: Implicitly unwrapped optional so we can pass a reference of `self` to `MacroExpansionManager`.
+  private(set) var macroExpansionManager: MacroExpansionManager!
+
   var documentManager: DocumentManager {
     get throws {
       guard let sourceKitLSPServer = self.sourceKitLSPServer else {
@@ -210,9 +213,11 @@ package actor SwiftLanguageService: LanguageService, Sendable {
       sourcekitd: self.sourcekitd,
       options: options,
       syntaxTreeManager: syntaxTreeManager,
-      documentManager: try documentManager,
-      clientHasDiagnosticsCodeDescriptionSupport: await self.clientHasDiagnosticsCodeDescriptionSupport
+      documentManager: sourceKitLSPServer.documentManager,
+      clientHasDiagnosticsCodeDescriptionSupport: await capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
     )
+
+    self.macroExpansionManager = MacroExpansionManager(swiftLanguageService: self)
 
     // Create sub-directories for each type of generated file
     try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
@@ -224,16 +229,29 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     await self.syntaxTreeManager.setReusedNodeCallback(callback)
   }
 
+  /// Returns the latest snapshot of the given URI, generating the snapshot in case the URI is a reference document.
+  func latestSnapshot(for uri: DocumentURI) async throws -> DocumentSnapshot {
+    switch try? ReferenceDocumentURL(from: uri) {
+    case .macroExpansion(let data):
+      let content = try await self.macroExpansionManager.macroExpansion(for: data)
+      return DocumentSnapshot(uri: uri, language: .swift, version: 0, lineTable: LineTable(content))
+    case nil:
+      return try documentManager.latestSnapshot(uri)
+    }
+  }
+
   func buildSettings(for document: DocumentURI) async -> SwiftCompileCommand? {
+    let primaryDocument = document.primaryFile ?? document
+
     guard let sourceKitLSPServer else {
       logger.fault("Cannot retrieve build settings because SourceKitLSPServer is no longer alive")
       return nil
     }
-    guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: document) else {
+    guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: primaryDocument) else {
       return nil
     }
     if let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
-      for: document,
+      for: primaryDocument,
       language: .swift
     ) {
       return SwiftCompileCommand(settings)
@@ -373,32 +391,37 @@ extension SwiftLanguageService {
   // MARK: - Build System Integration
 
   package func reopenDocument(_ notification: ReopenTextDocumentNotification) async {
-    let snapshot = orLog("Getting snapshot to re-open document") {
-      try documentManager.latestSnapshot(notification.textDocument.uri)
-    }
-    guard let snapshot else {
-      return
-    }
-    cancelInFlightPublishDiagnosticsTask(for: snapshot.uri)
-    await diagnosticReportManager.removeItemsFromCache(with: snapshot.uri)
+    switch try? ReferenceDocumentURL(from: notification.textDocument.uri) {
+    case .macroExpansion:
+      break
+    case nil:
+      let snapshot = orLog("Getting snapshot to re-open document") {
+        try documentManager.latestSnapshot(notification.textDocument.uri)
+      }
+      guard let snapshot else {
+        return
+      }
+      cancelInFlightPublishDiagnosticsTask(for: snapshot.uri)
+      await diagnosticReportManager.removeItemsFromCache(with: snapshot.uri)
 
-    let closeReq = closeDocumentSourcekitdRequest(uri: snapshot.uri)
-    _ = await orLog("Closing document to re-open it") {
-      try await self.sendSourcekitdRequest(closeReq, fileContents: nil)
-    }
+      let closeReq = closeDocumentSourcekitdRequest(uri: snapshot.uri)
+      _ = await orLog("Closing document to re-open it") {
+        try await self.sendSourcekitdRequest(closeReq, fileContents: nil)
+      }
 
-    let openReq = openDocumentSourcekitdRequest(
-      snapshot: snapshot,
-      compileCommand: await buildSettings(for: snapshot.uri)
-    )
-    _ = await orLog("Re-opening document") {
-      try await self.sendSourcekitdRequest(openReq, fileContents: snapshot.text)
-    }
+      let openReq = openDocumentSourcekitdRequest(
+        snapshot: snapshot,
+        compileCommand: await buildSettings(for: snapshot.uri)
+      )
+      _ = await orLog("Re-opening document") {
+        try await self.sendSourcekitdRequest(openReq, fileContents: snapshot.text)
+      }
 
-    if await capabilityRegistry.clientSupportsPullDiagnostics(for: .swift) {
-      await self.refreshDiagnosticsDebouncer.scheduleCall()
-    } else {
-      await publishDiagnosticsIfNeeded(for: snapshot.uri)
+      if await capabilityRegistry.clientSupportsPullDiagnostics(for: .swift) {
+        await self.refreshDiagnosticsDebouncer.scheduleCall()
+      } else {
+        await publishDiagnosticsIfNeeded(for: snapshot.uri)
+      }
     }
   }
 
@@ -417,6 +440,7 @@ extension SwiftLanguageService {
       ])
       _ = try await self.sendSourcekitdRequest(req, fileContents: nil)
     }
+    await macroExpansionManager.purge(primaryFile: uri)
     // `documentUpdatedBuildSettings` already handles reopening the document, so we do that here as well.
     await self.documentUpdatedBuildSettings(uri)
   }
@@ -448,23 +472,33 @@ extension SwiftLanguageService {
   }
 
   package func openDocument(_ notification: DidOpenTextDocumentNotification, snapshot: DocumentSnapshot) async {
-    cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
-    await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
+    switch try? ReferenceDocumentURL(from: notification.textDocument.uri) {
+    case .macroExpansion:
+      break
+    case nil:
+      cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
+      await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
 
-    let buildSettings = await self.buildSettings(for: snapshot.uri)
+      let buildSettings = await self.buildSettings(for: snapshot.uri)
 
-    let req = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: buildSettings)
-    _ = try? await self.sendSourcekitdRequest(req, fileContents: snapshot.text)
-    await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
+      let req = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: buildSettings)
+      _ = try? await self.sendSourcekitdRequest(req, fileContents: snapshot.text)
+      await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
+    }
   }
 
   package func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
-    cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
-    inFlightPublishDiagnosticsTasks[notification.textDocument.uri] = nil
-    await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
+    switch try? ReferenceDocumentURL(from: notification.textDocument.uri) {
+    case .macroExpansion:
+      break
+    case nil:
+      cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
+      inFlightPublishDiagnosticsTasks[notification.textDocument.uri] = nil
+      await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
 
-    let req = closeDocumentSourcekitdRequest(uri: notification.textDocument.uri)
-    _ = try? await self.sendSourcekitdRequest(req, fileContents: nil)
+      let req = closeDocumentSourcekitdRequest(uri: notification.textDocument.uri)
+      _ = try? await self.sendSourcekitdRequest(req, fileContents: nil)
+    }
   }
 
   /// Cancels any in-flight tasks to send a `PublishedDiagnosticsNotification` after edits.
@@ -935,7 +969,9 @@ extension SwiftLanguageService {
 
   package func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
     do {
-      await semanticIndexManager?.prepareFileForEditorFunctionality(req.textDocument.uri)
+      await semanticIndexManager?.prepareFileForEditorFunctionality(
+        req.textDocument.uri.primaryFile ?? req.textDocument.uri
+      )
       let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
       let buildSettings = await self.buildSettings(for: req.textDocument.uri)
       let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
@@ -987,7 +1023,7 @@ extension SwiftLanguageService {
     switch referenceDocumentURL {
     case let .macroExpansion(data):
       return GetReferenceDocumentResponse(
-        content: try await expandMacro(macroExpansionURLData: data)
+        content: try await macroExpansionManager.macroExpansion(for: data)
       )
     }
   }

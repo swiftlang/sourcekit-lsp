@@ -254,7 +254,7 @@ package final class Workspace: Sendable {
   }
 
   func documentService(for uri: DocumentURI) -> LanguageService? {
-    return documentService.value[uri]
+    return documentService.value[uri.primaryFile ?? uri]
   }
 
   /// Set a language service for a document uri and returns if none exists already.

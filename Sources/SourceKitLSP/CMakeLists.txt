@@ -51,7 +51,6 @@ target_sources(SourceKitLSP PRIVATE
   Swift/OpenInterface.swift
   Swift/RefactoringResponse.swift
   Swift/RefactoringEdit.swift
-  Swift/RefactorCommand.swift
   Swift/ReferenceDocumentURL.swift
   Swift/RelatedIdentifiers.swift
   Swift/RewriteSourceKitPlaceholders.swift
