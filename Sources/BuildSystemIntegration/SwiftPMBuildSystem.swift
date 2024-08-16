@@ -69,13 +69,17 @@ private func preferredToolchain(_ toolchainRegistry: ToolchainRegistry) async ->
   ])
 }
 
-fileprivate extension BuildTriple {
+fileprivate extension BuildDestination {
   /// A string that can be used to identify the build triple in `ConfiguredTarget.runDestinationID`.
+  ///
+  /// `BuildSystemManager.canonicalConfiguredTarget` picks the canonical target based on alphabetical
+  /// ordering. We rely on the string "destination" being ordered before "tools" so that we prefer a
+  /// `destination` (or "target") target over a `tools` (or "host") target.
   var id: String {
     switch self {
-    case .tools:
+    case .host:
       return "tools"
-    case .destination:
+    case .target:
       return "destination"
     }
   }
@@ -83,7 +87,7 @@ fileprivate extension BuildTriple {
 
 fileprivate extension ConfiguredTarget {
   init(_ buildTarget: any SwiftBuildTarget) {
-    self.init(targetID: buildTarget.name, runDestinationID: buildTarget.buildTriple.id)
+    self.init(targetID: buildTarget.name, runDestinationID: buildTarget.destination.id)
   }
 
   static let forPackageManifest = ConfiguredTarget(targetID: "", runDestinationID: "")
