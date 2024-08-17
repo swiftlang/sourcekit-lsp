@@ -145,7 +145,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
 
   private var stateChangeHandlers: [(_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void] = []
 
-  private var diagnosticReportManager: DiagnosticReportManager!
+  private let diagnosticReportManager: DiagnosticReportManager
 
   var documentManager: DocumentManager {
     get throws {
@@ -164,14 +164,6 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   /// B, we don't want to send two `DiagnosticsRefreshRequest`s. Instead, the two should be unified into a single
   /// request.
   private let refreshDiagnosticsDebouncer: Debouncer<Void>
-
-  /// Only exists to work around rdar://116221716.
-  /// Once that is fixed, remove the property and make `diagnosticReportManager` non-optional.
-  private var clientHasDiagnosticsCodeDescriptionSupport: Bool {
-    get async {
-      return await capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
-    }
-  }
 
   /// Creates a language server for the given client using the sourcekitd dylib specified in `toolchain`.
   /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the `SwiftLanguageService` asks its
@@ -192,7 +184,6 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     self.semanticIndexManager = workspace.semanticIndexManager
     self.testHooks = testHooks
     self.state = .connected
-    self.diagnosticReportManager = nil  // Needed to work around rdar://116221716
     self.options = options
 
     // The debounce duration of 500ms was chosen arbitrarily without scientific research.
@@ -210,8 +201,8 @@ package actor SwiftLanguageService: LanguageService, Sendable {
       sourcekitd: self.sourcekitd,
       options: options,
       syntaxTreeManager: syntaxTreeManager,
-      documentManager: try documentManager,
-      clientHasDiagnosticsCodeDescriptionSupport: await self.clientHasDiagnosticsCodeDescriptionSupport
+      documentManager: sourceKitLSPServer.documentManager,
+      clientHasDiagnosticsCodeDescriptionSupport: await capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
     )
 
     // Create sub-directories for each type of generated file

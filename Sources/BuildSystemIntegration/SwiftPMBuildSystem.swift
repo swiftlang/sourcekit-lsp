@@ -59,16 +59,6 @@ package typealias SwiftBuildTarget = SourceKitLSPAPI.BuildTarget
 /// A build target in `BuildServerProtocol`
 package typealias BuildServerTarget = BuildServerProtocol.BuildTarget
 
-/// Same as `toolchainRegistry.default`.
-///
-/// Needed to work around a compiler crash that prevents us from accessing `toolchainRegistry.preferredToolchain` in
-/// `SwiftPMWorkspace.init`.
-private func preferredToolchain(_ toolchainRegistry: ToolchainRegistry) async -> Toolchain? {
-  return await toolchainRegistry.preferredToolchain(containing: [
-    \.clang, \.clangd, \.sourcekitd, \.swift, \.swiftc,
-  ])
-}
-
 fileprivate extension BuildDestination {
   /// A string that can be used to identify the build triple in `ConfiguredTarget.runDestinationID`.
   ///
@@ -213,7 +203,10 @@ package actor SwiftPMBuildSystem {
     self.workspacePath = workspacePath
     self.options = options
     self.fileSystem = fileSystem
-    guard let toolchain = await preferredToolchain(toolchainRegistry) else {
+    let toolchain = await toolchainRegistry.preferredToolchain(containing: [
+      \.clang, \.clangd, \.sourcekitd, \.swift, \.swiftc,
+    ])
+    guard let toolchain else {
       throw Error.cannotDetermineHostToolchain
     }
 
