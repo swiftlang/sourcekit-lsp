@@ -25,15 +25,22 @@ public struct TestHooks: Sendable {
 
   package var swiftpmTestHooks: SwiftPMTestHooks
 
+  /// A hook that will be executed before a request is handled.
+  ///
+  /// This allows requests to be artificially delayed.
+  package var handleRequest: (@Sendable (any RequestType) async -> Void)?
+
   public init() {
-    self.init(indexTestHooks: IndexTestHooks(), swiftpmTestHooks: SwiftPMTestHooks())
+    self.init(indexTestHooks: IndexTestHooks(), swiftpmTestHooks: SwiftPMTestHooks(), handleRequest: nil)
   }
 
   package init(
     indexTestHooks: IndexTestHooks = IndexTestHooks(),
-    swiftpmTestHooks: SwiftPMTestHooks = SwiftPMTestHooks()
+    swiftpmTestHooks: SwiftPMTestHooks = SwiftPMTestHooks(),
+    handleRequest: (@Sendable (any RequestType) async -> Void)? = nil
   ) {
     self.indexTestHooks = indexTestHooks
     self.swiftpmTestHooks = swiftpmTestHooks
+    self.handleRequest = handleRequest
   }
 }
