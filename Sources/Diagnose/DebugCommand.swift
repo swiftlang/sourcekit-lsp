@@ -17,6 +17,7 @@ package struct DebugCommand: ParsableCommand {
     commandName: "debug",
     abstract: "Commands to debug sourcekit-lsp. Intended for developers of sourcekit-lsp",
     subcommands: [
+      ActiveRequestsCommand.self,
       IndexCommand.self,
       ReduceCommand.self,
       ReduceFrontendCommand.self,

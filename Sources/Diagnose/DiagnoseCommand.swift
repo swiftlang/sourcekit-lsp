@@ -101,7 +101,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     #if canImport(OSLog)
     return try OSLogScraper(searchDuration: TimeInterval(osLogScrapeDuration * 60)).getCrashedRequests()
     #else
-    throw ReductionError("Reduction of sourcekitd crashes is not supported on platforms other than macOS")
+    throw GenericError("Reduction of sourcekitd crashes is not supported on platforms other than macOS")
     #endif
   }
 
@@ -214,7 +214,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     reportProgress(.collectingLogMessages(progress: 0), message: "Collecting log messages")
     let outputFileUrl = bundlePath.appendingPathComponent("log.txt")
     guard FileManager.default.createFile(atPath: outputFileUrl.path, contents: nil) else {
-      throw ReductionError("Failed to create log.txt")
+      throw GenericError("Failed to create log.txt")
     }
     let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
     var bytesCollected = 0
@@ -307,7 +307,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
   private func addSwiftVersion(toBundle bundlePath: URL) async throws {
     let outputFileUrl = bundlePath.appendingPathComponent("swift-versions.txt")
     guard FileManager.default.createFile(atPath: outputFileUrl.path, contents: nil) else {
-      throw ReductionError("Failed to create file at \(outputFileUrl)")
+      throw GenericError("Failed to create file at \(outputFileUrl)")
     }
     let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
 
@@ -434,13 +434,13 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     progressUpdate: (_ progress: Double, _ message: String) -> Void
   ) async throws {
     guard let toolchain else {
-      throw ReductionError("Unable to find a toolchain")
+      throw GenericError("Unable to find a toolchain")
     }
     guard let sourcekitd = toolchain.sourcekitd else {
-      throw ReductionError("Unable to find sourcekitd.framework")
+      throw GenericError("Unable to find sourcekitd.framework")
     }
     guard let swiftFrontend = toolchain.swiftFrontend else {
-      throw ReductionError("Unable to find swift-frontend")
+      throw GenericError("Unable to find swift-frontend")
     }
 
     let requestInfo = requestInfo

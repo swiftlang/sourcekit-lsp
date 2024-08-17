@@ -117,7 +117,7 @@ fileprivate class SourceReducer {
     case .reduced:
       break
     case .didNotReproduce:
-      throw ReductionError("Initial request info did not reproduce the issue")
+      throw GenericError("Initial request info did not reproduce the issue")
     case .noChange:
       preconditionFailure("The reduction step always returns empty edits and not `done` so we shouldn't hit this")
     }
@@ -658,7 +658,7 @@ fileprivate func getSwiftInterface(
       areFallbackArgs: true
     )
   default:
-    throw ReductionError("Failed to get Swift Interface for \(moduleName)")
+    throw GenericError("Failed to get Swift Interface for \(moduleName)")
   }
 
   // Extract the line containing the source text and parse that using JSON decoder.
@@ -677,7 +677,7 @@ fileprivate func getSwiftInterface(
     return line
   }.only
   guard let quotedSourceText else {
-    throw ReductionError("Failed to decode Swift interface response for \(moduleName)")
+    throw GenericError("Failed to decode Swift interface response for \(moduleName)")
   }
   // Filter control characters. JSONDecoder really doensn't like them and they are likely not important if they occur eg. in a comment.
   let sanitizedData = Data(quotedSourceText.utf8.filter { $0 >= 32 })

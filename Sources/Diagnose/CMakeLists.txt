@@ -1,7 +1,9 @@
 add_library(Diagnose STATIC
+  ActiveRequestsCommand.swift
   CommandLineArgumentsReducer.swift
   DebugCommand.swift
   DiagnoseCommand.swift
+  GenericError.swift
   IndexCommand.swift
   MergeSwiftFiles.swift
   OSLogScraper.swift
@@ -9,7 +11,6 @@ add_library(Diagnose STATIC
   ReduceFrontendCommand.swift
   ReduceSourceKitDRequest.swift
   ReduceSwiftFrontend.swift
-  ReductionError.swift
   ReproducerBundle.swift
   RequestInfo.swift
   RunSourcekitdRequestCommand.swift
