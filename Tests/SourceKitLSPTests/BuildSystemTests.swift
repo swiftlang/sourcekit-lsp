@@ -73,7 +73,9 @@ actor TestBuildSystem: BuildSystem {
     throw PrepareNotSupportedError()
   }
 
-  func generateBuildGraph(allowFileSystemWrites: Bool) {}
+  func generateBuildGraph() {}
+
+  package func waitForUpToDateBuildGraph() async {}
 
   func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil

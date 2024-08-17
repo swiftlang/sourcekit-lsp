@@ -296,7 +296,11 @@ final class PullDiagnosticsTests: XCTestCase {
 
   func testDontReturnEmptyDiagnosticsIfDiagnosticRequestIsCancelled() async throws {
     let diagnosticRequestCancelled = self.expectation(description: "diagnostic request cancelled")
+    let packageLoadingDidFinish = self.expectation(description: "Package loading did finsish")
     var testHooks = TestHooks()
+    testHooks.swiftpmTestHooks.reloadPackageDidFinish = {
+      packageLoadingDidFinish.fulfill()
+    }
     testHooks.indexTestHooks.preparationTaskDidStart = { _ in
       _ = await XCTWaiter.fulfillment(of: [diagnosticRequestCancelled], timeout: defaultTimeout)
       // Poll until the `CancelRequestNotification` has been propagated to the request handling.
@@ -315,6 +319,7 @@ final class PullDiagnosticsTests: XCTestCase {
       enableBackgroundIndexing: true,
       pollIndex: false
     )
+    try await fulfillmentOfOrThrow([packageLoadingDidFinish])
     let (uri, _) = try project.openDocument("Lib.swift")
 
     let diagnosticResponseReceived = self.expectation(description: "Received diagnostic response")

@@ -138,13 +138,10 @@ package protocol BuildSystem: AnyObject, Sendable {
   func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget]
 
   /// Re-generate the build graph.
-  ///
-  /// If `allowFileSystemWrites` is `true`, this should include all the tasks that are necessary for building the entire
-  /// build graph, like resolving package versions.
-  ///
-  /// If `allowFileSystemWrites` is `false`, no files must be written to disk. This mode is used to determine whether
-  /// the build system can handle a source file, and decide whether a workspace should be opened with this build system
-  func generateBuildGraph(allowFileSystemWrites: Bool) async throws
+  func generateBuildGraph() async throws
+
+  /// Wait until the build graph has been loaded.
+  func waitForUpToDateBuildGraph() async
 
   /// Sort the targets so that low-level targets occur before high-level targets.
   ///

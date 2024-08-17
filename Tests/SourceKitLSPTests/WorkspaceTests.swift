@@ -719,6 +719,8 @@ final class WorkspaceTests: XCTestCase {
       )
     )
 
+    try await project.testClient.send(PollIndexRequest())
+
     let postChangeWorkspaceResponse = try await project.testClient.send(
       CompletionRequest(
         textDocument: TextDocumentIdentifier(otherPackageUri),

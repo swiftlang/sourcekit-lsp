@@ -119,6 +119,10 @@ package actor SwiftPMBuildSystem {
 
   private let testHooks: SwiftPMTestHooks
 
+  /// The queue on which we reload the package to ensure we don't reload it multiple times concurrently, which can cause
+  /// issues in SwiftPM.
+  private let packageLoadingQueue = AsyncQueue<Serial>()
+
   /// Delegate to handle any build system events.
   package weak var delegate: BuildSystemIntegration.BuildSystemDelegate? = nil
 
@@ -363,7 +367,14 @@ package actor SwiftPMBuildSystem {
 extension SwiftPMBuildSystem {
   /// (Re-)load the package settings by parsing the manifest and resolving all the targets and
   /// dependencies.
-  package func reloadPackage(forceResolvedVersions: Bool) async throws {
+  package func reloadPackage() async throws {
+    try await packageLoadingQueue.asyncThrowing {
+      try await self.reloadPackageImpl()
+    }.valuePropagatingCancellation
+  }
+
+  /// - Important: Must only be called on `packageLoadingQueue`.
+  private func reloadPackageImpl() async throws {
     await reloadPackageStatusCallback(.start)
     await testHooks.reloadPackageDidStart?()
     defer {
@@ -375,7 +386,7 @@ extension SwiftPMBuildSystem {
 
     let modulesGraph = try await self.workspace.loadPackageGraph(
       rootInput: PackageGraphRootInput(packages: [AbsolutePath(projectRoot)]),
-      forceResolvedVersions: forceResolvedVersions,
+      forceResolvedVersions: !isForIndexBuild,
       observabilityScope: observabilitySystem.topScope
     )
 
@@ -540,8 +551,12 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
     return []
   }
 
-  package func generateBuildGraph(allowFileSystemWrites: Bool) async throws {
-    try await self.reloadPackage(forceResolvedVersions: !isForIndexBuild || !allowFileSystemWrites)
+  package func generateBuildGraph() async throws {
+    try await self.reloadPackage()
+  }
+
+  package func waitForUpToDateBuildGraph() async {
+    await self.packageLoadingQueue.async {}.valuePropagatingCancellation
   }
 
   package func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
@@ -730,7 +745,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
     if events.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
       logger.log("Reloading package because of file change")
       await orLog("Reloading package") {
-        try await self.reloadPackage(forceResolvedVersions: !isForIndexBuild)
+        try await self.reloadPackage()
       }
     }
 

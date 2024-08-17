@@ -266,9 +266,7 @@ package final actor SemanticIndexManager {
           signposter.endInterval("Preparing", state)
         }
         await testHooks.buildGraphGenerationDidStart?()
-        await orLog("Generating build graph") {
-          try await self.buildSystemManager.generateBuildGraph(allowFileSystemWrites: true)
-        }
+        await self.buildSystemManager.waitForUpToDateBuildGraph()
         // Ensure that we have an up-to-date indexstore-db. Waiting for the indexstore-db to be updated is cheaper than
         // potentially not knowing about unit files, which causes the corresponding source files to be re-indexed.
         index.pollForUnitChangesAndWait()
