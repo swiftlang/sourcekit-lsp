@@ -283,12 +283,8 @@ final class SwiftPMIntegrationTests: XCTestCase {
     let diagnostics = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
-    guard case .full(let diagnostics) = diagnostics else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
     XCTAssertEqual(
-      diagnostics.items.map(\.message),
+      diagnostics.fullReport?.items.map(\.message),
       ["Cannot convert value of type 'Int' to specified type 'UnsafeRawPointer'"]
     )
   }

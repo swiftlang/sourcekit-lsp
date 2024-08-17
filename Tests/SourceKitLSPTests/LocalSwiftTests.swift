@@ -1447,7 +1447,7 @@ final class LocalSwiftTests: XCTestCase {
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
     /// The diagnostic request times out, which causes us to return empty diagnostics.
-    XCTAssertEqual(responseBeforeEdit, .full(RelatedFullDocumentDiagnosticReport(items: [])))
+    XCTAssertEqual(responseBeforeEdit.fullReport?.items, [])
 
     // Now check that sourcekitd is not blocked.
     // Replacing the file and sending another diagnostic request should return proper diagnostics.
@@ -1462,12 +1462,8 @@ final class LocalSwiftTests: XCTestCase {
     let responseAfterEdit = try await testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
-    guard case .full(let responseAfterEdit) = responseAfterEdit else {
-      XCTFail("Expected full diagnostics")
-      return
-    }
     XCTAssertEqual(
-      responseAfterEdit.items.map(\.message),
+      responseAfterEdit.fullReport?.items.map(\.message),
       ["Cannot convert value of type 'Int' to specified type 'String'"]
     )
   }

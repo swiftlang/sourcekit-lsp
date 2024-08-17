@@ -548,14 +548,9 @@ final class CodeActionTests: XCTestCase {
     let report = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
-    guard case .full(let fullReport) = report else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
 
-    XCTAssertEqual(fullReport.items.count, 1)
-    let diagnostic = try XCTUnwrap(fullReport.items.first)
-    let codeActions = try XCTUnwrap(diagnostic.codeActions)
+    XCTAssertEqual(report.fullReport?.items.count, 1)
+    let codeActions = try XCTUnwrap(report.fullReport?.items.first?.codeActions)
 
     let expectedCodeActions = [
       CodeAction(

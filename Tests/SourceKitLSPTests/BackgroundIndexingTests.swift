@@ -573,11 +573,7 @@ final class BackgroundIndexingTests: XCTestCase {
     let initialDiagnostics = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
-    guard case .full(let initialDiagnostics) = initialDiagnostics else {
-      XCTFail("Expected full diagnostics")
-      return
-    }
-    XCTAssertNotEqual(initialDiagnostics.items, [])
+    XCTAssertNotEqual(initialDiagnostics.fullReport?.items, [])
 
     try "public func foo() {}".write(
       to: try XCTUnwrap(project.uri(for: "MyFile.swift").fileURL),
@@ -1004,12 +1000,8 @@ final class BackgroundIndexingTests: XCTestCase {
     let diagnostics = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
-    guard case .full(let diagnostics) = diagnostics else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
     XCTAssert(
-      diagnostics.items.contains(where: {
+      (diagnostics.fullReport?.items ?? []).contains(where: {
         $0.message == "Cannot convert return expression of type 'Int' to return type 'String'"
       }),
       "Did not get expected diagnostic: \(diagnostics)"
