@@ -85,13 +85,46 @@ package enum ReferenceDocumentURL {
     }
   }
 
-  /// The URI of the document from which this reference document was derived. This is used to determine the
-  /// workspace and language service that is used to generate the reference document.
+  /// The path that should be passed as `keys.sourcefile` to sourcekitd in conjunction with a `keys.primaryFile`.
+  ///
+  /// For macro expansions, this is the buffer name that the URI references.
+  var sourcekitdSourceFile: String {
+    switch self {
+    case let .macroExpansion(data): data.bufferName
+    }
+  }
+
   var primaryFile: DocumentURI {
     switch self {
     case let .macroExpansion(data):
       return data.primaryFile
     }
+  }
+}
+
+extension DocumentURI {
+  /// The path that should be passed as `keys.sourcefile` to sourcekitd in conjunction with a `keys.primaryFile`.
+  ///
+  /// For normal document URIs, this is the pseudo path of this URI. For macro expansions, this is the buffer name
+  /// that the URI references.
+  var sourcekitdSourceFile: String {
+    if let referenceDocument = try? ReferenceDocumentURL(from: self) {
+      referenceDocument.sourcekitdSourceFile
+    } else {
+      self.pseudoPath
+    }
+  }
+
+  /// If this is a URI to a reference document, the URI of the source file from which this reference document was
+  /// derived.
+  ///
+  /// The primary file is used to determine the workspace and language service that is used to generate the reference
+  /// document as well as getting the reference document's build settings.
+  var primaryFile: DocumentURI? {
+    if let referenceDocument = try? ReferenceDocumentURL(from: self) {
+      return referenceDocument.primaryFile
+    }
+    return nil
   }
 }
 

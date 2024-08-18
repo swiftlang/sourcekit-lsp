@@ -13,7 +13,7 @@
 import LanguageServerProtocol
 import SourceKitD
 
-package struct SemanticRefactorCommand: RefactorCommand {
+package struct SemanticRefactorCommand: SwiftCommand {
   typealias Response = SemanticRefactoring
 
   package static let identifier: String = "semantic.refactor.command"

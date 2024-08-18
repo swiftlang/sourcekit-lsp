@@ -179,6 +179,8 @@ enum MessageHandlingDependencyTracker: DependencyTracker {
       } else {
         self = .freestanding
       }
+    case let request as GetReferenceDocumentRequest:
+      self = .documentRequest(request.uri)
     case is InitializeRequest:
       self = .globalConfigurationChange
     case is InlayHintRefreshRequest:
