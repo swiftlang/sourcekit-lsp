@@ -546,11 +546,7 @@ private actor BSMDelegate: BuildSystemDelegate {
 
   init(_ bsm: BuildSystemManager) async {
     self.bsm = bsm
-    // Actor initializers can't directly leave their executor. Moving the call
-    // of `bsm.setDelegate` into a closure works around that limitation. rdar://116221716
-    await {
-      await bsm.setDelegate(self)
-    }()
+    await bsm.setDelegate(self)
   }
 
   func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {

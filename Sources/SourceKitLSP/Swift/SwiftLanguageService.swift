@@ -145,7 +145,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
 
   private var stateChangeHandlers: [(_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void] = []
 
-  private var diagnosticReportManager: DiagnosticReportManager!
+  private let diagnosticReportManager: DiagnosticReportManager
 
   /// - Note: Implicitly unwrapped optional so we can pass a reference of `self` to `MacroExpansionManager`.
   private(set) var macroExpansionManager: MacroExpansionManager!
@@ -168,14 +168,6 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   /// request.
   private let refreshDiagnosticsDebouncer: Debouncer<Void>
 
-  /// Only exists to work around rdar://116221716.
-  /// Once that is fixed, remove the property and make `diagnosticReportManager` non-optional.
-  private var clientHasDiagnosticsCodeDescriptionSupport: Bool {
-    get async {
-      return await capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
-    }
-  }
-
   /// Creates a language server for the given client using the sourcekitd dylib specified in `toolchain`.
   /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the `SwiftLanguageService` asks its
   /// parent server to reopen all of its documents.
@@ -195,7 +187,6 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     self.semanticIndexManager = workspace.semanticIndexManager
     self.testHooks = testHooks
     self.state = .connected
-    self.diagnosticReportManager = nil  // Needed to work around rdar://116221716
     self.options = options
 
     // The debounce duration of 500ms was chosen arbitrarily without scientific research.
