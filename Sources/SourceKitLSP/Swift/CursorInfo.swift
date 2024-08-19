@@ -147,7 +147,7 @@ extension SwiftLanguageService {
     additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil
   ) async throws -> (cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand]) {
     let documentManager = try self.documentManager
-    let snapshot = try documentManager.latestSnapshot(uri)
+    let snapshot = try await self.latestSnapshot(for: uri)
 
     let offsetRange = snapshot.utf8OffsetRange(of: range)
 
@@ -158,7 +158,8 @@ extension SwiftLanguageService {
       keys.cancelOnSubsequentRequest: 0,
       keys.offset: offsetRange.lowerBound,
       keys.length: offsetRange.upperBound != offsetRange.lowerBound ? offsetRange.count : nil,
-      keys.sourceFile: snapshot.uri.pseudoPath,
+      keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
+      keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
       keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDRequestValue]?,
     ])
 

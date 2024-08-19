@@ -529,13 +529,13 @@ extension SwiftLanguageService {
         return
       }
       do {
-        let snapshot = try await documentManager.latestSnapshot(document)
+        let snapshot = try await self.latestSnapshot(for: document)
         let buildSettings = await self.buildSettings(for: document)
         let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
           for: snapshot,
           buildSettings: buildSettings
         )
-        let latestSnapshotID = try? await documentManager.latestSnapshot(snapshot.uri).id
+        let latestSnapshotID = try? await self.latestSnapshot(for: snapshot.uri).id
         if latestSnapshotID != snapshot.id {
           // Check that the document wasn't modified while we were getting diagnostics. This could happen because we are
           // calling `publishDiagnosticsIfNeeded` outside of `messageHandlingQueue` and thus a concurrent edit is
@@ -766,7 +766,7 @@ extension SwiftLanguageService {
   }
 
   package func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
-    let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
+    let snapshot = try await self.latestSnapshot(for: req.textDocument.uri)
 
     let relatedIdentifiers = try await self.relatedIdentifiers(
       at: req.position,
@@ -867,7 +867,7 @@ extension SwiftLanguageService {
   }
 
   func retrieveQuickFixCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
-    let snapshot = try documentManager.latestSnapshot(params.textDocument.uri)
+    let snapshot = try await self.latestSnapshot(for: params.textDocument.uri)
     let buildSettings = await self.buildSettings(for: params.textDocument.uri)
     let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
       for: snapshot,
@@ -960,7 +960,7 @@ extension SwiftLanguageService {
       await semanticIndexManager?.prepareFileForEditorFunctionality(
         req.textDocument.uri.primaryFile ?? req.textDocument.uri
       )
-      let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
+      let snapshot = try await self.latestSnapshot(for: req.textDocument.uri)
       let buildSettings = await self.buildSettings(for: req.textDocument.uri)
       let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
         for: snapshot,

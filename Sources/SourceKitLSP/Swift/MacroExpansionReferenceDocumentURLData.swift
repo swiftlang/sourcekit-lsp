@@ -15,15 +15,16 @@ import LanguageServerProtocol
 import RegexBuilder
 
 /// Represents url of macro expansion reference document as follows:
-/// `sourcekit-lsp://swift-macro-expansion/LaCb-LcCd.swift?parent=&fromLine=&fromColumn=&toLine=&toColumn=&bufferName=`
+/// `sourcekit-lsp://swift-macro-expansion/LaCb-LcCd.swift?fromLine=&fromColumn=&toLine=&toColumn=&bufferName=&parent=`
 ///
 /// Here,
 ///  - `LaCb-LcCd.swift`, the `displayName`, represents where the macro will expand to or
 ///    replace in the source file (i.e. `macroExpansionEditRange`)
+///  - `fromLine`, `fromColumn`, `toLine`, `toColumn` represents the cursor's selection range in
+///    its `parent` (i.e. `parentSelectionRange`)
+///  - `bufferName` denotes the buffer name of the specific macro expansion edit
 ///  - `parent` denoting the URI of the document from which the macro was expanded. For a first-level macro expansion,
 ///    this is a file URI. For nested macro expansions, this is a `sourcekit-lsp://swift-macro-expansion` URL.
-///  - `fromLine`, `fromColumn`, `toLine`, `toColumn` represents the cursor's `selectionRange`
-///  - `bufferName` denotes the buffer name of the specific macro expansion edit
 package struct MacroExpansionReferenceDocumentURLData {
   package static let documentType = "swift-macro-expansion"
 
@@ -33,7 +34,7 @@ package struct MacroExpansionReferenceDocumentURLData {
   package var parent: DocumentURI
 
   /// The range that was selected in `parent` when the macro was expanded.
-  package var selectionRange: Range<Position>
+  package var parentSelectionRange: Range<Position>
 
   /// ## Example
   ///
@@ -47,7 +48,7 @@ package struct MacroExpansionReferenceDocumentURLData {
   ///
   /// Generated content of reference document url:
   /// URL:
-  /// `sourcekit-lsp://swift-macro-expansion/L3C7-L3C23.swift?primaryFilePath=/path/to/swift_file.swift&fromLine=3&fromColumn=8&toLine=3&toColumn=8&bufferName=@__swift_macro_..._Stringify_.swift`
+  /// `sourcekit-lsp://swift-macro-expansion/L3C7-L3C23.swift?fromLine=3&fromColumn=8&toLine=3&toColumn=8&bufferName=@__swift_macro_..._Stringify_.swift&parent=/path/to/swift_file.swift`
   /// ```swift
   /// (a + b, "a + b")
   /// ```
@@ -64,12 +65,12 @@ package struct MacroExpansionReferenceDocumentURLData {
   package init(
     macroExpansionEditRange: Range<Position>,
     parent: DocumentURI,
-    selectionRange: Range<Position>,
+    parentSelectionRange: Range<Position>,
     bufferName: String
   ) {
     self.macroExpansionEditRange = macroExpansionEditRange
     self.parent = parent
-    self.selectionRange = selectionRange
+    self.parentSelectionRange = parentSelectionRange
     self.bufferName = bufferName
   }
 
@@ -78,13 +79,17 @@ package struct MacroExpansionReferenceDocumentURLData {
   }
 
   package var queryItems: [URLQueryItem] {
-    return [
-      URLQueryItem(name: Parameters.parent, value: parent.stringValue),
-      URLQueryItem(name: Parameters.fromLine, value: String(selectionRange.lowerBound.line)),
-      URLQueryItem(name: Parameters.fromColumn, value: String(selectionRange.lowerBound.utf16index)),
-      URLQueryItem(name: Parameters.toLine, value: String(selectionRange.upperBound.line)),
-      URLQueryItem(name: Parameters.toColumn, value: String(selectionRange.upperBound.utf16index)),
+    [
+      URLQueryItem(name: Parameters.fromLine, value: String(parentSelectionRange.lowerBound.line)),
+      URLQueryItem(name: Parameters.fromColumn, value: String(parentSelectionRange.lowerBound.utf16index)),
+      URLQueryItem(name: Parameters.toLine, value: String(parentSelectionRange.upperBound.line)),
+      URLQueryItem(name: Parameters.toColumn, value: String(parentSelectionRange.upperBound.utf16index)),
       URLQueryItem(name: Parameters.bufferName, value: bufferName),
+
+      // *Note*: Having `parent` as the last parameter will ensure that the url's parameters aren't mistaken to be its
+      // `parent`'s parameters in certain environments where percent encoding gets removed or added
+      // unnecessarily (for example: VS Code)
+      URLQueryItem(name: Parameters.parent, value: parent.stringValue),
     ]
   }
 
@@ -100,7 +105,7 @@ package struct MacroExpansionReferenceDocumentURLData {
     }
 
     self.parent = try DocumentURI(string: parent)
-    self.selectionRange =
+    self.parentSelectionRange =
       Position(line: fromLine, utf16index: fromColumn)..<Position(line: toLine, utf16index: toColumn)
     self.bufferName = bufferName
     self.macroExpansionEditRange = try Self.parse(displayName: displayName)
@@ -121,7 +126,7 @@ package struct MacroExpansionReferenceDocumentURLData {
   ///
   /// Generated content of reference document url:
   /// URL:
-  /// `sourcekit-lsp://swift-macro-expansion/L3C7-L3C23.swift?primaryFilePath=/path/to/swift_file.swift&fromLine=3&fromColumn=8&toLine=3&toColumn=8&bufferName=@__swift_macro_..._Stringify_.swift`
+  /// `sourcekit-lsp://swift-macro-expansion/L3C7-L3C23.swift?fromLine=3&fromColumn=8&toLine=3&toColumn=8&bufferName=@__swift_macro_..._Stringify_.swift&parent=/path/to/swift_file.swift`
   /// ```swift
   /// (a + b, "a + b")
   /// ```
@@ -134,9 +139,18 @@ package struct MacroExpansionReferenceDocumentURLData {
   package var primaryFile: DocumentURI {
     switch try? ReferenceDocumentURL(from: parent) {
     case .macroExpansion(let data):
-      return data.primaryFile
+      data.primaryFile
     case nil:
-      return parent
+      parent
+    }
+  }
+
+  package var primaryFileSelectionRange: Range<Position> {
+    switch try? ReferenceDocumentURL(from: parent) {
+    case .macroExpansion(let data):
+      data.primaryFileSelectionRange
+    case nil:
+      self.parentSelectionRange
     }
   }
 

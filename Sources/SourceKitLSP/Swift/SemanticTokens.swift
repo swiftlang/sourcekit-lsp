@@ -26,7 +26,8 @@ extension SwiftLanguageService {
 
     let skreq = sourcekitd.dictionary([
       keys.request: requests.semanticTokens,
-      keys.sourceFile: snapshot.uri.pseudoPath,
+      keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
+      keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
       keys.compilerArgs: buildSettings.compilerArgs as [SKDRequestValue],
     ])
 
@@ -84,7 +85,7 @@ extension SwiftLanguageService {
   package func documentSemanticTokens(
     _ req: DocumentSemanticTokensRequest
   ) async throws -> DocumentSemanticTokensResponse? {
-    let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
+    let snapshot = try await self.latestSnapshot(for: req.textDocument.uri)
 
     let tokens = try await mergedAndSortedTokens(for: snapshot)
     let encodedTokens = tokens.lspEncoded
