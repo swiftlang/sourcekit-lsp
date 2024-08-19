@@ -856,12 +856,9 @@ extension SwiftLanguageService {
 
     var canInlineMacro = false
 
-    let showMacroExpansionsIsEnabled =
-      await self.sourceKitLSPServer?.options.hasExperimentalFeature(.showMacroExpansions) ?? false
-
     var refactorActions = cursorInfoResponse.refactorActions.compactMap {
       let lspCommand = $0.asCommand()
-      if !canInlineMacro, showMacroExpansionsIsEnabled {
+      if !canInlineMacro {
         canInlineMacro = $0.actionString == "source.refactoring.kind.inline.macro"
       }
 
@@ -1005,10 +1002,7 @@ extension SwiftLanguageService {
   package func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
     if let command = req.swiftCommand(ofType: SemanticRefactorCommand.self) {
       try await semanticRefactoring(command)
-    } else if let command = req.swiftCommand(ofType: ExpandMacroCommand.self),
-      let experimentalFeatures = await self.sourceKitLSPServer?.options.experimentalFeatures,
-      experimentalFeatures.contains(.showMacroExpansions)
-    {
+    } else if let command = req.swiftCommand(ofType: ExpandMacroCommand.self) {
       try await expandMacro(command)
     } else {
       throw ResponseError.unknown("unknown command \(req.command)")
