@@ -59,7 +59,7 @@ package enum ReferenceDocumentURL {
       throw ReferenceDocumentURLError(description: "Invalid Scheme for reference document")
     }
 
-    let documentType = url.host(percentEncoded: false)
+    let documentType = url.host
 
     switch documentType {
     case MacroExpansionReferenceDocumentURLData.documentType:
