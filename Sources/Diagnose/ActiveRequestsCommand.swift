@@ -66,7 +66,7 @@ package struct ActiveRequestsCommand: AsyncParsableCommand {
       log = try await readOSLog()
     }
     let logParseRegex = Regex {
-      /.*/
+      #/.*/#
       "[spid 0x"
       Capture {  // Signpost ID
         OneOrMore(.hexDigit)
@@ -74,7 +74,7 @@ package struct ActiveRequestsCommand: AsyncParsableCommand {
       ", process, "
       ZeroOrMore(.whitespace)
       Capture {  // Event ("begin", "event", "end")
-        /[a-z]+/
+        #/[a-z]+/#
       }
       "]"
       ZeroOrMore(.any)
