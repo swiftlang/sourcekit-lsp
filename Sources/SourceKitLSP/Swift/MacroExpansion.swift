@@ -18,34 +18,6 @@ import SKOptions
 import SKSupport
 import SourceKitD
 
-/// Detailed information about the result of a macro expansion operation.
-///
-/// Wraps the information returned by sourcekitd's `semantic_refactoring`
-/// request, such as the necessary macro expansion edits.
-struct MacroExpansion: RefactoringResponse {
-  /// The title of the refactoring action.
-  var title: String
-
-  /// The URI of the file where the macro is used
-  var uri: DocumentURI
-
-  /// The resulting array of `RefactoringEdit` of a semantic refactoring request
-  var edits: [RefactoringEdit]
-
-  init(title: String, uri: DocumentURI, refactoringEdits: [RefactoringEdit]) {
-    self.title = title
-    self.uri = uri
-    self.edits = refactoringEdits.compactMap { refactoringEdit in
-      if refactoringEdit.bufferName == nil && !refactoringEdit.newText.isEmpty {
-        logger.fault("Unable to retrieve some parts of the expansion")
-        return nil
-      }
-
-      return refactoringEdit
-    }
-  }
-}
-
 /// Caches the contents of macro expansions that were recently requested by the user.
 actor MacroExpansionManager {
   private struct CacheEntry {
@@ -199,7 +171,7 @@ extension SwiftLanguageService {
       throw ResponseError.unknown("Connection to the editor closed")
     }
 
-    let primaryFileDisplayName =
+    let parentFileDisplayName =
       switch try? ReferenceDocumentURL(from: expandMacroCommand.textDocument.uri) {
       case .macroExpansion(let data):
         data.bufferName
@@ -234,7 +206,7 @@ extension SwiftLanguageService {
 
         let editContent =
           """
-          // \(primaryFileDisplayName) @ \(macroEdit.range.lowerBound.line + 1):\(macroEdit.range.lowerBound.utf16index + 1) - \(macroEdit.range.upperBound.line + 1):\(macroEdit.range.upperBound.utf16index + 1)
+          // \(parentFileDisplayName) @ \(macroEdit.range.lowerBound.line + 1):\(macroEdit.range.lowerBound.utf16index + 1) - \(macroEdit.range.upperBound.line + 1):\(macroEdit.range.upperBound.utf16index + 1)
           \(macroEdit.newText)
 
 
@@ -298,7 +270,7 @@ extension SwiftLanguageService {
       }
 
       completeExpansionFilePath =
-        completeExpansionFilePath.appendingPathComponent(primaryFileDisplayName)
+        completeExpansionFilePath.appendingPathComponent(parentFileDisplayName)
       do {
         try completeExpansionFileContent.write(to: completeExpansionFilePath, atomically: true, encoding: .utf8)
       } catch {
