@@ -59,8 +59,6 @@ final class ExpandMacroTests: XCTestCase {
       """,
     ]
 
-    let options = SourceKitLSPOptions.testDefault(experimentalFeatures: [.showMacroExpansions])
-
     for (getReferenceDocument, peekDocuments) in cartesianProduct([true], [true]) {
       let project = try await SwiftPMTestProject(
         files: files,
@@ -69,7 +67,7 @@ final class ExpandMacroTests: XCTestCase {
           "workspace/peekDocuments": .bool(peekDocuments),
           "workspace/getReferenceDocument": .bool(getReferenceDocument),
         ]),
-        options: options,
+        options: SourceKitLSPOptions.testDefault(),
         enableBackgroundIndexing: true
       )
 
@@ -236,8 +234,6 @@ final class ExpandMacroTests: XCTestCase {
       """#,
     ]
 
-    let options = SourceKitLSPOptions.testDefault(experimentalFeatures: [.showMacroExpansions])
-
     for (getReferenceDocument, peekDocuments) in cartesianProduct([true, false], [true, false]) {
       let project = try await SwiftPMTestProject(
         files: files,
@@ -246,7 +242,7 @@ final class ExpandMacroTests: XCTestCase {
           "workspace/peekDocuments": .bool(peekDocuments),
           "workspace/getReferenceDocument": .bool(getReferenceDocument),
         ]),
-        options: options,
+        options: SourceKitLSPOptions.testDefault(),
         enableBackgroundIndexing: true
       )
 
@@ -443,7 +439,7 @@ final class ExpandMacroTests: XCTestCase {
         "workspace/peekDocuments": .bool(true),
         "workspace/getReferenceDocument": .bool(true),
       ]),
-      options: SourceKitLSPOptions.testDefault(experimentalFeatures: [.showMacroExpansions]),
+      options: SourceKitLSPOptions.testDefault(),
       enableBackgroundIndexing: true
     )
 
