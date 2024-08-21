@@ -37,7 +37,7 @@ extension SwiftLanguageService {
     let interfaceFilePath = self.generatedInterfacesPath.appendingPathComponent("\(name).swiftinterface")
     let interfaceDocURI = DocumentURI(interfaceFilePath)
     // has interface already been generated
-    if let snapshot = try? self.documentManager.latestSnapshot(interfaceDocURI) {
+    if let snapshot = try? await self.latestSnapshot(for: interfaceDocURI) {
       return await self.generatedInterfaceDetails(
         uri: interfaceDocURI,
         snapshot: snapshot,
@@ -111,7 +111,8 @@ extension SwiftLanguageService {
       let keys = self.keys
       let skreq = sourcekitd.dictionary([
         keys.request: requests.editorFindUSR,
-        keys.sourceFile: uri.pseudoPath,
+        keys.sourceFile: uri.sourcekitdSourceFile,
+        keys.primaryFile: uri.primaryFile?.pseudoPath,
         keys.usr: symbol,
       ])
 

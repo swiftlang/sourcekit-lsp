@@ -68,7 +68,7 @@ actor MacroExpansionManager {
   ) async throws -> String {
     let expansions = try await macroExpansions(
       in: macroExpansionURLData.parent,
-      at: macroExpansionURLData.selectionRange
+      at: macroExpansionURLData.parentSelectionRange
     )
     guard let expansion = expansions.filter({ $0.bufferName == macroExpansionURLData.bufferName }).only else {
       throw ResponseError.unknown("Failed to find macro expansion for \(macroExpansionURLData.bufferName).")
@@ -195,7 +195,7 @@ extension SwiftLanguageService {
             MacroExpansionReferenceDocumentURLData(
               macroExpansionEditRange: macroEdit.range,
               parent: expandMacroCommand.textDocument.uri,
-              selectionRange: expandMacroCommand.positionRange,
+              parentSelectionRange: expandMacroCommand.positionRange,
               bufferName: bufferName
             )
           )
@@ -224,10 +224,21 @@ extension SwiftLanguageService {
       let expansionURIs = try macroExpansionReferenceDocumentURLs.map {
         return DocumentURI(try $0.url)
       }
+
+      let uri = expandMacroCommand.textDocument.uri.primaryFile ?? expandMacroCommand.textDocument.uri
+
+      let position =
+        switch try? ReferenceDocumentURL(from: expandMacroCommand.textDocument.uri) {
+        case .macroExpansion(let data):
+          data.primaryFileSelectionRange.lowerBound
+        case nil:
+          expandMacroCommand.positionRange.lowerBound
+        }
+
       Task {
         let req = PeekDocumentsRequest(
-          uri: expandMacroCommand.textDocument.uri,
-          position: expandMacroCommand.positionRange.lowerBound,
+          uri: uri,
+          position: position,
           locations: expansionURIs
         )
 
