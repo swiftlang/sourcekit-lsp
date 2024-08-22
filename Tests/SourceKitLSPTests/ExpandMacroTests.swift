@@ -59,13 +59,12 @@ final class ExpandMacroTests: XCTestCase {
       """,
     ]
 
-    for (getReferenceDocument, peekDocuments) in cartesianProduct([true], [true]) {
+    for peekDocuments in [true] {
       let project = try await SwiftPMTestProject(
         files: files,
         manifest: SwiftPMTestProject.macroPackageManifest,
         capabilities: ClientCapabilities(experimental: [
           "workspace/peekDocuments": .bool(peekDocuments),
-          "workspace/getReferenceDocument": .bool(getReferenceDocument),
         ]),
         options: SourceKitLSPOptions.testDefault(),
         enableBackgroundIndexing: true
@@ -93,7 +92,7 @@ final class ExpandMacroTests: XCTestCase {
 
         let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
 
-        if peekDocuments && getReferenceDocument {
+        if peekDocuments {
           let expectation = self.expectation(description: "Handle Peek Documents Request")
           let peekDocumentsRequestURIs = ThreadSafeBox<[DocumentURI]?>(initialValue: nil)
 
@@ -234,13 +233,12 @@ final class ExpandMacroTests: XCTestCase {
       """#,
     ]
 
-    for (getReferenceDocument, peekDocuments) in cartesianProduct([true, false], [true, false]) {
+    for peekDocuments in [true, false] {
       let project = try await SwiftPMTestProject(
         files: files,
         manifest: SwiftPMTestProject.macroPackageManifest,
         capabilities: ClientCapabilities(experimental: [
           "workspace/peekDocuments": .bool(peekDocuments),
-          "workspace/getReferenceDocument": .bool(getReferenceDocument),
         ]),
         options: SourceKitLSPOptions.testDefault(),
         enableBackgroundIndexing: true
@@ -268,7 +266,7 @@ final class ExpandMacroTests: XCTestCase {
 
         let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
 
-        if peekDocuments && getReferenceDocument {
+        if peekDocuments {
           let expectation = self.expectation(description: "Handle Peek Documents Request")
 
           let peekDocumentsRequestURIs = ThreadSafeBox<[DocumentURI]?>(initialValue: nil)
@@ -437,7 +435,6 @@ final class ExpandMacroTests: XCTestCase {
       manifest: SwiftPMTestProject.macroPackageManifest,
       capabilities: ClientCapabilities(experimental: [
         "workspace/peekDocuments": .bool(true),
-        "workspace/getReferenceDocument": .bool(true),
       ]),
       options: SourceKitLSPOptions.testDefault(),
       enableBackgroundIndexing: true
