@@ -1002,13 +1002,13 @@ extension SwiftLanguageService {
     return nil
   }
 
-  package func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
+  package func textDocumentContent(_ req: TextDocumentContentRequest) async throws -> TextDocumentContentResponse {
     let referenceDocumentURL = try ReferenceDocumentURL(from: req.uri)
 
     switch referenceDocumentURL {
     case let .macroExpansion(data):
-      return GetReferenceDocumentResponse(
-        content: try await macroExpansionManager.macroExpansion(for: data)
+      return TextDocumentContentResponse(
+        text: try await macroExpansionManager.macroExpansion(for: data)
       )
     }
   }
