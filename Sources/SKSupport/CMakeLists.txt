@@ -19,6 +19,7 @@ target_link_libraries(SKSupport PUBLIC
   CAtomics
 )
 target_link_libraries(SKSupport PRIVATE
+  CAtomics
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
   SKLogging

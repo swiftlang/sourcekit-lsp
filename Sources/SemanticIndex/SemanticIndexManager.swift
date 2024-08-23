@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
@@ -72,7 +73,7 @@ package enum IndexTaskStatus: Comparable {
 package enum IndexProgressStatus: Sendable {
   case preparingFileForEditorFunctionality
   case generatingBuildGraph
-  case indexing(preparationTasks: [ConfiguredTarget: IndexTaskStatus], indexTasks: [DocumentURI: IndexTaskStatus])
+  case indexing(preparationTasks: [BuildTargetIdentifier: IndexTaskStatus], indexTasks: [DocumentURI: IndexTaskStatus])
   case upToDate
 
   package func merging(with other: IndexProgressStatus) -> IndexProgressStatus {
@@ -144,7 +145,7 @@ package final actor SemanticIndexManager {
   /// ...). `nil` if no build graph is currently being generated.
   private var generateBuildGraphTask: Task<Void, Never>?
 
-  private let preparationUpToDateTracker = UpToDateTracker<ConfiguredTarget>()
+  private let preparationUpToDateTracker = UpToDateTracker<BuildTargetIdentifier>()
 
   private let indexStoreUpToDateTracker = UpToDateTracker<DocumentURI>()
 
@@ -152,7 +153,7 @@ package final actor SemanticIndexManager {
   /// executing.
   ///
   /// After a preparation task finishes, it is removed from this dictionary.
-  private var inProgressPreparationTasks: [ConfiguredTarget: InProgressPreparationTask] = [:]
+  private var inProgressPreparationTasks: [BuildTargetIdentifier: InProgressPreparationTask] = [:]
 
   /// The files that are currently being index, either waiting for their target to be prepared, waiting for the index
   /// store update task to be scheduled in the task scheduler or which currently have an index store update running.
@@ -343,15 +344,12 @@ package final actor SemanticIndexManager {
     let changedFiles = events.map(\.uri)
     await indexStoreUpToDateTracker.markOutOfDate(changedFiles)
 
-    // Note that configured targets are the right abstraction layer here (instead of a non-configured target) because a
-    // build system might have targets that include different source files. Hence a source file might be in target T
-    // configured for macOS but not in target T configured for iOS.
-    let targets = await changedFiles.asyncMap { await buildSystemManager.configuredTargets(for: $0) }.flatMap { $0 }
+    let targets = await changedFiles.asyncMap { await buildSystemManager.targets(for: $0) }.flatMap { $0 }
     if let dependentTargets = await buildSystemManager.targets(dependingOn: targets) {
       logger.info(
         """
         Marking targets as out-of-date: \
-        \(String(dependentTargets.map(\.description).joined(separator: ", ")))
+        \(String(dependentTargets.map(\.uri.stringValue).joined(separator: ", ")))
         """
       )
       await preparationUpToDateTracker.markOutOfDate(dependentTargets)
@@ -405,9 +403,9 @@ package final actor SemanticIndexManager {
   package func schedulePreparationForEditorFunctionality(of uri: DocumentURI, priority: TaskPriority? = nil) {
     if inProgressPrepareForEditorTask?.document == uri {
       // We are already preparing this document, so nothing to do. This is necessary to avoid the following scenario:
-      // Determining the canonical configured target for a document takes 1s and we get a new document request for the
+      // Determining the canonical target for a document takes 1s and we get a new document request for the
       // document ever 0.5s, which would cancel the previous in-progress preparation task, cancelling the canonical
-      // configured target configuration, never actually getting to the actual preparation.
+      // target configuration, never actually getting to the actual preparation.
       return
     }
     let id = UUID()
@@ -437,7 +435,7 @@ package final actor SemanticIndexManager {
   ///
   /// If file's target is known to be up-to-date, this returns almost immediately.
   package func prepareFileForEditorFunctionality(_ uri: DocumentURI) async {
-    guard let target = await buildSystemManager.canonicalConfiguredTarget(for: uri) else {
+    guard let target = await buildSystemManager.canonicalTarget(for: uri) else {
       return
     }
     if Task.isCancelled {
@@ -452,7 +450,11 @@ package final actor SemanticIndexManager {
 
   // MARK: - Helper functions
 
-  private func prepare(targets: [ConfiguredTarget], purpose: TargetPreparationPurpose, priority: TaskPriority?) async {
+  private func prepare(
+    targets: [BuildTargetIdentifier],
+    purpose: TargetPreparationPurpose,
+    priority: TaskPriority?
+  ) async {
     // Perform a quick initial check whether the target is up-to-date, in which case we don't need to schedule a
     // preparation operation at all.
     // We will check the up-to-date status again in `PreparationTaskDescription.execute`. This ensures that if we
@@ -593,9 +595,9 @@ package final actor SemanticIndexManager {
 
     // Sort the targets in topological order so that low-level targets get built before high-level targets, allowing us
     // to index the low-level targets ASAP.
-    var filesByTarget: [ConfiguredTarget: [FileToIndex]] = [:]
+    var filesByTarget: [BuildTargetIdentifier: [FileToIndex]] = [:]
     for fileToIndex in outOfDateFiles {
-      guard let target = await buildSystemManager.canonicalConfiguredTarget(for: fileToIndex.mainFile) else {
+      guard let target = await buildSystemManager.canonicalTarget(for: fileToIndex.mainFile) else {
         logger.error(
           "Not indexing \(fileToIndex.forLogging) because the target could not be determined"
         )
@@ -604,22 +606,20 @@ package final actor SemanticIndexManager {
       filesByTarget[target, default: []].append(fileToIndex)
     }
 
-    var sortedTargets: [ConfiguredTarget] =
+    // The targets sorted in reverse topological order, low-level targets before high-level targets. If topological
+    // sorting fails, sorted in another deterministic way where the actual order doesn't matter.
+    var sortedTargets: [BuildTargetIdentifier] =
       await orLog("Sorting targets") { try await buildSystemManager.topologicalSort(of: Array(filesByTarget.keys)) }
-      ?? Array(filesByTarget.keys).sorted(by: {
-        ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID)
-      })
+      ?? Array(filesByTarget.keys).sorted { $0.uri.stringValue < $1.uri.stringValue }
 
     if Set(sortedTargets) != Set(filesByTarget.keys) {
       logger.fault(
         """
         Sorting targets topologically changed set of targets:
-        \(sortedTargets.map(\.targetID).joined(separator: ", ")) != \(filesByTarget.keys.map(\.targetID).joined(separator: ", "))
+        \(sortedTargets.map(\.uri.stringValue).joined(separator: ", ")) != \(filesByTarget.keys.map(\.uri.stringValue).joined(separator: ", "))
         """
       )
-      sortedTargets = Array(filesByTarget.keys).sorted(by: {
-        ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID)
-      })
+      sortedTargets = Array(filesByTarget.keys).sorted { $0.uri.stringValue < $1.uri.stringValue }
     }
 
     var indexTasks: [Task<Void, Never>] = []

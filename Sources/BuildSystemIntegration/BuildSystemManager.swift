@@ -160,23 +160,22 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     }
   }
 
-  /// Returns all the `ConfiguredTarget`s that the document is part of.
-  package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return await buildSystem?.underlyingBuildSystem.configuredTargets(for: document) ?? []
+  /// Returns all the `BuildTargetIdentifier`s that the document is part of.
+  package func targets(for document: DocumentURI) async -> [BuildTargetIdentifier] {
+    return await buildSystem?.underlyingBuildSystem.targets(for: document) ?? []
   }
 
-  /// Returns the `ConfiguredTarget` that should be used for semantic functionality of the given document.
-  package func canonicalConfiguredTarget(for document: DocumentURI) async -> ConfiguredTarget? {
-    // Sort the configured targets to deterministically pick the same `ConfiguredTarget` every time.
-    // We could allow the user to specify a preference of one target over another. For now this is not necessary because
-    // no build system currently returns multiple targets for a source file.
-    return await configuredTargets(for: document)
-      .sorted { ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID) }
+  /// Returns the `BuildTargetIdentifier` that should be used for semantic functionality of the given document.
+  package func canonicalTarget(for document: DocumentURI) async -> BuildTargetIdentifier? {
+    // Sort the targets to deterministically pick the same `BuildTargetIdentifier` every time.
+    // We could allow the user to specify a preference of one target over another.
+    return await targets(for: document)
+      .sorted { $0.uri.stringValue < $1.uri.stringValue }
       .first
   }
 
-  /// Returns the target's module name as parsed from the `ConfiguredTarget`'s compiler arguments.
-  package func moduleName(for document: DocumentURI, in target: ConfiguredTarget) async -> String? {
+  /// Returns the target's module name as parsed from the `BuildTargetIdentifier`'s compiler arguments.
+  package func moduleName(for document: DocumentURI, in target: BuildTargetIdentifier) async -> String? {
     guard let language = await self.defaultLanguage(for: document),
       let buildSettings = await buildSettings(for: document, in: target, language: language)
     else {
@@ -211,7 +210,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// Implementation detail of `buildSettings(for:language:)`.
   private func buildSettingsFromPrimaryBuildSystem(
     for document: DocumentURI,
-    in target: ConfiguredTarget?,
+    in target: BuildTargetIdentifier?,
     language: Language
   ) async throws -> FileBuildSettings? {
     guard let buildSystem, let target else {
@@ -232,7 +231,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// don't have build settings by themselves.
   package func buildSettings(
     for document: DocumentURI,
-    in target: ConfiguredTarget?,
+    in target: BuildTargetIdentifier?,
     language: Language
   ) async -> FileBuildSettings? {
     do {
@@ -271,7 +270,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     language: Language
   ) async -> FileBuildSettings? {
     let mainFile = await mainFile(for: document, language: language)
-    let target = await canonicalConfiguredTarget(for: mainFile)
+    let target = await canonicalTarget(for: mainFile)
     guard var settings = await buildSettings(for: mainFile, in: target, language: language) else {
       return nil
     }
@@ -292,16 +291,16 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     await self.buildSystem?.underlyingBuildSystem.waitForUpToDateBuildGraph()
   }
 
-  package func topologicalSort(of targets: [ConfiguredTarget]) async throws -> [ConfiguredTarget]? {
+  package func topologicalSort(of targets: [BuildTargetIdentifier]) async throws -> [BuildTargetIdentifier]? {
     return await buildSystem?.underlyingBuildSystem.topologicalSort(of: targets)
   }
 
-  package func targets(dependingOn targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
+  package func targets(dependingOn targets: [BuildTargetIdentifier]) async -> [BuildTargetIdentifier]? {
     return await buildSystem?.underlyingBuildSystem.targets(dependingOn: targets)
   }
 
   package func prepare(
-    targets: [ConfiguredTarget],
+    targets: [BuildTargetIdentifier],
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     try await buildSystem?.underlyingBuildSystem.prepare(targets: targets, logMessageToIndexLog: logMessageToIndexLog)

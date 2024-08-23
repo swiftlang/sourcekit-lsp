@@ -29,7 +29,7 @@ import struct PackageModel.BuildFlags
 
 fileprivate extension SwiftPMBuildSystem {
   func buildSettings(for uri: DocumentURI, language: Language) async throws -> FileBuildSettings? {
-    guard let target = self.configuredTargets(for: uri).only else {
+    guard let target = self.targets(for: uri).only else {
       return nil
     }
     return try await buildSettings(for: uri, in: target, language: language)

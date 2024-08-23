@@ -54,7 +54,7 @@ actor TestBuildSystem: BuiltInBuildSystem {
 
   func buildSettings(
     for document: DocumentURI,
-    in buildTarget: ConfiguredTarget,
+    in buildTarget: BuildTargetIdentifier,
     language: Language
   ) async throws -> FileBuildSettings? {
     return buildSettingsByFile[document]
@@ -68,12 +68,12 @@ actor TestBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
+  func targets(for document: DocumentURI) async -> [BuildTargetIdentifier] {
+    return [BuildTargetIdentifier.dummy]
   }
 
   func prepare(
-    targets: [ConfiguredTarget],
+    targets: [BuildTargetIdentifier],
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     throw PrepareNotSupportedError()
@@ -83,11 +83,11 @@ actor TestBuildSystem: BuiltInBuildSystem {
 
   package func waitForUpToDateBuildGraph() async {}
 
-  func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  func topologicalSort(of targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil
   }
 
-  func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil
   }
 

@@ -108,7 +108,7 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
 
   package func buildSettings(
     for document: DocumentURI,
-    in buildTarget: ConfiguredTarget,
+    in buildTarget: BuildTargetIdentifier,
     language: Language
   ) async -> FileBuildSettings? {
     guard let db = database(for: document),
@@ -128,12 +128,12 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
+  package func targets(for document: DocumentURI) async -> [BuildTargetIdentifier] {
+    return [BuildTargetIdentifier.dummy]
   }
 
   package func prepare(
-    targets: [ConfiguredTarget],
+    targets: [BuildTargetIdentifier],
     logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     throw PrepareNotSupportedError()
@@ -143,11 +143,11 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
 
   package func waitForUpToDateBuildGraph() async {}
 
-  package func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  package func topologicalSort(of targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil
   }
 
-  package func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  package func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil
   }
 

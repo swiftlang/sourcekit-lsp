@@ -269,7 +269,7 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
   /// server yet or if no build settings are available for this file.
   package func buildSettings(
     for document: DocumentURI,
-    in target: ConfiguredTarget,
+    in target: BuildTargetIdentifier,
     language: Language
   ) async -> FileBuildSettings? {
     return buildSettings[document]
@@ -283,24 +283,24 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
+  package func targets(for document: DocumentURI) async -> [BuildTargetIdentifier] {
+    return [BuildTargetIdentifier.dummy]
   }
 
   package func scheduleBuildGraphGeneration() {}
 
   package func waitForUpToDateBuildGraph() async {}
 
-  package func topologicalSort(of targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
+  package func topologicalSort(of targets: [BuildTargetIdentifier]) async -> [BuildTargetIdentifier]? {
     return nil
   }
 
-  package func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  package func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil
   }
 
   package func prepare(
-    targets: [ConfiguredTarget],
+    targets: [BuildTargetIdentifier],
     logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     throw PrepareNotSupportedError()
