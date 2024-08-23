@@ -1155,6 +1155,9 @@ extension SourceKitLSPServer {
         workspaceFolders: .init(
           supported: true,
           changeNotifications: .bool(true)
+        ),
+        textDocumentContent: .init(
+          schemes: [ReferenceDocumentURL.scheme]
         )
       ),
       callHierarchyProvider: .bool(true),
