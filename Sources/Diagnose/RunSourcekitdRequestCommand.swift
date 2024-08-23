@@ -76,9 +76,12 @@ package struct RunSourceKitdRequestCommand: AsyncParsableCommand {
 
       let request = try requestString.cString(using: .utf8)!.withUnsafeBufferPointer { buffer in
         var error: UnsafeMutablePointer<CChar>?
-        let req = sourcekitd.api.request_create_from_yaml(buffer.baseAddress!, &error)!
+        let req = sourcekitd.api.request_create_from_yaml(buffer.baseAddress!, &error)
         if let error {
-          throw GenericError("Failed to parse sourcekitd request from JSON: \(String(cString: error))")
+          throw GenericError("Failed to parse sourcekitd request from YAML: \(String(cString: error))")
+        }
+        guard let req else {
+          throw GenericError("Failed to parse request from YAML but did not produce error")
         }
         return req
       }
