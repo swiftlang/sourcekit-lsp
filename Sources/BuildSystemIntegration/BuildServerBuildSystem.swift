@@ -78,7 +78,7 @@ package actor BuildServerBuildSystem: MessageHandler {
   package weak var messageHandler: BuiltInBuildSystemMessageHandler?
 
   /// The build settings that have been received from the build server.
-  private var buildSettings: [DocumentURI: FileBuildSettings] = [:]
+  private var buildSettings: [DocumentURI: SourceKitOptionsResponse] = [:]
 
   package init(
     projectRoot: AbsolutePath,
@@ -178,10 +178,10 @@ package actor BuildServerBuildSystem: MessageHandler {
     logger.log("Initialized build server \(response.displayName)")
 
     // see if index store was set as part of the server metadata
-    if let indexDbPath = readReponseDataKey(data: response.data, key: "indexDatabasePath") {
+    if let indexDbPath = readResponseDataKey(data: response.data, key: "indexDatabasePath") {
       self.indexDatabasePath = try AbsolutePath(validating: indexDbPath, relativeTo: self.projectRoot)
     }
-    if let indexStorePath = readReponseDataKey(data: response.data, key: "indexStorePath") {
+    if let indexStorePath = readResponseDataKey(data: response.data, key: "indexStorePath") {
       self.indexStorePath = try AbsolutePath(validating: indexStorePath, relativeTo: self.projectRoot)
     }
     self.buildServer = buildServer
@@ -228,11 +228,9 @@ package actor BuildServerBuildSystem: MessageHandler {
     await self.messageHandler?.sendNotificationToSourceKitLSP(notification)
   }
 
-  func handleFileOptionsChanged(
-    _ notification: FileOptionsChangedNotification
-  ) async {
+  func handleFileOptionsChanged(_ notification: FileOptionsChangedNotification) async {
     let result = notification.updatedOptions
-    let settings = FileBuildSettings(
+    let settings = SourceKitOptionsResponse(
       compilerArguments: result.options,
       workingDirectory: result.workingDirectory
     )
@@ -241,13 +239,16 @@ package actor BuildServerBuildSystem: MessageHandler {
 
   /// Record the new build settings for the given document and inform the delegate
   /// about the changed build settings.
-  private func buildSettingsChanged(for document: DocumentURI, settings: FileBuildSettings?) async {
+  private func buildSettingsChanged(for document: DocumentURI, settings: SourceKitOptionsResponse?) async {
     buildSettings[document] = settings
-    await self.delegate?.fileBuildSettingsChanged([document])
+    // FIXME: (BSP migration) When running in the legacy mode where teh BSP server pushes build settings to us, we could
+    // consider having a separate target for each source file so that we can update individual targets instead of having
+    // to send an update for all targets.
+    await self.messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildTargetNotification(changes: nil))
   }
 }
 
-private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
+private func readResponseDataKey(data: LSPAny?, key: String) -> String? {
   if case .dictionary(let dataDict)? = data,
     case .string(let stringVal)? = dataDict[key]
   {
@@ -267,16 +268,8 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
 
   package nonisolated var supportsPreparation: Bool { false }
 
-  /// The build settings for the given file.
-  ///
-  /// Returns `nil` if no build settings have been received from the build
-  /// server yet or if no build settings are available for this file.
-  package func buildSettings(
-    for document: DocumentURI,
-    in target: BuildTargetIdentifier,
-    language: Language
-  ) async -> FileBuildSettings? {
-    return buildSettings[document]
+  package func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse? {
+    return buildSettings[request.textDocument.uri]
   }
 
   package func defaultLanguage(for document: DocumentURI) async -> Language? {
@@ -287,7 +280,7 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func inverseSources(_ request: InverseSourcesRequest) -> InverseSourcesResponse {
+  package func inverseSources(request: InverseSourcesRequest) -> InverseSourcesResponse {
     return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
   }
 
