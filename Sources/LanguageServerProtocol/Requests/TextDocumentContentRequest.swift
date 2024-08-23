@@ -17,12 +17,6 @@
 ///   - uri: The `DocumentUri` of the custom scheme url for which content is required
 ///
 /// - Returns: `TextDocumentContentResponse` which contains the `content` to be displayed.
-///
-/// ### LSP Extension
-///
-/// This request is an extension to LSP supported by SourceKit-LSP.
-/// Enable the experimental client capability `"workspace/textDocumentContent"` so that the server responds with
-/// reference document URLs for certain requests or commands whenever possible.
 public struct TextDocumentContentRequest: RequestType {
   public static let method: String = "workspace/textDocumentContent"
   public typealias Response = TextDocumentContentResponse
