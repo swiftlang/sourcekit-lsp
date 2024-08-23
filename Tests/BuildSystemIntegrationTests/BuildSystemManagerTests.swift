@@ -481,8 +481,8 @@ class ManualBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func targets(for document: DocumentURI) async -> [BuildTargetIdentifier] {
-    return [BuildTargetIdentifier.dummy]
+  package func inverseSources(_ request: InverseSourcesRequest) -> InverseSourcesResponse {
+    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
   }
 
   package func prepare(
@@ -531,7 +531,7 @@ class ManualBuildSystem: BuiltInBuildSystem {
 }
 
 /// A `BuildSystemDelegate` setup for testing.
-private actor BSMDelegate: BuildSystemDelegate {
+private actor BSMDelegate: BuildSystemManagerDelegate {
   fileprivate typealias ExpectedBuildSettingChangedCall = (
     uri: DocumentURI, language: Language, settings: FileBuildSettings?, expectation: XCTestExpectation,
     file: StaticString, line: UInt
@@ -575,7 +575,6 @@ private actor BSMDelegate: BuildSystemDelegate {
     }
   }
 
-  func buildTargetsChanged(_ changes: [BuildTargetEvent]) {}
   func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
     for uri in changedFiles {
       guard let expected = expectedDependenciesUpdate.first(where: { $0.uri == uri }) else {

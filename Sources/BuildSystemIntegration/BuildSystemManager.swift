@@ -23,6 +23,39 @@ import struct TSCBasic.AbsolutePath
 import os
 #endif
 
+fileprivate class RequestCache<Request: RequestType & Hashable> {
+  private var storage: [Request: Task<Request.Response, Error>] = [:]
+
+  func get(
+    _ key: Request,
+    isolation: isolated any Actor = #isolation,
+    compute: @Sendable @escaping (Request) async throws(Error) -> Request.Response
+  ) async throws(Error) -> Request.Response {
+    let task: Task<Request.Response, Error>
+    if let cached = storage[key] {
+      task = cached
+    } else {
+      task = Task {
+        try await compute(key)
+      }
+      storage[key] = task
+    }
+    return try await task.value
+  }
+
+  func clear(where condition: (Request) -> Bool, isolation: isolated any Actor = #isolation) {
+    for key in storage.keys {
+      if condition(key) {
+        storage[key] = nil
+      }
+    }
+  }
+
+  func clearAll(isolation: isolated any Actor = #isolation) {
+    storage.removeAll()
+  }
+}
+
 /// `BuildSystem` that integrates client-side information such as main-file lookup as well as providing
 ///  common functionality such as caching.
 ///
@@ -56,12 +89,14 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   var mainFilesProvider: MainFilesProvider?
 
   /// Build system delegate that will receive notifications about setting changes, etc.
-  var delegate: BuildSystemDelegate?
+  var delegate: BuildSystemManagerDelegate?
 
   /// The list of toolchains that are available.
   ///
   /// Used to determine which toolchain to use for a given document.
   private let toolchainRegistry: ToolchainRegistry
+
+  private var cachedTargetsForDocument = RequestCache<InverseSourcesRequest>()
 
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
@@ -108,7 +143,12 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   ///
   /// - Important: Do not call directly.
   package func handle(_ notification: some LanguageServerProtocol.NotificationType) {
-    logger.error("Ignoring unknown notification \(type(of: notification).method) from build system")
+    switch notification {
+    case let notification as DidChangeBuildTargetNotification:
+      self.didChangeTextDocumentTargets(notification: notification)
+    default:
+      logger.error("Ignoring unknown notification \(type(of: notification).method)")
+    }
   }
 
   /// Implementation of `MessageHandler`, handling requests from the build system.
@@ -119,7 +159,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   }
 
   /// - Note: Needed so we can set the delegate from a different isolation context.
-  package func setDelegate(_ delegate: BuildSystemDelegate?) {
+  package func setDelegate(_ delegate: BuildSystemManagerDelegate?) {
     self.delegate = delegate
   }
 
@@ -160,9 +200,23 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     }
   }
 
-  /// Returns all the `BuildTargetIdentifier`s that the document is part of.
+  /// Returns all the `ConfiguredTarget`s that the document is part of.
   package func targets(for document: DocumentURI) async -> [BuildTargetIdentifier] {
-    return await buildSystem?.underlyingBuildSystem.targets(for: document) ?? []
+    guard let buildSystem else {
+      return []
+    }
+
+    // FIXME: (BSP migration) Only use `InverseSourcesRequest` if the BSP server declared it can handle it in the
+    // capabilities
+    let request = InverseSourcesRequest(textDocument: TextDocumentIdentifier(uri: document))
+    do {
+      let response = try await cachedTargetsForDocument.get(request) { document in
+        return try await buildSystem.send(request)
+      }
+      return response.targets
+    } catch {
+      return []
+    }
   }
 
   /// Returns the `BuildTargetIdentifier` that should be used for semantic functionality of the given document.
@@ -390,16 +444,16 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
   }
 
-  package func buildTargetsChanged(_ changes: [BuildTargetEvent]) async {
-    if let delegate = self.delegate {
-      await delegate.buildTargetsChanged(changes)
-    }
-  }
-
   package func fileHandlingCapabilityChanged() async {
     if let delegate = self.delegate {
       await delegate.fileHandlingCapabilityChanged()
     }
+  }
+
+  private func didChangeTextDocumentTargets(notification: DidChangeBuildTargetNotification) {
+    // Every `DidChangeBuildTargetNotification` notification needs to invalidate the cache since the changed target
+    // might gained a source file.
+    self.cachedTargetsForDocument.clearAll()
   }
 }
 

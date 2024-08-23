@@ -110,8 +110,8 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
     language: Language
   ) async throws -> FileBuildSettings?
 
-  /// Return the list of targets and run destinations that the given document can be built for.
-  func targets(for document: DocumentURI) async -> [BuildTargetIdentifier]
+  /// Return the list of targets that the given document can be built for.
+  func inverseSources(_ request: InverseSourcesRequest) async -> InverseSourcesResponse
 
   /// Schedule a task that re-generates the build graph. The function may return before the build graph has finished
   /// being generated. If clients need to wait for an up-to-date build graph, they should call

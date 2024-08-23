@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import LanguageServerProtocol
 import SKLogging
 import SKSupport
@@ -63,6 +64,8 @@ actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
     }
 
     switch request {
+    case let request as InverseSourcesRequest:
+      return try await handle(request, underlyingBuildSystem.inverseSources)
     default:
       throw ResponseError.methodNotFound(R.method)
     }

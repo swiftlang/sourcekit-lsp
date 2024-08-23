@@ -12,17 +12,18 @@
 import LanguageServerProtocol
 
 fileprivate let requestTypes: [_RequestType.Type] = [
-  BuildTargets.self,
   BuildTargetOutputPaths.self,
+  BuildTargets.self,
   BuildTargetSources.self,
   InitializeBuild.self,
+  InverseSourcesRequest.self,
   RegisterForChanges.self,
   ShutdownBuild.self,
   SourceKitOptions.self,
 ]
 
 fileprivate let notificationTypes: [NotificationType.Type] = [
-  BuildTargetsChangedNotification.self,
+  DidChangeBuildTargetNotification.self,
   ExitBuildNotification.self,
   FileOptionsChangedNotification.self,
   InitializedBuildNotification.self,

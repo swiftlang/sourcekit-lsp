@@ -481,6 +481,7 @@ extension SwiftPMBuildSystem {
     if let delegate = self.delegate {
       await delegate.fileBuildSettingsChanged(self.watchedFiles)
       await delegate.fileHandlingCapabilityChanged()
+      await messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildTargetNotification(changes: nil))
     }
     for testFilesDidChangeCallback in testFilesDidChangeCallbacks {
       await testFilesDidChangeCallback()
@@ -608,6 +609,10 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     }
 
     return []
+  }
+
+  package func inverseSources(_ request: InverseSourcesRequest) -> InverseSourcesResponse {
+    return InverseSourcesResponse(targets: targets(for: request.textDocument.uri))
   }
 
   package func scheduleBuildGraphGeneration() async throws {

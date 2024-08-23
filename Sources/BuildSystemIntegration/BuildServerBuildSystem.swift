@@ -200,7 +200,7 @@ package actor BuildServerBuildSystem: MessageHandler {
       """
     )
     bspMessageHandlingQueue.async {
-      if let params = params as? BuildTargetsChangedNotification {
+      if let params = params as? DidChangeBuildTargetNotification {
         await self.handleBuildTargetsChanged(params)
       } else if let params = params as? FileOptionsChangedNotification {
         await self.handleFileOptionsChanged(params)
@@ -225,10 +225,8 @@ package actor BuildServerBuildSystem: MessageHandler {
     reply(.failure(ResponseError.methodNotFound(R.method)))
   }
 
-  func handleBuildTargetsChanged(
-    _ notification: BuildTargetsChangedNotification
-  ) async {
-    await self.delegate?.buildTargetsChanged(notification.changes)
+  func handleBuildTargetsChanged(_ notification: DidChangeBuildTargetNotification) async {
+    await self.messageHandler?.sendNotificationToSourceKitLSP(notification)
   }
 
   func handleFileOptionsChanged(
@@ -283,8 +281,8 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func targets(for document: DocumentURI) async -> [BuildTargetIdentifier] {
-    return [BuildTargetIdentifier.dummy]
+  package func inverseSources(_ request: InverseSourcesRequest) -> InverseSourcesResponse {
+    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
   }
 
   package func scheduleBuildGraphGeneration() {}

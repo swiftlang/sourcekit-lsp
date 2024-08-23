@@ -68,8 +68,8 @@ actor TestBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  func targets(for document: DocumentURI) async -> [BuildTargetIdentifier] {
-    return [BuildTargetIdentifier.dummy]
+  package func inverseSources(_ request: InverseSourcesRequest) -> InverseSourcesResponse {
+    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
   }
 
   func prepare(

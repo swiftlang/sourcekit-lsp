@@ -128,8 +128,8 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func targets(for document: DocumentURI) async -> [BuildTargetIdentifier] {
-    return [BuildTargetIdentifier.dummy]
+  package func inverseSources(_ request: InverseSourcesRequest) -> InverseSourcesResponse {
+    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
   }
 
   package func prepare(

@@ -836,12 +836,7 @@ extension SourceKitLSPServer: MessageHandler {
 
 // MARK: - Build System Delegate
 
-extension SourceKitLSPServer: BuildSystemDelegate {
-  package func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
-    // TODO: do something with these changes once build target support is in place
-    // (https://github.com/swiftlang/sourcekit-lsp/issues/1226)
-  }
-
+extension SourceKitLSPServer: BuildSystemManagerDelegate {
   private func affectedOpenDocumentsForChangeSet(
     _ changes: Set<DocumentURI>,
     _ documentManager: DocumentManager
