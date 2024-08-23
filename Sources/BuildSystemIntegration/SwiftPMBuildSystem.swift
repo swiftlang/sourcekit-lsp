@@ -212,10 +212,6 @@ package actor SwiftPMBuildSystem {
 
   // MARK: Build system options (set once and not modified)
 
-  /// The path at which the LSP workspace is opened. This might be a subdirectory of the path that contains the
-  /// `Package.swift`.
-  private let workspacePath: TSCAbsolutePath
-
   /// The directory containing `Package.swift`.
   package let projectRoot: TSCAbsolutePath
 
@@ -244,23 +240,47 @@ package actor SwiftPMBuildSystem {
   /// greater depth.
   private var targets: [BuildTargetIdentifier: (buildTarget: SwiftBuildTarget, depth: Int)] = [:]
 
+  static package func projectRoot(
+    for path: TSCBasic.AbsolutePath,
+    options: SourceKitLSPOptions
+  ) -> TSCBasic.AbsolutePath? {
+    guard var path = try? resolveSymlinks(path) else {
+      return nil
+    }
+    while true {
+      let packagePath = path.appending(component: "Package.swift")
+      if localFileSystem.isFile(packagePath) {
+        let contents = try? localFileSystem.readFileContents(packagePath)
+        if contents?.cString.contains("PackageDescription") == true {
+          return path
+        }
+      }
+
+      if path.isRoot {
+        return nil
+      }
+      path = path.parentDirectory
+    }
+    return nil
+  }
+
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
   /// - Parameters:
-  ///   - workspace: The workspace root path.
+  ///   - projectRoot: The directory containing `Package.swift`
   ///   - toolchainRegistry: The toolchain registry to use to provide the Swift compiler used for
   ///     manifest parsing and runtime support.
   ///   - reloadPackageStatusCallback: Will be informed when `reloadPackage` starts and ends executing.
   /// - Throws: If there is an error loading the package, or no manifest is found.
   package init(
-    workspacePath: TSCAbsolutePath,
+    projectRoot: TSCAbsolutePath,
     toolchainRegistry: ToolchainRegistry,
     fileSystem: FileSystem = localFileSystem,
     options: SourceKitLSPOptions,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void = { _ in },
     testHooks: SwiftPMTestHooks
   ) async throws {
-    self.workspacePath = workspacePath
+    self.projectRoot = projectRoot
     self.options = options
     self.fileSystem = fileSystem
     let toolchain = await toolchainRegistry.preferredToolchain(containing: [
@@ -272,12 +292,6 @@ package actor SwiftPMBuildSystem {
 
     self.toolchain = toolchain
     self.testHooks = testHooks
-
-    guard let packageRoot = findPackageDirectory(containing: workspacePath, fileSystem) else {
-      throw Error.noManifest(workspacePath: workspacePath)
-    }
-
-    self.projectRoot = try resolveSymlinks(packageRoot)
 
     guard let destinationToolchainBinDir = toolchain.swiftc?.parentDirectory else {
       throw Error.cannotDetermineHostToolchain
@@ -306,11 +320,11 @@ package actor SwiftPMBuildSystem {
     let destinationSwiftPMToolchain = try UserToolchain(swiftSDK: destinationSDK)
 
     var location = try Workspace.Location(
-      forRootPackage: AbsolutePath(packageRoot),
+      forRootPackage: AbsolutePath(projectRoot),
       fileSystem: fileSystem
     )
     if options.backgroundIndexingOrDefault {
-      location.scratchDirectory = AbsolutePath(packageRoot.appending(component: ".index-build"))
+      location.scratchDirectory = AbsolutePath(projectRoot.appending(component: ".index-build"))
     } else if let scratchDirectory = options.swiftPMOrDefault.scratchPath,
       let scratchDirectoryPath = try? AbsolutePath(validating: scratchDirectory)
     {
@@ -391,18 +405,15 @@ package actor SwiftPMBuildSystem {
   ///   - reloadPackageStatusCallback: Will be informed when `reloadPackage` starts and ends executing.
   /// - Returns: nil if `workspacePath` is not part of a package or there is an error.
   package init?(
-    uri: DocumentURI,
+    projectRoot: TSCBasic.AbsolutePath,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void,
     testHooks: SwiftPMTestHooks
   ) async {
-    guard let fileURL = uri.fileURL else {
-      return nil
-    }
     do {
       try await self.init(
-        workspacePath: try TSCAbsolutePath(validating: fileURL.path),
+        projectRoot: projectRoot,
         toolchainRegistry: toolchainRegistry,
         fileSystem: localFileSystem,
         options: options,
@@ -412,7 +423,7 @@ package actor SwiftPMBuildSystem {
     } catch Error.noManifest {
       return nil
     } catch {
-      logger.error("Failed to create SwiftPMWorkspace at \(uri.forLogging): \(error.forLogging)")
+      logger.error("Failed to create SwiftPMWorkspace at \(projectRoot.pathString): \(error.forLogging)")
       return nil
     }
   }
@@ -569,13 +580,13 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       // with the `.cpp` file.
       return FileBuildSettings(
         compilerArguments: try await compilerArguments(for: DocumentURI(substituteFile), in: buildTarget),
-        workingDirectory: workspacePath.pathString
+        workingDirectory: projectRoot.pathString
       ).patching(newFile: try resolveSymlinks(path).pathString, originalFile: substituteFile.absoluteString)
     }
 
     return FileBuildSettings(
       compilerArguments: try await compilerArguments(for: uri, in: buildTarget),
-      workingDirectory: workspacePath.pathString
+      workingDirectory: projectRoot.pathString
     )
   }
 
@@ -683,7 +694,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     logger.debug("Preparing '\(target.forLogging)' using \(self.toolchain.identifier)")
     var arguments = [
       swift.pathString, "build",
-      "--package-path", workspacePath.pathString,
+      "--package-path", projectRoot.pathString,
       "--scratch-path", self.workspace.location.scratchDirectory.pathString,
       "--disable-index-store",
       "--target", try target.targetProperties.target,
@@ -872,29 +883,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     let compilerArgs = workspace.interpreterFlags(for: path.parentDirectory) + [path.pathString]
     return FileBuildSettings(compilerArguments: compilerArgs)
   }
-}
-
-/// Find a Swift Package root directory that contains the given path, if any.
-private func findPackageDirectory(
-  containing path: TSCAbsolutePath,
-  _ fileSystem: FileSystem
-) -> TSCAbsolutePath? {
-  var path = path
-  while true {
-    let packagePath = path.appending(component: "Package.swift")
-    if fileSystem.isFile(packagePath) {
-      let contents = try? fileSystem.readFileContents(packagePath)
-      if contents?.cString.contains("PackageDescription") == true {
-        return path
-      }
-    }
-
-    if path.isRoot {
-      return nil
-    }
-    path = path.parentDirectory
-  }
-  return path
 }
 
 extension Basics.Diagnostic.Severity {

@@ -24,6 +24,10 @@ import XCTest
 /// Build system to be used for testing BuildSystem and BuildSystemDelegate functionality with SourceKitLSPServer
 /// and other components.
 actor TestBuildSystem: BuiltInBuildSystem {
+  static func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath? {
+    return workspaceFolder
+  }
+
   let projectRoot: AbsolutePath = try! AbsolutePath(validating: "/")
   let indexStorePath: AbsolutePath? = nil
   let indexDatabasePath: AbsolutePath? = nil

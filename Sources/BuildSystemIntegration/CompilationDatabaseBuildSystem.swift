@@ -14,6 +14,7 @@ import BuildServerProtocol
 import Dispatch
 import LanguageServerProtocol
 import SKLogging
+import SKOptions
 import SKSupport
 import ToolchainRegistry
 
@@ -100,6 +101,13 @@ package actor CompilationDatabaseBuildSystem {
 }
 
 extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
+  static package func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath? {
+    if tryLoadCompilationDatabase(directory: workspaceFolder) != nil {
+      return workspaceFolder
+    }
+    return nil
+  }
+
   package nonisolated var supportsPreparation: Bool { false }
 
   package var indexDatabasePath: AbsolutePath? {

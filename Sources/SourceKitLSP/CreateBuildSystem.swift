@@ -19,62 +19,71 @@ import ToolchainRegistry
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 
-/// Tries to create a build system for a workspace at the given location, with the given parameters.
+fileprivate extension WorkspaceType {
+  var buildSystemType: BuiltInBuildSystem.Type {
+    switch self {
+    case .buildServer: return BuildServerBuildSystem.self
+    case .compilationDatabase: return CompilationDatabaseBuildSystem.self
+    case .swiftPM: return SwiftPMBuildSystem.self
+    }
+  }
+}
+
+/// Determine which build system should be started to handle the given workspace folder and at which folder that build
+/// system's project root is (see `BuiltInBuildSystem.projectRoot(for:options:)`).
+///
+/// Returns `nil` if no build system can handle this workspace folder.
+func determineBuildSystem(
+  forWorkspaceFolder workspaceFolder: DocumentURI,
+  options: SourceKitLSPOptions
+) -> (WorkspaceType, projectRoot: AbsolutePath)? {
+  var buildSystemPreference: [WorkspaceType] = [
+    .buildServer, .swiftPM, .compilationDatabase,
+  ]
+  if let defaultBuildSystem = options.defaultWorkspaceType {
+    buildSystemPreference.removeAll(where: { $0 == defaultBuildSystem })
+    buildSystemPreference.insert(defaultBuildSystem, at: 0)
+  }
+  guard let workspaceFolderUrl = workspaceFolder.fileURL,
+    let workspaceFolderPath = try? AbsolutePath(validating: workspaceFolderUrl.path)
+  else {
+    return nil
+  }
+  for buildSystemType in buildSystemPreference {
+    if let projectRoot = buildSystemType.buildSystemType.projectRoot(for: workspaceFolderPath, options: options) {
+      return (buildSystemType, projectRoot)
+    }
+  }
+
+  return nil
+}
+
+/// Create a build system of the given type.
 func createBuildSystem(
-  rootUri: DocumentURI,
+  ofType buildSystemType: WorkspaceType,
+  projectRoot: AbsolutePath,
   options: SourceKitLSPOptions,
   testHooks: TestHooks,
   toolchainRegistry: ToolchainRegistry,
   reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
 ) async -> BuiltInBuildSystem? {
-  guard let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) else {
-    // We assume that workspaces are directories. This is only true for URLs not for URIs in general.
-    // Simply skip setting up the build integration in this case.
-    logger.error(
-      "Cannot setup build integration at URI \(rootUri.forLogging) because the URI it is not a valid file URL"
+  switch buildSystemType {
+  case .buildServer:
+    return await BuildServerBuildSystem(projectRoot: projectRoot)
+  case .compilationDatabase:
+    return CompilationDatabaseBuildSystem(
+      projectRoot: projectRoot,
+      searchPaths: (options.compilationDatabaseOrDefault.searchPaths ?? []).compactMap {
+        try? RelativePath(validating: $0)
+      }
     )
-    return nil
-  }
-  func createSwiftPMBuildSystem(rootUri: DocumentURI) async -> SwiftPMBuildSystem? {
+  case .swiftPM:
     return await SwiftPMBuildSystem(
-      uri: rootUri,
+      projectRoot: projectRoot,
       toolchainRegistry: toolchainRegistry,
       options: options,
       reloadPackageStatusCallback: reloadPackageStatusCallback,
       testHooks: testHooks.swiftpmTestHooks
     )
-  }
-
-  func createCompilationDatabaseBuildSystem(rootPath: AbsolutePath) -> CompilationDatabaseBuildSystem? {
-    return CompilationDatabaseBuildSystem(
-      projectRoot: rootPath,
-      searchPaths: (options.compilationDatabaseOrDefault.searchPaths ?? []).compactMap {
-        try? RelativePath(validating: $0)
-      }
-    )
-  }
-
-  func createBuildServerBuildSystem(rootPath: AbsolutePath) async -> BuildServerBuildSystem? {
-    return await BuildServerBuildSystem(projectRoot: rootPath)
-  }
-
-  let defaultBuildSystem: BuiltInBuildSystem? =
-    switch options.defaultWorkspaceType {
-    case .buildServer: await createBuildServerBuildSystem(rootPath: rootPath)
-    case .compilationDatabase: createCompilationDatabaseBuildSystem(rootPath: rootPath)
-    case .swiftPM: await createSwiftPMBuildSystem(rootUri: rootUri)
-    case nil: nil
-    }
-  if let defaultBuildSystem {
-    return defaultBuildSystem
-  } else if let buildServer = await createBuildServerBuildSystem(rootPath: rootPath) {
-    return buildServer
-  } else if let swiftpm = await createSwiftPMBuildSystem(rootUri: rootUri) {
-    return swiftpm
-  } else if let compdb = createCompilationDatabaseBuildSystem(rootPath: rootPath) {
-    return compdb
-  } else {
-    logger.error("Could not set up a build system at '\(rootUri.forLogging)'")
-    return nil
   }
 }
