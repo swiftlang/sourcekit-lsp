@@ -939,7 +939,7 @@ extension SourceKitLSPServer {
   /// If the build system that was determined for the workspace does not satisfy `condition`, `nil` is returned.
   private func createWorkspace(
     _ workspaceFolder: WorkspaceFolder,
-    condition: (BuildSystem?) async -> Bool = { _ in true }
+    condition: (BuiltInBuildSystem?) async -> Bool = { _ in true }
   ) async -> Workspace? {
     guard let capabilityRegistry = capabilityRegistry else {
       logger.log("Cannot open workspace before server is initialized")

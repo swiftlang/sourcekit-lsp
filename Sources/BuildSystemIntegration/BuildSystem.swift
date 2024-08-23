@@ -95,7 +95,7 @@ package struct PrepareNotSupportedError: Error, CustomStringConvertible {
 ///
 /// For example, a SwiftPMWorkspace provides compiler arguments for the files
 /// contained in a SwiftPM package root directory.
-package protocol BuildSystem: AnyObject, Sendable {
+package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
   /// was found.

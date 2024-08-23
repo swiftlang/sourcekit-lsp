@@ -92,7 +92,7 @@ package final class Workspace: Sendable {
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     testHooks: TestHooks,
-    underlyingBuildSystem: BuildSystem?,
+    underlyingBuildSystem: BuiltInBuildSystem?,
     index uncheckedIndex: UncheckedIndex?,
     indexDelegate: SourceKitIndexDelegate?,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
@@ -151,7 +151,7 @@ package final class Workspace: Sendable {
     documentManager: DocumentManager,
     rootUri: DocumentURI,
     capabilityRegistry: CapabilityRegistry,
-    buildSystem: BuildSystem?,
+    buildSystem: BuiltInBuildSystem?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     testHooks: TestHooks,
@@ -213,7 +213,7 @@ package final class Workspace: Sendable {
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     testHooks: TestHooks,
-    underlyingBuildSystem: BuildSystem,
+    underlyingBuildSystem: BuiltInBuildSystem,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async -> Workspace {
     return await Workspace(

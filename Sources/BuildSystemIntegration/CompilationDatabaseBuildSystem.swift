@@ -93,7 +93,7 @@ package actor CompilationDatabaseBuildSystem {
   }
 }
 
-extension CompilationDatabaseBuildSystem: BuildSystem {
+extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
   package nonisolated var supportsPreparation: Bool { false }
 
   package var indexDatabasePath: AbsolutePath? {

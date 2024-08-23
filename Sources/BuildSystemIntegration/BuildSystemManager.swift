@@ -41,7 +41,7 @@ package actor BuildSystemManager {
   var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
 
   /// The underlying primary build system.
-  let buildSystem: BuildSystem?
+  let buildSystem: BuiltInBuildSystem?
 
   /// Timeout before fallback build settings are used.
   let fallbackSettingsTimeout: DispatchTimeInterval
@@ -77,7 +77,7 @@ package actor BuildSystemManager {
   /// Create a BuildSystemManager that wraps the given build system. The new
   /// manager will modify the delegate of the underlying build system.
   package init(
-    buildSystem: BuildSystem?,
+    buildSystem: BuiltInBuildSystem?,
     fallbackBuildSystem: FallbackBuildSystem?,
     mainFilesProvider: MainFilesProvider?,
     toolchainRegistry: ToolchainRegistry,

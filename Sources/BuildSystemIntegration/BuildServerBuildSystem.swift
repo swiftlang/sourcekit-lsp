@@ -254,7 +254,7 @@ private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
   return nil
 }
 
-extension BuildServerBuildSystem: BuildSystem {
+extension BuildServerBuildSystem: BuiltInBuildSystem {
   package nonisolated var supportsPreparation: Bool { false }
 
   /// The build settings for the given file.

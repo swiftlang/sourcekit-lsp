@@ -446,7 +446,7 @@ private final actor ManualMainFilesProvider: MainFilesProvider {
 
 /// A simple `BuildSystem` that wraps a dictionary, for testing.
 @MainActor
-class ManualBuildSystem: BuildSystem {
+class ManualBuildSystem: BuiltInBuildSystem {
   var projectRoot = try! AbsolutePath(validating: "/")
 
   var map: [DocumentURI: FileBuildSettings] = [:]
