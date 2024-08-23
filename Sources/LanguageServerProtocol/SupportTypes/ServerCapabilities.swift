@@ -1232,7 +1232,7 @@ public struct WorkspaceServerCapabilities: Codable, Hashable, Sendable {
   /// The server supports workspace folder.
   public var workspaceFolders: WorkspaceFolders?
 
-  /// The server supports the `workspace/textDocumentContent` request`.
+  /// The server supports the `workspace/textDocumentContent` request.
   public var textDocumentContent: TextDocumentContentOptions?
 
   public init(
