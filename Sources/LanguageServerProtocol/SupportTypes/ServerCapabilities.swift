@@ -1219,10 +1219,27 @@ public struct WorkspaceServerCapabilities: Codable, Hashable, Sendable {
     public var willDelete: FileOperationRegistrationOptions?
   }
 
+  /// Text document content provider options.
+  public struct TextDocumentContentOptions: Codable, Hashable, Sendable {
+    /// The schemes for which the server provides content.
+    public var schemes: [String]
+
+    public init(schemes: [String] = []) {
+      self.schemes = schemes
+    }
+  }
+
   /// The server supports workspace folder.
   public var workspaceFolders: WorkspaceFolders?
 
-  public init(workspaceFolders: WorkspaceFolders? = nil) {
+  /// The server supports the `workspace/textDocumentContent` request`.
+  public var textDocumentContent: TextDocumentContentOptions?
+
+  public init(
+    workspaceFolders: WorkspaceFolders? = nil,
+    textDocumentContent: TextDocumentContentOptions? = nil
+  ) {
     self.workspaceFolders = workspaceFolders
+    self.textDocumentContent = textDocumentContent
   }
 }
