@@ -39,9 +39,6 @@ package actor TestBuildSystem: BuiltInBuildSystem {
   /// Build settings by file.
   private var buildSettingsByFile: [DocumentURI: SourceKitOptionsResponse] = [:]
 
-  /// Files currently being watched by our delegate.
-  private var watchedFiles: Set<DocumentURI> = []
-
   package func setBuildSettings(for uri: DocumentURI, to buildSettings: SourceKitOptionsResponse?) async {
     buildSettingsByFile[uri] = buildSettings
     await self.messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildTargetNotification(changes: nil))
@@ -90,14 +87,6 @@ package actor TestBuildSystem: BuiltInBuildSystem {
 
   package func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil
-  }
-
-  package func registerForChangeNotifications(for uri: DocumentURI) async {
-    watchedFiles.insert(uri)
-  }
-
-  package func unregisterForChangeNotifications(for uri: DocumentURI) {
-    watchedFiles.remove(uri)
   }
 
   package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {}

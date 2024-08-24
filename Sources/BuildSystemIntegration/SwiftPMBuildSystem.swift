@@ -188,10 +188,6 @@ package actor SwiftPMBuildSystem {
   /// Callbacks that should be called if the list of possible test files has changed.
   private var testFilesDidChangeCallbacks: [() async -> Void] = []
 
-  /// The URIs for which the delegate has registered for change notifications,
-  /// mapped to the language the delegate specified when registering for change notifications.
-  private var watchedFiles: Set<DocumentURI> = []
-
   /// Debounces calls to `delegate.filesDependenciesUpdated`.
   ///
   /// This is to ensure we don't call `filesDependenciesUpdated` for the same file multiple time if the client does not
@@ -765,16 +761,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
         logger.error("Preparation of target \(target.forLogging) exited abnormally \(exception)")
       }
     }
-  }
-
-  package func registerForChangeNotifications(for uri: DocumentURI) async {
-    self.watchedFiles.insert(uri)
-  }
-
-  /// Unregister the given file for build-system level change notifications, such as command
-  /// line flag changes, dependency changes, etc.
-  package func unregisterForChangeNotifications(for uri: DocumentURI) {
-    self.watchedFiles.remove(uri)
   }
 
   /// Returns the resolved target descriptions for the given file, if one is known.

@@ -66,8 +66,8 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testFileRegistration() async throws {
-    let fileUrl = URL(fileURLWithPath: "/some/file/path")
-    let expectation = XCTestExpectation(description: "\(fileUrl) settings updated")
+    let uri = DocumentURI(filePath: "/some/file/path", isDirectory: false)
+    let expectation = self.expectation(description: "\(uri) settings updated")
     let buildSystemDelegate = TestDelegate(targetExpectations: [
       (DidChangeBuildTargetNotification(changes: nil), expectation)
     ])
@@ -77,13 +77,22 @@ final class BuildServerBuildSystemTests: XCTestCase {
     }
     let buildSystem = try await BuildServerBuildSystem(projectRoot: root, messageHandler: buildSystemDelegate)
     await buildSystem.setDelegate(buildSystemDelegate)
-    await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
+    _ = try await buildSystem.sourceKitOptions(
+      request: SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri: uri),
+        target: try unwrap(
+          await buildSystem.inverseSources(
+            request: InverseSourcesRequest(textDocument: TextDocumentIdentifier(uri: uri))
+          ).targets.only
+        )
+      )
+    )
 
     XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: defaultTimeout), .completed)
   }
 
   func testBuildTargetsChanged() async throws {
-    let fileUrl = URL(fileURLWithPath: "/some/file/path")
+    let uri = DocumentURI(filePath: "/some/file/path", isDirectory: false)
     let expectation = XCTestExpectation(description: "target changed")
     let buildSystemDelegate = TestDelegate(targetExpectations: [
       (
@@ -102,7 +111,16 @@ final class BuildServerBuildSystemTests: XCTestCase {
       _fixLifetime(buildSystemDelegate)
     }
     let buildSystem = try await BuildServerBuildSystem(projectRoot: root, messageHandler: buildSystemDelegate)
-    await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
+    _ = try await buildSystem.sourceKitOptions(
+      request: SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri: uri),
+        target: try unwrap(
+          await buildSystem.inverseSources(
+            request: InverseSourcesRequest(textDocument: TextDocumentIdentifier(uri: uri))
+          ).targets.only
+        )
+      )
+    )
 
     try await fulfillmentOfOrThrow([expectation])
   }

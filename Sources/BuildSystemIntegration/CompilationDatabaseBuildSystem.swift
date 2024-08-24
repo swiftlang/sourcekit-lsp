@@ -149,11 +149,6 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func registerForChangeNotifications(for uri: DocumentURI) {}
-
-  /// We don't support change watching.
-  package func unregisterForChangeNotifications(for uri: DocumentURI) {}
-
   private func database(for uri: DocumentURI) -> CompilationDatabase? {
     if let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) {
       return database(for: path)

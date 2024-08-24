@@ -145,18 +145,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// If `nil` is returned, then the default toolchain for the given language is used.
   func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain?
 
-  /// Register the given file for build-system level change notifications, such
-  /// as command line flag changes, dependency changes, etc.
-  ///
-  /// IMPORTANT: When first receiving a register request, the `BuildSystem` MUST asynchronously
-  /// inform its delegate of any initial settings for the given file via the
-  /// `fileBuildSettingsChanged` method, even if unavailable.
-  func registerForChangeNotifications(for: DocumentURI) async
-
-  /// Unregister the given file for build-system level change notifications,
-  /// such as command line flag changes, dependency changes, etc.
-  func unregisterForChangeNotifications(for: DocumentURI) async
-
   /// Called when files in the project change.
   func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async
 

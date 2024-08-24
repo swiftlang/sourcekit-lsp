@@ -376,26 +376,10 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     logger.debug("registerForChangeNotifications(\(uri.forLogging))")
     let mainFile = await mainFile(for: uri, language: language)
     self.watchedFiles[uri] = (mainFile, language)
-
-    // Register for change notifications of the main file in the underlying build
-    // system. That way, iff the main file changes, we will also notify the
-    // delegate about build setting changes of all header files that are based
-    // on that main file.
-    await buildSystem?.underlyingBuildSystem.registerForChangeNotifications(for: mainFile)
   }
 
   package func unregisterForChangeNotifications(for uri: DocumentURI) async {
-    guard let mainFile = self.watchedFiles[uri]?.mainFile else {
-      logger.fault("Unbalanced calls for registerForChangeNotifications and unregisterForChangeNotifications")
-      return
-    }
     self.watchedFiles[uri] = nil
-
-    if watchedFilesReferencing(mainFiles: [mainFile]).isEmpty {
-      // Nobody is interested in this main file anymore.
-      // We are no longer interested in change notifications for it.
-      await self.buildSystem?.underlyingBuildSystem.unregisterForChangeNotifications(for: mainFile)
-    }
   }
 
   package func sourceFiles() async -> [SourceFileInfo] {
