@@ -31,7 +31,7 @@ package protocol BuiltInBuildSystemMessageHandler: AnyObject, Sendable {
 
 /// A type that outwardly acts as a build server conforming to the Build System Integration Protocol and internally uses
 /// a `BuiltInBuildSystem` to satisfy the requests.
-actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
+package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
   /// The underlying build system
   // FIXME: (BSP Migration) This should be private, all messages should go through BSP. Only accessible from the outside for transition
   // purposes.
@@ -89,7 +89,7 @@ actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
     }
   }
 
-  func sendNotificationToSourceKitLSP(_ notification: some LanguageServerProtocol.NotificationType) async {
+  package func sendNotificationToSourceKitLSP(_ notification: some LanguageServerProtocol.NotificationType) async {
     logger.info(
       """
       Received notification from build system
@@ -99,7 +99,7 @@ actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
     await messageHandler.handle(notification)
   }
 
-  func sendRequestToSourceKitLSP<R: RequestType>(_ request: R) async throws -> R.Response {
+  package func sendRequestToSourceKitLSP<R: RequestType>(_ request: R) async throws -> R.Response {
     logger.info(
       """
       Received request from build system

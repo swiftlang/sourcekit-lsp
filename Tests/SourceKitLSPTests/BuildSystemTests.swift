@@ -148,11 +148,17 @@ final class BuildSystemTests: XCTestCase {
 
     let server = testClient.server
 
+    let buildSystemManager = await BuildSystemManager(
+      buildSystem: buildSystem,
+      fallbackBuildSystem: FallbackBuildSystem(options: .init()),
+      mainFilesProvider: nil,
+      toolchainRegistry: ToolchainRegistry.forTesting
+    )
+
     self.workspace = await Workspace.forTesting(
-      toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions.testDefault(),
       testHooks: TestHooks(),
-      underlyingBuildSystem: buildSystem,
+      buildSystemManager: buildSystemManager,
       indexTaskScheduler: .forTesting
     )
 

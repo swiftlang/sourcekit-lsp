@@ -85,14 +85,13 @@ package final class Workspace: Sendable {
   /// `nil` if background indexing is not enabled.
   let semanticIndexManager: SemanticIndexManager?
 
-  init(
+  private init(
     documentManager: DocumentManager,
     rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
-    toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     testHooks: TestHooks,
-    underlyingBuildSystem: BuiltInBuildSystem?,
+    buildSystemManager: BuildSystemManager,
     index uncheckedIndex: UncheckedIndex?,
     indexDelegate: SourceKitIndexDelegate?,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
@@ -105,12 +104,7 @@ package final class Workspace: Sendable {
     self.capabilityRegistry = capabilityRegistry
     self.options = options
     self._uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
-    self.buildSystemManager = await BuildSystemManager(
-      buildSystem: underlyingBuildSystem,
-      fallbackBuildSystem: FallbackBuildSystem(options: options.fallbackBuildSystemOrDefault),
-      mainFilesProvider: uncheckedIndex,
-      toolchainRegistry: toolchainRegistry
-    )
+    self.buildSystemManager = buildSystemManager
     if options.backgroundIndexingOrDefault, let uncheckedIndex, await buildSystemManager.supportsPreparation {
       self.semanticIndexManager = SemanticIndexManager(
         index: uncheckedIndex,
@@ -128,7 +122,7 @@ package final class Workspace: Sendable {
     await indexDelegate?.addMainFileChangedCallback { [weak self] in
       await self?.buildSystemManager.mainFilesChanged()
     }
-    await underlyingBuildSystem?.addSourceFilesDidChangeCallback { [weak self] in
+    await buildSystemManager.buildSystem?.underlyingBuildSystem.addSourceFilesDidChangeCallback { [weak self] in
       guard let self else {
         return
       }
@@ -149,17 +143,50 @@ package final class Workspace: Sendable {
   ///   - toolchainRegistry: The toolchain registry.
   convenience init(
     documentManager: DocumentManager,
-    rootUri: DocumentURI,
+    rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
-    buildSystem: BuiltInBuildSystem?,
+    buildSystemKind: (WorkspaceType, projectRoot: AbsolutePath)?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     testHooks: TestHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     indexTasksWereScheduled: @Sendable @escaping (Int) -> Void,
-    indexProgressStatusDidChange: @Sendable @escaping () -> Void
-  ) async throws {
+    indexProgressStatusDidChange: @Sendable @escaping () -> Void,
+    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
+  ) async {
+    let buildSystem: BuiltInBuildSystem?
+    if let (buildSystemType, projectRoot) = buildSystemKind {
+      buildSystem = await createBuildSystem(
+        ofType: buildSystemType,
+        projectRoot: projectRoot,
+        options: options,
+        testHooks: testHooks,
+        toolchainRegistry: toolchainRegistry,
+        reloadPackageStatusCallback: reloadPackageStatusCallback
+      )
+    } else {
+      buildSystem = nil
+    }
+
+    await orLog("Initial build graph generation") {
+      // Schedule an initial generation of the build graph. Once the build graph is loaded, the build system will send
+      // call `fileHandlingCapabilityChanged`, which allows us to move documents to a workspace with this build
+      // system.
+      try await buildSystem?.scheduleBuildGraphGeneration()
+    }
+
+    let projectRoot = await buildSystem?.projectRoot.pathString
+    let buildSystemType =
+      if let buildSystem {
+        String(describing: type(of: buildSystem))
+      } else {
+        "<fallback build system>"
+      }
+    logger.log(
+      "Created workspace at \(rootUri.forLogging) as \(buildSystemType, privacy: .public) with project root \(projectRoot ?? "<nil>")"
+    )
+
     var index: IndexStoreDB? = nil
     var indexDelegate: SourceKitIndexDelegate? = nil
 
@@ -192,14 +219,20 @@ package final class Workspace: Sendable {
       }
     }
 
+    let buildSystemManager = await BuildSystemManager(
+      buildSystem: buildSystem,
+      fallbackBuildSystem: FallbackBuildSystem(options: options.fallbackBuildSystemOrDefault),
+      mainFilesProvider: UncheckedIndex(index),
+      toolchainRegistry: toolchainRegistry
+    )
+
     await self.init(
       documentManager: documentManager,
       rootUri: rootUri,
       capabilityRegistry: capabilityRegistry,
-      toolchainRegistry: toolchainRegistry,
       options: options,
       testHooks: testHooks,
-      underlyingBuildSystem: buildSystem,
+      buildSystemManager: buildSystemManager,
       index: UncheckedIndex(index),
       indexDelegate: indexDelegate,
       indexTaskScheduler: indexTaskScheduler,
@@ -210,20 +243,18 @@ package final class Workspace: Sendable {
   }
 
   package static func forTesting(
-    toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     testHooks: TestHooks,
-    underlyingBuildSystem: BuiltInBuildSystem,
+    buildSystemManager: BuildSystemManager,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async -> Workspace {
     return await Workspace(
       documentManager: DocumentManager(),
       rootUri: nil,
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
-      toolchainRegistry: toolchainRegistry,
       options: options,
       testHooks: testHooks,
-      underlyingBuildSystem: underlyingBuildSystem,
+      buildSystemManager: buildSystemManager,
       index: nil,
       indexDelegate: nil,
       indexTaskScheduler: indexTaskScheduler,

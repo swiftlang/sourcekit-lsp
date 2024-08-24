@@ -960,45 +960,11 @@ extension SourceKitLSPServer {
     )
     logger.log("Creating workspace at \(workspaceFolder.forLogging) with options: \(options.forLogging)")
 
-    let buildSystem: BuiltInBuildSystem?
-    if let (buildSystemType, projectRoot) = buildSystemKind {
-      buildSystem = await createBuildSystem(
-        ofType: buildSystemType,
-        projectRoot: projectRoot,
-        options: options,
-        testHooks: testHooks,
-        toolchainRegistry: toolchainRegistry,
-        reloadPackageStatusCallback: { [weak self] status in
-          await self?.reloadPackageStatusCallback(status)
-        }
-      )
-    } else {
-      buildSystem = nil
-    }
-
-    await orLog("Initial build graph generation") {
-      // Schedule an initial generation of the build graph. Once the build graph is loaded, the build system will send
-      // call `fileHandlingCapabilityChanged`, which allows us to move documents to a workspace with this build
-      // system.
-      try await buildSystem?.scheduleBuildGraphGeneration()
-    }
-
-    let projectRoot = await buildSystem?.projectRoot.pathString
-    let buildSystemType =
-      if let buildSystem {
-        String(describing: type(of: buildSystem))
-      } else {
-        "<fallback build system>"
-      }
-    logger.log(
-      "Created workspace at \(workspaceFolder.forLogging) as \(buildSystemType, privacy: .public) with project root \(projectRoot ?? "<nil>")"
-    )
-
-    let workspace = try await Workspace(
+    let workspace = await Workspace(
       documentManager: self.documentManager,
       rootUri: workspaceFolder,
       capabilityRegistry: capabilityRegistry,
-      buildSystem: buildSystem,
+      buildSystemKind: buildSystemKind,
       toolchainRegistry: self.toolchainRegistry,
       options: options,
       testHooks: testHooks,
@@ -1011,6 +977,9 @@ extension SourceKitLSPServer {
       },
       indexProgressStatusDidChange: { [weak self] in
         self?.indexProgressManager.indexProgressStatusDidChange()
+      },
+      reloadPackageStatusCallback: { [weak self] status in
+        await self?.reloadPackageStatusCallback(status)
       }
     )
     if options.backgroundIndexingOrDefault, workspace.semanticIndexManager == nil,
@@ -1126,12 +1095,10 @@ extension SourceKitLSPServer {
           documentManager: self.documentManager,
           rootUri: req.rootURI,
           capabilityRegistry: self.capabilityRegistry!,
+          buildSystemKind: nil,
           toolchainRegistry: self.toolchainRegistry,
           options: options,
           testHooks: testHooks,
-          underlyingBuildSystem: nil,
-          index: nil,
-          indexDelegate: nil,
           indexTaskScheduler: self.indexTaskScheduler,
           logMessageToIndexLog: { [weak self] taskID, message in
             self?.logMessageToIndexLog(taskID: taskID, message: message)
@@ -1141,6 +1108,9 @@ extension SourceKitLSPServer {
           },
           indexProgressStatusDidChange: { [weak self] in
             self?.indexProgressManager.indexProgressStatusDidChange()
+          },
+          reloadPackageStatusCallback: { [weak self] status in
+            await self?.reloadPackageStatusCallback(status)
           }
         )
 

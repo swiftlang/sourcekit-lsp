@@ -76,7 +76,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// The underlying primary build system.
   ///
   /// - Important: The only time this should be modified is in the initializer. Afterwards, it must be constant.
-  private(set) var buildSystem: BuiltInBuildSystemAdapter?
+  private(set) package var buildSystem: BuiltInBuildSystemAdapter?
 
   /// Timeout before fallback build settings are used.
   let fallbackSettingsTimeout: DispatchTimeInterval
