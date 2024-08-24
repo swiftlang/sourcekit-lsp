@@ -19,7 +19,6 @@ import SwiftExtensions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
-import struct TSCBasic.RelativePath
 
 #if canImport(os)
 import os
@@ -55,35 +54,6 @@ fileprivate class RequestCache<Request: RequestType & Hashable> {
 
   func clearAll(isolation: isolated any Actor = #isolation) {
     storage.removeAll()
-  }
-}
-
-/// Create a build system of the given type.
-private func createBuildSystem(
-  ofType buildSystemType: WorkspaceType,
-  projectRoot: AbsolutePath,
-  options: SourceKitLSPOptions,
-  swiftpmTestHooks: SwiftPMTestHooks,
-  toolchainRegistry: ToolchainRegistry,
-  reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
-) async -> BuiltInBuildSystem? {
-  switch buildSystemType {
-  case .buildServer:
-    return await BuildServerBuildSystem(projectRoot: projectRoot)
-  case .compilationDatabase:
-    return CompilationDatabaseBuildSystem(
-      projectRoot: projectRoot,
-      searchPaths: (options.compilationDatabaseOrDefault.searchPaths ?? [])
-        .compactMap { try? RelativePath(validating: $0) }
-    )
-  case .swiftPM:
-    return await SwiftPMBuildSystem(
-      projectRoot: projectRoot,
-      toolchainRegistry: toolchainRegistry,
-      options: options,
-      reloadPackageStatusCallback: reloadPackageStatusCallback,
-      testHooks: swiftpmTestHooks
-    )
   }
 }
 
@@ -136,7 +106,9 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   }
 
   package var supportsPreparation: Bool {
-    return buildSystem?.underlyingBuildSystem.supportsPreparation ?? false
+    get async {
+      return await buildSystem?.underlyingBuildSystem.supportsPreparation ?? false
+    }
   }
 
   package init(
@@ -146,29 +118,16 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     swiftpmTestHooks: SwiftPMTestHooks,
     reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
   ) async {
-    let buildSystem: BuiltInBuildSystem?
-    if let (buildSystemType, projectRoot) = buildSystemKind {
-      buildSystem = await createBuildSystem(
-        ofType: buildSystemType,
-        projectRoot: projectRoot,
-        options: options,
-        swiftpmTestHooks: swiftpmTestHooks,
-        toolchainRegistry: toolchainRegistry,
-        reloadPackageStatusCallback: reloadPackageStatusCallback
-      )
-    } else {
-      buildSystem = nil
-    }
-    let buildSystemHasDelegate = await buildSystem?.delegate != nil
-    precondition(!buildSystemHasDelegate)
     self.fallbackBuildSystem = FallbackBuildSystem(options: options.fallbackBuildSystemOrDefault)
     self.toolchainRegistry = toolchainRegistry
-    self.buildSystem =
-      if let buildSystem {
-        await BuiltInBuildSystemAdapter(buildSystem: buildSystem, messageHandler: self)
-      } else {
-        nil
-      }
+    self.buildSystem = await BuiltInBuildSystemAdapter(
+      buildSystemKind: buildSystemKind,
+      toolchainRegistry: toolchainRegistry,
+      options: options,
+      swiftpmTestHooks: swiftpmTestHooks,
+      reloadPackageStatusCallback: reloadPackageStatusCallback,
+      messageHandler: self
+    )
     await self.buildSystem?.underlyingBuildSystem.setDelegate(self)
   }
 
@@ -189,7 +148,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     self.toolchainRegistry = toolchainRegistry
     self.buildSystem =
       if let testBuildSystem {
-        await BuiltInBuildSystemAdapter(buildSystem: testBuildSystem, messageHandler: self)
+        await BuiltInBuildSystemAdapter(testBuildSystem: testBuildSystem, messageHandler: self)
       } else {
         nil
       }

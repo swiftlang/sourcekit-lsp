@@ -421,6 +421,7 @@ private func checkCompilationDatabaseBuildSystem(
   let buildSystem = CompilationDatabaseBuildSystem(
     projectRoot: try AbsolutePath(validating: "/a"),
     searchPaths: try [RelativePath(validating: ".")],
+    messageHandler: nil,
     fileSystem: fs
   )
   try await block(XCTUnwrap(buildSystem))

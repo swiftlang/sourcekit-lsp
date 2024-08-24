@@ -17,6 +17,7 @@ import SKOptions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
+import struct TSCBasic.RelativePath
 
 /// Defines how well a `BuildSystem` can handle a file with a given URI.
 package enum FileHandlingCapability: Comparable, Sendable {
@@ -97,11 +98,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// - Note: Needed so we can set the delegate from a different actor isolation
   ///   context.
   func setDelegate(_ delegate: BuildSystemDelegate?) async
-
-  /// Set the message handler that is used to send messages from the build system to SourceKit-LSP.
-  // FIXME: (BSP Migration) This should be set in the initializer but can't right now because BuiltInBuildSystemAdapter is not
-  // responsible for creating the build system.
-  func setMessageHandler(_ messageHandler: BuiltInBuildSystemMessageHandler) async
 
   /// Whether the build system is capable of preparing a target for indexing, ie. if the `prepare` methods has been
   /// implemented.

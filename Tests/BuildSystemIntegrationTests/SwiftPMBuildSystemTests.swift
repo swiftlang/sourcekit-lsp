@@ -72,6 +72,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       await assertThrowsError(try await buildSystem.schedulePackageReload().value)
@@ -102,6 +103,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           toolchainRegistry: ToolchainRegistry(toolchains: []),
           fileSystem: fs,
           options: SourceKitLSPOptions(),
+          messageHandler: nil,
           testHooks: SwiftPMTestHooks()
         )
       )
@@ -133,6 +135,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -198,6 +201,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: localFileSystem,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -261,6 +265,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(swiftPM: options),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -308,6 +313,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(swiftPM: options),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       let path = await swiftpmBuildSystem.destinationBuildParameters.toolchain.sdkRootPath
@@ -343,6 +349,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -380,6 +387,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -429,6 +437,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -484,6 +493,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -528,6 +538,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -609,6 +620,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: ToolchainRegistry.forTesting,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -661,6 +673,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -729,6 +742,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: ToolchainRegistry.forTesting,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -769,6 +783,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -837,6 +852,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value

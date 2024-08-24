@@ -182,10 +182,6 @@ package actor SwiftPMBuildSystem {
 
   package weak var messageHandler: BuiltInBuildSystemMessageHandler?
 
-  package func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
-    self.messageHandler = messageHandler
-  }
-
   /// This callback is informed when `reloadPackage` starts and ends executing.
   private var reloadPackageStatusCallback: (ReloadPackageStatus) async -> Void
 
@@ -277,6 +273,7 @@ package actor SwiftPMBuildSystem {
     toolchainRegistry: ToolchainRegistry,
     fileSystem: FileSystem = localFileSystem,
     options: SourceKitLSPOptions,
+    messageHandler: (any BuiltInBuildSystemMessageHandler)?,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void = { _ in },
     testHooks: SwiftPMTestHooks
   ) async throws {
@@ -292,6 +289,7 @@ package actor SwiftPMBuildSystem {
 
     self.toolchain = toolchain
     self.testHooks = testHooks
+    self.messageHandler = messageHandler
 
     guard let destinationToolchainBinDir = toolchain.swiftc?.parentDirectory else {
       throw Error.cannotDetermineHostToolchain
@@ -408,6 +406,7 @@ package actor SwiftPMBuildSystem {
     projectRoot: TSCBasic.AbsolutePath,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
+    messageHandler: any BuiltInBuildSystemMessageHandler,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void,
     testHooks: SwiftPMTestHooks
   ) async {
@@ -417,6 +416,7 @@ package actor SwiftPMBuildSystem {
         toolchainRegistry: toolchainRegistry,
         fileSystem: localFileSystem,
         options: options,
+        messageHandler: messageHandler,
         reloadPackageStatusCallback: reloadPackageStatusCallback,
         testHooks: testHooks
       )
