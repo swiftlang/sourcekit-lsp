@@ -102,11 +102,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// file or if it hasn't computed build settings for the file yet.
   func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse?
 
-  /// Schedule a task that re-generates the build graph. The function may return before the build graph has finished
-  /// being generated. If clients need to wait for an up-to-date build graph, they should call
-  /// `waitForUpToDateBuildGraph` afterwards.
-  func scheduleBuildGraphGeneration() async throws
-
   /// Wait until the build graph has been loaded.
   func waitForUpToDateBuildGraph() async
 

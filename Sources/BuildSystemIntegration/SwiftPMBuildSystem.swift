@@ -361,6 +361,15 @@ package actor SwiftPMBuildSystem {
     )
 
     self.reloadPackageStatusCallback = reloadPackageStatusCallback
+
+    packageLoadingQueue.async {
+      await orLog("Initial package loading") {
+        // Schedule an initial generation of the build graph. Once the build graph is loaded, the build system will send
+        // call `fileHandlingCapabilityChanged`, which allows us to move documents to a workspace with this build
+        // system.
+        try await self.reloadPackageAssumingOnPackageLoadingQueue()
+      }
+    }
   }
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
@@ -398,15 +407,9 @@ package actor SwiftPMBuildSystem {
 extension SwiftPMBuildSystem {
   /// (Re-)load the package settings by parsing the manifest and resolving all the targets and
   /// dependencies.
-  @discardableResult
-  package func schedulePackageReload() -> Task<Void, Swift.Error> {
-    return packageLoadingQueue.asyncThrowing {
-      try await self.reloadPackageImpl()
-    }
-  }
-
+  ///
   /// - Important: Must only be called on `packageLoadingQueue`.
-  private func reloadPackageImpl() async throws {
+  private func reloadPackageAssumingOnPackageLoadingQueue() async throws {
     await reloadPackageStatusCallback(.start)
     await testHooks.reloadPackageDidStart?()
     defer {
@@ -620,10 +623,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     return InverseSourcesResponse(targets: targets(for: request.textDocument.uri))
   }
 
-  package func scheduleBuildGraphGeneration() async throws {
-    self.schedulePackageReload()
-  }
-
   package func waitForUpToDateBuildGraph() async {
     await self.packageLoadingQueue.async {}.valuePropagatingCancellation
   }
@@ -810,9 +809,11 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
   package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {
     if notification.changes.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
       logger.log("Reloading package because of file change")
-      await orLog("Reloading package") {
-        try await self.schedulePackageReload().value
-      }
+      await packageLoadingQueue.async {
+        await orLog("Reloading package") {
+          try await self.reloadPackageAssumingOnPackageLoadingQueue()
+        }
+      }.valuePropagatingCancellation
     }
   }
 

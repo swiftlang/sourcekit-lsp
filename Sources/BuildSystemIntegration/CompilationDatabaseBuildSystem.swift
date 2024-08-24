@@ -157,8 +157,6 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func scheduleBuildGraphGeneration() {}
-
   package func waitForUpToDateBuildGraph() async {}
 
   package func topologicalSort(of targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
