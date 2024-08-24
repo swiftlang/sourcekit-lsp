@@ -655,22 +655,30 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     }
   }
 
-  package func prepare(
-    targets: [BuildTargetIdentifier],
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
-  ) async throws {
+  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
     // TODO: Support preparation of multiple targets at once. (https://github.com/swiftlang/sourcekit-lsp/issues/1262)
-    for target in targets {
-      await orLog("Preparing") { try await prepare(singleTarget: target, logMessageToIndexLog: logMessageToIndexLog) }
+    for target in request.targets {
+      await orLog("Preparing") { try await prepare(singleTarget: target) }
     }
-    let filesInPreparedTargets = targets.flatMap { self.targets[$0]?.buildTarget.sources ?? [] }
+    let filesInPreparedTargets = request.targets.flatMap { self.targets[$0]?.buildTarget.sources ?? [] }
     await fileDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets.map(DocumentURI.init)))
+    return VoidResponse()
   }
 
-  private func prepare(
-    singleTarget target: BuildTargetIdentifier,
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
-  ) async throws {
+  private nonisolated func logMessageToIndexLog(_ taskID: IndexTaskID, _ message: String) {
+    // FIXME: When `messageHandler` is a Connection, we don't need to go via Task anymore
+    Task {
+      await self.messageHandler?.sendNotificationToSourceKitLSP(
+        BuildServerProtocol.LogMessageNotification(
+          type: .info,
+          task: TaskId(id: taskID.rawValue),
+          message: message
+        )
+      )
+    }
+  }
+
+  private func prepare(singleTarget target: BuildTargetIdentifier) async throws {
     if target == .forPackageManifest {
       // Nothing to prepare for package manifests.
       return
@@ -720,8 +728,8 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       \(arguments.joined(separator: " "))
       """
     )
-    let stdoutHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
-    let stderrHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
+    let stdoutHandler = PipeAsStringHandler { self.logMessageToIndexLog(logID, $0) }
+    let stderrHandler = PipeAsStringHandler { self.logMessageToIndexLog(logID, $0) }
 
     let result = try await Process.run(
       arguments: arguments,

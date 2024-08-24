@@ -40,4 +40,7 @@ package protocol BuildSystemManagerDelegate: AnyObject, Sendable {
   /// Notify the delegate that some information about the given build targets has changed and that it should recompute
   /// any information based on top of it.
   func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async
+
+  /// Log the given message to the client's index log.
+  func logMessageToIndexLog(taskID: IndexTaskID, message: String)
 }

@@ -9,6 +9,7 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
+
 import LanguageServerProtocol
 
 /// The register for changes request is sent from the language

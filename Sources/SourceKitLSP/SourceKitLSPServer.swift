@@ -832,7 +832,7 @@ extension SourceKitLSPServer: MessageHandler {
 }
 
 extension SourceKitLSPServer {
-  nonisolated func logMessageToIndexLog(taskID: IndexTaskID, message: String) {
+  nonisolated package func logMessageToIndexLog(taskID: IndexTaskID, message: String) {
     var message: Substring = message[...]
     while message.last?.isNewline ?? false {
       message = message.dropLast(1)

@@ -146,6 +146,8 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     switch notification {
     case let notification as DidChangeBuildTargetNotification:
       await self.didChangeBuildTarget(notification: notification)
+    case let notification as BuildServerProtocol.LogMessageNotification:
+      await self.logMessage(notification: notification)
     default:
       logger.error("Ignoring unknown notification \(type(of: notification).method)")
     }
@@ -369,7 +371,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     targets: [BuildTargetIdentifier],
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
-    try await buildSystem?.underlyingBuildSystem.prepare(targets: targets, logMessageToIndexLog: logMessageToIndexLog)
+    let _: VoidResponse? = try await buildSystem?.send(PrepareTargetsRequest(targets: targets))
   }
 
   package func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
@@ -448,6 +450,16 @@ extension BuildSystemManager: BuildSystemDelegate {
     // FIXME: (BSP Migration) Communicate that the build target has changed to the `BuildSystemManagerDelegate` and make
     // it responsible for figuring out which files are affected.
     await delegate?.fileBuildSettingsChanged(Set(watchedFiles.keys))
+  }
+
+  private func logMessage(notification: BuildServerProtocol.LogMessageNotification) async {
+    // FIXME: (BSP Integration) Remove the restriction that task IDs need to have a raw value that can be parsed by
+    // `IndexTaskID.init`.
+    guard let task = notification.task, let taskID = IndexTaskID(rawValue: task.id) else {
+      logger.error("Ignoring log message notification with unknown task \(notification.task?.id ?? "<nil>")")
+      return
+    }
+    delegate?.logMessageToIndexLog(taskID: taskID, message: notification.message)
   }
 }
 

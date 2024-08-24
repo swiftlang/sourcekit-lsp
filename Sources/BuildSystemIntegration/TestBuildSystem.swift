@@ -70,10 +70,7 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
   }
 
-  package func prepare(
-    targets: [BuildTargetIdentifier],
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
-  ) async throws {
+  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
     throw PrepareNotSupportedError()
   }
 

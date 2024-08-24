@@ -128,10 +128,7 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
 
   /// Prepare the given targets for indexing and semantic functionality. This should build all swift modules of target
   /// dependencies.
-  func prepare(
-    targets: [BuildTargetIdentifier],
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
-  ) async throws
+  func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse
 
   /// If the build system has knowledge about the language that this document should be compiled in, return it.
   ///
