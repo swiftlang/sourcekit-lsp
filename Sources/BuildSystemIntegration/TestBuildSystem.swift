@@ -102,14 +102,6 @@ package actor TestBuildSystem: BuiltInBuildSystem {
 
   package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {}
 
-  package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    if buildSettingsByFile[uri] != nil {
-      return .handled
-    } else {
-      return .unhandled
-    }
-  }
-
   package func sourceFiles() async -> [SourceFileInfo] {
     return []
   }

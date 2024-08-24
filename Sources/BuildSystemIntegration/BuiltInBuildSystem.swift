@@ -19,18 +19,6 @@ import ToolchainRegistry
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 
-/// Defines how well a `BuildSystem` can handle a file with a given URI.
-package enum FileHandlingCapability: Comparable, Sendable {
-  /// The build system can't handle the file at all
-  case unhandled
-
-  /// The build system has fallback build settings for the file
-  case fallback
-
-  /// The build system knows how to handle the file
-  case handled
-}
-
 package struct SourceFileInfo: Sendable {
   /// The URI of the source file.
   package let uri: DocumentURI
@@ -171,8 +159,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
 
   /// Called when files in the project change.
   func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async
-
-  func fileHandlingCapability(for uri: DocumentURI) async -> FileHandlingCapability
 
   /// Returns the list of source files in the project.
   ///

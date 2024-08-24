@@ -134,8 +134,6 @@ final class TestDelegate: BuildSystemDelegate, BuiltInBuildSystemMessageHandler 
     }
   }
 
-  func fileHandlingCapabilityChanged() {}
-
   func sendRequestToSourceKitLSP<R: RequestType>(_ request: R) async throws -> R.Response {
     throw ResponseError.methodNotFound(R.method)
   }

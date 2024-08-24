@@ -81,7 +81,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
   /// The fallback build system. If present, used when the `buildSystem` is not
   /// set or cannot provide settings.
-  let fallbackBuildSystem: FallbackBuildSystem?
+  let fallbackBuildSystem: FallbackBuildSystem
 
   /// Provider of file to main file mappings.
   var mainFilesProvider: MainFilesProvider?
@@ -101,11 +101,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
   /// was found.
-  package var projectRoot: AbsolutePath? {
-    get async {
-      return await buildSystem?.underlyingBuildSystem.projectRoot
-    }
-  }
+  package let projectRoot: AbsolutePath?
 
   package var supportsPreparation: Bool {
     get async {
@@ -122,6 +118,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   ) async {
     self.fallbackBuildSystem = FallbackBuildSystem(options: options.fallbackBuildSystemOrDefault)
     self.toolchainRegistry = toolchainRegistry
+    self.projectRoot = buildSystemKind?.projectRoot
     self.buildSystem = await BuiltInBuildSystemAdapter(
       buildSystemKind: buildSystemKind,
       toolchainRegistry: toolchainRegistry,
@@ -315,7 +312,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
       logger.error("Getting build settings failed: \(error.forLogging)")
     }
 
-    guard var settings = await fallbackBuildSystem?.buildSettings(for: document, language: language) else {
+    guard var settings = await fallbackBuildSystem.buildSettings(for: document, language: language) else {
       return nil
     }
     if buildSystem == nil {
@@ -401,13 +398,6 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     }
   }
 
-  package func fileHandlingCapability(for uri: DocumentURI) async -> FileHandlingCapability {
-    return max(
-      await buildSystem?.underlyingBuildSystem.fileHandlingCapability(for: uri) ?? .unhandled,
-      fallbackBuildSystem != nil ? .fallback : .unhandled
-    )
-  }
-
   package func sourceFiles() async -> [SourceFileInfo] {
     return await buildSystem?.underlyingBuildSystem.sourceFiles() ?? []
   }
@@ -451,12 +441,6 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
   }
 
-  package func fileHandlingCapabilityChanged() async {
-    if let delegate = self.delegate {
-      await delegate.fileHandlingCapabilityChanged()
-    }
-  }
-
   private func didChangeBuildTarget(notification: DidChangeBuildTargetNotification) async {
     // Every `DidChangeBuildTargetNotification` notification needs to invalidate the cache since the changed target
     // might gained a source file.
@@ -476,6 +460,7 @@ extension BuildSystemManager: BuildSystemDelegate {
       return updatedTargets.contains(cacheKey.target)
     }
 
+    await delegate?.buildTargetsChanged(notification.changes)
     // FIXME: (BSP Migration) Communicate that the build target has changed to the `BuildSystemManagerDelegate` and make
     // it responsible for figuring out which files are affected.
     await delegate?.fileBuildSettingsChanged(Set(watchedFiles.keys))

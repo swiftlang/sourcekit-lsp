@@ -449,5 +449,5 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
     }
   }
 
-  func fileHandlingCapabilityChanged() {}
+  func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {}
 }

@@ -331,29 +331,6 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
 
   package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) {}
 
-  package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    guard
-      let fileUrl = uri.fileURL,
-      let path = try? AbsolutePath(validating: fileUrl.path)
-    else {
-      return .unhandled
-    }
-
-    // TODO: We should not make any assumptions about which files the build server can handle.
-    // Instead we should query the build server which files it can handle
-    // (https://github.com/swiftlang/sourcekit-lsp/issues/492).
-
-    if projectRoot.isAncestorOfOrEqual(to: path) {
-      return .handled
-    }
-
-    if let realpath = try? resolveSymlinks(path), realpath != path, projectRoot.isAncestorOfOrEqual(to: realpath) {
-      return .handled
-    }
-
-    return .unhandled
-  }
-
   package func sourceFiles() async -> [SourceFileInfo] {
     // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).

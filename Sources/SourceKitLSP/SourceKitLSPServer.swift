@@ -327,32 +327,21 @@ package actor SourceKitLSPServer {
   private func computeWorkspaceForDocument(uri: DocumentURI) async -> Workspace? {
     // Pick the workspace with the best FileHandlingCapability for this file.
     // If there is a tie, use the workspace that occurred first in the list.
-    var bestWorkspace: (workspace: Workspace?, fileHandlingCapability: FileHandlingCapability) = (nil, .unhandled)
-    for workspace in self.workspaces {
-      let fileHandlingCapability = await workspace.buildSystemManager.fileHandlingCapability(for: uri)
-      if fileHandlingCapability > bestWorkspace.fileHandlingCapability {
-        bestWorkspace = (workspace, fileHandlingCapability)
-      }
+    var bestWorkspace = await self.workspaces.asyncFirst {
+      await !$0.buildSystemManager.targets(for: uri).isEmpty
     }
-    if bestWorkspace.fileHandlingCapability < .handled {
+    if bestWorkspace == nil {
       // We weren't able to handle the document with any of the known workspaces. See if any of the document's parent
       // directories contain a workspace that might be able to handle the document
       if let workspace = await self.findImplicitWorkspace(for: uri) {
         logger.log("Opening implicit workspace at \(workspace.rootUri.forLogging) to handle \(uri.forLogging)")
         self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: true))
-        bestWorkspace = (workspace, .handled)
+        bestWorkspace = workspace
       }
     }
-    self.workspaceForUri[uri] = WeakWorkspace(bestWorkspace.workspace)
-    if let workspace = bestWorkspace.workspace {
-      return workspace
-    }
-    if let workspace = self.workspaces.only {
-      // Special handling: If there is only one workspace, open all files in it, even it it cannot handle the document.
-      // This retains the behavior of SourceKit-LSP before it supported multiple workspaces.
-      return workspace
-    }
-    return nil
+    let workspace = bestWorkspace ?? self.workspaces.first
+    self.workspaceForUri[uri] = WeakWorkspace(workspace)
+    return workspace
   }
 
   /// Check that the entries in `workspaceForUri` are still up-to-date after workspaces might have changed.
