@@ -158,7 +158,7 @@ package actor BuildServerBuildSystem: MessageHandler {
       Language.swift,
     ]
 
-    let initializeRequest = InitializeBuild(
+    let initializeRequest = InitializeBuildRequest(
       displayName: "SourceKit-LSP",
       version: "1.0",
       bspVersion: "2.0",

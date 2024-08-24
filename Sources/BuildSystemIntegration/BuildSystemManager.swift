@@ -73,7 +73,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// The files for which the delegate has requested change notifications, ie.
   /// the files for which the delegate wants to get `filesDependenciesUpdated`
   /// callbacks if the file's build settings.
-  var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
+  private var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
 
   /// The underlying primary build system.
   ///
@@ -82,10 +82,10 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
   /// The fallback build system. If present, used when the `buildSystem` is not
   /// set or cannot provide settings.
-  let fallbackBuildSystem: FallbackBuildSystem
+  private let fallbackBuildSystem: FallbackBuildSystem
 
   /// Provider of file to main file mappings.
-  var mainFilesProvider: MainFilesProvider?
+  private var mainFilesProvider: MainFilesProvider?
 
   /// Build system delegate that will receive notifications about setting changes, etc.
   private weak var delegate: BuildSystemManagerDelegate?
@@ -96,6 +96,9 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   private let toolchainRegistry: ToolchainRegistry
 
   private let options: SourceKitLSPOptions
+
+  /// A task that stores the result of the `build/initialize` request once it is received.
+  private var initializeResult: Task<InitializeBuildResponse?, Never>!
 
   /// Debounces calls to `delegate.filesDependenciesUpdated`.
   ///
@@ -120,9 +123,19 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// was found.
   package let projectRoot: AbsolutePath?
 
-  package var supportsPreparation: Bool {
+  /// The `SourceKitInitializeBuildResponseData` received from the `build/initialize` request, if any.
+  package var initializationData: SourceKitInitializeBuildResponseData? {
     get async {
-      return await buildSystem?.underlyingBuildSystem.supportsPreparation ?? false
+      guard let initializeResult = await initializeResult.value else {
+        return nil
+      }
+      guard initializeResult.dataKind == nil || initializeResult.dataKind == .sourceKit else {
+        return nil
+      }
+      guard case .dictionary(let data) = initializeResult.data else {
+        return nil
+      }
+      return SourceKitInitializeBuildResponseData(fromLSPDictionary: data)
     }
   }
 
@@ -160,6 +173,26 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
         return
       }
       await delegate.filesDependenciesUpdated(changedWatchedFiles)
+    }
+    initializeResult = Task { () -> InitializeBuildResponse? in
+      guard let buildSystem else {
+        return nil
+      }
+      guard let buildSystemKind else {
+        logger.fault("Created build system without a build system kind?")
+        return nil
+      }
+      return await orLog("Initializing build system") {
+        try await buildSystem.send(
+          InitializeBuildRequest(
+            displayName: "SourceKit-LSP",
+            version: "unknown",
+            bspVersion: "2.2.0",
+            rootUri: URI(buildSystemKind.projectRoot.asURL),
+            capabilities: BuildClientCapabilities(languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift])
+          )
+        )
+      }
     }
   }
 

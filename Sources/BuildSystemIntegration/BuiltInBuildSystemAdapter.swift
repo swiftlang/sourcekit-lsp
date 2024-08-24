@@ -121,6 +121,21 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
     self.underlyingBuildSystem = buildSystem
   }
 
+  private func initialize(request: InitializeBuildRequest) async -> InitializeBuildResponse {
+    return InitializeBuildResponse(
+      displayName: "\(type(of: underlyingBuildSystem))",
+      version: "1.0.0",
+      bspVersion: "2.2.0",
+      capabilities: BuildServerCapabilities(),
+      dataKind: .sourceKit,
+      data: SourceKitInitializeBuildResponseData(
+        indexDatabasePath: await underlyingBuildSystem.indexDatabasePath?.pathString,
+        indexStorePath: await underlyingBuildSystem.indexStorePath?.pathString,
+        supportsPreparation: underlyingBuildSystem.supportsPreparation
+      ).encodeToLSPAny()
+    )
+  }
+
   package func send<R: RequestType>(_ request: R) async throws -> R.Response {
     logger.info(
       """
@@ -142,6 +157,8 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
       return try await handle(request, underlyingBuildSystem.buildTargets)
     case let request as BuildTargetSourcesRequest:
       return try await handle(request, underlyingBuildSystem.buildTargetSources)
+    case let request as InitializeBuildRequest:
+      return try await handle(request, self.initialize)
     case let request as InverseSourcesRequest:
       return try await handle(request, underlyingBuildSystem.inverseSources)
     case let request as PrepareTargetsRequest:
