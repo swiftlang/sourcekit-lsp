@@ -57,33 +57,3 @@ func determineBuildSystem(
 
   return nil
 }
-
-/// Create a build system of the given type.
-func createBuildSystem(
-  ofType buildSystemType: WorkspaceType,
-  projectRoot: AbsolutePath,
-  options: SourceKitLSPOptions,
-  testHooks: TestHooks,
-  toolchainRegistry: ToolchainRegistry,
-  reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
-) async -> BuiltInBuildSystem? {
-  switch buildSystemType {
-  case .buildServer:
-    return await BuildServerBuildSystem(projectRoot: projectRoot)
-  case .compilationDatabase:
-    return CompilationDatabaseBuildSystem(
-      projectRoot: projectRoot,
-      searchPaths: (options.compilationDatabaseOrDefault.searchPaths ?? []).compactMap {
-        try? RelativePath(validating: $0)
-      }
-    )
-  case .swiftPM:
-    return await SwiftPMBuildSystem(
-      projectRoot: projectRoot,
-      toolchainRegistry: toolchainRegistry,
-      options: options,
-      reloadPackageStatusCallback: reloadPackageStatusCallback,
-      testHooks: testHooks.swiftpmTestHooks
-    )
-  }
-}

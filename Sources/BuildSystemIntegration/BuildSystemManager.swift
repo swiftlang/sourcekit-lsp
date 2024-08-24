@@ -14,10 +14,12 @@ import BuildServerProtocol
 import Dispatch
 import LanguageServerProtocol
 import SKLogging
+import SKOptions
 import SwiftExtensions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
+import struct TSCBasic.RelativePath
 
 #if canImport(os)
 import os
@@ -56,6 +58,35 @@ fileprivate class RequestCache<Request: RequestType & Hashable> {
   }
 }
 
+/// Create a build system of the given type.
+private func createBuildSystem(
+  ofType buildSystemType: WorkspaceType,
+  projectRoot: AbsolutePath,
+  options: SourceKitLSPOptions,
+  swiftpmTestHooks: SwiftPMTestHooks,
+  toolchainRegistry: ToolchainRegistry,
+  reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
+) async -> BuiltInBuildSystem? {
+  switch buildSystemType {
+  case .buildServer:
+    return await BuildServerBuildSystem(projectRoot: projectRoot)
+  case .compilationDatabase:
+    return CompilationDatabaseBuildSystem(
+      projectRoot: projectRoot,
+      searchPaths: (options.compilationDatabaseOrDefault.searchPaths ?? [])
+        .compactMap { try? RelativePath(validating: $0) }
+    )
+  case .swiftPM:
+    return await SwiftPMBuildSystem(
+      projectRoot: projectRoot,
+      toolchainRegistry: toolchainRegistry,
+      options: options,
+      reloadPackageStatusCallback: reloadPackageStatusCallback,
+      testHooks: swiftpmTestHooks
+    )
+  }
+}
+
 /// `BuildSystem` that integrates client-side information such as main-file lookup as well as providing
 ///  common functionality such as caching.
 ///
@@ -77,9 +108,6 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   ///
   /// - Important: The only time this should be modified is in the initializer. Afterwards, it must be constant.
   private(set) package var buildSystem: BuiltInBuildSystemAdapter?
-
-  /// Timeout before fallback build settings are used.
-  let fallbackSettingsTimeout: DispatchTimeInterval
 
   /// The fallback build system. If present, used when the `buildSystem` is not
   /// set or cannot provide settings.
@@ -111,24 +139,57 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     return buildSystem?.underlyingBuildSystem.supportsPreparation ?? false
   }
 
-  /// Create a BuildSystemManager that wraps the given build system. The new
-  /// manager will modify the delegate of the underlying build system.
   package init(
-    buildSystem: BuiltInBuildSystem?,
+    buildSystemKind: (WorkspaceType, projectRoot: AbsolutePath)?,
+    toolchainRegistry: ToolchainRegistry,
+    options: SourceKitLSPOptions,
+    swiftpmTestHooks: SwiftPMTestHooks,
+    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
+  ) async {
+    let buildSystem: BuiltInBuildSystem?
+    if let (buildSystemType, projectRoot) = buildSystemKind {
+      buildSystem = await createBuildSystem(
+        ofType: buildSystemType,
+        projectRoot: projectRoot,
+        options: options,
+        swiftpmTestHooks: swiftpmTestHooks,
+        toolchainRegistry: toolchainRegistry,
+        reloadPackageStatusCallback: reloadPackageStatusCallback
+      )
+    } else {
+      buildSystem = nil
+    }
+    let buildSystemHasDelegate = await buildSystem?.delegate != nil
+    precondition(!buildSystemHasDelegate)
+    self.fallbackBuildSystem = FallbackBuildSystem(options: options.fallbackBuildSystemOrDefault)
+    self.toolchainRegistry = toolchainRegistry
+    self.buildSystem =
+      if let buildSystem {
+        await BuiltInBuildSystemAdapter(buildSystem: buildSystem, messageHandler: self)
+      } else {
+        nil
+      }
+    await self.buildSystem?.underlyingBuildSystem.setDelegate(self)
+  }
+
+  /// Create a BuildSystemManager that wraps the given build system.
+  /// The new manager will modify the delegate of the underlying build system.
+  ///
+  /// - Important: For testing purposes only
+  package init(
+    testBuildSystem: BuiltInBuildSystem?,
     fallbackBuildSystem: FallbackBuildSystem?,
     mainFilesProvider: MainFilesProvider?,
-    toolchainRegistry: ToolchainRegistry,
-    fallbackSettingsTimeout: DispatchTimeInterval = .seconds(3)
+    toolchainRegistry: ToolchainRegistry
   ) async {
-    let buildSystemHasDelegate = await buildSystem?.delegate != nil
+    let buildSystemHasDelegate = await testBuildSystem?.delegate != nil
     precondition(!buildSystemHasDelegate)
     self.fallbackBuildSystem = fallbackBuildSystem
     self.mainFilesProvider = mainFilesProvider
     self.toolchainRegistry = toolchainRegistry
-    self.fallbackSettingsTimeout = fallbackSettingsTimeout
     self.buildSystem =
-      if let buildSystem {
-        await BuiltInBuildSystemAdapter(buildSystem: buildSystem, messageHandler: self)
+      if let testBuildSystem {
+        await BuiltInBuildSystemAdapter(buildSystem: testBuildSystem, messageHandler: self)
       } else {
         nil
       }

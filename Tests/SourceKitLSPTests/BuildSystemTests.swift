@@ -149,7 +149,7 @@ final class BuildSystemTests: XCTestCase {
     let server = testClient.server
 
     let buildSystemManager = await BuildSystemManager(
-      buildSystem: buildSystem,
+      testBuildSystem: buildSystem,
       fallbackBuildSystem: FallbackBuildSystem(options: .init()),
       mainFilesProvider: nil,
       toolchainRegistry: ToolchainRegistry.forTesting

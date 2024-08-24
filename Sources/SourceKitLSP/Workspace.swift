@@ -155,19 +155,14 @@ package final class Workspace: Sendable {
     indexProgressStatusDidChange: @Sendable @escaping () -> Void,
     reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
   ) async {
-    let buildSystem: BuiltInBuildSystem?
-    if let (buildSystemType, projectRoot) = buildSystemKind {
-      buildSystem = await createBuildSystem(
-        ofType: buildSystemType,
-        projectRoot: projectRoot,
-        options: options,
-        testHooks: testHooks,
-        toolchainRegistry: toolchainRegistry,
-        reloadPackageStatusCallback: reloadPackageStatusCallback
-      )
-    } else {
-      buildSystem = nil
-    }
+    let buildSystemManager = await BuildSystemManager(
+      buildSystemKind: buildSystemKind,
+      toolchainRegistry: toolchainRegistry,
+      options: options,
+      swiftpmTestHooks: testHooks.swiftpmTestHooks,
+      reloadPackageStatusCallback: reloadPackageStatusCallback
+    )
+    let buildSystem = await buildSystemManager.buildSystem?.underlyingBuildSystem
 
     await orLog("Initial build graph generation") {
       // Schedule an initial generation of the build graph. Once the build graph is loaded, the build system will send
@@ -191,40 +186,34 @@ package final class Workspace: Sendable {
     var indexDelegate: SourceKitIndexDelegate? = nil
 
     let indexOptions = options.indexOrDefault
-    if let storePath = await firstNonNil(
+    let indexStorePath = await firstNonNil(
       AbsolutePath(validatingOrNil: indexOptions.indexStorePath),
       await buildSystem?.indexStorePath
-    ),
-      let dbPath = await firstNonNil(
-        AbsolutePath(validatingOrNil: indexOptions.indexDatabasePath),
-        await buildSystem?.indexDatabasePath
-      ),
-      let libPath = await toolchainRegistry.default?.libIndexStore
-    {
+    )
+    let indexDatabasePath = await firstNonNil(
+      AbsolutePath(validatingOrNil: indexOptions.indexDatabasePath),
+      await buildSystem?.indexDatabasePath
+    )
+    if let indexStorePath, let indexDatabasePath, let libPath = await toolchainRegistry.default?.libIndexStore {
       do {
         let lib = try IndexStoreLibrary(dylibPath: libPath.pathString)
         indexDelegate = SourceKitIndexDelegate()
         let prefixMappings =
           indexOptions.indexPrefixMap?.map { PathPrefixMapping(original: $0.key, replacement: $0.value) } ?? []
         index = try IndexStoreDB(
-          storePath: storePath.pathString,
-          databasePath: dbPath.pathString,
+          storePath: indexStorePath.pathString,
+          databasePath: indexDatabasePath.pathString,
           library: lib,
           delegate: indexDelegate,
           prefixMappings: prefixMappings.map { PathMapping(original: $0.original, replacement: $0.replacement) }
         )
-        logger.debug("Opened IndexStoreDB at \(dbPath) with store path \(storePath)")
+        logger.debug("Opened IndexStoreDB at \(indexDatabasePath) with store path \(indexStorePath)")
       } catch {
         logger.error("Failed to open IndexStoreDB: \(error.localizedDescription)")
       }
     }
 
-    let buildSystemManager = await BuildSystemManager(
-      buildSystem: buildSystem,
-      fallbackBuildSystem: FallbackBuildSystem(options: options.fallbackBuildSystemOrDefault),
-      mainFilesProvider: UncheckedIndex(index),
-      toolchainRegistry: toolchainRegistry
-    )
+    await buildSystemManager.setMainFilesProvider(UncheckedIndex(index))
 
     await self.init(
       documentManager: documentManager,
