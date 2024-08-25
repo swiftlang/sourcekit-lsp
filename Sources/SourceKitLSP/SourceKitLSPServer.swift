@@ -98,13 +98,7 @@ package actor SourceKitLSPServer {
   /// `SourceKitLSPServer`.
   /// `nonisolated(unsafe)` because `indexProgressManager` will not be modified after it is assigned from the
   /// initializer.
-  private nonisolated(unsafe) var indexProgressManager: IndexProgressManager!
-
-  /// Implicitly unwrapped optional so we can create an `SharedWorkDoneProgressManager` that has a weak reference to
-  /// `SourceKitLSPServer`.
-  /// `nonisolated(unsafe)` because `packageLoadingWorkDoneProgress` will not be modified after it is assigned from the
-  /// initializer.
-  private nonisolated(unsafe) var packageLoadingWorkDoneProgress: SharedWorkDoneProgressManager!
+  private(set) nonisolated(unsafe) var indexProgressManager: IndexProgressManager!
 
   /// Implicitly unwrapped optional so we can create an `SharedWorkDoneProgressManager` that has a weak reference to
   /// `SourceKitLSPServer`.
@@ -201,11 +195,6 @@ package actor SourceKitLSPServer {
     ])
     self.indexProgressManager = nil
     self.indexProgressManager = IndexProgressManager(sourceKitLSPServer: self)
-    self.packageLoadingWorkDoneProgress = SharedWorkDoneProgressManager(
-      sourceKitLSPServer: self,
-      tokenPrefix: "package-reloading",
-      title: "SourceKit-LSP: Reloading Package"
-    )
     self.sourcekitdCrashedWorkDoneProgress = SharedWorkDoneProgressManager(
       sourceKitLSPServer: self,
       tokenPrefix: "sourcekitd-crashed",
@@ -215,7 +204,7 @@ package actor SourceKitLSPServer {
   }
 
   /// Await until the server has send the reply to the initialize request.
-  func waitUntilInitialized() async {
+  package func waitUntilInitialized() async {
     // The polling of `initialized` is not perfect but it should be OK, because
     //  - In almost all cases the server should already be initialized.
     //  - If it's not initialized, we expect initialization to finish fairly quickly. Even if initialization takes 5s
@@ -826,6 +815,11 @@ extension SourceKitLSPServer {
       )
     )
   }
+
+  func fileHandlingCapabilityChanged() {
+    logger.log("Updating URI to workspace because file handling capability of a workspace changed")
+    self.scheduleUpdateOfUriToWorkspace()
+  }
 }
 
 // MARK: - Request and notification handling
@@ -833,15 +827,6 @@ extension SourceKitLSPServer {
 extension SourceKitLSPServer {
 
   // MARK: - General
-
-  private func reloadPackageStatusCallback(_ status: ReloadPackageStatus) async {
-    switch status {
-    case .start:
-      await packageLoadingWorkDoneProgress.start()
-    case .end:
-      await packageLoadingWorkDoneProgress.end()
-    }
-  }
 
   /// Creates a workspace at the given `uri`.
   ///
@@ -867,6 +852,7 @@ extension SourceKitLSPServer {
     logger.log("Creating workspace at \(workspaceFolder.forLogging) with options: \(options.forLogging)")
 
     let workspace = await Workspace(
+      sourceKitLSPServer: self,
       documentManager: self.documentManager,
       rootUri: workspaceFolder,
       capabilityRegistry: capabilityRegistry,
@@ -874,23 +860,7 @@ extension SourceKitLSPServer {
       toolchainRegistry: self.toolchainRegistry,
       options: options,
       testHooks: testHooks,
-      indexTaskScheduler: indexTaskScheduler,
-      logMessageToIndexLog: { [weak self] taskID, message in
-        self?.logMessageToIndexLog(taskID: taskID, message: message)
-      },
-      indexTasksWereScheduled: { [weak self] count in
-        self?.indexProgressManager.indexTasksWereScheduled(count: count)
-      },
-      indexProgressStatusDidChange: { [weak self] in
-        self?.indexProgressManager.indexProgressStatusDidChange()
-      },
-      reloadPackageStatusCallback: { [weak self] status in
-        await self?.reloadPackageStatusCallback(status)
-      },
-      fileHandlingCapabilityChanged: { [weak self] in
-        logger.log("Updating URI to workspace because file handling capability of a workspace changed")
-        await self?.scheduleUpdateOfUriToWorkspace()
-      }
+      indexTaskScheduler: indexTaskScheduler
     )
     if options.backgroundIndexingOrDefault, workspace.semanticIndexManager == nil,
       !self.didSendBackgroundIndexingNotSupportedNotification
@@ -1002,6 +972,7 @@ extension SourceKitLSPServer {
 
         let options = self.options
         let workspace = await Workspace(
+          sourceKitLSPServer: self,
           documentManager: self.documentManager,
           rootUri: req.rootURI,
           capabilityRegistry: self.capabilityRegistry!,
@@ -1009,23 +980,7 @@ extension SourceKitLSPServer {
           toolchainRegistry: self.toolchainRegistry,
           options: options,
           testHooks: testHooks,
-          indexTaskScheduler: self.indexTaskScheduler,
-          logMessageToIndexLog: { [weak self] taskID, message in
-            self?.logMessageToIndexLog(taskID: taskID, message: message)
-          },
-          indexTasksWereScheduled: { [weak self] count in
-            self?.indexProgressManager.indexTasksWereScheduled(count: count)
-          },
-          indexProgressStatusDidChange: { [weak self] in
-            self?.indexProgressManager.indexProgressStatusDidChange()
-          },
-          reloadPackageStatusCallback: { [weak self] status in
-            await self?.reloadPackageStatusCallback(status)
-          },
-          fileHandlingCapabilityChanged: { [weak self] in
-            logger.log("Updating URI to workspace because file handling capability of a workspace changed")
-            await self?.scheduleUpdateOfUriToWorkspace()
-          }
+          indexTaskScheduler: self.indexTaskScheduler
         )
 
         self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))

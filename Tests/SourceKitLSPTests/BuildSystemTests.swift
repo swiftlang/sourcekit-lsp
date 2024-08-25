@@ -52,8 +52,7 @@ final class BuildSystemTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: .forTesting,
       options: .testDefault(),
-      buildSystemTestHooks: BuildSystemTestHooks(),
-      reloadPackageStatusCallback: { _ in }
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
     buildSystem = try await unwrap(buildSystemManager.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
 

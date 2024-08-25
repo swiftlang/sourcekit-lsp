@@ -11,6 +11,7 @@ add_library(SourceKitLSP STATIC
   MessageHandlingDependencyTracker.swift
   Rename.swift
   SemanticTokensLegend+SourceKitLSPLegend.swift
+  SharedWorkDoneProgressManager.swift
   SourceKitIndexDelegate.swift
   SourceKitLSPCommandMetadata.swift
   SourceKitLSPServer.swift
@@ -18,7 +19,6 @@ add_library(SourceKitLSP STATIC
   TestDiscovery.swift
   TestHooks.swift
   TextEdit+IsNoop.swift
-  WorkDoneProgressManager.swift
   Workspace.swift
 )
 target_sources(SourceKitLSP PRIVATE

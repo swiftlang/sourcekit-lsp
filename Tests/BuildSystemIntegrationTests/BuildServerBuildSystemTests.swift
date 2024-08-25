@@ -15,6 +15,7 @@ import BuildSystemIntegration
 import Foundation
 import ISDBTestSupport
 import LanguageServerProtocol
+import SKSupport
 import SKTestSupport
 import TSCBasic
 import XCTest
@@ -53,7 +54,10 @@ final class BuildServerBuildSystemTests: XCTestCase {
   let buildFolder = try! AbsolutePath(validating: NSTemporaryDirectory())
 
   func testServerInitialize() async throws {
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root, messageHandler: nil)
+    let buildSystem = try await BuildServerBuildSystem(
+      projectRoot: root,
+      connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP")
+    )
 
     assertEqual(
       await buildSystem.indexDatabasePath,
@@ -68,14 +72,13 @@ final class BuildServerBuildSystemTests: XCTestCase {
   func testFileRegistration() async throws {
     let uri = DocumentURI(filePath: "/some/file/path", isDirectory: false)
     let expectation = self.expectation(description: "\(uri) settings updated")
-    let buildSystemDelegate = TestDelegate(targetExpectations: [
+    let testMessageHandler = TestMessageHandler(targetExpectations: [
       (DidChangeBuildTargetNotification(changes: nil), expectation)
     ])
-    defer {
-      // BuildSystemManager has a weak reference to delegate. Keep it alive.
-      _fixLifetime(buildSystemDelegate)
-    }
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root, messageHandler: buildSystemDelegate)
+    let buildSystem = try await BuildServerBuildSystem(
+      projectRoot: root,
+      connectionToSourceKitLSP: testMessageHandler.connection
+    )
     _ = try await buildSystem.sourceKitOptions(
       request: SourceKitOptionsRequest(
         textDocument: TextDocumentIdentifier(uri: uri),
@@ -93,7 +96,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
   func testBuildTargetsChanged() async throws {
     let uri = DocumentURI(filePath: "/some/file/path", isDirectory: false)
     let expectation = XCTestExpectation(description: "target changed")
-    let buildSystemDelegate = TestDelegate(targetExpectations: [
+    let testMessageHandler = TestMessageHandler(targetExpectations: [
       (
         DidChangeBuildTargetNotification(changes: [
           BuildTargetEvent(
@@ -107,9 +110,12 @@ final class BuildServerBuildSystemTests: XCTestCase {
     ])
     defer {
       // BuildSystemManager has a weak reference to delegate. Keep it alive.
-      _fixLifetime(buildSystemDelegate)
+      _fixLifetime(testMessageHandler)
     }
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root, messageHandler: buildSystemDelegate)
+    let buildSystem = try await BuildServerBuildSystem(
+      projectRoot: root,
+      connectionToSourceKitLSP: testMessageHandler.connection
+    )
     _ = try await buildSystem.sourceKitOptions(
       request: SourceKitOptionsRequest(
         textDocument: TextDocumentIdentifier(uri: uri),
@@ -125,8 +131,14 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 }
 
-final class TestDelegate: BuiltInBuildSystemMessageHandler {
+fileprivate final class TestMessageHandler: MessageHandler {
   let targetExpectations: [(DidChangeBuildTargetNotification, XCTestExpectation)]
+
+  var connection: LocalConnection {
+    let connection = LocalConnection(receiverName: "Test message handler")
+    connection.start(handler: self)
+    return connection
+  }
 
   package init(targetExpectations: [(DidChangeBuildTargetNotification, XCTestExpectation)] = []) {
     self.targetExpectations = targetExpectations
@@ -140,11 +152,15 @@ final class TestDelegate: BuiltInBuildSystemMessageHandler {
     }
   }
 
-  func sendRequestToSourceKitLSP<R: RequestType>(_ request: R) async throws -> R.Response {
-    throw ResponseError.methodNotFound(R.method)
+  func handle<Request: RequestType>(
+    _ request: Request,
+    id: RequestID,
+    reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
+  ) {
+    reply(.failure(.methodNotFound(Request.method)))
   }
 
-  func sendNotificationToSourceKitLSP(_ notification: some NotificationType) async {
+  func handle(_ notification: some NotificationType) {
     switch notification {
     case let notification as DidChangeBuildTargetNotification:
       didChangeBuildTarget(notification: notification)

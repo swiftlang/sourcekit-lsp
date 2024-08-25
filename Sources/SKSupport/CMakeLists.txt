@@ -14,6 +14,7 @@ add_library(SKSupport STATIC
   RequestAndReply.swift
   ResponseError+Init.swift
   SwitchableProcessResultExitStatus.swift
+  WorkDoneProgressManager.swift
 )
 set_target_properties(SKSupport PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})

@@ -46,8 +46,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: nil,
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      buildSystemTestHooks: BuildSystemTestHooks(),
-      reloadPackageStatusCallback: { _ in }
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
@@ -105,8 +104,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      buildSystemTestHooks: BuildSystemTestHooks(),
-      reloadPackageStatusCallback: { _ in }
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
@@ -134,8 +132,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      buildSystemTestHooks: BuildSystemTestHooks(),
-      reloadPackageStatusCallback: { _ in }
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
@@ -156,8 +153,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      buildSystemTestHooks: BuildSystemTestHooks(),
-      reloadPackageStatusCallback: { _ in }
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
@@ -194,8 +190,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      buildSystemTestHooks: BuildSystemTestHooks(),
-      reloadPackageStatusCallback: { _ in }
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
@@ -255,8 +250,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      buildSystemTestHooks: BuildSystemTestHooks(),
-      reloadPackageStatusCallback: { _ in }
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
@@ -299,8 +293,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      buildSystemTestHooks: BuildSystemTestHooks(),
-      reloadPackageStatusCallback: { _ in }
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
@@ -417,4 +410,14 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
   nonisolated func logMessageToIndexLog(taskID: BuildSystemIntegration.IndexTaskID, message: String) {}
 
   func sourceFilesDidChange() async {}
+
+  var clientSupportsWorkDoneProgress: Bool { false }
+
+  nonisolated func sendNotificationToClient(_ notification: some NotificationType) {}
+
+  func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response {
+    throw ResponseError.methodNotFound(R.method)
+  }
+
+  func waitUntilInitialized() async {}
 }
