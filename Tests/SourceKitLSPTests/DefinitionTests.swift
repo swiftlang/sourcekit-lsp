@@ -533,6 +533,9 @@ class DefinitionTests: XCTestCase {
       ])
     )
 
+    // Ensure that the DidChangeWatchedFilesNotification is handled before we continue.
+    try await project.testClient.send(PollIndexRequest())
+
     let resultAfterFileMove = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(callerUri), position: callerPositions["2️⃣"])
     )

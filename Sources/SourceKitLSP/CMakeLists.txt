@@ -56,7 +56,6 @@ target_sources(SourceKitLSP PRIVATE
   Swift/SemanticRefactorCommand.swift
   Swift/SemanticRefactoring.swift
   Swift/SemanticTokens.swift
-  Swift/SourceKitD+ResponseError.swift
   Swift/SwiftCodeLensScanner.swift
   Swift/SwiftCommand.swift
   Swift/SwiftLanguageService.swift

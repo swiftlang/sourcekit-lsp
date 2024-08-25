@@ -135,7 +135,10 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
     }
     if let semanticIndexManager {
-      await semanticIndexManager.scheduleBuildGraphGenerationAndBackgroundIndexAllFiles()
+      await semanticIndexManager.scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
+        filesToIndex: nil,
+        indexFilesWithUpToDateUnit: false
+      )
     }
   }
 

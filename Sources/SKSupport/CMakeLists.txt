@@ -11,6 +11,8 @@ add_library(SKSupport STATIC
   LineTable.swift
   LocalConnection.swift
   Process+Run.swift
+  RequestAndReply.swift
+  ResponseError+Init.swift
   SwitchableProcessResultExitStatus.swift
 )
 set_target_properties(SKSupport PROPERTIES

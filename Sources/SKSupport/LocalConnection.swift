@@ -47,8 +47,8 @@ package final class LocalConnection: Connection, Sendable {
   /// - Important: Must only be accessed from `queue`
   nonisolated(unsafe) private var handler: MessageHandler? = nil
 
-  package init(name: String) {
-    self.name = name
+  package init(receiverName: String) {
+    self.name = receiverName
   }
 
   deinit {

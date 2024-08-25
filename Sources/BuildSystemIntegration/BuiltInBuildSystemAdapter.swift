@@ -11,21 +11,16 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
+import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SKOptions
 import SKSupport
+import SwiftExtensions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
-
-// FIXME: (BSP Migration) This should be a MessageHandler once we have migrated all build system queries to BSP and can use
-// LocalConnection for the communication.
-protocol BuiltInBuildSystemAdapterDelegate: Sendable, AnyObject {
-  func handle(_ notification: some NotificationType) async
-  func handle<R: RequestType>(_ request: R) async throws -> R.Response
-}
 
 // FIXME: (BSP Migration) This should be a MessageHandler once we have migrated all build system queries to BSP and can use
 // LocalConnection for the communication.
@@ -86,25 +81,28 @@ private func createBuildSystem(
 
 /// A type that outwardly acts as a build server conforming to the Build System Integration Protocol and internally uses
 /// a `BuiltInBuildSystem` to satisfy the requests.
-package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
+package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler, MessageHandler {
   /// The underlying build system
   // FIXME: (BSP Migration) This should be private, all messages should go through BSP. Only accessible from the outside for transition
   // purposes.
   private(set) package var underlyingBuildSystem: BuiltInBuildSystem!
-  private weak var messageHandler: (any BuiltInBuildSystemAdapterDelegate)?
+  private let connectionToSourceKitLSP: LocalConnection
+
+  // FIXME: (BSP migration) Can we have more fine-grained dependency tracking here?
+  private let messageHandlingQueue = AsyncQueue<Serial>()
 
   init?(
     buildSystemKind: BuildSystemKind?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     swiftpmTestHooks: SwiftPMTestHooks,
-    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void,
-    messageHandler: any BuiltInBuildSystemAdapterDelegate
+    connectionToSourceKitLSP: LocalConnection,
+    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
   ) async {
     guard let buildSystemKind else {
       return nil
     }
-    self.messageHandler = messageHandler
+    self.connectionToSourceKitLSP = connectionToSourceKitLSP
 
     let buildSystem = await createBuildSystem(
       buildSystemKind: buildSystemKind,
@@ -136,52 +134,19 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
     )
   }
 
-  package func send<R: RequestType>(_ request: R) async throws -> R.Response {
-    logger.info(
-      """
-      Received request to build system
-      \(request.forLogging)
-      """
-    )
-    /// Executes `body` and casts the result type to `R.Response`, statically checking that the return type of `body` is
-    /// the response type of `request`.
-    func handle<HandledRequestType: RequestType>(
-      _ request: HandledRequestType,
-      _ body: (HandledRequestType) async throws -> HandledRequestType.Response
-    ) async throws -> R.Response {
-      return try await body(request) as! R.Response
-    }
-
-    switch request {
-    case let request as BuildTargetsRequest:
-      return try await handle(request, underlyingBuildSystem.buildTargets)
-    case let request as BuildTargetSourcesRequest:
-      return try await handle(request, underlyingBuildSystem.buildTargetSources)
-    case let request as InitializeBuildRequest:
-      return try await handle(request, self.initialize)
-    case let request as InverseSourcesRequest:
-      return try await handle(request, underlyingBuildSystem.inverseSources)
-    case let request as PrepareTargetsRequest:
-      return try await handle(request, underlyingBuildSystem.prepare)
-    case let request as SourceKitOptionsRequest:
-      return try await handle(request, underlyingBuildSystem.sourceKitOptions)
-    case let request as WaitForBuildSystemUpdatesRequest:
-      return try await handle(request, underlyingBuildSystem.waitForUpBuildSystemUpdates)
-    default:
-      throw ResponseError.methodNotFound(R.method)
+  nonisolated package func handle(_ notification: some NotificationType) {
+    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "build-system-message-handling")
+      .makeSignposter()
+    let signpostID = signposter.makeSignpostID()
+    let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: notification))")
+    messageHandlingQueue.async {
+      signposter.emitEvent("Start handling", id: signpostID)
+      await self.handleImpl(notification)
+      signposter.endInterval("Notification", state, "Done")
     }
   }
 
-  package func send(_ notification: some NotificationType) async {
-    logger.info(
-      """
-      Sending notification to build system
-      \(notification.forLogging)
-      """
-    )
-    // FIXME: (BSP Migration) These messages should be handled using a LocalConnection, which also gives us logging for the messages
-    // sent. We can only do this once all requests to the build system have been migrated and we can implement proper
-    // dependency management between the BSP messages
+  private func handleImpl(_ notification: some NotificationType) async {
     switch notification {
     case let notification as DidChangeWatchedFilesNotification:
       await self.underlyingBuildSystem.didChangeWatchedFiles(notification: notification)
@@ -190,31 +155,84 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
     }
   }
 
-  package func sendNotificationToSourceKitLSP(_ notification: some LanguageServerProtocol.NotificationType) async {
-    logger.info(
-      """
-      Received notification from build system
-      \(notification.forLogging)
-      """
-    )
-    guard let messageHandler else {
-      logger.error("Ignoring notificaiton \(notification.forLogging) because message handler has been deallocated")
-      return
+  package nonisolated func handle<R: RequestType>(
+    _ params: R,
+    id: RequestID,
+    reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
+  ) {
+    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "build-system-message-handling")
+      .makeSignposter()
+    let signpostID = signposter.makeSignpostID()
+    let state = signposter.beginInterval("Request", id: signpostID, "\(R.self)")
+
+    messageHandlingQueue.async {
+      signposter.emitEvent("Start handling", id: signpostID)
+      await withTaskCancellationHandler {
+        await self.handleImpl(params, id: id, reply: reply)
+        signposter.endInterval("Request", state, "Done")
+      } onCancel: {
+        signposter.emitEvent("Cancelled", id: signpostID)
+      }
     }
-    await messageHandler.handle(notification)
+  }
+
+  private func handleImpl<Request: RequestType>(
+    _ request: Request,
+    id: RequestID,
+    reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
+  ) async {
+    let startDate = Date()
+
+    let request = RequestAndReply(request) { result in
+      reply(result)
+      let endDate = Date()
+      Task {
+        switch result {
+        case .success(let response):
+          logger.log(
+            """
+            Succeeded (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
+            \(Request.method, privacy: .public)
+            \(response.forLogging)
+            """
+          )
+        case .failure(let error):
+          logger.log(
+            """
+            Failed (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
+            \(Request.method, privacy: .public)(\(id, privacy: .public))
+            \(error.forLogging, privacy: .private)
+            """
+          )
+        }
+      }
+    }
+
+    switch request {
+    case let request as RequestAndReply<BuildTargetsRequest>:
+      await request.reply { try await underlyingBuildSystem.buildTargets(request: request.params) }
+    case let request as RequestAndReply<BuildTargetSourcesRequest>:
+      await request.reply { try await underlyingBuildSystem.buildTargetSources(request: request.params) }
+    case let request as RequestAndReply<InitializeBuildRequest>:
+      await request.reply { await self.initialize(request: request.params) }
+    case let request as RequestAndReply<InverseSourcesRequest>:
+      await request.reply { try await underlyingBuildSystem.inverseSources(request: request.params) }
+    case let request as RequestAndReply<PrepareTargetsRequest>:
+      await request.reply { try await underlyingBuildSystem.prepare(request: request.params) }
+    case let request as RequestAndReply<SourceKitOptionsRequest>:
+      await request.reply { try await underlyingBuildSystem.sourceKitOptions(request: request.params) }
+    case let request as RequestAndReply<WaitForBuildSystemUpdatesRequest>:
+      await request.reply { await underlyingBuildSystem.waitForUpBuildSystemUpdates(request: request.params) }
+    default:
+      await request.reply { throw ResponseError.methodNotFound(Request.method) }
+    }
+  }
+
+  package func sendNotificationToSourceKitLSP(_ notification: some LanguageServerProtocol.NotificationType) async {
+    connectionToSourceKitLSP.send(notification)
   }
 
   package func sendRequestToSourceKitLSP<R: RequestType>(_ request: R) async throws -> R.Response {
-    logger.info(
-      """
-      Received request from build system
-      \(request.forLogging)
-      """
-    )
-    guard let messageHandler else {
-      throw ResponseError.unknown("Connection to SourceKit-LSP closed")
-    }
-    return try await messageHandler.handle(request)
+    return try await connectionToSourceKitLSP.send(request)
   }
-
 }

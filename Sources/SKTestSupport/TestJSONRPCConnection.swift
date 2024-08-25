@@ -76,9 +76,9 @@ package final class TestJSONRPCConnection: Sendable {
 
 package struct TestLocalConnection {
   package let client: TestClient
-  package let clientConnection: LocalConnection = LocalConnection(name: "Test")
+  package let clientConnection: LocalConnection = LocalConnection(receiverName: "Test")
   package let server: TestServer
-  package let serverConnection: LocalConnection = LocalConnection(name: "Test")
+  package let serverConnection: LocalConnection = LocalConnection(receiverName: "Test")
 
   package init(allowUnexpectedNotification: Bool = true) {
     client = TestClient(connectionToServer: serverConnection, allowUnexpectedNotification: allowUnexpectedNotification)

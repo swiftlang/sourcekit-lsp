@@ -137,7 +137,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
     )
 
     // Ensure that the DidChangeWatchedFilesNotification is handled before we continue.
-    try await project.testClient.send(BarrierRequest())
+    try await project.testClient.send(PollIndexRequest())
 
     let completions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(newFileUri), position: newFilePositions["2️⃣"])

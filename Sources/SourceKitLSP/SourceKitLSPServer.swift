@@ -35,35 +35,6 @@ package typealias URL = Foundation.URL
 /// Disambiguate LanguageServerProtocol.Language and IndexstoreDB.Language
 package typealias Language = LanguageServerProtocol.Language
 
-/// A request and a callback that returns the request's reply
-fileprivate final class RequestAndReply<Params: RequestType>: Sendable {
-  let params: Params
-  private let replyBlock: @Sendable (LSPResult<Params.Response>) -> Void
-
-  /// Whether a reply has been made. Every request must reply exactly once.
-  private let replied: AtomicBool = AtomicBool(initialValue: false)
-
-  package init(_ request: Params, reply: @escaping @Sendable (LSPResult<Params.Response>) -> Void) {
-    self.params = request
-    self.replyBlock = reply
-  }
-
-  deinit {
-    precondition(replied.value, "request never received a reply")
-  }
-
-  /// Call the `replyBlock` with the result produced by the given closure.
-  func reply(_ body: @Sendable () async throws -> Params.Response) async {
-    precondition(!replied.value, "replied to request more than once")
-    replied.value = true
-    do {
-      replyBlock(.success(try await body()))
-    } catch {
-      replyBlock(.failure(ResponseError(error)))
-    }
-  }
-}
-
 /// The SourceKit-LSP server.
 ///
 /// This is the client-facing language server implementation, providing indexing, multiple-toolchain
