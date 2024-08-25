@@ -105,14 +105,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// Wait until the build graph has been loaded.
   func waitForUpToDateBuildGraph() async
 
-  /// Sort the targets so that low-level targets occur before high-level targets.
-  ///
-  /// This sorting is best effort but allows the indexer to prepare and index low-level targets first, which allows
-  /// index data to be available earlier.
-  ///
-  /// `nil` if the build system doesn't support topological sorting of targets.
-  func topologicalSort(of targets: [BuildTargetIdentifier]) async -> [BuildTargetIdentifier]?
-
   /// The toolchain that should be used to open the given document.
   ///
   /// If `nil` is returned, then the default toolchain for the given language is used.

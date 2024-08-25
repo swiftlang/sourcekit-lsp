@@ -336,10 +336,6 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
 
   package func waitForUpToDateBuildGraph() async {}
 
-  package func topologicalSort(of targets: [BuildTargetIdentifier]) async -> [BuildTargetIdentifier]? {
-    return nil
-  }
-
   package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) {
     // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).
