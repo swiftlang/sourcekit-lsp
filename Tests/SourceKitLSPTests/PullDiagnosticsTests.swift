@@ -299,7 +299,7 @@ final class PullDiagnosticsTests: XCTestCase {
     let diagnosticRequestCancelled = self.expectation(description: "diagnostic request cancelled")
     let packageLoadingDidFinish = self.expectation(description: "Package loading did finsish")
     var testHooks = TestHooks()
-    testHooks.swiftpmTestHooks.reloadPackageDidFinish = {
+    testHooks.buildSystemTestHooks.swiftPMTestHooks.reloadPackageDidFinish = {
       packageLoadingDidFinish.fulfill()
     }
     testHooks.indexTestHooks.preparationTaskDidStart = { _ in

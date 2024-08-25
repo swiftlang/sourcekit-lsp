@@ -140,6 +140,14 @@ fileprivate extension TSCBasic.AbsolutePath {
 
 fileprivate let preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
 
+package struct BuildSystemTestHooks: Sendable {
+  package var swiftPMTestHooks: SwiftPMTestHooks
+
+  package init(swiftPMTestHooks: SwiftPMTestHooks = SwiftPMTestHooks()) {
+    self.swiftPMTestHooks = swiftPMTestHooks
+  }
+}
+
 package struct SwiftPMTestHooks: Sendable {
   package var reloadPackageDidStart: (@Sendable () async -> Void)?
   package var reloadPackageDidFinish: (@Sendable () async -> Void)?

@@ -148,7 +148,7 @@ package actor BuildSystemManager: MessageHandler {
     buildSystemKind: BuildSystemKind?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
-    swiftpmTestHooks: SwiftPMTestHooks,
+    buildSystemTestHooks: BuildSystemTestHooks,
     reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
   ) async {
     self.fallbackBuildSystem = FallbackBuildSystem(options: options.fallbackBuildSystemOrDefault)
@@ -161,7 +161,7 @@ package actor BuildSystemManager: MessageHandler {
       buildSystemKind: buildSystemKind,
       toolchainRegistry: toolchainRegistry,
       options: options,
-      swiftpmTestHooks: swiftpmTestHooks,
+      buildSystemTestHooks: buildSystemTestHooks,
       connectionToSourceKitLSP: connectionFromBuildSystemToSourceKitLSP,
       reloadPackageStatusCallback: reloadPackageStatusCallback
     )

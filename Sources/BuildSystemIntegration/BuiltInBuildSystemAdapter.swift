@@ -49,7 +49,7 @@ package enum BuildSystemKind {
 private func createBuildSystem(
   buildSystemKind: BuildSystemKind,
   options: SourceKitLSPOptions,
-  swiftpmTestHooks: SwiftPMTestHooks,
+  buildSystemTestHooks: BuildSystemTestHooks,
   toolchainRegistry: ToolchainRegistry,
   messageHandler: BuiltInBuildSystemMessageHandler,
   reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
@@ -72,7 +72,7 @@ private func createBuildSystem(
       options: options,
       messageHandler: messageHandler,
       reloadPackageStatusCallback: reloadPackageStatusCallback,
-      testHooks: swiftpmTestHooks
+      testHooks: buildSystemTestHooks.swiftPMTestHooks
     )
   case .testBuildSystem(let projectRoot):
     return TestBuildSystem(projectRoot: projectRoot, messageHandler: messageHandler)
@@ -95,7 +95,7 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler, Messa
     buildSystemKind: BuildSystemKind?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
-    swiftpmTestHooks: SwiftPMTestHooks,
+    buildSystemTestHooks: BuildSystemTestHooks,
     connectionToSourceKitLSP: LocalConnection,
     reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
   ) async {
@@ -107,7 +107,7 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler, Messa
     let buildSystem = await createBuildSystem(
       buildSystemKind: buildSystemKind,
       options: options,
-      swiftpmTestHooks: swiftpmTestHooks,
+      buildSystemTestHooks: buildSystemTestHooks,
       toolchainRegistry: toolchainRegistry,
       messageHandler: self,
       reloadPackageStatusCallback: reloadPackageStatusCallback

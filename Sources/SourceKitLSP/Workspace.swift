@@ -167,7 +167,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       buildSystemKind: buildSystemKind,
       toolchainRegistry: toolchainRegistry,
       options: options,
-      swiftpmTestHooks: testHooks.swiftpmTestHooks,
+      buildSystemTestHooks: testHooks.buildSystemTestHooks,
       reloadPackageStatusCallback: reloadPackageStatusCallback
     )
     let buildSystem = await buildSystemManager.buildSystem?.underlyingBuildSystem

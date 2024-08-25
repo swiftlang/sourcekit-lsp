@@ -52,7 +52,7 @@ final class BuildSystemTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: .forTesting,
       options: .testDefault(),
-      swiftpmTestHooks: .init(),
+      buildSystemTestHooks: BuildSystemTestHooks(),
       reloadPackageStatusCallback: { _ in }
     )
     buildSystem = try await unwrap(buildSystemManager.buildSystem?.underlyingBuildSystem as? TestBuildSystem)

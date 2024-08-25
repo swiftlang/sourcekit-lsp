@@ -23,7 +23,7 @@ import struct TSCBasic.RelativePath
 public struct TestHooks: Sendable {
   package var indexTestHooks: IndexTestHooks
 
-  package var swiftpmTestHooks: SwiftPMTestHooks
+  package var buildSystemTestHooks: BuildSystemTestHooks
 
   /// A hook that will be executed before a request is handled.
   ///
@@ -31,16 +31,16 @@ public struct TestHooks: Sendable {
   package var handleRequest: (@Sendable (any RequestType) async -> Void)?
 
   public init() {
-    self.init(indexTestHooks: IndexTestHooks(), swiftpmTestHooks: SwiftPMTestHooks(), handleRequest: nil)
+    self.init(indexTestHooks: IndexTestHooks(), buildSystemTestHooks: BuildSystemTestHooks(), handleRequest: nil)
   }
 
   package init(
     indexTestHooks: IndexTestHooks = IndexTestHooks(),
-    swiftpmTestHooks: SwiftPMTestHooks = SwiftPMTestHooks(),
+    buildSystemTestHooks: BuildSystemTestHooks = BuildSystemTestHooks(),
     handleRequest: (@Sendable (any RequestType) async -> Void)? = nil
   ) {
     self.indexTestHooks = indexTestHooks
-    self.swiftpmTestHooks = swiftpmTestHooks
+    self.buildSystemTestHooks = buildSystemTestHooks
     self.handleRequest = handleRequest
   }
 }
