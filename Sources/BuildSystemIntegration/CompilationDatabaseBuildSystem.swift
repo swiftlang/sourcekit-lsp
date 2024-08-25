@@ -153,10 +153,6 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     )
   }
 
-  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
-    return nil
-  }
-
   package func waitForUpToDateBuildGraph() async {}
 
   private func database(for uri: DocumentURI) -> CompilationDatabase? {

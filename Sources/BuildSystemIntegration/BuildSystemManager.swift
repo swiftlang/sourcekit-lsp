@@ -270,9 +270,37 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   }
 
   /// Returns the toolchain that should be used to process the given document.
-  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
-    if let toolchain = await buildSystem?.underlyingBuildSystem.toolchain(for: uri, language) {
-      return toolchain
+  package func toolchain(
+    for uri: DocumentURI,
+    in target: BuildTargetIdentifier?,
+    language: Language
+  ) async -> Toolchain? {
+    let toolchainPath = await orLog("Getting toolchain from build targets") { () -> AbsolutePath? in
+      guard let target else {
+        return nil
+      }
+      let targets = try await self.buildTargets()
+      guard let target = targets[target]?.target else {
+        logger.error("Failed to find target \(target.forLogging) to determine toolchain")
+        return nil
+      }
+      guard target.dataKind == .sourceKit, case .dictionary(let data) = target.data else {
+        return nil
+      }
+      guard let toolchain = SourceKitBuildTarget(fromLSPDictionary: data).toolchain else {
+        return nil
+      }
+      guard let toolchainUrl = toolchain.fileURL else {
+        logger.error("Toolchain is not a file URL")
+        return nil
+      }
+      return try AbsolutePath(validating: toolchainUrl.path)
+    }
+    if let toolchainPath {
+      if let toolchain = await self.toolchainRegistry.toolchain(withPath: toolchainPath) {
+        return toolchain
+      }
+      logger.error("Toolchain at \(toolchainPath) not registered in toolchain registry.")
     }
 
     switch language {

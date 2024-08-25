@@ -330,10 +330,6 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     )
   }
 
-  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
-    return nil
-  }
-
   package func waitForUpToDateBuildGraph() async {}
 
   package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) {

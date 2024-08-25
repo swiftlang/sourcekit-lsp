@@ -573,9 +573,16 @@ package actor SourceKitLSPServer {
       return service
     }
 
-    guard let toolchain = await workspace.buildSystemManager.toolchain(for: uri, language),
-      let service = await languageService(for: toolchain, language, in: workspace)
-    else {
+    let toolchain = await workspace.buildSystemManager.toolchain(
+      for: uri,
+      in: workspace.buildSystemManager.canonicalTarget(for: uri),
+      language: language
+    )
+    guard let toolchain else {
+      logger.error("Failed to determine toolchain for \(uri)")
+      return nil
+    }
+    guard let service = await languageService(for: toolchain, language, in: workspace) else {
       logger.error("Failed to create language service for \(uri)")
       return nil
     }

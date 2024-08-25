@@ -81,7 +81,9 @@ public struct BuildTarget: Codable, Hashable, Sendable {
     tags: [BuildTargetTag],
     capabilities: BuildTargetCapabilities,
     languageIds: [Language],
-    dependencies: [BuildTargetIdentifier]
+    dependencies: [BuildTargetIdentifier],
+    dataKind: BuildTargetDataKind? = nil,
+    data: LSPAny? = nil
   ) {
     self.id = id
     self.displayName = displayName
@@ -90,6 +92,8 @@ public struct BuildTarget: Codable, Hashable, Sendable {
     self.capabilities = capabilities
     self.languageIds = languageIds
     self.dependencies = dependencies
+    self.dataKind = dataKind
+    self.data = data
   }
 }
 
@@ -177,22 +181,52 @@ public struct BuildTargetDataKind: RawRepresentable, Codable, Hashable, Sendable
   }
 
   /// `data` field must contain a CargoBuildTarget object.
-  public static let cargo = "cargo"
+  public static let cargo = BuildTargetDataKind(rawValue: "cargo")
 
   /// `data` field must contain a CppBuildTarget object.
-  public static let cpp = "cpp"
+  public static let cpp = BuildTargetDataKind(rawValue: "cpp")
 
   /// `data` field must contain a JvmBuildTarget object.
-  public static let jvm = "jvm"
+  public static let jvm = BuildTargetDataKind(rawValue: "jvm")
 
   /// `data` field must contain a PythonBuildTarget object.
-  public static let python = "python"
+  public static let python = BuildTargetDataKind(rawValue: "python")
 
   /// `data` field must contain a SbtBuildTarget object.
-  public static let sbt = "sbt"
+  public static let sbt = BuildTargetDataKind(rawValue: "sbt")
 
   /// `data` field must contain a ScalaBuildTarget object.
-  public static let scala = "scala"
+  public static let scala = BuildTargetDataKind(rawValue: "scala")
+
+  /// `data` field must contain a SourceKitBuildTarget object.
+  public static let sourceKit = BuildTargetDataKind(rawValue: "sourceKit")
+}
+
+public struct SourceKitBuildTarget: LSPAnyCodable, Codable {
+  /// The toolchain that should be used to build this target. The URI should point to the directory that contains the
+  /// `usr` directory. On macOS, this is typically a bundle ending in `.xctoolchain`. If the toolchain is installed to
+  /// `/` on Linux, the toolchain URI would point to `/`.
+  ///
+  /// If no toolchain is given, SourceKit-LSP will pick a toolchain to use for this target.
+  public var toolchain: URI?
+
+  public init(toolchain: URI? = nil) {
+    self.toolchain = toolchain
+  }
+
+  public init(fromLSPDictionary dictionary: [String: LanguageServerProtocol.LSPAny]) {
+    if case .string(let toolchain) = dictionary[CodingKeys.toolchain.stringValue] {
+      self.toolchain = try? URI(string: toolchain)
+    }
+  }
+
+  public func encodeToLSPAny() -> LanguageServerProtocol.LSPAny {
+    var result: [String: LSPAny] = [:]
+    if let toolchain {
+      result[CodingKeys.toolchain.stringValue] = .string(toolchain.stringValue)
+    }
+    return .dictionary(result)
+  }
 }
 
 /// The build target output paths request is sent from the client to the server

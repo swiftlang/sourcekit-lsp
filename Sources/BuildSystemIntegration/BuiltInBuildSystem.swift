@@ -105,11 +105,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// Wait until the build graph has been loaded.
   func waitForUpToDateBuildGraph() async
 
-  /// The toolchain that should be used to open the given document.
-  ///
-  /// If `nil` is returned, then the default toolchain for the given language is used.
-  func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain?
-
   /// Adds a callback that should be called when the value returned by `sourceFiles()` changes.
   ///
   /// The callback might also be called without an actual change to `sourceFiles`.
