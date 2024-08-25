@@ -176,6 +176,8 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
       }
       await delegate.filesDependenciesUpdated(changedWatchedFiles)
     }
+
+    // FIXME: (BSP migration) Forward file watch patterns from this initialize request to the client
     initializeResult = Task { () -> InitializeBuildResponse? in
       guard let buildSystem else {
         return nil
@@ -511,7 +513,9 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   }
 
   package func waitForUpToDateBuildGraph() async {
-    await self.buildSystem?.underlyingBuildSystem.waitForUpToDateBuildGraph()
+    await orLog("Waiting for build system updates") {
+      let _: VoidResponse? = try await self.buildSystem?.send(WaitForBuildSystemUpdatesRequest())
+    }
   }
 
   /// The root targets of the project have depth of 0 and all target dependencies have a greater depth than the target

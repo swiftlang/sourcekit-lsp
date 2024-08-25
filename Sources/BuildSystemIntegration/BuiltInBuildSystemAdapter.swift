@@ -165,6 +165,8 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
       return try await handle(request, underlyingBuildSystem.prepare)
     case let request as SourceKitOptionsRequest:
       return try await handle(request, underlyingBuildSystem.sourceKitOptions)
+    case let request as WaitForBuildSystemUpdatesRequest:
+      return try await handle(request, underlyingBuildSystem.waitForUpBuildSystemUpdates)
     default:
       throw ResponseError.methodNotFound(R.method)
     }

@@ -70,7 +70,9 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     return buildSettingsByFile[request.textDocument.uri]
   }
 
-  package func waitForUpToDateBuildGraph() async {}
+  package func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse {
+    return VoidResponse()
+  }
 
   package func topologicalSort(of targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil

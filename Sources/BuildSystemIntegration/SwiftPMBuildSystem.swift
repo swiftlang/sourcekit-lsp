@@ -629,8 +629,9 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     return InverseSourcesResponse(targets: targets(for: request.textDocument.uri))
   }
 
-  package func waitForUpToDateBuildGraph() async {
+  package func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse {
     await self.packageLoadingQueue.async {}.valuePropagatingCancellation
+    return VoidResponse()
   }
 
   package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {

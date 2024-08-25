@@ -330,7 +330,9 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     )
   }
 
-  package func waitForUpToDateBuildGraph() async {}
+  package func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse {
+    return VoidResponse()
+  }
 
   package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) {
     // BuildServerBuildSystem does not support syntactic test discovery or background indexing.

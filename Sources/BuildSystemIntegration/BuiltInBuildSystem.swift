@@ -103,7 +103,7 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse?
 
   /// Wait until the build graph has been loaded.
-  func waitForUpToDateBuildGraph() async
+  func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse
 
   /// Adds a callback that should be called when the value returned by `sourceFiles()` changes.
   ///
