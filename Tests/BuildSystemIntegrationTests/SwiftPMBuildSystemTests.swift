@@ -305,17 +305,15 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.forTesting
 
       let options = SourceKitLSPOptions.SwiftPMOptions(
-        scratchPath: packageRoot.appending(component: "non_default_build_path").pathString,
         swiftSDKsDirectory: "/tmp/non_existent_sdks_dir",
         triple: "wasm32-unknown-wasi"
       )
 
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        workspacePath: tempDir.appending(component: "pkg"),
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(swiftPM: options),
