@@ -226,25 +226,23 @@ package actor SwiftPMBuildSystem {
     let hostSDK = try SwiftSDK.hostSwiftSDK(AbsolutePath(destinationToolchainBinDir))
     let hostSwiftPMToolchain = try UserToolchain(swiftSDK: hostSDK)
 
-    var destinationSDK: SwiftSDK
-    if let swiftSDK = options.swiftPM.swiftSDK {
-      let bundleStore = try SwiftSDKBundleStore(
+    let destinationSDK = try SwiftSDK.deriveTargetSwiftSDK(
+      hostSwiftSDK: hostSDK,
+      hostTriple: hostSwiftPMToolchain.targetTriple,
+      customCompileTriple: options.swiftPM.triple.map { try Triple($0) },
+      swiftSDKSelector: options.swiftPM.swiftSDK,
+      store: SwiftSDKBundleStore(
         swiftSDKsDirectory: fileSystem.getSharedSwiftSDKsDirectory(
           explicitDirectory: options.swiftPM.swiftSDKsDirectory.map { try AbsolutePath(validating: $0) }
         ),
         fileSystem: fileSystem,
         observabilityScope: observabilitySystem.topScope,
         outputHandler: { _ in }
-      )
-      destinationSDK = try bundleStore.selectBundle(matching: swiftSDK, hostTriple: hostSwiftPMToolchain.targetTriple)
-    } else {
-      destinationSDK = hostSDK
-    }
+      ),
+      observabilityScope: observabilitySystem.topScope,
+      fileSystem: fileSystem
+    )
 
-    if let triple = options.swiftPM.triple {
-      destinationSDK = hostSDK
-      destinationSDK.targetTriple = try Triple(triple)
-    }
     let destinationSwiftPMToolchain = try UserToolchain(swiftSDK: destinationSDK)
 
     var location = try Workspace.Location(
