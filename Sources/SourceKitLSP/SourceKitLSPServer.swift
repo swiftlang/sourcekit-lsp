@@ -986,6 +986,8 @@ extension SourceKitLSPServer {
     //
     // The below is a workaround for the vscode-swift extension since it cannot set client capabilities.
     // It passes "workspace/peekDocuments" through the `initializationOptions`.
+    //
+    // Similarly for "workspace/textDocumentContent".
     var clientCapabilities = req.capabilities
     if case .dictionary(let initializationOptions) = req.initializationOptions {
       if let peekDocuments = initializationOptions["workspace/peekDocuments"] {
@@ -994,6 +996,15 @@ extension SourceKitLSPServer {
           clientCapabilities.experimental = .dictionary(experimentalCapabilities)
         } else {
           clientCapabilities.experimental = .dictionary(["workspace/peekDocuments": peekDocuments])
+        }
+      }
+
+      if let textDocumentContent = initializationOptions["workspace/textDocumentContent"] {
+        if case .dictionary(var experimentalCapabilities) = clientCapabilities.experimental {
+          experimentalCapabilities["workspace/textDocumentContent"] = textDocumentContent
+          clientCapabilities.experimental = .dictionary(experimentalCapabilities)
+        } else {
+          clientCapabilities.experimental = .dictionary(["workspace/textDocumentContent": textDocumentContent])
         }
       }
 
