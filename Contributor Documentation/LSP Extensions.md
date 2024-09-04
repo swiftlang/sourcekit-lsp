@@ -595,3 +595,30 @@ export interface PeekDocumentsResult {
   success: boolean;
 }
 ```
+
+## `workspace/textDocumentContent`
+
+Request from the client to the server asking for contents of a URI having a custom scheme.
+For example: "sourcekit-lsp:"
+
+Enable the experimental client capability `"workspace/textDocumentContent"` so that the server responds with reference document URLs for certain requests or commands whenever possible.
+
+- params: `TextDocumentContentParams`
+
+- result: `TextDocumentContentResponse`
+
+```ts
+export interface TextDocumentContentParams {
+  /**
+   * The `DocumentUri` of the custom scheme url for which content is required
+   */
+  uri: DocumentUri;
+}
+
+/**
+ * Response containing the content of the requested document
+ */
+export interface TextDocumentContentResult {
+  text: string;
+}
+```
