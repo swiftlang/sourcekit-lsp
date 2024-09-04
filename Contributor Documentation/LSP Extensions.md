@@ -598,10 +598,9 @@ export interface PeekDocumentsResult {
 
 ## `workspace/textDocumentContent`
 
-Request from the client to the server asking for contents of a URI having a custom scheme.
-For example: "sourcekit-lsp:"
+Request from the client to the server for querying the contents of a document, potentially using a custom URI scheme (such as `sourcekit-lsp:`). This closely models the proposed LSP 3.18 request of the same name, thus can be removed once LSP 3.18 has been stabilized.
 
-Enable the experimental client capability `"workspace/textDocumentContent"` so that the server responds with reference document URLs for certain requests or commands whenever possible.
+Currently requires enabling the experimental client capability `"workspace/textDocumentContent"` to have the server respond with custom `sourcekit-lsp:` URIs (e.g. in macro expansion requests).
 
 - params: `TextDocumentContentParams`
 
