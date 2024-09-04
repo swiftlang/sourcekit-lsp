@@ -28,7 +28,11 @@ public struct TextDocumentContentRequest: RequestType {
   }
 }
 
-/// Response containing `text` of `TextDocumentContentRequest`
+/// Response containing the content of the requested text document.
+/// 
+/// Please note, that the content of any subsequent open notifications for the
+/// text document might differ from the returned content due to whitespace and
+/// line ending normalizations done on the client.
 public struct TextDocumentContentResponse: ResponseType {
   public var text: String
 
