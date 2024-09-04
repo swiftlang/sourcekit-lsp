@@ -218,8 +218,8 @@ extension SwiftLanguageService {
     }
 
     if case .dictionary(let experimentalCapabilities) = self.capabilityRegistry.clientCapabilities.experimental,
-      case .bool(true) = experimentalCapabilities["workspace/peekDocuments"]
-      // TODO: Check if client supports LSP 3.18's workspace/textDocumentContent
+      case .bool(true) = experimentalCapabilities["workspace/peekDocuments"],
+      case .bool(true) = experimentalCapabilities["workspace/textDocumentContent"]
     {
       let expansionURIs = try macroExpansionReferenceDocumentURLs.map {
         return DocumentURI(try $0.url)
