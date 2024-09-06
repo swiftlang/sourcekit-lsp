@@ -225,7 +225,8 @@ package actor SourceKitLSPServer {
 
     self.client = client
     let processorCount = ProcessInfo.processInfo.processorCount
-    let lowPriorityCores = options.index.maxCoresPercentageToUseForBackgroundIndexingOrDefault * Double(processorCount)
+    let lowPriorityCores =
+      options.indexOrDefault.maxCoresPercentageToUseForBackgroundIndexingOrDefault * Double(processorCount)
     self.indexTaskScheduler = TaskScheduler(maxConcurrentTasksByPriority: [
       (TaskPriority.medium, processorCount),
       (TaskPriority.low, max(Int(lowPriorityCores), 1)),

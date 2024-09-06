@@ -229,11 +229,11 @@ package actor SwiftPMBuildSystem {
     let destinationSDK = try SwiftSDK.deriveTargetSwiftSDK(
       hostSwiftSDK: hostSDK,
       hostTriple: hostSwiftPMToolchain.targetTriple,
-      customCompileTriple: options.swiftPM.triple.map { try Triple($0) },
-      swiftSDKSelector: options.swiftPM.swiftSDK,
+      customCompileTriple: options.swiftPMOrDefault.triple.map { try Triple($0) },
+      swiftSDKSelector: options.swiftPMOrDefault.swiftSDK,
       store: SwiftSDKBundleStore(
         swiftSDKsDirectory: fileSystem.getSharedSwiftSDKsDirectory(
-          explicitDirectory: options.swiftPM.swiftSDKsDirectory.map { try AbsolutePath(validating: $0) }
+          explicitDirectory: options.swiftPMOrDefault.swiftSDKsDirectory.map { try AbsolutePath(validating: $0) }
         ),
         fileSystem: fileSystem,
         observabilityScope: observabilitySystem.topScope,
@@ -251,7 +251,7 @@ package actor SwiftPMBuildSystem {
     )
     if options.backgroundIndexingOrDefault {
       location.scratchDirectory = AbsolutePath(packageRoot.appending(component: ".index-build"))
-    } else if let scratchDirectory = options.swiftPM.scratchPath,
+    } else if let scratchDirectory = options.swiftPMOrDefault.scratchPath,
       let scratchDirectoryPath = try? AbsolutePath(validating: scratchDirectory)
     {
       location.scratchDirectory = scratchDirectoryPath
@@ -267,14 +267,14 @@ package actor SwiftPMBuildSystem {
       customHostToolchain: hostSwiftPMToolchain,
       customManifestLoader: ManifestLoader(
         toolchain: hostSwiftPMToolchain,
-        isManifestSandboxEnabled: !(options.swiftPM.disableSandbox ?? false),
+        isManifestSandboxEnabled: !(options.swiftPMOrDefault.disableSandbox ?? false),
         cacheDir: location.sharedManifestsCacheDirectory,
         importRestrictions: configuration.manifestImportRestrictions
       )
     )
 
     let buildConfiguration: PackageModel.BuildConfiguration
-    switch options.swiftPM.configuration {
+    switch options.swiftPMOrDefault.configuration {
     case .debug, nil:
       buildConfiguration = .debug
     case .release:
@@ -282,10 +282,10 @@ package actor SwiftPMBuildSystem {
     }
 
     let buildFlags = BuildFlags(
-      cCompilerFlags: options.swiftPM.cCompilerFlags ?? [],
-      cxxCompilerFlags: options.swiftPM.cxxCompilerFlags ?? [],
-      swiftCompilerFlags: options.swiftPM.swiftCompilerFlags ?? [],
-      linkerFlags: options.swiftPM.linkerFlags ?? []
+      cCompilerFlags: options.swiftPMOrDefault.cCompilerFlags ?? [],
+      cxxCompilerFlags: options.swiftPMOrDefault.cxxCompilerFlags ?? [],
+      swiftCompilerFlags: options.swiftPMOrDefault.swiftCompilerFlags ?? [],
+      linkerFlags: options.swiftPMOrDefault.linkerFlags ?? []
     )
 
     self.toolsBuildParameters = try BuildParameters(
@@ -381,7 +381,7 @@ extension SwiftPMBuildSystem {
       destinationBuildParameters: destinationBuildParameters,
       toolsBuildParameters: toolsBuildParameters,
       graph: modulesGraph,
-      disableSandbox: options.swiftPM.disableSandbox ?? false,
+      disableSandbox: options.swiftPMOrDefault.disableSandbox ?? false,
       fileSystem: fileSystem,
       observabilityScope: observabilitySystem.topScope
     )
@@ -607,16 +607,16 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
       "--disable-index-store",
       "--target", target.targetID,
     ]
-    if options.swiftPM.disableSandbox ?? false {
+    if options.swiftPMOrDefault.disableSandbox ?? false {
       arguments += ["--disable-sandbox"]
     }
-    if let configuration = options.swiftPM.configuration {
+    if let configuration = options.swiftPMOrDefault.configuration {
       arguments += ["-c", configuration.rawValue]
     }
-    arguments += options.swiftPM.cCompilerFlags?.flatMap { ["-Xcc", $0] } ?? []
-    arguments += options.swiftPM.cxxCompilerFlags?.flatMap { ["-Xcxx", $0] } ?? []
-    arguments += options.swiftPM.swiftCompilerFlags?.flatMap { ["-Xswiftc", $0] } ?? []
-    arguments += options.swiftPM.linkerFlags?.flatMap { ["-Xlinker", $0] } ?? []
+    arguments += options.swiftPMOrDefault.cCompilerFlags?.flatMap { ["-Xcc", $0] } ?? []
+    arguments += options.swiftPMOrDefault.cxxCompilerFlags?.flatMap { ["-Xcxx", $0] } ?? []
+    arguments += options.swiftPMOrDefault.swiftCompilerFlags?.flatMap { ["-Xswiftc", $0] } ?? []
+    arguments += options.swiftPMOrDefault.linkerFlags?.flatMap { ["-Xlinker", $0] } ?? []
     switch options.backgroundPreparationModeOrDefault {
     case .build: break
     case .noLazy: arguments += ["--experimental-prepare-for-indexing", "--experimental-prepare-for-indexing-no-lazy"]

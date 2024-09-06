@@ -107,7 +107,7 @@ package final class Workspace: Sendable {
     self._uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
     self.buildSystemManager = await BuildSystemManager(
       buildSystem: underlyingBuildSystem,
-      fallbackBuildSystem: FallbackBuildSystem(options: options.fallbackBuildSystem),
+      fallbackBuildSystem: FallbackBuildSystem(options: options.fallbackBuildSystemOrDefault),
       mainFilesProvider: uncheckedIndex,
       toolchainRegistry: toolchainRegistry
     )
@@ -115,7 +115,7 @@ package final class Workspace: Sendable {
       self.semanticIndexManager = SemanticIndexManager(
         index: uncheckedIndex,
         buildSystemManager: buildSystemManager,
-        updateIndexStoreTimeout: options.index.updateIndexStoreTimeoutOrDefault,
+        updateIndexStoreTimeout: options.indexOrDefault.updateIndexStoreTimeoutOrDefault,
         testHooks: testHooks.indexTestHooks,
         indexTaskScheduler: indexTaskScheduler,
         logMessageToIndexLog: logMessageToIndexLog,
@@ -163,7 +163,7 @@ package final class Workspace: Sendable {
     var index: IndexStoreDB? = nil
     var indexDelegate: SourceKitIndexDelegate? = nil
 
-    let indexOptions = options.index
+    let indexOptions = options.indexOrDefault
     if let storePath = await firstNonNil(
       AbsolutePath(validatingOrNil: indexOptions.indexStorePath),
       await buildSystem?.indexStorePath

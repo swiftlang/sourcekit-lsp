@@ -20,8 +20,8 @@ import struct TSCBasic.AbsolutePath
 /// Options that can be used to modify SourceKit-LSP's behavior.
 ///
 /// See `ConfigurationFile.md` for a description of the configuration file's behavior.
-public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible {
-  public struct SwiftPMOptions: Sendable, Codable, CustomLogStringConvertible {
+public struct SourceKitLSPOptions: Sendable, Codable, Equatable, CustomLogStringConvertible {
+  public struct SwiftPMOptions: Sendable, Codable, Equatable, CustomLogStringConvertible {
     /// Build configuration (debug|release).
     ///
     /// Equivalent to SwiftPM's `--configuration` option.
@@ -104,7 +104,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
     }
   }
 
-  public struct CompilationDatabaseOptions: Sendable, Codable, CustomLogStringConvertible {
+  public struct CompilationDatabaseOptions: Sendable, Codable, Equatable, CustomLogStringConvertible {
     /// Additional paths to search for a compilation database, relative to a workspace root.
     public var searchPaths: [String]?
 
@@ -128,7 +128,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
     }
   }
 
-  public struct FallbackBuildSystemOptions: Sendable, Codable, CustomLogStringConvertible {
+  public struct FallbackBuildSystemOptions: Sendable, Codable, Equatable, CustomLogStringConvertible {
     public var cCompilerFlags: [String]?
     public var cxxCompilerFlags: [String]?
     public var swiftCompilerFlags: [String]?
@@ -163,7 +163,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
     }
   }
 
-  public struct IndexOptions: Sendable, Codable, CustomLogStringConvertible {
+  public struct IndexOptions: Sendable, Codable, Equatable, CustomLogStringConvertible {
     public var indexStorePath: String?
     public var indexDatabasePath: String?
     public var indexPrefixMap: [String: String]?
@@ -216,7 +216,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
     }
   }
 
-  public struct LoggingOptions: Sendable, Codable, CustomLogStringConvertible {
+  public struct LoggingOptions: Sendable, Codable, Equatable, CustomLogStringConvertible {
     /// The level from which one onwards log messages should be written.
     public var level: String?
     /// Whether potentially sensitive information should be redacted.
@@ -259,12 +259,37 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
     case enabled
   }
 
-  public var swiftPM: SwiftPMOptions
-  public var compilationDatabase: CompilationDatabaseOptions
-  public var fallbackBuildSystem: FallbackBuildSystemOptions
+  private var swiftPM: SwiftPMOptions?
+  public var swiftPMOrDefault: SwiftPMOptions {
+    get { swiftPM ?? .init() }
+    set { swiftPM = newValue }
+  }
+
+  private var compilationDatabase: CompilationDatabaseOptions?
+  public var compilationDatabaseOrDefault: CompilationDatabaseOptions {
+    get { compilationDatabase ?? .init() }
+    set { compilationDatabase = newValue }
+  }
+
+  private var fallbackBuildSystem: FallbackBuildSystemOptions?
+  public var fallbackBuildSystemOrDefault: FallbackBuildSystemOptions {
+    get { fallbackBuildSystem ?? .init() }
+    set { fallbackBuildSystem = newValue }
+  }
+
   public var clangdOptions: [String]?
-  public var index: IndexOptions
-  public var logging: LoggingOptions
+
+  private var index: IndexOptions?
+  public var indexOrDefault: IndexOptions {
+    get { index ?? .init() }
+    set { index = newValue }
+  }
+
+  private var logging: LoggingOptions?
+  public var loggingOrDefault: LoggingOptions {
+    get { logging ?? .init() }
+    set { logging = newValue }
+  }
 
   /// Default workspace type (buildserver|compdb|swiftpm). Overrides workspace type selection logic.
   public var defaultWorkspaceType: WorkspaceType?
@@ -406,18 +431,18 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
 
   public static func merging(base: SourceKitLSPOptions, override: SourceKitLSPOptions?) -> SourceKitLSPOptions {
     return SourceKitLSPOptions(
-      swiftPM: SwiftPMOptions.merging(base: base.swiftPM, override: override?.swiftPM),
+      swiftPM: SwiftPMOptions.merging(base: base.swiftPMOrDefault, override: override?.swiftPM),
       fallbackBuildSystem: FallbackBuildSystemOptions.merging(
-        base: base.fallbackBuildSystem,
+        base: base.fallbackBuildSystemOrDefault,
         override: override?.fallbackBuildSystem
       ),
       compilationDatabase: CompilationDatabaseOptions.merging(
-        base: base.compilationDatabase,
+        base: base.compilationDatabaseOrDefault,
         override: override?.compilationDatabase
       ),
       clangdOptions: override?.clangdOptions ?? base.clangdOptions,
-      index: IndexOptions.merging(base: base.index, override: override?.index),
-      logging: LoggingOptions.merging(base: base.logging, override: override?.logging),
+      index: IndexOptions.merging(base: base.indexOrDefault, override: override?.index),
+      logging: LoggingOptions.merging(base: base.loggingOrDefault, override: override?.logging),
       defaultWorkspaceType: override?.defaultWorkspaceType ?? base.defaultWorkspaceType,
       generatedFilesPath: override?.generatedFilesPath ?? base.generatedFilesPath,
       backgroundIndexing: override?.backgroundIndexing ?? base.backgroundIndexing,
@@ -445,37 +470,6 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
       return false
     }
     return experimentalFeatures.contains(feature)
-  }
-
-  public init(from decoder: any Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-
-    self.swiftPM = try container.decodeIfPresent(SwiftPMOptions.self, forKey: CodingKeys.swiftPM) ?? .init()
-    self.compilationDatabase =
-      try container.decodeIfPresent(CompilationDatabaseOptions.self, forKey: CodingKeys.compilationDatabase) ?? .init()
-    self.fallbackBuildSystem =
-      try container.decodeIfPresent(FallbackBuildSystemOptions.self, forKey: CodingKeys.fallbackBuildSystem) ?? .init()
-    self.clangdOptions = try container.decodeIfPresent([String].self, forKey: CodingKeys.clangdOptions)
-    self.index = try container.decodeIfPresent(IndexOptions.self, forKey: CodingKeys.index) ?? .init()
-    self.logging = try container.decodeIfPresent(LoggingOptions.self, forKey: .logging) ?? .init()
-    self.defaultWorkspaceType = try container.decodeIfPresent(
-      WorkspaceType.self,
-      forKey: CodingKeys.defaultWorkspaceType
-    )
-    self.generatedFilesPath = try container.decodeIfPresent(String.self, forKey: CodingKeys.generatedFilesPath)
-    self.backgroundIndexing = try container.decodeIfPresent(Bool.self, forKey: CodingKeys.backgroundIndexing)
-    self.experimentalFeatures = try container.decodeIfPresent(
-      Set<ExperimentalFeature>.self,
-      forKey: CodingKeys.experimentalFeatures
-    )
-    self.swiftPublishDiagnosticsDebounceDuration = try container.decodeIfPresent(
-      Double.self,
-      forKey: CodingKeys.swiftPublishDiagnosticsDebounceDuration
-    )
-    self.workDoneProgressDebounceDuration = try container.decodeIfPresent(
-      Double.self,
-      forKey: CodingKeys.workDoneProgressDebounceDuration
-    )
   }
 
   public var description: String {

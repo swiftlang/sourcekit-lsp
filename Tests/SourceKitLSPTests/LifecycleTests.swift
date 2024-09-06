@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import SKOptions
 import SKTestSupport
 import XCTest
 
@@ -37,6 +38,13 @@ final class LifecycleTests: XCTestCase {
     }
     XCTAssertEqual(syncOptions.openClose, true)
     XCTAssertNotNil(initResult.capabilities.completionProvider)
+  }
+
+  func testEmptySourceKitLSPOptionsCanBeDecoded() {
+    // Check that none of the keys in `SourceKitLSPOptions` are required.
+    assertNoThrow {
+      try JSONDecoder().decode(SourceKitLSPOptions.self, from: "{}") == SourceKitLSPOptions()
+    }
   }
 
   func testCancellation() async throws {

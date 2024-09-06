@@ -112,8 +112,8 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   ) async throws {
     var options = options
     if let globalModuleCache {
-      options.swiftPM.swiftCompilerFlags =
-        (options.swiftPM.swiftCompilerFlags ?? []) + ["-module-cache-path", globalModuleCache.path]
+      options.swiftPMOrDefault.swiftCompilerFlags =
+        (options.swiftPMOrDefault.swiftCompilerFlags ?? []) + ["-module-cache-path", globalModuleCache.path]
     }
     options.backgroundIndexing = enableBackgroundIndexing
 
