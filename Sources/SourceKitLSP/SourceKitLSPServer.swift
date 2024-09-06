@@ -842,6 +842,7 @@ extension SourceKitLSPServer {
       )
     )
     logger.log("Creating workspace at \(workspaceFolder.forLogging) with options: \(options.forLogging)")
+    logger.logFullObjectInMultipleLogMessages(header: "Options for workspace", options)
 
     let workspace = await Workspace(
       sourceKitLSPServer: self,
@@ -923,7 +924,8 @@ extension SourceKitLSPServer {
       override: orLog("Parsing SourceKitLSPOptions", { try SourceKitLSPOptions(fromLSPAny: req.initializationOptions) })
     )
 
-    logger.log("Initialized SourceKit-LSP with options: \(self.options.forLogging)")
+    logger.log("Initialized SourceKit-LSP")
+    logger.logFullObjectInMultipleLogMessages(header: "SourceKit-LSP Options", self.options)
 
     await workspaceQueue.async { [testHooks] in
       if let workspaceFolders = req.workspaceFolders {
