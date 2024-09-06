@@ -16,6 +16,7 @@ import Dispatch
 import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
 import PackageLoading
 import SKLogging
 import SKOptions
@@ -873,6 +874,7 @@ extension SourceKitLSPServer {
   }
 
   func initialize(_ req: InitializeRequest) async throws -> InitializeResult {
+    logger.logFullObjectInMultipleLogMessages(header: "Initialize request", AnyRequestType(request: req))
     // If the client can handle `PeekDocumentsRequest`, they can enable the
     // experimental client capability `"workspace/peekDocuments"` through the `req.capabilities.experimental`.
     //
@@ -983,12 +985,14 @@ extension SourceKitLSPServer {
 
     assert(!self.workspaces.isEmpty)
 
-    return InitializeResult(
+    let result = InitializeResult(
       capabilities: await self.serverCapabilities(
         for: req.capabilities,
         registry: self.capabilityRegistry!
       )
     )
+    logger.logFullObjectInMultipleLogMessages(header: "Initialize response", AnyRequestType(request: req))
+    return result
   }
 
   func serverCapabilities(

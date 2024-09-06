@@ -16,17 +16,21 @@ import SKLogging
 
 // MARK: - RequestType
 
-fileprivate struct AnyRequestType: CustomLogStringConvertible {
+package struct AnyRequestType: CustomLogStringConvertible {
   let request: any RequestType
 
-  public var description: String {
+  package init(request: any RequestType) {
+    self.request = request
+  }
+
+  package var description: String {
     return """
       \(type(of: request).method)
       \(request.prettyPrintedJSON)
       """
   }
 
-  public var redactedDescription: String {
+  package var redactedDescription: String {
     return """
       \(type(of: request).method)
       \(request.prettyPrintedRedactedJSON)
@@ -42,17 +46,21 @@ extension RequestType {
 
 // MARK: - NotificationType
 
-fileprivate struct AnyNotificationType: CustomLogStringConvertible {
+package struct AnyNotificationType: CustomLogStringConvertible {
   let notification: any NotificationType
 
-  public var description: String {
+  package init(notification: any NotificationType) {
+    self.notification = notification
+  }
+
+  package var description: String {
     return """
       \(type(of: notification).method)
       \(notification.prettyPrintedJSON)
       """
   }
 
-  public var redactedDescription: String {
+  package var redactedDescription: String {
     return """
       \(type(of: notification).method)
       \(notification.prettyPrintedRedactedJSON)
@@ -68,17 +76,21 @@ extension NotificationType {
 
 // MARK: - ResponseType
 
-fileprivate struct AnyResponseType: CustomLogStringConvertible {
+package struct AnyResponseType: CustomLogStringConvertible {
   let response: any ResponseType
 
-  var description: String {
+  package init(response: any ResponseType) {
+    self.response = response
+  }
+
+  package var description: String {
     return """
       \(type(of: response))
       \(response.prettyPrintedJSON)
       """
   }
 
-  var redactedDescription: String {
+  package var redactedDescription: String {
     return """
       \(type(of: response))
       \(response.prettyPrintedRedactedJSON)

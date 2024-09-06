@@ -100,4 +100,22 @@ class PrettyPrintedRedactedJSONTests: XCTestCase {
       """
     )
   }
+
+  func testArrayOfStrings() {
+    struct Struct: Codable {
+      var value: [String]
+    }
+
+    XCTAssertEqual(
+      Struct(value: ["password", "admin"]).prettyPrintedRedactedJSON,
+      """
+      {
+        "value" : [
+          "<private 5e884898da280471>",
+          "<private 8c6976e5b5410415>"
+        ]
+      }
+      """
+    )
+  }
 }
