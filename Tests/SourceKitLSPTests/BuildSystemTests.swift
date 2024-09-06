@@ -99,7 +99,7 @@ actor TestBuildSystem: BuiltInBuildSystem {
     watchedFiles.remove(uri)
   }
 
-  func filesDidChange(_ events: [FileEvent]) {}
+  func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {}
 
   func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
     if buildSettingsByFile[uri] != nil {

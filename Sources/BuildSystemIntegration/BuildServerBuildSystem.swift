@@ -332,7 +332,7 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     }
   }
 
-  package func filesDidChange(_ events: [FileEvent]) {}
+  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) {}
 
   package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
     guard

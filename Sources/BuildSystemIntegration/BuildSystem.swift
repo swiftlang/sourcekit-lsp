@@ -199,7 +199,7 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   func unregisterForChangeNotifications(for: DocumentURI) async
 
   /// Called when files in the project change.
-  func filesDidChange(_ events: [FileEvent]) async
+  func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async
 
   func fileHandlingCapability(for uri: DocumentURI) async -> FileHandlingCapability
 

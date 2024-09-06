@@ -101,7 +101,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   }
 
   package func filesDidChange(_ events: [FileEvent]) async {
-    await self.buildSystem?.underlyingBuildSystem.filesDidChange(events)
+    await self.buildSystem?.send(BuildServerProtocol.DidChangeWatchedFilesNotification(changes: events))
   }
 
   /// Implementation of `MessageHandler`, handling notifications from the build system.

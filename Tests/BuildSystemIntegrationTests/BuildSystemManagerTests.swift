@@ -509,7 +509,7 @@ class ManualBuildSystem: BuiltInBuildSystem {
   var indexStorePath: AbsolutePath? { nil }
   var indexDatabasePath: AbsolutePath? { nil }
 
-  func filesDidChange(_ events: [FileEvent]) {}
+  func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) {}
 
   package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
     if map[uri] != nil {

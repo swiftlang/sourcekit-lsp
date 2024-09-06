@@ -746,8 +746,8 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     }
   }
 
-  package func filesDidChange(_ events: [FileEvent]) async {
-    if events.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
+  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {
+    if notification.changes.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
       logger.log("Reloading package because of file change")
       await orLog("Reloading package") {
         try await self.schedulePackageReload().value
@@ -757,7 +757,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     var filesWithUpdatedDependencies: Set<DocumentURI> = []
     // If a Swift file within a target is updated, reload all the other files within the target since they might be
     // referring to a function in the updated file.
-    for event in events {
+    for event in notification.changes {
       guard event.uri.fileURL?.pathExtension == "swift", let targets = fileToTargets[event.uri] else {
         continue
       }
@@ -775,7 +775,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     // directory outside the source tree.
     // If we have background indexing enabled, this is not necessary because we call `fileDependenciesUpdated` when
     // preparation of a target finishes.
-    if !isForIndexBuild, events.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" }) {
+    if !isForIndexBuild, notification.changes.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" }) {
       filesWithUpdatedDependencies.formUnion(self.fileToTargets.keys)
     }
     await self.fileDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)

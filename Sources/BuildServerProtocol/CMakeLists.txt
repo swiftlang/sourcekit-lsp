@@ -1,5 +1,6 @@
 add_library(BuildServerProtocol STATIC
   BuildTargets.swift
+  DidChangeWatchedFilesNotification.swift
   FileOptions.swift
   InitializeBuild.swift
   Messages.swift

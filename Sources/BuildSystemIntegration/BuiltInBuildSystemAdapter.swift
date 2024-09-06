@@ -79,6 +79,8 @@ actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
     // sent. We can only do this once all requests to the build system have been migrated and we can implement proper
     // dependency management between the BSP messages
     switch notification {
+    case let notification as DidChangeWatchedFilesNotification:
+      await self.underlyingBuildSystem.didChangeWatchedFiles(notification: notification)
     default:
       logger.error("Ignoring unknown notification \(type(of: notification).method) from SourceKit-LSP")
     }

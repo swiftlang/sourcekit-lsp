@@ -212,8 +212,8 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     }
   }
 
-  package func filesDidChange(_ events: [FileEvent]) async {
-    if events.contains(where: { self.fileEventShouldTriggerCompilationDatabaseReload(event: $0) }) {
+  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {
+    if notification.changes.contains(where: { self.fileEventShouldTriggerCompilationDatabaseReload(event: $0) }) {
       await self.reloadCompilationDatabase()
     }
   }
