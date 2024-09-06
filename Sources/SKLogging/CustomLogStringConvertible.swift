@@ -64,7 +64,8 @@ extension String {
   /// A hash value that can be logged in a redacted description without
   /// disclosing any private information about the string.
   package var hashForLogging: String {
-    return Insecure.MD5.hash(data: Data(self.utf8)).description
+    let hash = SHA256.hash(data: Data(self.utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
+    return "<private \(hash)>"
   }
 }
 
@@ -86,58 +87,51 @@ extension Optional where Wrapped: CustomLogStringConvertible {
   }
 }
 
-/// A JSON-like description of the object.
-public func recursiveDescription(of subject: Any) -> String {
-  return "{"
-    + Mirror(reflecting: subject).children.map { (key, value) in
-      "\(key ?? "<nil>"): \(String(describing: value))"
-    }.joined(separator: ", ")
-    + "}"
-}
-
-fileprivate protocol OptionalProtocol {
-  associatedtype Wrapped
-  var asOptional: Wrapped? { get }
-}
-extension Optional: OptionalProtocol {
-  var asOptional: Wrapped? { self }
-}
-
-/// A JSON-like description of the object that shows trivial values but redacts values that might contain sensitive
-/// information.
-public func recursiveRedactedDescription(of value: Any) -> String {
-  switch value {
-  case let value as Bool:
-    return value.description
-  case let value as Int:
-    return value.description
-  case let value as Double:
-    return value.description
-  case let value as String:
-    return value.hashForLogging
-  case let value as any OptionalProtocol:
-    if let value = value.asOptional {
-      return recursiveRedactedDescription(of: value)
-    } else {
-      return "nil"
+extension Encodable {
+  package var prettyPrintedJSON: String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting.insert(.prettyPrinted)
+    encoder.outputFormatting.insert(.sortedKeys)
+    guard let data = try? encoder.encode(self) else {
+      return "\(self)"
     }
-  default:
-    break
+    guard let string = String(data: data, encoding: .utf8) else {
+      return "\(self)"
+    }
+    // Don't escape '/'. Most JSON readers don't need it escaped and it makes
+    // paths a lot easier to read and copy-paste.
+    return string.replacingOccurrences(of: "\\/", with: "/")
   }
 
-  let children = Mirror(reflecting: value).children.sorted { $0.label ?? "" < $1.label ?? "" }
-  if !children.isEmpty {
-    let childrenKeyValuePairs = children.map { (label, value) -> String in
-      let label = label ?? "<nil>"
-      let value =
-        if let value = value as? any CustomLogStringConvertible {
-          value.redactedDescription
-        } else {
-          recursiveRedactedDescription(of: value)
-        }
-      return "\(label): \(value)"
+  package var prettyPrintedRedactedJSON: String {
+    func redact(subject: Any) -> Any {
+      if let subject = subject as? [String: Any] {
+        return subject.mapValues { redact(subject: $0) }
+      } else if let subject = subject as? [Any] {
+        return subject.map { redact(subject: $0) }
+      } else if let subject = subject as? String {
+        return subject.hashForLogging
+      } else if let subject = subject as? Int {
+        return subject
+      } else if let subject = subject as? Double {
+        return subject
+      } else if let subject = subject as? Bool {
+        return subject
+      } else {
+        return "<private>"
+      }
     }
-    return "{" + childrenKeyValuePairs.joined(separator: ", ") + "}"
+
+    guard let encoded = try? JSONEncoder().encode(self),
+      let jsonObject = try? JSONSerialization.jsonObject(with: encoded),
+      let data = try? JSONSerialization.data(
+        withJSONObject: redact(subject: jsonObject),
+        options: [.prettyPrinted, .sortedKeys]
+      ),
+      let string = String(data: data, encoding: .utf8)
+    else {
+      return "<private>"
+    }
+    return string
   }
-  return "<private>"
 }

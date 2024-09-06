@@ -21,7 +21,7 @@ import struct TSCBasic.AbsolutePath
 ///
 /// See `ConfigurationFile.md` for a description of the configuration file's behavior.
 public struct SourceKitLSPOptions: Sendable, Codable, Equatable, CustomLogStringConvertible {
-  public struct SwiftPMOptions: Sendable, Codable, Equatable, CustomLogStringConvertible {
+  public struct SwiftPMOptions: Sendable, Codable, Equatable {
     /// Build configuration (debug|release).
     ///
     /// Equivalent to SwiftPM's `--configuration` option.
@@ -94,17 +94,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, CustomLogString
         disableSandbox: override?.disableSandbox ?? base.disableSandbox
       )
     }
-
-    public var description: String {
-      recursiveDescription(of: self)
-    }
-
-    public var redactedDescription: String {
-      recursiveRedactedDescription(of: self)
-    }
   }
 
-  public struct CompilationDatabaseOptions: Sendable, Codable, Equatable, CustomLogStringConvertible {
+  public struct CompilationDatabaseOptions: Sendable, Codable, Equatable {
     /// Additional paths to search for a compilation database, relative to a workspace root.
     public var searchPaths: [String]?
 
@@ -118,17 +110,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, CustomLogString
     ) -> CompilationDatabaseOptions {
       return CompilationDatabaseOptions(searchPaths: override?.searchPaths ?? base.searchPaths)
     }
-
-    public var description: String {
-      recursiveDescription(of: self)
-    }
-
-    public var redactedDescription: String {
-      recursiveRedactedDescription(of: self)
-    }
   }
 
-  public struct FallbackBuildSystemOptions: Sendable, Codable, Equatable, CustomLogStringConvertible {
+  public struct FallbackBuildSystemOptions: Sendable, Codable, Equatable {
     public var cCompilerFlags: [String]?
     public var cxxCompilerFlags: [String]?
     public var swiftCompilerFlags: [String]?
@@ -157,17 +141,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, CustomLogString
         sdk: override?.sdk ?? base.sdk
       )
     }
-
-    public var description: String {
-      recursiveDescription(of: self)
-    }
-
-    public var redactedDescription: String {
-      recursiveRedactedDescription(of: self)
-    }
   }
 
-  public struct IndexOptions: Sendable, Codable, Equatable, CustomLogStringConvertible {
+  public struct IndexOptions: Sendable, Codable, Equatable {
     public var indexStorePath: String?
     public var indexDatabasePath: String?
     public var indexPrefixMap: [String: String]?
@@ -210,17 +186,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, CustomLogString
         updateIndexStoreTimeout: override?.updateIndexStoreTimeout ?? base.updateIndexStoreTimeout
       )
     }
-
-    public var description: String {
-      recursiveDescription(of: self)
-    }
-
-    public var redactedDescription: String {
-      recursiveRedactedDescription(of: self)
-    }
   }
 
-  public struct LoggingOptions: Sendable, Codable, Equatable, CustomLogStringConvertible {
+  public struct LoggingOptions: Sendable, Codable, Equatable {
     /// The level from which one onwards log messages should be written.
     public var level: String?
     /// Whether potentially sensitive information should be redacted.
@@ -239,14 +207,6 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, CustomLogString
         level: override?.level ?? base.level,
         privacyLevel: override?.privacyLevel ?? base.privacyLevel
       )
-    }
-
-    public var description: String {
-      recursiveDescription(of: self)
-    }
-
-    public var redactedDescription: String {
-      recursiveRedactedDescription(of: self)
     }
   }
 
@@ -477,10 +437,10 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, CustomLogString
   }
 
   public var description: String {
-    recursiveDescription(of: self)
+    self.prettyPrintedJSON
   }
 
   public var redactedDescription: String {
-    recursiveRedactedDescription(of: self)
+    self.prettyPrintedRedactedJSON
   }
 }

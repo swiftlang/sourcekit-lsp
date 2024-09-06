@@ -14,23 +14,6 @@ import Foundation
 import LanguageServerProtocol
 import SKLogging
 
-fileprivate extension Encodable {
-  var prettyPrintJSON: String {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting.insert(.prettyPrinted)
-    encoder.outputFormatting.insert(.sortedKeys)
-    guard let data = try? encoder.encode(self) else {
-      return "\(self)"
-    }
-    guard let string = String(data: data, encoding: .utf8) else {
-      return "\(self)"
-    }
-    // Don't escape '/'. Most JSON readers don't need it escaped and it makes
-    // paths a lot easier to read and copy-paste.
-    return string.replacingOccurrences(of: "\\/", with: "/")
-  }
-}
-
 // MARK: - RequestType
 
 fileprivate struct AnyRequestType: CustomLogStringConvertible {
@@ -39,12 +22,15 @@ fileprivate struct AnyRequestType: CustomLogStringConvertible {
   public var description: String {
     return """
       \(type(of: request).method)
-      \(request.prettyPrintJSON)
+      \(request.prettyPrintedJSON)
       """
   }
 
   public var redactedDescription: String {
-    return "\(type(of: request).method)"
+    return """
+      \(type(of: request).method)
+      \(request.prettyPrintedRedactedJSON)
+      """
   }
 }
 
@@ -62,12 +48,15 @@ fileprivate struct AnyNotificationType: CustomLogStringConvertible {
   public var description: String {
     return """
       \(type(of: notification).method)
-      \(notification.prettyPrintJSON)
+      \(notification.prettyPrintedJSON)
       """
   }
 
   public var redactedDescription: String {
-    return "\(type(of: notification).method)"
+    return """
+      \(type(of: notification).method)
+      \(notification.prettyPrintedRedactedJSON)
+      """
   }
 }
 
@@ -85,13 +74,14 @@ fileprivate struct AnyResponseType: CustomLogStringConvertible {
   var description: String {
     return """
       \(type(of: response))
-      \(response.prettyPrintJSON)
+      \(response.prettyPrintedJSON)
       """
   }
 
   var redactedDescription: String {
     return """
       \(type(of: response))
+      \(response.prettyPrintedRedactedJSON)
       """
   }
 }
