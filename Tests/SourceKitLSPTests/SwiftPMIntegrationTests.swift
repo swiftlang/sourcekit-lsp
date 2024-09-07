@@ -10,9 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
 import SKTestSupport
+import SourceKitLSP
 import XCTest
 
 final class SwiftPMIntegrationTests: XCTestCase {
@@ -211,6 +213,8 @@ final class SwiftPMIntegrationTests: XCTestCase {
 
     let (uri, positions) = try project.openDocument("b.swift")
 
+    try await project.testClient.send(PollIndexRequest())
+
     let result = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
@@ -286,6 +290,63 @@ final class SwiftPMIntegrationTests: XCTestCase {
     XCTAssertEqual(
       diagnostics.fullReport?.items.map(\.message),
       ["Cannot convert value of type 'Int' to specified type 'UnsafeRawPointer'"]
+    )
+  }
+
+  func testProvideSyntacticFunctionalityWhilePackageIsLoading() async throws {
+    let receivedDocumentSymbolsReply = WrappedSemaphore(name: "Received document symbols reply")
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": ""
+      ],
+      testHooks: TestHooks(
+        swiftpmTestHooks: SwiftPMTestHooks(reloadPackageDidStart: {
+          XCTAssertNoThrow(try? receivedDocumentSymbolsReply.waitOrThrow())
+        })
+      ),
+      pollIndex: false
+    )
+    let (uri, _) = try project.openDocument("Test.swift")
+    _ = try await project.testClient.send(DocumentSymbolRequest(textDocument: TextDocumentIdentifier(uri)))
+    receivedDocumentSymbolsReply.signal()
+  }
+
+  func testDiagnosticsGetRefreshedAfterPackageLoadingFinishes() async throws {
+    let receivedInitialDiagnosticsReply = WrappedSemaphore(name: "Received initial diagnostics reply")
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": """
+        let x: String = 1
+        """
+      ],
+      testHooks: TestHooks(
+        swiftpmTestHooks: SwiftPMTestHooks(reloadPackageDidStart: {
+          XCTAssertNoThrow(try? receivedInitialDiagnosticsReply.waitOrThrow())
+        })
+      ),
+      pollIndex: false
+    )
+    let diagnosticRefreshRequestReceived = self.expectation(description: "DiagnosticsRefreshRequest received")
+    project.testClient.handleSingleRequest { (request: DiagnosticsRefreshRequest) in
+      diagnosticRefreshRequestReceived.fulfill()
+      return VoidResponse()
+    }
+
+    let (uri, _) = try project.openDocument("Test.swift")
+    let diagnosticsBeforePackageLoading = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(diagnosticsBeforePackageLoading.fullReport?.items, [])
+    receivedInitialDiagnosticsReply.signal()
+    try await Task.sleep(for: .seconds(1))
+
+    try await fulfillmentOfOrThrow([diagnosticRefreshRequestReceived])
+    let diagnosticsAfterPackageLoading = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(
+      diagnosticsAfterPackageLoading.fullReport?.items.map(\.message),
+      ["Cannot convert value of type 'Int' to specified type 'String'"]
     )
   }
 }

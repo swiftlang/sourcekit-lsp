@@ -107,7 +107,7 @@ package final class AsyncQueue<TaskMetadata: DependencyTracker>: Sendable {
     @_inheritActorContext operation: @escaping @Sendable () async -> Success
   ) -> Task<Success, Never> {
     let throwingTask = asyncThrowing(priority: priority, metadata: metadata, operation: operation)
-    return Task {
+    return Task(priority: priority) {
       do {
         return try await throwingTask.valuePropagatingCancellation
       } catch {
