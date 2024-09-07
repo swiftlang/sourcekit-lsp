@@ -965,7 +965,7 @@ final class BackgroundIndexingTests: XCTestCase {
 
   func testUseBuildFlagsDuringPreparation() async throws {
     var options = SourceKitLSPOptions.testDefault()
-    options.swiftPM.swiftCompilerFlags = ["-D", "MY_FLAG"]
+    options.swiftPMOrDefault.swiftCompilerFlags = ["-D", "MY_FLAG"]
     let project = try await SwiftPMTestProject(
       files: [
         "Lib/Lib.swift": """
@@ -1390,7 +1390,7 @@ final class BackgroundIndexingTests: XCTestCase {
 
     var options = SourceKitLSPOptions.testDefault()
     options.backgroundPreparationMode = SourceKitLSPOptions.BackgroundPreparationMode.enabled.rawValue
-    options.index.updateIndexStoreTimeout = 1 /* second */
+    options.indexOrDefault.updateIndexStoreTimeout = 1 /* second */
 
     let dateStarted = Date()
     _ = try await SwiftPMTestProject(

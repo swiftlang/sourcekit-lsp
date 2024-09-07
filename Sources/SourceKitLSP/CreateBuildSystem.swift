@@ -48,7 +48,9 @@ func createBuildSystem(
   func createCompilationDatabaseBuildSystem(rootPath: AbsolutePath) -> CompilationDatabaseBuildSystem? {
     return CompilationDatabaseBuildSystem(
       projectRoot: rootPath,
-      searchPaths: (options.compilationDatabase.searchPaths ?? []).compactMap { try? RelativePath(validating: $0) }
+      searchPaths: (options.compilationDatabaseOrDefault.searchPaths ?? []).compactMap {
+        try? RelativePath(validating: $0)
+      }
     )
   }
 

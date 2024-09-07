@@ -277,10 +277,12 @@ struct SourceKitLSP: AsyncParsableCommand {
     }
 
     let globalConfigurationOptions = globalConfigurationOptions
-    if let logLevelStr = globalConfigurationOptions.logging.level, let logLevel = NonDarwinLogLevel(logLevelStr) {
+    if let logLevelStr = globalConfigurationOptions.loggingOrDefault.level,
+      let logLevel = NonDarwinLogLevel(logLevelStr)
+    {
       LogConfig.logLevel.value = logLevel
     }
-    if let privacyLevelStr = globalConfigurationOptions.logging.privacyLevel,
+    if let privacyLevelStr = globalConfigurationOptions.loggingOrDefault.privacyLevel,
       let privacyLevel = NonDarwinLogPrivacy(privacyLevelStr)
     {
       LogConfig.privacyLevel.value = privacyLevel
