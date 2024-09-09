@@ -265,8 +265,8 @@ extension BuildSystemManager {
     return settings
   }
 
-  package func generateBuildGraph() async throws {
-    try await self.buildSystem?.generateBuildGraph()
+  package func scheduleBuildGraphGeneration() async throws {
+    try await self.buildSystem?.scheduleBuildGraphGeneration()
   }
 
   package func waitForUpToDateBuildGraph() async {

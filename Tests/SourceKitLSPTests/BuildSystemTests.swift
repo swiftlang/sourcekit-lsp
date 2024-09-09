@@ -73,7 +73,7 @@ actor TestBuildSystem: BuildSystem {
     throw PrepareNotSupportedError()
   }
 
-  func generateBuildGraph() {}
+  func scheduleBuildGraphGeneration() {}
 
   package func waitForUpToDateBuildGraph() async {}
 
