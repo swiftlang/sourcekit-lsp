@@ -379,6 +379,10 @@ public struct SourceKitLSPOptions: Sendable, Codable {
     )
     self.generatedFilesPath = try container.decodeIfPresent(String.self, forKey: CodingKeys.generatedFilesPath)
     self.backgroundIndexing = try container.decodeIfPresent(Bool.self, forKey: CodingKeys.backgroundIndexing)
+    self.backgroundPreparationMode = try container.decodeIfPresent(
+      String.self,
+      forKey: CodingKeys.backgroundPreparationMode
+    )
     self.experimentalFeatures = try container.decodeIfPresent(
       Set<ExperimentalFeature>.self,
       forKey: CodingKeys.experimentalFeatures
@@ -390,6 +394,10 @@ public struct SourceKitLSPOptions: Sendable, Codable {
     self.workDoneProgressDebounceDuration = try container.decodeIfPresent(
       Double.self,
       forKey: CodingKeys.workDoneProgressDebounceDuration
+    )
+    self.sourcekitdRequestTimeout = try container.decodeIfPresent(
+      Double.self,
+      forKey: CodingKeys.sourcekitdRequestTimeout
     )
   }
 }
