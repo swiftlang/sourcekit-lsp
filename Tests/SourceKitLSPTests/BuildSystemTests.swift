@@ -34,6 +34,12 @@ actor TestBuildSystem: BuiltInBuildSystem {
     self.delegate = delegate
   }
 
+  weak var messageHandler: BuiltInBuildSystemMessageHandler?
+
+  func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
+    self.messageHandler = messageHandler
+  }
+
   /// Build settings by file.
   private var buildSettingsByFile: [DocumentURI: FileBuildSettings] = [:]
 

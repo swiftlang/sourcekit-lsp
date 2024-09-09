@@ -47,6 +47,12 @@ package actor CompilationDatabaseBuildSystem {
     self.delegate = delegate
   }
 
+  package weak var messageHandler: BuiltInBuildSystemMessageHandler?
+
+  package func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
+    self.messageHandler = messageHandler
+  }
+
   package let projectRoot: AbsolutePath
 
   let searchPaths: [RelativePath]

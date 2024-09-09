@@ -119,6 +119,11 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   ///   context.
   func setDelegate(_ delegate: BuildSystemDelegate?) async
 
+  /// Set the message handler that is used to send messages from the build system to SourceKit-LSP.
+  // FIXME: (BSP Migration) This should be set in the initializer but can't right now because BuiltInBuildSystemAdapter is not
+  // responsible for creating the build system.
+  func setMessageHandler(_ messageHandler: BuiltInBuildSystemMessageHandler) async
+
   /// Whether the build system is capable of preparing a target for indexing, ie. if the `prepare` methods has been
   /// implemented.
   var supportsPreparation: Bool { get }

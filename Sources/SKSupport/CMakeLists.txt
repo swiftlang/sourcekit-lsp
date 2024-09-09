@@ -9,6 +9,7 @@ add_library(SKSupport STATIC
   ExperimentalFeatures.swift
   FileSystem.swift
   LineTable.swift
+  LocalConnection.swift
   Process+Run.swift
   SwitchableProcessResultExitStatus.swift
 )
@@ -19,6 +20,7 @@ target_link_libraries(SKSupport PUBLIC
 )
 target_link_libraries(SKSupport PRIVATE
   LanguageServerProtocol
+  LanguageServerProtocolJSONRPC
   SKLogging
   SwiftExtensions
   TSCBasic

@@ -4,6 +4,7 @@ add_library(BuildSystemIntegration STATIC
   BuildSystem.swift
   BuildSystemDelegate.swift
   BuildSystemManager.swift
+  BuiltInBuildSystemAdapter.swift
   CompilationDatabase.swift
   CompilationDatabaseBuildSystem.swift
   FallbackBuildSystem.swift

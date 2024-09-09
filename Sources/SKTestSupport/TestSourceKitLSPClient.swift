@@ -431,35 +431,3 @@ package struct DocumentPositions {
     return positions.keys.sorted()
   }
 }
-
-// MARK: - WeakMessageHelper
-
-/// Wrapper around a weak `MessageHandler`.
-///
-/// This allows us to set the ``TestSourceKitLSPClient`` as the message handler of
-/// `SourceKitLSPServer` without retaining it.
-private final class WeakMessageHandler: MessageHandler, Sendable {
-  // `nonisolated(unsafe)` is fine because `handler` is never modified, only if the weak reference is deallocated, which
-  // is atomic.
-  private nonisolated(unsafe) weak var handler: (any MessageHandler)?
-
-  init(_ handler: any MessageHandler) {
-    self.handler = handler
-  }
-
-  func handle(_ params: some LanguageServerProtocol.NotificationType) {
-    handler?.handle(params)
-  }
-
-  func handle<Request: RequestType>(
-    _ params: Request,
-    id: LanguageServerProtocol.RequestID,
-    reply: @Sendable @escaping (LanguageServerProtocol.LSPResult<Request.Response>) -> Void
-  ) {
-    guard let handler = handler else {
-      reply(.failure(.unknown("Handler has been deallocated")))
-      return
-    }
-    handler.handle(params, id: id, reply: reply)
-  }
-}

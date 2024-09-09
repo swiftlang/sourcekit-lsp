@@ -457,6 +457,12 @@ class ManualBuildSystem: BuiltInBuildSystem {
     self.delegate = delegate
   }
 
+  weak var messageHandler: BuiltInBuildSystemMessageHandler?
+
+  func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
+    self.messageHandler = messageHandler
+  }
+
   package nonisolated var supportsPreparation: Bool { false }
 
   func buildSettings(for uri: DocumentURI, in buildTarget: ConfiguredTarget, language: Language) -> FileBuildSettings? {

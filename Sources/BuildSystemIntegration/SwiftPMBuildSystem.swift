@@ -130,6 +130,12 @@ package actor SwiftPMBuildSystem {
     self.delegate = delegate
   }
 
+  package weak var messageHandler: BuiltInBuildSystemMessageHandler?
+
+  package func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
+    self.messageHandler = messageHandler
+  }
+
   /// This callback is informed when `reloadPackage` starts and ends executing.
   private var reloadPackageStatusCallback: (ReloadPackageStatus) async -> Void
 
