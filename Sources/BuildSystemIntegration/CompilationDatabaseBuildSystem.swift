@@ -133,7 +133,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     throw PrepareNotSupportedError()
   }
 
-  package func generateBuildGraph() {}
+  package func scheduleBuildGraphGeneration() {}
 
   package func waitForUpToDateBuildGraph() async {}
 

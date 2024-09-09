@@ -365,10 +365,11 @@ package actor SwiftPMBuildSystem {
 extension SwiftPMBuildSystem {
   /// (Re-)load the package settings by parsing the manifest and resolving all the targets and
   /// dependencies.
-  package func reloadPackage() async throws {
-    try await packageLoadingQueue.asyncThrowing {
+  @discardableResult
+  package func schedulePackageReload() -> Task<Void, Swift.Error> {
+    return packageLoadingQueue.asyncThrowing {
       try await self.reloadPackageImpl()
-    }.valuePropagatingCancellation
+    }
   }
 
   /// - Important: Must only be called on `packageLoadingQueue`.
@@ -549,8 +550,8 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
     return []
   }
 
-  package func generateBuildGraph() async throws {
-    try await self.reloadPackage()
+  package func scheduleBuildGraphGeneration() async throws {
+    self.schedulePackageReload()
   }
 
   package func waitForUpToDateBuildGraph() async {
@@ -743,7 +744,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
     if events.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
       logger.log("Reloading package because of file change")
       await orLog("Reloading package") {
-        try await self.reloadPackage()
+        try await self.schedulePackageReload().value
       }
     }
 

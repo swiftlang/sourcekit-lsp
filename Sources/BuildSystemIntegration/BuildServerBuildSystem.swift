@@ -281,7 +281,7 @@ extension BuildServerBuildSystem: BuildSystem {
     return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }
 
-  package func generateBuildGraph() {}
+  package func scheduleBuildGraphGeneration() {}
 
   package func waitForUpToDateBuildGraph() async {}
 

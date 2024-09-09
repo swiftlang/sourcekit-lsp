@@ -83,7 +83,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
-      await assertThrowsError(try await buildSystem.generateBuildGraph())
+      await assertThrowsError(try await buildSystem.schedulePackageReload().value)
     }
   }
 
@@ -144,7 +144,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      try await swiftpmBuildSystem.schedulePackageReload().value
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
@@ -209,7 +209,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      try await swiftpmBuildSystem.schedulePackageReload().value
 
       let aPlusSomething = packageRoot.appending(components: "Sources", "lib", "a+something.swift")
       let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
@@ -272,7 +272,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         options: SourceKitLSPOptions(swiftPM: options),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      try await swiftpmBuildSystem.schedulePackageReload().value
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
@@ -354,7 +354,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      try await swiftpmBuildSystem.schedulePackageReload().value
 
       let source = try resolveSymlinks(packageRoot.appending(component: "Package.swift"))
       let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: source.asURI, language: .swift))
@@ -391,7 +391,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      try await swiftpmBuildSystem.schedulePackageReload().value
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
@@ -440,7 +440,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      try await swiftpmBuildSystem.schedulePackageReload().value
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
@@ -495,7 +495,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      try await swiftpmBuildSystem.schedulePackageReload().value
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
@@ -539,7 +539,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      try await swiftpmBuildSystem.schedulePackageReload().value
 
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
@@ -620,7 +620,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      try await swiftpmBuildSystem.schedulePackageReload().value
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
@@ -672,7 +672,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      try await swiftpmBuildSystem.schedulePackageReload().value
 
       let aswift1 = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let aswift2 =
@@ -740,7 +740,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      try await swiftpmBuildSystem.schedulePackageReload().value
 
       for file in [acpp, ah] {
         let args = try unwrap(
@@ -780,7 +780,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      try await swiftpmBuildSystem.schedulePackageReload().value
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
@@ -856,7 +856,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         options: SourceKitLSPOptions(),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      try await swiftpmBuildSystem.schedulePackageReload().value
 
       let aswift = packageRoot.appending(components: "Plugins", "MyPlugin", "a.swift")
       let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple

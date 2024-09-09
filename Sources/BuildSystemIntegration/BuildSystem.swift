@@ -137,8 +137,10 @@ package protocol BuildSystem: AnyObject, Sendable {
   /// Return the list of targets and run destinations that the given document can be built for.
   func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget]
 
-  /// Re-generate the build graph.
-  func generateBuildGraph() async throws
+  /// Schedule a task that re-generates the build graph. The function may return before the build graph has finished
+  /// being generated. If clients need to wait for an up-to-date build graph, they should call
+  /// `waitForUpToDateBuildGraph` afterwards.
+  func scheduleBuildGraphGeneration() async throws
 
   /// Wait until the build graph has been loaded.
   func waitForUpToDateBuildGraph() async
