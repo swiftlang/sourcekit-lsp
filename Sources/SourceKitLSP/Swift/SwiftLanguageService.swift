@@ -417,6 +417,9 @@ extension SwiftLanguageService {
   }
 
   package func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
+    guard (try? documentManager.openDocuments.contains(uri)) ?? false else {
+      return
+    }
     // Close and re-open the document internally to inform sourcekitd to update the compile command. At the moment
     // there's no better way to do this.
     // Schedule the document re-open in the SourceKit-LSP server. This ensures that the re-open happens exclusively with
@@ -425,6 +428,9 @@ extension SwiftLanguageService {
   }
 
   package func documentDependenciesUpdated(_ uri: DocumentURI) async {
+    guard (try? documentManager.openDocuments.contains(uri)) ?? false else {
+      return
+    }
     await orLog("Sending dependencyUpdated request to sourcekitd") {
       let req = sourcekitd.dictionary([
         keys.request: requests.dependencyUpdated

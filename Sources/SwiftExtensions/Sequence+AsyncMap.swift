@@ -25,6 +25,20 @@ extension Sequence {
     return result
   }
 
+  /// Just like `Sequence.flatMap` but allows an `async` transform function.
+  package func asyncFlatMap<SegmentOfResult: Sequence>(
+    @_inheritActorContext _ transform: @Sendable (Element) async throws -> SegmentOfResult
+  ) async rethrows -> [SegmentOfResult.Element] {
+    var result: [SegmentOfResult.Element] = []
+    result.reserveCapacity(self.underestimatedCount)
+
+    for element in self {
+      result += try await transform(element)
+    }
+
+    return result
+  }
+
   /// Just like `Sequence.compactMap` but allows an `async` transform function.
   package func asyncCompactMap<T>(
     @_inheritActorContext _ transform: @Sendable (Element) async throws -> T?

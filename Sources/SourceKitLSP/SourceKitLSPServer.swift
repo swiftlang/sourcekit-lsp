@@ -842,67 +842,6 @@ extension SourceKitLSPServer: MessageHandler {
   }
 }
 
-// MARK: - Build System Delegate
-
-extension SourceKitLSPServer: BuildSystemManagerDelegate {
-  private func affectedOpenDocumentsForChangeSet(
-    _ changes: Set<DocumentURI>,
-    _ documentManager: DocumentManager
-  ) -> Set<DocumentURI> {
-    // An empty change set is treated as if all open files have been modified.
-    guard !changes.isEmpty else {
-      return documentManager.openDocuments
-    }
-    return documentManager.openDocuments.intersection(changes)
-  }
-
-  /// Handle a build settings change notification from the `BuildSystem`.
-  /// This has two primary cases:
-  /// - Initial settings reported for a given file, now we can fully open it
-  /// - Changed settings for an already open file
-  package func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
-    for uri in changedFiles {
-      guard self.documentManager.openDocuments.contains(uri) else {
-        continue
-      }
-
-      guard let service = await self.workspaceForDocument(uri: uri)?.documentService(for: uri) else {
-        continue
-      }
-
-      await service.documentUpdatedBuildSettings(uri)
-    }
-  }
-
-  /// Handle a dependencies updated notification from the `BuildSystem`.
-  /// We inform the respective language services as long as the given file is open
-  /// (not queued for opening).
-  package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
-    // Split the changedFiles into the workspaces they belong to.
-    // Then invoke affectedOpenDocumentsForChangeSet for each workspace with its affected files.
-    let changedFilesAndWorkspace = await changedFiles.asyncMap {
-      return (uri: $0, workspace: await self.workspaceForDocument(uri: $0))
-    }
-    for workspace in self.workspaces {
-      let changedFilesForWorkspace = Set(changedFilesAndWorkspace.filter({ $0.workspace === workspace }).map(\.uri))
-      if changedFilesForWorkspace.isEmpty {
-        continue
-      }
-      for uri in self.affectedOpenDocumentsForChangeSet(changedFilesForWorkspace, self.documentManager) {
-        logger.log("Dependencies updated for opened file \(uri.forLogging)")
-        if let service = workspace.documentService(for: uri) {
-          await service.documentDependenciesUpdated(uri)
-        }
-      }
-    }
-  }
-
-  package func fileHandlingCapabilityChanged() {
-    logger.log("Updating URI to workspace because file handling capability of a workspace changed")
-    self.scheduleUpdateOfUriToWorkspace()
-  }
-}
-
 extension SourceKitLSPServer {
   nonisolated func logMessageToIndexLog(taskID: IndexTaskID, message: String) {
     var message: Substring = message[...]
@@ -980,6 +919,10 @@ extension SourceKitLSPServer {
       },
       reloadPackageStatusCallback: { [weak self] status in
         await self?.reloadPackageStatusCallback(status)
+      },
+      fileHandlingCapabilityChanged: { [weak self] in
+        logger.log("Updating URI to workspace because file handling capability of a workspace changed")
+        await self?.scheduleUpdateOfUriToWorkspace()
       }
     )
     if options.backgroundIndexingOrDefault, workspace.semanticIndexManager == nil,
@@ -1111,6 +1054,10 @@ extension SourceKitLSPServer {
           },
           reloadPackageStatusCallback: { [weak self] status in
             await self?.reloadPackageStatusCallback(status)
+          },
+          fileHandlingCapabilityChanged: { [weak self] in
+            logger.log("Updating URI to workspace because file handling capability of a workspace changed")
+            await self?.scheduleUpdateOfUriToWorkspace()
           }
         )
 
@@ -1119,9 +1066,6 @@ extension SourceKitLSPServer {
     }.value
 
     assert(!self.workspaces.isEmpty)
-    for workspace in self.workspaces {
-      await workspace.buildSystemManager.setDelegate(self)
-    }
 
     return InitializeResult(
       capabilities: await self.serverCapabilities(
@@ -1340,9 +1284,6 @@ extension SourceKitLSPServer {
     for workspace in self.workspaces {
       await workspace.buildSystemManager.setMainFilesProvider(nil)
       workspace.closeIndex()
-
-      // Break retain cycle with the BSM.
-      await workspace.buildSystemManager.setDelegate(nil)
     }
   }
 
@@ -1540,9 +1481,6 @@ extension SourceKitLSPServer {
               buildSystemKind: determineBuildSystem(forWorkspaceFolder: workspaceFolder.uri, options: self.options)
             )
           }
-        }
-        for workspace in newWorkspaces {
-          await workspace.buildSystemManager.setDelegate(self)
         }
         self.workspacesAndIsImplicit += newWorkspaces.map { (workspace: $0, isImplicit: false) }
       }
@@ -1940,7 +1878,7 @@ extension SourceKitLSPServer {
         == canonicalOriginatorLocation
     }
 
-    var locations = try await symbols.asyncMap { (symbol) -> [Location] in
+    var locations = try await symbols.asyncFlatMap { (symbol) -> [Location] in
       var locations: [Location]
       if let bestLocalDeclaration = symbol.bestLocalDeclaration,
         !(symbol.isDynamic ?? true),
@@ -1978,7 +1916,7 @@ extension SourceKitLSPServer {
       }
 
       return locations
-    }.flatMap { $0 }
+    }
 
     // Remove any duplicate locations. We might end up with duplicate locations when performing a definition request
     // on eg. `MyStruct()` when no explicit initializer is declared. In this case we get two symbol infos, one for the
