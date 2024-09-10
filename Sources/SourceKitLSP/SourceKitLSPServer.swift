@@ -942,7 +942,7 @@ extension SourceKitLSPServer {
   /// If the build system that was determined for the workspace does not satisfy `condition`, `nil` is returned.
   private func createWorkspace(
     workspaceFolder: DocumentURI,
-    buildSystemKind: (type: WorkspaceType, projectRoot: AbsolutePath)?
+    buildSystemKind: BuildSystemKind?
   ) async throws -> Workspace {
     guard let capabilityRegistry = capabilityRegistry else {
       struct NoCapabilityRegistryError: Error {}

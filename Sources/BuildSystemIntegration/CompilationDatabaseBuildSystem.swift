@@ -56,10 +56,6 @@ package actor CompilationDatabaseBuildSystem {
 
   let fileSystem: FileSystem
 
-  /// The URIs for which the delegate has registered for change notifications,
-  /// mapped to the language the delegate specified when registering for change notifications.
-  var watchedFiles: Set<DocumentURI> = []
-
   private var _indexStorePath: AbsolutePath?
   package var indexStorePath: AbsolutePath? {
     if let indexStorePath = _indexStorePath {
@@ -112,15 +108,11 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
   }
 
-  package func buildSettings(
-    for document: DocumentURI,
-    in buildTarget: BuildTargetIdentifier,
-    language: Language
-  ) async -> FileBuildSettings? {
-    guard let db = database(for: document),
-      let cmd = db[document].first
-    else { return nil }
-    return FileBuildSettings(
+  package func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse? {
+    guard let db = database(for: request.textDocument.uri), let cmd = db[request.textDocument.uri].first else {
+      return nil
+    }
+    return SourceKitOptionsResponse(
       compilerArguments: Array(cmd.commandLine.dropFirst()),
       workingDirectory: cmd.directory
     )
@@ -134,7 +126,7 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func inverseSources(_ request: InverseSourcesRequest) -> InverseSourcesResponse {
+  package func inverseSources(request: InverseSourcesRequest) -> InverseSourcesResponse {
     return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
   }
 
@@ -157,14 +149,10 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func registerForChangeNotifications(for uri: DocumentURI) async {
-    self.watchedFiles.insert(uri)
-  }
+  package func registerForChangeNotifications(for uri: DocumentURI) {}
 
   /// We don't support change watching.
-  package func unregisterForChangeNotifications(for uri: DocumentURI) {
-    self.watchedFiles.remove(uri)
-  }
+  package func unregisterForChangeNotifications(for uri: DocumentURI) {}
 
   private func database(for uri: DocumentURI) -> CompilationDatabase? {
     if let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) {
@@ -210,9 +198,7 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
       self.fileSystem
     )
 
-    if let delegate = self.delegate {
-      await delegate.fileBuildSettingsChanged(self.watchedFiles)
-    }
+    await messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildTargetNotification(changes: nil))
     for testFilesDidChangeCallback in testFilesDidChangeCallbacks {
       await testFilesDidChangeCallback()
     }

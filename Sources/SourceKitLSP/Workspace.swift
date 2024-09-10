@@ -145,7 +145,7 @@ package final class Workspace: Sendable {
     documentManager: DocumentManager,
     rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
-    buildSystemKind: (WorkspaceType, projectRoot: AbsolutePath)?,
+    buildSystemKind: BuildSystemKind?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     testHooks: TestHooks,

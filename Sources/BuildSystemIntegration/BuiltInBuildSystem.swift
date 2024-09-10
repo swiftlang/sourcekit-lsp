@@ -108,14 +108,10 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   ///
   /// Returns `nil` if the build system can't provide build settings for this
   /// file or if it hasn't computed build settings for the file yet.
-  func buildSettings(
-    for document: DocumentURI,
-    in target: BuildTargetIdentifier,
-    language: Language
-  ) async throws -> FileBuildSettings?
+  func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse?
 
   /// Return the list of targets that the given document can be built for.
-  func inverseSources(_ request: InverseSourcesRequest) async -> InverseSourcesResponse
+  func inverseSources(request: InverseSourcesRequest) async throws -> InverseSourcesResponse
 
   /// Schedule a task that re-generates the build graph. The function may return before the build graph has finished
   /// being generated. If clients need to wait for an up-to-date build graph, they should call

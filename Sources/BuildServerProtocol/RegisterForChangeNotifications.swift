@@ -40,11 +40,19 @@ public enum RegisterAction: String, Hashable, Codable, Sendable {
 /// build server to the language server when it detects
 /// changes to a registered files build settings.
 public struct FileOptionsChangedNotification: NotificationType {
+  public struct Options: ResponseType, Hashable {
+    /// The compiler options required for the requested file.
+    public var options: [String]
+
+    /// The working directory for the compile command.
+    public var workingDirectory: String?
+  }
+
   public static let method: String = "build/sourceKitOptionsChanged"
 
   /// The URI of the document that has changed settings.
   public var uri: URI
 
   /// The updated options for the registered file.
-  public var updatedOptions: SourceKitOptionsResult
+  public var updatedOptions: Options
 }

@@ -36,7 +36,7 @@ fileprivate extension WorkspaceType {
 func determineBuildSystem(
   forWorkspaceFolder workspaceFolder: DocumentURI,
   options: SourceKitLSPOptions
-) -> (WorkspaceType, projectRoot: AbsolutePath)? {
+) -> BuildSystemKind? {
   var buildSystemPreference: [WorkspaceType] = [
     .buildServer, .swiftPM, .compilationDatabase,
   ]
@@ -51,7 +51,11 @@ func determineBuildSystem(
   }
   for buildSystemType in buildSystemPreference {
     if let projectRoot = buildSystemType.buildSystemType.projectRoot(for: workspaceFolderPath, options: options) {
-      return (buildSystemType, projectRoot)
+      switch buildSystemType {
+      case .buildServer: return .buildServer(projectRoot: projectRoot)
+      case .compilationDatabase: return .compilationDatabase(projectRoot: projectRoot)
+      case .swiftPM: return .swiftPM(projectRoot: projectRoot)
+      }
     }
   }
 

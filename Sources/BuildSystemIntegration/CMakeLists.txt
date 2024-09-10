@@ -1,10 +1,10 @@
 
 add_library(BuildSystemIntegration STATIC
   BuildServerBuildSystem.swift
-  BuildSystem.swift
   BuildSystemDelegate.swift
   BuildSystemManager.swift
   BuildTargetIdentifierExtensions.swift
+  BuiltInBuildSystem.swift
   BuiltInBuildSystemAdapter.swift
   CompilationDatabase.swift
   CompilationDatabaseBuildSystem.swift
@@ -14,7 +14,8 @@ add_library(BuildSystemIntegration STATIC
   MainFilesProvider.swift
   PathPrefixMapping.swift
   SplitShellCommand.swift
-  SwiftPMBuildSystem.swift)
+  SwiftPMBuildSystem.swift
+  TestBuildSystem.swift)
 set_target_properties(BuildSystemIntegration PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 target_link_libraries(BuildSystemIntegration PUBLIC

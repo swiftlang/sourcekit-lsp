@@ -19,7 +19,7 @@ fileprivate let requestTypes: [_RequestType.Type] = [
   InverseSourcesRequest.self,
   RegisterForChanges.self,
   ShutdownBuild.self,
-  SourceKitOptions.self,
+  SourceKitOptionsRequest.self,
 ]
 
 fileprivate let notificationTypes: [NotificationType.Type] = [

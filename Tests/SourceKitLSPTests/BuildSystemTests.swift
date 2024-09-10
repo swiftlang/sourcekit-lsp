@@ -21,99 +21,6 @@ import TSCBasic
 import ToolchainRegistry
 import XCTest
 
-/// Build system to be used for testing BuildSystem and BuildSystemDelegate functionality with SourceKitLSPServer
-/// and other components.
-actor TestBuildSystem: BuiltInBuildSystem {
-  static func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath? {
-    return workspaceFolder
-  }
-
-  let projectRoot: AbsolutePath = try! AbsolutePath(validating: "/")
-  let indexStorePath: AbsolutePath? = nil
-  let indexDatabasePath: AbsolutePath? = nil
-
-  weak var delegate: BuildSystemDelegate?
-
-  func setDelegate(_ delegate: BuildSystemDelegate?) async {
-    self.delegate = delegate
-  }
-
-  /// Build settings by file.
-  private var buildSettingsByFile: [DocumentURI: FileBuildSettings] = [:]
-
-  /// Files currently being watched by our delegate.
-  private var watchedFiles: Set<DocumentURI> = []
-
-  func setBuildSettings(for uri: DocumentURI, to buildSettings: FileBuildSettings) {
-    buildSettingsByFile[uri] = buildSettings
-  }
-
-  nonisolated var supportsPreparation: Bool { false }
-
-  func buildSettings(
-    for document: DocumentURI,
-    in buildTarget: BuildTargetIdentifier,
-    language: Language
-  ) async throws -> FileBuildSettings? {
-    return buildSettingsByFile[document]
-  }
-
-  func defaultLanguage(for document: DocumentURI) async -> Language? {
-    return nil
-  }
-
-  func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
-    return nil
-  }
-
-  package func inverseSources(_ request: InverseSourcesRequest) -> InverseSourcesResponse {
-    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
-  }
-
-  func prepare(
-    targets: [BuildTargetIdentifier],
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
-  ) async throws {
-    throw PrepareNotSupportedError()
-  }
-
-  func scheduleBuildGraphGeneration() {}
-
-  package func waitForUpToDateBuildGraph() async {}
-
-  func topologicalSort(of targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
-    return nil
-  }
-
-  func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
-    return nil
-  }
-
-  func registerForChangeNotifications(for uri: DocumentURI) async {
-    watchedFiles.insert(uri)
-  }
-
-  func unregisterForChangeNotifications(for uri: DocumentURI) {
-    watchedFiles.remove(uri)
-  }
-
-  func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {}
-
-  func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    if buildSettingsByFile[uri] != nil {
-      return .handled
-    } else {
-      return .unhandled
-    }
-  }
-
-  func sourceFiles() async -> [SourceFileInfo] {
-    return []
-  }
-
-  func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {}
-}
-
 final class BuildSystemTests: XCTestCase {
 
   /// The mock client used to communicate with the SourceKit-LSP server.
@@ -138,16 +45,17 @@ final class BuildSystemTests: XCTestCase {
 
   override func setUp() async throws {
     testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
-    buildSystem = TestBuildSystem()
 
     let server = testClient.server
 
     let buildSystemManager = await BuildSystemManager(
-      testBuildSystem: buildSystem,
-      fallbackBuildSystem: FallbackBuildSystem(options: .init()),
-      mainFilesProvider: nil,
-      toolchainRegistry: ToolchainRegistry.forTesting
+      buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
+      toolchainRegistry: .forTesting,
+      options: .testDefault(),
+      swiftpmTestHooks: .init(),
+      reloadPackageStatusCallback: { _ in }
     )
+    buildSystem = try await unwrap(buildSystemManager.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
 
     self.workspace = await Workspace.forTesting(
       options: SourceKitLSPOptions.testDefault(),
@@ -184,7 +92,7 @@ final class BuildSystemTests: XCTestCase {
       }
       """
 
-    await buildSystem.setBuildSettings(for: doc, to: FileBuildSettings(compilerArguments: args))
+    await buildSystem.setBuildSettings(for: doc, to: SourceKitOptionsResponse(compilerArguments: args))
 
     let documentManager = await self.testClient.server.documentManager
 
@@ -196,10 +104,8 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
-    let newSettings = FileBuildSettings(compilerArguments: args + ["-DFOO"])
+    let newSettings = SourceKitOptionsResponse(compilerArguments: args + ["-DFOO"])
     await buildSystem.setBuildSettings(for: doc, to: newSettings)
-
-    await buildSystem.delegate?.fileBuildSettingsChanged([doc])
 
     try await repeatUntilExpectedResult {
       let refreshedDiags = try await testClient.nextDiagnosticsNotification(timeout: .seconds(1))
@@ -213,7 +119,7 @@ final class BuildSystemTests: XCTestCase {
       .buildSettings(for: doc, language: .swift)!
       .compilerArguments
 
-    await buildSystem.setBuildSettings(for: doc, to: FileBuildSettings(compilerArguments: args))
+    await buildSystem.setBuildSettings(for: doc, to: SourceKitOptionsResponse(compilerArguments: args))
 
     let text = """
       #if FOO
@@ -232,10 +138,8 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
-    let newSettings = FileBuildSettings(compilerArguments: args + ["-DFOO"])
+    let newSettings = SourceKitOptionsResponse(compilerArguments: args + ["-DFOO"])
     await buildSystem.setBuildSettings(for: doc, to: newSettings)
-
-    await buildSystem.delegate?.fileBuildSettingsChanged([doc])
 
     // No expected errors here because we fixed the settings.
     let diags2 = try await testClient.nextDiagnosticsNotification()
@@ -266,10 +170,8 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should see a diagnostic.
-    let newSettings = FileBuildSettings(compilerArguments: args)
+    let newSettings = SourceKitOptionsResponse(compilerArguments: args)
     await buildSystem.setBuildSettings(for: doc, to: newSettings)
-
-    await buildSystem.delegate?.fileBuildSettingsChanged([doc])
 
     let refreshedDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(refreshedDiags.diagnostics.count, 1)
@@ -280,10 +182,12 @@ final class BuildSystemTests: XCTestCase {
     let doc = DocumentURI(for: .swift)
 
     // Primary settings must be different than the fallback settings.
-    var primarySettings = await FallbackBuildSystem(options: SourceKitLSPOptions.FallbackBuildSystemOptions())
+    let fallbackSettings = await FallbackBuildSystem(options: SourceKitLSPOptions.FallbackBuildSystemOptions())
       .buildSettings(for: doc, language: .swift)!
-    primarySettings.isFallback = false
-    primarySettings.compilerArguments.append("-DPRIMARY")
+    let primarySettings = SourceKitOptionsResponse(
+      compilerArguments: fallbackSettings.compilerArguments + ["-DPRIMARY"],
+      workingDirectory: fallbackSettings.workingDirectory
+    )
 
     let text = """
         #if FOO
@@ -303,8 +207,6 @@ final class BuildSystemTests: XCTestCase {
 
     // Swap from fallback settings to primary build system settings.
     await buildSystem.setBuildSettings(for: doc, to: primarySettings)
-
-    await buildSystem.delegate?.fileBuildSettingsChanged([doc])
 
     // Two errors since `-DFOO` was not passed.
     let refreshedDiags = try await testClient.nextDiagnosticsNotification()

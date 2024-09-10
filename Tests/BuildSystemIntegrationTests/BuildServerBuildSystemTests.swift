@@ -66,10 +66,11 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testFileRegistration() async throws {
-
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "\(fileUrl) settings updated")
-    let buildSystemDelegate = TestDelegate(settingsExpectations: [DocumentURI(fileUrl): expectation])
+    let buildSystemDelegate = TestDelegate(targetExpectations: [
+      (DidChangeBuildTargetNotification(changes: nil), expectation)
+    ])
     defer {
       // BuildSystemManager has a weak reference to delegate. Keep it alive.
       _fixLifetime(buildSystemDelegate)
@@ -82,7 +83,6 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testBuildTargetsChanged() async throws {
-
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "target changed")
     let buildSystemDelegate = TestDelegate(targetExpectations: [
@@ -109,16 +109,13 @@ final class BuildServerBuildSystemTests: XCTestCase {
 }
 
 final class TestDelegate: BuildSystemDelegate, BuiltInBuildSystemMessageHandler {
-  let settingsExpectations: [DocumentURI: XCTestExpectation]
   let targetExpectations: [(DidChangeBuildTargetNotification, XCTestExpectation)]
   let dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation]
 
   package init(
-    settingsExpectations: [DocumentURI: XCTestExpectation] = [:],
     targetExpectations: [(DidChangeBuildTargetNotification, XCTestExpectation)] = [],
     dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation] = [:]
   ) {
-    self.settingsExpectations = settingsExpectations
     self.targetExpectations = targetExpectations
     self.dependenciesUpdatedExpectations = dependenciesUpdatedExpectations
   }
@@ -128,12 +125,6 @@ final class TestDelegate: BuildSystemDelegate, BuiltInBuildSystemMessageHandler 
       if expectedNotification == notification {
         expectation.fulfill()
       }
-    }
-  }
-
-  func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
-    for uri in changedFiles {
-      settingsExpectations[uri]?.fulfill()
     }
   }
 

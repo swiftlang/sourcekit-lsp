@@ -34,20 +34,35 @@ package protocol BuiltInBuildSystemMessageHandler: AnyObject, Sendable {
   func sendRequestToSourceKitLSP<R: RequestType>(_ request: R) async throws -> R.Response
 }
 
+package enum BuildSystemKind {
+  case buildServer(projectRoot: AbsolutePath)
+  case compilationDatabase(projectRoot: AbsolutePath)
+  case swiftPM(projectRoot: AbsolutePath)
+  case testBuildSystem(projectRoot: AbsolutePath)
+
+  package var projectRoot: AbsolutePath {
+    switch self {
+    case .buildServer(let projectRoot): return projectRoot
+    case .compilationDatabase(let projectRoot): return projectRoot
+    case .swiftPM(let projectRoot): return projectRoot
+    case .testBuildSystem(let projectRoot): return projectRoot
+    }
+  }
+}
+
 /// Create a build system of the given type.
 private func createBuildSystem(
-  ofType buildSystemType: WorkspaceType,
-  projectRoot: AbsolutePath,
+  buildSystemKind: BuildSystemKind,
   options: SourceKitLSPOptions,
   swiftpmTestHooks: SwiftPMTestHooks,
   toolchainRegistry: ToolchainRegistry,
   messageHandler: BuiltInBuildSystemMessageHandler,
   reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
 ) async -> BuiltInBuildSystem? {
-  switch buildSystemType {
-  case .buildServer:
+  switch buildSystemKind {
+  case .buildServer(let projectRoot):
     return await BuildServerBuildSystem(projectRoot: projectRoot, messageHandler: messageHandler)
-  case .compilationDatabase:
+  case .compilationDatabase(let projectRoot):
     return CompilationDatabaseBuildSystem(
       projectRoot: projectRoot,
       searchPaths: (options.compilationDatabaseOrDefault.searchPaths ?? []).compactMap {
@@ -55,7 +70,7 @@ private func createBuildSystem(
       },
       messageHandler: messageHandler
     )
-  case .swiftPM:
+  case .swiftPM(let projectRoot):
     return await SwiftPMBuildSystem(
       projectRoot: projectRoot,
       toolchainRegistry: toolchainRegistry,
@@ -64,6 +79,8 @@ private func createBuildSystem(
       reloadPackageStatusCallback: reloadPackageStatusCallback,
       testHooks: swiftpmTestHooks
     )
+  case .testBuildSystem(let projectRoot):
+    return TestBuildSystem(projectRoot: projectRoot, messageHandler: messageHandler)
   }
 }
 
@@ -77,21 +94,20 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
   private weak var messageHandler: (any BuiltInBuildSystemAdapterDelegate)?
 
   init?(
-    buildSystemKind: (WorkspaceType, projectRoot: AbsolutePath)?,
+    buildSystemKind: BuildSystemKind?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     swiftpmTestHooks: SwiftPMTestHooks,
     reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void,
     messageHandler: any BuiltInBuildSystemAdapterDelegate
   ) async {
-    guard let (buildSystemType, projectRoot) = buildSystemKind else {
+    guard let buildSystemKind else {
       return nil
     }
     self.messageHandler = messageHandler
 
     let buildSystem = await createBuildSystem(
-      ofType: buildSystemType,
-      projectRoot: projectRoot,
+      buildSystemKind: buildSystemKind,
       options: options,
       swiftpmTestHooks: swiftpmTestHooks,
       toolchainRegistry: toolchainRegistry,
@@ -103,15 +119,6 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
     }
 
     self.underlyingBuildSystem = buildSystem
-  }
-
-  /// - Important: For testing purposes only
-  init(
-    testBuildSystem: BuiltInBuildSystem,
-    messageHandler: any BuiltInBuildSystemAdapterDelegate
-  ) async {
-    self.underlyingBuildSystem = testBuildSystem
-    self.messageHandler = messageHandler
   }
 
   package func send<R: RequestType>(_ request: R) async throws -> R.Response {
@@ -133,6 +140,8 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
     switch request {
     case let request as InverseSourcesRequest:
       return try await handle(request, underlyingBuildSystem.inverseSources)
+    case let request as SourceKitOptionsRequest:
+      return try await handle(request, underlyingBuildSystem.sourceKitOptions)
     default:
       throw ResponseError.methodNotFound(R.method)
     }
