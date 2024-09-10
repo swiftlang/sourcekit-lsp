@@ -499,8 +499,8 @@ fileprivate extension Array<AnnotatedTestItem> {
 
 extension TestItem {
   fileprivate func prefixIDWithModuleName(workspace: Workspace) async -> TestItem {
-    guard let configuredTarget = await workspace.buildSystemManager.canonicalConfiguredTarget(for: self.location.uri),
-      let moduleName = await workspace.buildSystemManager.moduleName(for: self.location.uri, in: configuredTarget)
+    guard let canonicalTarget = await workspace.buildSystemManager.canonicalTarget(for: self.location.uri),
+      let moduleName = await workspace.buildSystemManager.moduleName(for: self.location.uri, in: canonicalTarget)
     else {
       return self
     }

@@ -47,6 +47,12 @@ package actor CompilationDatabaseBuildSystem {
     self.delegate = delegate
   }
 
+  package weak var messageHandler: BuiltInBuildSystemMessageHandler?
+
+  package func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
+    self.messageHandler = messageHandler
+  }
+
   package let projectRoot: AbsolutePath
 
   let searchPaths: [RelativePath]
@@ -93,7 +99,7 @@ package actor CompilationDatabaseBuildSystem {
   }
 }
 
-extension CompilationDatabaseBuildSystem: BuildSystem {
+extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
   package nonisolated var supportsPreparation: Bool { false }
 
   package var indexDatabasePath: AbsolutePath? {
@@ -102,7 +108,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
 
   package func buildSettings(
     for document: DocumentURI,
-    in buildTarget: ConfiguredTarget,
+    in buildTarget: BuildTargetIdentifier,
     language: Language
   ) async -> FileBuildSettings? {
     guard let db = database(for: document),
@@ -122,12 +128,12 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     return nil
   }
 
-  package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
+  package func inverseSources(_ request: InverseSourcesRequest) -> InverseSourcesResponse {
+    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
   }
 
   package func prepare(
-    targets: [ConfiguredTarget],
+    targets: [BuildTargetIdentifier],
     logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     throw PrepareNotSupportedError()
@@ -137,11 +143,11 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
 
   package func waitForUpToDateBuildGraph() async {}
 
-  package func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  package func topologicalSort(of targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil
   }
 
-  package func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  package func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil
   }
 
@@ -206,8 +212,8 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     }
   }
 
-  package func filesDidChange(_ events: [FileEvent]) async {
-    if events.contains(where: { self.fileEventShouldTriggerCompilationDatabaseReload(event: $0) }) {
+  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {
+    if notification.changes.contains(where: { self.fileEventShouldTriggerCompilationDatabaseReload(event: $0) }) {
       await self.reloadCompilationDatabase()
     }
   }

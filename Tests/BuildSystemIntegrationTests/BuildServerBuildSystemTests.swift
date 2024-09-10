@@ -86,34 +86,37 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "target changed")
-    let targetIdentifier = BuildTargetIdentifier(uri: try DocumentURI(string: "build://target/a"))
     let buildSystemDelegate = TestDelegate(targetExpectations: [
-      BuildTargetEvent(
-        target: targetIdentifier,
-        kind: .created,
-        data: .dictionary(["key": "value"])
-      ): expectation
+      (
+        DidChangeBuildTargetNotification(changes: [
+          BuildTargetEvent(
+            target: BuildTargetIdentifier(uri: try! URI(string: "build://target/a")),
+            kind: .created,
+            dataKind: nil,
+            data: LSPAny.dictionary(["key": "value"])
+          )
+        ]), expectation
+      )
     ])
     defer {
       // BuildSystemManager has a weak reference to delegate. Keep it alive.
       _fixLifetime(buildSystemDelegate)
     }
-    await buildSystem.setDelegate(buildSystemDelegate)
+    await buildSystem.setMessageHandler(buildSystemDelegate)
     await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
 
     try await fulfillmentOfOrThrow([expectation])
   }
 }
 
-final class TestDelegate: BuildSystemDelegate {
-
+final class TestDelegate: BuildSystemDelegate, BuiltInBuildSystemMessageHandler {
   let settingsExpectations: [DocumentURI: XCTestExpectation]
-  let targetExpectations: [BuildTargetEvent: XCTestExpectation]
+  let targetExpectations: [(DidChangeBuildTargetNotification, XCTestExpectation)]
   let dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation]
 
   package init(
     settingsExpectations: [DocumentURI: XCTestExpectation] = [:],
-    targetExpectations: [BuildTargetEvent: XCTestExpectation] = [:],
+    targetExpectations: [(DidChangeBuildTargetNotification, XCTestExpectation)] = [],
     dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation] = [:]
   ) {
     self.settingsExpectations = settingsExpectations
@@ -121,9 +124,11 @@ final class TestDelegate: BuildSystemDelegate {
     self.dependenciesUpdatedExpectations = dependenciesUpdatedExpectations
   }
 
-  func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
-    for event in changes {
-      targetExpectations[event]?.fulfill()
+  func didChangeBuildTarget(notification: DidChangeBuildTargetNotification) {
+    for (expectedNotification, expectation) in targetExpectations {
+      if expectedNotification == notification {
+        expectation.fulfill()
+      }
     }
   }
 
@@ -140,4 +145,17 @@ final class TestDelegate: BuildSystemDelegate {
   }
 
   func fileHandlingCapabilityChanged() {}
+
+  func sendRequestToSourceKitLSP<R: RequestType>(_ request: R) async throws -> R.Response {
+    throw ResponseError.methodNotFound(R.method)
+  }
+
+  func sendNotificationToSourceKitLSP(_ notification: some NotificationType) async {
+    switch notification {
+    case let notification as DidChangeBuildTargetNotification:
+      didChangeBuildTarget(notification: notification)
+    default:
+      break
+    }
+  }
 }

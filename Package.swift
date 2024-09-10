@@ -254,6 +254,7 @@ let package = Package(
       dependencies: [
         "CAtomics",
         "LanguageServerProtocol",
+        "LanguageServerProtocolJSONRPC",
         "SKLogging",
         "SwiftExtensions",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),

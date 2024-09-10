@@ -60,9 +60,9 @@ package typealias SwiftBuildTarget = SourceKitLSPAPI.BuildTarget
 package typealias BuildServerTarget = BuildServerProtocol.BuildTarget
 
 fileprivate extension BuildDestination {
-  /// A string that can be used to identify the build triple in `ConfiguredTarget.runDestinationID`.
+  /// A string that can be used to identify the build triple in a `BuildTargetIdentifier`.
   ///
-  /// `BuildSystemManager.canonicalConfiguredTarget` picks the canonical target based on alphabetical
+  /// `BuildSystemManager.canonicalBuildTargetIdentifier` picks the canonical target based on alphabetical
   /// ordering. We rely on the string "destination" being ordered before "tools" so that we prefer a
   /// `destination` (or "target") target over a `tools` (or "host") target.
   var id: String {
@@ -75,12 +75,62 @@ fileprivate extension BuildDestination {
   }
 }
 
-fileprivate extension ConfiguredTarget {
-  init(_ buildTarget: any SwiftBuildTarget) {
-    self.init(targetID: buildTarget.name, runDestinationID: buildTarget.destination.id)
+extension BuildTargetIdentifier {
+  fileprivate init(_ buildTarget: any SwiftBuildTarget) throws {
+    try self.init(target: buildTarget.name, destination: buildTarget.destination)
   }
 
-  static let forPackageManifest = ConfiguredTarget(targetID: "", runDestinationID: "")
+  /// - Important: *For testing only*
+  package init(target: String, destination: BuildDestination) throws {
+    var components = URLComponents()
+    components.scheme = "swiftpm"
+    components.host = "target"
+    components.queryItems = [
+      URLQueryItem(name: "target", value: target),
+      URLQueryItem(name: "destination", value: destination.id),
+    ]
+
+    struct FailedToConvertSwiftBuildTargetToUrlError: Swift.Error, CustomStringConvertible {
+      var target: String
+      var destination: String
+
+      var description: String {
+        return "Failed to generate URL for target: \(target), destination: \(destination)"
+      }
+    }
+
+    guard let url = components.url else {
+      throw FailedToConvertSwiftBuildTargetToUrlError(target: target, destination: destination.id)
+    }
+
+    self.init(uri: URI(url))
+  }
+
+  fileprivate static let forPackageManifest = BuildTargetIdentifier(uri: try! URI(string: "swiftpm://package-manifest"))
+
+  fileprivate var targetProperties: (target: String, runDestination: String) {
+    get throws {
+      struct InvalidTargetIdentifierError: Swift.Error, CustomStringConvertible {
+        var target: BuildTargetIdentifier
+
+        var description: String {
+          return "Invalid target identifier \(target)"
+        }
+      }
+      guard let components = URLComponents(url: self.uri.arbitrarySchemeURL, resolvingAgainstBaseURL: false) else {
+        throw InvalidTargetIdentifierError(target: self)
+      }
+      let target = components.queryItems?.last(where: { $0.name == "target" })?.value
+      let runDestination = components.queryItems?.last(where: { $0.name == "destination" })?.value
+
+      guard let target, let runDestination else {
+        throw InvalidTargetIdentifierError(target: self)
+      }
+
+      return (target, runDestination)
+    }
+  }
+
 }
 
 fileprivate let preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
@@ -128,6 +178,12 @@ package actor SwiftPMBuildSystem {
 
   package func setDelegate(_ delegate: BuildSystemIntegration.BuildSystemDelegate?) async {
     self.delegate = delegate
+  }
+
+  package weak var messageHandler: BuiltInBuildSystemMessageHandler?
+
+  package func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
+    self.messageHandler = messageHandler
   }
 
   /// This callback is informed when `reloadPackage` starts and ends executing.
@@ -181,12 +237,12 @@ package actor SwiftPMBuildSystem {
   private var buildDescription: SourceKitLSPAPI.BuildDescription?
 
   /// Maps source and header files to the target that include them.
-  private var fileToTargets: [DocumentURI: Set<ConfiguredTarget>] = [:]
+  private var fileToTargets: [DocumentURI: Set<BuildTargetIdentifier>] = [:]
 
-  /// Maps configured targets ids to their SwiftPM build target as well as the depth at which they occur in the build
+  /// Maps target ids to their SwiftPM build target as well as the depth at which they occur in the build
   /// graph. Top level targets on which no other target depends have a depth of `1`. Targets with dependencies have a
   /// greater depth.
-  private var targets: [ConfiguredTarget: (buildTarget: SwiftBuildTarget, depth: Int)] = [:]
+  private var targets: [BuildTargetIdentifier: (buildTarget: SwiftBuildTarget, depth: Int)] = [:]
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
@@ -407,21 +463,25 @@ extension SwiftPMBuildSystem {
     self.targets = [:]
     self.fileToTargets = [:]
     buildDescription.traverseModules { buildTarget, parent, depth in
-      let configuredTarget = ConfiguredTarget(buildTarget)
+      let targetIdentifier = orLog("Getting build target identifier") { try BuildTargetIdentifier(buildTarget) }
+      guard let targetIdentifier else {
+        return
+      }
       var depth = depth
-      if let existingDepth = targets[configuredTarget]?.depth {
+      if let existingDepth = targets[targetIdentifier]?.depth {
         depth = max(existingDepth, depth)
       } else {
         for source in buildTarget.sources + buildTarget.headers {
-          fileToTargets[DocumentURI(source), default: []].insert(configuredTarget)
+          fileToTargets[DocumentURI(source), default: []].insert(targetIdentifier)
         }
       }
-      targets[configuredTarget] = (buildTarget, depth)
+      targets[targetIdentifier] = (buildTarget, depth)
     }
 
     if let delegate = self.delegate {
       await delegate.fileBuildSettingsChanged(self.watchedFiles)
       await delegate.fileHandlingCapabilityChanged()
+      await messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildTargetNotification(changes: nil))
     }
     for testFilesDidChangeCallback in testFilesDidChangeCallbacks {
       await testFilesDidChangeCallback()
@@ -436,7 +496,7 @@ fileprivate struct NonFileURIError: Error, CustomStringConvertible {
   }
 }
 
-extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
+extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
   package nonisolated var supportsPreparation: Bool { true }
 
   package var buildPath: TSCAbsolutePath {
@@ -479,7 +539,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
 
   package func buildSettings(
     for uri: DocumentURI,
-    in configuredTarget: ConfiguredTarget,
+    in targetIdentifier: BuildTargetIdentifier,
     language: Language
   ) async throws -> FileBuildSettings? {
     guard let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
@@ -487,12 +547,12 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
       return nil
     }
 
-    if configuredTarget == .forPackageManifest {
+    if targetIdentifier == .forPackageManifest {
       return try settings(forPackageManifest: path)
     }
 
-    guard let buildTarget = self.targets[configuredTarget]?.buildTarget else {
-      logger.fault("Did not find target with name \(configuredTarget.targetID)")
+    guard let buildTarget = self.targets[targetIdentifier]?.buildTarget else {
+      logger.fault("Did not find target \(targetIdentifier.forLogging)")
       return nil
     }
 
@@ -528,7 +588,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
     return toolchain
   }
 
-  package func configuredTargets(for uri: DocumentURI) -> [ConfiguredTarget] {
+  package func targets(for uri: DocumentURI) -> [BuildTargetIdentifier] {
     guard let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
       // We can't determine targets for non-file URIs.
       return []
@@ -536,7 +596,8 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
 
     let targets = buildTargets(for: uri)
     if !targets.isEmpty {
-      return targets.sorted { ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID) }
+      // Sort targets to get deterministic ordering. The actual order does not matter.
+      return targets.sorted { $0.uri.stringValue < $1.uri.stringValue }
     }
 
     if path.basename == "Package.swift"
@@ -544,10 +605,14 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
     {
       // We use an empty target name to represent the package manifest since an empty target name is not valid for any
       // user-defined target.
-      return [ConfiguredTarget.forPackageManifest]
+      return [BuildTargetIdentifier.forPackageManifest]
     }
 
     return []
+  }
+
+  package func inverseSources(_ request: InverseSourcesRequest) -> InverseSourcesResponse {
+    return InverseSourcesResponse(targets: targets(for: request.textDocument.uri))
   }
 
   package func scheduleBuildGraphGeneration() async throws {
@@ -558,15 +623,15 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
     await self.packageLoadingQueue.async {}.valuePropagatingCancellation
   }
 
-  package func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
-    return targets.sorted { (lhs: ConfiguredTarget, rhs: ConfiguredTarget) -> Bool in
+  package func topologicalSort(of targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
+    return targets.sorted { (lhs: BuildTargetIdentifier, rhs: BuildTargetIdentifier) -> Bool in
       let lhsDepth = self.targets[lhs]?.depth ?? 0
       let rhsDepth = self.targets[rhs]?.depth ?? 0
       return lhsDepth > rhsDepth
     }
   }
 
-  package func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  package func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     let targetDepths = targets.compactMap { self.targets[$0]?.depth }
     let minimumTargetDepth: Int?
     if targetDepths.count == targets.count {
@@ -579,16 +644,16 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
     // Files that occur before the target in the topological sorting don't depend on it.
     // Ideally, we should consult the dependency graph here for more accurate dependency analysis instead of relying on
     // a flattened list (https://github.com/swiftlang/sourcekit-lsp/issues/1312).
-    return self.targets.compactMap { (configuredTarget, value) -> ConfiguredTarget? in
+    return self.targets.compactMap { (targets, value) -> BuildTargetIdentifier? in
       if let minimumTargetDepth, value.depth >= minimumTargetDepth {
         return nil
       }
-      return configuredTarget
+      return targets
     }
   }
 
   package func prepare(
-    targets: [ConfiguredTarget],
+    targets: [BuildTargetIdentifier],
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     // TODO: Support preparation of multiple targets at once. (https://github.com/swiftlang/sourcekit-lsp/issues/1262)
@@ -600,7 +665,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
   }
 
   private func prepare(
-    singleTarget target: ConfiguredTarget,
+    singleTarget target: BuildTargetIdentifier,
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     if target == .forPackageManifest {
@@ -615,13 +680,13 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
       )
       return
     }
-    logger.debug("Preparing '\(target.targetID)' using \(self.toolchain.identifier)")
+    logger.debug("Preparing '\(target.forLogging)' using \(self.toolchain.identifier)")
     var arguments = [
       swift.pathString, "build",
       "--package-path", workspacePath.pathString,
       "--scratch-path", self.workspace.location.scratchDirectory.pathString,
       "--disable-index-store",
-      "--target", target.targetID,
+      "--target", try target.targetProperties.target,
     ]
     if options.swiftPMOrDefault.disableSandbox ?? false {
       arguments += ["--disable-sandbox"]
@@ -644,10 +709,11 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
     let start = ContinuousClock.now
 
     let logID = IndexTaskID.preparation(id: preparationTaskID.fetchAndIncrement())
+    // FIXME: (BSP Migration) log target name instead of target URI
     logMessageToIndexLog(
       logID,
       """
-      Preparing \(target.targetID) for \(target.runDestinationID)
+      Preparing \(target.uri.stringValue)
       \(arguments.joined(separator: " "))
       """
     )
@@ -673,7 +739,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
       let stderr = (try? String(bytes: result.stderrOutput.get(), encoding: .utf8)) ?? "<no stderr>"
       logger.debug(
         """
-        Preparation of target \(target.targetID) terminated with non-zero exit code \(code)
+        Preparation of target \(target.forLogging) terminated with non-zero exit code \(code)
         Stderr:
         \(stderr)
         Stdout:
@@ -685,11 +751,11 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
         // The indexing job finished with a signal. Could be because the compiler crashed.
         // Ignore signal exit codes if this task has been cancelled because the compiler exits with SIGINT if it gets
         // interrupted.
-        logger.error("Preparation of target \(target.targetID) signaled \(signal)")
+        logger.error("Preparation of target \(target.forLogging) signaled \(signal)")
       }
     case .abnormal(exception: let exception):
       if !Task.isCancelled {
-        logger.error("Preparation of target \(target.targetID) exited abnormally \(exception)")
+        logger.error("Preparation of target \(target.forLogging) exited abnormally \(exception)")
       }
     }
   }
@@ -705,7 +771,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
   }
 
   /// Returns the resolved target descriptions for the given file, if one is known.
-  private func buildTargets(for file: DocumentURI) -> Set<ConfiguredTarget> {
+  private func buildTargets(for file: DocumentURI) -> Set<BuildTargetIdentifier> {
     if let targets = fileToTargets[file] {
       return targets
     }
@@ -740,8 +806,8 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
     }
   }
 
-  package func filesDidChange(_ events: [FileEvent]) async {
-    if events.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
+  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {
+    if notification.changes.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
       logger.log("Reloading package because of file change")
       await orLog("Reloading package") {
         try await self.schedulePackageReload().value
@@ -751,7 +817,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
     var filesWithUpdatedDependencies: Set<DocumentURI> = []
     // If a Swift file within a target is updated, reload all the other files within the target since they might be
     // referring to a function in the updated file.
-    for event in events {
+    for event in notification.changes {
       guard event.uri.fileURL?.pathExtension == "swift", let targets = fileToTargets[event.uri] else {
         continue
       }
@@ -769,14 +835,14 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
     // directory outside the source tree.
     // If we have background indexing enabled, this is not necessary because we call `fileDependenciesUpdated` when
     // preparation of a target finishes.
-    if !isForIndexBuild, events.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" }) {
+    if !isForIndexBuild, notification.changes.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" }) {
       filesWithUpdatedDependencies.formUnion(self.fileToTargets.keys)
     }
     await self.fileDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
   }
 
   package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    if configuredTargets(for: uri).isEmpty {
+    if targets(for: uri).isEmpty {
       return .unhandled
     }
     return .handled

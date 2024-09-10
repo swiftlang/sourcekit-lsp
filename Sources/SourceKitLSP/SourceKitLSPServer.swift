@@ -836,12 +836,7 @@ extension SourceKitLSPServer: MessageHandler {
 
 // MARK: - Build System Delegate
 
-extension SourceKitLSPServer: BuildSystemDelegate {
-  package func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
-    // TODO: do something with these changes once build target support is in place
-    // (https://github.com/swiftlang/sourcekit-lsp/issues/1226)
-  }
-
+extension SourceKitLSPServer: BuildSystemManagerDelegate {
   private func affectedOpenDocumentsForChangeSet(
     _ changes: Set<DocumentURI>,
     _ documentManager: DocumentManager
@@ -939,7 +934,7 @@ extension SourceKitLSPServer {
   /// If the build system that was determined for the workspace does not satisfy `condition`, `nil` is returned.
   private func createWorkspace(
     _ workspaceFolder: WorkspaceFolder,
-    condition: (BuildSystem?) async -> Bool = { _ in true }
+    condition: (BuiltInBuildSystem?) async -> Bool = { _ in true }
   ) async -> Workspace? {
     guard let capabilityRegistry = capabilityRegistry else {
       logger.log("Cannot open workspace before server is initialized")

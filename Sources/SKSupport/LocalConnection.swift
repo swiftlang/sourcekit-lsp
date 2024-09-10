@@ -12,6 +12,7 @@
 
 import Dispatch
 import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
 import SKLogging
 
 /// A connection between two message handlers in the same process.

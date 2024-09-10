@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
@@ -75,7 +76,7 @@ package enum FileToIndex: CustomLogStringConvertible {
 /// A file to index and the target in which the file should be indexed.
 package struct FileAndTarget: Sendable {
   package let file: FileToIndex
-  package let target: ConfiguredTarget
+  package let target: BuildTargetIdentifier
 }
 
 private enum IndexKind {
@@ -217,7 +218,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     }
   }
 
-  private func updateIndexStore(forSingleFile file: FileToIndex, in target: ConfiguredTarget) async {
+  private func updateIndexStore(forSingleFile file: FileToIndex, in target: BuildTargetIdentifier) async {
     guard await !indexStoreUpToDateTracker.isUpToDate(file.sourceFile) else {
       // If we know that the file is up-to-date without having ot hit the index, do that because it's fastest.
       return

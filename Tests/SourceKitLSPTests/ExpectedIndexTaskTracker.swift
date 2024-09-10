@@ -10,15 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import BuildSystemIntegration
 import LanguageServerProtocol
 import SKLogging
 import SemanticIndex
+import SourceKitLSPAPI
 import XCTest
 
 struct ExpectedPreparation {
-  let targetID: String
-  let runDestinationID: String
+  let target: BuildTargetIdentifier
 
   /// A closure that will be executed when a preparation task starts.
   /// This allows the artificial delay of a preparation task to force two preparation task to race.
@@ -29,19 +30,15 @@ struct ExpectedPreparation {
   let didFinish: (@Sendable () -> Void)?
 
   internal init(
-    targetID: String,
-    runDestinationID: String,
+    target: String,
+    destination: BuildDestination,
     didStart: (@Sendable () -> Void)? = nil,
     didFinish: (@Sendable () -> Void)? = nil
-  ) {
-    self.targetID = targetID
-    self.runDestinationID = runDestinationID
+  ) throws {
+    // This should match the format in `BuildTargetIdentifier(_: any SwiftBuildTarget)` inside SwiftPMBuildSystem.
+    self.target = try BuildTargetIdentifier(target: target, destination: destination)
     self.didStart = didStart
     self.didFinish = didFinish
-  }
-
-  var configuredTarget: ConfiguredTarget {
-    return ConfiguredTarget(targetID: targetID, runDestinationID: runDestinationID)
   }
 }
 
@@ -111,7 +108,7 @@ actor ExpectedIndexTaskTracker {
       return
     }
     for expectedPreparation in expectedTargetsToPrepare {
-      if taskDescription.targetsToPrepare.contains(expectedPreparation.configuredTarget) {
+      if taskDescription.targetsToPrepare.contains(expectedPreparation.target) {
         expectedPreparation.didStart?()
       }
     }
@@ -129,13 +126,13 @@ actor ExpectedIndexTaskTracker {
       XCTFail("Didn't expect a preparation but received \(taskDescription.targetsToPrepare)")
       return
     }
-    guard Set(taskDescription.targetsToPrepare).isSubset(of: expectedTargetsToPrepare.map(\.configuredTarget)) else {
+    guard Set(taskDescription.targetsToPrepare).isSubset(of: expectedTargetsToPrepare.map(\.target)) else {
       XCTFail("Received unexpected preparation of \(taskDescription.targetsToPrepare)")
       return
     }
     var remainingExpectedTargetsToPrepare: [ExpectedPreparation] = []
     for expectedPreparation in expectedTargetsToPrepare {
-      if taskDescription.targetsToPrepare.contains(expectedPreparation.configuredTarget) {
+      if taskDescription.targetsToPrepare.contains(expectedPreparation.target) {
         expectedPreparation.didFinish?()
       } else {
         remainingExpectedTargetsToPrepare.append(expectedPreparation)

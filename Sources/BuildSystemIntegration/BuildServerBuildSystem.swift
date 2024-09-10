@@ -74,6 +74,12 @@ package actor BuildServerBuildSystem: MessageHandler {
     self.delegate = delegate
   }
 
+  package weak var messageHandler: BuiltInBuildSystemMessageHandler?
+
+  package func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
+    self.messageHandler = messageHandler
+  }
+
   /// The build settings that have been received from the build server.
   private var buildSettings: [DocumentURI: FileBuildSettings] = [:]
 
@@ -194,7 +200,7 @@ package actor BuildServerBuildSystem: MessageHandler {
       """
     )
     bspMessageHandlingQueue.async {
-      if let params = params as? BuildTargetsChangedNotification {
+      if let params = params as? DidChangeBuildTargetNotification {
         await self.handleBuildTargetsChanged(params)
       } else if let params = params as? FileOptionsChangedNotification {
         await self.handleFileOptionsChanged(params)
@@ -219,10 +225,8 @@ package actor BuildServerBuildSystem: MessageHandler {
     reply(.failure(ResponseError.methodNotFound(R.method)))
   }
 
-  func handleBuildTargetsChanged(
-    _ notification: BuildTargetsChangedNotification
-  ) async {
-    await self.delegate?.buildTargetsChanged(notification.changes)
+  func handleBuildTargetsChanged(_ notification: DidChangeBuildTargetNotification) async {
+    await self.messageHandler?.sendNotificationToSourceKitLSP(notification)
   }
 
   func handleFileOptionsChanged(
@@ -254,7 +258,7 @@ private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
   return nil
 }
 
-extension BuildServerBuildSystem: BuildSystem {
+extension BuildServerBuildSystem: BuiltInBuildSystem {
   package nonisolated var supportsPreparation: Bool { false }
 
   /// The build settings for the given file.
@@ -263,7 +267,7 @@ extension BuildServerBuildSystem: BuildSystem {
   /// server yet or if no build settings are available for this file.
   package func buildSettings(
     for document: DocumentURI,
-    in target: ConfiguredTarget,
+    in target: BuildTargetIdentifier,
     language: Language
   ) async -> FileBuildSettings? {
     return buildSettings[document]
@@ -277,24 +281,24 @@ extension BuildServerBuildSystem: BuildSystem {
     return nil
   }
 
-  package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
+  package func inverseSources(_ request: InverseSourcesRequest) -> InverseSourcesResponse {
+    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
   }
 
   package func scheduleBuildGraphGeneration() {}
 
   package func waitForUpToDateBuildGraph() async {}
 
-  package func topologicalSort(of targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
+  package func topologicalSort(of targets: [BuildTargetIdentifier]) async -> [BuildTargetIdentifier]? {
     return nil
   }
 
-  package func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  package func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil
   }
 
   package func prepare(
-    targets: [ConfiguredTarget],
+    targets: [BuildTargetIdentifier],
     logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     throw PrepareNotSupportedError()
@@ -326,7 +330,7 @@ extension BuildServerBuildSystem: BuildSystem {
     }
   }
 
-  package func filesDidChange(_ events: [FileEvent]) {}
+  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) {}
 
   package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
     guard

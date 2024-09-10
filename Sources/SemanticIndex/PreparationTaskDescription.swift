@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
@@ -30,12 +31,12 @@ package struct PreparationTaskDescription: IndexTaskDescription {
   package let id = preparationIDForLogging.fetchAndIncrement()
 
   /// The targets that should be prepared.
-  package let targetsToPrepare: [ConfiguredTarget]
+  package let targetsToPrepare: [BuildTargetIdentifier]
 
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
 
-  private let preparationUpToDateTracker: UpToDateTracker<ConfiguredTarget>
+  private let preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier>
 
   /// See `SemanticIndexManager.logMessageToIndexLog`.
   private let logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
@@ -57,9 +58,9 @@ package struct PreparationTaskDescription: IndexTaskDescription {
   }
 
   init(
-    targetsToPrepare: [ConfiguredTarget],
+    targetsToPrepare: [BuildTargetIdentifier],
     buildSystemManager: BuildSystemManager,
-    preparationUpToDateTracker: UpToDateTracker<ConfiguredTarget>,
+    preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier>,
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     testHooks: IndexTestHooks
   ) {
@@ -75,20 +76,15 @@ package struct PreparationTaskDescription: IndexTaskDescription {
     // See comment in `withLoggingScope`.
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running preparation operations
     await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "preparation-\(id % 100)") {
-      let targetsToPrepare = await targetsToPrepare.asyncFilter {
-        await !preparationUpToDateTracker.isUpToDate($0)
-      }.sorted(by: {
-        ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID)
-      })
+      let targetsToPrepare = await targetsToPrepare.asyncFilter { await !preparationUpToDateTracker.isUpToDate($0) }
+        // Sort targets to get deterministic ordering. The actual order does not matter.
+        .sorted { $0.uri.stringValue < $1.uri.stringValue }
       if targetsToPrepare.isEmpty {
         return
       }
       await testHooks.preparationTaskDidStart?(self)
 
-      let targetsToPrepareDescription =
-        targetsToPrepare
-        .map { "\($0.targetID)-\($0.runDestinationID)" }
-        .joined(separator: ", ")
+      let targetsToPrepareDescription = targetsToPrepare.map(\.uri.stringValue).joined(separator: ", ")
       logger.log(
         "Starting preparation with priority \(Task.currentPriority.rawValue, privacy: .public): \(targetsToPrepareDescription)"
       )

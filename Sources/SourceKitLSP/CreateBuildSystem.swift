@@ -26,7 +26,7 @@ func createBuildSystem(
   testHooks: TestHooks,
   toolchainRegistry: ToolchainRegistry,
   reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
-) async -> BuildSystem? {
+) async -> BuiltInBuildSystem? {
   guard let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) else {
     // We assume that workspaces are directories. This is only true for URLs not for URIs in general.
     // Simply skip setting up the build integration in this case.
@@ -58,7 +58,7 @@ func createBuildSystem(
     return await BuildServerBuildSystem(projectRoot: rootPath)
   }
 
-  let defaultBuildSystem: BuildSystem? =
+  let defaultBuildSystem: BuiltInBuildSystem? =
     switch options.defaultWorkspaceType {
     case .buildServer: await createBuildServerBuildSystem(rootPath: rootPath)
     case .compilationDatabase: createCompilationDatabaseBuildSystem(rootPath: rootPath)

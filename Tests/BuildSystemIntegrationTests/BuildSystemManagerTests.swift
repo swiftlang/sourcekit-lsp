@@ -446,7 +446,7 @@ private final actor ManualMainFilesProvider: MainFilesProvider {
 
 /// A simple `BuildSystem` that wraps a dictionary, for testing.
 @MainActor
-class ManualBuildSystem: BuildSystem {
+class ManualBuildSystem: BuiltInBuildSystem {
   var projectRoot = try! AbsolutePath(validating: "/")
 
   var map: [DocumentURI: FileBuildSettings] = [:]
@@ -457,9 +457,19 @@ class ManualBuildSystem: BuildSystem {
     self.delegate = delegate
   }
 
+  weak var messageHandler: BuiltInBuildSystemMessageHandler?
+
+  func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
+    self.messageHandler = messageHandler
+  }
+
   package nonisolated var supportsPreparation: Bool { false }
 
-  func buildSettings(for uri: DocumentURI, in buildTarget: ConfiguredTarget, language: Language) -> FileBuildSettings? {
+  func buildSettings(
+    for uri: DocumentURI,
+    in buildTarget: BuildTargetIdentifier,
+    language: Language
+  ) -> FileBuildSettings? {
     return map[uri]
   }
 
@@ -471,12 +481,12 @@ class ManualBuildSystem: BuildSystem {
     return nil
   }
 
-  package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
+  package func inverseSources(_ request: InverseSourcesRequest) -> InverseSourcesResponse {
+    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
   }
 
   package func prepare(
-    targets: [ConfiguredTarget],
+    targets: [BuildTargetIdentifier],
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     throw PrepareNotSupportedError()
@@ -486,11 +496,11 @@ class ManualBuildSystem: BuildSystem {
 
   package func waitForUpToDateBuildGraph() async {}
 
-  package func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  package func topologicalSort(of targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil
   }
 
-  package func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+  package func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil
   }
 
@@ -503,7 +513,7 @@ class ManualBuildSystem: BuildSystem {
   var indexStorePath: AbsolutePath? { nil }
   var indexDatabasePath: AbsolutePath? { nil }
 
-  func filesDidChange(_ events: [FileEvent]) {}
+  func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) {}
 
   package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
     if map[uri] != nil {
@@ -521,7 +531,7 @@ class ManualBuildSystem: BuildSystem {
 }
 
 /// A `BuildSystemDelegate` setup for testing.
-private actor BSMDelegate: BuildSystemDelegate {
+private actor BSMDelegate: BuildSystemManagerDelegate {
   fileprivate typealias ExpectedBuildSettingChangedCall = (
     uri: DocumentURI, language: Language, settings: FileBuildSettings?, expectation: XCTestExpectation,
     file: StaticString, line: UInt
@@ -565,7 +575,6 @@ private actor BSMDelegate: BuildSystemDelegate {
     }
   }
 
-  func buildTargetsChanged(_ changes: [BuildTargetEvent]) {}
   func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
     for uri in changedFiles {
       guard let expected = expectedDependenciesUpdate.first(where: { $0.uri == uri }) else {
