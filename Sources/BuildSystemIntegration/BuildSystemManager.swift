@@ -14,6 +14,7 @@ import BuildServerProtocol
 import Dispatch
 import LanguageServerProtocol
 import SKLogging
+import SKOptions
 import SwiftExtensions
 import ToolchainRegistry
 
@@ -76,10 +77,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// The underlying primary build system.
   ///
   /// - Important: The only time this should be modified is in the initializer. Afterwards, it must be constant.
-  private(set) var buildSystem: BuiltInBuildSystemAdapter?
-
-  /// Timeout before fallback build settings are used.
-  let fallbackSettingsTimeout: DispatchTimeInterval
+  private(set) package var buildSystem: BuiltInBuildSystemAdapter?
 
   /// The fallback build system. If present, used when the `buildSystem` is not
   /// set or cannot provide settings.
@@ -108,27 +106,49 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   }
 
   package var supportsPreparation: Bool {
-    return buildSystem?.underlyingBuildSystem.supportsPreparation ?? false
+    get async {
+      return await buildSystem?.underlyingBuildSystem.supportsPreparation ?? false
+    }
   }
 
-  /// Create a BuildSystemManager that wraps the given build system. The new
-  /// manager will modify the delegate of the underlying build system.
   package init(
-    buildSystem: BuiltInBuildSystem?,
+    buildSystemKind: (WorkspaceType, projectRoot: AbsolutePath)?,
+    toolchainRegistry: ToolchainRegistry,
+    options: SourceKitLSPOptions,
+    swiftpmTestHooks: SwiftPMTestHooks,
+    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
+  ) async {
+    self.fallbackBuildSystem = FallbackBuildSystem(options: options.fallbackBuildSystemOrDefault)
+    self.toolchainRegistry = toolchainRegistry
+    self.buildSystem = await BuiltInBuildSystemAdapter(
+      buildSystemKind: buildSystemKind,
+      toolchainRegistry: toolchainRegistry,
+      options: options,
+      swiftpmTestHooks: swiftpmTestHooks,
+      reloadPackageStatusCallback: reloadPackageStatusCallback,
+      messageHandler: self
+    )
+    await self.buildSystem?.underlyingBuildSystem.setDelegate(self)
+  }
+
+  /// Create a BuildSystemManager that wraps the given build system.
+  /// The new manager will modify the delegate of the underlying build system.
+  ///
+  /// - Important: For testing purposes only
+  package init(
+    testBuildSystem: BuiltInBuildSystem?,
     fallbackBuildSystem: FallbackBuildSystem?,
     mainFilesProvider: MainFilesProvider?,
-    toolchainRegistry: ToolchainRegistry,
-    fallbackSettingsTimeout: DispatchTimeInterval = .seconds(3)
+    toolchainRegistry: ToolchainRegistry
   ) async {
-    let buildSystemHasDelegate = await buildSystem?.delegate != nil
+    let buildSystemHasDelegate = await testBuildSystem?.delegate != nil
     precondition(!buildSystemHasDelegate)
     self.fallbackBuildSystem = fallbackBuildSystem
     self.mainFilesProvider = mainFilesProvider
     self.toolchainRegistry = toolchainRegistry
-    self.fallbackSettingsTimeout = fallbackSettingsTimeout
     self.buildSystem =
-      if let buildSystem {
-        await BuiltInBuildSystemAdapter(buildSystem: buildSystem, messageHandler: self)
+      if let testBuildSystem {
+        await BuiltInBuildSystemAdapter(testBuildSystem: testBuildSystem, messageHandler: self)
       } else {
         nil
       }

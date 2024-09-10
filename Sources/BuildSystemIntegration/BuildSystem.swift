@@ -13,9 +13,11 @@
 import BuildServerProtocol
 import LanguageServerProtocol
 import SKLogging
+import SKOptions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
+import struct TSCBasic.RelativePath
 
 /// Defines how well a `BuildSystem` can handle a file with a given URI.
 package enum FileHandlingCapability: Comparable, Sendable {
@@ -67,6 +69,13 @@ package struct PrepareNotSupportedError: Error, CustomStringConvertible {
 /// For example, a SwiftPMWorkspace provides compiler arguments for the files
 /// contained in a SwiftPM package root directory.
 package protocol BuiltInBuildSystem: AnyObject, Sendable {
+  /// When opening an LSP workspace at `workspaceFolder`, determine the directory in which a project of this build system
+  /// starts. For example, a user might open the `Sources` folder of a SwiftPM project, then the project root is the
+  /// directory containing `Package.swift`.
+  ///
+  /// Returns `nil` if the build system can't handle the given workspace folder
+  static func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath?
+
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
   /// was found.
@@ -89,11 +98,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// - Note: Needed so we can set the delegate from a different actor isolation
   ///   context.
   func setDelegate(_ delegate: BuildSystemDelegate?) async
-
-  /// Set the message handler that is used to send messages from the build system to SourceKit-LSP.
-  // FIXME: (BSP Migration) This should be set in the initializer but can't right now because BuiltInBuildSystemAdapter is not
-  // responsible for creating the build system.
-  func setMessageHandler(_ messageHandler: BuiltInBuildSystemMessageHandler) async
 
   /// Whether the build system is capable of preparing a target for indexing, ie. if the `prepare` methods has been
   /// implemented.

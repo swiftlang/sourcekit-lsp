@@ -47,16 +47,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         ]
       )
       let packageRoot = tempDir.appending(component: "pkg")
-      let tr = ToolchainRegistry.forTesting
-      await assertThrowsError(
-        try await SwiftPMBuildSystem(
-          workspacePath: packageRoot,
-          toolchainRegistry: tr,
-          fileSystem: fs,
-          options: SourceKitLSPOptions(),
-          testHooks: SwiftPMTestHooks()
-        )
-      )
+      XCTAssertNil(SwiftPMBuildSystem.projectRoot(for: packageRoot, options: .testDefault()))
     }
   }
 
@@ -77,10 +68,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.forTesting
       let buildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       await assertThrowsError(try await buildSystem.schedulePackageReload().value)
@@ -107,10 +99,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = tempDir.appending(component: "pkg")
       await assertThrowsError(
         try await SwiftPMBuildSystem(
-          workspacePath: packageRoot,
+          projectRoot: packageRoot,
           toolchainRegistry: ToolchainRegistry(toolchains: []),
           fileSystem: fs,
           options: SourceKitLSPOptions(),
+          messageHandler: nil,
           testHooks: SwiftPMTestHooks()
         )
       )
@@ -138,10 +131,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -203,10 +197,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
         fileSystem: localFileSystem,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -266,10 +261,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
 
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(swiftPM: options),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -313,10 +309,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
 
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: tempDir.appending(component: "pkg"),
+        projectRoot: tempDir.appending(component: "pkg"),
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(swiftPM: options),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       let path = await swiftpmBuildSystem.destinationBuildParameters.toolchain.sdkRootPath
@@ -348,10 +345,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -385,10 +383,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -434,10 +433,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -489,10 +489,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -533,10 +534,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -614,10 +616,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = tempDir.appending(component: "pkg")
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: ToolchainRegistry.forTesting,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -666,10 +669,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: packageRoot, options: .testDefault())),
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -734,10 +738,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
 
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: symlinkRoot,
+        projectRoot: XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: symlinkRoot, options: .testDefault())),
         toolchainRegistry: ToolchainRegistry.forTesting,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -774,10 +779,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value
@@ -796,9 +802,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testNestedInvalidPackageSwift() async throws {
-    let fs = InMemoryFileSystem()
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/Package.swift": "// not a valid package",
@@ -812,17 +817,10 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = try resolveSymlinks(tempDir.appending(components: "pkg", "Sources", "lib"))
-      let tr = ToolchainRegistry.forTesting
-      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
-        toolchainRegistry: tr,
-        fileSystem: fs,
-        options: SourceKitLSPOptions(),
-        testHooks: SwiftPMTestHooks()
-      )
+      let workspaceRoot = try resolveSymlinks(tempDir.appending(components: "pkg", "Sources", "lib"))
+      let projectRoot = SwiftPMBuildSystem.projectRoot(for: workspaceRoot, options: .testDefault())
 
-      assertEqual(await swiftpmBuildSystem.projectRoot, try resolveSymlinks(tempDir.appending(component: "pkg")))
+      assertEqual(projectRoot, try resolveSymlinks(tempDir.appending(component: "pkg")))
     }
   }
 
@@ -850,10 +848,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
+        messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
       try await swiftpmBuildSystem.schedulePackageReload().value

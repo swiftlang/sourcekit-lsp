@@ -1,7 +1,7 @@
 
 add_library(SourceKitLSP STATIC
   CapabilityRegistry.swift
-  CreateBuildSystem.swift
+  DetermineBuildSystem.swift
   DocumentManager.swift
   DocumentSnapshot+FromFileContents.swift
   IndexProgressManager.swift

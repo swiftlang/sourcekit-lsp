@@ -273,21 +273,29 @@ package actor SourceKitLSPServer {
     }
     let rootURLs = workspacesAndIsImplicit.filter { !$0.isImplicit }.compactMap { $0.workspace.rootUri?.fileURL }
     while url.pathComponents.count > 1 && rootURLs.contains(where: { $0.isPrefix(of: url) }) {
+      defer {
+        url.deleteLastPathComponent()
+      }
       // Ignore workspaces that have the same project root as an existing workspace.
       // This might happen if there is an existing SwiftPM workspace that hasn't been reloaded after a new file
       // was added to it and thus currently doesn't know that it can handle that file. In that case, we shouldn't open
       // a new workspace for the same root. Instead, the existing workspace's build system needs to be reloaded.
-      let workspace = await self.createWorkspace(WorkspaceFolder(uri: DocumentURI(url))) { buildSystem in
-        guard let buildSystem else {
-          // If we didn't create a build system, `url` is not capable of handling the document.
-          return false
-        }
-        return !projectRoots.contains(await buildSystem.projectRoot)
+      let uri = DocumentURI(url)
+      guard let buildSystemKind = determineBuildSystem(forWorkspaceFolder: uri, options: self.options) else {
+        continue
       }
-      if let workspace {
-        return workspace
+      guard !projectRoots.contains(buildSystemKind.projectRoot) else {
+        continue
       }
-      url.deleteLastPathComponent()
+      guard
+        let workspace = await orLog(
+          "Creating workspace",
+          { try await createWorkspace(workspaceFolder: uri, buildSystemKind: buildSystemKind) }
+        )
+      else {
+        continue
+      }
+      return workspace
     }
     return nil
   }
@@ -933,58 +941,30 @@ extension SourceKitLSPServer {
   ///
   /// If the build system that was determined for the workspace does not satisfy `condition`, `nil` is returned.
   private func createWorkspace(
-    _ workspaceFolder: WorkspaceFolder,
-    condition: (BuiltInBuildSystem?) async -> Bool = { _ in true }
-  ) async -> Workspace? {
+    workspaceFolder: DocumentURI,
+    buildSystemKind: (type: WorkspaceType, projectRoot: AbsolutePath)?
+  ) async throws -> Workspace {
     guard let capabilityRegistry = capabilityRegistry else {
+      struct NoCapabilityRegistryError: Error {}
       logger.log("Cannot open workspace before server is initialized")
-      return nil
+      throw NoCapabilityRegistryError()
     }
     let testHooks = self.testHooks
     let options = SourceKitLSPOptions.merging(
       base: self.options,
       override: SourceKitLSPOptions(
-        path: workspaceFolder.uri.fileURL?
+        path: workspaceFolder.fileURL?
           .appendingPathComponent(".sourcekit-lsp")
           .appendingPathComponent("config.json")
       )
     )
-    logger.log("Creating workspace at \(workspaceFolder.uri.forLogging) with options: \(options.forLogging)")
-    let buildSystem = await createBuildSystem(
-      rootUri: workspaceFolder.uri,
-      options: options,
-      testHooks: testHooks,
-      toolchainRegistry: toolchainRegistry,
-      reloadPackageStatusCallback: { [weak self] status in
-        await self?.reloadPackageStatusCallback(status)
-      }
-    )
-    guard await condition(buildSystem) else {
-      return nil
-    }
-    await orLog("Initial build graph generation") {
-      // Schedule an initial generation of the build graph. Once the build graph is loaded, the build system will send
-      // call `fileHandlingCapabilityChanged`, which allows us to move documents to a workspace with this build
-      // system.
-      try await buildSystem?.scheduleBuildGraphGeneration()
-    }
+    logger.log("Creating workspace at \(workspaceFolder.forLogging) with options: \(options.forLogging)")
 
-    let projectRoot = await buildSystem?.projectRoot.pathString
-    let buildSystemType =
-      if let buildSystem {
-        String(describing: type(of: buildSystem))
-      } else {
-        "<fallback build system>"
-      }
-    logger.log(
-      "Created workspace at \(workspaceFolder.uri.forLogging) as \(buildSystemType, privacy: .public) with project root \(projectRoot ?? "<nil>")"
-    )
-
-    let workspace = try? await Workspace(
+    let workspace = await Workspace(
       documentManager: self.documentManager,
-      rootUri: workspaceFolder.uri,
+      rootUri: workspaceFolder,
       capabilityRegistry: capabilityRegistry,
-      buildSystem: buildSystem,
+      buildSystemKind: buildSystemKind,
       toolchainRegistry: self.toolchainRegistry,
       options: options,
       testHooks: testHooks,
@@ -997,9 +977,12 @@ extension SourceKitLSPServer {
       },
       indexProgressStatusDidChange: { [weak self] in
         self?.indexProgressManager.indexProgressStatusDidChange()
+      },
+      reloadPackageStatusCallback: { [weak self] status in
+        await self?.reloadPackageStatusCallback(status)
       }
     )
-    if let workspace, options.backgroundIndexingOrDefault, workspace.semanticIndexManager == nil,
+    if options.backgroundIndexingOrDefault, workspace.semanticIndexManager == nil,
       !self.didSendBackgroundIndexingNotSupportedNotification
     {
       self.sendNotificationToClient(
@@ -1072,20 +1055,34 @@ extension SourceKitLSPServer {
 
     await workspaceQueue.async { [testHooks] in
       if let workspaceFolders = req.workspaceFolders {
-        self.workspacesAndIsImplicit += await workspaceFolders.asyncCompactMap {
-          guard let workspace = await self.createWorkspace($0) else {
-            return nil
+        self.workspacesAndIsImplicit += await workspaceFolders.asyncCompactMap { workspaceFolder in
+          await orLog("Creating workspace from workspaceFolders") {
+            let workspace = try await self.createWorkspace(
+              workspaceFolder: workspaceFolder.uri,
+              buildSystemKind: determineBuildSystem(forWorkspaceFolder: workspaceFolder.uri, options: self.options)
+            )
+            return (workspace: workspace, isImplicit: false)
           }
-          return (workspace: workspace, isImplicit: false)
         }
       } else if let uri = req.rootURI {
-        let workspaceFolder = WorkspaceFolder(uri: uri)
-        if let workspace = await self.createWorkspace(workspaceFolder) {
+        let workspace = await orLog("Creating workspace from rootURI") {
+          try await self.createWorkspace(
+            workspaceFolder: uri,
+            buildSystemKind: determineBuildSystem(forWorkspaceFolder: uri, options: self.options)
+          )
+        }
+        if let workspace {
           self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
         }
       } else if let path = req.rootPath {
-        let workspaceFolder = WorkspaceFolder(uri: DocumentURI(URL(fileURLWithPath: path)))
-        if let workspace = await self.createWorkspace(workspaceFolder) {
+        let uri = DocumentURI(URL(fileURLWithPath: path))
+        let workspace = await orLog("Creating workspace from rootPath") {
+          try await self.createWorkspace(
+            workspaceFolder: uri,
+            buildSystemKind: determineBuildSystem(forWorkspaceFolder: uri, options: self.options)
+          )
+        }
+        if let workspace {
           self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
         }
       }
@@ -1098,12 +1095,10 @@ extension SourceKitLSPServer {
           documentManager: self.documentManager,
           rootUri: req.rootURI,
           capabilityRegistry: self.capabilityRegistry!,
+          buildSystemKind: nil,
           toolchainRegistry: self.toolchainRegistry,
           options: options,
           testHooks: testHooks,
-          underlyingBuildSystem: nil,
-          index: nil,
-          indexDelegate: nil,
           indexTaskScheduler: self.indexTaskScheduler,
           logMessageToIndexLog: { [weak self] taskID, message in
             self?.logMessageToIndexLog(taskID: taskID, message: message)
@@ -1113,6 +1108,9 @@ extension SourceKitLSPServer {
           },
           indexProgressStatusDidChange: { [weak self] in
             self?.indexProgressManager.indexProgressStatusDidChange()
+          },
+          reloadPackageStatusCallback: { [weak self] status in
+            await self?.reloadPackageStatusCallback(status)
           }
         )
 
@@ -1535,7 +1533,14 @@ extension SourceKitLSPServer {
         }
       }
       if let added = notification.event.added {
-        let newWorkspaces = await added.asyncCompactMap { await self.createWorkspace($0) }
+        let newWorkspaces = await added.asyncCompactMap { workspaceFolder in
+          await orLog("Creating workspace after workspace folder change") {
+            try await self.createWorkspace(
+              workspaceFolder: workspaceFolder.uri,
+              buildSystemKind: determineBuildSystem(forWorkspaceFolder: workspaceFolder.uri, options: self.options)
+            )
+          }
+        }
         for workspace in newWorkspaces {
           await workspace.buildSystemManager.setDelegate(self)
         }

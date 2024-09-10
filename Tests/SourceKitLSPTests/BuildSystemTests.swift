@@ -24,6 +24,10 @@ import XCTest
 /// Build system to be used for testing BuildSystem and BuildSystemDelegate functionality with SourceKitLSPServer
 /// and other components.
 actor TestBuildSystem: BuiltInBuildSystem {
+  static func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath? {
+    return workspaceFolder
+  }
+
   let projectRoot: AbsolutePath = try! AbsolutePath(validating: "/")
   let indexStorePath: AbsolutePath? = nil
   let indexDatabasePath: AbsolutePath? = nil
@@ -32,12 +36,6 @@ actor TestBuildSystem: BuiltInBuildSystem {
 
   func setDelegate(_ delegate: BuildSystemDelegate?) async {
     self.delegate = delegate
-  }
-
-  weak var messageHandler: BuiltInBuildSystemMessageHandler?
-
-  func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
-    self.messageHandler = messageHandler
   }
 
   /// Build settings by file.
@@ -144,11 +142,17 @@ final class BuildSystemTests: XCTestCase {
 
     let server = testClient.server
 
+    let buildSystemManager = await BuildSystemManager(
+      testBuildSystem: buildSystem,
+      fallbackBuildSystem: FallbackBuildSystem(options: .init()),
+      mainFilesProvider: nil,
+      toolchainRegistry: ToolchainRegistry.forTesting
+    )
+
     self.workspace = await Workspace.forTesting(
-      toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions.testDefault(),
       testHooks: TestHooks(),
-      underlyingBuildSystem: buildSystem,
+      buildSystemManager: buildSystemManager,
       indexTaskScheduler: .forTesting
     )
 

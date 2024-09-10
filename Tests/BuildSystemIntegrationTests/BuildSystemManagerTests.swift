@@ -37,7 +37,7 @@ final class BuildSystemManagerTests: XCTestCase {
     )
 
     let bsm = await BuildSystemManager(
-      buildSystem: nil,
+      testBuildSystem: nil,
       fallbackBuildSystem: FallbackBuildSystem(options: SourceKitLSPOptions.FallbackBuildSystemOptions()),
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -96,7 +96,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider([a: [a]])
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -121,7 +121,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider([a: [a]])
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -145,7 +145,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let bs = ManualBuildSystem()
     let fallback = FallbackBuildSystem(options: SourceKitLSPOptions.FallbackBuildSystemOptions())
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: fallback,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -176,7 +176,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider([a: [a], b: [b]])
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -218,7 +218,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider([a: [a], b: [b]])
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -258,7 +258,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -314,7 +314,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -357,7 +357,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider([a: [a], b: [b], c: [c]])
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -401,7 +401,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -447,6 +447,13 @@ private final actor ManualMainFilesProvider: MainFilesProvider {
 /// A simple `BuildSystem` that wraps a dictionary, for testing.
 @MainActor
 class ManualBuildSystem: BuiltInBuildSystem {
+  static nonisolated func projectRoot(
+    for workspaceFolder: AbsolutePath,
+    options: SourceKitLSPOptions
+  ) -> AbsolutePath? {
+    return workspaceFolder
+  }
+
   var projectRoot = try! AbsolutePath(validating: "/")
 
   var map: [DocumentURI: FileBuildSettings] = [:]
@@ -455,12 +462,6 @@ class ManualBuildSystem: BuiltInBuildSystem {
 
   func setDelegate(_ delegate: BuildSystemDelegate?) async {
     self.delegate = delegate
-  }
-
-  weak var messageHandler: BuiltInBuildSystemMessageHandler?
-
-  func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
-    self.messageHandler = messageHandler
   }
 
   package nonisolated var supportsPreparation: Bool { false }

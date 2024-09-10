@@ -14,6 +14,7 @@ import BuildServerProtocol
 import Dispatch
 import LanguageServerProtocol
 import SKLogging
+import SKOptions
 import SKSupport
 import ToolchainRegistry
 
@@ -49,10 +50,6 @@ package actor CompilationDatabaseBuildSystem {
 
   package weak var messageHandler: BuiltInBuildSystemMessageHandler?
 
-  package func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
-    self.messageHandler = messageHandler
-  }
-
   package let projectRoot: AbsolutePath
 
   let searchPaths: [RelativePath]
@@ -86,11 +83,13 @@ package actor CompilationDatabaseBuildSystem {
   package init?(
     projectRoot: AbsolutePath,
     searchPaths: [RelativePath],
+    messageHandler: (any BuiltInBuildSystemMessageHandler)?,
     fileSystem: FileSystem = localFileSystem
   ) {
     self.fileSystem = fileSystem
     self.projectRoot = projectRoot
     self.searchPaths = searchPaths
+    self.messageHandler = messageHandler
     if let compdb = tryLoadCompilationDatabase(directory: projectRoot, additionalSearchPaths: searchPaths, fileSystem) {
       self.compdb = compdb
     } else {
@@ -100,6 +99,13 @@ package actor CompilationDatabaseBuildSystem {
 }
 
 extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
+  static package func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath? {
+    if tryLoadCompilationDatabase(directory: workspaceFolder) != nil {
+      return workspaceFolder
+    }
+    return nil
+  }
+
   package nonisolated var supportsPreparation: Bool { false }
 
   package var indexDatabasePath: AbsolutePath? {

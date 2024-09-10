@@ -15,6 +15,7 @@ import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKLogging
+import SKOptions
 import SKSupport
 import SwiftExtensions
 import ToolchainRegistry
@@ -76,15 +77,12 @@ package actor BuildServerBuildSystem: MessageHandler {
 
   package weak var messageHandler: BuiltInBuildSystemMessageHandler?
 
-  package func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
-    self.messageHandler = messageHandler
-  }
-
   /// The build settings that have been received from the build server.
   private var buildSettings: [DocumentURI: FileBuildSettings] = [:]
 
   package init(
     projectRoot: AbsolutePath,
+    messageHandler: BuiltInBuildSystemMessageHandler?,
     fileSystem: FileSystem = localFileSystem
   ) async throws {
     let configPath = projectRoot.appending(component: "buildServer.json")
@@ -104,17 +102,18 @@ package actor BuildServerBuildSystem: MessageHandler {
     #endif
     self.projectRoot = projectRoot
     self.serverConfig = config
+    self.messageHandler = messageHandler
     try await self.initializeBuildServer()
   }
 
   /// Creates a build system using the Build Server Protocol config.
   ///
   /// - Returns: nil if `projectRoot` has no config or there is an error parsing it.
-  package init?(projectRoot: AbsolutePath?) async {
+  package init?(projectRoot: AbsolutePath?, messageHandler: BuiltInBuildSystemMessageHandler?) async {
     guard let projectRoot else { return nil }
 
     do {
-      try await self.init(projectRoot: projectRoot)
+      try await self.init(projectRoot: projectRoot, messageHandler: messageHandler)
     } catch is FileSystemError {
       // config file was missing, no build server for this workspace
       return nil
@@ -259,6 +258,13 @@ private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
 }
 
 extension BuildServerBuildSystem: BuiltInBuildSystem {
+  static package func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath? {
+    guard localFileSystem.isFile(workspaceFolder.appending(component: "buildServer.json")) else {
+      return nil
+    }
+    return workspaceFolder
+  }
+
   package nonisolated var supportsPreparation: Bool { false }
 
   /// The build settings for the given file.
