@@ -22,7 +22,7 @@ import struct TSCBasic.RelativePath
 
 // FIXME: (BSP Migration) This should be a MessageHandler once we have migrated all build system queries to BSP and can use
 // LocalConnection for the communication.
-protocol BuiltInBuildSystemAdapterDelegate: Sendable {
+protocol BuiltInBuildSystemAdapterDelegate: Sendable, AnyObject {
   func handle(_ notification: some NotificationType) async
   func handle<R: RequestType>(_ request: R) async throws -> R.Response
 }
@@ -74,7 +74,7 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
   // FIXME: (BSP Migration) This should be private, all messages should go through BSP. Only accessible from the outside for transition
   // purposes.
   private(set) package var underlyingBuildSystem: BuiltInBuildSystem!
-  private let messageHandler: any BuiltInBuildSystemAdapterDelegate
+  private weak var messageHandler: (any BuiltInBuildSystemAdapterDelegate)?
 
   init?(
     buildSystemKind: (WorkspaceType, projectRoot: AbsolutePath)?,
@@ -163,6 +163,10 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
       \(notification.forLogging)
       """
     )
+    guard let messageHandler else {
+      logger.error("Ignoring notificaiton \(notification.forLogging) because message handler has been deallocated")
+      return
+    }
     await messageHandler.handle(notification)
   }
 
@@ -173,6 +177,9 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
       \(request.forLogging)
       """
     )
+    guard let messageHandler else {
+      throw ResponseError.unknown("Connection to SourceKit-LSP closed")
+    }
     return try await messageHandler.handle(request)
   }
 
