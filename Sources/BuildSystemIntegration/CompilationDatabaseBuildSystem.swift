@@ -160,10 +160,6 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     )
   }
 
-  package func defaultLanguage(for document: DocumentURI) async -> Language? {
-    return nil
-  }
-
   package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
     return nil
   }

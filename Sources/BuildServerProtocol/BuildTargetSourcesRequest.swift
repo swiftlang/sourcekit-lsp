@@ -97,5 +97,30 @@ public struct SourceItemDataKind: RawRepresentable, Codable, Hashable, Sendable 
   }
 
   /// `data` field must contain a JvmSourceItemData object.
-  public static let jvm = "jvm"
+  public static let jvm = SourceItemDataKind(rawValue: "jvm")
+
+  /// `data` field must contain a `SourceKitSourceItemData` object.
+  public static let sourceKit = SourceItemDataKind(rawValue: "sourceKit")
+}
+
+public struct SourceKitSourceItemData: LSPAnyCodable, Codable {
+  public var language: Language?
+
+  public init(language: Language? = nil) {
+    self.language = language
+  }
+
+  public init?(fromLSPDictionary dictionary: [String: LanguageServerProtocol.LSPAny]) {
+    if case .string(let language) = dictionary[CodingKeys.language.stringValue] {
+      self.language = Language(rawValue: language)
+    }
+  }
+
+  public func encodeToLSPAny() -> LanguageServerProtocol.LSPAny {
+    var result: [String: LSPAny] = [:]
+    if let language {
+      result[CodingKeys.language.stringValue] = .string(language.rawValue)
+    }
+    return .dictionary(result)
+  }
 }

@@ -563,6 +563,8 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
 
   package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
     var result: [SourcesItem] = []
+    // TODO: Query The SwiftPM build system for the document's language and add it to SourceItem.data
+    // (https://github.com/swiftlang/sourcekit-lsp/issues/1267)
     for target in request.targets {
       guard let swiftPMTarget = self.targets[target] else {
         continue
@@ -615,11 +617,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       compilerArguments: try await compilerArguments(for: request.textDocument.uri, in: buildTarget),
       workingDirectory: projectRoot.pathString
     )
-  }
-
-  package func defaultLanguage(for document: DocumentURI) -> Language? {
-    // TODO: Query The SwiftPM build system for the document's language. (https://github.com/swiftlang/sourcekit-lsp/issues/1267)
-    return nil
   }
 
   package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {

@@ -76,10 +76,6 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     return buildSettingsByFile[request.textDocument.uri]
   }
 
-  package func defaultLanguage(for document: DocumentURI) async -> Language? {
-    return nil
-  }
-
   package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
     return nil
   }

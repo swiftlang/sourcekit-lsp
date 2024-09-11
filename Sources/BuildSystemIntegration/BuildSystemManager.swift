@@ -191,11 +191,38 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     self.mainFilesProvider = mainFilesProvider
   }
 
+  /// Ask the build system if it explicitly specifies a language for this document. Return `nil` if it does not.
+  private func languageInferredFromBuildSystem(
+    for document: DocumentURI,
+    in target: BuildTargetIdentifier
+  ) async throws -> Language? {
+    let sourcesItems = try await self.sourceFiles(in: [target])
+    let sourceFiles = sourcesItems.flatMap(\.sources)
+    var result: Language? = nil
+    for sourceFile in sourceFiles {
+      guard sourceFile.uri == document, sourceFile.dataKind == .sourceKit, case .dictionary(let data) = sourceFile.data,
+        let sourceKitData = SourceKitSourceItemData(fromLSPDictionary: data),
+        let language = sourceKitData.language
+      else {
+        continue
+      }
+      if result != nil && result != language {
+        logger.error("Conflicting languages for \(document.forLogging) in \(target)")
+        return nil
+      }
+      result = language
+    }
+    return result
+  }
+
   /// Returns the language that a document should be interpreted in for background tasks where the editor doesn't
   /// specify the document's language.
-  package func defaultLanguage(for document: DocumentURI) async -> Language? {
-    if let defaultLanguage = await buildSystem?.underlyingBuildSystem.defaultLanguage(for: document) {
-      return defaultLanguage
+  package func defaultLanguage(for document: DocumentURI, in target: BuildTargetIdentifier) async -> Language? {
+    let language = await orLog("Getting source files to determine default language") {
+      try await languageInferredFromBuildSystem(for: document, in: target)
+    }
+    if let language {
+      return language
     }
     switch document.fileURL?.pathExtension {
     case "c": return .c
@@ -237,7 +264,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
   /// Returns the target's module name as parsed from the `BuildTargetIdentifier`'s compiler arguments.
   package func moduleName(for document: DocumentURI, in target: BuildTargetIdentifier) async -> String? {
-    guard let language = await self.defaultLanguage(for: document),
+    guard let language = await self.defaultLanguage(for: document, in: target),
       let buildSettings = await buildSettings(for: document, in: target, language: language)
     else {
       return nil
@@ -406,6 +433,8 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
       return []
     }
 
+    // FIXME: (BSP migration) If we have a cached request for a superset of the targets, serve the result from that
+    // cache entry.
     let request = BuildTargetSourcesRequest.init(targets: targets)
     let response = try await cachedTargetSources.get(request) { request in
       try await buildSystem.send(request)
@@ -416,6 +445,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   package func sourceFiles() async throws -> [SourceFileInfo] {
     // FIXME: (BSP Migration): Consider removing this method and letting callers get all targets first and then
     // retrieving the source files for those targets.
+    // FIXME: (BSP Migration) Handle source files that are in multiple targets
     let targets = try await self.buildTargets()
     let targetsById = Dictionary(elements: targets, keyedBy: \.id)
     let sourceFiles = try await self.sourceFiles(in: targets.map(\.id)).flatMap { sourcesItem in

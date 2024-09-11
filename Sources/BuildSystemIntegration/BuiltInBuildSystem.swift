@@ -139,13 +139,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// Returning `nil` indicates that all targets should be considered depending on the given target.
   func targets(dependingOn targets: [BuildTargetIdentifier]) async -> [BuildTargetIdentifier]?
 
-  /// If the build system has knowledge about the language that this document should be compiled in, return it.
-  ///
-  /// This is used to determine the language in which a source file should be background indexed.
-  ///
-  /// If `nil` is returned, the language based on the file's extension.
-  func defaultLanguage(for document: DocumentURI) async -> Language?
-
   /// The toolchain that should be used to open the given document.
   ///
   /// If `nil` is returned, then the default toolchain for the given language is used.

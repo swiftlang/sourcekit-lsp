@@ -235,7 +235,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     if file.mainFile != file.sourceFile {
       logger.log("Updating index store of \(file.forLogging) using main file \(file.mainFile.forLogging)")
     }
-    guard let language = await buildSystemManager.defaultLanguage(for: file.mainFile) else {
+    guard let language = await buildSystemManager.defaultLanguage(for: file.mainFile, in: target) else {
       logger.error("Not indexing \(file.forLogging) because its language could not be determined")
       return
     }
