@@ -39,9 +39,6 @@ package actor TestBuildSystem: BuiltInBuildSystem {
   /// Build settings by file.
   private var buildSettingsByFile: [DocumentURI: SourceKitOptionsResponse] = [:]
 
-  /// Files currently being watched by our delegate.
-  private var watchedFiles: Set<DocumentURI> = []
-
   package func setBuildSettings(for uri: DocumentURI, to buildSettings: SourceKitOptionsResponse?) async {
     buildSettingsByFile[uri] = buildSettings
     await self.messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildTargetNotification(changes: nil))
@@ -73,10 +70,7 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
   }
 
-  package func prepare(
-    targets: [BuildTargetIdentifier],
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
-  ) async throws {
+  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
     throw PrepareNotSupportedError()
   }
 
@@ -92,23 +86,7 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func registerForChangeNotifications(for uri: DocumentURI) async {
-    watchedFiles.insert(uri)
-  }
-
-  package func unregisterForChangeNotifications(for uri: DocumentURI) {
-    watchedFiles.remove(uri)
-  }
-
   package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {}
-
-  package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    if buildSettingsByFile[uri] != nil {
-      return .handled
-    } else {
-      return .unhandled
-    }
-  }
 
   package func sourceFiles() async -> [SourceFileInfo] {
     return []

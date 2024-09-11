@@ -188,10 +188,6 @@ package actor SwiftPMBuildSystem {
   /// Callbacks that should be called if the list of possible test files has changed.
   private var testFilesDidChangeCallbacks: [() async -> Void] = []
 
-  /// The URIs for which the delegate has registered for change notifications,
-  /// mapped to the language the delegate specified when registering for change notifications.
-  private var watchedFiles: Set<DocumentURI> = []
-
   /// Debounces calls to `delegate.filesDependenciesUpdated`.
   ///
   /// This is to ensure we don't call `filesDependenciesUpdated` for the same file multiple time if the client does not
@@ -489,10 +485,7 @@ extension SwiftPMBuildSystem {
       targets[targetIdentifier] = (buildTarget, depth)
     }
 
-    if let delegate = self.delegate {
-      await delegate.fileHandlingCapabilityChanged()
-      await messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildTargetNotification(changes: nil))
-    }
+    await messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildTargetNotification(changes: nil))
     for testFilesDidChangeCallback in testFilesDidChangeCallbacks {
       await testFilesDidChangeCallback()
     }
@@ -662,22 +655,30 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     }
   }
 
-  package func prepare(
-    targets: [BuildTargetIdentifier],
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
-  ) async throws {
+  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
     // TODO: Support preparation of multiple targets at once. (https://github.com/swiftlang/sourcekit-lsp/issues/1262)
-    for target in targets {
-      await orLog("Preparing") { try await prepare(singleTarget: target, logMessageToIndexLog: logMessageToIndexLog) }
+    for target in request.targets {
+      await orLog("Preparing") { try await prepare(singleTarget: target) }
     }
-    let filesInPreparedTargets = targets.flatMap { self.targets[$0]?.buildTarget.sources ?? [] }
+    let filesInPreparedTargets = request.targets.flatMap { self.targets[$0]?.buildTarget.sources ?? [] }
     await fileDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets.map(DocumentURI.init)))
+    return VoidResponse()
   }
 
-  private func prepare(
-    singleTarget target: BuildTargetIdentifier,
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
-  ) async throws {
+  private nonisolated func logMessageToIndexLog(_ taskID: IndexTaskID, _ message: String) {
+    // FIXME: When `messageHandler` is a Connection, we don't need to go via Task anymore
+    Task {
+      await self.messageHandler?.sendNotificationToSourceKitLSP(
+        BuildServerProtocol.LogMessageNotification(
+          type: .info,
+          task: TaskId(id: taskID.rawValue),
+          message: message
+        )
+      )
+    }
+  }
+
+  private func prepare(singleTarget target: BuildTargetIdentifier) async throws {
     if target == .forPackageManifest {
       // Nothing to prepare for package manifests.
       return
@@ -727,8 +728,8 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       \(arguments.joined(separator: " "))
       """
     )
-    let stdoutHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
-    let stderrHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
+    let stdoutHandler = PipeAsStringHandler { self.logMessageToIndexLog(logID, $0) }
+    let stderrHandler = PipeAsStringHandler { self.logMessageToIndexLog(logID, $0) }
 
     let result = try await Process.run(
       arguments: arguments,
@@ -768,16 +769,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
         logger.error("Preparation of target \(target.forLogging) exited abnormally \(exception)")
       }
     }
-  }
-
-  package func registerForChangeNotifications(for uri: DocumentURI) async {
-    self.watchedFiles.insert(uri)
-  }
-
-  /// Unregister the given file for build-system level change notifications, such as command
-  /// line flag changes, dependency changes, etc.
-  package func unregisterForChangeNotifications(for uri: DocumentURI) {
-    self.watchedFiles.remove(uri)
   }
 
   /// Returns the resolved target descriptions for the given file, if one is known.
@@ -849,13 +840,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       filesWithUpdatedDependencies.formUnion(self.fileToTargets.keys)
     }
     await self.fileDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
-  }
-
-  package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    if targets(for: uri).isEmpty {
-      return .unhandled
-    }
-    return .handled
   }
 
   package func sourceFiles() -> [SourceFileInfo] {

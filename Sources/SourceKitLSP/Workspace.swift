@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import BuildSystemIntegration
 import IndexStoreDB
 import LanguageServerProtocol
@@ -82,7 +83,11 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
   /// `nil` if background indexing is not enabled.
   let semanticIndexManager: SemanticIndexManager?
 
-  /// A callback that should be called when the file handling capability of this workspace changes.
+  /// A callback that should be called when the build system wants to log a message to the index log.
+  private let logMessageToIndexLogCallback: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
+
+  /// A callback that should be called when the file handling capability (ie. the presence of a target for a source
+  /// files) of this workspace changes.
   private let fileHandlingCapabilityChangedCallback: @Sendable () async -> Void
 
   private init(
@@ -104,6 +109,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     self.options = options
     self._uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
     self.buildSystemManager = buildSystemManager
+    self.logMessageToIndexLogCallback = logMessageToIndexLog
     self.fileHandlingCapabilityChangedCallback = fileHandlingCapabilityChanged
     if options.backgroundIndexingOrDefault, let uncheckedIndex, await buildSystemManager.supportsPreparation {
       self.semanticIndexManager = SemanticIndexManager(
@@ -316,8 +322,12 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     }
   }
 
-  package func fileHandlingCapabilityChanged() async {
+  package func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {
     await self.fileHandlingCapabilityChangedCallback()
+  }
+
+  package func logMessageToIndexLog(taskID: IndexTaskID, message: String) {
+    self.logMessageToIndexLogCallback(taskID, message)
   }
 }
 

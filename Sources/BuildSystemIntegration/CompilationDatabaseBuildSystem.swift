@@ -130,10 +130,7 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
   }
 
-  package func prepare(
-    targets: [BuildTargetIdentifier],
-    logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
-  ) async throws {
+  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
     throw PrepareNotSupportedError()
   }
 
@@ -148,11 +145,6 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
   package func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil
   }
-
-  package func registerForChangeNotifications(for uri: DocumentURI) {}
-
-  /// We don't support change watching.
-  package func unregisterForChangeNotifications(for uri: DocumentURI) {}
 
   private func database(for uri: DocumentURI) -> CompilationDatabase? {
     if let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) {
@@ -207,14 +199,6 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
   package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {
     if notification.changes.contains(where: { self.fileEventShouldTriggerCompilationDatabaseReload(event: $0) }) {
       await self.reloadCompilationDatabase()
-    }
-  }
-
-  package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    if database(for: uri) != nil {
-      return .handled
-    } else {
-      return .unhandled
     }
   }
 

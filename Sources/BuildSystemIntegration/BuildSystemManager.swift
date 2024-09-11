@@ -81,7 +81,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
   /// The fallback build system. If present, used when the `buildSystem` is not
   /// set or cannot provide settings.
-  let fallbackBuildSystem: FallbackBuildSystem?
+  let fallbackBuildSystem: FallbackBuildSystem
 
   /// Provider of file to main file mappings.
   var mainFilesProvider: MainFilesProvider?
@@ -101,11 +101,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
   /// was found.
-  package var projectRoot: AbsolutePath? {
-    get async {
-      return await buildSystem?.underlyingBuildSystem.projectRoot
-    }
-  }
+  package let projectRoot: AbsolutePath?
 
   package var supportsPreparation: Bool {
     get async {
@@ -122,6 +118,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   ) async {
     self.fallbackBuildSystem = FallbackBuildSystem(options: options.fallbackBuildSystemOrDefault)
     self.toolchainRegistry = toolchainRegistry
+    self.projectRoot = buildSystemKind?.projectRoot
     self.buildSystem = await BuiltInBuildSystemAdapter(
       buildSystemKind: buildSystemKind,
       toolchainRegistry: toolchainRegistry,
@@ -149,6 +146,8 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     switch notification {
     case let notification as DidChangeBuildTargetNotification:
       await self.didChangeBuildTarget(notification: notification)
+    case let notification as BuildServerProtocol.LogMessageNotification:
+      await self.logMessage(notification: notification)
     default:
       logger.error("Ignoring unknown notification \(type(of: notification).method)")
     }
@@ -315,7 +314,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
       logger.error("Getting build settings failed: \(error.forLogging)")
     }
 
-    guard var settings = await fallbackBuildSystem?.buildSettings(for: document, language: language) else {
+    guard var settings = await fallbackBuildSystem.buildSettings(for: document, language: language) else {
       return nil
     }
     if buildSystem == nil {
@@ -372,40 +371,17 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     targets: [BuildTargetIdentifier],
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
-    try await buildSystem?.underlyingBuildSystem.prepare(targets: targets, logMessageToIndexLog: logMessageToIndexLog)
+    let _: VoidResponse? = try await buildSystem?.send(PrepareTargetsRequest(targets: targets))
   }
 
   package func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
     logger.debug("registerForChangeNotifications(\(uri.forLogging))")
     let mainFile = await mainFile(for: uri, language: language)
     self.watchedFiles[uri] = (mainFile, language)
-
-    // Register for change notifications of the main file in the underlying build
-    // system. That way, iff the main file changes, we will also notify the
-    // delegate about build setting changes of all header files that are based
-    // on that main file.
-    await buildSystem?.underlyingBuildSystem.registerForChangeNotifications(for: mainFile)
   }
 
   package func unregisterForChangeNotifications(for uri: DocumentURI) async {
-    guard let mainFile = self.watchedFiles[uri]?.mainFile else {
-      logger.fault("Unbalanced calls for registerForChangeNotifications and unregisterForChangeNotifications")
-      return
-    }
     self.watchedFiles[uri] = nil
-
-    if watchedFilesReferencing(mainFiles: [mainFile]).isEmpty {
-      // Nobody is interested in this main file anymore.
-      // We are no longer interested in change notifications for it.
-      await self.buildSystem?.underlyingBuildSystem.unregisterForChangeNotifications(for: mainFile)
-    }
-  }
-
-  package func fileHandlingCapability(for uri: DocumentURI) async -> FileHandlingCapability {
-    return max(
-      await buildSystem?.underlyingBuildSystem.fileHandlingCapability(for: uri) ?? .unhandled,
-      fallbackBuildSystem != nil ? .fallback : .unhandled
-    )
   }
 
   package func sourceFiles() async -> [SourceFileInfo] {
@@ -451,12 +427,6 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
   }
 
-  package func fileHandlingCapabilityChanged() async {
-    if let delegate = self.delegate {
-      await delegate.fileHandlingCapabilityChanged()
-    }
-  }
-
   private func didChangeBuildTarget(notification: DidChangeBuildTargetNotification) async {
     // Every `DidChangeBuildTargetNotification` notification needs to invalidate the cache since the changed target
     // might gained a source file.
@@ -476,9 +446,20 @@ extension BuildSystemManager: BuildSystemDelegate {
       return updatedTargets.contains(cacheKey.target)
     }
 
+    await delegate?.buildTargetsChanged(notification.changes)
     // FIXME: (BSP Migration) Communicate that the build target has changed to the `BuildSystemManagerDelegate` and make
     // it responsible for figuring out which files are affected.
     await delegate?.fileBuildSettingsChanged(Set(watchedFiles.keys))
+  }
+
+  private func logMessage(notification: BuildServerProtocol.LogMessageNotification) async {
+    // FIXME: (BSP Integration) Remove the restriction that task IDs need to have a raw value that can be parsed by
+    // `IndexTaskID.init`.
+    guard let task = notification.task, let taskID = IndexTaskID(rawValue: task.id) else {
+      logger.error("Ignoring log message notification with unknown task \(notification.task?.id ?? "<nil>")")
+      return
+    }
+    delegate?.logMessageToIndexLog(taskID: taskID, message: notification.message)
   }
 }
 

@@ -19,18 +19,6 @@ import ToolchainRegistry
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 
-/// Defines how well a `BuildSystem` can handle a file with a given URI.
-package enum FileHandlingCapability: Comparable, Sendable {
-  /// The build system can't handle the file at all
-  case unhandled
-
-  /// The build system has fallback build settings for the file
-  case fallback
-
-  /// The build system knows how to handle the file
-  case handled
-}
-
 package struct SourceFileInfo: Sendable {
   /// The URI of the source file.
   package let uri: DocumentURI
@@ -140,10 +128,7 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
 
   /// Prepare the given targets for indexing and semantic functionality. This should build all swift modules of target
   /// dependencies.
-  func prepare(
-    targets: [BuildTargetIdentifier],
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
-  ) async throws
+  func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse
 
   /// If the build system has knowledge about the language that this document should be compiled in, return it.
   ///
@@ -157,22 +142,8 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// If `nil` is returned, then the default toolchain for the given language is used.
   func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain?
 
-  /// Register the given file for build-system level change notifications, such
-  /// as command line flag changes, dependency changes, etc.
-  ///
-  /// IMPORTANT: When first receiving a register request, the `BuildSystem` MUST asynchronously
-  /// inform its delegate of any initial settings for the given file via the
-  /// `fileBuildSettingsChanged` method, even if unavailable.
-  func registerForChangeNotifications(for: DocumentURI) async
-
-  /// Unregister the given file for build-system level change notifications,
-  /// such as command line flag changes, dependency changes, etc.
-  func unregisterForChangeNotifications(for: DocumentURI) async
-
   /// Called when files in the project change.
   func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async
-
-  func fileHandlingCapability(for uri: DocumentURI) async -> FileHandlingCapability
 
   /// Returns the list of source files in the project.
   ///

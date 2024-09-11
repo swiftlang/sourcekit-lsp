@@ -449,5 +449,7 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
     }
   }
 
-  func fileHandlingCapabilityChanged() {}
+  func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {}
+
+  nonisolated func logMessageToIndexLog(taskID: BuildSystemIntegration.IndexTaskID, message: String) {}
 }

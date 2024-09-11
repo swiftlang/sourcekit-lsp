@@ -44,4 +44,23 @@ package enum IndexTaskID: Sendable {
       return Self.numberToEmojis((id * 2 + 1).hashValue, numEmojis: numEmojis)
     }
   }
+
+  package var rawValue: String {
+    switch self {
+    case .preparation(id: let id): return "preparation-\(id)"
+    case .updateIndexStore(id: let id): return "updateIndexStore-\(id)"
+    }
+  }
+
+  package init?(rawValue: String) {
+    let split = rawValue.split(separator: "-", maxSplits: 2)
+    guard split.count == 2, let id = UInt32(split[1]) else {
+      return nil
+    }
+    switch split[0] {
+    case "preparation": self = .preparation(id: id)
+    case "updateIndexStore": self = .updateIndexStore(id: id)
+    default: return nil
+    }
+  }
 }

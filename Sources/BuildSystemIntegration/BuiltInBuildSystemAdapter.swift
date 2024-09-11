@@ -140,6 +140,8 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
     switch request {
     case let request as InverseSourcesRequest:
       return try await handle(request, underlyingBuildSystem.inverseSources)
+    case let request as PrepareTargetsRequest:
+      return try await handle(request, underlyingBuildSystem.prepare)
     case let request as SourceKitOptionsRequest:
       return try await handle(request, underlyingBuildSystem.sourceKitOptions)
     default:

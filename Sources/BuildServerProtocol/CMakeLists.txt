@@ -4,7 +4,9 @@ add_library(BuildServerProtocol STATIC
   DidChangeWatchedFilesNotification.swift
   InitializeBuild.swift
   InverseSourcesRequest.swift
+  LogMessageNotification.swift
   Messages.swift
+  PrepareTargetsRequest.swift
   RegisterForChangeNotifications.swift
   ShutdownBuild.swift
   SourceKitOptionsRequest.swift)

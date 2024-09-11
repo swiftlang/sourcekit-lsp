@@ -68,4 +68,17 @@ extension Sequence {
 
     return result
   }
+
+  /// Just like `Sequence.first` but allows an `async` predicate function.
+  package func asyncFirst(
+    @_inheritActorContext _ predicate: @Sendable (Element) async throws -> Bool
+  ) async rethrows -> Element? {
+    for element in self {
+      if try await predicate(element) {
+        return element
+      }
+    }
+
+    return nil
+  }
 }

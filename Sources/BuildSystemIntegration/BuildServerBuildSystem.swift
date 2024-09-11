@@ -80,6 +80,8 @@ package actor BuildServerBuildSystem: MessageHandler {
   /// The build settings that have been received from the build server.
   private var buildSettings: [DocumentURI: SourceKitOptionsResponse] = [:]
 
+  private var urisRegisteredForChanges: Set<URI> = []
+
   package init(
     projectRoot: AbsolutePath,
     messageHandler: BuiltInBuildSystemMessageHandler?,
@@ -269,7 +271,38 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
   package nonisolated var supportsPreparation: Bool { false }
 
   package func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse? {
-    return buildSettings[request.textDocument.uri]
+    // FIXME: (BSP Migration) If the BSP server supports it, send the `SourceKitOptions` request to it. Only do the
+    // `RegisterForChanges` dance if we are in the legacy mode.
+
+    // Support the pre Swift 6.1 build settings workflow where SourceKit-LSP registers for changes for a file and then
+    // expects updates to those build settings to get pushed to SourceKit-LSP with `FileOptionsChangedNotification`.
+    // We do so by registering for changes when requesting build settings for a document for the first time. We never
+    // unregister for changes. The expectation is that all BSP servers migrate to the `SourceKitOptionsRequest` soon,
+    // which renders this code path dead.
+    let uri = request.textDocument.uri
+    if !urisRegisteredForChanges.contains(uri) {
+      let request = RegisterForChanges(uri: uri, action: .register)
+      _ = self.buildServer?.send(request) { result in
+        if let error = result.failure {
+          logger.error("Error registering \(request.uri): \(error.forLogging)")
+
+          Task {
+            // BuildServer registration failed, so tell our delegate that no build
+            // settings are available.
+            await self.buildSettingsChanged(for: request.uri, settings: nil)
+          }
+        }
+      }
+    }
+
+    guard let buildSettings = buildSettings[uri] else {
+      return nil
+    }
+
+    return SourceKitOptionsResponse(
+      compilerArguments: buildSettings.compilerArguments,
+      workingDirectory: buildSettings.workingDirectory
+    )
   }
 
   package func defaultLanguage(for document: DocumentURI) async -> Language? {
@@ -296,63 +329,11 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func prepare(
-    targets: [BuildTargetIdentifier],
-    logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
-  ) async throws {
+  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
     throw PrepareNotSupportedError()
   }
 
-  package func registerForChangeNotifications(for uri: DocumentURI) {
-    let request = RegisterForChanges(uri: uri, action: .register)
-    _ = self.buildServer?.send(request) { result in
-      if let error = result.failure {
-        logger.error("Error registering \(uri): \(error.forLogging)")
-
-        Task {
-          // BuildServer registration failed, so tell our delegate that no build
-          // settings are available.
-          await self.buildSettingsChanged(for: uri, settings: nil)
-        }
-      }
-    }
-  }
-
-  /// Unregister the given file for build-system level change notifications, such as command
-  /// line flag changes, dependency changes, etc.
-  package func unregisterForChangeNotifications(for uri: DocumentURI) {
-    let request = RegisterForChanges(uri: uri, action: .unregister)
-    _ = self.buildServer?.send(request) { result in
-      if let error = result.failure {
-        logger.error("Error unregistering \(uri.forLogging): \(error.forLogging)")
-      }
-    }
-  }
-
   package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) {}
-
-  package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    guard
-      let fileUrl = uri.fileURL,
-      let path = try? AbsolutePath(validating: fileUrl.path)
-    else {
-      return .unhandled
-    }
-
-    // TODO: We should not make any assumptions about which files the build server can handle.
-    // Instead we should query the build server which files it can handle
-    // (https://github.com/swiftlang/sourcekit-lsp/issues/492).
-
-    if projectRoot.isAncestorOfOrEqual(to: path) {
-      return .handled
-    }
-
-    if let realpath = try? resolveSymlinks(path), realpath != path, projectRoot.isAncestorOfOrEqual(to: realpath) {
-      return .handled
-    }
-
-    return .unhandled
-  }
 
   package func sourceFiles() async -> [SourceFileInfo] {
     // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
