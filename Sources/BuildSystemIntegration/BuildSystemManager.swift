@@ -87,7 +87,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   var mainFilesProvider: MainFilesProvider?
 
   /// Build system delegate that will receive notifications about setting changes, etc.
-  var delegate: BuildSystemManagerDelegate?
+  private weak var delegate: BuildSystemManagerDelegate?
 
   /// The list of toolchains that are available.
   ///
@@ -135,6 +135,11 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
   package func filesDidChange(_ events: [FileEvent]) async {
     await self.buildSystem?.send(BuildServerProtocol.DidChangeWatchedFilesNotification(changes: events))
+    if let mainFilesProvider {
+      var mainFiles = await Set(events.asyncFlatMap { await mainFilesProvider.mainFilesContainingFile($0.uri) })
+      mainFiles.subtract(events.map(\.uri))
+      await self.filesDependenciesUpdated(mainFiles)
+    }
   }
 
   /// Implementation of `MessageHandler`, handling notifications from the build system.

@@ -48,7 +48,7 @@ fileprivate func firstNonNil<T>(
 /// "initialize" request has been made.
 ///
 /// Typically a workspace is contained in a root directory.
-package final class Workspace: Sendable {
+package final class Workspace: Sendable, BuildSystemManagerDelegate {
 
   /// The root directory of the workspace.
   package let rootUri: DocumentURI?
@@ -73,9 +73,6 @@ package final class Workspace: Sendable {
   /// The index that syntactically scans the workspace for tests.
   let syntacticTestIndex = SyntacticTestIndex()
 
-  /// Documents open in the SourceKitLSPServer. This may include open documents from other workspaces.
-  private let documentManager: DocumentManager
-
   /// Language service for an open document, if available.
   private let documentService: ThreadSafeBox<[DocumentURI: LanguageService]> = ThreadSafeBox(initialValue: [:])
 
@@ -85,8 +82,10 @@ package final class Workspace: Sendable {
   /// `nil` if background indexing is not enabled.
   let semanticIndexManager: SemanticIndexManager?
 
+  /// A callback that should be called when the file handling capability of this workspace changes.
+  private let fileHandlingCapabilityChangedCallback: @Sendable () async -> Void
+
   private init(
-    documentManager: DocumentManager,
     rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
     options: SourceKitLSPOptions,
@@ -97,14 +96,15 @@ package final class Workspace: Sendable {
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
-    indexProgressStatusDidChange: @escaping @Sendable () -> Void
+    indexProgressStatusDidChange: @escaping @Sendable () -> Void,
+    fileHandlingCapabilityChanged: @escaping @Sendable () async -> Void
   ) async {
-    self.documentManager = documentManager
     self.rootUri = rootUri
     self.capabilityRegistry = capabilityRegistry
     self.options = options
     self._uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
     self.buildSystemManager = buildSystemManager
+    self.fileHandlingCapabilityChangedCallback = fileHandlingCapabilityChanged
     if options.backgroundIndexingOrDefault, let uncheckedIndex, await buildSystemManager.supportsPreparation {
       self.semanticIndexManager = SemanticIndexManager(
         index: uncheckedIndex,
@@ -153,7 +153,8 @@ package final class Workspace: Sendable {
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     indexTasksWereScheduled: @Sendable @escaping (Int) -> Void,
     indexProgressStatusDidChange: @Sendable @escaping () -> Void,
-    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
+    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void,
+    fileHandlingCapabilityChanged: @Sendable @escaping () async -> Void
   ) async {
     let buildSystemManager = await BuildSystemManager(
       buildSystemKind: buildSystemKind,
@@ -216,7 +217,6 @@ package final class Workspace: Sendable {
     await buildSystemManager.setMainFilesProvider(UncheckedIndex(index))
 
     await self.init(
-      documentManager: documentManager,
       rootUri: rootUri,
       capabilityRegistry: capabilityRegistry,
       options: options,
@@ -227,8 +227,10 @@ package final class Workspace: Sendable {
       indexTaskScheduler: indexTaskScheduler,
       logMessageToIndexLog: logMessageToIndexLog,
       indexTasksWereScheduled: indexTasksWereScheduled,
-      indexProgressStatusDidChange: indexProgressStatusDidChange
+      indexProgressStatusDidChange: indexProgressStatusDidChange,
+      fileHandlingCapabilityChanged: fileHandlingCapabilityChanged
     )
+    await buildSystemManager.setDelegate(self)
   }
 
   package static func forTesting(
@@ -238,7 +240,6 @@ package final class Workspace: Sendable {
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async -> Workspace {
     return await Workspace(
-      documentManager: DocumentManager(),
       rootUri: nil,
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
       options: options,
@@ -249,7 +250,8 @@ package final class Workspace: Sendable {
       indexTaskScheduler: indexTaskScheduler,
       logMessageToIndexLog: { _, _ in },
       indexTasksWereScheduled: { _ in },
-      indexProgressStatusDidChange: {}
+      indexProgressStatusDidChange: {},
+      fileHandlingCapabilityChanged: {}
     )
   }
 
@@ -290,6 +292,32 @@ package final class Workspace: Sendable {
       service[uri] = newLanguageService
       return newLanguageService
     }
+  }
+
+  /// Handle a build settings change notification from the `BuildSystem`.
+  /// This has two primary cases:
+  /// - Initial settings reported for a given file, now we can fully open it
+  /// - Changed settings for an already open file
+  package func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
+    for uri in changedFiles {
+      await self.documentService(for: uri)?.documentUpdatedBuildSettings(uri)
+    }
+  }
+
+  /// Handle a dependencies updated notification from the `BuildSystem`.
+  /// We inform the respective language services as long as the given file is open
+  /// (not queued for opening).
+  package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
+    for uri in changedFiles {
+      logger.log("Dependencies updated for opened file \(uri.forLogging)")
+      if let service = documentService(for: uri) {
+        await service.documentDependenciesUpdated(uri)
+      }
+    }
+  }
+
+  package func fileHandlingCapabilityChanged() async {
+    await self.fileHandlingCapabilityChangedCallback()
   }
 }
 

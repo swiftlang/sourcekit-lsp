@@ -65,7 +65,7 @@ final class BuildSystemTests: XCTestCase {
     )
 
     await server.setWorkspaces([(workspace: workspace, isImplicit: false)])
-    await workspace.buildSystemManager.setDelegate(server)
+    await workspace.buildSystemManager.setDelegate(workspace)
   }
 
   override func tearDown() {
