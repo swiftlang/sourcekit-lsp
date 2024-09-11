@@ -15,6 +15,7 @@ import Dispatch
 import LanguageServerProtocol
 import SKLogging
 import SKOptions
+import SKSupport
 import SwiftExtensions
 import ToolchainRegistry
 
@@ -97,6 +98,10 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   private var cachedTargetsForDocument = RequestCache<InverseSourcesRequest>()
 
   private var cachedSourceKitOptions = RequestCache<SourceKitOptionsRequest>()
+
+  private var cachedBuildTargets = RequestCache<BuildTargetsRequest>()
+
+  private var cachedTargetSources = RequestCache<BuildTargetSourcesRequest>()
 
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
@@ -384,12 +389,50 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     self.watchedFiles[uri] = nil
   }
 
-  package func sourceFiles() async -> [SourceFileInfo] {
-    return await buildSystem?.underlyingBuildSystem.sourceFiles() ?? []
+  package func buildTargets() async throws -> [BuildTarget] {
+    guard let buildSystem else {
+      return []
+    }
+
+    let request = BuildTargetsRequest()
+    let response = try await cachedBuildTargets.get(request) { request in
+      try await buildSystem.send(request)
+    }
+    return response.targets
   }
 
-  package func testFiles() async -> [DocumentURI] {
-    return await sourceFiles().compactMap { (info: SourceFileInfo) -> DocumentURI? in
+  package func sourceFiles(in targets: [BuildTargetIdentifier]) async throws -> [SourcesItem] {
+    guard let buildSystem else {
+      return []
+    }
+
+    let request = BuildTargetSourcesRequest.init(targets: targets)
+    let response = try await cachedTargetSources.get(request) { request in
+      try await buildSystem.send(request)
+    }
+    return response.items
+  }
+
+  package func sourceFiles() async throws -> [SourceFileInfo] {
+    // FIXME: (BSP Migration): Consider removing this method and letting callers get all targets first and then
+    // retrieving the source files for those targets.
+    let targets = try await self.buildTargets()
+    let targetsById = Dictionary(elements: targets, keyedBy: \.id)
+    let sourceFiles = try await self.sourceFiles(in: targets.map(\.id)).flatMap { sourcesItem in
+      let target = targetsById[sourcesItem.target]
+      return sourcesItem.sources.map { sourceItem in
+        SourceFileInfo(
+          uri: sourceItem.uri,
+          isPartOfRootProject: !(target?.tags.contains(.dependency) ?? false),
+          mayContainTests: target?.tags.contains(.test) ?? true
+        )
+      }
+    }
+    return sourceFiles
+  }
+
+  package func testFiles() async throws -> [DocumentURI] {
+    return try await sourceFiles().compactMap { (info: SourceFileInfo) -> DocumentURI? in
       guard info.isPartOfRootProject, info.mayContainTests else {
         return nil
       }
@@ -444,6 +487,14 @@ extension BuildSystemManager: BuildSystemDelegate {
         return true
       }
       return updatedTargets.contains(cacheKey.target)
+    }
+    self.cachedBuildTargets.clearAll()
+    self.cachedTargetSources.clear { cacheKey in
+      guard let updatedTargets else {
+        // All targets might have changed
+        return true
+      }
+      return !updatedTargets.intersection(cacheKey.targets).isEmpty
     }
 
     await delegate?.buildTargetsChanged(notification.changes)

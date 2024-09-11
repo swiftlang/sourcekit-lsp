@@ -540,6 +540,41 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     }
   }
 
+  package func buildTargets(request: BuildTargetsRequest) async throws -> BuildTargetsResponse {
+    let targets = self.targets.map { (targetId, target) in
+      var tags: [BuildTargetTag] = [.test]
+      if target.depth != 1 {
+        tags.append(.dependency)
+      }
+      return BuildTarget(
+        id: targetId,
+        displayName: nil,
+        baseDirectory: nil,
+        tags: tags,
+        capabilities: BuildTargetCapabilities(),
+        // Be conservative with the languages that might be used in the target. SourceKit-LSP doesn't use this property.
+        languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift],
+        // FIXME: (BSP migration) List the target's dependencies
+        dependencies: []
+      )
+    }
+    return BuildTargetsResponse(targets: targets)
+  }
+
+  package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+    var result: [SourcesItem] = []
+    for target in request.targets {
+      guard let swiftPMTarget = self.targets[target] else {
+        continue
+      }
+      let sources = swiftPMTarget.buildTarget.sources.map {
+        SourceItem(uri: DocumentURI($0), kind: .file, generated: false)
+      }
+      result.append(SourcesItem(target: target, sources: sources))
+    }
+    return BuildTargetSourcesResponse(items: result)
+  }
+
   package func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse? {
     guard let url = request.textDocument.uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
       // We can't determine build settings for non-file URIs.

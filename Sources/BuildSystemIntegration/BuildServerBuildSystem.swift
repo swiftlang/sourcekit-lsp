@@ -270,6 +270,39 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
 
   package nonisolated var supportsPreparation: Bool { false }
 
+  package func buildTargets(request: BuildTargetsRequest) async throws -> BuildTargetsResponse {
+    // TODO: (BSP migration) Forward this request to the BSP server
+    return BuildTargetsResponse(targets: [
+      BuildTarget(
+        id: .dummy,
+        displayName: "Compilation database",
+        baseDirectory: nil,
+        tags: [.test],
+        capabilities: BuildTargetCapabilities(),
+        // Be conservative with the languages that might be used in the target. SourceKit-LSP doesn't use this property.
+        languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift],
+        dependencies: []
+      )
+    ])
+  }
+
+  package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+    // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
+    // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).
+    // TODO: (BSP migration) Forward this request to the BSP server
+    return BuildTargetSourcesResponse(items: [])
+  }
+
+  package func inverseSources(request: InverseSourcesRequest) -> InverseSourcesResponse {
+    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
+  }
+
+  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) {}
+
+  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
+    throw PrepareNotSupportedError()
+  }
+
   package func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse? {
     // FIXME: (BSP Migration) If the BSP server supports it, send the `SourceKitOptions` request to it. Only do the
     // `RegisterForChanges` dance if we are in the legacy mode.
@@ -313,10 +346,6 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func inverseSources(request: InverseSourcesRequest) -> InverseSourcesResponse {
-    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
-  }
-
   package func scheduleBuildGraphGeneration() {}
 
   package func waitForUpToDateBuildGraph() async {}
@@ -327,18 +356,6 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
 
   package func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil
-  }
-
-  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
-    throw PrepareNotSupportedError()
-  }
-
-  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) {}
-
-  package func sourceFiles() async -> [SourceFileInfo] {
-    // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
-    // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).
-    return []
   }
 
   package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) {

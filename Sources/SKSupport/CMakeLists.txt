@@ -5,6 +5,7 @@ add_library(SKSupport STATIC
   ByteString.swift
   Connection+Send.swift
   Debouncer.swift
+  Dictionary+InitWithElementsKeyedBy.swift
   DocumentURI+CustomLogStringConvertible.swift
   ExperimentalFeatures.swift
   FileSystem.swift

@@ -138,6 +138,10 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
     }
 
     switch request {
+    case let request as BuildTargetsRequest:
+      return try await handle(request, underlyingBuildSystem.buildTargets)
+    case let request as BuildTargetSourcesRequest:
+      return try await handle(request, underlyingBuildSystem.buildTargetSources)
     case let request as InverseSourcesRequest:
       return try await handle(request, underlyingBuildSystem.inverseSources)
     case let request as PrepareTargetsRequest:

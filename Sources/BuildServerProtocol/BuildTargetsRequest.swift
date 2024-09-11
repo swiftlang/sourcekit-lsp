@@ -9,21 +9,26 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
+
 import LanguageServerProtocol
 
 public typealias URI = DocumentURI
 
 /// The workspace build targets request is sent from the client to the server to
 /// ask for the list of all available build targets in the workspace.
-public struct BuildTargets: RequestType, Hashable {
+public struct BuildTargetsRequest: RequestType, Hashable {
   public static let method: String = "workspace/buildTargets"
-  public typealias Response = BuildTargetsResult
+  public typealias Response = BuildTargetsResponse
 
   public init() {}
 }
 
-public struct BuildTargetsResult: ResponseType, Hashable {
+public struct BuildTargetsResponse: ResponseType, Hashable {
   public var targets: [BuildTarget]
+
+  public init(targets: [BuildTarget]) {
+    self.targets = targets
+  }
 }
 
 public struct BuildTarget: Codable, Hashable, Sendable {
@@ -52,15 +57,22 @@ public struct BuildTarget: Codable, Hashable, Sendable {
   /// are free to define new tags for custom purposes.
   public var tags: [BuildTargetTag]
 
-  /// The capabilities of this build target.
-  public var capabilities: BuildTargetCapabilities
-
   /// The set of languages that this target contains.
   /// The ID string for each language is defined in the LSP.
   public var languageIds: [Language]
 
   /// The direct upstream build target dependencies of this build target
   public var dependencies: [BuildTargetIdentifier]
+
+  /// The capabilities of this build target.
+  public var capabilities: BuildTargetCapabilities
+
+  /// Kind of data to expect in the `data` field. If this field is not set, the kind of data is not specified.
+  public var dataKind: BuildTargetDataKind?
+
+  /// Language-specific metadata about this target.
+  /// See ScalaBuildTarget as an example.
+  public var data: LSPAny?
 
   public init(
     id: BuildTargetIdentifier,
@@ -96,17 +108,13 @@ public struct BuildTargetTag: Codable, Hashable, RawRepresentable, Sendable {
     self.rawValue = rawValue
   }
 
-  /// Target contains re-usable functionality for downstream targets. May have
-  /// any combination of capabilities.
-  public static let library: Self = Self(rawValue: "library")
-
   /// Target contains source code for producing any kind of application, may
   /// have but does not require the `canRun` capability.
   public static let application: Self = Self(rawValue: "application")
 
-  /// Target contains source code for testing purposes, may have but does not
-  /// require the `canTest` capability.
-  public static let test: Self = Self(rawValue: "test")
+  /// Target contains source code to measure performance of a program, may have
+  /// but does not require the `canRun` build target capability.
+  public static let benchmark: Self = Self(rawValue: "benchmark")
 
   /// Target contains source code for integration testing purposes, may have
   /// but does not require the `canTest` capability. The difference between
@@ -115,77 +123,76 @@ public struct BuildTargetTag: Codable, Hashable, RawRepresentable, Sendable {
   /// execute.
   public static let integrationTest: Self = Self(rawValue: "integration-test")
 
-  /// Target contains source code to measure performance of a program, may have
-  /// but does not require the `canRun` build target capability.
-  public static let benchmark: Self = Self(rawValue: "benchmark")
+  /// Target contains re-usable functionality for downstream targets. May have
+  /// any combination of capabilities.
+  public static let library: Self = Self(rawValue: "library")
+
+  /// Actions on the target such as build and test should only be invoked manually
+  /// and explicitly. For example, triggering a build on all targets in the workspace
+  /// should by default not include this target.
+  /// The original motivation to add the "manual" tag comes from a similar functionality
+  /// that exists in Bazel, where targets with this tag have to be specified explicitly
+  /// on the command line.
+  public static let manual: Self = Self(rawValue: "manual")
 
   /// Target should be ignored by IDEs.
   public static let noIDE: Self = Self(rawValue: "no-ide")
+
+  /// Target contains source code for testing purposes, may have but does not
+  /// require the `canTest` capability.
+  public static let test: Self = Self(rawValue: "test")
+
+  /// This is a target of a dependency from the project the user opened, eg. a target that builds a SwiftPM dependency.
+  ///
+  /// **(BSP Extension)**
+  public static let dependency: Self = Self(rawValue: "dependency")
 }
 
 public struct BuildTargetCapabilities: Codable, Hashable, Sendable {
   /// This target can be compiled by the BSP server.
-  public var canCompile: Bool
+  public var canCompile: Bool?
 
   /// This target can be tested by the BSP server.
-  public var canTest: Bool
+  public var canTest: Bool?
 
   /// This target can be run by the BSP server.
-  public var canRun: Bool
+  public var canRun: Bool?
 
-  public init(canCompile: Bool, canTest: Bool, canRun: Bool) {
+  /// This target can be debugged by the BSP server.
+  public var canDebug: Bool?
+
+  public init(canCompile: Bool? = nil, canTest: Bool? = nil, canRun: Bool? = nil, canDebug: Bool? = nil) {
     self.canCompile = canCompile
     self.canTest = canTest
     self.canRun = canRun
+    self.canDebug = canDebug
   }
 }
 
-/// The build target sources request is sent from the client to the server to
-/// query for the list of text documents and directories that are belong to a
-/// build target. The sources response must not include sources that are
-/// external to the workspace.
-public struct BuildTargetSources: RequestType, Hashable {
-  public static let method: String = "buildTarget/sources"
-  public typealias Response = BuildTargetSourcesResult
+public struct BuildTargetDataKind: RawRepresentable, Codable, Hashable, Sendable {
+  public var rawValue: String
 
-  public var targets: [BuildTargetIdentifier]
-
-  public init(targets: [BuildTargetIdentifier]) {
-    self.targets = targets
+  public init(rawValue: String) {
+    self.rawValue = rawValue
   }
-}
 
-public struct BuildTargetSourcesResult: ResponseType, Hashable {
-  public var items: [SourcesItem]
-}
+  /// `data` field must contain a CargoBuildTarget object.
+  public static let cargo = "cargo"
 
-public struct SourcesItem: Codable, Hashable, Sendable {
-  public var target: BuildTargetIdentifier
+  /// `data` field must contain a CppBuildTarget object.
+  public static let cpp = "cpp"
 
-  /// The text documents and directories that belong to this build target.
-  public var sources: [SourceItem]
-}
+  /// `data` field must contain a JvmBuildTarget object.
+  public static let jvm = "jvm"
 
-public struct SourceItem: Codable, Hashable, Sendable {
-  /// Either a text document or a directory. A directory entry must end with a
-  /// forward slash "/" and a directory entry implies that every nested text
-  /// document within the directory belongs to this source item.
-  public var uri: URI
+  /// `data` field must contain a PythonBuildTarget object.
+  public static let python = "python"
 
-  /// Type of file of the source item, such as whether it is file or directory.
-  public var kind: SourceItemKind
+  /// `data` field must contain a SbtBuildTarget object.
+  public static let sbt = "sbt"
 
-  /// Indicates if this source is automatically generated by the build and is
-  /// not intended to be manually edited by the user.
-  public var generated: Bool
-}
-
-public enum SourceItemKind: Int, Codable, Hashable, Sendable {
-  /// The source item references a normal file.
-  case file = 1
-
-  /// The source item references a directory.
-  case directory = 2
+  /// `data` field must contain a ScalaBuildTarget object.
+  public static let scala = "scala"
 }
 
 /// The build target output paths request is sent from the client to the server

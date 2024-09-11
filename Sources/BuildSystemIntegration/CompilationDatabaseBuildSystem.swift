@@ -108,6 +108,48 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
   }
 
+  package func buildTargets(request: BuildTargetsRequest) async throws -> BuildTargetsResponse {
+    return BuildTargetsResponse(targets: [
+      BuildTarget(
+        id: .dummy,
+        displayName: nil,
+        baseDirectory: nil,
+        tags: [.test],
+        capabilities: BuildTargetCapabilities(),
+        // Be conservative with the languages that might be used in the target. SourceKit-LSP doesn't use this property.
+        languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift],
+        dependencies: []
+      )
+    ])
+  }
+
+  package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+    guard request.targets.contains(.dummy) else {
+      return BuildTargetSourcesResponse(items: [])
+    }
+    guard let compdb else {
+      return BuildTargetSourcesResponse(items: [])
+    }
+    let sources = compdb.allCommands.map {
+      SourceItem(uri: $0.uri, kind: .file, generated: false)
+    }
+    return BuildTargetSourcesResponse(items: [SourcesItem(target: .dummy, sources: sources)])
+  }
+
+  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {
+    if notification.changes.contains(where: { self.fileEventShouldTriggerCompilationDatabaseReload(event: $0) }) {
+      await self.reloadCompilationDatabase()
+    }
+  }
+
+  package func inverseSources(request: InverseSourcesRequest) -> InverseSourcesResponse {
+    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
+  }
+
+  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
+    throw PrepareNotSupportedError()
+  }
+
   package func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse? {
     guard let db = database(for: request.textDocument.uri), let cmd = db[request.textDocument.uri].first else {
       return nil
@@ -124,14 +166,6 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
 
   package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
     return nil
-  }
-
-  package func inverseSources(request: InverseSourcesRequest) -> InverseSourcesResponse {
-    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
-  }
-
-  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
-    throw PrepareNotSupportedError()
   }
 
   package func scheduleBuildGraphGeneration() {}
@@ -193,21 +227,6 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     await messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildTargetNotification(changes: nil))
     for testFilesDidChangeCallback in testFilesDidChangeCallbacks {
       await testFilesDidChangeCallback()
-    }
-  }
-
-  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {
-    if notification.changes.contains(where: { self.fileEventShouldTriggerCompilationDatabaseReload(event: $0) }) {
-      await self.reloadCompilationDatabase()
-    }
-  }
-
-  package func sourceFiles() async -> [SourceFileInfo] {
-    guard let compdb else {
-      return []
-    }
-    return compdb.allCommands.map {
-      SourceFileInfo(uri: $0.uri, isPartOfRootProject: true, mayContainTests: true)
     }
   }
 
