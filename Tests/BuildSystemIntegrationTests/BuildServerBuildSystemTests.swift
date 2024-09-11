@@ -76,7 +76,6 @@ final class BuildServerBuildSystemTests: XCTestCase {
       _fixLifetime(buildSystemDelegate)
     }
     let buildSystem = try await BuildServerBuildSystem(projectRoot: root, messageHandler: buildSystemDelegate)
-    await buildSystem.setDelegate(buildSystemDelegate)
     _ = try await buildSystem.sourceKitOptions(
       request: SourceKitOptionsRequest(
         textDocument: TextDocumentIdentifier(uri: uri),
@@ -126,16 +125,11 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 }
 
-final class TestDelegate: BuildSystemDelegate, BuiltInBuildSystemMessageHandler {
+final class TestDelegate: BuiltInBuildSystemMessageHandler {
   let targetExpectations: [(DidChangeBuildTargetNotification, XCTestExpectation)]
-  let dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation]
 
-  package init(
-    targetExpectations: [(DidChangeBuildTargetNotification, XCTestExpectation)] = [],
-    dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation] = [:]
-  ) {
+  package init(targetExpectations: [(DidChangeBuildTargetNotification, XCTestExpectation)] = []) {
     self.targetExpectations = targetExpectations
-    self.dependenciesUpdatedExpectations = dependenciesUpdatedExpectations
   }
 
   func didChangeBuildTarget(notification: DidChangeBuildTargetNotification) {
@@ -143,12 +137,6 @@ final class TestDelegate: BuildSystemDelegate, BuiltInBuildSystemMessageHandler 
       if expectedNotification == notification {
         expectation.fulfill()
       }
-    }
-  }
-
-  package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
-    for uri in changedFiles {
-      dependenciesUpdatedExpectations[uri]?.fulfill()
     }
   }
 

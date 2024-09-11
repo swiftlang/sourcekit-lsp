@@ -95,6 +95,18 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// Used to determine which toolchain to use for a given document.
   private let toolchainRegistry: ToolchainRegistry
 
+  private let options: SourceKitLSPOptions
+
+  /// Debounces calls to `delegate.filesDependenciesUpdated`.
+  ///
+  /// This is to ensure we don't call `filesDependenciesUpdated` for the same file multiple time if the client does not
+  /// debounce `workspace/didChangeWatchedFiles` and sends a separate notification eg. for every file within a target as
+  /// it's being updated by a git checkout, which would cause other files within that target to receive a
+  /// `fileDependenciesUpdated` call once for every updated file within the target.
+  ///
+  /// Force-unwrapped optional because initializing it requires access to `self`.
+  private var filesDependenciesUpdatedDebouncer: Debouncer<Set<DocumentURI>>! = nil
+
   private var cachedTargetsForDocument = RequestCache<InverseSourcesRequest>()
 
   private var cachedSourceKitOptions = RequestCache<SourceKitOptionsRequest>()
@@ -123,6 +135,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   ) async {
     self.fallbackBuildSystem = FallbackBuildSystem(options: options.fallbackBuildSystemOrDefault)
     self.toolchainRegistry = toolchainRegistry
+    self.options = options
     self.projectRoot = buildSystemKind?.projectRoot
     self.buildSystem = await BuiltInBuildSystemAdapter(
       buildSystemKind: buildSystemKind,
@@ -132,16 +145,68 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
       reloadPackageStatusCallback: reloadPackageStatusCallback,
       messageHandler: self
     )
-    await self.buildSystem?.underlyingBuildSystem.setDelegate(self)
+    // The debounce duration of 500ms was chosen arbitrarily without any measurements.
+    self.filesDependenciesUpdatedDebouncer = Debouncer(
+      debounceDuration: .milliseconds(500),
+      combineResults: { $0.union($1) }
+    ) {
+      [weak self] (filesWithUpdatedDependencies) in
+      guard let self, let delegate = await self.delegate else {
+        logger.fault("Not calling filesDependenciesUpdated because no delegate exists in SwiftPMBuildSystem")
+        return
+      }
+      let changedWatchedFiles = await self.watchedFilesReferencing(mainFiles: filesWithUpdatedDependencies)
+      guard !changedWatchedFiles.isEmpty else {
+        return
+      }
+      await delegate.filesDependenciesUpdated(changedWatchedFiles)
+    }
   }
 
   package func filesDidChange(_ events: [FileEvent]) async {
     await self.buildSystem?.send(BuildServerProtocol.DidChangeWatchedFilesNotification(changes: events))
+
+    var targetsWithUpdatedDependencies: Set<BuildTargetIdentifier> = []
+    // If a Swift file within a target is updated, reload all the other files within the target since they might be
+    // referring to a function in the updated file.
+    let targetsWithChangedSwiftFiles =
+      await events
+      .filter { $0.uri.fileURL?.pathExtension == "swift" }
+      .asyncFlatMap { await self.targets(for: $0.uri) }
+    targetsWithUpdatedDependencies.formUnion(targetsWithChangedSwiftFiles)
+
+    // If a `.swiftmodule` file is updated, this means that we have performed a build / are
+    // performing a build and files that depend on this module have updated dependencies.
+    // We don't have access to the build graph from the SwiftPM API offered to SourceKit-LSP to figure out which files
+    // depend on the updated module, so assume that all files have updated dependencies.
+    // The file watching here is somewhat fragile as well because it assumes that the `.swiftmodule` files are being
+    // written to a directory within the workspace root. This is not necessarily true if the user specifies a build
+    // directory outside the source tree.
+    // If we have background indexing enabled, this is not necessary because we call `fileDependenciesUpdated` when
+    // preparation of a target finishes.
+    if !options.backgroundIndexingOrDefault,
+      events.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" })
+    {
+      let targets = await orLog("Getting build targets") {
+        try await self.buildTargets()
+      }
+      targetsWithUpdatedDependencies.formUnion(targets?.map(\.id) ?? [])
+    }
+
+    var filesWithUpdatedDependencies: Set<DocumentURI> = []
+
+    await orLog("Getting source files in targets") {
+      let sourceFiles = try await self.sourceFiles(in: Array(Set(targetsWithUpdatedDependencies)))
+      filesWithUpdatedDependencies.formUnion(sourceFiles.flatMap(\.sources).map(\.uri))
+    }
+
     if let mainFilesProvider {
       var mainFiles = await Set(events.asyncFlatMap { await mainFilesProvider.mainFilesContainingFile($0.uri) })
       mainFiles.subtract(events.map(\.uri))
-      await self.filesDependenciesUpdated(mainFiles)
+      filesWithUpdatedDependencies.formUnion(mainFiles)
     }
+
+    await self.filesDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
   }
 
   /// Implementation of `MessageHandler`, handling notifications from the build system.
@@ -404,6 +469,10 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     let _: VoidResponse? = try await buildSystem?.send(PrepareTargetsRequest(targets: targets))
+    await orLog("Calling fileDependenciesUpdated") {
+      let filesInPreparedTargets = try await self.sourceFiles(in: targets).flatMap(\.sources).map(\.uri)
+      await filesDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets))
+    }
   }
 
   package func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
@@ -471,7 +540,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   }
 }
 
-extension BuildSystemManager: BuildSystemDelegate {
+extension BuildSystemManager {
   private func watchedFilesReferencing(mainFiles: Set<DocumentURI>) -> Set<DocumentURI> {
     return Set(
       watchedFiles.compactMap { (watchedFile, mainFileAndLanguage) in
@@ -482,22 +551,6 @@ extension BuildSystemManager: BuildSystemDelegate {
         }
       }
     )
-  }
-
-  package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
-    // Empty changes --> assume everything has changed.
-    guard !changedFiles.isEmpty else {
-      if let delegate = self.delegate {
-        await delegate.filesDependenciesUpdated(changedFiles)
-      }
-      return
-    }
-
-    // Need to map the changed main files back into changed watch files.
-    let changedWatchedFiles = watchedFilesReferencing(mainFiles: changedFiles)
-    if let delegate, !changedWatchedFiles.isEmpty {
-      await delegate.filesDependenciesUpdated(changedWatchedFiles)
-    }
   }
 
   private func didChangeBuildTarget(notification: DidChangeBuildTargetNotification) async {

@@ -38,13 +38,6 @@ package actor FallbackBuildSystem {
     )
   }()
 
-  /// Delegate to handle any build system events.
-  package weak var delegate: BuildSystemDelegate? = nil
-
-  package func setDelegate(_ delegate: BuildSystemDelegate?) async {
-    self.delegate = delegate
-  }
-
   package var indexStorePath: AbsolutePath? { return nil }
 
   package var indexDatabasePath: AbsolutePath? { return nil }

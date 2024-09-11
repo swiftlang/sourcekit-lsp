@@ -28,13 +28,7 @@ package actor TestBuildSystem: BuiltInBuildSystem {
   package let indexStorePath: AbsolutePath? = nil
   package let indexDatabasePath: AbsolutePath? = nil
 
-  package weak var delegate: BuildSystemDelegate?
-
   private weak var messageHandler: BuiltInBuildSystemMessageHandler?
-
-  package func setDelegate(_ delegate: BuildSystemDelegate?) async {
-    self.delegate = delegate
-  }
 
   /// Build settings by file.
   private var buildSettingsByFile: [DocumentURI: SourceKitOptionsResponse] = [:]

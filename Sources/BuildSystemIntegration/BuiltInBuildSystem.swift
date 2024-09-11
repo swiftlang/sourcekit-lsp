@@ -75,18 +75,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// The path to put the index database, if any.
   var indexDatabasePath: AbsolutePath? { get async }
 
-  /// Delegate to handle any build system events such as file build settings initial reports as well as changes.
-  ///
-  /// The build system must not retain the delegate because the delegate can be the `BuildSystemManager`, which could
-  /// result in a retain cycle `BuildSystemManager` -> `BuildSystem` -> `BuildSystemManager`.
-  var delegate: BuildSystemDelegate? { get async }
-
-  /// Set the build system's delegate.
-  ///
-  /// - Note: Needed so we can set the delegate from a different actor isolation
-  ///   context.
-  func setDelegate(_ delegate: BuildSystemDelegate?) async
-
   /// Whether the build system is capable of preparing a target for indexing, ie. if the `prepare` methods has been
   /// implemented.
   var supportsPreparation: Bool { get }

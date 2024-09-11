@@ -67,14 +67,6 @@ package actor BuildServerBuildSystem: MessageHandler {
   package private(set) var indexDatabasePath: AbsolutePath?
   package private(set) var indexStorePath: AbsolutePath?
 
-  /// Delegate to handle any build system events.
-  package weak var delegate: BuildSystemDelegate?
-
-  /// - Note: Needed to set the delegate from a different actor isolation context
-  package func setDelegate(_ delegate: BuildSystemDelegate?) async {
-    self.delegate = delegate
-  }
-
   package weak var messageHandler: BuiltInBuildSystemMessageHandler?
 
   /// The build settings that have been received from the build server.

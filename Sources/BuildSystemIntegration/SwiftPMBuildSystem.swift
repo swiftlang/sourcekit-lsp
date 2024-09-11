@@ -173,13 +173,6 @@ package actor SwiftPMBuildSystem {
   /// issues in SwiftPM.
   private let packageLoadingQueue = AsyncQueue<Serial>()
 
-  /// Delegate to handle any build system events.
-  package weak var delegate: BuildSystemIntegration.BuildSystemDelegate? = nil
-
-  package func setDelegate(_ delegate: BuildSystemIntegration.BuildSystemDelegate?) async {
-    self.delegate = delegate
-  }
-
   package weak var messageHandler: BuiltInBuildSystemMessageHandler?
 
   /// This callback is informed when `reloadPackage` starts and ends executing.
@@ -187,16 +180,6 @@ package actor SwiftPMBuildSystem {
 
   /// Callbacks that should be called if the list of possible test files has changed.
   private var testFilesDidChangeCallbacks: [() async -> Void] = []
-
-  /// Debounces calls to `delegate.filesDependenciesUpdated`.
-  ///
-  /// This is to ensure we don't call `filesDependenciesUpdated` for the same file multiple time if the client does not
-  /// debounce `workspace/didChangeWatchedFiles` and sends a separate notification eg. for every file within a target as
-  /// it's being updated by a git checkout, which would cause other files within that target to receive a
-  /// `fileDependenciesUpdated` call once for every updated file within the target.
-  ///
-  /// Force-unwrapped optional because initializing it requires access to `self`.
-  private var fileDependenciesUpdatedDebouncer: Debouncer<Set<DocumentURI>>! = nil
 
   /// Whether the `SwiftPMBuildSystem` is pointed at a `.index-build` directory that's independent of the
   /// user's build.
@@ -378,19 +361,6 @@ package actor SwiftPMBuildSystem {
     )
 
     self.reloadPackageStatusCallback = reloadPackageStatusCallback
-
-    // The debounce duration of 500ms was chosen arbitrarily without scientific research.
-    self.fileDependenciesUpdatedDebouncer = Debouncer(
-      debounceDuration: .milliseconds(500),
-      combineResults: { $0.union($1) }
-    ) {
-      [weak self] (filesWithUpdatedDependencies) in
-      guard let delegate = await self?.delegate else {
-        logger.fault("Not calling filesDependenciesUpdated because no delegate exists in SwiftPMBuildSystem")
-        return
-      }
-      await delegate.filesDependenciesUpdated(filesWithUpdatedDependencies)
-    }
   }
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
@@ -692,8 +662,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     for target in request.targets {
       await orLog("Preparing") { try await prepare(singleTarget: target) }
     }
-    let filesInPreparedTargets = request.targets.flatMap { self.targets[$0]?.buildTarget.sources ?? [] }
-    await fileDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets.map(DocumentURI.init)))
     return VoidResponse()
   }
 
@@ -846,32 +814,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
         try await self.schedulePackageReload().value
       }
     }
-
-    var filesWithUpdatedDependencies: Set<DocumentURI> = []
-    // If a Swift file within a target is updated, reload all the other files within the target since they might be
-    // referring to a function in the updated file.
-    for event in notification.changes {
-      guard event.uri.fileURL?.pathExtension == "swift", let targets = fileToTargets[event.uri] else {
-        continue
-      }
-      for target in targets {
-        filesWithUpdatedDependencies.formUnion(self.targets[target]?.buildTarget.sources.map(DocumentURI.init) ?? [])
-      }
-    }
-
-    // If a `.swiftmodule` file is updated, this means that we have performed a build / are
-    // performing a build and files that depend on this module have updated dependencies.
-    // We don't have access to the build graph from the SwiftPM API offered to SourceKit-LSP to figure out which files
-    // depend on the updated module, so assume that all files have updated dependencies.
-    // The file watching here is somewhat fragile as well because it assumes that the `.swiftmodule` files are being
-    // written to a directory within the workspace root. This is not necessarily true if the user specifies a build
-    // directory outside the source tree.
-    // If we have background indexing enabled, this is not necessary because we call `fileDependenciesUpdated` when
-    // preparation of a target finishes.
-    if !isForIndexBuild, notification.changes.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" }) {
-      filesWithUpdatedDependencies.formUnion(self.fileToTargets.keys)
-    }
-    await self.fileDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
   }
 
   package func sourceFiles() -> [SourceFileInfo] {
