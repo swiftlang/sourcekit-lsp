@@ -84,19 +84,7 @@ public struct DocumentURI: Codable, Hashable, Sendable {
   }
 
   public init(from decoder: Decoder) throws {
-    let string = try decoder.singleValueContainer().decode(String.self)
-    guard let url = URL(string: string) else {
-      throw FailedToConstructDocumentURIFromStringError(string: string)
-    }
-    if url.query() != nil, var urlComponents = URLComponents(string: url.absoluteString) {
-      // See comment in `encode(to:)`
-      urlComponents.percentEncodedQuery = urlComponents.percentEncodedQuery!.removingPercentEncoding
-      if let rewrittenQuery = urlComponents.url {
-        self.init(rewrittenQuery)
-        return
-      }
-    }
-    self.init(url)
+    try self.init(string: decoder.singleValueContainer().decode(String.self))
   }
 
   /// Equality check to handle escape sequences in file URLs.
@@ -109,36 +97,7 @@ public struct DocumentURI: Codable, Hashable, Sendable {
     hasher.combine(self.pseudoPath)
   }
 
-  private static let additionalQueryEncodingCharacterSet = CharacterSet(charactersIn: "?=&%").inverted
-
   public func encode(to encoder: Encoder) throws {
-    let urlToEncode: URL
-    if let query = storage.query(percentEncoded: true), var components = URLComponents(string: storage.absoluteString) {
-      // The URI standard RFC 3986 is ambiguous about whether percent encoding and their represented characters are
-      // considered equivalent. VS Code considers them equivalent and treats them the same:
-      //
-      // vscode.Uri.parse("x://a?b=xxxx%3Dyyyy").toString() -> 'x://a?b%3Dxxxx%3Dyyyy'
-      // vscode.Uri.parse("x://a?b=xxxx%3Dyyyy").toString(/*skipEncoding=*/true) -> 'x://a?b=xxxx=yyyy'
-      //
-      // This causes issues because SourceKit-LSP's macro expansion URLs encoded by URLComponents use `=` to denote the
-      // separation of a key and a value in the outer query. The value of the `parent` key may itself contain query
-      // items, which use the escaped form '%3D'. Simplified, such a URL may look like
-      // scheme://host?parent=scheme://host?line%3D2
-      // But after running this through VS Code's URI type `=` and `%3D` get canonicalized and are indistinguishable.
-      // To avoid this ambiguity, always percent escape the characters we use to distinguish URL query parameters,
-      // producing the following URL.
-      // scheme://host?parent%3Dscheme://host%3Fline%253D2
-      components.percentEncodedQuery =
-        query
-        .addingPercentEncoding(withAllowedCharacters: Self.additionalQueryEncodingCharacterSet)
-      if let componentsUrl = components.url {
-        urlToEncode = componentsUrl
-      } else {
-        urlToEncode = self.storage
-      }
-    } else {
-      urlToEncode = self.storage
-    }
-    try urlToEncode.absoluteString.encode(to: encoder)
+    try storage.absoluteString.encode(to: encoder)
   }
 }
