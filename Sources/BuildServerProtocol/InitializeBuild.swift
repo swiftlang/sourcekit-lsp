@@ -9,7 +9,16 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
+
 import LanguageServerProtocol
+
+public struct InitializeBuildRequestDataKind: RawRepresentable, Hashable, Codable, Sendable {
+  public let rawValue: String
+
+  public init(rawValue: String) {
+    self.rawValue = rawValue
+  }
+}
 
 /// Like the language server protocol, the initialize request is sent
 /// as the first request from the client to the server. If the server
@@ -25,9 +34,9 @@ import LanguageServerProtocol
 /// Until the server has responded to the initialize request with an
 /// InitializeBuildResult, the client must not send any additional
 /// requests or notifications to the server.
-public struct InitializeBuild: RequestType, Hashable {
+public struct InitializeBuildRequest: RequestType, Hashable {
   public static let method: String = "build/initialize"
-  public typealias Response = InitializeBuildResult
+  public typealias Response = InitializeBuildResponse
 
   /// Name of the client
   public var displayName: String
@@ -44,18 +53,28 @@ public struct InitializeBuild: RequestType, Hashable {
   /// The capabilities of the client
   public var capabilities: BuildClientCapabilities
 
+  /// Kind of data to expect in the `data` field. If this field is not set, the kind of data is not specified. */
+  public var dataKind: InitializeBuildRequestDataKind?
+
+  /// Additional metadata about the client
+  public var data: LSPAny?
+
   public init(
     displayName: String,
     version: String,
     bspVersion: String,
     rootUri: URI,
-    capabilities: BuildClientCapabilities
+    capabilities: BuildClientCapabilities,
+    dataKind: InitializeBuildRequestDataKind? = nil,
+    data: LSPAny? = nil
   ) {
     self.displayName = displayName
     self.version = version
     self.bspVersion = bspVersion
     self.rootUri = rootUri
     self.capabilities = capabilities
+    self.dataKind = dataKind
+    self.data = data
   }
 }
 
@@ -66,12 +85,67 @@ public struct BuildClientCapabilities: Codable, Hashable, Sendable {
   /// languages than those that appear in this list.
   public var languageIds: [Language]
 
-  public init(languageIds: [Language]) {
+  /// Mirror capability to BuildServerCapabilities.jvmCompileClasspathProvider
+  /// The client will request classpath via `buildTarget/jvmCompileClasspath` so
+  /// it's safe to return classpath in ScalacOptionsItem empty. */
+  public var jvmCompileClasspathReceiver: Bool?
+
+  public init(languageIds: [Language], jvmCompileClasspathReceiver: Bool? = nil) {
     self.languageIds = languageIds
+    self.jvmCompileClasspathReceiver = jvmCompileClasspathReceiver
   }
 }
 
-public struct InitializeBuildResult: ResponseType, Hashable {
+public struct InitializeBuildResponseDataKind: RawRepresentable, Hashable, Codable, Sendable {
+  public let rawValue: String
+
+  public init(rawValue: String) {
+    self.rawValue = rawValue
+  }
+
+  /// `data` field must contain a `SourceKitInitializeBuildResponseData` object.
+  public static let sourceKit = InitializeBuildResponseDataKind(rawValue: "sourcekit")
+}
+
+public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Sendable {
+  public var indexDatabasePath: String?
+  public var indexStorePath: String?
+  public var supportsPreparation: Bool?
+
+  public init(indexDatabasePath: String?, indexStorePath: String?, supportsPreparation: Bool?) {
+    self.indexDatabasePath = indexDatabasePath
+    self.indexStorePath = indexStorePath
+    self.supportsPreparation = supportsPreparation
+  }
+
+  public init?(fromLSPDictionary dictionary: [String: LanguageServerProtocol.LSPAny]) {
+    if case .string(let indexDatabasePath) = dictionary[CodingKeys.indexDatabasePath.stringValue] {
+      self.indexDatabasePath = indexDatabasePath
+    }
+    if case .string(let indexStorePath) = dictionary[CodingKeys.indexStorePath.stringValue] {
+      self.indexStorePath = indexStorePath
+    }
+    if case .bool(let supportsPreparation) = dictionary[CodingKeys.supportsPreparation.stringValue] {
+      self.supportsPreparation = supportsPreparation
+    }
+  }
+
+  public func encodeToLSPAny() -> LanguageServerProtocol.LSPAny {
+    var result: [String: LSPAny] = [:]
+    if let indexDatabasePath {
+      result[CodingKeys.indexDatabasePath.stringValue] = .string(indexDatabasePath)
+    }
+    if let indexStorePath {
+      result[CodingKeys.indexStorePath.stringValue] = .string(indexStorePath)
+    }
+    if let supportsPreparation {
+      result[CodingKeys.supportsPreparation.stringValue] = .bool(supportsPreparation)
+    }
+    return .dictionary(result)
+  }
+}
+
+public struct InitializeBuildResponse: ResponseType, Hashable {
   /// Name of the server
   public var displayName: String
 
@@ -84,6 +158,9 @@ public struct InitializeBuildResult: ResponseType, Hashable {
   /// The capabilities of the build server
   public var capabilities: BuildServerCapabilities
 
+  /// Kind of data to expect in the `data` field. If this field is not set, the kind of data is not specified.
+  public var dataKind: InitializeBuildResponseDataKind?
+
   /// Optional metadata about the server
   public var data: LSPAny?
 
@@ -92,41 +169,103 @@ public struct InitializeBuildResult: ResponseType, Hashable {
     version: String,
     bspVersion: String,
     capabilities: BuildServerCapabilities,
+    dataKind: InitializeBuildResponseDataKind? = nil,
     data: LSPAny? = nil
   ) {
     self.displayName = displayName
     self.version = version
     self.bspVersion = bspVersion
     self.capabilities = capabilities
+    self.dataKind = dataKind
     self.data = data
   }
 }
 
 public struct BuildServerCapabilities: Codable, Hashable, Sendable {
   /// The languages the server supports compilation via method buildTarget/compile.
-  public var compileProvider: CompileProvider? = nil
+  public var compileProvider: CompileProvider?
 
   /// The languages the server supports test execution via method buildTarget/test
-  public var testProvider: TestProvider? = nil
+  public var testProvider: TestProvider?
 
   /// The languages the server supports run via method buildTarget/run
-  public var runProvider: RunProvider? = nil
+  public var runProvider: RunProvider?
+
+  /// The languages the server supports debugging via method debugSession/start.
+  public var debugProvider: DebugProvider?
 
   /// The server can provide a list of targets that contain a
   /// single text document via the method buildTarget/inverseSources
-  public var inverseSourcesProvider: Bool? = nil
+  public var inverseSourcesProvider: Bool?
 
   /// The server provides sources for library dependencies
   /// via method buildTarget/dependencySources
-  public var dependencySourcesProvider: Bool? = nil
+  public var dependencySourcesProvider: Bool?
 
   /// The server provides all the resource dependencies
   /// via method buildTarget/resources
-  public var resourcesProvider: Bool? = nil
+  public var resourcesProvider: Bool?
+
+  /// The server provides all output paths
+  /// via method buildTarget/outputPaths
+  public var outputPathsProvider: Bool?
 
   /// The server sends notifications to the client on build
-  /// target change events via buildTarget/didChange
-  public var buildTargetChangedProvider: Bool? = nil
+  /// target change events via `buildTarget/didChange`
+  public var buildTargetChangedProvider: Bool?
+
+  /// The server can respond to `buildTarget/jvmRunEnvironment` requests with the
+  /// necessary information required to launch a Java process to run a main class.
+  public var jvmRunEnvironmentProvider: Bool?
+
+  /// The server can respond to `buildTarget/jvmTestEnvironment` requests with the
+  /// necessary information required to launch a Java process for testing or
+  /// debugging.
+  public var jvmTestEnvironmentProvider: Bool?
+
+  /// The server can respond to `workspace/cargoFeaturesState` and
+  /// `setCargoFeatures` requests. In other words, supports Cargo Features extension.
+  public var cargoFeaturesProvider: Bool?
+
+  /// Reloading the build state through workspace/reload is supported
+  public var canReload: Bool?
+
+  /// The server can respond to `buildTarget/jvmCompileClasspath` requests with the
+  /// necessary information about the target's classpath.
+  public var jvmCompileClasspathProvider: Bool?
+
+  public init(
+    compileProvider: CompileProvider? = nil,
+    testProvider: TestProvider? = nil,
+    runProvider: RunProvider? = nil,
+    debugProvider: DebugProvider? = nil,
+    inverseSourcesProvider: Bool? = nil,
+    dependencySourcesProvider: Bool? = nil,
+    resourcesProvider: Bool? = nil,
+    outputPathsProvider: Bool? = nil,
+    buildTargetChangedProvider: Bool? = nil,
+    jvmRunEnvironmentProvider: Bool? = nil,
+    jvmTestEnvironmentProvider: Bool? = nil,
+    cargoFeaturesProvider: Bool? = nil,
+    canReload: Bool? = nil,
+    jvmCompileClasspathProvider: Bool? = nil
+  ) {
+    self.compileProvider = compileProvider
+    self.testProvider = testProvider
+    self.runProvider = runProvider
+    self.debugProvider = debugProvider
+    self.inverseSourcesProvider = inverseSourcesProvider
+    self.dependencySourcesProvider = dependencySourcesProvider
+    self.resourcesProvider = resourcesProvider
+    self.outputPathsProvider = outputPathsProvider
+    self.buildTargetChangedProvider = buildTargetChangedProvider
+    self.jvmRunEnvironmentProvider = jvmRunEnvironmentProvider
+    self.jvmTestEnvironmentProvider = jvmTestEnvironmentProvider
+    self.cargoFeaturesProvider = cargoFeaturesProvider
+    self.canReload = canReload
+    self.jvmCompileClasspathProvider = jvmCompileClasspathProvider
+  }
+
 }
 
 public struct CompileProvider: Codable, Hashable, Sendable {
@@ -146,6 +285,14 @@ public struct RunProvider: Codable, Hashable, Sendable {
 }
 
 public struct TestProvider: Codable, Hashable, Sendable {
+  public var languageIds: [Language]
+
+  public init(languageIds: [Language]) {
+    self.languageIds = languageIds
+  }
+}
+
+public struct DebugProvider: Codable, Hashable, Sendable {
   public var languageIds: [Language]
 
   public init(languageIds: [Language]) {

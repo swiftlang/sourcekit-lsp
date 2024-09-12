@@ -334,34 +334,6 @@ final class BuildSystemManagerTests: XCTestCase {
 
     try await fulfillmentOfOrThrow([changedA, changedB, changedC])
   }
-
-  func testDependenciesUpdated() async throws {
-    let a = try DocumentURI(string: "bsm:a.swift")
-    let mainFiles = ManualMainFilesProvider([a: [a]])
-
-    let bsm = await BuildSystemManager(
-      buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
-      toolchainRegistry: ToolchainRegistry.forTesting,
-      options: SourceKitLSPOptions(),
-      swiftpmTestHooks: SwiftPMTestHooks(),
-      reloadPackageStatusCallback: { _ in }
-    )
-    await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
-    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
-
-    await bs.setBuildSettings(for: a, to: SourceKitOptionsResponse(compilerArguments: ["x"]))
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.compilerArguments, ["x"])
-
-    await bsm.registerForChangeNotifications(for: a, language: .swift)
-
-    let depUpdate2 = expectation(description: "dependencies update 2")
-    await del.setExpectedDependenciesUpdate([(a, depUpdate2, #file, #line)])
-
-    await bsm.filesDependenciesUpdated([a])
-    try await fulfillmentOfOrThrow([depUpdate2])
-  }
 }
 
 // MARK: Helper Classes for Testing
@@ -408,14 +380,6 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
     self.expected = expected.map { ($0.uri, $0.language, $0.settings, $0.expectation, file, line) }
   }
 
-  var expectedDependenciesUpdate: [(uri: DocumentURI, expectation: XCTestExpectation, file: StaticString, line: UInt)] =
-    []
-
-  /// - Note: Needed to set `expected` outside of the actor's isolation context.
-  func setExpectedDependenciesUpdate(_ expectedDependenciesUpdated: [ExpectedDependenciesUpdatedCall]) {
-    self.expectedDependenciesUpdate = expectedDependenciesUpdated
-  }
-
   init(_ bsm: BuildSystemManager) async {
     self.bsm = bsm
     await bsm.setDelegate(self)
@@ -437,17 +401,7 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
     }
   }
 
-  func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
-    for uri in changedFiles {
-      guard let expected = expectedDependenciesUpdate.first(where: { $0.uri == uri }) else {
-        XCTFail("unexpected filesDependenciesUpdated for \(uri)")
-        continue
-      }
-
-      XCTAssertEqual(uri, expected.uri, file: expected.file, line: expected.line)
-      expected.expectation.fulfill()
-    }
-  }
+  func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {}
 
   func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {}
 

@@ -15,7 +15,7 @@ fileprivate let requestTypes: [_RequestType.Type] = [
   BuildTargetOutputPaths.self,
   BuildTargetsRequest.self,
   BuildTargetSourcesRequest.self,
-  InitializeBuild.self,
+  InitializeBuildRequest.self,
   InverseSourcesRequest.self,
   RegisterForChanges.self,
   ShutdownBuild.self,

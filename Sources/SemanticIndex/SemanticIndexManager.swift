@@ -590,11 +590,6 @@ package final actor SemanticIndexManager {
       if await indexStoreUpToDateTracker.isUpToDate($0.sourceFile) {
         return false
       }
-      guard let language = await buildSystemManager.defaultLanguage(for: $0.mainFile),
-        UpdateIndexStoreTaskDescription.canIndex(language: language)
-      else {
-        return false
-      }
       return true
     }
     // sort files to get deterministic indexing order
@@ -611,6 +606,12 @@ package final actor SemanticIndexManager {
         )
         continue
       }
+      guard let language = await buildSystemManager.defaultLanguage(for: fileToIndex.mainFile, in: target),
+        UpdateIndexStoreTaskDescription.canIndex(language: language)
+      else {
+        continue
+      }
+
       filesByTarget[target, default: []].append(fileToIndex)
     }
 

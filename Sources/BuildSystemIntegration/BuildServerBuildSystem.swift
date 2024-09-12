@@ -67,14 +67,6 @@ package actor BuildServerBuildSystem: MessageHandler {
   package private(set) var indexDatabasePath: AbsolutePath?
   package private(set) var indexStorePath: AbsolutePath?
 
-  /// Delegate to handle any build system events.
-  package weak var delegate: BuildSystemDelegate?
-
-  /// - Note: Needed to set the delegate from a different actor isolation context
-  package func setDelegate(_ delegate: BuildSystemDelegate?) async {
-    self.delegate = delegate
-  }
-
   package weak var messageHandler: BuiltInBuildSystemMessageHandler?
 
   /// The build settings that have been received from the build server.
@@ -166,7 +158,7 @@ package actor BuildServerBuildSystem: MessageHandler {
       Language.swift,
     ]
 
-    let initializeRequest = InitializeBuild(
+    let initializeRequest = InitializeBuildRequest(
       displayName: "SourceKit-LSP",
       version: "1.0",
       bspVersion: "2.0",
@@ -336,10 +328,6 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
       compilerArguments: buildSettings.compilerArguments,
       workingDirectory: buildSettings.workingDirectory
     )
-  }
-
-  package func defaultLanguage(for document: DocumentURI) async -> Language? {
-    return nil
   }
 
   package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {

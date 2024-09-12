@@ -38,15 +38,8 @@ package actor CompilationDatabaseBuildSystem {
     }
   }
 
-  /// Delegate to handle any build system events.
-  package weak var delegate: BuildSystemDelegate? = nil
-
   /// Callbacks that should be called if the list of possible test files has changed.
   package var testFilesDidChangeCallbacks: [() async -> Void] = []
-
-  package func setDelegate(_ delegate: BuildSystemDelegate?) async {
-    self.delegate = delegate
-  }
 
   package weak var messageHandler: BuiltInBuildSystemMessageHandler?
 
@@ -158,10 +151,6 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
       compilerArguments: Array(cmd.commandLine.dropFirst()),
       workingDirectory: cmd.directory
     )
-  }
-
-  package func defaultLanguage(for document: DocumentURI) async -> Language? {
-    return nil
   }
 
   package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {

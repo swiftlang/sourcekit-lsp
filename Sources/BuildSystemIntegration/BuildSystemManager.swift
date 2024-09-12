@@ -73,7 +73,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// The files for which the delegate has requested change notifications, ie.
   /// the files for which the delegate wants to get `filesDependenciesUpdated`
   /// callbacks if the file's build settings.
-  var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
+  private var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
 
   /// The underlying primary build system.
   ///
@@ -82,10 +82,10 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
   /// The fallback build system. If present, used when the `buildSystem` is not
   /// set or cannot provide settings.
-  let fallbackBuildSystem: FallbackBuildSystem
+  private let fallbackBuildSystem: FallbackBuildSystem
 
   /// Provider of file to main file mappings.
-  var mainFilesProvider: MainFilesProvider?
+  private var mainFilesProvider: MainFilesProvider?
 
   /// Build system delegate that will receive notifications about setting changes, etc.
   private weak var delegate: BuildSystemManagerDelegate?
@@ -94,6 +94,21 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   ///
   /// Used to determine which toolchain to use for a given document.
   private let toolchainRegistry: ToolchainRegistry
+
+  private let options: SourceKitLSPOptions
+
+  /// A task that stores the result of the `build/initialize` request once it is received.
+  private var initializeResult: Task<InitializeBuildResponse?, Never>!
+
+  /// Debounces calls to `delegate.filesDependenciesUpdated`.
+  ///
+  /// This is to ensure we don't call `filesDependenciesUpdated` for the same file multiple time if the client does not
+  /// debounce `workspace/didChangeWatchedFiles` and sends a separate notification eg. for every file within a target as
+  /// it's being updated by a git checkout, which would cause other files within that target to receive a
+  /// `fileDependenciesUpdated` call once for every updated file within the target.
+  ///
+  /// Force-unwrapped optional because initializing it requires access to `self`.
+  private var filesDependenciesUpdatedDebouncer: Debouncer<Set<DocumentURI>>! = nil
 
   private var cachedTargetsForDocument = RequestCache<InverseSourcesRequest>()
 
@@ -108,9 +123,19 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// was found.
   package let projectRoot: AbsolutePath?
 
-  package var supportsPreparation: Bool {
+  /// The `SourceKitInitializeBuildResponseData` received from the `build/initialize` request, if any.
+  package var initializationData: SourceKitInitializeBuildResponseData? {
     get async {
-      return await buildSystem?.underlyingBuildSystem.supportsPreparation ?? false
+      guard let initializeResult = await initializeResult.value else {
+        return nil
+      }
+      guard initializeResult.dataKind == nil || initializeResult.dataKind == .sourceKit else {
+        return nil
+      }
+      guard case .dictionary(let data) = initializeResult.data else {
+        return nil
+      }
+      return SourceKitInitializeBuildResponseData(fromLSPDictionary: data)
     }
   }
 
@@ -123,6 +148,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   ) async {
     self.fallbackBuildSystem = FallbackBuildSystem(options: options.fallbackBuildSystemOrDefault)
     self.toolchainRegistry = toolchainRegistry
+    self.options = options
     self.projectRoot = buildSystemKind?.projectRoot
     self.buildSystem = await BuiltInBuildSystemAdapter(
       buildSystemKind: buildSystemKind,
@@ -132,16 +158,88 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
       reloadPackageStatusCallback: reloadPackageStatusCallback,
       messageHandler: self
     )
-    await self.buildSystem?.underlyingBuildSystem.setDelegate(self)
+    // The debounce duration of 500ms was chosen arbitrarily without any measurements.
+    self.filesDependenciesUpdatedDebouncer = Debouncer(
+      debounceDuration: .milliseconds(500),
+      combineResults: { $0.union($1) }
+    ) {
+      [weak self] (filesWithUpdatedDependencies) in
+      guard let self, let delegate = await self.delegate else {
+        logger.fault("Not calling filesDependenciesUpdated because no delegate exists in SwiftPMBuildSystem")
+        return
+      }
+      let changedWatchedFiles = await self.watchedFilesReferencing(mainFiles: filesWithUpdatedDependencies)
+      guard !changedWatchedFiles.isEmpty else {
+        return
+      }
+      await delegate.filesDependenciesUpdated(changedWatchedFiles)
+    }
+    initializeResult = Task { () -> InitializeBuildResponse? in
+      guard let buildSystem else {
+        return nil
+      }
+      guard let buildSystemKind else {
+        logger.fault("Created build system without a build system kind?")
+        return nil
+      }
+      return await orLog("Initializing build system") {
+        try await buildSystem.send(
+          InitializeBuildRequest(
+            displayName: "SourceKit-LSP",
+            version: "unknown",
+            bspVersion: "2.2.0",
+            rootUri: URI(buildSystemKind.projectRoot.asURL),
+            capabilities: BuildClientCapabilities(languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift])
+          )
+        )
+      }
+    }
   }
 
   package func filesDidChange(_ events: [FileEvent]) async {
     await self.buildSystem?.send(BuildServerProtocol.DidChangeWatchedFilesNotification(changes: events))
+
+    var targetsWithUpdatedDependencies: Set<BuildTargetIdentifier> = []
+    // If a Swift file within a target is updated, reload all the other files within the target since they might be
+    // referring to a function in the updated file.
+    let targetsWithChangedSwiftFiles =
+      await events
+      .filter { $0.uri.fileURL?.pathExtension == "swift" }
+      .asyncFlatMap { await self.targets(for: $0.uri) }
+    targetsWithUpdatedDependencies.formUnion(targetsWithChangedSwiftFiles)
+
+    // If a `.swiftmodule` file is updated, this means that we have performed a build / are
+    // performing a build and files that depend on this module have updated dependencies.
+    // We don't have access to the build graph from the SwiftPM API offered to SourceKit-LSP to figure out which files
+    // depend on the updated module, so assume that all files have updated dependencies.
+    // The file watching here is somewhat fragile as well because it assumes that the `.swiftmodule` files are being
+    // written to a directory within the workspace root. This is not necessarily true if the user specifies a build
+    // directory outside the source tree.
+    // If we have background indexing enabled, this is not necessary because we call `fileDependenciesUpdated` when
+    // preparation of a target finishes.
+    if !options.backgroundIndexingOrDefault,
+      events.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" })
+    {
+      let targets = await orLog("Getting build targets") {
+        try await self.buildTargets()
+      }
+      targetsWithUpdatedDependencies.formUnion(targets?.map(\.id) ?? [])
+    }
+
+    var filesWithUpdatedDependencies: Set<DocumentURI> = []
+
+    await orLog("Getting source files in targets") {
+      let sourceFiles = try await self.sourceFiles(in: Array(Set(targetsWithUpdatedDependencies)))
+      filesWithUpdatedDependencies.formUnion(sourceFiles.flatMap(\.sources).map(\.uri))
+    }
+
     if let mainFilesProvider {
       var mainFiles = await Set(events.asyncFlatMap { await mainFilesProvider.mainFilesContainingFile($0.uri) })
       mainFiles.subtract(events.map(\.uri))
-      await self.filesDependenciesUpdated(mainFiles)
+      filesWithUpdatedDependencies.formUnion(mainFiles)
     }
+
+    await self.filesDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
   }
 
   /// Implementation of `MessageHandler`, handling notifications from the build system.
@@ -191,11 +289,38 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     self.mainFilesProvider = mainFilesProvider
   }
 
+  /// Ask the build system if it explicitly specifies a language for this document. Return `nil` if it does not.
+  private func languageInferredFromBuildSystem(
+    for document: DocumentURI,
+    in target: BuildTargetIdentifier
+  ) async throws -> Language? {
+    let sourcesItems = try await self.sourceFiles(in: [target])
+    let sourceFiles = sourcesItems.flatMap(\.sources)
+    var result: Language? = nil
+    for sourceFile in sourceFiles {
+      guard sourceFile.uri == document, sourceFile.dataKind == .sourceKit, case .dictionary(let data) = sourceFile.data,
+        let sourceKitData = SourceKitSourceItemData(fromLSPDictionary: data),
+        let language = sourceKitData.language
+      else {
+        continue
+      }
+      if result != nil && result != language {
+        logger.error("Conflicting languages for \(document.forLogging) in \(target)")
+        return nil
+      }
+      result = language
+    }
+    return result
+  }
+
   /// Returns the language that a document should be interpreted in for background tasks where the editor doesn't
   /// specify the document's language.
-  package func defaultLanguage(for document: DocumentURI) async -> Language? {
-    if let defaultLanguage = await buildSystem?.underlyingBuildSystem.defaultLanguage(for: document) {
-      return defaultLanguage
+  package func defaultLanguage(for document: DocumentURI, in target: BuildTargetIdentifier) async -> Language? {
+    let language = await orLog("Getting source files to determine default language") {
+      try await languageInferredFromBuildSystem(for: document, in: target)
+    }
+    if let language {
+      return language
     }
     switch document.fileURL?.pathExtension {
     case "c": return .c
@@ -237,7 +362,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
   /// Returns the target's module name as parsed from the `BuildTargetIdentifier`'s compiler arguments.
   package func moduleName(for document: DocumentURI, in target: BuildTargetIdentifier) async -> String? {
-    guard let language = await self.defaultLanguage(for: document),
+    guard let language = await self.defaultLanguage(for: document, in: target),
       let buildSettings = await buildSettings(for: document, in: target, language: language)
     else {
       return nil
@@ -377,6 +502,10 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     let _: VoidResponse? = try await buildSystem?.send(PrepareTargetsRequest(targets: targets))
+    await orLog("Calling fileDependenciesUpdated") {
+      let filesInPreparedTargets = try await self.sourceFiles(in: targets).flatMap(\.sources).map(\.uri)
+      await filesDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets))
+    }
   }
 
   package func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
@@ -406,6 +535,8 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
       return []
     }
 
+    // FIXME: (BSP migration) If we have a cached request for a superset of the targets, serve the result from that
+    // cache entry.
     let request = BuildTargetSourcesRequest.init(targets: targets)
     let response = try await cachedTargetSources.get(request) { request in
       try await buildSystem.send(request)
@@ -416,6 +547,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   package func sourceFiles() async throws -> [SourceFileInfo] {
     // FIXME: (BSP Migration): Consider removing this method and letting callers get all targets first and then
     // retrieving the source files for those targets.
+    // FIXME: (BSP Migration) Handle source files that are in multiple targets
     let targets = try await self.buildTargets()
     let targetsById = Dictionary(elements: targets, keyedBy: \.id)
     let sourceFiles = try await self.sourceFiles(in: targets.map(\.id)).flatMap { sourcesItem in
@@ -441,7 +573,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   }
 }
 
-extension BuildSystemManager: BuildSystemDelegate {
+extension BuildSystemManager {
   private func watchedFilesReferencing(mainFiles: Set<DocumentURI>) -> Set<DocumentURI> {
     return Set(
       watchedFiles.compactMap { (watchedFile, mainFileAndLanguage) in
@@ -452,22 +584,6 @@ extension BuildSystemManager: BuildSystemDelegate {
         }
       }
     )
-  }
-
-  package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
-    // Empty changes --> assume everything has changed.
-    guard !changedFiles.isEmpty else {
-      if let delegate = self.delegate {
-        await delegate.filesDependenciesUpdated(changedFiles)
-      }
-      return
-    }
-
-    // Need to map the changed main files back into changed watch files.
-    let changedWatchedFiles = watchedFilesReferencing(mainFiles: changedFiles)
-    if let delegate, !changedWatchedFiles.isEmpty {
-      await delegate.filesDependenciesUpdated(changedWatchedFiles)
-    }
   }
 
   private func didChangeBuildTarget(notification: DidChangeBuildTargetNotification) async {
