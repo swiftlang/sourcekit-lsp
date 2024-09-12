@@ -10,6 +10,7 @@ add_library(SwiftExtensions STATIC
   PipeAsStringHandler.swift
   ResultExtensions.swift
   Sequence+AsyncMap.swift
+  Sequence+ContainsAnyIn.swift
   Task+WithPriorityChangedHandler.swift
   ThreadSafeBox.swift
 )

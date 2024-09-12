@@ -80,9 +80,5 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
-    return nil
-  }
-
   package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {}
 }

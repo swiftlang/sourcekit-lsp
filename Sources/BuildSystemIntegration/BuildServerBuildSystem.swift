@@ -340,10 +340,6 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
-    return nil
-  }
-
   package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) {
     // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).

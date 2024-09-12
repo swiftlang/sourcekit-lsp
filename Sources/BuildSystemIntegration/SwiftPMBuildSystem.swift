@@ -215,6 +215,8 @@ package actor SwiftPMBuildSystem {
   /// greater depth.
   private var targets: [BuildTargetIdentifier: (buildTarget: SwiftBuildTarget, depth: Int)] = [:]
 
+  private var targetDependencies: [BuildTargetIdentifier: Set<BuildTargetIdentifier>] = [:]
+
   static package func projectRoot(
     for path: TSCBasic.AbsolutePath,
     options: SourceKitLSPOptions
@@ -442,6 +444,8 @@ extension SwiftPMBuildSystem {
 
     self.targets = [:]
     self.fileToTargets = [:]
+    self.targetDependencies = [:]
+
     buildDescription.traverseModules { buildTarget, parent, depth in
       let targetIdentifier = orLog("Getting build target identifier") { try BuildTargetIdentifier(buildTarget) }
       guard let targetIdentifier else {
@@ -454,6 +458,11 @@ extension SwiftPMBuildSystem {
         for source in buildTarget.sources + buildTarget.headers {
           fileToTargets[DocumentURI(source), default: []].insert(targetIdentifier)
         }
+      }
+      if let parent,
+        let parentIdentifier = orLog("Getting parent build target identifier", { try BuildTargetIdentifier(parent) })
+      {
+        self.targetDependencies[parentIdentifier, default: []].insert(targetIdentifier)
       }
       targets[targetIdentifier] = (buildTarget, depth)
     }
@@ -527,8 +536,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
         capabilities: BuildTargetCapabilities(),
         // Be conservative with the languages that might be used in the target. SourceKit-LSP doesn't use this property.
         languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift],
-        // FIXME: (BSP migration) List the target's dependencies
-        dependencies: []
+        dependencies: self.targetDependencies[targetId, default: []].sorted { $0.uri.stringValue < $1.uri.stringValue }
       )
     }
     return BuildTargetsResponse(targets: targets)
@@ -632,27 +640,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       let lhsDepth = self.targets[lhs]?.depth ?? 0
       let rhsDepth = self.targets[rhs]?.depth ?? 0
       return lhsDepth > rhsDepth
-    }
-  }
-
-  package func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
-    let targetDepths = targets.compactMap { self.targets[$0]?.depth }
-    let minimumTargetDepth: Int?
-    if targetDepths.count == targets.count {
-      minimumTargetDepth = targetDepths.max()
-    } else {
-      // One of the targets didn't have an entry in self.targets. We don't know what might depend on it.
-      minimumTargetDepth = nil
-    }
-
-    // Files that occur before the target in the topological sorting don't depend on it.
-    // Ideally, we should consult the dependency graph here for more accurate dependency analysis instead of relying on
-    // a flattened list (https://github.com/swiftlang/sourcekit-lsp/issues/1312).
-    return self.targets.compactMap { (targets, value) -> BuildTargetIdentifier? in
-      if let minimumTargetDepth, value.depth >= minimumTargetDepth {
-        return nil
-      }
-      return targets
     }
   }
 

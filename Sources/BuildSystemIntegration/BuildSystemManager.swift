@@ -489,8 +489,14 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     return await buildSystem?.underlyingBuildSystem.topologicalSort(of: targets)
   }
 
-  package func targets(dependingOn targets: [BuildTargetIdentifier]) async -> [BuildTargetIdentifier]? {
-    return await buildSystem?.underlyingBuildSystem.targets(dependingOn: targets)
+  /// Returns the list of targets that might depend on the given target and that need to be re-prepared when a file in
+  /// `target` is modified.
+  package func targets(dependingOn targetIds: Set<BuildTargetIdentifier>) async -> [BuildTargetIdentifier] {
+    guard let buildTargets = await orLog("Getting build targets for dependencies", { try await self.buildTargets() })
+    else {
+      return []
+    }
+    return buildTargets.filter { $0.dependencies.contains(anyIn: targetIds) }.map { $0.id }
   }
 
   package func prepare(

@@ -113,15 +113,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// `nil` if the build system doesn't support topological sorting of targets.
   func topologicalSort(of targets: [BuildTargetIdentifier]) async -> [BuildTargetIdentifier]?
 
-  /// Returns the list of targets that might depend on the given target and that need to be re-prepared when a file in
-  /// `target` is modified.
-  ///
-  /// The returned list can be an over-approximation, in which case the indexer will perform more work than strictly
-  /// necessary by scheduling re-preparation of a target where it isn't necessary.
-  ///
-  /// Returning `nil` indicates that all targets should be considered depending on the given target.
-  func targets(dependingOn targets: [BuildTargetIdentifier]) async -> [BuildTargetIdentifier]?
-
   /// The toolchain that should be used to open the given document.
   ///
   /// If `nil` is returned, then the default toolchain for the given language is used.
