@@ -54,6 +54,24 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     self.messageHandler = messageHandler
   }
 
+  package func buildTargets(request: BuildTargetsRequest) async throws -> BuildTargetsResponse {
+    return BuildTargetsResponse(targets: [])
+  }
+
+  package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+    return BuildTargetSourcesResponse(items: [])
+  }
+
+  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {}
+
+  package func inverseSources(request: InverseSourcesRequest) -> InverseSourcesResponse {
+    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
+  }
+
+  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
+    throw PrepareNotSupportedError()
+  }
+
   package func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse? {
     return buildSettingsByFile[request.textDocument.uri]
   }
@@ -66,14 +84,6 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func inverseSources(request: InverseSourcesRequest) -> InverseSourcesResponse {
-    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
-  }
-
-  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
-    throw PrepareNotSupportedError()
-  }
-
   package func scheduleBuildGraphGeneration() {}
 
   package func waitForUpToDateBuildGraph() async {}
@@ -84,12 +94,6 @@ package actor TestBuildSystem: BuiltInBuildSystem {
 
   package func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil
-  }
-
-  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {}
-
-  package func sourceFiles() async -> [SourceFileInfo] {
-    return []
   }
 
   package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {}

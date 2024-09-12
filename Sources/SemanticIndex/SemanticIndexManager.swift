@@ -274,7 +274,10 @@ package final actor SemanticIndexManager {
         await testHooks.buildGraphGenerationDidFinish?()
         // TODO: Ideally this would be a type like any Collection<DocumentURI> & Sendable but that doesn't work due to
         // https://github.com/swiftlang/swift/issues/75602
-        var filesToIndex: [DocumentURI] = await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
+        var filesToIndex: [DocumentURI] =
+          await orLog("Getting files to index") {
+            try await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
+          } ?? []
         if !indexFilesWithUpToDateUnit {
           let index = index.checked(for: .modifiedFiles)
           filesToIndex = filesToIndex.filter { !index.hasUpToDateUnit(for: $0) }
@@ -375,7 +378,12 @@ package final actor SemanticIndexManager {
   private func filesToIndex(
     toCover files: some Collection<DocumentURI> & Sendable
   ) async -> [FileToIndex] {
-    let sourceFiles = Set(await buildSystemManager.sourceFiles().map(\.uri))
+    let sourceFiles = await orLog("Getting source files in project") {
+      Set(try await buildSystemManager.sourceFiles().map(\.uri))
+    }
+    guard let sourceFiles else {
+      return []
+    }
     let filesToReIndex = await files.asyncCompactMap { (uri) -> FileToIndex? in
       if sourceFiles.contains(uri) {
         // If this is a source file, just index it.

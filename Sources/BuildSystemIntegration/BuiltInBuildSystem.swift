@@ -91,15 +91,28 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// implemented.
   var supportsPreparation: Bool { get }
 
+  /// Returns all targets in the build system
+  func buildTargets(request: BuildTargetsRequest) async throws -> BuildTargetsResponse
+
+  /// Returns all the source files in the given targets
+  func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse
+
+  /// Called when files in the project change.
+  func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async
+
+  /// Return the list of targets that the given document can be built for.
+  func inverseSources(request: InverseSourcesRequest) async throws -> InverseSourcesResponse
+
+  /// Prepare the given targets for indexing and semantic functionality. This should build all swift modules of target
+  /// dependencies.
+  func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse
+
   /// Retrieve build settings for the given document with the given source
   /// language.
   ///
   /// Returns `nil` if the build system can't provide build settings for this
   /// file or if it hasn't computed build settings for the file yet.
   func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse?
-
-  /// Return the list of targets that the given document can be built for.
-  func inverseSources(request: InverseSourcesRequest) async throws -> InverseSourcesResponse
 
   /// Schedule a task that re-generates the build graph. The function may return before the build graph has finished
   /// being generated. If clients need to wait for an up-to-date build graph, they should call
@@ -126,10 +139,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// Returning `nil` indicates that all targets should be considered depending on the given target.
   func targets(dependingOn targets: [BuildTargetIdentifier]) async -> [BuildTargetIdentifier]?
 
-  /// Prepare the given targets for indexing and semantic functionality. This should build all swift modules of target
-  /// dependencies.
-  func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse
-
   /// If the build system has knowledge about the language that this document should be compiled in, return it.
   ///
   /// This is used to determine the language in which a source file should be background indexed.
@@ -141,14 +150,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   ///
   /// If `nil` is returned, then the default toolchain for the given language is used.
   func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain?
-
-  /// Called when files in the project change.
-  func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async
-
-  /// Returns the list of source files in the project.
-  ///
-  /// Header files should not be considered as source files because they cannot be compiled.
-  func sourceFiles() async -> [SourceFileInfo]
 
   /// Adds a callback that should be called when the value returned by `sourceFiles()` changes.
   ///

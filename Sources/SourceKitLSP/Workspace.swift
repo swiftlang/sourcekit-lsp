@@ -132,10 +132,15 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       guard let self else {
         return
       }
-      await self.syntacticTestIndex.listOfTestFilesDidChange(self.buildSystemManager.testFiles())
+      guard let testFiles = await orLog("Getting test files", { try await self.buildSystemManager.testFiles() }) else {
+        return
+      }
+      await self.syntacticTestIndex.listOfTestFilesDidChange(testFiles)
     }
     // Trigger an initial population of `syntacticTestIndex`.
-    await syntacticTestIndex.listOfTestFilesDidChange(buildSystemManager.testFiles())
+    if let testFiles = await orLog("Getting initial test files", { try await self.buildSystemManager.testFiles() }) {
+      await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
+    }
     if let semanticIndexManager {
       await semanticIndexManager.scheduleBuildGraphGenerationAndBackgroundIndexAllFiles()
     }

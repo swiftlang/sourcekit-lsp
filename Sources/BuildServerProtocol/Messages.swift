@@ -13,8 +13,8 @@ import LanguageServerProtocol
 
 fileprivate let requestTypes: [_RequestType.Type] = [
   BuildTargetOutputPaths.self,
-  BuildTargets.self,
-  BuildTargetSources.self,
+  BuildTargetsRequest.self,
+  BuildTargetSourcesRequest.self,
   InitializeBuild.self,
   InverseSourcesRequest.self,
   RegisterForChanges.self,
