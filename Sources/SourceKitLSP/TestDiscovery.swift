@@ -433,6 +433,7 @@ fileprivate extension Array<AnnotatedTestItem> {
   /// A node's parent is identified by the node's ID with the last component dropped.
   func mergingTestsInExtensions() -> [TestItem] {
     var itemDict: [String: AnnotatedTestItem] = [:]
+    var duplicatedIds: Set<String> = []
     for item in self {
       let id = item.testItem.id
       if var rootItem = itemDict[id] {
@@ -443,6 +444,10 @@ fileprivate extension Array<AnnotatedTestItem> {
           var newItem = item
           newItem.testItem.children += rootItem.testItem.children
           rootItem = newItem
+        } else if (rootItem.testItem.children.isEmpty && item.testItem.children.isEmpty) {
+          duplicatedIds.insert(item.testItem.id)
+          itemDict[item.testItem.fullyQualifiedTestId] = item
+          continue
         } else {
           rootItem.testItem.children += item.testItem.children
         }
@@ -475,10 +480,26 @@ fileprivate extension Array<AnnotatedTestItem> {
       .sorted { ($0.isExtension != $1.isExtension) ? !$0.isExtension : ($0.testItem.location < $1.testItem.location) }
 
     let result = sortedItems.map {
-      guard !$0.testItem.children.isEmpty, mergedIds.contains($0.testItem.id) else {
-        return $0.testItem
-      }
       var newItem = $0.testItem
+
+      // If multiple testItems share the same ID we add more context to make it unique.
+      // Two tests can share the same ID when two swift testing tests accept
+      // arguments of different types, i.e:
+      // @Test(arguments: [1,2,3]) func foo(_ x: Int) {}
+      // @Test(arguments: ["a", "b", "c"]) func foo(_ x: String) {}
+      // or when tests are in separate files but don't conflict because they are marked
+      // private, i.e:
+      // File1.swift: @Test private func foo() {}
+      // File2.swift: @Test private func foo() {}
+      // If we encounter one of these cases, we need to deduplicate the ID
+      // by appending /filename:filename:lineNumber.
+      if duplicatedIds.contains(newItem.id) {
+        newItem.id = newItem.fullyQualifiedTestId
+      }
+
+      guard !$0.testItem.children.isEmpty, mergedIds.contains($0.testItem.id) else {
+        return newItem
+      }
       newItem.children = newItem.children
         .map { AnnotatedTestItem(testItem: $0, isExtension: false) }
         .mergingTestsInExtensions()
@@ -498,6 +519,20 @@ fileprivate extension Array<AnnotatedTestItem> {
 }
 
 extension TestItem {
+  fileprivate var fullyQualifiedTestId: String {
+    return "\(self.id)/\(self.sourceLocation)"
+  }
+
+  private var sourceLocation: String {
+    let filename = self.location.uri.arbitrarySchemeURL.lastPathComponent
+    let position = location.range.lowerBound
+    // Lines and columns start at 1.
+    // swift-testing tests start from _after_ the @ symbol in @Test, so we need to add an extra column.
+    // see https://github.com/swiftlang/swift-testing/blob/cca6de2be617aded98ecdecb0b3b3a81eec013f3/Sources/TestingMacros/Support/AttributeDiscovery.swift#L153
+    let columnOffset = self.style == TestStyle.swiftTesting ? 2 : 1
+    return "\(filename):\(position.line + 1):\(position.utf16index + columnOffset)"
+  }
+
   fileprivate func prefixIDWithModuleName(workspace: Workspace) async -> TestItem {
     guard let canonicalTarget = await workspace.buildSystemManager.canonicalTarget(for: self.location.uri),
       let moduleName = await workspace.buildSystemManager.moduleName(for: self.location.uri, in: canonicalTarget)
