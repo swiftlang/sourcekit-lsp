@@ -70,7 +70,9 @@ fileprivate class RequestCache<Request: RequestType & Hashable, Result: Sendable
 /// Since some `BuildSystem`s may require a bit of a time to compute their arguments asynchronously,
 /// this class has a configurable `buildSettings` timeout which denotes the amount of time to give
 /// the build system before applying the fallback arguments.
-package actor BuildSystemManager: MessageHandler {
+package actor BuildSystemManager: QueueBasedMessageHandler {
+  package static let signpostLoggingCategory: String = "build-system-manager-message-handling"
+
   /// The files for which the delegate has requested change notifications, ie.
   /// the files for which the delegate wants to get `filesDependenciesUpdated`
   /// callbacks if the file's build settings.
@@ -262,24 +264,9 @@ package actor BuildSystemManager: MessageHandler {
   }
 
   // FIXME: (BSP Migration) Can we use more fine-grained dependency tracking here?
-  private let messageHandlingQueue = AsyncQueue<Serial>()
+  package let messageHandlingQueue = AsyncQueue<Serial>()
 
-  /// Implementation of `MessageHandler`, handling notifications from the build system.
-  ///
-  /// - Important: Do not call directly.
-  nonisolated package func handle(_ notification: some NotificationType) {
-    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "build-system-manager-message-handling")
-      .makeSignposter()
-    let signpostID = signposter.makeSignpostID()
-    let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: notification))")
-    messageHandlingQueue.async {
-      signposter.emitEvent("Start handling", id: signpostID)
-      await self.handleImpl(notification)
-      signposter.endInterval("Notification", state, "Done")
-    }
-  }
-
-  private func handleImpl(_ notification: some NotificationType) async {
+  package func handleImpl(_ notification: some NotificationType) async {
     switch notification {
     case let notification as DidChangeBuildTargetNotification:
       await self.didChangeBuildTarget(notification: notification)
@@ -292,62 +279,7 @@ package actor BuildSystemManager: MessageHandler {
     }
   }
 
-  /// Implementation of `MessageHandler`, handling requests from the build system.
-  ///
-  /// - Important: Do not call directly.
-  nonisolated package func handle<R: RequestType>(
-    _ params: R,
-    id: RequestID,
-    reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
-  ) {
-    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "build-system-message-handling")
-      .makeSignposter()
-    let signpostID = signposter.makeSignpostID()
-    let state = signposter.beginInterval("Request", id: signpostID, "\(R.self)")
-
-    messageHandlingQueue.async {
-      signposter.emitEvent("Start handling", id: signpostID)
-      await withTaskCancellationHandler {
-        await self.handleImpl(params, id: id, reply: reply)
-        signposter.endInterval("Request", state, "Done")
-      } onCancel: {
-        signposter.emitEvent("Cancelled", id: signpostID)
-      }
-    }
-  }
-
-  private func handleImpl<Request: RequestType>(
-    _ request: Request,
-    id: RequestID,
-    reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
-  ) async {
-    let startDate = Date()
-
-    let request = RequestAndReply(request) { result in
-      reply(result)
-      let endDate = Date()
-      Task {
-        switch result {
-        case .success(let response):
-          logger.log(
-            """
-            Succeeded (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
-            \(Request.method, privacy: .public)
-            \(response.forLogging)
-            """
-          )
-        case .failure(let error):
-          logger.log(
-            """
-            Failed (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
-            \(Request.method, privacy: .public)(\(id, privacy: .public))
-            \(error.forLogging, privacy: .private)
-            """
-          )
-        }
-      }
-    }
-
+  package func handleImpl<Request: RequestType>(_ request: RequestAndReply<Request>) async {
     switch request {
     case let request as RequestAndReply<BuildServerProtocol.CreateWorkDoneProgressRequest>:
       await request.reply { try await self.createWorkDoneProgress(request: request.params) }
