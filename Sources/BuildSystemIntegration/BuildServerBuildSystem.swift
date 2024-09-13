@@ -333,11 +333,6 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
   package func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse {
     return VoidResponse()
   }
-
-  package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) {
-    // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
-    // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).
-  }
 }
 
 private func loadBuildServerConfig(path: AbsolutePath, fileSystem: FileSystem) throws -> BuildServerConfig {

@@ -77,6 +77,4 @@ package actor TestBuildSystem: BuiltInBuildSystem {
   package func topologicalSort(of targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil
   }
-
-  package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {}
 }

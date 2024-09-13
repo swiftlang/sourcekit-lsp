@@ -206,8 +206,4 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
       await testFilesDidChangeCallback()
     }
   }
-
-  package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {
-    testFilesDidChangeCallbacks.append(callback)
-  }
 }

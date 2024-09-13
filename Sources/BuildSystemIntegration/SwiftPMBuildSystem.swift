@@ -795,10 +795,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     }
   }
 
-  package func addSourceFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async {
-    testFilesDidChangeCallbacks.append(callback)
-  }
-
   /// Retrieve settings for a package manifest (Package.swift).
   private func settings(forPackageManifest path: AbsolutePath) throws -> SourceKitOptionsResponse? {
     let compilerArgs = workspace.interpreterFlags(for: path.parentDirectory) + [path.pathString]

@@ -104,9 +104,4 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
 
   /// Wait until the build graph has been loaded.
   func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse
-
-  /// Adds a callback that should be called when the value returned by `sourceFiles()` changes.
-  ///
-  /// The callback might also be called without an actual change to `sourceFiles`.
-  func addSourceFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async
 }
