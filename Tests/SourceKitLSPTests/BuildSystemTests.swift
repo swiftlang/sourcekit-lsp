@@ -54,7 +54,7 @@ final class BuildSystemTests: XCTestCase {
       options: .testDefault(),
       buildSystemTestHooks: BuildSystemTestHooks()
     )
-    buildSystem = try await unwrap(buildSystemManager.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
+    buildSystem = try await unwrap(buildSystemManager.testBuildSystem)
 
     self.workspace = await Workspace.forTesting(
       options: SourceKitLSPOptions.testDefault(),

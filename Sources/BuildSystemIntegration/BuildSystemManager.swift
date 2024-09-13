@@ -81,7 +81,16 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// The underlying primary build system.
   ///
   /// - Important: The only time this should be modified is in the initializer. Afterwards, it must be constant.
-  private(set) package var buildSystem: BuiltInBuildSystemAdapter?
+  private var buildSystem: BuiltInBuildSystemAdapter?
+
+  /// If the underlying build system is a `TestBuildSystem`, return it. Otherwise, `nil`
+  ///
+  /// - Important: For testing purposes only.
+  package var testBuildSystem: TestBuildSystem? {
+    get async {
+      return await buildSystem?.testBuildSystem
+    }
+  }
 
   /// The fallback build system. If present, used when the `buildSystem` is not
   /// set or cannot provide settings.

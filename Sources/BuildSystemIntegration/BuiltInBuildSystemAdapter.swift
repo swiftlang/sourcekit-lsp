@@ -75,10 +75,15 @@ private func createBuildSystem(
 package actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
   package static let signpostLoggingCategory: String = "build-system-message-handling"
   /// The underlying build system
-  // FIXME: (BSP Migration) This should be private, all messages should go through BSP. Only accessible from the outside for transition
-  // purposes.
-  private(set) package var underlyingBuildSystem: BuiltInBuildSystem!
+  private var underlyingBuildSystem: BuiltInBuildSystem!
   private let connectionToSourceKitLSP: LocalConnection
+
+  /// If the underlying build system is a `TestBuildSystem`, return it. Otherwise, `nil`
+  ///
+  /// - Important: For testing purposes only.
+  var testBuildSystem: TestBuildSystem? {
+    return underlyingBuildSystem as? TestBuildSystem
+  }
 
   // FIXME: (BSP migration) Can we have more fine-grained dependency tracking here?
   package let messageHandlingQueue = AsyncQueue<Serial>()
@@ -103,8 +108,10 @@ package actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
       connectionToSourceKitLSP: connectionToSourceKitLSP
     )
     guard let buildSystem else {
+      logger.log("Failed to create build system for \(buildSystemKind.projectRoot.pathString)")
       return nil
     }
+    logger.log("Created \(type(of: buildSystem), privacy: .public) for \(buildSystemKind.projectRoot.pathString)")
 
     self.underlyingBuildSystem = buildSystem
   }

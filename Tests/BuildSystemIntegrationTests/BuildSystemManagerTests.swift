@@ -107,7 +107,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
+    let bs = try await unwrap(bsm.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
@@ -135,7 +135,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
+    let bs = try await unwrap(bsm.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
     await bsm.registerForChangeNotifications(for: a, language: .swift)
@@ -156,7 +156,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
+    let bs = try await unwrap(bsm.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
     let fallbackSettings = await FallbackBuildSystem(options: .init()).buildSettings(for: a, language: .swift)
@@ -193,7 +193,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
+    let bs = try await unwrap(bsm.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
@@ -253,7 +253,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
+    let bs = try await unwrap(bsm.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
@@ -296,7 +296,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
+    let bs = try await unwrap(bsm.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
