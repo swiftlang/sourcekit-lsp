@@ -348,25 +348,14 @@ package final actor SemanticIndexManager {
     await indexStoreUpToDateTracker.markOutOfDate(changedFiles)
 
     let targets = await changedFiles.asyncMap { await buildSystemManager.targets(for: $0) }.flatMap { $0 }
-    if let dependentTargets = await buildSystemManager.targets(dependingOn: targets) {
-      logger.info(
-        """
-        Marking targets as out-of-date: \
-        \(String(dependentTargets.map(\.uri.stringValue).joined(separator: ", ")))
-        """
-      )
-      await preparationUpToDateTracker.markOutOfDate(dependentTargets)
-    } else {
-      logger.info("Marking all targets as out-of-date")
-      await preparationUpToDateTracker.markAllKnownOutOfDate()
-      // `markAllOutOfDate` only marks targets out-of-date that have been indexed before. Also mark all targets with
-      // in-progress preparation out of date. So we don't get into the following situation, which would result in an
-      // incorrect up-to-date status of a target
-      //  - Target preparation starts for the first time
-      //  - Files changed
-      //  - Target preparation finishes.
-      await preparationUpToDateTracker.markOutOfDate(inProgressPreparationTasks.keys)
-    }
+    let dependentTargets = await buildSystemManager.targets(dependingOn: Set(targets))
+    logger.info(
+      """
+      Marking targets as out-of-date: \
+      \(String(dependentTargets.map(\.uri.stringValue).joined(separator: ", ")))
+      """
+    )
+    await preparationUpToDateTracker.markOutOfDate(dependentTargets)
 
     await scheduleBackgroundIndex(files: changedFiles, indexFilesWithUpToDateUnit: false)
   }

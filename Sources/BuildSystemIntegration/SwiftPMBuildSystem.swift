@@ -210,10 +210,10 @@ package actor SwiftPMBuildSystem {
   /// Maps source and header files to the target that include them.
   private var fileToTargets: [DocumentURI: Set<BuildTargetIdentifier>] = [:]
 
-  /// Maps target ids to their SwiftPM build target as well as the depth at which they occur in the build
-  /// graph. Top level targets on which no other target depends have a depth of `1`. Targets with dependencies have a
-  /// greater depth.
-  private var targets: [BuildTargetIdentifier: (buildTarget: SwiftBuildTarget, depth: Int)] = [:]
+  /// Maps target ids to their SwiftPM build target.
+  private var swiftPMTargets: [BuildTargetIdentifier: SwiftBuildTarget] = [:]
+
+  private var targetDependencies: [BuildTargetIdentifier: Set<BuildTargetIdentifier>] = [:]
 
   static package func projectRoot(
     for path: TSCBasic.AbsolutePath,
@@ -361,6 +361,15 @@ package actor SwiftPMBuildSystem {
     )
 
     self.reloadPackageStatusCallback = reloadPackageStatusCallback
+
+    packageLoadingQueue.async {
+      await orLog("Initial package loading") {
+        // Schedule an initial generation of the build graph. Once the build graph is loaded, the build system will send
+        // call `fileHandlingCapabilityChanged`, which allows us to move documents to a workspace with this build
+        // system.
+        try await self.reloadPackageAssumingOnPackageLoadingQueue()
+      }
+    }
   }
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
@@ -398,15 +407,9 @@ package actor SwiftPMBuildSystem {
 extension SwiftPMBuildSystem {
   /// (Re-)load the package settings by parsing the manifest and resolving all the targets and
   /// dependencies.
-  @discardableResult
-  package func schedulePackageReload() -> Task<Void, Swift.Error> {
-    return packageLoadingQueue.asyncThrowing {
-      try await self.reloadPackageImpl()
-    }
-  }
-
+  ///
   /// - Important: Must only be called on `packageLoadingQueue`.
-  private func reloadPackageImpl() async throws {
+  private func reloadPackageAssumingOnPackageLoadingQueue() async throws {
     await reloadPackageStatusCallback(.start)
     await testHooks.reloadPackageDidStart?()
     defer {
@@ -437,22 +440,26 @@ extension SwiftPMBuildSystem {
     /// properties because otherwise we might end up in an inconsistent state
     /// with only some properties modified.
 
-    self.targets = [:]
+    self.swiftPMTargets = [:]
     self.fileToTargets = [:]
+    self.targetDependencies = [:]
+
     buildDescription.traverseModules { buildTarget, parent, depth in
       let targetIdentifier = orLog("Getting build target identifier") { try BuildTargetIdentifier(buildTarget) }
       guard let targetIdentifier else {
         return
       }
-      var depth = depth
-      if let existingDepth = targets[targetIdentifier]?.depth {
-        depth = max(existingDepth, depth)
-      } else {
+      if swiftPMTargets[targetIdentifier] == nil {
         for source in buildTarget.sources + buildTarget.headers {
           fileToTargets[DocumentURI(source), default: []].insert(targetIdentifier)
         }
       }
-      targets[targetIdentifier] = (buildTarget, depth)
+      if let parent,
+        let parentIdentifier = orLog("Getting parent build target identifier", { try BuildTargetIdentifier(parent) })
+      {
+        self.targetDependencies[parentIdentifier, default: []].insert(targetIdentifier)
+      }
+      swiftPMTargets[targetIdentifier] = buildTarget
     }
 
     await messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildTargetNotification(changes: nil))
@@ -511,9 +518,9 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
   }
 
   package func buildTargets(request: BuildTargetsRequest) async throws -> BuildTargetsResponse {
-    let targets = self.targets.map { (targetId, target) in
+    let targets = self.swiftPMTargets.map { (targetId, target) in
       var tags: [BuildTargetTag] = [.test]
-      if target.depth != 1 {
+      if !target.isPartOfRootPackage {
         tags.append(.dependency)
       }
       return BuildTarget(
@@ -524,8 +531,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
         capabilities: BuildTargetCapabilities(),
         // Be conservative with the languages that might be used in the target. SourceKit-LSP doesn't use this property.
         languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift],
-        // FIXME: (BSP migration) List the target's dependencies
-        dependencies: []
+        dependencies: self.targetDependencies[targetId, default: []].sorted { $0.uri.stringValue < $1.uri.stringValue }
       )
     }
     return BuildTargetsResponse(targets: targets)
@@ -536,10 +542,10 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     // TODO: Query The SwiftPM build system for the document's language and add it to SourceItem.data
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1267)
     for target in request.targets {
-      guard let swiftPMTarget = self.targets[target] else {
+      guard let swiftPMTarget = self.swiftPMTargets[target] else {
         continue
       }
-      let sources = swiftPMTarget.buildTarget.sources.map {
+      let sources = swiftPMTarget.sources.map {
         SourceItem(uri: DocumentURI($0), kind: .file, generated: false)
       }
       result.append(SourcesItem(target: target, sources: sources))
@@ -557,13 +563,13 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       return try settings(forPackageManifest: path)
     }
 
-    guard let buildTarget = self.targets[request.target]?.buildTarget else {
+    guard let swiftPMTarget = self.swiftPMTargets[request.target] else {
       logger.fault("Did not find target \(request.target.forLogging)")
       return nil
     }
 
-    if !buildTarget.sources.lazy.map(DocumentURI.init).contains(request.textDocument.uri),
-      let substituteFile = buildTarget.sources.sorted(by: { $0.path < $1.path }).first
+    if !swiftPMTarget.sources.lazy.map(DocumentURI.init).contains(request.textDocument.uri),
+      let substituteFile = swiftPMTarget.sources.sorted(by: { $0.path < $1.path }).first
     {
       logger.info("Getting compiler arguments for \(url) using substitute file \(substituteFile)")
       // If `url` is not part of the target's source, it's most likely a header file. Fake compiler arguments for it
@@ -574,7 +580,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       // getting its compiler arguments and then patching up the compiler arguments by replacing the substitute file
       // with the `.cpp` file.
       let buildSettings = FileBuildSettings(
-        compilerArguments: try await compilerArguments(for: DocumentURI(substituteFile), in: buildTarget),
+        compilerArguments: try await compilerArguments(for: DocumentURI(substituteFile), in: swiftPMTarget),
         workingDirectory: projectRoot.pathString
       ).patching(newFile: try resolveSymlinks(path).pathString, originalFile: substituteFile.absoluteString)
       return SourceKitOptionsResponse(
@@ -584,7 +590,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     }
 
     return SourceKitOptionsResponse(
-      compilerArguments: try await compilerArguments(for: request.textDocument.uri, in: buildTarget),
+      compilerArguments: try await compilerArguments(for: request.textDocument.uri, in: swiftPMTarget),
       workingDirectory: projectRoot.pathString
     )
   }
@@ -620,41 +626,8 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     return InverseSourcesResponse(targets: targets(for: request.textDocument.uri))
   }
 
-  package func scheduleBuildGraphGeneration() async throws {
-    self.schedulePackageReload()
-  }
-
   package func waitForUpToDateBuildGraph() async {
     await self.packageLoadingQueue.async {}.valuePropagatingCancellation
-  }
-
-  package func topologicalSort(of targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
-    return targets.sorted { (lhs: BuildTargetIdentifier, rhs: BuildTargetIdentifier) -> Bool in
-      let lhsDepth = self.targets[lhs]?.depth ?? 0
-      let rhsDepth = self.targets[rhs]?.depth ?? 0
-      return lhsDepth > rhsDepth
-    }
-  }
-
-  package func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
-    let targetDepths = targets.compactMap { self.targets[$0]?.depth }
-    let minimumTargetDepth: Int?
-    if targetDepths.count == targets.count {
-      minimumTargetDepth = targetDepths.max()
-    } else {
-      // One of the targets didn't have an entry in self.targets. We don't know what might depend on it.
-      minimumTargetDepth = nil
-    }
-
-    // Files that occur before the target in the topological sorting don't depend on it.
-    // Ideally, we should consult the dependency graph here for more accurate dependency analysis instead of relying on
-    // a flattened list (https://github.com/swiftlang/sourcekit-lsp/issues/1312).
-    return self.targets.compactMap { (targets, value) -> BuildTargetIdentifier? in
-      if let minimumTargetDepth, value.depth >= minimumTargetDepth {
-        return nil
-      }
-      return targets
-    }
   }
 
   package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
@@ -810,25 +783,12 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
   package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {
     if notification.changes.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
       logger.log("Reloading package because of file change")
-      await orLog("Reloading package") {
-        try await self.schedulePackageReload().value
-      }
+      await packageLoadingQueue.async {
+        await orLog("Reloading package") {
+          try await self.reloadPackageAssumingOnPackageLoadingQueue()
+        }
+      }.valuePropagatingCancellation
     }
-  }
-
-  package func sourceFiles() -> [SourceFileInfo] {
-    var sourceFiles: [DocumentURI: SourceFileInfo] = [:]
-    for (buildTarget, depth) in self.targets.values {
-      for sourceFile in buildTarget.sources {
-        let uri = DocumentURI(sourceFile)
-        sourceFiles[uri] = SourceFileInfo(
-          uri: uri,
-          isPartOfRootProject: depth == 1 || (sourceFiles[uri]?.isPartOfRootProject ?? false),
-          mayContainTests: true
-        )
-      }
-    }
-    return sourceFiles.values.sorted { $0.uri.pseudoPath < $1.uri.pseudoPath }
   }
 
   package func addSourceFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async {

@@ -118,6 +118,8 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
   private var cachedTargetSources = RequestCache<BuildTargetSourcesRequest>()
 
+  private var cachedTargetDepths: (buildTargets: [BuildTarget], depths: [BuildTargetIdentifier: Int])? = nil
+
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
   /// was found.
@@ -481,20 +483,64 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     return settings
   }
 
-  package func scheduleBuildGraphGeneration() async throws {
-    try await self.buildSystem?.underlyingBuildSystem.scheduleBuildGraphGeneration()
-  }
-
   package func waitForUpToDateBuildGraph() async {
     await self.buildSystem?.underlyingBuildSystem.waitForUpToDateBuildGraph()
   }
 
-  package func topologicalSort(of targets: [BuildTargetIdentifier]) async throws -> [BuildTargetIdentifier]? {
-    return await buildSystem?.underlyingBuildSystem.topologicalSort(of: targets)
+  /// The root targets of the project have depth of 0 and all target dependencies have a greater depth than the target
+  // itself.
+  private func targetDepths(for buildTargets: [BuildTarget]) -> [BuildTargetIdentifier: Int] {
+    if let cachedTargetDepths, cachedTargetDepths.buildTargets == buildTargets {
+      return cachedTargetDepths.depths
+    }
+    var nonRoots: Set<BuildTargetIdentifier> = []
+    for buildTarget in buildTargets {
+      nonRoots.formUnion(buildTarget.dependencies)
+    }
+    let targetsById = Dictionary(elements: buildTargets, keyedBy: \.id)
+    var depths: [BuildTargetIdentifier: Int] = [:]
+    let rootTargets = buildTargets.filter { !nonRoots.contains($0.id) }
+    var worksList: [(target: BuildTargetIdentifier, depth: Int)] = rootTargets.map { ($0.id, 0) }
+    while let (target, depth) = worksList.popLast() {
+      depths[target] = max(depths[target, default: 0], depth)
+      for dependency in targetsById[target]?.dependencies ?? [] {
+        // Check if we have already recorded this target with a greater depth, in which case visiting it again will
+        // not increase its depth or any of its children.
+        if depths[target, default: 0] < depth + 1 {
+          worksList.append((dependency, depth + 1))
+        }
+      }
+    }
+    cachedTargetDepths = (buildTargets, depths)
+    return depths
   }
 
-  package func targets(dependingOn targets: [BuildTargetIdentifier]) async -> [BuildTargetIdentifier]? {
-    return await buildSystem?.underlyingBuildSystem.targets(dependingOn: targets)
+  /// Sort the targets so that low-level targets occur before high-level targets.
+  ///
+  /// This sorting is best effort but allows the indexer to prepare and index low-level targets first, which allows
+  /// index data to be available earlier.
+  ///
+  /// `nil` if the build system doesn't support topological sorting of targets.
+  package func topologicalSort(of targets: [BuildTargetIdentifier]) async throws -> [BuildTargetIdentifier]? {
+    guard let workspaceTargets = await orLog("Getting build targets for topological sort", { try await buildTargets() })
+    else {
+      return nil
+    }
+
+    let depths = targetDepths(for: workspaceTargets)
+    return targets.sorted { (lhs: BuildTargetIdentifier, rhs: BuildTargetIdentifier) -> Bool in
+      return depths[lhs, default: 0] > depths[rhs, default: 0]
+    }
+  }
+
+  /// Returns the list of targets that might depend on the given target and that need to be re-prepared when a file in
+  /// `target` is modified.
+  package func targets(dependingOn targetIds: Set<BuildTargetIdentifier>) async -> [BuildTargetIdentifier] {
+    guard let buildTargets = await orLog("Getting build targets for dependencies", { try await self.buildTargets() })
+    else {
+      return []
+    }
+    return buildTargets.filter { $0.dependencies.contains(anyIn: targetIds) }.map { $0.id }
   }
 
   package func prepare(

@@ -157,17 +157,7 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func scheduleBuildGraphGeneration() {}
-
   package func waitForUpToDateBuildGraph() async {}
-
-  package func topologicalSort(of targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
-    return nil
-  }
-
-  package func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
-    return nil
-  }
 
   private func database(for uri: DocumentURI) -> CompilationDatabase? {
     if let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) {

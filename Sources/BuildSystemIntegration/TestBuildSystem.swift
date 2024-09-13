@@ -74,15 +74,9 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func scheduleBuildGraphGeneration() {}
-
   package func waitForUpToDateBuildGraph() async {}
 
   package func topologicalSort(of targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
-    return nil
-  }
-
-  package func targets(dependingOn targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil
   }
 

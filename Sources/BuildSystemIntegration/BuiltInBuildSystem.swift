@@ -102,30 +102,8 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// file or if it hasn't computed build settings for the file yet.
   func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse?
 
-  /// Schedule a task that re-generates the build graph. The function may return before the build graph has finished
-  /// being generated. If clients need to wait for an up-to-date build graph, they should call
-  /// `waitForUpToDateBuildGraph` afterwards.
-  func scheduleBuildGraphGeneration() async throws
-
   /// Wait until the build graph has been loaded.
   func waitForUpToDateBuildGraph() async
-
-  /// Sort the targets so that low-level targets occur before high-level targets.
-  ///
-  /// This sorting is best effort but allows the indexer to prepare and index low-level targets first, which allows
-  /// index data to be available earlier.
-  ///
-  /// `nil` if the build system doesn't support topological sorting of targets.
-  func topologicalSort(of targets: [BuildTargetIdentifier]) async -> [BuildTargetIdentifier]?
-
-  /// Returns the list of targets that might depend on the given target and that need to be re-prepared when a file in
-  /// `target` is modified.
-  ///
-  /// The returned list can be an over-approximation, in which case the indexer will perform more work than strictly
-  /// necessary by scheduling re-preparation of a target where it isn't necessary.
-  ///
-  /// Returning `nil` indicates that all targets should be considered depending on the given target.
-  func targets(dependingOn targets: [BuildTargetIdentifier]) async -> [BuildTargetIdentifier]?
 
   /// The toolchain that should be used to open the given document.
   ///
