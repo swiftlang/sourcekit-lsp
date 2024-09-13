@@ -130,15 +130,6 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     await indexDelegate?.addMainFileChangedCallback { [weak self] in
       await self?.buildSystemManager.mainFilesChanged()
     }
-    await buildSystemManager.buildSystem?.underlyingBuildSystem.addSourceFilesDidChangeCallback { [weak self] in
-      guard let self else {
-        return
-      }
-      guard let testFiles = await orLog("Getting test files", { try await self.buildSystemManager.testFiles() }) else {
-        return
-      }
-      await self.syntacticTestIndex.listOfTestFilesDidChange(testFiles)
-    }
     // Trigger an initial population of `syntacticTestIndex`.
     if let testFiles = await orLog("Getting initial test files", { try await self.buildSystemManager.testFiles() }) {
       await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
@@ -327,6 +318,11 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
 
   package func logMessageToIndexLog(taskID: IndexTaskID, message: String) {
     self.logMessageToIndexLogCallback(taskID, message)
+  }
+
+  package func sourceFilesDidChange() async {
+    let testFiles = await orLog("Getting test files") { try await buildSystemManager.testFiles() } ?? []
+    await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
   }
 }
 

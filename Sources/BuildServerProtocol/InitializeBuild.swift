@@ -104,7 +104,7 @@ public struct InitializeBuildResponseDataKind: RawRepresentable, Hashable, Codab
   }
 
   /// `data` field must contain a `SourceKitInitializeBuildResponseData` object.
-  public static let sourceKit = InitializeBuildResponseDataKind(rawValue: "sourcekit")
+  public static let sourceKit = InitializeBuildResponseDataKind(rawValue: "sourceKit")
 }
 
 public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Sendable {

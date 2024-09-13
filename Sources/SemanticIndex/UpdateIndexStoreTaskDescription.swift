@@ -255,7 +255,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       logger.error("Not indexing \(file.forLogging) because it has fallback compiler arguments")
       return
     }
-    guard let toolchain = await buildSystemManager.toolchain(for: file.mainFile, language) else {
+    guard let toolchain = await buildSystemManager.toolchain(for: file.mainFile, in: target, language: language) else {
       logger.error(
         "Not updating index store for \(file.forLogging) because no toolchain could be determined for the document"
       )

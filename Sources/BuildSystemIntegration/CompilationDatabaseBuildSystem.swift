@@ -153,11 +153,9 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     )
   }
 
-  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
-    return nil
+  package func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse {
+    return VoidResponse()
   }
-
-  package func waitForUpToDateBuildGraph() async {}
 
   private func database(for uri: DocumentURI) -> CompilationDatabase? {
     if let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) {
@@ -207,9 +205,5 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     for testFilesDidChangeCallback in testFilesDidChangeCallbacks {
       await testFilesDidChangeCallback()
     }
-  }
-
-  package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {
-    testFilesDidChangeCallbacks.append(callback)
   }
 }

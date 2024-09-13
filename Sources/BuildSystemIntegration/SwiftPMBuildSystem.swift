@@ -130,7 +130,12 @@ extension BuildTargetIdentifier {
       return (target, runDestination)
     }
   }
+}
 
+fileprivate extension TSCBasic.AbsolutePath {
+  var asURI: DocumentURI? {
+    DocumentURI(self.asURL)
+  }
 }
 
 fileprivate let preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
@@ -531,7 +536,9 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
         capabilities: BuildTargetCapabilities(),
         // Be conservative with the languages that might be used in the target. SourceKit-LSP doesn't use this property.
         languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift],
-        dependencies: self.targetDependencies[targetId, default: []].sorted { $0.uri.stringValue < $1.uri.stringValue }
+        dependencies: self.targetDependencies[targetId, default: []].sorted { $0.uri.stringValue < $1.uri.stringValue },
+        dataKind: .sourceKit,
+        data: SourceKitBuildTarget(toolchain: toolchain.path?.asURI).encodeToLSPAny()
       )
     }
     return BuildTargetsResponse(targets: targets)
@@ -595,10 +602,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     )
   }
 
-  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
-    return toolchain
-  }
-
   package func targets(for uri: DocumentURI) -> [BuildTargetIdentifier] {
     guard let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
       // We can't determine targets for non-file URIs.
@@ -626,8 +629,9 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     return InverseSourcesResponse(targets: targets(for: request.textDocument.uri))
   }
 
-  package func waitForUpToDateBuildGraph() async {
+  package func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse {
     await self.packageLoadingQueue.async {}.valuePropagatingCancellation
+    return VoidResponse()
   }
 
   package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
@@ -789,10 +793,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
         }
       }.valuePropagatingCancellation
     }
-  }
-
-  package func addSourceFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async {
-    testFilesDidChangeCallbacks.append(callback)
   }
 
   /// Retrieve settings for a package manifest (Package.swift).

@@ -70,15 +70,11 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     return buildSettingsByFile[request.textDocument.uri]
   }
 
-  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
-    return nil
+  package func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse {
+    return VoidResponse()
   }
-
-  package func waitForUpToDateBuildGraph() async {}
 
   package func topologicalSort(of targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
     return nil
   }
-
-  package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {}
 }
