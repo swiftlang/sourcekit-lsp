@@ -799,18 +799,11 @@ extension SourceKitLSPServer: MessageHandler {
 }
 
 extension SourceKitLSPServer {
-  nonisolated package func logMessageToIndexLog(taskID: IndexTaskID, message: String) {
-    var message: Substring = message[...]
-    while message.last?.isNewline ?? false {
-      message = message.dropLast(1)
-    }
-    let messageWithEmojiLinePrefixes = message.split(separator: "\n", omittingEmptySubsequences: false).map {
-      "\(taskID.emojiRepresentation) \($0)"
-    }.joined(separator: "\n")
+  nonisolated package func logMessageToIndexLog(taskID: String, message: String) {
     self.sendNotificationToClient(
       LogMessageNotification(
         type: .info,
-        message: messageWithEmojiLinePrefixes,
+        message: prefixMessageWithTaskEmoji(taskID: taskID, message: message),
         logName: "SourceKit-LSP: Indexing"
       )
     )

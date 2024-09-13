@@ -631,13 +631,9 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     return VoidResponse()
   }
 
-  private nonisolated func logMessageToIndexLog(_ taskID: IndexTaskID, _ message: String) {
+  private nonisolated func logMessageToIndexLog(_ taskID: TaskId, _ message: String) {
     connectionToSourceKitLSP.send(
-      BuildServerProtocol.LogMessageNotification(
-        type: .info,
-        task: TaskId(id: taskID.rawValue),
-        message: message
-      )
+      BuildServerProtocol.LogMessageNotification(type: .info, task: taskID, message: message)
     )
   }
 
@@ -682,17 +678,17 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     }
     let start = ContinuousClock.now
 
-    let logID = IndexTaskID.preparation(id: preparationTaskID.fetchAndIncrement())
+    let taskID: TaskId = TaskId(id: "preparation-\(preparationTaskID.fetchAndIncrement())")
     // FIXME: (BSP Migration) log target name instead of target URI
     logMessageToIndexLog(
-      logID,
+      taskID,
       """
       Preparing \(target.uri.stringValue)
       \(arguments.joined(separator: " "))
       """
     )
-    let stdoutHandler = PipeAsStringHandler { self.logMessageToIndexLog(logID, $0) }
-    let stderrHandler = PipeAsStringHandler { self.logMessageToIndexLog(logID, $0) }
+    let stdoutHandler = PipeAsStringHandler { self.logMessageToIndexLog(taskID, $0) }
+    let stderrHandler = PipeAsStringHandler { self.logMessageToIndexLog(taskID, $0) }
 
     let result = try await Process.run(
       arguments: arguments,
@@ -703,7 +699,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       )
     )
     let exitStatus = result.exitStatus.exhaustivelySwitchable
-    logMessageToIndexLog(logID, "Finished with \(exitStatus.description) in \(start.duration(to: .now))")
+    logMessageToIndexLog(taskID, "Finished with \(exitStatus.description) in \(start.duration(to: .now))")
     switch exitStatus {
     case .terminated(code: 0):
       break

@@ -176,7 +176,7 @@ package final actor SemanticIndexManager {
   private let indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
 
   /// Callback that is called when an indexing task produces output it wants to log to the index log.
-  private let logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
+  private let logMessageToIndexLog: @Sendable (_ taskID: String, _ message: String) -> Void
 
   /// Called when files are scheduled to be indexed.
   ///
@@ -219,7 +219,7 @@ package final actor SemanticIndexManager {
     updateIndexStoreTimeout: Duration,
     testHooks: IndexTestHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: String, _ message: String) -> Void,
     indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
     indexProgressStatusDidChange: @escaping @Sendable () -> Void
   ) {

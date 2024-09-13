@@ -10,9 +10,9 @@ add_library(BuildSystemIntegration STATIC
   CompilationDatabaseBuildSystem.swift
   FallbackBuildSystem.swift
   FileBuildSettings.swift
-  IndexTaskID.swift
   MainFilesProvider.swift
   PathPrefixMapping.swift
+  PrefixMessageWithTaskEmoji.swift
   QueueBasedMessageHandler.swift
   SplitShellCommand.swift
   SwiftPMBuildSystem.swift

@@ -30,10 +30,6 @@ package protocol BuildSystemManagerDelegate: AnyObject, Sendable {
   /// any information based on top of it.
   func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async
 
-  /// Log the given message to the client's index log.
-  // FIXME: (BSP Migration) Use `sendNotificationToClient`
-  func logMessageToIndexLog(taskID: IndexTaskID, message: String)
-
   /// Whether the client can handle `WorkDoneProgress` requests.
   var clientSupportsWorkDoneProgress: Bool { get async }
 

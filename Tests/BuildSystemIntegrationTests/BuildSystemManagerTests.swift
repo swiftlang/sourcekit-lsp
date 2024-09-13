@@ -407,8 +407,6 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
 
   func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {}
 
-  nonisolated func logMessageToIndexLog(taskID: BuildSystemIntegration.IndexTaskID, message: String) {}
-
   func sourceFilesDidChange() async {}
 
   var clientSupportsWorkDoneProgress: Bool { false }

@@ -625,10 +625,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     return buildTargets.filter { $0.target.dependencies.contains(anyIn: targetIds) }.map { $0.target.id }
   }
 
-  package func prepare(
-    targets: [BuildTargetIdentifier],
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
-  ) async throws {
+  package func prepare(targets: [BuildTargetIdentifier]) async throws {
     let _: VoidResponse? = try await connectionToBuildSystem?.send(PrepareTargetsRequest(targets: targets))
     await orLog("Calling fileDependenciesUpdated") {
       let filesInPreparedTargets = try await self.sourceFiles(in: targets).flatMap(\.sources).map(\.uri)
@@ -768,13 +765,15 @@ extension BuildSystemManager {
   }
 
   private func logMessage(notification: BuildServerProtocol.LogMessageNotification) async {
-    // FIXME: (BSP Integration) Remove the restriction that task IDs need to have a raw value that can be parsed by
-    // `IndexTaskID.init`.
-    guard let task = notification.task, let taskID = IndexTaskID(rawValue: task.id) else {
-      logger.error("Ignoring log message notification with unknown task \(notification.task?.id ?? "<nil>")")
-      return
-    }
-    delegate?.logMessageToIndexLog(taskID: taskID, message: notification.message)
+    let message =
+      if let taskID = notification.task?.id {
+        prefixMessageWithTaskEmoji(taskID: taskID, message: notification.message)
+      } else {
+        notification.message
+      }
+    delegate?.sendNotificationToClient(
+      LanguageServerProtocol.LogMessageNotification(type: .info, message: message, logName: "SourceKit-LSP: Indexing")
+    )
   }
 }
 

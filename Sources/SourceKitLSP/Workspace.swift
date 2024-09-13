@@ -302,10 +302,6 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     await sourceKitLSPServer?.fileHandlingCapabilityChanged()
   }
 
-  package func logMessageToIndexLog(taskID: IndexTaskID, message: String) {
-    sourceKitLSPServer?.logMessageToIndexLog(taskID: taskID, message: message)
-  }
-
   package var clientSupportsWorkDoneProgress: Bool {
     get async {
       await sourceKitLSPServer?.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false
