@@ -25,15 +25,15 @@ import struct TSCBasic.AbsolutePath
 import os
 #endif
 
-fileprivate class RequestCache<Request: RequestType & Hashable> {
-  private var storage: [Request: Task<Request.Response, Error>] = [:]
+fileprivate class RequestCache<Request: RequestType & Hashable, Result: Sendable> {
+  private var storage: [Request: Task<Result, Error>] = [:]
 
   func get(
     _ key: Request,
     isolation: isolated any Actor = #isolation,
-    compute: @Sendable @escaping (Request) async throws(Error) -> Request.Response
-  ) async throws(Error) -> Request.Response {
-    let task: Task<Request.Response, Error>
+    compute: @Sendable @escaping (Request) async throws(Error) -> Result
+  ) async throws(Error) -> Result {
+    let task: Task<Result, Error>
     if let cached = storage[key] {
       task = cached
     } else {
@@ -110,15 +110,15 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// Force-unwrapped optional because initializing it requires access to `self`.
   private var filesDependenciesUpdatedDebouncer: Debouncer<Set<DocumentURI>>! = nil
 
-  private var cachedTargetsForDocument = RequestCache<InverseSourcesRequest>()
+  private var cachedTargetsForDocument = RequestCache<InverseSourcesRequest, InverseSourcesResponse>()
 
-  private var cachedSourceKitOptions = RequestCache<SourceKitOptionsRequest>()
+  private var cachedSourceKitOptions = RequestCache<SourceKitOptionsRequest, SourceKitOptionsResponse?>()
 
-  private var cachedBuildTargets = RequestCache<BuildTargetsRequest>()
+  private var cachedBuildTargets = RequestCache<
+    BuildTargetsRequest, [BuildTargetIdentifier: (target: BuildTarget, depth: Int)]
+  >()
 
-  private var cachedTargetSources = RequestCache<BuildTargetSourcesRequest>()
-
-  private var cachedTargetDepths: (buildTargets: [BuildTarget], depths: [BuildTargetIdentifier: Int])? = nil
+  private var cachedTargetSources = RequestCache<BuildTargetSourcesRequest, BuildTargetSourcesResponse>()
 
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
@@ -222,10 +222,9 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     if !options.backgroundIndexingOrDefault,
       events.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" })
     {
-      let targets = await orLog("Getting build targets") {
-        try await self.buildTargets()
+      await orLog("Getting build targets") {
+        targetsWithUpdatedDependencies.formUnion(try await self.buildTargets().keys)
       }
-      targetsWithUpdatedDependencies.formUnion(targets?.map(\.id) ?? [])
     }
 
     var filesWithUpdatedDependencies: Set<DocumentURI> = []
@@ -490,9 +489,6 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// The root targets of the project have depth of 0 and all target dependencies have a greater depth than the target
   // itself.
   private func targetDepths(for buildTargets: [BuildTarget]) -> [BuildTargetIdentifier: Int] {
-    if let cachedTargetDepths, cachedTargetDepths.buildTargets == buildTargets {
-      return cachedTargetDepths.depths
-    }
     var nonRoots: Set<BuildTargetIdentifier> = []
     for buildTarget in buildTargets {
       nonRoots.formUnion(buildTarget.dependencies)
@@ -511,7 +507,6 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
         }
       }
     }
-    cachedTargetDepths = (buildTargets, depths)
     return depths
   }
 
@@ -522,25 +517,25 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   ///
   /// `nil` if the build system doesn't support topological sorting of targets.
   package func topologicalSort(of targets: [BuildTargetIdentifier]) async throws -> [BuildTargetIdentifier]? {
-    guard let workspaceTargets = await orLog("Getting build targets for topological sort", { try await buildTargets() })
+    guard let buildTargets = await orLog("Getting build targets for topological sort", { try await buildTargets() })
     else {
       return nil
     }
 
-    let depths = targetDepths(for: workspaceTargets)
     return targets.sorted { (lhs: BuildTargetIdentifier, rhs: BuildTargetIdentifier) -> Bool in
-      return depths[lhs, default: 0] > depths[rhs, default: 0]
+      return (buildTargets[lhs]?.depth ?? 0) > (buildTargets[rhs]?.depth ?? 0)
     }
   }
 
   /// Returns the list of targets that might depend on the given target and that need to be re-prepared when a file in
   /// `target` is modified.
   package func targets(dependingOn targetIds: Set<BuildTargetIdentifier>) async -> [BuildTargetIdentifier] {
-    guard let buildTargets = await orLog("Getting build targets for dependencies", { try await self.buildTargets() })
+    guard
+      let buildTargets = await orLog("Getting build targets for dependencies", { try await self.buildTargets().values })
     else {
       return []
     }
-    return buildTargets.filter { $0.dependencies.contains(anyIn: targetIds) }.map { $0.id }
+    return buildTargets.filter { $0.target.dependencies.contains(anyIn: targetIds) }.map { $0.target.id }
   }
 
   package func prepare(
@@ -564,26 +559,46 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     self.watchedFiles[uri] = nil
   }
 
-  package func buildTargets() async throws -> [BuildTarget] {
+  package func buildTargets() async throws -> [BuildTargetIdentifier: (target: BuildTarget, depth: Int)] {
     guard let buildSystem else {
-      return []
+      return [:]
     }
 
     let request = BuildTargetsRequest()
-    let response = try await cachedBuildTargets.get(request) { request in
-      try await buildSystem.send(request)
+    let result = try await cachedBuildTargets.get(request) { request in
+      let buildTargets = try await buildSystem.send(request).targets
+      let depths = await self.targetDepths(for: buildTargets)
+      var result: [BuildTargetIdentifier: (target: BuildTarget, depth: Int)] = [:]
+      result.reserveCapacity(buildTargets.count)
+      for buildTarget in buildTargets {
+        guard result[buildTarget.id] == nil else {
+          logger.error("Found two targets with the same ID \(buildTarget.id)")
+          continue
+        }
+        let depth: Int
+        if let d = depths[buildTarget.id] {
+          depth = d
+        } else {
+          logger.fault("Did not compute depth for target \(buildTarget.id)")
+          depth = 0
+        }
+        result[buildTarget.id] = (buildTarget, depth)
+      }
+      return result
     }
-    return response.targets
+    return result
   }
 
-  package func sourceFiles(in targets: [BuildTargetIdentifier]) async throws -> [SourcesItem] {
+  package func sourceFiles(in targets: some Sequence<BuildTargetIdentifier>) async throws -> [SourcesItem] {
     guard let buildSystem else {
       return []
     }
 
     // FIXME: (BSP migration) If we have a cached request for a superset of the targets, serve the result from that
     // cache entry.
-    let request = BuildTargetSourcesRequest.init(targets: targets)
+    // Sort targets to help cache hits if we have two calls to `sourceFiles` with targets in different orders.
+    let sortedTargets = targets.sorted { $0.uri.stringValue < $1.uri.stringValue }
+    let request = BuildTargetSourcesRequest(targets: sortedTargets)
     let response = try await cachedTargetSources.get(request) { request in
       try await buildSystem.send(request)
     }
@@ -595,9 +610,8 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     // retrieving the source files for those targets.
     // FIXME: (BSP Migration) Handle source files that are in multiple targets
     let targets = try await self.buildTargets()
-    let targetsById = Dictionary(elements: targets, keyedBy: \.id)
-    let sourceFiles = try await self.sourceFiles(in: targets.map(\.id)).flatMap { sourcesItem in
-      let target = targetsById[sourcesItem.target]
+    let sourceFiles = try await self.sourceFiles(in: targets.keys).flatMap { sourcesItem in
+      let target = targets[sourcesItem.target]?.target
       return sourcesItem.sources.map { sourceItem in
         SourceFileInfo(
           uri: sourceItem.uri,
