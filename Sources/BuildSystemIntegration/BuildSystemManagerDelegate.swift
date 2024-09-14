@@ -15,7 +15,8 @@ import LanguageServerProtocol
 
 /// Handles build system events, such as file build settings changes.
 package protocol BuildSystemManagerDelegate: AnyObject, Sendable {
-  /// Notify the delegate that the given files' build settings have changed.
+  /// Notify the delegate that the result of `BuildSystemManager.buildSettingsInferredFromMainFile` might have changed
+  /// for the given files.
   func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async
 
   /// Notify the delegate that the dependencies of the given files have changed
