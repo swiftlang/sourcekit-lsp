@@ -84,6 +84,7 @@ package actor SkipUnless {
   }
 
   private func skipUnlessSupported(
+    allowSkippingInCI: Bool = false,
     featureName: String = #function,
     file: StaticString,
     line: UInt,
@@ -92,8 +93,8 @@ package actor SkipUnless {
     let checkResult: FeatureCheckResult
     if let cachedResult = checkCache[featureName] {
       checkResult = cachedResult
-    } else if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] != nil {
-      // Never skip tests in CI. Toolchain should be up-to-date
+    } else if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] != nil && !allowSkippingInCI {
+      // In general, don't skip tests in CI. Toolchain should be up-to-date
       checkResult = .featureSupported
     } else {
       checkResult = try await featureCheck()
@@ -466,7 +467,7 @@ package actor SkipUnless {
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
-    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+    return try await shared.skipUnlessSupported(allowSkippingInCI: true, file: file, line: line) {
       let swiftFrontend = try await unwrap(ToolchainRegistry.forTesting.default?.swift).parentDirectory
         .appending(component: "swift-frontend")
       return try await withTestScratchDir { scratchDirectory in
@@ -489,7 +490,10 @@ package actor SkipUnless {
         )
         try process.launch()
         let result = try await process.waitUntilExit()
-        return result.exitStatus == .terminated(code: 0)
+        if result.exitStatus == .terminated(code: 0) {
+          return .featureSupported
+        }
+        return .featureUnsupported(skipMessage: "Skipping because toolchain can not compile for wasm")
       }
     }
   }
