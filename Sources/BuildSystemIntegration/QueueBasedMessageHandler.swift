@@ -68,31 +68,8 @@ extension QueueBasedMessageHandler {
     messageHandlingQueue.async(metadata: BuildSystemMessageDependencyTracker(request)) {
       signposter.emitEvent("Start handling", id: signpostID)
       await withTaskCancellationHandler {
-        let startDate = Date()
-
         let requestAndReply = RequestAndReply(request) { result in
           reply(result)
-          let endDate = Date()
-          Task {
-            switch result {
-            case .success(let response):
-              logger.log(
-                """
-                Succeeded (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
-                \(Request.method, privacy: .public)
-                \(response.forLogging)
-                """
-              )
-            case .failure(let error):
-              logger.log(
-                """
-                Failed (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
-                \(Request.method, privacy: .public)(\(id, privacy: .public))
-                \(error.forLogging, privacy: .private)
-                """
-              )
-            }
-          }
         }
 
         await self.handleImpl(requestAndReply)
