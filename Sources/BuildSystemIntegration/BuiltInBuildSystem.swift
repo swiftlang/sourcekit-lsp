@@ -19,27 +19,6 @@ import ToolchainRegistry
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 
-package struct SourceFileInfo: Sendable {
-  /// The URI of the source file.
-  package let uri: DocumentURI
-
-  /// `true` if this file belongs to the root project that the user is working on. It is false, if the file belongs
-  /// to a dependency of the project.
-  package let isPartOfRootProject: Bool
-
-  /// Whether the file might contain test cases. This property is an over-approximation. It might be true for files
-  /// from non-test targets or files that don't actually contain any tests. Keeping this list of files with
-  /// `mayContainTets` minimal as possible helps reduce the amount of work that the syntactic test indexer needs to
-  /// perform.
-  package let mayContainTests: Bool
-
-  package init(uri: DocumentURI, isPartOfRootProject: Bool, mayContainTests: Bool) {
-    self.uri = uri
-    self.isPartOfRootProject = isPartOfRootProject
-    self.mayContainTests = mayContainTests
-  }
-}
-
 /// An error build systems can throw from `prepare` if they don't support preparation of targets.
 package struct PrepareNotSupportedError: Error, CustomStringConvertible {
   package init() {}

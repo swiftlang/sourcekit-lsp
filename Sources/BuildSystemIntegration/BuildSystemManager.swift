@@ -59,6 +59,18 @@ fileprivate class RequestCache<Request: RequestType & Hashable, Result: Sendable
   }
 }
 
+package struct SourceFileInfo: Sendable {
+  /// `true` if this file belongs to the root project that the user is working on. It is false, if the file belongs
+  /// to a dependency of the project.
+  package let isPartOfRootProject: Bool
+
+  /// Whether the file might contain test cases. This property is an over-approximation. It might be true for files
+  /// from non-test targets or files that don't actually contain any tests. Keeping this list of files with
+  /// `mayContainTets` minimal as possible helps reduce the amount of work that the syntactic test indexer needs to
+  /// perform.
+  package let mayContainTests: Bool
+}
+
 /// `BuildSystem` that integrates client-side information such as main-file lookup as well as providing
 ///  common functionality such as caching.
 ///
@@ -688,30 +700,37 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     return response.items
   }
 
-  package func sourceFiles() async throws -> [SourceFileInfo] {
-    // FIXME: (BSP Migration): Consider removing this method and letting callers get all targets first and then
-    // retrieving the source files for those targets.
-    // FIXME: (BSP Migration) Handle source files that are in multiple targets
+  package func sourceFiles() async throws -> [DocumentURI: SourceFileInfo] {
     let targets = try await self.buildTargets()
-    let sourceFiles = try await self.sourceFiles(in: targets.keys).flatMap { sourcesItem in
+    var sourceFiles: [DocumentURI: SourceFileInfo] = [:]
+    for sourcesItem in try await self.sourceFiles(in: targets.keys) {
       let target = targets[sourcesItem.target]?.target
-      return sourcesItem.sources.map { sourceItem in
-        SourceFileInfo(
-          uri: sourceItem.uri,
-          isPartOfRootProject: !(target?.tags.contains(.dependency) ?? false),
-          mayContainTests: target?.tags.contains(.test) ?? true
-        )
+      let isPartOfRootProject = !(target?.tags.contains(.dependency) ?? false)
+      let mayContainTests = target?.tags.contains(.test) ?? true
+
+      for sourceItem in sourcesItem.sources {
+        if let existingEntry = sourceFiles[sourceItem.uri] {
+          sourceFiles[sourceItem.uri] = SourceFileInfo(
+            isPartOfRootProject: existingEntry.isPartOfRootProject || isPartOfRootProject,
+            mayContainTests: existingEntry.mayContainTests || mayContainTests
+          )
+        } else {
+          sourceFiles[sourceItem.uri] = SourceFileInfo(
+            isPartOfRootProject: isPartOfRootProject,
+            mayContainTests: mayContainTests
+          )
+        }
       }
     }
     return sourceFiles
   }
 
   package func testFiles() async throws -> [DocumentURI] {
-    return try await sourceFiles().compactMap { (info: SourceFileInfo) -> DocumentURI? in
+    return try await sourceFiles().compactMap { (uri, info) -> DocumentURI? in
       guard info.isPartOfRootProject, info.mayContainTests else {
         return nil
       }
-      return info.uri
+      return uri
     }
   }
 }
