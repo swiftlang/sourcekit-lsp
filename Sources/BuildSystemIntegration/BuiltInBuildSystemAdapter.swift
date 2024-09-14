@@ -117,7 +117,7 @@ package actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
 
   private func initialize(request: InitializeBuildRequest) async -> InitializeBuildResponse {
     return InitializeBuildResponse(
-      displayName: "\(type(of: underlyingBuildSystem))",
+      displayName: "\(type(of: underlyingBuildSystem!))",
       version: "1.0.0",
       bspVersion: "2.2.0",
       capabilities: BuildServerCapabilities(),
