@@ -871,7 +871,6 @@ extension BuildSystemManager {
     // FIXME: (BSP Migration) Communicate that the build target has changed to the `BuildSystemManagerDelegate` and make
     // it responsible for figuring out which files are affected.
     await delegate?.fileBuildSettingsChanged(Set(watchedFiles.keys))
-    await self.delegate?.sourceFilesDidChange()
   }
 
   private func logMessage(notification: BuildServerProtocol.LogMessageNotification) async {

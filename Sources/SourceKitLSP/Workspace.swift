@@ -300,6 +300,8 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
 
   package func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {
     await sourceKitLSPServer?.fileHandlingCapabilityChanged()
+    let testFiles = await orLog("Getting test files") { try await buildSystemManager.testFiles() } ?? []
+    await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
   }
 
   package var clientSupportsWorkDoneProgress: Bool {
@@ -328,11 +330,6 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
 
   package func waitUntilInitialized() async {
     await sourceKitLSPServer?.waitUntilInitialized()
-  }
-
-  package func sourceFilesDidChange() async {
-    let testFiles = await orLog("Getting test files") { try await buildSystemManager.testFiles() } ?? []
-    await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
   }
 }
 

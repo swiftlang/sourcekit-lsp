@@ -40,7 +40,4 @@ package protocol BuildSystemManagerDelegate: AnyObject, Sendable {
   /// Wait until the connection to the client has been initialized, ie. wait until `SourceKitLSPServer` has replied
   /// to the `initialize` request.
   func waitUntilInitialized() async
-
-  /// Notify the delegate that the list of source files in the build system might have changed.
-  func sourceFilesDidChange() async
 }

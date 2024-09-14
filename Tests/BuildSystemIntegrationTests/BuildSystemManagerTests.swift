@@ -407,8 +407,6 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
 
   func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {}
 
-  func sourceFilesDidChange() async {}
-
   var clientSupportsWorkDoneProgress: Bool { false }
 
   nonisolated func sendNotificationToClient(_ notification: some NotificationType) {}
