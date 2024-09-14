@@ -46,6 +46,19 @@ fileprivate class Cache<Key: Sendable & Hashable, Result: Sendable> {
     return try await task.value
   }
 
+  func get(
+    whereKey keyPredicate: (Key) -> Bool,
+    isolation: isolated any Actor = #isolation,
+    transform: @Sendable @escaping (Result) -> Result
+  ) async throws -> Result? {
+    for (key, value) in storage {
+      if keyPredicate(key) {
+        return try await transform(value.value)
+      }
+    }
+    return nil
+  }
+
   func clear(where condition: (Key) -> Bool, isolation: isolated any Actor = #isolation) {
     for key in storage.keys {
       if condition(key) {
@@ -304,7 +317,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     var filesWithUpdatedDependencies: Set<DocumentURI> = []
 
     await orLog("Getting source files in targets") {
-      let sourceFiles = try await self.sourceFiles(in: Array(Set(targetsWithUpdatedDependencies)))
+      let sourceFiles = try await self.sourceFiles(in: Set(targetsWithUpdatedDependencies))
       filesWithUpdatedDependencies.formUnion(sourceFiles.flatMap(\.sources).map(\.uri))
     }
 
@@ -674,8 +687,10 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     return buildTargets.filter { $0.target.dependencies.contains(anyIn: targetIds) }.map { $0.target.id }
   }
 
-  package func prepare(targets: [BuildTargetIdentifier]) async throws {
-    let _: VoidResponse? = try await connectionToBuildSystem?.send(PrepareTargetsRequest(targets: targets))
+  package func prepare(targets: Set<BuildTargetIdentifier>) async throws {
+    let _: VoidResponse? = try await connectionToBuildSystem?.send(
+      PrepareTargetsRequest(targets: targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
+    )
     await orLog("Calling fileDependenciesUpdated") {
       let filesInPreparedTargets = try await self.sourceFiles(in: targets).flatMap(\.sources).map(\.uri)
       await filesDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets))
@@ -722,13 +737,23 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     return result
   }
 
-  package func sourceFiles(in targets: some Sequence<BuildTargetIdentifier>) async throws -> [SourcesItem] {
+  package func sourceFiles(in targets: Set<BuildTargetIdentifier>) async throws -> [SourcesItem] {
     guard let connectionToBuildSystem else {
       return []
     }
 
-    // FIXME: (BSP migration) If we have a cached request for a superset of the targets, serve the result from that
-    // cache entry.
+    // If we have a cached request for a superset of the targets, serve the result from that cache entry.
+    let fromSuperset = await orLog("Getting source files from superset request") {
+      try await cachedTargetSources.get { request in
+        targets.isSubset(of: request.targets)
+      } transform: { response in
+        return BuildTargetSourcesResponse(items: response.items.filter { targets.contains($0.target) })
+      }
+    }
+    if let fromSuperset {
+      return fromSuperset.items
+    }
+
     // Sort targets to help cache hits if we have two calls to `sourceFiles` with targets in different orders.
     let sortedTargets = targets.sorted { $0.uri.stringValue < $1.uri.stringValue }
     let request = BuildTargetSourcesRequest(targets: sortedTargets)
@@ -756,7 +781,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// `includeNonBuildableFiles` determines whether non-buildable files should be included.
   private func sourceFilesAndDirectories(includeNonBuildableFiles: Bool) async throws -> SourceFilesAndDirectories {
     let targets = try await self.buildTargets()
-    let sourcesItems = try await self.sourceFiles(in: targets.keys)
+    let sourcesItems = try await self.sourceFiles(in: Set(targets.keys))
 
     let key = SourceFilesAndDirectoriesKey(
       includeNonBuildableFiles: includeNonBuildableFiles,

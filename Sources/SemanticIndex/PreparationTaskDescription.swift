@@ -100,7 +100,7 @@ package struct PreparationTaskDescription: IndexTaskDescription {
         signposter.endInterval("Preparing", state)
       }
       do {
-        try await buildSystemManager.prepare(targets: targetsToPrepare)
+        try await buildSystemManager.prepare(targets: Set(targetsToPrepare))
       } catch {
         logger.error(
           "Preparation failed: \(error.forLogging)"
