@@ -85,8 +85,7 @@ package actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
     return underlyingBuildSystem as? TestBuildSystem
   }
 
-  // FIXME: (BSP migration) Can we have more fine-grained dependency tracking here?
-  package let messageHandlingQueue = AsyncQueue<Serial>()
+  package let messageHandlingQueue = AsyncQueue<BuildSystemMessageDependencyTracker>()
 
   init?(
     buildSystemKind: BuildSystemKind?,

@@ -272,8 +272,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     await self.filesDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
   }
 
-  // FIXME: (BSP Migration) Can we use more fine-grained dependency tracking here?
-  package let messageHandlingQueue = AsyncQueue<Serial>()
+  package let messageHandlingQueue = AsyncQueue<BuildSystemMessageDependencyTracker>()
 
   package func handleImpl(_ notification: some NotificationType) async {
     switch notification {
@@ -570,7 +569,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       let _: VoidResponse? = try await connectionToBuildSystem?.send(WaitForBuildSystemUpdatesRequest())
     }
     // Handle any messages the build system might have sent us while updating.
-    await self.messageHandlingQueue.async {}.valuePropagatingCancellation
+    await self.messageHandlingQueue.async(metadata: .stateChange) {}.valuePropagatingCancellation
   }
 
   /// The root targets of the project have depth of 0 and all target dependencies have a greater depth than the target

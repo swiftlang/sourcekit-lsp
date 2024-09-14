@@ -22,7 +22,7 @@ import SwiftExtensions
 /// scopes, because the build system messages should still be logged in the scope of the original LSP request that
 /// triggered them.
 protocol QueueBasedMessageHandler: MessageHandler {
-  var messageHandlingQueue: AsyncQueue<Serial> { get }
+  var messageHandlingQueue: AsyncQueue<BuildSystemMessageDependencyTracker> { get }
 
   static var signpostLoggingCategory: String { get }
 
@@ -42,7 +42,7 @@ extension QueueBasedMessageHandler {
       .makeSignposter()
     let signpostID = signposter.makeSignpostID()
     let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: notification))")
-    messageHandlingQueue.async {
+    messageHandlingQueue.async(metadata: BuildSystemMessageDependencyTracker(notification)) {
       signposter.emitEvent("Start handling", id: signpostID)
       await self.handleImpl(notification)
       signposter.endInterval("Notification", state, "Done")
@@ -65,7 +65,7 @@ extension QueueBasedMessageHandler {
     let signpostID = signposter.makeSignpostID()
     let state = signposter.beginInterval("Request", id: signpostID, "\(Request.self)")
 
-    messageHandlingQueue.async {
+    messageHandlingQueue.async(metadata: BuildSystemMessageDependencyTracker(request)) {
       signposter.emitEvent("Start handling", id: signpostID)
       await withTaskCancellationHandler {
         let startDate = Date()
