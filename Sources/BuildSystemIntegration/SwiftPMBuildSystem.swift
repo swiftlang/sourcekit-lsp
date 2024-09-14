@@ -519,7 +519,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       }
       return BuildTarget(
         id: targetId,
-        displayName: nil,
+        displayName: target.name,
         baseDirectory: nil,
         tags: tags,
         capabilities: BuildTargetCapabilities(),
@@ -679,11 +679,10 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     let start = ContinuousClock.now
 
     let taskID: TaskId = TaskId(id: "preparation-\(preparationTaskID.fetchAndIncrement())")
-    // FIXME: (BSP Migration) log target name instead of target URI
     logMessageToIndexLog(
       taskID,
       """
-      Preparing \(target.uri.stringValue)
+      Preparing \(self.swiftPMTargets[target]?.name ?? target.uri.stringValue)
       \(arguments.joined(separator: " "))
       """
     )
