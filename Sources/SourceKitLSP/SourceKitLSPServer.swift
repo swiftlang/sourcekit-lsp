@@ -326,7 +326,6 @@ package actor SourceKitLSPServer {
             return
           }
           if let oldWorkspace = oldWorkspace {
-            // FIXME: Can this cause race conditions?
             await self.closeDocument(
               DidCloseTextDocumentNotification(
                 textDocument: TextDocumentIdentifier(docUri)
@@ -1126,7 +1125,7 @@ extension SourceKitLSPServer {
     watchers.append(FileSystemWatcher(globPattern: "**/compile_commands.json", kind: [.create, .change, .delete]))
     watchers.append(FileSystemWatcher(globPattern: "**/compile_flags.txt", kind: [.create, .change, .delete]))
     // Watch for changes to `.swiftmodule` files to detect updated modules during a build.
-    // See comments in `SwiftPMBuildSystem.filesDidChange``
+    // See comments in `SwiftPMBuildSystem.filesDidChange`
     watchers.append(FileSystemWatcher(globPattern: "**/*.swiftmodule", kind: [.create, .change, .delete]))
     await registry.registerDidChangeWatchedFiles(watchers: watchers, server: self)
   }
