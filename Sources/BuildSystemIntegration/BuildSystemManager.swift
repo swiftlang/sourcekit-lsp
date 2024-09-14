@@ -257,7 +257,8 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       await delegate.filesDependenciesUpdated(changedWatchedFiles)
     }
 
-    // FIXME: (BSP migration) Forward file watch patterns from this initialize request to the client
+    // TODO: Forward file watch patterns from this initialize request to the client
+    // (https://github.com/swiftlang/sourcekit-lsp/issues/1671)
     initializeResult = Task { () -> InitializeBuildResponse? in
       guard let connectionToBuildSystem else {
         return nil
