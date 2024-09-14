@@ -26,13 +26,13 @@ import struct TSCBasic.AbsolutePath
 import os
 #endif
 
-fileprivate class RequestCache<Request: RequestType & Hashable, Result: Sendable> {
-  private var storage: [Request: Task<Result, Error>] = [:]
+fileprivate class Cache<Key: Sendable & Hashable, Result: Sendable> {
+  private var storage: [Key: Task<Result, Error>] = [:]
 
   func get(
-    _ key: Request,
+    _ key: Key,
     isolation: isolated any Actor = #isolation,
-    compute: @Sendable @escaping (Request) async throws(Error) -> Result
+    compute: @Sendable @escaping (Key) async throws(Error) -> Result
   ) async throws(Error) -> Result {
     let task: Task<Result, Error>
     if let cached = storage[key] {
@@ -46,7 +46,7 @@ fileprivate class RequestCache<Request: RequestType & Hashable, Result: Sendable
     return try await task.value
   }
 
-  func clear(where condition: (Request) -> Bool, isolation: isolated any Actor = #isolation) {
+  func clear(where condition: (Key) -> Bool, isolation: isolated any Actor = #isolation) {
     for key in storage.keys {
       if condition(key) {
         storage[key] = nil
@@ -60,15 +60,38 @@ fileprivate class RequestCache<Request: RequestType & Hashable, Result: Sendable
 }
 
 package struct SourceFileInfo: Sendable {
+  /// The targets that this source file is a member of
+  package var targets: Set<BuildTargetIdentifier>
+
   /// `true` if this file belongs to the root project that the user is working on. It is false, if the file belongs
   /// to a dependency of the project.
-  package let isPartOfRootProject: Bool
+  package var isPartOfRootProject: Bool
 
   /// Whether the file might contain test cases. This property is an over-approximation. It might be true for files
   /// from non-test targets or files that don't actually contain any tests. Keeping this list of files with
   /// `mayContainTets` minimal as possible helps reduce the amount of work that the syntactic test indexer needs to
   /// perform.
-  package let mayContainTests: Bool
+  package var mayContainTests: Bool
+
+  func merging(_ other: SourceFileInfo?) -> SourceFileInfo {
+    guard let other else {
+      return self
+    }
+    return SourceFileInfo(
+      targets: targets.union(other.targets),
+      isPartOfRootProject: other.isPartOfRootProject || isPartOfRootProject,
+      mayContainTests: other.mayContainTests || mayContainTests
+    )
+  }
+}
+
+fileprivate extension SourceItem {
+  var sourceKitData: SourceKitSourceItemData? {
+    guard dataKind == .sourceKit, case .dictionary(let data) = data else {
+      return nil
+    }
+    return SourceKitSourceItemData(fromLSPDictionary: data)
+  }
 }
 
 /// `BuildSystem` that integrates client-side information such as main-file lookup as well as providing
@@ -134,15 +157,25 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// Force-unwrapped optional because initializing it requires access to `self`.
   private var filesDependenciesUpdatedDebouncer: Debouncer<Set<DocumentURI>>! = nil
 
-  private var cachedTargetsForDocument = RequestCache<InverseSourcesRequest, InverseSourcesResponse>()
+  private var cachedSourceKitOptions = Cache<SourceKitOptionsRequest, SourceKitOptionsResponse?>()
 
-  private var cachedSourceKitOptions = RequestCache<SourceKitOptionsRequest, SourceKitOptionsResponse?>()
-
-  private var cachedBuildTargets = RequestCache<
+  private var cachedBuildTargets = Cache<
     BuildTargetsRequest, [BuildTargetIdentifier: (target: BuildTarget, depth: Int)]
   >()
 
-  private var cachedTargetSources = RequestCache<BuildTargetSourcesRequest, BuildTargetSourcesResponse>()
+  private var cachedTargetSources = Cache<BuildTargetSourcesRequest, BuildTargetSourcesResponse>()
+
+  private struct SourceFilesAndDirectoriesKey: Hashable {
+    let includeNonBuildableFiles: Bool
+    let sourcesItems: [SourcesItem]
+  }
+
+  private struct SourceFilesAndDirectories {
+    let files: [DocumentURI: SourceFileInfo]
+    let directories: [DocumentURI: SourceFileInfo]
+  }
+
+  private let cachedSourceFilesAndDirectories = Cache<SourceFilesAndDirectoriesKey, SourceFilesAndDirectories>()
 
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
@@ -428,22 +461,27 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   }
 
   /// Returns all the `ConfiguredTarget`s that the document is part of.
-  package func targets(for document: DocumentURI) async -> [BuildTargetIdentifier] {
-    guard let connectionToBuildSystem else {
-      return []
-    }
-
-    // FIXME: (BSP migration) Only use `InverseSourcesRequest` if the BSP server declared it can handle it in the
-    // capabilities
-    let request = InverseSourcesRequest(textDocument: TextDocumentIdentifier(uri: document))
-    do {
-      let response = try await cachedTargetsForDocument.get(request) { document in
-        return try await connectionToBuildSystem.send(request)
+  package func targets(for document: DocumentURI) async -> Set<BuildTargetIdentifier> {
+    return await orLog("Getting targets for source file") {
+      var result: Set<BuildTargetIdentifier> = []
+      let filesAndDirectories = try await sourceFilesAndDirectories(includeNonBuildableFiles: true)
+      if let targets = filesAndDirectories.files[document]?.targets {
+        result.formUnion(targets)
       }
-      return response.targets
-    } catch {
-      return []
-    }
+      if !filesAndDirectories.directories.isEmpty,
+        let documentPath = AbsolutePath(validatingOrNil: document.fileURL?.path)
+      {
+        for (directory, info) in filesAndDirectories.directories {
+          guard let directoryPath = AbsolutePath(validatingOrNil: directory.fileURL?.path) else {
+            continue
+          }
+          if documentPath.isDescendantOfOrEqual(to: directoryPath) {
+            result.formUnion(info.targets)
+          }
+        }
+      }
+      return result
+    } ?? []
   }
 
   /// Returns the `BuildTargetIdentifier` that should be used for semantic functionality of the given document.
@@ -497,7 +535,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     guard let connectionToBuildSystem, let target else {
       return nil
     }
-    let request = SourceKitOptionsRequest(textDocument: TextDocumentIdentifier(uri: document), target: target)
+    let request = SourceKitOptionsRequest(textDocument: TextDocumentIdentifier(document), target: target)
 
     // TODO: We should only wait `fallbackSettingsTimeout` for build settings
     // and return fallback afterwards.
@@ -700,33 +738,65 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     return response.items
   }
 
-  package func sourceFiles() async throws -> [DocumentURI: SourceFileInfo] {
-    let targets = try await self.buildTargets()
-    var sourceFiles: [DocumentURI: SourceFileInfo] = [:]
-    for sourcesItem in try await self.sourceFiles(in: targets.keys) {
-      let target = targets[sourcesItem.target]?.target
-      let isPartOfRootProject = !(target?.tags.contains(.dependency) ?? false)
-      let mayContainTests = target?.tags.contains(.test) ?? true
+  /// Returns all source files in the project that can be built.
+  ///
+  /// - SeeAlso: Comment in `sourceFilesAndDirectories` for a definition of what `buildable` means.
+  package func buildableSourceFiles() async throws -> [DocumentURI: SourceFileInfo] {
+    return try await sourceFilesAndDirectories(includeNonBuildableFiles: false).files
+  }
 
-      for sourceItem in sourcesItem.sources {
-        if let existingEntry = sourceFiles[sourceItem.uri] {
-          sourceFiles[sourceItem.uri] = SourceFileInfo(
-            isPartOfRootProject: existingEntry.isPartOfRootProject || isPartOfRootProject,
-            mayContainTests: existingEntry.mayContainTests || mayContainTests
-          )
-        } else {
-          sourceFiles[sourceItem.uri] = SourceFileInfo(
+  /// Get all files and directories that are known to the build system, ie. that are returned by a `buildTarget/sources`
+  /// request for any target in the project.
+  ///
+  /// Source files returned here fall into two categories:
+  ///  - Buildable source files are files that can be built by the build system and that make sense to background index
+  ///  - Non-buildable source files include eg. the SwiftPM package manifest or header files. We have sufficient
+  ///    compiler arguments for these files to provide semantic editor functionality but we can't build them.
+  ///
+  /// `includeNonBuildableFiles` determines whether non-buildable files should be included.
+  private func sourceFilesAndDirectories(includeNonBuildableFiles: Bool) async throws -> SourceFilesAndDirectories {
+    let targets = try await self.buildTargets()
+    let sourcesItems = try await self.sourceFiles(in: targets.keys)
+
+    let key = SourceFilesAndDirectoriesKey(
+      includeNonBuildableFiles: includeNonBuildableFiles,
+      sourcesItems: sourcesItems
+    )
+
+    return try await cachedSourceFilesAndDirectories.get(key) { key in
+      var files: [DocumentURI: SourceFileInfo] = [:]
+      var directories: [DocumentURI: SourceFileInfo] = [:]
+      for sourcesItem in key.sourcesItems {
+        let target = targets[sourcesItem.target]?.target
+        let isPartOfRootProject = !(target?.tags.contains(.dependency) ?? false)
+        let mayContainTests = target?.tags.contains(.test) ?? true
+        if !key.includeNonBuildableFiles && (target?.tags.contains(.notBuildable) ?? false) {
+          continue
+        }
+
+        for sourceItem in sourcesItem.sources {
+          if !key.includeNonBuildableFiles && sourceItem.sourceKitData?.isHeader ?? false {
+            continue
+          }
+          let info = SourceFileInfo(
+            targets: [sourcesItem.target],
             isPartOfRootProject: isPartOfRootProject,
             mayContainTests: mayContainTests
           )
+          switch sourceItem.kind {
+          case .file:
+            files[sourceItem.uri] = info.merging(files[sourceItem.uri])
+          case .directory:
+            directories[sourceItem.uri] = info.merging(directories[sourceItem.uri])
+          }
         }
       }
+      return SourceFilesAndDirectories(files: files, directories: directories)
     }
-    return sourceFiles
   }
 
   package func testFiles() async throws -> [DocumentURI] {
-    return try await sourceFiles().compactMap { (uri, info) -> DocumentURI? in
+    return try await buildableSourceFiles().compactMap { (uri, info) -> DocumentURI? in
       guard info.isPartOfRootProject, info.mayContainTests else {
         return nil
       }
@@ -749,10 +819,6 @@ extension BuildSystemManager {
   }
 
   private func didChangeBuildTarget(notification: DidChangeBuildTargetNotification) async {
-    // Every `DidChangeBuildTargetNotification` notification needs to invalidate the cache since the changed target
-    // might gained a source file.
-    self.cachedTargetsForDocument.clearAll()
-
     let updatedTargets: Set<BuildTargetIdentifier>? =
       if let changes = notification.changes {
         Set(changes.map(\.target))
@@ -774,6 +840,7 @@ extension BuildSystemManager {
       }
       return !updatedTargets.intersection(cacheKey.targets).isEmpty
     }
+    self.cachedSourceFilesAndDirectories.clearAll()
 
     await delegate?.buildTargetsChanged(notification.changes)
     // FIXME: (BSP Migration) Communicate that the build target has changed to the `BuildSystemManagerDelegate` and make

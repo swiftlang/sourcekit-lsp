@@ -150,6 +150,11 @@ public struct BuildTargetTag: Codable, Hashable, RawRepresentable, Sendable {
   ///
   /// **(BSP Extension)**
   public static let dependency: Self = Self(rawValue: "dependency")
+
+  /// This target only exists to provide compiler arguments for SourceKit-LSP can't be built standalone.
+  ///
+  /// For example, a SwiftPM package manifest is in a non-buildable target.
+  public static let notBuildable: Self = Self(rawValue: "not-buildable")
 }
 
 public struct BuildTargetCapabilities: Codable, Hashable, Sendable {

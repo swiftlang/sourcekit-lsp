@@ -147,8 +147,6 @@ package actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
       await request.reply { try await underlyingBuildSystem.buildTargetSources(request: request.params) }
     case let request as RequestAndReply<InitializeBuildRequest>:
       await request.reply { await self.initialize(request: request.params) }
-    case let request as RequestAndReply<InverseSourcesRequest>:
-      await request.reply { try await underlyingBuildSystem.inverseSources(request: request.params) }
     case let request as RequestAndReply<PrepareTargetsRequest>:
       await request.reply { try await underlyingBuildSystem.prepare(request: request.params) }
     case let request as RequestAndReply<SourceKitOptionsRequest>:

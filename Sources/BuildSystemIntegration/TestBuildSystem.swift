@@ -49,18 +49,29 @@ package actor TestBuildSystem: BuiltInBuildSystem {
   }
 
   package func buildTargets(request: BuildTargetsRequest) async throws -> BuildTargetsResponse {
-    return BuildTargetsResponse(targets: [])
+    return BuildTargetsResponse(targets: [
+      BuildTarget(
+        id: .dummy,
+        displayName: nil,
+        baseDirectory: nil,
+        tags: [],
+        capabilities: BuildTargetCapabilities(),
+        languageIds: [],
+        dependencies: []
+      )
+    ])
   }
 
   package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
-    return BuildTargetSourcesResponse(items: [])
+    return BuildTargetSourcesResponse(items: [
+      SourcesItem(
+        target: .dummy,
+        sources: buildSettingsByFile.keys.map { SourceItem(uri: $0, kind: .file, generated: false) }
+      )
+    ])
   }
 
   package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {}
-
-  package func inverseSources(request: InverseSourcesRequest) -> InverseSourcesResponse {
-    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
-  }
 
   package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
     throw PrepareNotSupportedError()

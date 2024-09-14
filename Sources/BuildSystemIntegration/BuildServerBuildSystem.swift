@@ -285,10 +285,6 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     return BuildTargetSourcesResponse(items: [])
   }
 
-  package func inverseSources(request: InverseSourcesRequest) -> InverseSourcesResponse {
-    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
-  }
-
   package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) {}
 
   package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {

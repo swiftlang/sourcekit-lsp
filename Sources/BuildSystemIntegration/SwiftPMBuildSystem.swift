@@ -125,7 +125,7 @@ extension BuildTargetIdentifier {
 }
 
 fileprivate extension TSCBasic.AbsolutePath {
-  var asURI: DocumentURI? {
+  var asURI: DocumentURI {
     DocumentURI(self.asURL)
   }
 }
@@ -512,7 +512,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
   }
 
   package func buildTargets(request: BuildTargetsRequest) async throws -> BuildTargetsResponse {
-    let targets = self.swiftPMTargets.map { (targetId, target) in
+    var targets = self.swiftPMTargets.map { (targetId, target) in
       var tags: [BuildTargetTag] = [.test]
       if !target.isPartOfRootPackage {
         tags.append(.dependency)
@@ -530,6 +530,17 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
         data: SourceKitBuildTarget(toolchain: toolchain.path?.asURI).encodeToLSPAny()
       )
     }
+    targets.append(
+      BuildTarget(
+        id: .forPackageManifest,
+        displayName: "Package.swift",
+        baseDirectory: nil,
+        tags: [.notBuildable],
+        capabilities: BuildTargetCapabilities(),
+        languageIds: [.swift],
+        dependencies: []
+      )
+    )
     return BuildTargetsResponse(targets: targets)
   }
 
@@ -538,11 +549,34 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     // TODO: Query The SwiftPM build system for the document's language and add it to SourceItem.data
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1267)
     for target in request.targets {
+      if target == .forPackageManifest {
+        result.append(
+          SourcesItem(
+            target: target,
+            sources: [
+              SourceItem(
+                uri: projectRoot.appending(component: "Package.swift").asURI,
+                kind: .file,
+                generated: false
+              )
+            ]
+          )
+        )
+      }
       guard let swiftPMTarget = self.swiftPMTargets[target] else {
         continue
       }
-      let sources = swiftPMTarget.sources.map {
+      var sources = swiftPMTarget.sources.map {
         SourceItem(uri: DocumentURI($0), kind: .file, generated: false)
+      }
+      sources += swiftPMTarget.headers.map {
+        SourceItem(
+          uri: DocumentURI($0),
+          kind: .file,
+          generated: false,
+          dataKind: .sourceKit,
+          data: SourceKitSourceItemData(isHeader: true).encodeToLSPAny()
+        )
       }
       result.append(SourcesItem(target: target, sources: sources))
     }
@@ -612,10 +646,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     }
 
     return []
-  }
-
-  package func inverseSources(request: InverseSourcesRequest) -> InverseSourcesResponse {
-    return InverseSourcesResponse(targets: targets(for: request.textDocument.uri))
   }
 
   package func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse {

@@ -35,7 +35,7 @@ fileprivate extension SwiftPMBuildSystem {
       return nil
     }
     return try await sourceKitOptions(
-      request: SourceKitOptionsRequest(textDocument: TextDocumentIdentifier(uri: uri), target: target)
+      request: SourceKitOptionsRequest(textDocument: TextDocumentIdentifier(uri), target: target)
     )
   }
 

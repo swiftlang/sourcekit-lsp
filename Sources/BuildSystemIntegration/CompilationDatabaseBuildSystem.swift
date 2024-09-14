@@ -24,6 +24,26 @@ import protocol TSCBasic.FileSystem
 import struct TSCBasic.RelativePath
 import var TSCBasic.localFileSystem
 
+fileprivate enum Cachable<Value> {
+  case noValue
+  case value(Value)
+
+  mutating func get(_ compute: () -> Value) -> Value {
+    switch self {
+    case .noValue:
+      let value = compute()
+      self = .value(value)
+      return value
+    case .value(let value):
+      return value
+    }
+  }
+
+  mutating func reset() {
+    self = .noValue
+  }
+}
+
 /// A `BuildSystem` based on loading clang-compatible compilation database(s).
 ///
 /// Provides build settings from a `CompilationDatabase` found by searching a project. For now, only
@@ -34,7 +54,7 @@ package actor CompilationDatabaseBuildSystem {
     didSet {
       // Build settings have changed and thus the index store path might have changed.
       // Recompute it on demand.
-      _indexStorePath = nil
+      _indexStorePath.reset()
     }
   }
 
@@ -46,24 +66,25 @@ package actor CompilationDatabaseBuildSystem {
 
   let fileSystem: FileSystem
 
-  private var _indexStorePath: AbsolutePath?
+  private var _indexStorePath: Cachable<AbsolutePath?> = .noValue
   package var indexStorePath: AbsolutePath? {
-    if let indexStorePath = _indexStorePath {
-      return indexStorePath
-    }
+    _indexStorePath.get {
+      guard let compdb else {
+        return nil
+      }
 
-    if let allCommands = self.compdb?.allCommands {
-      for command in allCommands {
-        let args = command.commandLine
-        for i in args.indices.reversed() {
-          if args[i] == "-index-store-path" && i != args.endIndex - 1 {
-            _indexStorePath = try? AbsolutePath(validating: args[i + 1])
-            return _indexStorePath
+      for sourceItem in compdb.sourceItems {
+        for command in compdb[sourceItem.uri] {
+          let args = command.commandLine
+          for i in args.indices.reversed() {
+            if args[i] == "-index-store-path" && i + 1 < args.count {
+              return AbsolutePath(validatingOrNil: args[i + 1])
+            }
           }
         }
       }
+      return nil
     }
-    return nil
   }
 
   package init?(
@@ -120,20 +141,13 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     guard let compdb else {
       return BuildTargetSourcesResponse(items: [])
     }
-    let sources = compdb.allCommands.map {
-      SourceItem(uri: $0.uri, kind: .file, generated: false)
-    }
-    return BuildTargetSourcesResponse(items: [SourcesItem(target: .dummy, sources: sources)])
+    return BuildTargetSourcesResponse(items: [SourcesItem(target: .dummy, sources: compdb.sourceItems)])
   }
 
   package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) {
     if notification.changes.contains(where: { self.fileEventShouldTriggerCompilationDatabaseReload(event: $0) }) {
       self.reloadCompilationDatabase()
     }
-  }
-
-  package func inverseSources(request: InverseSourcesRequest) -> InverseSourcesResponse {
-    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
   }
 
   package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {

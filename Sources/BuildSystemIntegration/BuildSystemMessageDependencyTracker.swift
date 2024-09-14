@@ -78,8 +78,6 @@ package enum BuildSystemMessageDependencyTracker: DependencyTracker {
       self = .logging
     case is InitializeBuildRequest:
       self = .stateChange
-    case is InverseSourcesRequest:
-      self = .stateRead
     case is PrepareTargetsRequest:
       self = .stateRead
     case is RegisterForChanges:

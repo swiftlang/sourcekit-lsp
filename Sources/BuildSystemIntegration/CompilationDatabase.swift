@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import Foundation
 import LanguageServerProtocol
 import SKLogging
@@ -67,7 +68,7 @@ extension CompilationDatabase.Command {
 package protocol CompilationDatabase {
   typealias Command = CompilationDatabaseCompileCommand
   subscript(_ uri: DocumentURI) -> [Command] { get }
-  var allCommands: AnySequence<Command> { get }
+  var sourceItems: [SourceItem] { get }
 }
 
 /// Loads the compilation database located in `directory`, if one can be found in `additionalSearchPaths` or in the default search paths of "." and "build".
@@ -111,13 +112,17 @@ package func tryLoadCompilationDatabase(
 ///
 /// See https://clang.llvm.org/docs/JSONCompilationDatabase.html under Alternatives
 package struct FixedCompilationDatabase: CompilationDatabase, Equatable {
-  package var allCommands: AnySequence<CompilationDatabaseCompileCommand> { AnySequence([]) }
-
   private let fixedArgs: [String]
   private let directory: String
 
   package subscript(path: DocumentURI) -> [CompilationDatabaseCompileCommand] {
     [Command(directory: directory, filename: path.pseudoPath, commandLine: fixedArgs + [path.pseudoPath])]
+  }
+
+  package var sourceItems: [SourceItem] {
+    return [
+      SourceItem(uri: URI(filePath: directory, isDirectory: true), kind: .directory, generated: false)
+    ]
   }
 }
 
@@ -188,7 +193,11 @@ package struct JSONCompilationDatabase: CompilationDatabase, Equatable {
     return []
   }
 
-  package var allCommands: AnySequence<CompilationDatabaseCompileCommand> { AnySequence(commands) }
+  package var sourceItems: [SourceItem] {
+    return commands.map {
+      SourceItem(uri: $0.uri, kind: .file, generated: false)
+    }
+  }
 
   package mutating func add(_ command: CompilationDatabaseCompileCommand) {
     let uri = command.uri

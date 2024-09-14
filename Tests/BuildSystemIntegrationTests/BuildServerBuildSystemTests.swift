@@ -81,12 +81,8 @@ final class BuildServerBuildSystemTests: XCTestCase {
     )
     _ = try await buildSystem.sourceKitOptions(
       request: SourceKitOptionsRequest(
-        textDocument: TextDocumentIdentifier(uri: uri),
-        target: try unwrap(
-          await buildSystem.inverseSources(
-            request: InverseSourcesRequest(textDocument: TextDocumentIdentifier(uri: uri))
-          ).targets.only
-        )
+        textDocument: TextDocumentIdentifier(uri),
+        target: .dummy
       )
     )
 
@@ -118,12 +114,8 @@ final class BuildServerBuildSystemTests: XCTestCase {
     )
     _ = try await buildSystem.sourceKitOptions(
       request: SourceKitOptionsRequest(
-        textDocument: TextDocumentIdentifier(uri: uri),
-        target: try unwrap(
-          await buildSystem.inverseSources(
-            request: InverseSourcesRequest(textDocument: TextDocumentIdentifier(uri: uri))
-          ).targets.only
-        )
+        textDocument: TextDocumentIdentifier(uri),
+        target: .dummy
       )
     )
 

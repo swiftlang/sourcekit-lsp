@@ -67,9 +67,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// Called when files in the project change.
   func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async
 
-  /// Return the list of targets that the given document can be built for.
-  func inverseSources(request: InverseSourcesRequest) async throws -> InverseSourcesResponse
-
   /// Prepare the given targets for indexing and semantic functionality. This should build all swift modules of target
   /// dependencies.
   func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse

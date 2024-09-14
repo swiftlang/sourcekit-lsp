@@ -4,13 +4,13 @@ add_library(BuildServerProtocol STATIC
   DidChangeBuildTargetNotification.swift
   DidChangeWatchedFilesNotification.swift
   InitializeBuild.swift
-  InverseSourcesRequest.swift
   LogMessageNotification.swift
   Messages.swift
   PrepareTargetsRequest.swift
   RegisterForChangeNotifications.swift
   ShutdownBuild.swift
   SourceKitOptionsRequest.swift
+  TextDocumentIdentifier.swift
   WaitForBuildSystemUpdates.swift
   WorkDoneProgress.swift)
 set_target_properties(BuildServerProtocol PROPERTIES

@@ -18,7 +18,6 @@ fileprivate let requestTypes: [_RequestType.Type] = [
   BuildTargetSourcesRequest.self,
   BuildServerProtocol.CreateWorkDoneProgressRequest.self,
   InitializeBuildRequest.self,
-  InverseSourcesRequest.self,
   PrepareTargetsRequest.self,
   RegisterForChanges.self,
   ShutdownBuild.self,
