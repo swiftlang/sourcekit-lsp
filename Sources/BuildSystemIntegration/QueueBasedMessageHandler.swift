@@ -16,7 +16,7 @@ import SKLogging
 import SKSupport
 import SwiftExtensions
 
-/// A `MessageHandler` that handles all messages on a serial queue.
+/// A `MessageHandler` that handles all messages on an `AsyncQueue`.
 ///
 /// This is a slightly simplified version of the message handling in `SourceKitLSPServer`, which does not set logging
 /// scopes, because the build system messages should still be logged in the scope of the original LSP request that
