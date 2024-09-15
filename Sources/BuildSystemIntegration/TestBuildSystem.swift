@@ -86,8 +86,4 @@ package actor TestBuildSystem: BuiltInBuildSystem {
   package func waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
     return VoidResponse()
   }
-
-  package func topologicalSort(of targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
-    return nil
-  }
 }
