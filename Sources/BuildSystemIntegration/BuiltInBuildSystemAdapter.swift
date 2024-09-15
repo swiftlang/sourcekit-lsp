@@ -70,12 +70,17 @@ private func createBuildSystem(
   }
 }
 
-/// A type that outwardly acts as a build server conforming to the Build System Integration Protocol and internally uses
-/// a `BuiltInBuildSystem` to satisfy the requests.
+/// A type that outwardly acts as a BSP build server and internally uses a `BuiltInBuildSystem` to satisfy the requests.
 package actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
   package static let signpostLoggingCategory: String = "build-system-message-handling"
+
+  /// The queue on which all messages from SourceKit-LSP (or more specifically `BuildSystemManager`) are handled.
+  package let messageHandlingQueue = AsyncQueue<BuildSystemMessageDependencyTracker>()
+
   /// The underlying build system
-  private var underlyingBuildSystem: BuiltInBuildSystem!
+  private var underlyingBuildSystem: BuiltInBuildSystem
+
+  /// The connection with which messages are sent to `BuildSystemManager`.
   private let connectionToSourceKitLSP: LocalConnection
 
   /// If the underlying build system is a `TestBuildSystem`, return it. Otherwise, `nil`
@@ -84,8 +89,6 @@ package actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
   var testBuildSystem: TestBuildSystem? {
     return underlyingBuildSystem as? TestBuildSystem
   }
-
-  package let messageHandlingQueue = AsyncQueue<BuildSystemMessageDependencyTracker>()
 
   /// `messageHandler` is a handler that handles messages sent from the build system to SourceKit-LSP.
   init?(
@@ -123,8 +126,8 @@ package actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
 
   private func initialize(request: InitializeBuildRequest) async -> InitializeBuildResponse {
     return InitializeBuildResponse(
-      displayName: "\(type(of: underlyingBuildSystem!))",
-      version: "1.0.0",
+      displayName: "\(type(of: underlyingBuildSystem))",
+      version: "",
       bspVersion: "2.2.0",
       capabilities: BuildServerCapabilities(),
       dataKind: .sourceKit,
