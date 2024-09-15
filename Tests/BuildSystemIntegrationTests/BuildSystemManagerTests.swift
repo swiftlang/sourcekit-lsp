@@ -119,7 +119,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let changed = expectation(description: "changed settings")
     await del.setExpected([
-      (a, .swift, FallbackBuildSystem(options: .init()).buildSettings(for: a, language: .swift), changed)
+      (a, .swift, fallbackBuildSettings(for: a, language: .swift, options: .init()), changed)
     ])
     await bs.setBuildSettings(for: a, to: nil)
     try await fulfillmentOfOrThrow([changed])
@@ -159,7 +159,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let bs = try await unwrap(bsm.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
-    let fallbackSettings = await FallbackBuildSystem(options: .init()).buildSettings(for: a, language: .swift)
+    let fallbackSettings = fallbackBuildSettings(for: a, language: .swift, options: .init())
     await bsm.registerForChangeNotifications(for: a, language: .swift)
     assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), fallbackSettings)
 
@@ -232,7 +232,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let changed4 = expectation(description: "changed settings to []")
     await del.setExpected([
-      (h, .c, FallbackBuildSystem(options: .init()).buildSettings(for: h, language: .cpp), changed4)
+      (h, .c, fallbackBuildSettings(for: h, language: .cpp, options: .init()), changed4)
     ])
     await bsm.mainFilesChanged()
     try await fulfillmentOfOrThrow([changed4])

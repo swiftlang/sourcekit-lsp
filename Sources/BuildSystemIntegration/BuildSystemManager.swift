@@ -140,10 +140,6 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
   }
 
-  /// The fallback build system. If present, used when the `buildSystem` is not
-  /// set or cannot provide settings.
-  private let fallbackBuildSystem: FallbackBuildSystem
-
   /// Provider of file to main file mappings.
   private var mainFilesProvider: MainFilesProvider?
 
@@ -221,7 +217,6 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     options: SourceKitLSPOptions,
     buildSystemTestHooks: BuildSystemTestHooks
   ) async {
-    self.fallbackBuildSystem = FallbackBuildSystem(options: options.fallbackBuildSystemOrDefault)
     self.toolchainRegistry = toolchainRegistry
     self.options = options
     self.projectRoot = buildSystemKind?.projectRoot
@@ -593,7 +588,13 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       logger.error("Getting build settings failed: \(error.forLogging)")
     }
 
-    guard var settings = await fallbackBuildSystem.buildSettings(for: document, language: language) else {
+    guard
+      var settings = fallbackBuildSettings(
+        for: document,
+        language: language,
+        options: options.fallbackBuildSystemOrDefault
+      )
+    else {
       return nil
     }
     if connectionToBuildSystem == nil {

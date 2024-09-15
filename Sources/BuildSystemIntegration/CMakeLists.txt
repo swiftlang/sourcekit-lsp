@@ -9,7 +9,7 @@ add_library(BuildSystemIntegration STATIC
   BuiltInBuildSystemAdapter.swift
   CompilationDatabase.swift
   CompilationDatabaseBuildSystem.swift
-  FallbackBuildSystem.swift
+  FallbackBuildSettings.swift
   FileBuildSettings.swift
   Language+InferredFromFileExtension.swift
   MainFilesProvider.swift
