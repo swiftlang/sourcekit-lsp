@@ -82,7 +82,8 @@ final class BuildServerBuildSystemTests: XCTestCase {
     _ = try await buildSystem.sourceKitOptions(
       request: TextDocumentSourceKitOptionsRequest(
         textDocument: TextDocumentIdentifier(uri),
-        target: .dummy
+        target: .dummy,
+        language: .swift
       )
     )
 
@@ -115,7 +116,8 @@ final class BuildServerBuildSystemTests: XCTestCase {
     _ = try await buildSystem.sourceKitOptions(
       request: TextDocumentSourceKitOptionsRequest(
         textDocument: TextDocumentIdentifier(uri),
-        target: .dummy
+        target: .dummy,
+        language: .swift
       )
     )
 

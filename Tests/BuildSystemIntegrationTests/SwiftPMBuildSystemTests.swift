@@ -30,12 +30,16 @@ import struct PackageModel.BuildFlags
 #endif
 
 fileprivate extension SwiftPMBuildSystem {
-  func buildSettings(for uri: DocumentURI) async throws -> TextDocumentSourceKitOptionsResponse? {
+  func buildSettings(for uri: DocumentURI, language: Language) async throws -> TextDocumentSourceKitOptionsResponse? {
     guard let target = self.targets(for: uri).only else {
       return nil
     }
     return try await sourceKitOptions(
-      request: TextDocumentSourceKitOptionsRequest(textDocument: TextDocumentIdentifier(uri), target: target)
+      request: TextDocumentSourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        target: target,
+        language: language
+      )
     )
   }
 
@@ -126,7 +130,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
       assertNotNil(await swiftpmBuildSystem.indexStorePath)
-      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI))
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
         .compilerArguments
 
       assertArgumentsContain("-module-name", "lib", arguments: arguments)
@@ -194,7 +198,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       assertNotNil(await swiftpmBuildSystem.indexStorePath)
       let arguments = try await unwrap(
         swiftpmBuildSystem.buildSettings(
-          for: DocumentURI(URL(string: "file://\(aPlusSomething.asURL.path.replacing("+", with: "%2B"))")!)
+          for: DocumentURI(URL(string: "file://\(aPlusSomething.asURL.path.replacing("+", with: "%2B"))")!),
+          language: .swift
         )
       )
       .compilerArguments
@@ -254,7 +259,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let build = buildPath(root: packageRoot, options: options, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
-      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI))
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
         .compilerArguments
 
       assertArgumentsContain("-typecheck", arguments: arguments)
@@ -334,7 +339,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let source = try resolveSymlinks(packageRoot.appending(component: "Package.swift"))
-      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: source.asURI))
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: source.asURI, language: .swift))
         .compilerArguments
 
       assertArgumentsContain("-swift-version", "4.2", arguments: arguments)
@@ -374,11 +379,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
 
-      let argumentsA = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI))
+      let argumentsA = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
         .compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: argumentsA)
       assertArgumentsContain(bswift.pathString, arguments: argumentsA)
-      let argumentsB = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI))
+      let argumentsB = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
         .compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: argumentsB)
       assertArgumentsContain(bswift.pathString, arguments: argumentsB)
@@ -423,7 +428,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
-      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI))
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
         .compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: arguments)
       assertArgumentsDoNotContain(bswift.pathString, arguments: arguments)
@@ -435,7 +440,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         arguments: arguments
       )
 
-      let argumentsB = try await unwrap(swiftpmBuildSystem.buildSettings(for: bswift.asURI))
+      let argumentsB = try await unwrap(swiftpmBuildSystem.buildSettings(for: bswift.asURI, language: .swift))
         .compilerArguments
       assertArgumentsContain(bswift.pathString, arguments: argumentsB)
       assertArgumentsDoNotContain(aswift.pathString, arguments: argumentsB)
@@ -479,9 +484,14 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
-      assertNotNil(try await swiftpmBuildSystem.buildSettings(for: aswift.asURI))
-      assertNil(try await swiftpmBuildSystem.buildSettings(for: bswift.asURI))
-      assertNil(try await swiftpmBuildSystem.buildSettings(for: DocumentURI(URL(string: "https://www.apple.com")!)))
+      assertNotNil(try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
+      assertNil(try await swiftpmBuildSystem.buildSettings(for: bswift.asURI, language: .swift))
+      assertNil(
+        try await swiftpmBuildSystem.buildSettings(
+          for: DocumentURI(URL(string: "https://www.apple.com")!),
+          language: .swift
+        )
+      )
     }
   }
 
@@ -527,7 +537,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       assertNotNil(await swiftpmBuildSystem.indexStorePath)
 
       for file in [acxx, header] {
-        let args = try await unwrap(swiftpmBuildSystem.buildSettings(for: file.asURI)).compilerArguments
+        let args = try await unwrap(swiftpmBuildSystem.buildSettings(for: file.asURI, language: .cpp)).compilerArguments
 
         assertArgumentsContain("-std=c++14", arguments: args)
 
@@ -600,7 +610,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI))
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
         .compilerArguments
       assertArgumentsContain("-target", arguments: arguments)  // Only one!
       let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
@@ -659,9 +669,9 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         .appending(components: "Sources", "lib", "a.swift")
       let manifest = packageRoot.appending(components: "Package.swift")
 
-      let arguments1 = try await swiftpmBuildSystem.buildSettings(for: aswift1.asURI)?
+      let arguments1 = try await swiftpmBuildSystem.buildSettings(for: aswift1.asURI, language: .swift)?
         .compilerArguments
-      let arguments2 = try await swiftpmBuildSystem.buildSettings(for: aswift2.asURI)?
+      let arguments2 = try await swiftpmBuildSystem.buildSettings(for: aswift2.asURI, language: .swift)?
         .compilerArguments
       XCTAssertNotNil(arguments1)
       XCTAssertNotNil(arguments2)
@@ -670,7 +680,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       assertArgumentsDoNotContain(aswift1.pathString, arguments: arguments1 ?? [])
       assertArgumentsContain(try resolveSymlinks(aswift1).pathString, arguments: arguments1 ?? [])
 
-      let argsManifest = try await swiftpmBuildSystem.buildSettings(for: manifest.asURI)?
+      let argsManifest = try await swiftpmBuildSystem.buildSettings(for: manifest.asURI, language: .swift)?
         .compilerArguments
       XCTAssertNotNil(argsManifest)
 
@@ -723,7 +733,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       for file in [acpp, ah] {
         let args = try unwrap(
-          await swiftpmBuildSystem.buildSettings(for: symlinkRoot.appending(components: file).asURI)?
+          await swiftpmBuildSystem.buildSettings(for: symlinkRoot.appending(components: file).asURI, language: .cpp)?
             .compilerArguments
         )
         assertArgumentsContain(realRoot.appending(components: file).pathString, arguments: args)
@@ -763,7 +773,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI))
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
         .compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: arguments)
       XCTAssertNotNil(
@@ -837,7 +847,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
       assertNotNil(await swiftpmBuildSystem.indexStorePath)
-      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI))
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
         .compilerArguments
 
       // Plugins get compiled with the same compiler arguments as the package manifest

@@ -90,6 +90,9 @@ export interface TextDocumentSourceKitOptionsRequest {
    * A source file might be part of multiple targets and might have different compiler arguments in those two targets,
    * thus the target is necessary in this request. **/
   target: BuildTargetIdentifier;
+
+  /** The language with which the document was opened in the editor. */
+  language: LanguageId;
 }
 
 export interface TextDocumentSourceKitOptionsResult {

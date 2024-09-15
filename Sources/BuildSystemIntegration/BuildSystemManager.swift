@@ -504,7 +504,11 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     guard let connectionToBuildSystem else {
       return nil
     }
-    let request = TextDocumentSourceKitOptionsRequest(textDocument: TextDocumentIdentifier(document), target: target)
+    let request = TextDocumentSourceKitOptionsRequest(
+      textDocument: TextDocumentIdentifier(document),
+      target: target,
+      language: language
+    )
 
     // TODO: We should only wait `fallbackSettingsTimeout` for build settings
     // and return fallback afterwards.

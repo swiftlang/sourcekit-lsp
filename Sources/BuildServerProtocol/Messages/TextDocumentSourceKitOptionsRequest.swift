@@ -32,9 +32,13 @@ public struct TextDocumentSourceKitOptionsRequest: RequestType, Hashable {
   /// thus the target is necessary in this request.
   public var target: BuildTargetIdentifier
 
-  public init(textDocument: TextDocumentIdentifier, target: BuildTargetIdentifier) {
+  /// The language with which the document was opened in the editor.
+  public var language: Language
+
+  public init(textDocument: TextDocumentIdentifier, target: BuildTargetIdentifier, language: Language) {
     self.textDocument = textDocument
     self.target = target
+    self.language = language
   }
 }
 

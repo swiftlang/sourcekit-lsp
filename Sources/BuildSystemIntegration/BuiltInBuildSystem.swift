@@ -27,14 +27,6 @@ package struct PrepareNotSupportedError: Error, CustomStringConvertible {
 }
 
 /// Provider of FileBuildSettings and other build-related information.
-///
-/// The primary role of the build system is to answer queries for
-/// FileBuildSettings and to notify its delegate when they change. The
-/// BuildSystem is also the source of related information, such as where the
-/// index datastore is located.
-///
-/// For example, a SwiftPMWorkspace provides compiler arguments for the files
-/// contained in a SwiftPM package root directory.
 package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// When opening an LSP workspace at `workspaceFolder`, determine the directory in which a project of this build system
   /// starts. For example, a user might open the `Sources` folder of a SwiftPM project, then the project root is the
@@ -71,11 +63,9 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// dependencies.
   func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse
 
-  /// Retrieve build settings for the given document with the given source
-  /// language.
+  /// Retrieve build settings for the given document.
   ///
-  /// Returns `nil` if the build system can't provide build settings for this
-  /// file or if it hasn't computed build settings for the file yet.
+  /// Returns `nil` if the build system can't provide build settings for this file.
   func sourceKitOptions(
     request: TextDocumentSourceKitOptionsRequest
   ) async throws -> TextDocumentSourceKitOptionsResponse?
