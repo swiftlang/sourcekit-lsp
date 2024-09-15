@@ -12,25 +12,25 @@
 
 import struct TSCBasic.ProcessResult
 
-fileprivate extension String {
-  private static func numberToEmojis(_ number: Int, numEmojis: Int) -> String {
-    let emojis = ["🟥", "🟩", "🟦", "⬜️", "🟪", "⬛️", "🟨", "🟫"]
-    var number = abs(number)
-    var result = ""
-    for _ in 0..<numEmojis {
-      let (quotient, remainder) = number.quotientAndRemainder(dividingBy: emojis.count)
-      result += emojis[remainder]
-      number = quotient
-    }
-    return result
+private func numberToEmojis(_ number: Int, numEmojis: Int) -> String {
+  let emojis = ["🟥", "🟩", "🟦", "⬜️", "🟪", "⬛️", "🟨", "🟫"]
+  var number = abs(number)
+  var result = ""
+  for _ in 0..<numEmojis {
+    let (quotient, remainder) = number.quotientAndRemainder(dividingBy: emojis.count)
+    result += emojis[remainder]
+    number = quotient
   }
+  return result
+}
 
+fileprivate extension String {
   /// Returns a two-character emoji string that allows easy differentiation between different task IDs.
   ///
   /// This marker is prepended to every line in the index log.
   var emojiRepresentation: String {
     // Run .hashValue to make sure we semi-randomly pick new emoji markers for new tasks
-    return Self.numberToEmojis(self.hashValue, numEmojis: 3)
+    return numberToEmojis(self.hashValue, numEmojis: 3)
   }
 }
 
