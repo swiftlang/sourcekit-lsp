@@ -18,22 +18,23 @@ import SwiftExtensions
 /// A lightweight way of describing tasks that are created from handling BSP
 /// requests or notifications for the purpose of dependency tracking.
 package enum BuildSystemMessageDependencyTracker: DependencyTracker {
-  /// A task that modifies some state. It can thus not be executed concurrently with an request that reads state.
+  /// A task that modifies some state. It is a barrier for all requests that read state.
   case stateChange
 
   /// A task that reads state, such as getting all build targets. These tasks can be run concurrently with other tasks
-  /// that read state.
+  /// that read state but needs to wait for all state changes to be handled first.
   case stateRead
 
-  /// A task that is responsible for logging information to the client. It can be run concurrently to any state reads
-  /// but logging tasks must be ordered among each other.
+  /// A task that is responsible for logging information to the client. They can be run concurrently to any state read
+  /// and changes but logging tasks must be ordered among each other.
   case logging
 
   /// Whether this request needs to finish before `other` can start executing.
   package func isDependency(of other: BuildSystemMessageDependencyTracker) -> Bool {
     switch (self, other) {
-    case (.stateChange, _): return true
-    case (_, .stateChange): return true
+    case (.stateChange, .stateChange): return true
+    case (.stateChange, .stateRead): return true
+    case (.stateRead, .stateChange): return true
     case (.stateRead, .stateRead): return false
     case (.logging, .logging): return true
     case (.logging, _): return false
@@ -58,8 +59,8 @@ package enum BuildSystemMessageDependencyTracker: DependencyTracker {
     default:
       logger.error(
         """
-        Unknown notification \(type(of: notification)). Treating as a stateRead notification. \
-        This might lead to out-of-order request handling
+        Unknown notification \(type(of: notification)). Treating as a stateChange notification. \
+        This might lead to sub-optimal performance because it inhibits parallelism.
         """
       )
       self = .stateRead
@@ -85,16 +86,16 @@ package enum BuildSystemMessageDependencyTracker: DependencyTracker {
     case is WorkspaceBuildTargetsRequest:
       self = .stateRead
     case is WorkspaceWaitForBuildSystemUpdatesRequest:
-      self = .stateChange
+      self = .stateRead
 
     default:
       logger.error(
         """
-        Unknown request \(type(of: request)). Treating as a stateRead request. \
-        This might lead to out-of-order request handling
+        Unknown request \(type(of: request)). Treating as a stateChange request. \
+        This might lead to sub-optimal performance because it inhibits parallelism.
         """
       )
-      self = .stateRead
+      self = .stateChange
     }
   }
 }
