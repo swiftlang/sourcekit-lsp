@@ -71,5 +71,5 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   ) async throws -> TextDocumentSourceKitOptionsResponse?
 
   /// Wait until the build graph has been loaded.
-  func waitForUpBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse
+  func waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse
 }

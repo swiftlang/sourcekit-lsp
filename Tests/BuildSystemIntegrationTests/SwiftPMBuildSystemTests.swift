@@ -44,7 +44,7 @@ fileprivate extension SwiftPMBuildSystem {
   }
 
   func waitForUpToDateBuildGraph() async {
-    let _: VoidResponse = await self.waitForUpBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest())
+    let _: VoidResponse = await self.waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest())
   }
 }
 

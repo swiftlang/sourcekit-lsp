@@ -48,7 +48,14 @@ fileprivate enum Cachable<Value> {
 ///
 /// Provides build settings from a `CompilationDatabase` found by searching a project. For now, only
 /// one compilation database, located at the project root.
-package actor CompilationDatabaseBuildSystem {
+package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
+  static package func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath? {
+    if tryLoadCompilationDatabase(directory: workspaceFolder) != nil {
+      return workspaceFolder
+    }
+    return nil
+  }
+
   /// The compilation database.
   var compdb: CompilationDatabase? = nil {
     didSet {
@@ -58,13 +65,11 @@ package actor CompilationDatabaseBuildSystem {
     }
   }
 
-  package let connectionToSourceKitLSP: any Connection
+  private let connectionToSourceKitLSP: any Connection
+  private let searchPaths: [RelativePath]
+  private let fileSystem: FileSystem
 
   package let projectRoot: AbsolutePath
-
-  let searchPaths: [RelativePath]
-
-  let fileSystem: FileSystem
 
   private var _indexStorePath: Cachable<AbsolutePath?> = .noValue
   package var indexStorePath: AbsolutePath? {
@@ -87,6 +92,12 @@ package actor CompilationDatabaseBuildSystem {
     }
   }
 
+  package var indexDatabasePath: AbsolutePath? {
+    indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
+  }
+
+  package nonisolated var supportsPreparation: Bool { false }
+
   package init?(
     projectRoot: AbsolutePath,
     searchPaths: [RelativePath],
@@ -102,21 +113,6 @@ package actor CompilationDatabaseBuildSystem {
     } else {
       return nil
     }
-  }
-}
-
-extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
-  static package func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath? {
-    if tryLoadCompilationDatabase(directory: workspaceFolder) != nil {
-      return workspaceFolder
-    }
-    return nil
-  }
-
-  package nonisolated var supportsPreparation: Bool { false }
-
-  package var indexDatabasePath: AbsolutePath? {
-    indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
   }
 
   package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
@@ -135,10 +131,7 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
   }
 
   package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
-    guard request.targets.contains(.dummy) else {
-      return BuildTargetSourcesResponse(items: [])
-    }
-    guard let compdb else {
+    guard request.targets.contains(.dummy), let compdb else {
       return BuildTargetSourcesResponse(items: [])
     }
     return BuildTargetSourcesResponse(items: [SourcesItem(target: .dummy, sources: compdb.sourceItems)])
@@ -157,7 +150,7 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
   package func sourceKitOptions(
     request: TextDocumentSourceKitOptionsRequest
   ) async throws -> TextDocumentSourceKitOptionsResponse? {
-    guard let db = database(for: request.textDocument.uri), let cmd = db[request.textDocument.uri].first else {
+    guard let compdb, let cmd = compdb[request.textDocument.uri].first else {
       return nil
     }
     return TextDocumentSourceKitOptionsResponse(
@@ -166,34 +159,8 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     )
   }
 
-  package func waitForUpBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
+  package func waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
     return VoidResponse()
-  }
-
-  private func database(for uri: DocumentURI) -> CompilationDatabase? {
-    if let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) {
-      return database(for: path)
-    }
-    return compdb
-  }
-
-  private func database(for path: AbsolutePath) -> CompilationDatabase? {
-    if compdb == nil {
-      var dir = path
-      while !dir.isRoot {
-        dir = dir.parentDirectory
-        if let db = tryLoadCompilationDatabase(directory: dir, additionalSearchPaths: searchPaths, fileSystem) {
-          compdb = db
-          break
-        }
-      }
-    }
-
-    if compdb == nil {
-      logger.error("Could not open compilation database for \(path)")
-    }
-
-    return compdb
   }
 
   private func fileEventShouldTriggerCompilationDatabaseReload(event: FileEvent) -> Bool {

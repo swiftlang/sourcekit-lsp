@@ -328,7 +328,7 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     )
   }
 
-  package func waitForUpBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
+  package func waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
     return VoidResponse()
   }
 }

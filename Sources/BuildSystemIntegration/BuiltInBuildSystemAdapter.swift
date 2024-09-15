@@ -167,7 +167,7 @@ package actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
     case let request as RequestAndReply<WorkspaceBuildTargetsRequest>:
       await request.reply { try await underlyingBuildSystem.buildTargets(request: request.params) }
     case let request as RequestAndReply<WorkspaceWaitForBuildSystemUpdatesRequest>:
-      await request.reply { await underlyingBuildSystem.waitForUpBuildSystemUpdates(request: request.params) }
+      await request.reply { await underlyingBuildSystem.waitForBuildSystemUpdates(request: request.params) }
     default:
       await request.reply { throw ResponseError.methodNotFound(Request.method) }
     }

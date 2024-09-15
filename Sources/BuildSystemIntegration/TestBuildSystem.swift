@@ -83,7 +83,7 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     return buildSettingsByFile[request.textDocument.uri]
   }
 
-  package func waitForUpBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
+  package func waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
     return VoidResponse()
   }
 
