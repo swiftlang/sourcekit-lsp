@@ -213,7 +213,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
   }
 
-  private var connectionToBuildSystem: LocalConnection?
+  private var connectionToBuildSystem: Connection?
 
   package init(
     buildSystemKind: BuildSystemKind?,
@@ -225,19 +225,17 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     self.toolchainRegistry = toolchainRegistry
     self.options = options
     self.projectRoot = buildSystemKind?.projectRoot
-    let connectionFromBuildSystemToSourceKitLSP = LocalConnection(receiverName: "BuildSystemManager")
-    connectionFromBuildSystemToSourceKitLSP.start(handler: self)
     self.buildSystem = await BuiltInBuildSystemAdapter(
       buildSystemKind: buildSystemKind,
       toolchainRegistry: toolchainRegistry,
       options: options,
       buildSystemTestHooks: buildSystemTestHooks,
-      connectionToSourceKitLSP: connectionFromBuildSystemToSourceKitLSP
+      messagesToSourceKitLSPHandler: self
     )
     if let buildSystem {
-      let connectionFromSourceKitLSPToBuildSystem = LocalConnection(receiverName: "\(type(of: buildSystem))")
-      connectionFromSourceKitLSPToBuildSystem.start(handler: buildSystem)
-      self.connectionToBuildSystem = connectionFromSourceKitLSPToBuildSystem
+      let connectionToBuildSystem = LocalConnection(receiverName: "Build system")
+      connectionToBuildSystem.start(handler: buildSystem)
+      self.connectionToBuildSystem = connectionToBuildSystem
     } else {
       self.connectionToBuildSystem = nil
     }
@@ -294,7 +292,6 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         _ = try await connectionToBuildSystem.send(BuildShutdownRequest())
         connectionToBuildSystem.send(OnBuildExitNotification())
       }
-      connectionToBuildSystem.close()
     }
   }
 
@@ -599,7 +596,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     guard var settings = await fallbackBuildSystem.buildSettings(for: document, language: language) else {
       return nil
     }
-    if buildSystem == nil {
+    if connectionToBuildSystem == nil {
       // If there is no build system and we only have the fallback build system,
       // we will never get real build settings. Consider the build settings
       // non-fallback.

@@ -87,17 +87,19 @@ package actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
 
   package let messageHandlingQueue = AsyncQueue<BuildSystemMessageDependencyTracker>()
 
+  /// `messageHandler` is a handler that handles messages sent from the build system to SourceKit-LSP.
   init?(
     buildSystemKind: BuildSystemKind?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     buildSystemTestHooks: BuildSystemTestHooks,
-    connectionToSourceKitLSP: LocalConnection
+    messagesToSourceKitLSPHandler: MessageHandler
   ) async {
     guard let buildSystemKind else {
       return nil
     }
-    self.connectionToSourceKitLSP = connectionToSourceKitLSP
+    self.connectionToSourceKitLSP = LocalConnection(receiverName: "BuildSystemManager")
+    connectionToSourceKitLSP.start(handler: messagesToSourceKitLSPHandler)
 
     let buildSystem = await createBuildSystem(
       buildSystemKind: buildSystemKind,
