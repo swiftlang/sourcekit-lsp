@@ -43,18 +43,18 @@ package enum BuildSystemMessageDependencyTracker: DependencyTracker {
 
   init(_ notification: any NotificationType) {
     switch notification {
-    case is DidChangeBuildTargetNotification:
-      self = .stateChange
-    case is BuildServerProtocol.DidChangeWatchedFilesNotification:
-      self = .stateChange
-    case is ExitBuildNotification:
-      self = .stateChange
     case is FileOptionsChangedNotification:
       self = .stateChange
-    case is InitializedBuildNotification:
+    case is OnBuildExitNotification:
       self = .stateChange
-    case is BuildServerProtocol.LogMessageNotification:
+    case is OnBuildInitializedNotification:
+      self = .stateChange
+    case is OnBuildLogMessageNotification:
       self = .logging
+    case is OnBuildTargetDidChangeNotification:
+      self = .stateChange
+    case is OnWatchedFilesDidChangeNotification:
+      self = .stateChange
     default:
       logger.error(
         """
@@ -68,9 +68,9 @@ package enum BuildSystemMessageDependencyTracker: DependencyTracker {
 
   init(_ request: any RequestType) {
     switch request {
-    case is BuildTargetOutputPaths:
-      self = .stateRead
-    case is BuildTargetsRequest:
+    case is BuildShutdownRequest:
+      self = .stateChange
+    case is BuildTargetPrepareRequest:
       self = .stateRead
     case is BuildTargetSourcesRequest:
       self = .stateRead
@@ -78,15 +78,13 @@ package enum BuildSystemMessageDependencyTracker: DependencyTracker {
       self = .logging
     case is InitializeBuildRequest:
       self = .stateChange
-    case is PrepareTargetsRequest:
-      self = .stateRead
     case is RegisterForChanges:
       self = .stateChange
-    case is ShutdownBuild:
-      self = .stateChange
-    case is SourceKitOptionsRequest:
+    case is TextDocumentSourceKitOptionsRequest:
       self = .stateRead
-    case is WaitForBuildSystemUpdatesRequest:
+    case is WorkspaceBuildTargetsRequest:
+      self = .stateRead
+    case is WorkspaceWaitForBuildSystemUpdatesRequest:
       self = .stateChange
 
     default:

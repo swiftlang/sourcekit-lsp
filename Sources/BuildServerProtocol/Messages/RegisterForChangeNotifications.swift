@@ -16,6 +16,10 @@ import LanguageServerProtocol
 /// server to the build server to register or unregister for
 /// changes in file options or dependencies. On changes a
 /// FileOptionsChangedNotification is sent.
+///
+/// - Important: This request has been deprecated. Build servers should instead implement the
+///   `textDocument/sourceKitOptions` request.
+///   See https://forums.swift.org/t/extending-functionality-of-build-server-protocol-with-sourcekit-lsp/74400
 public struct RegisterForChanges: RequestType {
   public static let method: String = "textDocument/registerForChanges"
   public typealias Response = VoidResponse
@@ -40,6 +44,10 @@ public enum RegisterAction: String, Hashable, Codable, Sendable {
 /// The FileOptionsChangedNotification is sent from the
 /// build server to the language server when it detects
 /// changes to a registered files build settings.
+///
+/// - Important: This request has been deprecated. Build servers should instead implement the
+///   `textDocument/sourceKitOptions` request.
+///   See https://forums.swift.org/t/extending-functionality-of-build-server-protocol-with-sourcekit-lsp/74400
 public struct FileOptionsChangedNotification: NotificationType {
   public struct Options: ResponseType, Hashable {
     /// The compiler options required for the requested file.

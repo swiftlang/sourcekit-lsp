@@ -91,7 +91,7 @@ final class BuildSystemTests: XCTestCase {
       }
       """
 
-    await buildSystem.setBuildSettings(for: doc, to: SourceKitOptionsResponse(compilerArguments: args))
+    await buildSystem.setBuildSettings(for: doc, to: TextDocumentSourceKitOptionsResponse(compilerArguments: args))
 
     let documentManager = await self.testClient.server.documentManager
 
@@ -103,7 +103,7 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
-    let newSettings = SourceKitOptionsResponse(compilerArguments: args + ["-DFOO"])
+    let newSettings = TextDocumentSourceKitOptionsResponse(compilerArguments: args + ["-DFOO"])
     await buildSystem.setBuildSettings(for: doc, to: newSettings)
 
     try await repeatUntilExpectedResult {
@@ -118,7 +118,7 @@ final class BuildSystemTests: XCTestCase {
       .buildSettings(for: doc, language: .swift)!
       .compilerArguments
 
-    await buildSystem.setBuildSettings(for: doc, to: SourceKitOptionsResponse(compilerArguments: args))
+    await buildSystem.setBuildSettings(for: doc, to: TextDocumentSourceKitOptionsResponse(compilerArguments: args))
 
     let text = """
       #if FOO
@@ -137,7 +137,7 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
-    let newSettings = SourceKitOptionsResponse(compilerArguments: args + ["-DFOO"])
+    let newSettings = TextDocumentSourceKitOptionsResponse(compilerArguments: args + ["-DFOO"])
     await buildSystem.setBuildSettings(for: doc, to: newSettings)
 
     // No expected errors here because we fixed the settings.
@@ -169,7 +169,7 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should see a diagnostic.
-    let newSettings = SourceKitOptionsResponse(compilerArguments: args)
+    let newSettings = TextDocumentSourceKitOptionsResponse(compilerArguments: args)
     await buildSystem.setBuildSettings(for: doc, to: newSettings)
 
     let refreshedDiags = try await testClient.nextDiagnosticsNotification()
@@ -183,7 +183,7 @@ final class BuildSystemTests: XCTestCase {
     // Primary settings must be different than the fallback settings.
     let fallbackSettings = await FallbackBuildSystem(options: SourceKitLSPOptions.FallbackBuildSystemOptions())
       .buildSettings(for: doc, language: .swift)!
-    let primarySettings = SourceKitOptionsResponse(
+    let primarySettings = TextDocumentSourceKitOptionsResponse(
       compilerArguments: fallbackSettings.compilerArguments + ["-DPRIMARY"],
       workingDirectory: fallbackSettings.workingDirectory
     )

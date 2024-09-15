@@ -59,25 +59,27 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   var supportsPreparation: Bool { get }
 
   /// Returns all targets in the build system
-  func buildTargets(request: BuildTargetsRequest) async throws -> BuildTargetsResponse
+  func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse
 
   /// Returns all the source files in the given targets
   func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse
 
   /// Called when files in the project change.
-  func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async
+  func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) async
 
   /// Prepare the given targets for indexing and semantic functionality. This should build all swift modules of target
   /// dependencies.
-  func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse
+  func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse
 
   /// Retrieve build settings for the given document with the given source
   /// language.
   ///
   /// Returns `nil` if the build system can't provide build settings for this
   /// file or if it hasn't computed build settings for the file yet.
-  func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse?
+  func sourceKitOptions(
+    request: TextDocumentSourceKitOptionsRequest
+  ) async throws -> TextDocumentSourceKitOptionsResponse?
 
   /// Wait until the build graph has been loaded.
-  func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse
+  func waitForUpBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse
 }

@@ -30,17 +30,17 @@ import struct PackageModel.BuildFlags
 #endif
 
 fileprivate extension SwiftPMBuildSystem {
-  func buildSettings(for uri: DocumentURI) async throws -> SourceKitOptionsResponse? {
+  func buildSettings(for uri: DocumentURI) async throws -> TextDocumentSourceKitOptionsResponse? {
     guard let target = self.targets(for: uri).only else {
       return nil
     }
     return try await sourceKitOptions(
-      request: SourceKitOptionsRequest(textDocument: TextDocumentIdentifier(uri), target: target)
+      request: TextDocumentSourceKitOptionsRequest(textDocument: TextDocumentIdentifier(uri), target: target)
     )
   }
 
   func waitForUpToDateBuildGraph() async {
-    let _: VoidResponse = await self.waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest())
+    let _: VoidResponse = await self.waitForUpBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest())
   }
 }
 

@@ -12,14 +12,6 @@
 
 import LanguageServerProtocol
 
-public struct InitializeBuildRequestDataKind: RawRepresentable, Hashable, Codable, Sendable {
-  public let rawValue: String
-
-  public init(rawValue: String) {
-    self.rawValue = rawValue
-  }
-}
-
 /// Like the language server protocol, the initialize request is sent
 /// as the first request from the client to the server. If the server
 /// receives a request or notification before the initialize request
@@ -96,52 +88,11 @@ public struct BuildClientCapabilities: Codable, Hashable, Sendable {
   }
 }
 
-public struct InitializeBuildResponseDataKind: RawRepresentable, Hashable, Codable, Sendable {
+public struct InitializeBuildRequestDataKind: RawRepresentable, Hashable, Codable, Sendable {
   public let rawValue: String
 
   public init(rawValue: String) {
     self.rawValue = rawValue
-  }
-
-  /// `data` field must contain a `SourceKitInitializeBuildResponseData` object.
-  public static let sourceKit = InitializeBuildResponseDataKind(rawValue: "sourceKit")
-}
-
-public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Sendable {
-  public var indexDatabasePath: String?
-  public var indexStorePath: String?
-  public var supportsPreparation: Bool?
-
-  public init(indexDatabasePath: String?, indexStorePath: String?, supportsPreparation: Bool?) {
-    self.indexDatabasePath = indexDatabasePath
-    self.indexStorePath = indexStorePath
-    self.supportsPreparation = supportsPreparation
-  }
-
-  public init?(fromLSPDictionary dictionary: [String: LanguageServerProtocol.LSPAny]) {
-    if case .string(let indexDatabasePath) = dictionary[CodingKeys.indexDatabasePath.stringValue] {
-      self.indexDatabasePath = indexDatabasePath
-    }
-    if case .string(let indexStorePath) = dictionary[CodingKeys.indexStorePath.stringValue] {
-      self.indexStorePath = indexStorePath
-    }
-    if case .bool(let supportsPreparation) = dictionary[CodingKeys.supportsPreparation.stringValue] {
-      self.supportsPreparation = supportsPreparation
-    }
-  }
-
-  public func encodeToLSPAny() -> LanguageServerProtocol.LSPAny {
-    var result: [String: LSPAny] = [:]
-    if let indexDatabasePath {
-      result[CodingKeys.indexDatabasePath.stringValue] = .string(indexDatabasePath)
-    }
-    if let indexStorePath {
-      result[CodingKeys.indexStorePath.stringValue] = .string(indexStorePath)
-    }
-    if let supportsPreparation {
-      result[CodingKeys.supportsPreparation.stringValue] = .bool(supportsPreparation)
-    }
-    return .dictionary(result)
   }
 }
 
@@ -265,18 +216,9 @@ public struct BuildServerCapabilities: Codable, Hashable, Sendable {
     self.canReload = canReload
     self.jvmCompileClasspathProvider = jvmCompileClasspathProvider
   }
-
 }
 
 public struct CompileProvider: Codable, Hashable, Sendable {
-  public var languageIds: [Language]
-
-  public init(languageIds: [Language]) {
-    self.languageIds = languageIds
-  }
-}
-
-public struct RunProvider: Codable, Hashable, Sendable {
   public var languageIds: [Language]
 
   public init(languageIds: [Language]) {
@@ -292,6 +234,14 @@ public struct TestProvider: Codable, Hashable, Sendable {
   }
 }
 
+public struct RunProvider: Codable, Hashable, Sendable {
+  public var languageIds: [Language]
+
+  public init(languageIds: [Language]) {
+    self.languageIds = languageIds
+  }
+}
+
 public struct DebugProvider: Codable, Hashable, Sendable {
   public var languageIds: [Language]
 
@@ -300,8 +250,57 @@ public struct DebugProvider: Codable, Hashable, Sendable {
   }
 }
 
-public struct InitializedBuildNotification: NotificationType {
-  public static let method: String = "build/initialized"
+public struct InitializeBuildResponseDataKind: RawRepresentable, Hashable, Codable, Sendable {
+  public let rawValue: String
 
-  public init() {}
+  public init(rawValue: String) {
+    self.rawValue = rawValue
+  }
+
+  /// `data` field must contain a `SourceKitInitializeBuildResponseData` object.
+  public static let sourceKit = InitializeBuildResponseDataKind(rawValue: "sourceKit")
+}
+
+public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Sendable {
+  /// The directory to which the index store is written during compilation, ie. the path passed to `-index-store-path`
+  /// for `swiftc` or `clang` invocations
+  public var indexDatabasePath: String?
+
+  /// The path at which SourceKit-LSP can store its index database, aggregating data from `indexStorePath`
+  public var indexStorePath: String?
+
+  /// Whether the build server supports the `buildTarget/prepare` request.
+  public var supportsPreparation: Bool?
+
+  public init(indexDatabasePath: String?, indexStorePath: String?, supportsPreparation: Bool?) {
+    self.indexDatabasePath = indexDatabasePath
+    self.indexStorePath = indexStorePath
+    self.supportsPreparation = supportsPreparation
+  }
+
+  public init?(fromLSPDictionary dictionary: [String: LanguageServerProtocol.LSPAny]) {
+    if case .string(let indexDatabasePath) = dictionary[CodingKeys.indexDatabasePath.stringValue] {
+      self.indexDatabasePath = indexDatabasePath
+    }
+    if case .string(let indexStorePath) = dictionary[CodingKeys.indexStorePath.stringValue] {
+      self.indexStorePath = indexStorePath
+    }
+    if case .bool(let supportsPreparation) = dictionary[CodingKeys.supportsPreparation.stringValue] {
+      self.supportsPreparation = supportsPreparation
+    }
+  }
+
+  public func encodeToLSPAny() -> LanguageServerProtocol.LSPAny {
+    var result: [String: LSPAny] = [:]
+    if let indexDatabasePath {
+      result[CodingKeys.indexDatabasePath.stringValue] = .string(indexDatabasePath)
+    }
+    if let indexStorePath {
+      result[CodingKeys.indexStorePath.stringValue] = .string(indexStorePath)
+    }
+    if let supportsPreparation {
+      result[CodingKeys.supportsPreparation.stringValue] = .bool(supportsPreparation)
+    }
+    return .dictionary(result)
+  }
 }

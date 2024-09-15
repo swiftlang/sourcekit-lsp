@@ -73,14 +73,14 @@ final class BuildServerBuildSystemTests: XCTestCase {
     let uri = DocumentURI(filePath: "/some/file/path", isDirectory: false)
     let expectation = self.expectation(description: "\(uri) settings updated")
     let testMessageHandler = TestMessageHandler(targetExpectations: [
-      (DidChangeBuildTargetNotification(changes: nil), expectation)
+      (OnBuildTargetDidChangeNotification(changes: nil), expectation)
     ])
     let buildSystem = try await BuildServerBuildSystem(
       projectRoot: root,
       connectionToSourceKitLSP: testMessageHandler.connection
     )
     _ = try await buildSystem.sourceKitOptions(
-      request: SourceKitOptionsRequest(
+      request: TextDocumentSourceKitOptionsRequest(
         textDocument: TextDocumentIdentifier(uri),
         target: .dummy
       )
@@ -94,7 +94,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
     let expectation = XCTestExpectation(description: "target changed")
     let testMessageHandler = TestMessageHandler(targetExpectations: [
       (
-        DidChangeBuildTargetNotification(changes: [
+        OnBuildTargetDidChangeNotification(changes: [
           BuildTargetEvent(
             target: BuildTargetIdentifier(uri: try! URI(string: "build://target/a")),
             kind: .created,
@@ -113,7 +113,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
       connectionToSourceKitLSP: testMessageHandler.connection
     )
     _ = try await buildSystem.sourceKitOptions(
-      request: SourceKitOptionsRequest(
+      request: TextDocumentSourceKitOptionsRequest(
         textDocument: TextDocumentIdentifier(uri),
         target: .dummy
       )
@@ -124,7 +124,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
 }
 
 fileprivate final class TestMessageHandler: MessageHandler {
-  let targetExpectations: [(DidChangeBuildTargetNotification, XCTestExpectation)]
+  let targetExpectations: [(OnBuildTargetDidChangeNotification, XCTestExpectation)]
 
   var connection: LocalConnection {
     let connection = LocalConnection(receiverName: "Test message handler")
@@ -132,11 +132,11 @@ fileprivate final class TestMessageHandler: MessageHandler {
     return connection
   }
 
-  package init(targetExpectations: [(DidChangeBuildTargetNotification, XCTestExpectation)] = []) {
+  package init(targetExpectations: [(OnBuildTargetDidChangeNotification, XCTestExpectation)] = []) {
     self.targetExpectations = targetExpectations
   }
 
-  func didChangeBuildTarget(notification: DidChangeBuildTargetNotification) {
+  func didChangeBuildTarget(notification: OnBuildTargetDidChangeNotification) {
     for (expectedNotification, expectation) in targetExpectations {
       if expectedNotification == notification {
         expectation.fulfill()
@@ -154,7 +154,7 @@ fileprivate final class TestMessageHandler: MessageHandler {
 
   func handle(_ notification: some NotificationType) {
     switch notification {
-    case let notification as DidChangeBuildTargetNotification:
+    case let notification as OnBuildTargetDidChangeNotification:
       didChangeBuildTarget(notification: notification)
     default:
       break

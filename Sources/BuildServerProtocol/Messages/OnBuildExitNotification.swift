@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -12,14 +12,12 @@
 
 import LanguageServerProtocol
 
-/// This request is a no-op and doesn't have any effects.
-///
-/// If the build system is currently updating the build graph, this request should return after those updates have
-/// finished processing.
-public struct WaitForBuildSystemUpdatesRequest: RequestType, Hashable {
-  public typealias Response = VoidResponse
-
-  public static let method: String = "workspace/waitForBuildSystemUpdates"
+/// Like the language server protocol, a notification to ask the
+/// server to exit its process. The server should exit with success
+/// code 0 if the shutdown request has been received before;
+/// otherwise with error code 1.
+public struct OnBuildExitNotification: NotificationType {
+  public static let method: String = "build/exit"
 
   public init() {}
 }

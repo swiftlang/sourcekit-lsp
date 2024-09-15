@@ -291,7 +291,7 @@ final class CompilationDatabaseTests: XCTestCase {
       """
     ) { buildSystem in
       let settings = try await buildSystem.sourceKitOptions(
-        request: SourceKitOptionsRequest(
+        request: TextDocumentSourceKitOptionsRequest(
           textDocument: TextDocumentIdentifier(DocumentURI(URL(fileURLWithPath: "/a/a.swift"))),
           target: BuildTargetIdentifier.dummy
         )

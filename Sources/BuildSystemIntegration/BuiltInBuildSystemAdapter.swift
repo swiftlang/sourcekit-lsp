@@ -132,7 +132,11 @@ package actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
 
   package func handleImpl(_ notification: some NotificationType) async {
     switch notification {
-    case let notification as DidChangeWatchedFilesNotification:
+    case is OnBuildExitNotification:
+      break
+    case is OnBuildInitializedNotification:
+      break
+    case let notification as OnWatchedFilesDidChangeNotification:
       await self.underlyingBuildSystem.didChangeWatchedFiles(notification: notification)
     default:
       logger.error("Ignoring unknown notification \(type(of: notification).method) from SourceKit-LSP")
@@ -141,17 +145,19 @@ package actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
 
   package func handleImpl<Request: RequestType>(_ request: RequestAndReply<Request>) async {
     switch request {
-    case let request as RequestAndReply<BuildTargetsRequest>:
-      await request.reply { try await underlyingBuildSystem.buildTargets(request: request.params) }
+    case let request as RequestAndReply<BuildShutdownRequest>:
+      await request.reply { VoidResponse() }
+    case let request as RequestAndReply<BuildTargetPrepareRequest>:
+      await request.reply { try await underlyingBuildSystem.prepare(request: request.params) }
     case let request as RequestAndReply<BuildTargetSourcesRequest>:
       await request.reply { try await underlyingBuildSystem.buildTargetSources(request: request.params) }
     case let request as RequestAndReply<InitializeBuildRequest>:
       await request.reply { await self.initialize(request: request.params) }
-    case let request as RequestAndReply<PrepareTargetsRequest>:
-      await request.reply { try await underlyingBuildSystem.prepare(request: request.params) }
-    case let request as RequestAndReply<SourceKitOptionsRequest>:
+    case let request as RequestAndReply<TextDocumentSourceKitOptionsRequest>:
       await request.reply { try await underlyingBuildSystem.sourceKitOptions(request: request.params) }
-    case let request as RequestAndReply<WaitForBuildSystemUpdatesRequest>:
+    case let request as RequestAndReply<WorkspaceBuildTargetsRequest>:
+      await request.reply { try await underlyingBuildSystem.buildTargets(request: request.params) }
+    case let request as RequestAndReply<WorkspaceWaitForBuildSystemUpdatesRequest>:
       await request.reply { await underlyingBuildSystem.waitForUpBuildSystemUpdates(request: request.params) }
     default:
       await request.reply { throw ResponseError.methodNotFound(Request.method) }

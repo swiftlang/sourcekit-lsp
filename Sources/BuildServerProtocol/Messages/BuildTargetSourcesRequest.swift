@@ -41,9 +41,14 @@ public struct SourcesItem: Codable, Hashable, Sendable {
   /// The text documents and directories that belong to this build target.
   public var sources: [SourceItem]
 
-  public init(target: BuildTargetIdentifier, sources: [SourceItem]) {
+  /// The root directories from where source files should be relativized.
+  /// Example: ["file://Users/name/dev/metals/src/main/scala"]
+  public var roots: [URI]?
+
+  public init(target: BuildTargetIdentifier, sources: [SourceItem], roots: [URI]? = nil) {
     self.target = target
     self.sources = sources
+    self.roots = roots
   }
 }
 
@@ -100,10 +105,14 @@ public struct SourceItemDataKind: RawRepresentable, Codable, Hashable, Sendable 
   public static let jvm = SourceItemDataKind(rawValue: "jvm")
 
   /// `data` field must contain a `SourceKitSourceItemData` object.
+  ///
+  /// **(BSP Extension)**
   public static let sourceKit = SourceItemDataKind(rawValue: "sourceKit")
 }
 
+/// **(BSP Extension)**
 public struct SourceKitSourceItemData: LSPAnyCodable, Codable {
+  /// The language of the source file. If `nil`, the language is inferred from the file extension.
   public var language: Language?
 
   /// Whether the file is a header file that is clearly associated with one target.

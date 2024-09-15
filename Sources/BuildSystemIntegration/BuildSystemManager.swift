@@ -170,10 +170,12 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// Force-unwrapped optional because initializing it requires access to `self`.
   private var filesDependenciesUpdatedDebouncer: Debouncer<Set<DocumentURI>>! = nil
 
-  private var cachedSourceKitOptions = Cache<SourceKitOptionsRequest, SourceKitOptionsResponse?>()
+  private var cachedSourceKitOptions = Cache<
+    TextDocumentSourceKitOptionsRequest, TextDocumentSourceKitOptionsResponse?
+  >()
 
   private var cachedBuildTargets = Cache<
-    BuildTargetsRequest, [BuildTargetIdentifier: (target: BuildTarget, depth: Int)]
+    WorkspaceBuildTargetsRequest, [BuildTargetIdentifier: (target: BuildTarget, depth: Int)]
   >()
 
   private var cachedTargetSources = Cache<BuildTargetSourcesRequest, BuildTargetSourcesResponse>()
@@ -287,7 +289,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   }
 
   package func filesDidChange(_ events: [FileEvent]) async {
-    connectionToBuildSystem?.send(BuildServerProtocol.DidChangeWatchedFilesNotification(changes: events))
+    connectionToBuildSystem?.send(OnWatchedFilesDidChangeNotification(changes: events))
 
     var targetsWithUpdatedDependencies: Set<BuildTargetIdentifier> = []
     // If a Swift file within a target is updated, reload all the other files within the target since they might be
@@ -335,9 +337,9 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
   package func handleImpl(_ notification: some NotificationType) async {
     switch notification {
-    case let notification as DidChangeBuildTargetNotification:
+    case let notification as OnBuildTargetDidChangeNotification:
       await self.didChangeBuildTarget(notification: notification)
-    case let notification as BuildServerProtocol.LogMessageNotification:
+    case let notification as BuildServerProtocol.OnBuildLogMessageNotification:
       await self.logMessage(notification: notification)
     case let notification as BuildServerProtocol.WorkDoneProgress:
       await self.workDoneProgress(notification: notification)
@@ -549,7 +551,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     guard let connectionToBuildSystem, let target else {
       return nil
     }
-    let request = SourceKitOptionsRequest(textDocument: TextDocumentIdentifier(document), target: target)
+    let request = TextDocumentSourceKitOptionsRequest(textDocument: TextDocumentIdentifier(document), target: target)
 
     // TODO: We should only wait `fallbackSettingsTimeout` for build settings
     // and return fallback afterwards.
@@ -630,7 +632,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
   package func waitForUpToDateBuildGraph() async {
     await orLog("Waiting for build system updates") {
-      let _: VoidResponse? = try await connectionToBuildSystem?.send(WaitForBuildSystemUpdatesRequest())
+      let _: VoidResponse? = try await connectionToBuildSystem?.send(WorkspaceWaitForBuildSystemUpdatesRequest())
     }
     // Handle any messages the build system might have sent us while updating.
     await self.messageHandlingQueue.async(metadata: .stateChange) {}.valuePropagatingCancellation
@@ -690,7 +692,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
   package func prepare(targets: Set<BuildTargetIdentifier>) async throws {
     let _: VoidResponse? = try await connectionToBuildSystem?.send(
-      PrepareTargetsRequest(targets: targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
+      BuildTargetPrepareRequest(targets: targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
     )
     await orLog("Calling fileDependenciesUpdated") {
       let filesInPreparedTargets = try await self.sourceFiles(in: targets).flatMap(\.sources).map(\.uri)
@@ -713,7 +715,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       return [:]
     }
 
-    let request = BuildTargetsRequest()
+    let request = WorkspaceBuildTargetsRequest()
     let result = try await cachedBuildTargets.get(request) { request in
       let buildTargets = try await connectionToBuildSystem.send(request).targets
       let depths = await self.targetDepths(for: buildTargets)
@@ -844,7 +846,7 @@ extension BuildSystemManager {
     )
   }
 
-  private func didChangeBuildTarget(notification: DidChangeBuildTargetNotification) async {
+  private func didChangeBuildTarget(notification: OnBuildTargetDidChangeNotification) async {
     let updatedTargets: Set<BuildTargetIdentifier>? =
       if let changes = notification.changes {
         Set(changes.map(\.target))
@@ -874,7 +876,7 @@ extension BuildSystemManager {
     await delegate?.fileBuildSettingsChanged(Set(watchedFiles.keys))
   }
 
-  private func logMessage(notification: BuildServerProtocol.LogMessageNotification) async {
+  private func logMessage(notification: BuildServerProtocol.OnBuildLogMessageNotification) async {
     let message =
       if let taskID = notification.task?.id {
         prefixMessageWithTaskEmoji(taskID: taskID, message: notification.message)

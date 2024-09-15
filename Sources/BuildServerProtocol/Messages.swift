@@ -13,25 +13,24 @@
 import LanguageServerProtocol
 
 fileprivate let requestTypes: [_RequestType.Type] = [
-  BuildTargetOutputPaths.self,
-  BuildTargetsRequest.self,
+  BuildShutdownRequest.self,
+  BuildTargetPrepareRequest.self,
   BuildTargetSourcesRequest.self,
-  BuildServerProtocol.CreateWorkDoneProgressRequest.self,
+  CreateWorkDoneProgressRequest.self,
   InitializeBuildRequest.self,
-  PrepareTargetsRequest.self,
   RegisterForChanges.self,
-  ShutdownBuild.self,
-  SourceKitOptionsRequest.self,
-  WaitForBuildSystemUpdatesRequest.self,
+  TextDocumentSourceKitOptionsRequest.self,
+  WorkspaceWaitForBuildSystemUpdatesRequest.self,
+  WorkspaceBuildTargetsRequest.self,
 ]
 
 fileprivate let notificationTypes: [NotificationType.Type] = [
-  DidChangeBuildTargetNotification.self,
-  BuildServerProtocol.DidChangeWatchedFilesNotification.self,
-  ExitBuildNotification.self,
+  OnBuildExitNotification.self,
   FileOptionsChangedNotification.self,
-  InitializedBuildNotification.self,
-  BuildServerProtocol.LogMessageNotification.self,
+  OnBuildInitializedNotification.self,
+  OnBuildLogMessageNotification.self,
+  OnBuildTargetDidChangeNotification.self,
+  OnWatchedFilesDidChangeNotification.self,
 ]
 
 public let bspRegistry = MessageRegistry(requests: requestTypes, notifications: notificationTypes)

@@ -12,16 +12,16 @@
 
 import LanguageServerProtocol
 
-/// The SourceKitOptions request is sent from the client to the server to query for the list of compiler options
-/// necessary to compile this file in the given target.
+/// The `TextDocumentSourceKitOptionsRequest` request is sent from the client to the server to query for the list of
+/// compiler options necessary to compile this file in the given target.
 ///
 /// The build settings are considered up-to-date and can be cached by SourceKit-LSP until a
 /// `DidChangeBuildTargetNotification` is sent for the requested target.
 ///
 /// The request may return `nil` if it doesn't have any build settings for this file in the given target.
-public struct SourceKitOptionsRequest: RequestType, Hashable {
+public struct TextDocumentSourceKitOptionsRequest: RequestType, Hashable {
   public static let method: String = "textDocument/sourceKitOptions"
-  public typealias Response = SourceKitOptionsResponse?
+  public typealias Response = TextDocumentSourceKitOptionsResponse?
 
   /// The URI of the document to get options for
   public var textDocument: TextDocumentIdentifier
@@ -38,7 +38,7 @@ public struct SourceKitOptionsRequest: RequestType, Hashable {
   }
 }
 
-public struct SourceKitOptionsResponse: ResponseType, Hashable {
+public struct TextDocumentSourceKitOptionsResponse: ResponseType, Hashable {
   /// The compiler options required for the requested file.
   public var compilerArguments: [String]
 

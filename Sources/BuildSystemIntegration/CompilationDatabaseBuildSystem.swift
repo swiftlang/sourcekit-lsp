@@ -119,8 +119,8 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
   }
 
-  package func buildTargets(request: BuildTargetsRequest) async throws -> BuildTargetsResponse {
-    return BuildTargetsResponse(targets: [
+  package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
+    return WorkspaceBuildTargetsResponse(targets: [
       BuildTarget(
         id: .dummy,
         displayName: nil,
@@ -144,27 +144,29 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     return BuildTargetSourcesResponse(items: [SourcesItem(target: .dummy, sources: compdb.sourceItems)])
   }
 
-  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) {
+  package func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) {
     if notification.changes.contains(where: { self.fileEventShouldTriggerCompilationDatabaseReload(event: $0) }) {
       self.reloadCompilationDatabase()
     }
   }
 
-  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
+  package func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
     throw PrepareNotSupportedError()
   }
 
-  package func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse? {
+  package func sourceKitOptions(
+    request: TextDocumentSourceKitOptionsRequest
+  ) async throws -> TextDocumentSourceKitOptionsResponse? {
     guard let db = database(for: request.textDocument.uri), let cmd = db[request.textDocument.uri].first else {
       return nil
     }
-    return SourceKitOptionsResponse(
+    return TextDocumentSourceKitOptionsResponse(
       compilerArguments: Array(cmd.commandLine.dropFirst()),
       workingDirectory: cmd.directory
     )
   }
 
-  package func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse {
+  package func waitForUpBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
     return VoidResponse()
   }
 
@@ -212,6 +214,6 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
       self.fileSystem
     )
 
-    connectionToSourceKitLSP.send(DidChangeBuildTargetNotification(changes: nil))
+    connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
   }
 }

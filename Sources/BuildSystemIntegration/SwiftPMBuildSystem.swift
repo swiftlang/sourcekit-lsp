@@ -459,7 +459,7 @@ extension SwiftPMBuildSystem {
       swiftPMTargets[targetIdentifier] = buildTarget
     }
 
-    connectionToSourceKitLSP.send(DidChangeBuildTargetNotification(changes: nil))
+    connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
   }
 }
 
@@ -511,7 +511,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     }
   }
 
-  package func buildTargets(request: BuildTargetsRequest) async throws -> BuildTargetsResponse {
+  package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
     var targets = self.swiftPMTargets.map { (targetId, target) in
       var tags: [BuildTargetTag] = [.test]
       if !target.isPartOfRootPackage {
@@ -541,7 +541,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
         dependencies: []
       )
     )
-    return BuildTargetsResponse(targets: targets)
+    return WorkspaceBuildTargetsResponse(targets: targets)
   }
 
   package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
@@ -583,7 +583,9 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     return BuildTargetSourcesResponse(items: result)
   }
 
-  package func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse? {
+  package func sourceKitOptions(
+    request: TextDocumentSourceKitOptionsRequest
+  ) async throws -> TextDocumentSourceKitOptionsResponse? {
     guard let url = request.textDocument.uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
       // We can't determine build settings for non-file URIs.
       return nil
@@ -613,13 +615,13 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
         compilerArguments: try await compilerArguments(for: DocumentURI(substituteFile), in: swiftPMTarget),
         workingDirectory: projectRoot.pathString
       ).patching(newFile: try resolveSymlinks(path).pathString, originalFile: substituteFile.absoluteString)
-      return SourceKitOptionsResponse(
+      return TextDocumentSourceKitOptionsResponse(
         compilerArguments: buildSettings.compilerArguments,
         workingDirectory: buildSettings.workingDirectory
       )
     }
 
-    return SourceKitOptionsResponse(
+    return TextDocumentSourceKitOptionsResponse(
       compilerArguments: try await compilerArguments(for: request.textDocument.uri, in: swiftPMTarget),
       workingDirectory: projectRoot.pathString
     )
@@ -648,12 +650,12 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     return []
   }
 
-  package func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse {
+  package func waitForUpBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
     await self.packageLoadingQueue.async {}.valuePropagatingCancellation
     return VoidResponse()
   }
 
-  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
+  package func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
     // TODO: Support preparation of multiple targets at once. (https://github.com/swiftlang/sourcekit-lsp/issues/1262)
     for target in request.targets {
       await orLog("Preparing") { try await prepare(singleTarget: target) }
@@ -663,7 +665,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
 
   private nonisolated func logMessageToIndexLog(_ taskID: TaskId, _ message: String) {
     connectionToSourceKitLSP.send(
-      BuildServerProtocol.LogMessageNotification(type: .info, task: taskID, message: message)
+      BuildServerProtocol.OnBuildLogMessageNotification(type: .info, task: taskID, message: message)
     )
   }
 
@@ -795,7 +797,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     }
   }
 
-  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {
+  package func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) async {
     if notification.changes.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
       logger.log("Reloading package because of file change")
       await packageLoadingQueue.async {
@@ -807,9 +809,9 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
   }
 
   /// Retrieve settings for a package manifest (Package.swift).
-  private func settings(forPackageManifest path: AbsolutePath) throws -> SourceKitOptionsResponse? {
+  private func settings(forPackageManifest path: AbsolutePath) throws -> TextDocumentSourceKitOptionsResponse? {
     let compilerArgs = workspace.interpreterFlags(for: path.parentDirectory) + [path.pathString]
-    return SourceKitOptionsResponse(compilerArguments: compilerArgs)
+    return TextDocumentSourceKitOptionsResponse(compilerArguments: compilerArgs)
   }
 }
 

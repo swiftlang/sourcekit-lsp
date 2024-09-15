@@ -22,7 +22,7 @@ import XCTest
 
 fileprivate extension BuildSystemManager {
   func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
-    handle(DidChangeBuildTargetNotification(changes: nil))
+    handle(OnBuildTargetDidChangeNotification(changes: nil))
   }
 }
 
@@ -111,7 +111,7 @@ final class BuildSystemManagerTests: XCTestCase {
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
-    await bs.setBuildSettings(for: a, to: SourceKitOptionsResponse(compilerArguments: ["x"]))
+    await bs.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
     // Wait for the new build settings to settle before registering for change notifications
     await bsm.waitForUpToDateBuildGraph()
     await bsm.registerForChangeNotifications(for: a, language: .swift)
@@ -142,7 +142,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let changed = expectation(description: "changed settings")
     await del.setExpected([(a, .swift, FileBuildSettings(compilerArguments: ["x"]), changed)])
-    await bs.setBuildSettings(for: a, to: SourceKitOptionsResponse(compilerArguments: ["x"]))
+    await bs.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
     try await fulfillmentOfOrThrow([changed])
   }
 
@@ -165,7 +165,10 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let changed = expectation(description: "changed settings")
     await del.setExpected([(a, .swift, FileBuildSettings(compilerArguments: ["non-fallback", "args"]), changed)])
-    await bs.setBuildSettings(for: a, to: SourceKitOptionsResponse(compilerArguments: ["non-fallback", "args"]))
+    await bs.setBuildSettings(
+      for: a,
+      to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["non-fallback", "args"])
+    )
     try await fulfillmentOfOrThrow([changed])
 
     let revert = expectation(description: "revert to fallback settings")
@@ -197,8 +200,8 @@ final class BuildSystemManagerTests: XCTestCase {
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
-    await bs.setBuildSettings(for: cpp1, to: SourceKitOptionsResponse(compilerArguments: ["C++ 1"]))
-    await bs.setBuildSettings(for: cpp2, to: SourceKitOptionsResponse(compilerArguments: ["C++ 2"]))
+    await bs.setBuildSettings(for: cpp1, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["C++ 1"]))
+    await bs.setBuildSettings(for: cpp2, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["C++ 2"]))
 
     // Wait for the new build settings to settle before registering for change notifications
     await bsm.waitForUpToDateBuildGraph()
@@ -258,7 +261,10 @@ final class BuildSystemManagerTests: XCTestCase {
     let del = await BSMDelegate(bsm)
 
     let cppArg = "C++ Main File"
-    await bs.setBuildSettings(for: cpp, to: SourceKitOptionsResponse(compilerArguments: [cppArg, cpp.pseudoPath]))
+    await bs.setBuildSettings(
+      for: cpp,
+      to: TextDocumentSourceKitOptionsResponse(compilerArguments: [cppArg, cpp.pseudoPath])
+    )
 
     // Wait for the new build settings to settle before registering for change notifications
     await bsm.waitForUpToDateBuildGraph()
@@ -280,7 +286,10 @@ final class BuildSystemManagerTests: XCTestCase {
       (h1, .c, newArgsH1, changed1),
       (h2, .c, newArgsH2, changed2),
     ])
-    await bs.setBuildSettings(for: cpp, to: SourceKitOptionsResponse(compilerArguments: [newCppArg, cpp.pseudoPath]))
+    await bs.setBuildSettings(
+      for: cpp,
+      to: TextDocumentSourceKitOptionsResponse(compilerArguments: [newCppArg, cpp.pseudoPath])
+    )
     try await fulfillmentOfOrThrow([changed1, changed2])
   }
 }

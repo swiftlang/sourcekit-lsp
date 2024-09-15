@@ -70,7 +70,7 @@ package actor BuildServerBuildSystem: MessageHandler {
   package let connectionToSourceKitLSP: any Connection
 
   /// The build settings that have been received from the build server.
-  private var buildSettings: [DocumentURI: SourceKitOptionsResponse] = [:]
+  private var buildSettings: [DocumentURI: TextDocumentSourceKitOptionsResponse] = [:]
 
   private var urisRegisteredForChanges: Set<URI> = []
 
@@ -119,11 +119,11 @@ package actor BuildServerBuildSystem: MessageHandler {
 
   deinit {
     if let buildServer = self.buildServer {
-      _ = buildServer.send(ShutdownBuild()) { result in
+      _ = buildServer.send(BuildShutdownRequest()) { result in
         if let error = result.failure {
           logger.fault("Error shutting down build server: \(error.forLogging)")
         }
-        buildServer.send(ExitBuildNotification())
+        buildServer.send(OnBuildExitNotification())
         buildServer.close()
       }
     }
@@ -168,7 +168,7 @@ package actor BuildServerBuildSystem: MessageHandler {
 
     let buildServer = try makeJSONRPCBuildServer(client: self, serverPath: serverPath, serverFlags: flags)
     let response = try await buildServer.send(initializeRequest)
-    buildServer.send(InitializedBuildNotification())
+    buildServer.send(OnBuildInitializedNotification())
     logger.log("Initialized build server \(response.displayName)")
 
     // see if index store was set as part of the server metadata
@@ -193,7 +193,7 @@ package actor BuildServerBuildSystem: MessageHandler {
       """
     )
     bspMessageHandlingQueue.async {
-      if let params = params as? DidChangeBuildTargetNotification {
+      if let params = params as? OnBuildTargetDidChangeNotification {
         await self.handleBuildTargetsChanged(params)
       } else if let params = params as? FileOptionsChangedNotification {
         await self.handleFileOptionsChanged(params)
@@ -218,13 +218,13 @@ package actor BuildServerBuildSystem: MessageHandler {
     reply(.failure(ResponseError.methodNotFound(R.method)))
   }
 
-  func handleBuildTargetsChanged(_ notification: DidChangeBuildTargetNotification) {
+  func handleBuildTargetsChanged(_ notification: OnBuildTargetDidChangeNotification) {
     connectionToSourceKitLSP.send(notification)
   }
 
   func handleFileOptionsChanged(_ notification: FileOptionsChangedNotification) async {
     let result = notification.updatedOptions
-    let settings = SourceKitOptionsResponse(
+    let settings = TextDocumentSourceKitOptionsResponse(
       compilerArguments: result.options,
       workingDirectory: result.workingDirectory
     )
@@ -233,12 +233,12 @@ package actor BuildServerBuildSystem: MessageHandler {
 
   /// Record the new build settings for the given document and inform the delegate
   /// about the changed build settings.
-  private func buildSettingsChanged(for document: DocumentURI, settings: SourceKitOptionsResponse?) async {
+  private func buildSettingsChanged(for document: DocumentURI, settings: TextDocumentSourceKitOptionsResponse?) async {
     buildSettings[document] = settings
     // FIXME: (BSP migration) When running in the legacy mode where teh BSP server pushes build settings to us, we could
     // consider having a separate target for each source file so that we can update individual targets instead of having
     // to send an update for all targets.
-    connectionToSourceKitLSP.send(DidChangeBuildTargetNotification(changes: nil))
+    connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
   }
 }
 
@@ -262,9 +262,9 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
 
   package nonisolated var supportsPreparation: Bool { false }
 
-  package func buildTargets(request: BuildTargetsRequest) async throws -> BuildTargetsResponse {
+  package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
     // TODO: (BSP migration) Forward this request to the BSP server
-    return BuildTargetsResponse(targets: [
+    return WorkspaceBuildTargetsResponse(targets: [
       BuildTarget(
         id: .dummy,
         displayName: "Compilation database",
@@ -285,13 +285,15 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     return BuildTargetSourcesResponse(items: [])
   }
 
-  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) {}
+  package func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) {}
 
-  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
+  package func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
     throw PrepareNotSupportedError()
   }
 
-  package func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse? {
+  package func sourceKitOptions(
+    request: TextDocumentSourceKitOptionsRequest
+  ) async throws -> TextDocumentSourceKitOptionsResponse? {
     // FIXME: (BSP Migration) If the BSP server supports it, send the `SourceKitOptions` request to it. Only do the
     // `RegisterForChanges` dance if we are in the legacy mode.
 
@@ -320,13 +322,13 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
       return nil
     }
 
-    return SourceKitOptionsResponse(
+    return TextDocumentSourceKitOptionsResponse(
       compilerArguments: buildSettings.compilerArguments,
       workingDirectory: buildSettings.workingDirectory
     )
   }
 
-  package func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse {
+  package func waitForUpBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
     return VoidResponse()
   }
 }

@@ -12,5 +12,16 @@
 
 import LanguageServerProtocol
 
-/// Notification sent from SourceKit-LSP to the build system to indicate that files within the project have been modified.
-public typealias DidChangeWatchedFilesNotification = LanguageServerProtocol.DidChangeWatchedFilesNotification
+public enum MessageType: Int, Sendable, Codable {
+  /// An error message.
+  case error = 1
+
+  /// A warning message.
+  case warning = 2
+
+  /// An information message.
+  case info = 3
+
+  /// A log message.
+  case log = 4
+}

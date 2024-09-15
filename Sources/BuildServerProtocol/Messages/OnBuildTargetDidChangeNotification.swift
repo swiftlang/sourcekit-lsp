@@ -15,7 +15,7 @@ import LanguageServerProtocol
 /// The build target changed notification is sent from the server to the client
 /// to signal a change in a build target. The server communicates during the
 /// initialize handshake whether this method is supported or not.
-public struct DidChangeBuildTargetNotification: NotificationType, Equatable {
+public struct OnBuildTargetDidChangeNotification: NotificationType, Equatable {
   public static let method: String = "buildTarget/didChange"
 
   /// **(BSP Extension)**
@@ -35,12 +35,17 @@ public struct BuildTargetEvent: Codable, Hashable, Sendable {
   public var kind: BuildTargetEventKind?
 
   /// Kind of data to expect in the `data` field. If this field is not set, the kind of data is not specified.
-  public var dataKind: String?
+  public var dataKind: BuildTargetEventDataKind?
 
   /// Any additional metadata about what information changed.
   public var data: LSPAny?
 
-  public init(target: BuildTargetIdentifier, kind: BuildTargetEventKind?, dataKind: String?, data: LSPAny?) {
+  public init(
+    target: BuildTargetIdentifier,
+    kind: BuildTargetEventKind?,
+    dataKind: BuildTargetEventDataKind?,
+    data: LSPAny?
+  ) {
     self.target = target
     self.kind = kind
     self.dataKind = dataKind
@@ -57,4 +62,12 @@ public enum BuildTargetEventKind: Int, Codable, Hashable, Sendable {
 
   /// The build target has been deleted.
   case deleted = 3
+}
+
+public struct BuildTargetEventDataKind: RawRepresentable, Codable, Hashable, Sendable {
+  public var rawValue: String
+
+  public init(rawValue: String) {
+    self.rawValue = rawValue
+  }
 }
