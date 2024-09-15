@@ -22,55 +22,7 @@ import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 
-#if canImport(os)
-import os
-#endif
-
-fileprivate class Cache<Key: Sendable & Hashable, Result: Sendable> {
-  private var storage: [Key: Task<Result, Error>] = [:]
-
-  func get(
-    _ key: Key,
-    isolation: isolated any Actor = #isolation,
-    compute: @Sendable @escaping (Key) async throws(Error) -> Result
-  ) async throws(Error) -> Result {
-    let task: Task<Result, Error>
-    if let cached = storage[key] {
-      task = cached
-    } else {
-      task = Task {
-        try await compute(key)
-      }
-      storage[key] = task
-    }
-    return try await task.value
-  }
-
-  func get(
-    whereKey keyPredicate: (Key) -> Bool,
-    isolation: isolated any Actor = #isolation,
-    transform: @Sendable @escaping (Result) -> Result
-  ) async throws -> Result? {
-    for (key, value) in storage {
-      if keyPredicate(key) {
-        return try await transform(value.value)
-      }
-    }
-    return nil
-  }
-
-  func clear(where condition: (Key) -> Bool, isolation: isolated any Actor = #isolation) {
-    for key in storage.keys {
-      if condition(key) {
-        storage[key] = nil
-      }
-    }
-  }
-
-  func clearAll(isolation: isolated any Actor = #isolation) {
-    storage.removeAll()
-  }
-}
+fileprivate typealias RequestCache<Request: RequestType & Hashable> = Cache<Request, Request.Response>
 
 package struct SourceFileInfo: Sendable {
   /// The targets that this source file is a member of
@@ -81,12 +33,10 @@ package struct SourceFileInfo: Sendable {
   package var isPartOfRootProject: Bool
 
   /// Whether the file might contain test cases. This property is an over-approximation. It might be true for files
-  /// from non-test targets or files that don't actually contain any tests. Keeping this list of files with
-  /// `mayContainTets` minimal as possible helps reduce the amount of work that the syntactic test indexer needs to
-  /// perform.
+  /// from non-test targets or files that don't actually contain any tests.
   package var mayContainTests: Bool
 
-  func merging(_ other: SourceFileInfo?) -> SourceFileInfo {
+  fileprivate func merging(_ other: SourceFileInfo?) -> SourceFileInfo {
     guard let other else {
       return self
     }
@@ -107,29 +57,41 @@ fileprivate extension SourceItem {
   }
 }
 
-/// `BuildSystem` that integrates client-side information such as main-file lookup as well as providing
-///  common functionality such as caching.
-///
-/// This `BuildSystem` combines settings from optional primary and fallback
-/// build systems. We assume the fallback system does not integrate with change
-/// notifications; at the moment the fallback must be a `FallbackBuildSystem` if
-/// present.
-///
-/// Since some `BuildSystem`s may require a bit of a time to compute their arguments asynchronously,
-/// this class has a configurable `buildSettings` timeout which denotes the amount of time to give
-/// the build system before applying the fallback arguments.
+fileprivate extension BuildTarget {
+  var sourceKitData: SourceKitBuildTarget? {
+    guard dataKind == .sourceKit, case .dictionary(let data) = data else {
+      return nil
+    }
+    return SourceKitBuildTarget(fromLSPDictionary: data)
+  }
+}
+
+/// Entry point for all build system queries.
 package actor BuildSystemManager: QueueBasedMessageHandler {
   package static let signpostLoggingCategory: String = "build-system-manager-message-handling"
 
-  /// The files for which the delegate has requested change notifications, ie.
-  /// the files for which the delegate wants to get `filesDependenciesUpdated`
-  /// callbacks if the file's build settings.
+  /// The queue on which messages from the build system are handled.
+  package let messageHandlingQueue = AsyncQueue<BuildSystemMessageDependencyTracker>()
+
+  /// The root of the project that this build system manages.
+  ///
+  /// For example, in SwiftPM packages this is the folder containing Package.swift.
+  /// For compilation databases it is the root folder based on which the compilation database was found.
+  ///
+  /// `nil` if the `BuildSystemManager` does not have an underlying build system.
+  package let projectRoot: AbsolutePath?
+
+  /// The files for which the delegate has requested change notifications, ie. the files for which the delegate wants to
+  /// get `fileBuildSettingsChanged` and `filesDependenciesUpdated` callbacks.
   private var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
 
   /// The underlying primary build system.
   ///
   /// - Important: The only time this should be modified is in the initializer. Afterwards, it must be constant.
   private var buildSystem: BuiltInBuildSystemAdapter?
+
+  /// The connection through which the `BuildSystemManager` can send requests to the build system.
+  private var connectionToBuildSystem: Connection?
 
   /// If the underlying build system is a `TestBuildSystem`, return it. Otherwise, `nil`
   ///
@@ -154,7 +116,15 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   private let options: SourceKitLSPOptions
 
   /// A task that stores the result of the `build/initialize` request once it is received.
-  private var initializeResult: Task<InitializeBuildResponse?, Never>!
+  ///
+  /// Force-unwrapped optional because initializing it requires access to `self`.
+  private var initializeResult: Task<InitializeBuildResponse?, Never>! {
+    didSet {
+      // Must only be set once
+      precondition(oldValue == nil)
+      precondition(initializeResult != nil)
+    }
+  }
 
   /// Debounces calls to `delegate.filesDependenciesUpdated`.
   ///
@@ -164,34 +134,37 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// `fileDependenciesUpdated` call once for every updated file within the target.
   ///
   /// Force-unwrapped optional because initializing it requires access to `self`.
-  private var filesDependenciesUpdatedDebouncer: Debouncer<Set<DocumentURI>>! = nil
+  private var filesDependenciesUpdatedDebouncer: Debouncer<Set<DocumentURI>>! = nil {
+    didSet {
+      // Must only be set once
+      precondition(oldValue == nil)
+      precondition(filesDependenciesUpdatedDebouncer != nil)
+    }
+  }
 
-  private var cachedSourceKitOptions = Cache<
-    TextDocumentSourceKitOptionsRequest, TextDocumentSourceKitOptionsResponse?
-  >()
+  private var cachedSourceKitOptions = RequestCache<TextDocumentSourceKitOptionsRequest>()
 
   private var cachedBuildTargets = Cache<
     WorkspaceBuildTargetsRequest, [BuildTargetIdentifier: (target: BuildTarget, depth: Int)]
   >()
 
-  private var cachedTargetSources = Cache<BuildTargetSourcesRequest, BuildTargetSourcesResponse>()
+  private var cachedTargetSources = RequestCache<BuildTargetSourcesRequest>()
 
+  /// The parameters with which `SourceFilesAndDirectories` can be cached in `cachedSourceFilesAndDirectories`.
   private struct SourceFilesAndDirectoriesKey: Hashable {
     let includeNonBuildableFiles: Bool
     let sourcesItems: [SourcesItem]
   }
 
   private struct SourceFilesAndDirectories {
+    /// The source files in the workspace, ie. all `SourceItem`s that have `kind == .file`.
     let files: [DocumentURI: SourceFileInfo]
+
+    /// The source directories in the workspace, ie. all `SourceItem`s that have `kind == .directory`.
     let directories: [DocumentURI: SourceFileInfo]
   }
 
   private let cachedSourceFilesAndDirectories = Cache<SourceFilesAndDirectoriesKey, SourceFilesAndDirectories>()
-
-  /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
-  /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
-  /// was found.
-  package let projectRoot: AbsolutePath?
 
   /// The `SourceKitInitializeBuildResponseData` received from the `build/initialize` request, if any.
   package var initializationData: SourceKitInitializeBuildResponseData? {
@@ -208,8 +181,6 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       return SourceKitInitializeBuildResponseData(fromLSPDictionary: data)
     }
   }
-
-  private var connectionToBuildSystem: Connection?
 
   package init(
     buildSystemKind: BuildSystemKind?,
@@ -245,10 +216,9 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         return
       }
       let changedWatchedFiles = await self.watchedFilesReferencing(mainFiles: filesWithUpdatedDependencies)
-      guard !changedWatchedFiles.isEmpty else {
-        return
+      if !changedWatchedFiles.isEmpty {
+        await delegate.filesDependenciesUpdated(changedWatchedFiles)
       }
-      await delegate.filesDependenciesUpdated(changedWatchedFiles)
     }
 
     // TODO: Forward file watch patterns from this initialize request to the client
@@ -258,14 +228,14 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         return nil
       }
       guard let buildSystemKind else {
-        logger.fault("Created build system without a build system kind?")
+        logger.fault("If we have a connectionToBuildSystem, we must have had a buildSystemKind")
         return nil
       }
       let initializeResponse = await orLog("Initializing build system") {
         try await connectionToBuildSystem.send(
           InitializeBuildRequest(
             displayName: "SourceKit-LSP",
-            version: "unknown",
+            version: "",
             bspVersion: "2.2.0",
             rootUri: URI(buildSystemKind.projectRoot.asURL),
             capabilities: BuildClientCapabilities(languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift])
@@ -278,7 +248,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   }
 
   deinit {
-    // Shut down the build server before closing the connection
+    // Shut down the build server before closing the connection to it
     Task { [connectionToBuildSystem] in
       guard let connectionToBuildSystem else {
         return
@@ -290,58 +260,25 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
   }
 
-  package func filesDidChange(_ events: [FileEvent]) async {
-    connectionToBuildSystem?.send(OnWatchedFilesDidChangeNotification(changes: events))
-
-    var targetsWithUpdatedDependencies: Set<BuildTargetIdentifier> = []
-    // If a Swift file within a target is updated, reload all the other files within the target since they might be
-    // referring to a function in the updated file.
-    let targetsWithChangedSwiftFiles =
-      await events
-      .filter { $0.uri.fileURL?.pathExtension == "swift" }
-      .asyncFlatMap { await self.targets(for: $0.uri) }
-    targetsWithUpdatedDependencies.formUnion(targetsWithChangedSwiftFiles)
-
-    // If a `.swiftmodule` file is updated, this means that we have performed a build / are
-    // performing a build and files that depend on this module have updated dependencies.
-    // We don't have access to the build graph from the SwiftPM API offered to SourceKit-LSP to figure out which files
-    // depend on the updated module, so assume that all files have updated dependencies.
-    // The file watching here is somewhat fragile as well because it assumes that the `.swiftmodule` files are being
-    // written to a directory within the workspace root. This is not necessarily true if the user specifies a build
-    // directory outside the source tree.
-    // If we have background indexing enabled, this is not necessary because we call `fileDependenciesUpdated` when
-    // preparation of a target finishes.
-    if !options.backgroundIndexingOrDefault,
-      events.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" })
-    {
-      await orLog("Getting build targets") {
-        targetsWithUpdatedDependencies.formUnion(try await self.buildTargets().keys)
-      }
-    }
-
-    var filesWithUpdatedDependencies: Set<DocumentURI> = []
-
-    await orLog("Getting source files in targets") {
-      let sourceFiles = try await self.sourceFiles(in: Set(targetsWithUpdatedDependencies))
-      filesWithUpdatedDependencies.formUnion(sourceFiles.flatMap(\.sources).map(\.uri))
-    }
-
-    if let mainFilesProvider {
-      var mainFiles = await Set(events.asyncFlatMap { await mainFilesProvider.mainFilesContainingFile($0.uri) })
-      mainFiles.subtract(events.map(\.uri))
-      filesWithUpdatedDependencies.formUnion(mainFiles)
-    }
-
-    await self.filesDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
+  /// - Note: Needed because `BuildSystemManager` is created before `Workspace` is initialized and `Workspace` needs to
+  ///   create the `BuildSystemManager`, then initialize itself and then set itself as the delegate.
+  package func setDelegate(_ delegate: BuildSystemManagerDelegate?) {
+    self.delegate = delegate
   }
 
-  package let messageHandlingQueue = AsyncQueue<BuildSystemMessageDependencyTracker>()
+  /// - Note: Needed because we need the `indexStorePath` and `indexDatabasePath` from the build system to create an
+  ///   IndexStoreDB, which serves as the `MainFilesProvider`. And thus this can't be set during initialization.
+  package func setMainFilesProvider(_ mainFilesProvider: MainFilesProvider?) {
+    self.mainFilesProvider = mainFilesProvider
+  }
+
+  // MARK: Handling messages from the build system
 
   package func handleImpl(_ notification: some NotificationType) async {
     switch notification {
     case let notification as OnBuildTargetDidChangeNotification:
       await self.didChangeBuildTarget(notification: notification)
-    case let notification as BuildServerProtocol.OnBuildLogMessageNotification:
+    case let notification as OnBuildLogMessageNotification:
       await self.logMessage(notification: notification)
     case let notification as BuildServerProtocol.WorkDoneProgress:
       await self.workDoneProgress(notification: notification)
@@ -359,6 +296,55 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
   }
 
+  private func didChangeBuildTarget(notification: OnBuildTargetDidChangeNotification) async {
+    let updatedTargets: Set<BuildTargetIdentifier>? =
+      if let changes = notification.changes {
+        Set(changes.map(\.target))
+      } else {
+        nil
+      }
+    self.cachedSourceKitOptions.clear { cacheKey in
+      guard let updatedTargets else {
+        // All targets might have changed
+        return true
+      }
+      return updatedTargets.contains(cacheKey.target)
+    }
+    self.cachedBuildTargets.clearAll()
+    self.cachedTargetSources.clear { cacheKey in
+      guard let updatedTargets else {
+        // All targets might have changed
+        return true
+      }
+      return !updatedTargets.intersection(cacheKey.targets).isEmpty
+    }
+    self.cachedSourceFilesAndDirectories.clearAll()
+
+    await delegate?.buildTargetsChanged(notification.changes)
+    await delegate?.fileBuildSettingsChanged(Set(watchedFiles.keys))
+  }
+
+  private func logMessage(notification: BuildServerProtocol.OnBuildLogMessageNotification) async {
+    let message =
+      if let taskID = notification.task?.id {
+        prefixMessageWithTaskEmoji(taskID: taskID, message: notification.message)
+      } else {
+        notification.message
+      }
+    delegate?.sendNotificationToClient(
+      LanguageServerProtocol.LogMessageNotification(type: .info, message: message, logName: "SourceKit-LSP: Indexing")
+    )
+  }
+
+  private func workDoneProgress(notification: BuildServerProtocol.WorkDoneProgress) async {
+    guard let delegate else {
+      logger.fault("Ignoring work done progress form build system because connection to client closed")
+      return
+    }
+    await delegate.waitUntilInitialized()
+    delegate.sendNotificationToClient(notification as LanguageServerProtocol.WorkDoneProgress)
+  }
+
   private func createWorkDoneProgress(
     request: BuildServerProtocol.CreateWorkDoneProgressRequest
   ) async throws -> BuildServerProtocol.CreateWorkDoneProgressRequest.Response {
@@ -372,19 +358,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     return try await delegate.sendRequestToClient(request as LanguageServerProtocol.CreateWorkDoneProgressRequest)
   }
 
-  private func workDoneProgress(notification: BuildServerProtocol.WorkDoneProgress) async {
-    guard let delegate else {
-      logger.fault("Ignoring work done progress form build system because connection to client closed")
-      return
-    }
-    await delegate.waitUntilInitialized()
-    delegate.sendNotificationToClient(notification as LanguageServerProtocol.WorkDoneProgress)
-  }
-
-  /// - Note: Needed so we can set the delegate from a different isolation context.
-  package func setDelegate(_ delegate: BuildSystemManagerDelegate?) {
-    self.delegate = delegate
-  }
+  // MARK: Build System queries
 
   /// Returns the toolchain that should be used to process the given document.
   package func toolchain(
@@ -401,10 +375,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         logger.error("Failed to find target \(target.forLogging) to determine toolchain")
         return nil
       }
-      guard target.dataKind == .sourceKit, case .dictionary(let data) = target.data else {
-        return nil
-      }
-      guard let toolchain = SourceKitBuildTarget(fromLSPDictionary: data).toolchain else {
+      guard let toolchain = target.sourceKitData?.toolchain else {
         return nil
       }
       guard let toolchainUrl = toolchain.fileURL else {
@@ -430,11 +401,6 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
   }
 
-  /// - Note: Needed so we can set the delegate from a different isolation context.
-  package func setMainFilesProvider(_ mainFilesProvider: MainFilesProvider?) {
-    self.mainFilesProvider = mainFilesProvider
-  }
-
   /// Ask the build system if it explicitly specifies a language for this document. Return `nil` if it does not.
   private func languageInferredFromBuildSystem(
     for document: DocumentURI,
@@ -444,10 +410,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     let sourceFiles = sourcesItems.flatMap(\.sources)
     var result: Language? = nil
     for sourceFile in sourceFiles {
-      guard sourceFile.uri == document, sourceFile.dataKind == .sourceKit, case .dictionary(let data) = sourceFile.data,
-        let sourceKitData = SourceKitSourceItemData(fromLSPDictionary: data),
-        let language = sourceKitData.language
-      else {
+      guard let language = sourceFile.sourceKitData?.language else {
         continue
       }
       if result != nil && result != language {
@@ -462,16 +425,13 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// Returns the language that a document should be interpreted in for background tasks where the editor doesn't
   /// specify the document's language.
   package func defaultLanguage(for document: DocumentURI, in target: BuildTargetIdentifier) async -> Language? {
-    let language = await orLog("Getting source files to determine default language") {
+    let languageFromBuildSystem = await orLog("Getting source files to determine default language") {
       try await languageInferredFromBuildSystem(for: document, in: target)
     }
-    if let language {
-      return language
-    }
-    return Language(inferredFromFileExtension: document)
+    return languageFromBuildSystem ?? Language(inferredFromFileExtension: document)
   }
 
-  /// Returns all the `ConfiguredTarget`s that the document is part of.
+  /// Returns all the targets that the document is part of.
   package func targets(for document: DocumentURI) async -> Set<BuildTargetIdentifier> {
     return await orLog("Getting targets for source file") {
       var result: Set<BuildTargetIdentifier> = []
@@ -486,7 +446,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
           guard let directoryPath = AbsolutePath(validatingOrNil: directory.fileURL?.path) else {
             continue
           }
-          if documentPath.isDescendantOfOrEqual(to: directoryPath) {
+          if documentPath.isDescendant(of: directoryPath) {
             result.formUnion(info.targets)
           }
         }
@@ -522,9 +482,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     case .objective_c:
       // Specified in the form -fmodule-name=MyLibrary
       guard
-        let moduleNameArgument = buildSettings.compilerArguments.last(where: {
-          $0.starts(with: "-fmodule-name=")
-        }),
+        let moduleNameArgument = buildSettings.compilerArguments.last(where: { $0.starts(with: "-fmodule-name=") }),
         let moduleName = moduleNameArgument.split(separator: "=").last
       else {
         return nil
@@ -538,12 +496,12 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// Returns the build settings for `document` from `buildSystem`.
   ///
   /// Implementation detail of `buildSettings(for:language:)`.
-  private func buildSettingsFromPrimaryBuildSystem(
+  private func buildSettingsFromBuildSystem(
     for document: DocumentURI,
-    in target: BuildTargetIdentifier?,
+    in target: BuildTargetIdentifier,
     language: Language
   ) async throws -> FileBuildSettings? {
-    guard let connectionToBuildSystem, let target else {
+    guard let connectionToBuildSystem else {
       return nil
     }
     let request = TextDocumentSourceKitOptionsRequest(textDocument: TextDocumentIdentifier(document), target: target)
@@ -568,6 +526,8 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
   /// Returns the build settings for the given file in the given target.
   ///
+  /// If no target is given, this always returns fallback build settings.
+  ///
   /// Only call this method if it is known that `document` is a main file. Prefer `buildSettingsInferredFromMainFile`
   /// otherwise. If `document` is a header file, this will most likely return fallback settings because header files
   /// don't have build settings by themselves.
@@ -577,11 +537,9 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     language: Language
   ) async -> FileBuildSettings? {
     do {
-      if let buildSettings = try await buildSettingsFromPrimaryBuildSystem(
-        for: document,
-        in: target,
-        language: language
-      ) {
+      if let target,
+        let buildSettings = try await buildSettingsFromBuildSystem(for: document, in: target, language: language)
+      {
         return buildSettings
       }
     } catch {
@@ -608,11 +566,10 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
   /// Returns the build settings for the given document.
   ///
-  /// If the document doesn't have builds settings by itself, eg. because it is
-  /// a C header file, the build settings will be inferred from the primary main
-  /// file of the document. In practice this means that we will compute the build
-  /// settings of a C file that includes the header and replace any file
-  /// references to that C file in the build settings by the header file.
+  /// If the document doesn't have builds settings by itself, eg. because it is a C header file, the build settings will
+  /// be inferred from the primary main file of the document. In practice this means that we will compute the build
+  /// settings of a C file that includes the header and replace any file references to that C file in the build settings
+  /// by the header file.
   package func buildSettingsInferredFromMainFile(
     for document: DocumentURI,
     language: Language
@@ -640,7 +597,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   }
 
   /// The root targets of the project have depth of 0 and all target dependencies have a greater depth than the target
-  // itself.
+  /// itself.
   private func targetDepths(for buildTargets: [BuildTarget]) -> [BuildTargetIdentifier: Int] {
     var nonRoots: Set<BuildTargetIdentifier> = []
     for buildTarget in buildTargets {
@@ -667,22 +624,26 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   ///
   /// This sorting is best effort but allows the indexer to prepare and index low-level targets first, which allows
   /// index data to be available earlier.
-  ///
-  /// `nil` if the build system doesn't support topological sorting of targets.
-  package func topologicalSort(of targets: [BuildTargetIdentifier]) async throws -> [BuildTargetIdentifier]? {
+  package func topologicalSort(of targets: [BuildTargetIdentifier]) async throws -> [BuildTargetIdentifier] {
     guard let buildTargets = await orLog("Getting build targets for topological sort", { try await buildTargets() })
     else {
-      return nil
+      return targets.sorted { $0.uri.stringValue < $1.uri.stringValue }
     }
 
     return targets.sorted { (lhs: BuildTargetIdentifier, rhs: BuildTargetIdentifier) -> Bool in
-      return (buildTargets[lhs]?.depth ?? 0) > (buildTargets[rhs]?.depth ?? 0)
+      let lhsDepth = buildTargets[lhs]?.depth ?? 0
+      let rhsDepth = buildTargets[rhs]?.depth ?? 0
+      if lhsDepth != rhsDepth {
+        return rhsDepth > lhsDepth
+      }
+      return lhs.uri.stringValue < rhs.uri.stringValue
     }
   }
 
   /// Returns the list of targets that might depend on the given target and that need to be re-prepared when a file in
   /// `target` is modified.
   package func targets(dependingOn targetIds: Set<BuildTargetIdentifier>) async -> [BuildTargetIdentifier] {
+    // TODO: We should also return transitive dependencies here (https://github.com/swiftlang/sourcekit-lsp/issues/1672)
     guard
       let buildTargets = await orLog("Getting build targets for dependencies", { try await self.buildTargets().values })
     else {
@@ -702,7 +663,6 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   }
 
   package func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
-    logger.debug("registerForChangeNotifications(\(uri.forLogging))")
     let mainFile = await mainFile(for: uri, language: language)
     self.watchedFiles[uri] = (mainFile, language)
   }
@@ -711,7 +671,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     self.watchedFiles[uri] = nil
   }
 
-  package func buildTargets() async throws -> [BuildTargetIdentifier: (target: BuildTarget, depth: Int)] {
+  private func buildTargets() async throws -> [BuildTargetIdentifier: (target: BuildTarget, depth: Int)] {
     guard let connectionToBuildSystem else {
       return [:]
     }
@@ -758,9 +718,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       return fromSuperset.items
     }
 
-    // Sort targets to help cache hits if we have two calls to `sourceFiles` with targets in different orders.
-    let sortedTargets = targets.sorted { $0.uri.stringValue < $1.uri.stringValue }
-    let request = BuildTargetSourcesRequest(targets: sortedTargets)
+    let request = BuildTargetSourcesRequest(targets: targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
     let response = try await cachedTargetSources.get(request) { request in
       try await connectionToBuildSystem.send(request)
     }
@@ -832,9 +790,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       return uri
     }
   }
-}
 
-extension BuildSystemManager {
   private func watchedFilesReferencing(mainFiles: Set<DocumentURI>) -> Set<DocumentURI> {
     return Set(
       watchedFiles.compactMap { (watchedFile, mainFileAndLanguage) in
@@ -845,82 +801,6 @@ extension BuildSystemManager {
         }
       }
     )
-  }
-
-  private func didChangeBuildTarget(notification: OnBuildTargetDidChangeNotification) async {
-    let updatedTargets: Set<BuildTargetIdentifier>? =
-      if let changes = notification.changes {
-        Set(changes.map(\.target))
-      } else {
-        nil
-      }
-    self.cachedSourceKitOptions.clear { cacheKey in
-      guard let updatedTargets else {
-        // All targets might have changed
-        return true
-      }
-      return updatedTargets.contains(cacheKey.target)
-    }
-    self.cachedBuildTargets.clearAll()
-    self.cachedTargetSources.clear { cacheKey in
-      guard let updatedTargets else {
-        // All targets might have changed
-        return true
-      }
-      return !updatedTargets.intersection(cacheKey.targets).isEmpty
-    }
-    self.cachedSourceFilesAndDirectories.clearAll()
-
-    await delegate?.buildTargetsChanged(notification.changes)
-    // FIXME: (BSP Migration) Communicate that the build target has changed to the `BuildSystemManagerDelegate` and make
-    // it responsible for figuring out which files are affected.
-    await delegate?.fileBuildSettingsChanged(Set(watchedFiles.keys))
-  }
-
-  private func logMessage(notification: BuildServerProtocol.OnBuildLogMessageNotification) async {
-    let message =
-      if let taskID = notification.task?.id {
-        prefixMessageWithTaskEmoji(taskID: taskID, message: notification.message)
-      } else {
-        notification.message
-      }
-    delegate?.sendNotificationToClient(
-      LanguageServerProtocol.LogMessageNotification(type: .info, message: message, logName: "SourceKit-LSP: Indexing")
-    )
-  }
-}
-
-extension BuildSystemManager {
-  /// Checks if there are any files in `mainFileAssociations` where the main file
-  /// that we have stored has changed.
-  ///
-  /// For all of these files, re-associate the file with the new main file and
-  /// inform the delegate that the build settings for it might have changed.
-  package func mainFilesChanged() async {
-    var changedMainFileAssociations: Set<DocumentURI> = []
-    for (file, (oldMainFile, language)) in self.watchedFiles {
-      let newMainFile = await self.mainFile(for: file, language: language, useCache: false)
-      if newMainFile != oldMainFile {
-        self.watchedFiles[file] = (newMainFile, language)
-        changedMainFileAssociations.insert(file)
-      }
-    }
-
-    for file in changedMainFileAssociations {
-      guard let language = watchedFiles[file]?.language else {
-        continue
-      }
-      // Re-register for notifications of this file within the build system.
-      // This is the easiest way to make sure we are watching for build setting
-      // changes of the new main file and stop watching for build setting
-      // changes in the old main file if no other watched file depends on it.
-      await self.unregisterForChangeNotifications(for: file)
-      await self.registerForChangeNotifications(for: file, language: language)
-    }
-
-    if let delegate, !changedMainFileAssociations.isEmpty {
-      await delegate.fileBuildSettingsChanged(changedMainFileAssociations)
-    }
   }
 
   /// Return the main file that should be used to get build settings for `uri`.
@@ -954,9 +834,6 @@ extension BuildSystemManager {
       return uri
     }
   }
-}
-
-extension BuildSystemManager {
 
   /// Returns the main file used for `uri`, if this is a registered file.
   ///
@@ -964,46 +841,83 @@ extension BuildSystemManager {
   package func cachedMainFile(for uri: DocumentURI) -> DocumentURI? {
     return self.watchedFiles[uri]?.mainFile
   }
-}
 
-// MARK: - Build settings logger
+  // MARK: Informing BuildSystemManager about changes
 
-/// Shared logger that only logs build settings for a file once unless they change
-package actor BuildSettingsLogger {
-  package static let shared = BuildSettingsLogger()
+  package func filesDidChange(_ events: [FileEvent]) async {
+    connectionToBuildSystem?.send(OnWatchedFilesDidChangeNotification(changes: events))
 
-  private var loggedSettings: [DocumentURI: FileBuildSettings] = [:]
+    var targetsWithUpdatedDependencies: Set<BuildTargetIdentifier> = []
+    // If a Swift file within a target is updated, reload all the other files within the target since they might be
+    // referring to a function in the updated file.
+    let targetsWithChangedSwiftFiles =
+      await events
+      .filter { Language(inferredFromFileExtension: $0.uri) == .swift }
+      .asyncFlatMap { await self.targets(for: $0.uri) }
+    targetsWithUpdatedDependencies.formUnion(targetsWithChangedSwiftFiles)
 
-  package func log(level: LogLevel = .default, settings: FileBuildSettings, for uri: DocumentURI) {
-    guard loggedSettings[uri] != settings else {
-      return
+    // If a `.swiftmodule` file is updated, this means that we have performed a build / are
+    // performing a build and files that depend on this module have updated dependencies.
+    // We don't have access to the build graph from the SwiftPM API offered to SourceKit-LSP to figure out which files
+    // depend on the updated module, so assume that all files have updated dependencies.
+    // The file watching here is somewhat fragile as well because it assumes that the `.swiftmodule` files are being
+    // written to a directory within the project root. This is not necessarily true if the user specifies a build
+    // directory outside the source tree.
+    // If we have background indexing enabled, this is not necessary because we call `fileDependenciesUpdated` when
+    // preparation of a target finishes.
+    if !options.backgroundIndexingOrDefault,
+      events.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" })
+    {
+      await orLog("Getting build targets") {
+        targetsWithUpdatedDependencies.formUnion(try await self.buildTargets().keys)
+      }
     }
-    loggedSettings[uri] = settings
-    Self.log(level: level, settings: settings, for: uri)
+
+    var filesWithUpdatedDependencies: Set<DocumentURI> = []
+
+    await orLog("Getting source files in targets") {
+      let sourceFiles = try await self.sourceFiles(in: Set(targetsWithUpdatedDependencies))
+      filesWithUpdatedDependencies.formUnion(sourceFiles.flatMap(\.sources).map(\.uri))
+    }
+
+    if let mainFilesProvider {
+      var mainFiles = await Set(events.asyncFlatMap { await mainFilesProvider.mainFilesContainingFile($0.uri) })
+      mainFiles.subtract(events.map(\.uri))
+      filesWithUpdatedDependencies.formUnion(mainFiles)
+    }
+
+    await self.filesDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
   }
 
-  /// Log the given build settings.
+  /// Checks if there are any files in `mainFileAssociations` where the main file
+  /// that we have stored has changed.
   ///
-  /// In contrast to the instance method `log`, this will always log the build settings. The instance method only logs
-  /// the build settings if they have changed.
-  package static func log(level: LogLevel = .default, settings: FileBuildSettings, for uri: DocumentURI) {
-    let log = """
-      Compiler Arguments:
-      \(settings.compilerArguments.joined(separator: "\n"))
+  /// For all of these files, re-associate the file with the new main file and
+  /// inform the delegate that the build settings for it might have changed.
+  package func mainFilesChanged() async {
+    var changedMainFileAssociations: Set<DocumentURI> = []
+    for (file, (oldMainFile, language)) in self.watchedFiles {
+      let newMainFile = await self.mainFile(for: file, language: language, useCache: false)
+      if newMainFile != oldMainFile {
+        self.watchedFiles[file] = (newMainFile, language)
+        changedMainFileAssociations.insert(file)
+      }
+    }
 
-      Working directory:
-      \(settings.workingDirectory ?? "<nil>")
-      """
+    for file in changedMainFileAssociations {
+      guard let language = watchedFiles[file]?.language else {
+        continue
+      }
+      // Re-register for notifications of this file within the build system.
+      // This is the easiest way to make sure we are watching for build setting
+      // changes of the new main file and stop watching for build setting
+      // changes in the old main file if no other watched file depends on it.
+      await self.unregisterForChangeNotifications(for: file)
+      await self.registerForChangeNotifications(for: file, language: language)
+    }
 
-    let chunks = splitLongMultilineMessage(message: log)
-    for (index, chunk) in chunks.enumerated() {
-      logger.log(
-        level: level,
-        """
-        Build settings for \(uri.forLogging) (\(index + 1)/\(chunks.count))
-        \(chunk)
-        """
-      )
+    if let delegate, !changedMainFileAssociations.isEmpty {
+      await delegate.fileBuildSettingsChanged(changedMainFileAssociations)
     }
   }
 }

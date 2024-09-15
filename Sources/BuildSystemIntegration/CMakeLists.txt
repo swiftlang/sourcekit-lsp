@@ -1,6 +1,7 @@
 
 add_library(BuildSystemIntegration STATIC
   BuildServerBuildSystem.swift
+  BuildSettingsLogger.swift
   BuildSystemManager.swift
   BuildSystemManagerDelegate.swift
   BuildSystemMessageDependencyTracker.swift
