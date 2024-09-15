@@ -115,6 +115,10 @@ package actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
     self.underlyingBuildSystem = buildSystem
   }
 
+  deinit {
+    connectionToSourceKitLSP.close()
+  }
+
   private func initialize(request: InitializeBuildRequest) async -> InitializeBuildResponse {
     return InitializeBuildResponse(
       displayName: "\(type(of: underlyingBuildSystem!))",

@@ -213,7 +213,6 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
   }
 
-  private let connectionFromBuildSystemToSourceKitLSP: LocalConnection
   private var connectionToBuildSystem: LocalConnection?
 
   package init(
@@ -226,7 +225,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     self.toolchainRegistry = toolchainRegistry
     self.options = options
     self.projectRoot = buildSystemKind?.projectRoot
-    connectionFromBuildSystemToSourceKitLSP = LocalConnection(receiverName: "BuildSystemManager")
+    let connectionFromBuildSystemToSourceKitLSP = LocalConnection(receiverName: "BuildSystemManager")
     connectionFromBuildSystemToSourceKitLSP.start(handler: self)
     self.buildSystem = await BuiltInBuildSystemAdapter(
       buildSystemKind: buildSystemKind,
@@ -269,7 +268,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         logger.fault("Created build system without a build system kind?")
         return nil
       }
-      return await orLog("Initializing build system") {
+      let initializeResponse = await orLog("Initializing build system") {
         try await connectionToBuildSystem.send(
           InitializeBuildRequest(
             displayName: "SourceKit-LSP",
@@ -280,12 +279,23 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
           )
         )
       }
+      connectionToBuildSystem.send(OnBuildInitializedNotification())
+      return initializeResponse
     }
   }
 
   deinit {
-    connectionFromBuildSystemToSourceKitLSP.close()
-    connectionToBuildSystem?.close()
+    // Shut down the build server before closing the connection
+    Task { [connectionToBuildSystem] in
+      guard let connectionToBuildSystem else {
+        return
+      }
+      await orLog("Sending shutdown request to build server") {
+        _ = try await connectionToBuildSystem.send(BuildShutdownRequest())
+        connectionToBuildSystem.send(OnBuildExitNotification())
+      }
+      connectionToBuildSystem.close()
+    }
   }
 
   package func filesDidChange(_ events: [FileEvent]) async {
