@@ -5,6 +5,7 @@ add_library(BuildSystemIntegration STATIC
   BuildSystemManager.swift
   BuildSystemManagerDelegate.swift
   BuildSystemMessageDependencyTracker.swift
+  BuildSystemTestHooks.swift
   BuildTargetIdentifierExtensions.swift
   BuiltInBuildSystem.swift
   BuiltInBuildSystemAdapter.swift

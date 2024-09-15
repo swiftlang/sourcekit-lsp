@@ -64,9 +64,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testNoToolchain() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -85,7 +84,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         try await SwiftPMBuildSystem(
           projectRoot: packageRoot,
           toolchainRegistry: ToolchainRegistry(toolchains: []),
-          fileSystem: fs,
           options: SourceKitLSPOptions(),
           connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
           testHooks: SwiftPMTestHooks()
@@ -96,9 +94,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
   func testBasicSwiftArgs() async throws {
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -117,7 +114,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
         connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
@@ -183,7 +179,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: localFileSystem,
         options: SourceKitLSPOptions(),
         connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
@@ -218,9 +213,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testBuildSetup() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -247,7 +241,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(swiftPM: options),
         connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
@@ -269,9 +262,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testDefaultSDKs() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -295,7 +287,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         projectRoot: tempDir.appending(component: "pkg"),
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(swiftPM: options),
         connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy"),
         testHooks: SwiftPMTestHooks()
@@ -310,9 +301,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testManifestArgs() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -331,7 +321,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
         connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
@@ -348,9 +337,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testMultiFileSwift() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -369,7 +357,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
         connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
@@ -391,9 +378,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testMultiTargetSwift() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/libA/a.swift": "",
@@ -419,7 +405,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
         connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
@@ -453,9 +438,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testUnknownFile() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/libA/a.swift": "",
@@ -475,7 +459,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
         connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
@@ -496,9 +479,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testBasicCXXArgs() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.cpp": "",
@@ -520,7 +502,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
         connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
@@ -582,9 +563,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testDeploymentTargetSwift() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -602,7 +582,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         projectRoot: packageRoot,
         toolchainRegistry: ToolchainRegistry.forTesting,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
         connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
@@ -628,9 +607,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testSymlinkInWorkspaceSwift() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg_real/Sources/lib/a.swift": "",
@@ -655,7 +633,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         projectRoot: XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: packageRoot, options: .testDefault())),
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
         connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
@@ -690,9 +667,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testSymlinkInWorkspaceCXX() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg_real/Sources/lib/a.cpp": "",
@@ -724,7 +700,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         projectRoot: XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: symlinkRoot, options: .testDefault())),
         toolchainRegistry: ToolchainRegistry.forTesting,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
         connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
@@ -743,9 +718,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testSwiftDerivedSources() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -765,7 +739,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
         connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
@@ -809,9 +782,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testPluginArgs() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Plugins/MyPlugin/a.swift": "",
@@ -834,7 +806,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
         connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()

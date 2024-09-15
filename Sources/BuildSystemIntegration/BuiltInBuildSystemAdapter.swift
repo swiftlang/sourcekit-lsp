@@ -58,13 +58,15 @@ private func createBuildSystem(
       connectionToSourceKitLSP: connectionToSourceKitLSP
     )
   case .swiftPM(let projectRoot):
-    return await SwiftPMBuildSystem(
-      projectRoot: projectRoot,
-      toolchainRegistry: toolchainRegistry,
-      options: options,
-      connectionToSourceKitLSP: connectionToSourceKitLSP,
-      testHooks: buildSystemTestHooks.swiftPMTestHooks
-    )
+    return await orLog("Creating SwiftPMBuildSystem") {
+      return try await SwiftPMBuildSystem(
+        projectRoot: projectRoot,
+        toolchainRegistry: toolchainRegistry,
+        options: options,
+        connectionToSourceKitLSP: connectionToSourceKitLSP,
+        testHooks: buildSystemTestHooks.swiftPMTestHooks
+      )
+    }
   case .testBuildSystem(let projectRoot):
     return TestBuildSystem(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
   }
