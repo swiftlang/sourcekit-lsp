@@ -16,6 +16,7 @@ import SKSupport
 import SKTestSupport
 import SemanticIndex
 import SourceKitLSP
+import SwiftExtensions
 import ToolchainRegistry
 import XCTest
 

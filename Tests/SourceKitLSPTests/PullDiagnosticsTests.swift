@@ -14,6 +14,7 @@ import LanguageServerProtocol
 import SKSupport
 import SKTestSupport
 import SourceKitLSP
+import SwiftExtensions
 import XCTest
 
 final class PullDiagnosticsTests: XCTestCase {

@@ -3,6 +3,7 @@ add_library(SwiftExtensions STATIC
   Array+Safe.swift
   AsyncQueue.swift
   AsyncUtils.swift
+  Atomics.swift
   CartesianProduct.swift
   Collection+Only.swift
   Collection+PartitionIntoBatches.swift
@@ -16,5 +17,9 @@ add_library(SwiftExtensions STATIC
 )
 set_target_properties(SwiftExtensions PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
+
+target_link_libraries(SwiftExtensions PUBLIC
+  CAtomics)
+
 target_link_libraries(SwiftExtensions PRIVATE
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)

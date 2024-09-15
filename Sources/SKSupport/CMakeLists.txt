@@ -1,7 +1,6 @@
 
 add_library(SKSupport STATIC
   AbsolutePath+Init.swift
-  Atomics.swift
   ByteString.swift
   Connection+Send.swift
   Debouncer.swift
@@ -20,10 +19,10 @@ target_link_libraries(SKSupport PUBLIC
   CAtomics
 )
 target_link_libraries(SKSupport PRIVATE
-  CAtomics
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
   SKLogging
+  SourceKitD
   SwiftExtensions
   TSCBasic
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)

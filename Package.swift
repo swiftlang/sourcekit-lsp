@@ -252,10 +252,10 @@ let package = Package(
     .target(
       name: "SKSupport",
       dependencies: [
-        "CAtomics",
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
         "SKLogging",
+        "SourceKitD",
         "SwiftExtensions",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
@@ -378,6 +378,7 @@ let package = Package(
 
     .target(
       name: "SwiftExtensions",
+      dependencies: ["CAtomics"],
       exclude: ["CMakeLists.txt"]
     ),
 

@@ -15,6 +15,7 @@ import LanguageServerProtocol
 import SKOptions
 import SKSupport
 import SourceKitLSP
+import SwiftExtensions
 import ToolchainRegistry
 
 /// Launches a `SourceKitLSPServer` in-process and allows sending messages to it.

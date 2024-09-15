@@ -10,7 +10,6 @@ add_library(SourceKitLSP STATIC
   LanguageService.swift
   MessageHandlingDependencyTracker.swift
   Rename.swift
-  ResponseError+Init.swift
   SemanticTokensLegend+SourceKitLSPLegend.swift
   SourceKitIndexDelegate.swift
   SourceKitLSPCommandMetadata.swift
