@@ -476,14 +476,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     if let language {
       return language
     }
-    switch document.fileURL?.pathExtension {
-    case "c": return .c
-    case "cpp", "cc", "cxx", "hpp": return .cpp
-    case "m": return .objective_c
-    case "mm", "h": return .objective_cpp
-    case "swift": return .swift
-    default: return nil
-    }
+    return Language(inferredFromFileExtension: document)
   }
 
   /// Returns all the `ConfiguredTarget`s that the document is part of.
@@ -634,7 +627,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     if mainFile != document {
       // If the main file isn't the file itself, we need to patch the build settings
       // to reference `document` instead of `mainFile`.
-      settings = settings.patching(newFile: document.pseudoPath, originalFile: mainFile.pseudoPath)
+      settings = settings.patching(newFile: document, originalFile: mainFile)
     }
     await BuildSettingsLogger.shared.log(settings: settings, for: document)
     return settings

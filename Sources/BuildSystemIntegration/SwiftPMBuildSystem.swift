@@ -614,7 +614,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       let buildSettings = FileBuildSettings(
         compilerArguments: try await compilerArguments(for: DocumentURI(substituteFile), in: swiftPMTarget),
         workingDirectory: projectRoot.pathString
-      ).patching(newFile: try resolveSymlinks(path).pathString, originalFile: substituteFile.absoluteString)
+      ).patching(newFile: DocumentURI(try resolveSymlinks(path).asURL), originalFile: DocumentURI(substituteFile))
       return TextDocumentSourceKitOptionsResponse(
         compilerArguments: buildSettings.compilerArguments,
         workingDirectory: buildSettings.workingDirectory
