@@ -1,18 +1,22 @@
 
 add_library(BuildSystemIntegration STATIC
   BuildServerBuildSystem.swift
-  BuildSystemDelegate.swift
+  BuildSettingsLogger.swift
   BuildSystemManager.swift
+  BuildSystemManagerDelegate.swift
+  BuildSystemMessageDependencyTracker.swift
+  BuildSystemTestHooks.swift
   BuildTargetIdentifierExtensions.swift
   BuiltInBuildSystem.swift
   BuiltInBuildSystemAdapter.swift
   CompilationDatabase.swift
   CompilationDatabaseBuildSystem.swift
-  FallbackBuildSystem.swift
+  FallbackBuildSettings.swift
   FileBuildSettings.swift
-  IndexTaskID.swift
+  Language+InferredFromFileExtension.swift
   MainFilesProvider.swift
   PathPrefixMapping.swift
+  PrefixMessageWithTaskEmoji.swift
   QueueBasedMessageHandler.swift
   SplitShellCommand.swift
   SwiftPMBuildSystem.swift

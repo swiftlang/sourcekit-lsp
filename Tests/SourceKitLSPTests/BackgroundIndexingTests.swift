@@ -748,8 +748,7 @@ final class BackgroundIndexingTests: XCTestCase {
     _ = try await project.testClient.nextNotification(
       ofType: LogMessageNotification.self,
       satisfying: { notification in
-        // FIXME: (BSP Migration) We should log the target name instead of target URI
-        return notification.message.contains("Preparing swiftpm://target?target=MyLibrary&destination=destination")
+        return notification.message.contains("Preparing MyLibrary")
       }
     )
     didReceivePreparationIndexLogMessage.signal()
@@ -952,7 +951,7 @@ final class BackgroundIndexingTests: XCTestCase {
 
     _ = try await project.testClient.nextNotification(
       ofType: LogMessageNotification.self,
-      satisfying: { $0.message.contains("Preparing swiftpm://target?target=MyLibrary&destination=destination") }
+      satisfying: { $0.message.contains("Preparing MyLibrary") }
     )
 
     // Opening the package manifest shouldn't cause any `swift build` calls to prepare them because they are not part of

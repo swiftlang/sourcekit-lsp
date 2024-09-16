@@ -326,7 +326,6 @@ package actor SourceKitLSPServer {
             return
           }
           if let oldWorkspace = oldWorkspace {
-            // FIXME: Can this cause race conditions?
             await self.closeDocument(
               DidCloseTextDocumentNotification(
                 textDocument: TextDocumentIdentifier(docUri)
@@ -799,18 +798,11 @@ extension SourceKitLSPServer: MessageHandler {
 }
 
 extension SourceKitLSPServer {
-  nonisolated package func logMessageToIndexLog(taskID: IndexTaskID, message: String) {
-    var message: Substring = message[...]
-    while message.last?.isNewline ?? false {
-      message = message.dropLast(1)
-    }
-    let messageWithEmojiLinePrefixes = message.split(separator: "\n", omittingEmptySubsequences: false).map {
-      "\(taskID.emojiRepresentation) \($0)"
-    }.joined(separator: "\n")
+  nonisolated package func logMessageToIndexLog(taskID: String, message: String) {
     self.sendNotificationToClient(
       LogMessageNotification(
         type: .info,
-        message: messageWithEmojiLinePrefixes,
+        message: prefixMessageWithTaskEmoji(taskID: taskID, message: message),
         logName: "SourceKit-LSP: Indexing"
       )
     )
@@ -1133,7 +1125,7 @@ extension SourceKitLSPServer {
     watchers.append(FileSystemWatcher(globPattern: "**/compile_commands.json", kind: [.create, .change, .delete]))
     watchers.append(FileSystemWatcher(globPattern: "**/compile_flags.txt", kind: [.create, .change, .delete]))
     // Watch for changes to `.swiftmodule` files to detect updated modules during a build.
-    // See comments in `SwiftPMBuildSystem.filesDidChange``
+    // See comments in `SwiftPMBuildSystem.filesDidChange`
     watchers.append(FileSystemWatcher(globPattern: "**/*.swiftmodule", kind: [.create, .change, .delete]))
     await registry.registerDidChangeWatchedFiles(watchers: watchers, server: self)
   }

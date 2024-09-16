@@ -9,24 +9,28 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
+
 import LanguageServerProtocol
 
 fileprivate let requestTypes: [_RequestType.Type] = [
-  BuildTargetOutputPaths.self,
-  BuildTargetsRequest.self,
+  BuildShutdownRequest.self,
+  BuildTargetPrepareRequest.self,
   BuildTargetSourcesRequest.self,
+  CreateWorkDoneProgressRequest.self,
   InitializeBuildRequest.self,
-  InverseSourcesRequest.self,
   RegisterForChanges.self,
-  ShutdownBuild.self,
-  SourceKitOptionsRequest.self,
+  TextDocumentSourceKitOptionsRequest.self,
+  WorkspaceWaitForBuildSystemUpdatesRequest.self,
+  WorkspaceBuildTargetsRequest.self,
 ]
 
 fileprivate let notificationTypes: [NotificationType.Type] = [
-  DidChangeBuildTargetNotification.self,
-  ExitBuildNotification.self,
+  OnBuildExitNotification.self,
   FileOptionsChangedNotification.self,
-  InitializedBuildNotification.self,
+  OnBuildInitializedNotification.self,
+  OnBuildLogMessageNotification.self,
+  OnBuildTargetDidChangeNotification.self,
+  OnWatchedFilesDidChangeNotification.self,
 ]
 
 public let bspRegistry = MessageRegistry(requests: requestTypes, notifications: notificationTypes)

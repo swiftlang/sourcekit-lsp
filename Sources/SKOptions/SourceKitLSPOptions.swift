@@ -132,15 +132,18 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, CustomLogString
     public var cCompilerFlags: [String]?
     public var cxxCompilerFlags: [String]?
     public var swiftCompilerFlags: [String]?
+    public var sdk: String?
 
     public init(
       cCompilerFlags: [String]? = nil,
       cxxCompilerFlags: [String]? = nil,
-      swiftCompilerFlags: [String]? = nil
+      swiftCompilerFlags: [String]? = nil,
+      sdk: String? = nil
     ) {
       self.cCompilerFlags = cCompilerFlags
       self.cxxCompilerFlags = cxxCompilerFlags
       self.swiftCompilerFlags = swiftCompilerFlags
+      self.sdk = sdk
     }
 
     static func merging(
@@ -150,7 +153,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, CustomLogString
       return FallbackBuildSystemOptions(
         cCompilerFlags: override?.cCompilerFlags ?? base.cCompilerFlags,
         cxxCompilerFlags: override?.cxxCompilerFlags ?? base.cxxCompilerFlags,
-        swiftCompilerFlags: override?.swiftCompilerFlags ?? base.swiftCompilerFlags
+        swiftCompilerFlags: override?.swiftCompilerFlags ?? base.swiftCompilerFlags,
+        sdk: override?.sdk ?? base.sdk
       )
     }
 

@@ -19,27 +19,6 @@ import ToolchainRegistry
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 
-package struct SourceFileInfo: Sendable {
-  /// The URI of the source file.
-  package let uri: DocumentURI
-
-  /// `true` if this file belongs to the root project that the user is working on. It is false, if the file belongs
-  /// to a dependency of the project.
-  package let isPartOfRootProject: Bool
-
-  /// Whether the file might contain test cases. This property is an over-approximation. It might be true for files
-  /// from non-test targets or files that don't actually contain any tests. Keeping this list of files with
-  /// `mayContainTets` minimal as possible helps reduce the amount of work that the syntactic test indexer needs to
-  /// perform.
-  package let mayContainTests: Bool
-
-  package init(uri: DocumentURI, isPartOfRootProject: Bool, mayContainTests: Bool) {
-    self.uri = uri
-    self.isPartOfRootProject = isPartOfRootProject
-    self.mayContainTests = mayContainTests
-  }
-}
-
 /// An error build systems can throw from `prepare` if they don't support preparation of targets.
 package struct PrepareNotSupportedError: Error, CustomStringConvertible {
   package init() {}
@@ -48,14 +27,6 @@ package struct PrepareNotSupportedError: Error, CustomStringConvertible {
 }
 
 /// Provider of FileBuildSettings and other build-related information.
-///
-/// The primary role of the build system is to answer queries for
-/// FileBuildSettings and to notify its delegate when they change. The
-/// BuildSystem is also the source of related information, such as where the
-/// index datastore is located.
-///
-/// For example, a SwiftPMWorkspace provides compiler arguments for the files
-/// contained in a SwiftPM package root directory.
 package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// When opening an LSP workspace at `workspaceFolder`, determine the directory in which a project of this build system
   /// starts. For example, a user might open the `Sources` folder of a SwiftPM project, then the project root is the
@@ -80,28 +51,25 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   var supportsPreparation: Bool { get }
 
   /// Returns all targets in the build system
-  func buildTargets(request: BuildTargetsRequest) async throws -> BuildTargetsResponse
+  func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse
 
   /// Returns all the source files in the given targets
   func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse
 
   /// Called when files in the project change.
-  func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async
-
-  /// Return the list of targets that the given document can be built for.
-  func inverseSources(request: InverseSourcesRequest) async throws -> InverseSourcesResponse
+  func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) async
 
   /// Prepare the given targets for indexing and semantic functionality. This should build all swift modules of target
   /// dependencies.
-  func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse
+  func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse
 
-  /// Retrieve build settings for the given document with the given source
-  /// language.
+  /// Retrieve build settings for the given document.
   ///
-  /// Returns `nil` if the build system can't provide build settings for this
-  /// file or if it hasn't computed build settings for the file yet.
-  func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse?
+  /// Returns `nil` if the build system can't provide build settings for this file.
+  func sourceKitOptions(
+    request: TextDocumentSourceKitOptionsRequest
+  ) async throws -> TextDocumentSourceKitOptionsResponse?
 
   /// Wait until the build graph has been loaded.
-  func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse
+  func waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse
 }

@@ -121,7 +121,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   private let indexFilesWithUpToDateUnit: Bool
 
   /// See `SemanticIndexManager.logMessageToIndexLog`.
-  private let logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
+  private let logMessageToIndexLog: @Sendable (_ taskID: String, _ message: String) -> Void
 
   /// How long to wait until we cancel an update indexstore task. This timeout should be long enough that all
   /// `swift-frontend` tasks finish within it. It prevents us from blocking the index if the type checker gets stuck on
@@ -154,7 +154,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     index: UncheckedIndex,
     indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>,
     indexFilesWithUpToDateUnit: Bool,
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: String, _ message: String) -> Void,
     timeout: Duration,
     testHooks: IndexTestHooks
   ) {
@@ -363,17 +363,17 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     defer {
       signposter.endInterval("Indexing", state)
     }
-    let logID = IndexTaskID.updateIndexStore(id: id)
+    let taskId = "indexing-\(id)"
     logMessageToIndexLog(
-      logID,
+      taskId,
       """
       Indexing \(indexFile.pseudoPath)
       \(processArguments.joined(separator: " "))
       """
     )
 
-    let stdoutHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
-    let stderrHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
+    let stdoutHandler = PipeAsStringHandler { logMessageToIndexLog(taskId, $0) }
+    let stderrHandler = PipeAsStringHandler { logMessageToIndexLog(taskId, $0) }
 
     let result: ProcessResult
     do {
@@ -388,11 +388,11 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         )
       }
     } catch {
-      logMessageToIndexLog(logID, "Finished error in \(start.duration(to: .now)): \(error)")
+      logMessageToIndexLog(taskId, "Finished error in \(start.duration(to: .now)): \(error)")
       throw error
     }
     let exitStatus = result.exitStatus.exhaustivelySwitchable
-    logMessageToIndexLog(logID, "Finished with \(exitStatus.description) in \(start.duration(to: .now))")
+    logMessageToIndexLog(taskId, "Finished with \(exitStatus.description) in \(start.duration(to: .now))")
     switch exitStatus {
     case .terminated(code: 0):
       break

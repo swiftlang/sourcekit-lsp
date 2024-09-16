@@ -10,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+public struct TextDocumentIdentifier: Codable, Sendable, Hashable {
+  /// The text document's URI.
+  public var uri: URI
 
-/// Notification sent from SourceKit-LSP to the build system to indicate that files within the project have been modified.
-public typealias DidChangeWatchedFilesNotification = LanguageServerProtocol.DidChangeWatchedFilesNotification
+  public init(_ uri: URI) {
+    self.uri = uri
+  }
+}

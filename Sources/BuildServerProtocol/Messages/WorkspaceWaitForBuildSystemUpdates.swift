@@ -12,19 +12,14 @@
 
 import LanguageServerProtocol
 
-public typealias OriginId = String
-
-public struct PrepareTargetsRequest: RequestType, Hashable {
-  public static let method: String = "buildTarget/prepare"
+/// This request is a no-op and doesn't have any effects.
+///
+/// If the build system is currently updating the build graph, this request should return after those updates have
+/// finished processing.
+public struct WorkspaceWaitForBuildSystemUpdatesRequest: RequestType, Hashable {
   public typealias Response = VoidResponse
 
-  /// A list of build targets to prepare.
-  public var targets: [BuildTargetIdentifier]
+  public static let method: String = "workspace/waitForBuildSystemUpdates"
 
-  public var originId: OriginId?
-
-  public init(targets: [BuildTargetIdentifier], originId: OriginId? = nil) {
-    self.targets = targets
-    self.originId = originId
-  }
+  public init() {}
 }

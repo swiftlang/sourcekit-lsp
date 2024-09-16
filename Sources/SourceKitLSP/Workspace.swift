@@ -166,16 +166,9 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       options: options,
       buildSystemTestHooks: testHooks.buildSystemTestHooks
     )
-    let buildSystem = await buildSystemManager.buildSystem?.underlyingBuildSystem
 
-    let buildSystemType =
-      if let buildSystem {
-        String(describing: type(of: buildSystem))
-      } else {
-        "<fallback build system>"
-      }
     logger.log(
-      "Created workspace at \(rootUri.forLogging) as \(buildSystemType, privacy: .public) with project root \(buildSystemKind?.projectRoot.pathString ?? "<nil>")"
+      "Created workspace at \(rootUri.forLogging) with project root \(buildSystemKind?.projectRoot.pathString ?? "<nil>")"
     )
 
     var index: IndexStoreDB? = nil
@@ -307,10 +300,8 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
 
   package func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {
     await sourceKitLSPServer?.fileHandlingCapabilityChanged()
-  }
-
-  package func logMessageToIndexLog(taskID: IndexTaskID, message: String) {
-    sourceKitLSPServer?.logMessageToIndexLog(taskID: taskID, message: message)
+    let testFiles = await orLog("Getting test files") { try await buildSystemManager.testFiles() } ?? []
+    await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
   }
 
   package var clientSupportsWorkDoneProgress: Bool {
@@ -339,11 +330,6 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
 
   package func waitUntilInitialized() async {
     await sourceKitLSPServer?.waitUntilInitialized()
-  }
-
-  package func sourceFilesDidChange() async {
-    let testFiles = await orLog("Getting test files") { try await buildSystemManager.testFiles() } ?? []
-    await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
   }
 }
 

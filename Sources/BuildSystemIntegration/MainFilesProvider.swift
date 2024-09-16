@@ -14,7 +14,6 @@ import LanguageServerProtocol
 
 /// A type that can provide the set of main files that include a particular file.
 package protocol MainFilesProvider: Sendable {
-
   /// Returns the set of main files that contain the given file.
   ///
   /// For example,

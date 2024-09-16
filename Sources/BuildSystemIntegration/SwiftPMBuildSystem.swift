@@ -51,6 +51,16 @@ package typealias SwiftBuildTarget = SourceKitLSPAPI.BuildTarget
 /// A build target in `BuildServerProtocol`
 package typealias BuildServerTarget = BuildServerProtocol.BuildTarget
 
+fileprivate extension Basics.Diagnostic.Severity {
+  var asLogLevel: LogLevel {
+    switch self {
+    case .error, .warning: return .default
+    case .info: return .info
+    case .debug: return .debug
+    }
+  }
+}
+
 fileprivate extension BuildDestination {
   /// A string that can be used to identify the build triple in a `BuildTargetIdentifier`.
   ///
@@ -125,20 +135,12 @@ extension BuildTargetIdentifier {
 }
 
 fileprivate extension TSCBasic.AbsolutePath {
-  var asURI: DocumentURI? {
+  var asURI: DocumentURI {
     DocumentURI(self.asURL)
   }
 }
 
 fileprivate let preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
-
-package struct BuildSystemTestHooks: Sendable {
-  package var swiftPMTestHooks: SwiftPMTestHooks
-
-  package init(swiftPMTestHooks: SwiftPMTestHooks = SwiftPMTestHooks()) {
-    self.swiftPMTestHooks = swiftPMTestHooks
-  }
-}
 
 package struct SwiftPMTestHooks: Sendable {
   package var reloadPackageDidStart: (@Sendable () async -> Void)?
@@ -155,14 +157,11 @@ package struct SwiftPMTestHooks: Sendable {
 
 /// Swift Package Manager build system and workspace support.
 ///
-/// This class implements the `BuildSystem` interface to provide the build settings for a Swift
+/// This class implements the `BuiltInBuildSystem` interface to provide the build settings for a Swift
 /// Package Manager (SwiftPM) package. The settings are determined by loading the Package.swift
 /// manifest using `libSwiftPM` and constructing a build plan using the default (debug) parameters.
-package actor SwiftPMBuildSystem {
+package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   package enum Error: Swift.Error {
-    /// Could not find a manifest (Package.swift file). This is not a package.
-    case noManifest(workspacePath: TSCAbsolutePath)
-
     /// Could not determine an appropriate toolchain for swiftpm to use for manifest loading.
     case cannotDetermineHostToolchain
   }
@@ -192,9 +191,8 @@ package actor SwiftPMBuildSystem {
   package let toolsBuildParameters: BuildParameters
   package let destinationBuildParameters: BuildParameters
 
-  private let fileSystem: FileSystem
   private let toolchain: Toolchain
-  private let workspace: Workspace
+  private let swiftPMWorkspace: Workspace
 
   /// A `ObservabilitySystem` from `SwiftPM` that logs.
   private let observabilitySystem = ObservabilitySystem({ scope, diagnostic in
@@ -248,14 +246,12 @@ package actor SwiftPMBuildSystem {
   package init(
     projectRoot: TSCAbsolutePath,
     toolchainRegistry: ToolchainRegistry,
-    fileSystem: FileSystem = localFileSystem,
     options: SourceKitLSPOptions,
     connectionToSourceKitLSP: any Connection,
     testHooks: SwiftPMTestHooks
   ) async throws {
     self.projectRoot = projectRoot
     self.options = options
-    self.fileSystem = fileSystem
     let toolchain = await toolchainRegistry.preferredToolchain(containing: [
       \.clang, \.clangd, \.sourcekitd, \.swift, \.swiftc,
     ])
@@ -280,22 +276,22 @@ package actor SwiftPMBuildSystem {
       customCompileTriple: options.swiftPMOrDefault.triple.map { try Triple($0) },
       swiftSDKSelector: options.swiftPMOrDefault.swiftSDK,
       store: SwiftSDKBundleStore(
-        swiftSDKsDirectory: fileSystem.getSharedSwiftSDKsDirectory(
+        swiftSDKsDirectory: localFileSystem.getSharedSwiftSDKsDirectory(
           explicitDirectory: options.swiftPMOrDefault.swiftSDKsDirectory.map { try AbsolutePath(validating: $0) }
         ),
-        fileSystem: fileSystem,
+        fileSystem: localFileSystem,
         observabilityScope: observabilitySystem.topScope,
         outputHandler: { _ in }
       ),
       observabilityScope: observabilitySystem.topScope,
-      fileSystem: fileSystem
+      fileSystem: localFileSystem
     )
 
     let destinationSwiftPMToolchain = try UserToolchain(swiftSDK: destinationSDK)
 
     var location = try Workspace.Location(
       forRootPackage: AbsolutePath(projectRoot),
-      fileSystem: fileSystem
+      fileSystem: localFileSystem
     )
     if options.backgroundIndexingOrDefault {
       location.scratchDirectory = AbsolutePath(projectRoot.appending(component: ".index-build"))
@@ -308,8 +304,8 @@ package actor SwiftPMBuildSystem {
     var configuration = WorkspaceConfiguration.default
     configuration.skipDependenciesUpdates = true
 
-    self.workspace = try Workspace(
-      fileSystem: fileSystem,
+    self.swiftPMWorkspace = try Workspace(
+      fileSystem: localFileSystem,
       location: location,
       configuration: configuration,
       customHostToolchain: hostSwiftPMToolchain,
@@ -367,35 +363,6 @@ package actor SwiftPMBuildSystem {
     }
   }
 
-  /// Creates a build system using the Swift Package Manager, if this workspace is a package.
-  ///
-  /// - Returns: nil if `workspacePath` is not part of a package or there is an error.
-  package init?(
-    projectRoot: TSCBasic.AbsolutePath,
-    toolchainRegistry: ToolchainRegistry,
-    options: SourceKitLSPOptions,
-    connectionToSourceKitLSP: any Connection,
-    testHooks: SwiftPMTestHooks
-  ) async {
-    do {
-      try await self.init(
-        projectRoot: projectRoot,
-        toolchainRegistry: toolchainRegistry,
-        fileSystem: localFileSystem,
-        options: options,
-        connectionToSourceKitLSP: connectionToSourceKitLSP,
-        testHooks: testHooks
-      )
-    } catch Error.noManifest {
-      return nil
-    } catch {
-      logger.error("Failed to create SwiftPMWorkspace at \(projectRoot.pathString): \(error.forLogging)")
-      return nil
-    }
-  }
-}
-
-extension SwiftPMBuildSystem {
   /// (Re-)load the package settings by parsing the manifest and resolving all the targets and
   /// dependencies.
   ///
@@ -416,7 +383,7 @@ extension SwiftPMBuildSystem {
       }
     }
 
-    let modulesGraph = try await self.workspace.loadPackageGraph(
+    let modulesGraph = try await self.swiftPMWorkspace.loadPackageGraph(
       rootInput: PackageGraphRootInput(packages: [AbsolutePath(projectRoot)]),
       forceResolvedVersions: !isForIndexBuild,
       observabilityScope: observabilitySystem.topScope
@@ -427,7 +394,7 @@ extension SwiftPMBuildSystem {
       toolsBuildParameters: toolsBuildParameters,
       graph: modulesGraph,
       disableSandbox: options.swiftPMOrDefault.disableSandbox ?? false,
-      fileSystem: fileSystem,
+      fileSystem: localFileSystem,
       observabilityScope: observabilitySystem.topScope
     )
     let buildDescription = BuildDescription(buildPlan: plan)
@@ -459,18 +426,9 @@ extension SwiftPMBuildSystem {
       swiftPMTargets[targetIdentifier] = buildTarget
     }
 
-    connectionToSourceKitLSP.send(DidChangeBuildTargetNotification(changes: nil))
+    connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
   }
-}
 
-fileprivate struct NonFileURIError: Error, CustomStringConvertible {
-  let uri: DocumentURI
-  var description: String {
-    "Trying to get build settings for non-file URI: \(uri)"
-  }
-}
-
-extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
   package nonisolated var supportsPreparation: Bool { true }
 
   package var buildPath: TSCAbsolutePath {
@@ -490,6 +448,13 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
   /// account for differences in the SwiftPM versions being linked into SwiftPM and being installed in the toolchain.
   private func compilerArguments(for file: DocumentURI, in buildTarget: any SwiftBuildTarget) async throws -> [String] {
     guard let fileURL = file.fileURL else {
+      struct NonFileURIError: Swift.Error, CustomStringConvertible {
+        let uri: DocumentURI
+        var description: String {
+          "Trying to get build settings for non-file URI: \(uri)"
+        }
+      }
+
       throw NonFileURIError(uri: file)
     }
     let compileArguments = try buildTarget.compileArguments(for: fileURL)
@@ -504,22 +469,22 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       return compileArguments
     }
     return compileArguments.map { argument in
-      if argument.hasSuffix("/Modules"), argument.contains(self.workspace.location.scratchDirectory.pathString) {
+      if argument.hasSuffix("/Modules"), argument.contains(self.swiftPMWorkspace.location.scratchDirectory.pathString) {
         return String(argument.dropLast(8))
       }
       return argument
     }
   }
 
-  package func buildTargets(request: BuildTargetsRequest) async throws -> BuildTargetsResponse {
-    let targets = self.swiftPMTargets.map { (targetId, target) in
+  package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
+    var targets = self.swiftPMTargets.map { (targetId, target) in
       var tags: [BuildTargetTag] = [.test]
       if !target.isPartOfRootPackage {
         tags.append(.dependency)
       }
       return BuildTarget(
         id: targetId,
-        displayName: nil,
+        displayName: target.name,
         baseDirectory: nil,
         tags: tags,
         capabilities: BuildTargetCapabilities(),
@@ -530,7 +495,18 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
         data: SourceKitBuildTarget(toolchain: toolchain.path?.asURI).encodeToLSPAny()
       )
     }
-    return BuildTargetsResponse(targets: targets)
+    targets.append(
+      BuildTarget(
+        id: .forPackageManifest,
+        displayName: "Package.swift",
+        baseDirectory: nil,
+        tags: [.notBuildable],
+        capabilities: BuildTargetCapabilities(),
+        languageIds: [.swift],
+        dependencies: []
+      )
+    )
+    return WorkspaceBuildTargetsResponse(targets: targets)
   }
 
   package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
@@ -538,18 +514,43 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     // TODO: Query The SwiftPM build system for the document's language and add it to SourceItem.data
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1267)
     for target in request.targets {
+      if target == .forPackageManifest {
+        result.append(
+          SourcesItem(
+            target: target,
+            sources: [
+              SourceItem(
+                uri: projectRoot.appending(component: "Package.swift").asURI,
+                kind: .file,
+                generated: false
+              )
+            ]
+          )
+        )
+      }
       guard let swiftPMTarget = self.swiftPMTargets[target] else {
         continue
       }
-      let sources = swiftPMTarget.sources.map {
+      var sources = swiftPMTarget.sources.map {
         SourceItem(uri: DocumentURI($0), kind: .file, generated: false)
+      }
+      sources += swiftPMTarget.headers.map {
+        SourceItem(
+          uri: DocumentURI($0),
+          kind: .file,
+          generated: false,
+          dataKind: .sourceKit,
+          data: SourceKitSourceItemData(isHeader: true).encodeToLSPAny()
+        )
       }
       result.append(SourcesItem(target: target, sources: sources))
     }
     return BuildTargetSourcesResponse(items: result)
   }
 
-  package func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse? {
+  package func sourceKitOptions(
+    request: TextDocumentSourceKitOptionsRequest
+  ) async throws -> TextDocumentSourceKitOptionsResponse? {
     guard let url = request.textDocument.uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
       // We can't determine build settings for non-file URIs.
       return nil
@@ -560,7 +561,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     }
 
     guard let swiftPMTarget = self.swiftPMTargets[request.target] else {
-      logger.fault("Did not find target \(request.target.forLogging)")
+      logger.error("Did not find target \(request.target.forLogging)")
       return nil
     }
 
@@ -578,14 +579,14 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       let buildSettings = FileBuildSettings(
         compilerArguments: try await compilerArguments(for: DocumentURI(substituteFile), in: swiftPMTarget),
         workingDirectory: projectRoot.pathString
-      ).patching(newFile: try resolveSymlinks(path).pathString, originalFile: substituteFile.absoluteString)
-      return SourceKitOptionsResponse(
+      ).patching(newFile: DocumentURI(try resolveSymlinks(path).asURL), originalFile: DocumentURI(substituteFile))
+      return TextDocumentSourceKitOptionsResponse(
         compilerArguments: buildSettings.compilerArguments,
         workingDirectory: buildSettings.workingDirectory
       )
     }
 
-    return SourceKitOptionsResponse(
+    return TextDocumentSourceKitOptionsResponse(
       compilerArguments: try await compilerArguments(for: request.textDocument.uri, in: swiftPMTarget),
       workingDirectory: projectRoot.pathString
     )
@@ -606,24 +607,18 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     if path.basename == "Package.swift"
       && projectRoot == (try? TSCBasic.resolveSymlinks(TSCBasic.AbsolutePath(path.parentDirectory)))
     {
-      // We use an empty target name to represent the package manifest since an empty target name is not valid for any
-      // user-defined target.
       return [BuildTargetIdentifier.forPackageManifest]
     }
 
     return []
   }
 
-  package func inverseSources(request: InverseSourcesRequest) -> InverseSourcesResponse {
-    return InverseSourcesResponse(targets: targets(for: request.textDocument.uri))
-  }
-
-  package func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse {
+  package func waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
     await self.packageLoadingQueue.async {}.valuePropagatingCancellation
     return VoidResponse()
   }
 
-  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
+  package func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
     // TODO: Support preparation of multiple targets at once. (https://github.com/swiftlang/sourcekit-lsp/issues/1262)
     for target in request.targets {
       await orLog("Preparing") { try await prepare(singleTarget: target) }
@@ -631,13 +626,9 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     return VoidResponse()
   }
 
-  private nonisolated func logMessageToIndexLog(_ taskID: IndexTaskID, _ message: String) {
+  private nonisolated func logMessageToIndexLog(_ taskID: TaskId, _ message: String) {
     connectionToSourceKitLSP.send(
-      BuildServerProtocol.LogMessageNotification(
-        type: .info,
-        task: TaskId(id: taskID.rawValue),
-        message: message
-      )
+      BuildServerProtocol.OnBuildLogMessageNotification(type: .info, task: taskID, message: message)
     )
   }
 
@@ -647,7 +638,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       return
     }
 
-    // TODO: Add a proper 'prepare' job in SwiftPM instead of building the target. (https://github.com/swiftlang/sourcekit-lsp/issues/1254)
     guard let swift = toolchain.swift else {
       logger.error(
         "Not preparing because toolchain at \(self.toolchain.identifier) does not contain a Swift compiler"
@@ -658,7 +648,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     var arguments = [
       swift.pathString, "build",
       "--package-path", projectRoot.pathString,
-      "--scratch-path", self.workspace.location.scratchDirectory.pathString,
+      "--scratch-path", self.swiftPMWorkspace.location.scratchDirectory.pathString,
       "--disable-index-store",
       "--target", try target.targetProperties.target,
     ]
@@ -682,17 +672,16 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     }
     let start = ContinuousClock.now
 
-    let logID = IndexTaskID.preparation(id: preparationTaskID.fetchAndIncrement())
-    // FIXME: (BSP Migration) log target name instead of target URI
+    let taskID: TaskId = TaskId(id: "preparation-\(preparationTaskID.fetchAndIncrement())")
     logMessageToIndexLog(
-      logID,
+      taskID,
       """
-      Preparing \(target.uri.stringValue)
+      Preparing \(self.swiftPMTargets[target]?.name ?? target.uri.stringValue)
       \(arguments.joined(separator: " "))
       """
     )
-    let stdoutHandler = PipeAsStringHandler { self.logMessageToIndexLog(logID, $0) }
-    let stderrHandler = PipeAsStringHandler { self.logMessageToIndexLog(logID, $0) }
+    let stdoutHandler = PipeAsStringHandler { self.logMessageToIndexLog(taskID, $0) }
+    let stderrHandler = PipeAsStringHandler { self.logMessageToIndexLog(taskID, $0) }
 
     let result = try await Process.run(
       arguments: arguments,
@@ -703,7 +692,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       )
     )
     let exitStatus = result.exitStatus.exhaustivelySwitchable
-    logMessageToIndexLog(logID, "Finished with \(exitStatus.description) in \(start.duration(to: .now))")
+    logMessageToIndexLog(taskID, "Finished with \(exitStatus.description) in \(start.duration(to: .now))")
     switch exitStatus {
     case .terminated(code: 0):
       break
@@ -770,7 +759,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     }
   }
 
-  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {
+  package func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) async {
     if notification.changes.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
       logger.log("Reloading package because of file change")
       await packageLoadingQueue.async {
@@ -782,18 +771,8 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
   }
 
   /// Retrieve settings for a package manifest (Package.swift).
-  private func settings(forPackageManifest path: AbsolutePath) throws -> SourceKitOptionsResponse? {
-    let compilerArgs = workspace.interpreterFlags(for: path.parentDirectory) + [path.pathString]
-    return SourceKitOptionsResponse(compilerArguments: compilerArgs)
-  }
-}
-
-extension Basics.Diagnostic.Severity {
-  var asLogLevel: LogLevel {
-    switch self {
-    case .error, .warning: return .default
-    case .info: return .info
-    case .debug: return .debug
-    }
+  private func settings(forPackageManifest path: AbsolutePath) throws -> TextDocumentSourceKitOptionsResponse? {
+    let compilerArgs = swiftPMWorkspace.interpreterFlags(for: path.parentDirectory) + [path.pathString]
+    return TextDocumentSourceKitOptionsResponse(compilerArguments: compilerArgs)
   }
 }

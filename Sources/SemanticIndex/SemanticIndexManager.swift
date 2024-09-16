@@ -176,7 +176,7 @@ package final actor SemanticIndexManager {
   private let indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
 
   /// Callback that is called when an indexing task produces output it wants to log to the index log.
-  private let logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
+  private let logMessageToIndexLog: @Sendable (_ taskID: String, _ message: String) -> Void
 
   /// Called when files are scheduled to be indexed.
   ///
@@ -219,7 +219,7 @@ package final actor SemanticIndexManager {
     updateIndexStoreTimeout: Duration,
     testHooks: IndexTestHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: String, _ message: String) -> Void,
     indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
     indexProgressStatusDidChange: @escaping @Sendable () -> Void
   ) {
@@ -270,7 +270,7 @@ package final actor SemanticIndexManager {
             filesToIndex
           } else {
             await orLog("Getting files to index") {
-              try await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
+              try await self.buildSystemManager.buildableSourceFiles().keys.sorted { $0.stringValue < $1.stringValue }
             } ?? []
           }
         if !indexFilesWithUpToDateUnit {
@@ -366,7 +366,7 @@ package final actor SemanticIndexManager {
     toCover files: some Collection<DocumentURI> & Sendable
   ) async -> [FileToIndex] {
     let sourceFiles = await orLog("Getting source files in project") {
-      Set(try await buildSystemManager.sourceFiles().map(\.uri))
+      Set(try await buildSystemManager.buildableSourceFiles().keys)
     }
     guard let sourceFiles else {
       return []

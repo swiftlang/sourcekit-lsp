@@ -16,13 +16,13 @@ import SKLogging
 import SKSupport
 import SwiftExtensions
 
-/// A `MessageHandler` that handles all messages on a serial queue.
+/// A `MessageHandler` that handles all messages on an `AsyncQueue`.
 ///
 /// This is a slightly simplified version of the message handling in `SourceKitLSPServer`, which does not set logging
 /// scopes, because the build system messages should still be logged in the scope of the original LSP request that
 /// triggered them.
 protocol QueueBasedMessageHandler: MessageHandler {
-  var messageHandlingQueue: AsyncQueue<Serial> { get }
+  var messageHandlingQueue: AsyncQueue<BuildSystemMessageDependencyTracker> { get }
 
   static var signpostLoggingCategory: String { get }
 
@@ -42,7 +42,7 @@ extension QueueBasedMessageHandler {
       .makeSignposter()
     let signpostID = signposter.makeSignpostID()
     let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: notification))")
-    messageHandlingQueue.async {
+    messageHandlingQueue.async(metadata: BuildSystemMessageDependencyTracker(notification)) {
       signposter.emitEvent("Start handling", id: signpostID)
       await self.handleImpl(notification)
       signposter.endInterval("Notification", state, "Done")
@@ -65,34 +65,11 @@ extension QueueBasedMessageHandler {
     let signpostID = signposter.makeSignpostID()
     let state = signposter.beginInterval("Request", id: signpostID, "\(Request.self)")
 
-    messageHandlingQueue.async {
+    messageHandlingQueue.async(metadata: BuildSystemMessageDependencyTracker(request)) {
       signposter.emitEvent("Start handling", id: signpostID)
       await withTaskCancellationHandler {
-        let startDate = Date()
-
         let requestAndReply = RequestAndReply(request) { result in
           reply(result)
-          let endDate = Date()
-          Task {
-            switch result {
-            case .success(let response):
-              logger.log(
-                """
-                Succeeded (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
-                \(Request.method, privacy: .public)
-                \(response.forLogging)
-                """
-              )
-            case .failure(let error):
-              logger.log(
-                """
-                Failed (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
-                \(Request.method, privacy: .public)(\(id, privacy: .public))
-                \(error.forLogging, privacy: .private)
-                """
-              )
-            }
-          }
         }
 
         await self.handleImpl(requestAndReply)

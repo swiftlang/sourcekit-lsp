@@ -40,7 +40,7 @@ package struct PreparationTaskDescription: IndexTaskDescription {
   private let preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier>
 
   /// See `SemanticIndexManager.logMessageToIndexLog`.
-  private let logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
+  private let logMessageToIndexLog: @Sendable (_ taskID: String, _ message: String) -> Void
 
   /// Test hooks that should be called when the preparation task finishes.
   private let testHooks: IndexTestHooks
@@ -62,7 +62,7 @@ package struct PreparationTaskDescription: IndexTaskDescription {
     targetsToPrepare: [BuildTargetIdentifier],
     buildSystemManager: BuildSystemManager,
     preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier>,
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: String, _ message: String) -> Void,
     testHooks: IndexTestHooks
   ) {
     self.targetsToPrepare = targetsToPrepare
@@ -100,10 +100,7 @@ package struct PreparationTaskDescription: IndexTaskDescription {
         signposter.endInterval("Preparing", state)
       }
       do {
-        try await buildSystemManager.prepare(
-          targets: targetsToPrepare,
-          logMessageToIndexLog: logMessageToIndexLog
-        )
+        try await buildSystemManager.prepare(targets: Set(targetsToPrepare))
       } catch {
         logger.error(
           "Preparation failed: \(error.forLogging)"

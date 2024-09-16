@@ -4,6 +4,7 @@ add_library(SwiftExtensions STATIC
   AsyncQueue.swift
   AsyncUtils.swift
   Atomics.swift
+  Cache.swift
   CartesianProduct.swift
   Collection+Only.swift
   Collection+PartitionIntoBatches.swift

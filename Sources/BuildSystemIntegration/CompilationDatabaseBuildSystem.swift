@@ -24,47 +24,79 @@ import protocol TSCBasic.FileSystem
 import struct TSCBasic.RelativePath
 import var TSCBasic.localFileSystem
 
+fileprivate enum Cachable<Value> {
+  case noValue
+  case value(Value)
+
+  mutating func get(_ compute: () -> Value) -> Value {
+    switch self {
+    case .noValue:
+      let value = compute()
+      self = .value(value)
+      return value
+    case .value(let value):
+      return value
+    }
+  }
+
+  mutating func reset() {
+    self = .noValue
+  }
+}
+
 /// A `BuildSystem` based on loading clang-compatible compilation database(s).
 ///
 /// Provides build settings from a `CompilationDatabase` found by searching a project. For now, only
 /// one compilation database, located at the project root.
-package actor CompilationDatabaseBuildSystem {
+package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
+  static package func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath? {
+    if tryLoadCompilationDatabase(directory: workspaceFolder) != nil {
+      return workspaceFolder
+    }
+    return nil
+  }
+
   /// The compilation database.
   var compdb: CompilationDatabase? = nil {
     didSet {
       // Build settings have changed and thus the index store path might have changed.
       // Recompute it on demand.
-      _indexStorePath = nil
+      _indexStorePath.reset()
     }
   }
 
-  package let connectionToSourceKitLSP: any Connection
+  private let connectionToSourceKitLSP: any Connection
+  private let searchPaths: [RelativePath]
+  private let fileSystem: FileSystem
 
   package let projectRoot: AbsolutePath
 
-  let searchPaths: [RelativePath]
-
-  let fileSystem: FileSystem
-
-  private var _indexStorePath: AbsolutePath?
+  private var _indexStorePath: Cachable<AbsolutePath?> = .noValue
   package var indexStorePath: AbsolutePath? {
-    if let indexStorePath = _indexStorePath {
-      return indexStorePath
-    }
+    _indexStorePath.get {
+      guard let compdb else {
+        return nil
+      }
 
-    if let allCommands = self.compdb?.allCommands {
-      for command in allCommands {
-        let args = command.commandLine
-        for i in args.indices.reversed() {
-          if args[i] == "-index-store-path" && i != args.endIndex - 1 {
-            _indexStorePath = try? AbsolutePath(validating: args[i + 1])
-            return _indexStorePath
+      for sourceItem in compdb.sourceItems {
+        for command in compdb[sourceItem.uri] {
+          let args = command.commandLine
+          for i in args.indices.reversed() {
+            if args[i] == "-index-store-path" && i + 1 < args.count {
+              return AbsolutePath(validatingOrNil: args[i + 1])
+            }
           }
         }
       }
+      return nil
     }
-    return nil
   }
+
+  package var indexDatabasePath: AbsolutePath? {
+    indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
+  }
+
+  package nonisolated var supportsPreparation: Bool { false }
 
   package init?(
     projectRoot: AbsolutePath,
@@ -82,24 +114,9 @@ package actor CompilationDatabaseBuildSystem {
       return nil
     }
   }
-}
 
-extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
-  static package func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath? {
-    if tryLoadCompilationDatabase(directory: workspaceFolder) != nil {
-      return workspaceFolder
-    }
-    return nil
-  }
-
-  package nonisolated var supportsPreparation: Bool { false }
-
-  package var indexDatabasePath: AbsolutePath? {
-    indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
-  }
-
-  package func buildTargets(request: BuildTargetsRequest) async throws -> BuildTargetsResponse {
-    return BuildTargetsResponse(targets: [
+  package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
+    return WorkspaceBuildTargetsResponse(targets: [
       BuildTarget(
         id: .dummy,
         displayName: nil,
@@ -114,70 +131,36 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
   }
 
   package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
-    guard request.targets.contains(.dummy) else {
+    guard request.targets.contains(.dummy), let compdb else {
       return BuildTargetSourcesResponse(items: [])
     }
-    guard let compdb else {
-      return BuildTargetSourcesResponse(items: [])
-    }
-    let sources = compdb.allCommands.map {
-      SourceItem(uri: $0.uri, kind: .file, generated: false)
-    }
-    return BuildTargetSourcesResponse(items: [SourcesItem(target: .dummy, sources: sources)])
+    return BuildTargetSourcesResponse(items: [SourcesItem(target: .dummy, sources: compdb.sourceItems)])
   }
 
-  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) {
+  package func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) {
     if notification.changes.contains(where: { self.fileEventShouldTriggerCompilationDatabaseReload(event: $0) }) {
       self.reloadCompilationDatabase()
     }
   }
 
-  package func inverseSources(request: InverseSourcesRequest) -> InverseSourcesResponse {
-    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
-  }
-
-  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
+  package func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
     throw PrepareNotSupportedError()
   }
 
-  package func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse? {
-    guard let db = database(for: request.textDocument.uri), let cmd = db[request.textDocument.uri].first else {
+  package func sourceKitOptions(
+    request: TextDocumentSourceKitOptionsRequest
+  ) async throws -> TextDocumentSourceKitOptionsResponse? {
+    guard let compdb, let cmd = compdb[request.textDocument.uri].first else {
       return nil
     }
-    return SourceKitOptionsResponse(
+    return TextDocumentSourceKitOptionsResponse(
       compilerArguments: Array(cmd.commandLine.dropFirst()),
       workingDirectory: cmd.directory
     )
   }
 
-  package func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse {
+  package func waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
     return VoidResponse()
-  }
-
-  private func database(for uri: DocumentURI) -> CompilationDatabase? {
-    if let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) {
-      return database(for: path)
-    }
-    return compdb
-  }
-
-  private func database(for path: AbsolutePath) -> CompilationDatabase? {
-    if compdb == nil {
-      var dir = path
-      while !dir.isRoot {
-        dir = dir.parentDirectory
-        if let db = tryLoadCompilationDatabase(directory: dir, additionalSearchPaths: searchPaths, fileSystem) {
-          compdb = db
-          break
-        }
-      }
-    }
-
-    if compdb == nil {
-      logger.error("Could not open compilation database for \(path)")
-    }
-
-    return compdb
   }
 
   private func fileEventShouldTriggerCompilationDatabaseReload(event: FileEvent) -> Bool {
@@ -198,6 +181,6 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
       self.fileSystem
     )
 
-    connectionToSourceKitLSP.send(DidChangeBuildTargetNotification(changes: nil))
+    connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
   }
 }

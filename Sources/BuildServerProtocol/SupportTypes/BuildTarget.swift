@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -12,25 +12,17 @@
 
 import LanguageServerProtocol
 
-public typealias URI = DocumentURI
-
-/// The workspace build targets request is sent from the client to the server to
-/// ask for the list of all available build targets in the workspace.
-public struct BuildTargetsRequest: RequestType, Hashable {
-  public static let method: String = "workspace/buildTargets"
-  public typealias Response = BuildTargetsResponse
-
-  public init() {}
-}
-
-public struct BuildTargetsResponse: ResponseType, Hashable {
-  public var targets: [BuildTarget]
-
-  public init(targets: [BuildTarget]) {
-    self.targets = targets
-  }
-}
-
+/// Build target contains metadata about an artifact (for example library, test, or binary artifact).
+/// Using vocabulary of other build tools:
+/// - sbt: a build target is a combined project + config. Example:
+///   - a regular JVM project with main and test configurations will have 2 build targets, one for main and one for test.
+///   - a single configuration in a single project that contains both Java and Scala sources maps to one BuildTarget.
+///    - a project with crossScalaVersions 2.11 and 2.12 containing main and test configuration in each will have 4 build targets.
+///   - a Scala 2.11 and 2.12 cross-built project for Scala.js and the JVM with main and test configurations will have 8 build targets.
+/// - Pants: a pants target corresponds one-to-one with a BuildTarget
+/// - Bazel: a bazel target corresponds one-to-one with a BuildTarget
+///
+/// The general idea is that the BuildTarget data structure should contain only information that is fast or cheap to compute
 public struct BuildTarget: Codable, Hashable, Sendable {
   /// The target’s unique identifier
   public var id: BuildTargetIdentifier
@@ -44,7 +36,7 @@ public struct BuildTarget: Codable, Hashable, Sendable {
   /// The directory where this target belongs to. Multiple build targets are
   /// allowed to map to the same base directory, and a build target is not
   /// required to have a base directory. A base directory does not determine the
-  /// sources of a target, see buildTarget/sources.
+  /// sources of a target, see `buildTarget/sources`.
   public var baseDirectory: URI?
 
   /// Free-form string tags to categorize or label this build target.
@@ -97,7 +89,11 @@ public struct BuildTarget: Codable, Hashable, Sendable {
   }
 }
 
+/// A unique identifier for a target, can use any URI-compatible encoding as long as it is unique within the workspace.
+/// Clients should not infer metadata out of the URI structure such as the path or query parameters, use `BuildTarget`
+/// instead.
 public struct BuildTargetIdentifier: Codable, Hashable, Sendable {
+  /// The target's Uri
   public var uri: URI
 
   public init(uri: URI) {
@@ -105,6 +101,9 @@ public struct BuildTargetIdentifier: Codable, Hashable, Sendable {
   }
 }
 
+public typealias URI = DocumentURI
+
+/// A list of predefined tags that can be used to categorize build targets.
 public struct BuildTargetTag: Codable, Hashable, RawRepresentable, Sendable {
   public var rawValue: String
 
@@ -150,8 +149,16 @@ public struct BuildTargetTag: Codable, Hashable, RawRepresentable, Sendable {
   ///
   /// **(BSP Extension)**
   public static let dependency: Self = Self(rawValue: "dependency")
+
+  /// This target only exists to provide compiler arguments for SourceKit-LSP can't be built standalone.
+  ///
+  /// For example, a SwiftPM package manifest is in a non-buildable target.
+  ///
+  /// **(BSP Extension)**
+  public static let notBuildable: Self = Self(rawValue: "not-buildable")
 }
 
+/// Clients can use these capabilities to notify users what BSP endpoints can and cannot be used and why.
 public struct BuildTargetCapabilities: Codable, Hashable, Sendable {
   /// This target can be compiled by the BSP server.
   public var canCompile: Bool?
@@ -227,28 +234,4 @@ public struct SourceKitBuildTarget: LSPAnyCodable, Codable {
     }
     return .dictionary(result)
   }
-}
-
-/// The build target output paths request is sent from the client to the server
-/// to query for the list of compilation output paths for a targets sources.
-public struct BuildTargetOutputPaths: RequestType, Hashable {
-  public static let method: String = "buildTarget/outputPaths"
-  public typealias Response = BuildTargetOutputPathsResponse
-
-  public var targets: [BuildTargetIdentifier]
-
-  public init(targets: [BuildTargetIdentifier]) {
-    self.targets = targets
-  }
-}
-
-public struct BuildTargetOutputPathsResponse: ResponseType, Hashable {
-  public var items: [OutputsItem]
-}
-
-public struct OutputsItem: Codable, Hashable, Sendable {
-  public var target: BuildTargetIdentifier
-
-  /// The output paths for sources that belong to this build target.
-  public var outputPaths: [URI]
 }

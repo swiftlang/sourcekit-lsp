@@ -31,11 +31,11 @@ package actor TestBuildSystem: BuiltInBuildSystem {
   private let connectionToSourceKitLSP: any Connection
 
   /// Build settings by file.
-  private var buildSettingsByFile: [DocumentURI: SourceKitOptionsResponse] = [:]
+  private var buildSettingsByFile: [DocumentURI: TextDocumentSourceKitOptionsResponse] = [:]
 
-  package func setBuildSettings(for uri: DocumentURI, to buildSettings: SourceKitOptionsResponse?) {
+  package func setBuildSettings(for uri: DocumentURI, to buildSettings: TextDocumentSourceKitOptionsResponse?) {
     buildSettingsByFile[uri] = buildSettings
-    connectionToSourceKitLSP.send(DidChangeBuildTargetNotification(changes: nil))
+    connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
   }
 
   package nonisolated var supportsPreparation: Bool { false }
@@ -48,33 +48,42 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
   }
 
-  package func buildTargets(request: BuildTargetsRequest) async throws -> BuildTargetsResponse {
-    return BuildTargetsResponse(targets: [])
+  package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
+    return WorkspaceBuildTargetsResponse(targets: [
+      BuildTarget(
+        id: .dummy,
+        displayName: nil,
+        baseDirectory: nil,
+        tags: [],
+        capabilities: BuildTargetCapabilities(),
+        languageIds: [],
+        dependencies: []
+      )
+    ])
   }
 
   package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
-    return BuildTargetSourcesResponse(items: [])
+    return BuildTargetSourcesResponse(items: [
+      SourcesItem(
+        target: .dummy,
+        sources: buildSettingsByFile.keys.map { SourceItem(uri: $0, kind: .file, generated: false) }
+      )
+    ])
   }
 
-  package func didChangeWatchedFiles(notification: BuildServerProtocol.DidChangeWatchedFilesNotification) async {}
+  package func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) async {}
 
-  package func inverseSources(request: InverseSourcesRequest) -> InverseSourcesResponse {
-    return InverseSourcesResponse(targets: [BuildTargetIdentifier.dummy])
-  }
-
-  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
+  package func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
     throw PrepareNotSupportedError()
   }
 
-  package func sourceKitOptions(request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse? {
+  package func sourceKitOptions(
+    request: TextDocumentSourceKitOptionsRequest
+  ) async throws -> TextDocumentSourceKitOptionsResponse? {
     return buildSettingsByFile[request.textDocument.uri]
   }
 
-  package func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse {
+  package func waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
     return VoidResponse()
-  }
-
-  package func topologicalSort(of targets: [BuildTargetIdentifier]) -> [BuildTargetIdentifier]? {
-    return nil
   }
 }

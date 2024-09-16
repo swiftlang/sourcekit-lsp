@@ -22,7 +22,7 @@ import XCTest
 
 fileprivate extension BuildSystemManager {
   func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
-    handle(DidChangeBuildTargetNotification(changes: nil))
+    handle(OnBuildTargetDidChangeNotification(changes: nil))
   }
 }
 
@@ -107,11 +107,11 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
+    let bs = try await unwrap(bsm.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
-    await bs.setBuildSettings(for: a, to: SourceKitOptionsResponse(compilerArguments: ["x"]))
+    await bs.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
     // Wait for the new build settings to settle before registering for change notifications
     await bsm.waitForUpToDateBuildGraph()
     await bsm.registerForChangeNotifications(for: a, language: .swift)
@@ -119,7 +119,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let changed = expectation(description: "changed settings")
     await del.setExpected([
-      (a, .swift, FallbackBuildSystem(options: .init()).buildSettings(for: a, language: .swift), changed)
+      (a, .swift, fallbackBuildSettings(for: a, language: .swift, options: .init()), changed)
     ])
     await bs.setBuildSettings(for: a, to: nil)
     try await fulfillmentOfOrThrow([changed])
@@ -135,14 +135,14 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
+    let bs = try await unwrap(bsm.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
     await bsm.registerForChangeNotifications(for: a, language: .swift)
 
     let changed = expectation(description: "changed settings")
     await del.setExpected([(a, .swift, FileBuildSettings(compilerArguments: ["x"]), changed)])
-    await bs.setBuildSettings(for: a, to: SourceKitOptionsResponse(compilerArguments: ["x"]))
+    await bs.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
     try await fulfillmentOfOrThrow([changed])
   }
 
@@ -156,16 +156,19 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
+    let bs = try await unwrap(bsm.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
-    let fallbackSettings = await FallbackBuildSystem(options: .init()).buildSettings(for: a, language: .swift)
+    let fallbackSettings = fallbackBuildSettings(for: a, language: .swift, options: .init())
     await bsm.registerForChangeNotifications(for: a, language: .swift)
     assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), fallbackSettings)
 
     let changed = expectation(description: "changed settings")
     await del.setExpected([(a, .swift, FileBuildSettings(compilerArguments: ["non-fallback", "args"]), changed)])
-    await bs.setBuildSettings(for: a, to: SourceKitOptionsResponse(compilerArguments: ["non-fallback", "args"]))
+    await bs.setBuildSettings(
+      for: a,
+      to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["non-fallback", "args"])
+    )
     try await fulfillmentOfOrThrow([changed])
 
     let revert = expectation(description: "revert to fallback settings")
@@ -193,12 +196,12 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
+    let bs = try await unwrap(bsm.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
-    await bs.setBuildSettings(for: cpp1, to: SourceKitOptionsResponse(compilerArguments: ["C++ 1"]))
-    await bs.setBuildSettings(for: cpp2, to: SourceKitOptionsResponse(compilerArguments: ["C++ 2"]))
+    await bs.setBuildSettings(for: cpp1, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["C++ 1"]))
+    await bs.setBuildSettings(for: cpp2, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["C++ 2"]))
 
     // Wait for the new build settings to settle before registering for change notifications
     await bsm.waitForUpToDateBuildGraph()
@@ -229,7 +232,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let changed4 = expectation(description: "changed settings to []")
     await del.setExpected([
-      (h, .c, FallbackBuildSystem(options: .init()).buildSettings(for: h, language: .cpp), changed4)
+      (h, .c, fallbackBuildSettings(for: h, language: .cpp, options: .init()), changed4)
     ])
     await bsm.mainFilesChanged()
     try await fulfillmentOfOrThrow([changed4])
@@ -253,12 +256,15 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
+    let bs = try await unwrap(bsm.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
     let cppArg = "C++ Main File"
-    await bs.setBuildSettings(for: cpp, to: SourceKitOptionsResponse(compilerArguments: [cppArg, cpp.pseudoPath]))
+    await bs.setBuildSettings(
+      for: cpp,
+      to: TextDocumentSourceKitOptionsResponse(compilerArguments: [cppArg, cpp.pseudoPath])
+    )
 
     // Wait for the new build settings to settle before registering for change notifications
     await bsm.waitForUpToDateBuildGraph()
@@ -280,61 +286,11 @@ final class BuildSystemManagerTests: XCTestCase {
       (h1, .c, newArgsH1, changed1),
       (h2, .c, newArgsH2, changed2),
     ])
-    await bs.setBuildSettings(for: cpp, to: SourceKitOptionsResponse(compilerArguments: [newCppArg, cpp.pseudoPath]))
-    try await fulfillmentOfOrThrow([changed1, changed2])
-  }
-
-  func testSettingsChangedAfterUnregister() async throws {
-    let a = try DocumentURI(string: "bsm:a.swift")
-    let b = try DocumentURI(string: "bsm:b.swift")
-    let c = try DocumentURI(string: "bsm:c.swift")
-    let mainFiles = ManualMainFilesProvider([a: [a], b: [b], c: [c]])
-    let bsm = await BuildSystemManager(
-      buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
-      toolchainRegistry: ToolchainRegistry.forTesting,
-      options: SourceKitLSPOptions(),
-      buildSystemTestHooks: BuildSystemTestHooks()
+    await bs.setBuildSettings(
+      for: cpp,
+      to: TextDocumentSourceKitOptionsResponse(compilerArguments: [newCppArg, cpp.pseudoPath])
     )
-    await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
-    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
-
-    await bs.setBuildSettings(for: a, to: SourceKitOptionsResponse(compilerArguments: ["a"]))
-    await bs.setBuildSettings(for: b, to: SourceKitOptionsResponse(compilerArguments: ["b"]))
-    await bs.setBuildSettings(for: c, to: SourceKitOptionsResponse(compilerArguments: ["c"]))
-
-    // Wait for the new build settings to settle before registering for change notifications
-    await bsm.waitForUpToDateBuildGraph()
-
-    await bsm.registerForChangeNotifications(for: a, language: .swift)
-    await bsm.registerForChangeNotifications(for: b, language: .swift)
-    await bsm.registerForChangeNotifications(for: c, language: .swift)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.compilerArguments, ["a"])
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: b, language: .swift)?.compilerArguments, ["b"])
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: c, language: .swift)?.compilerArguments, ["c"])
-
-    // FIXME: (BSP migration) No build settings of watched files change when we call `setBuildSettings` for `a` and `b`
-    // below. We thus shouldn't get any notifications about updated build settings.
-    let changedA = expectation(description: "changed settings a")
-    let changedB = expectation(description: "changed settings b")
-    let changedC = expectation(description: "changed settings c")
-    await del.setExpected([
-      (b, .swift, FileBuildSettings(compilerArguments: ["new-b"]), changedA),
-      (b, .swift, FileBuildSettings(compilerArguments: ["new-b"]), changedB),
-      (b, .swift, FileBuildSettings(compilerArguments: ["new-b"]), changedC),
-    ])
-
-    await bsm.unregisterForChangeNotifications(for: a)
-    await bsm.unregisterForChangeNotifications(for: c)
-
-    // At this point only b is registered, but that can race with notifications,
-    // so ensure nothing bad happens and we still get the notification for b.
-    await bs.setBuildSettings(for: a, to: SourceKitOptionsResponse(compilerArguments: ["new-a"]))
-    await bs.setBuildSettings(for: b, to: SourceKitOptionsResponse(compilerArguments: ["new-b"]))
-    await bs.setBuildSettings(for: c, to: SourceKitOptionsResponse(compilerArguments: ["new-c"]))
-
-    try await fulfillmentOfOrThrow([changedA, changedB, changedC])
+    try await fulfillmentOfOrThrow([changed1, changed2])
   }
 }
 
@@ -406,10 +362,6 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
   func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {}
 
   func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {}
-
-  nonisolated func logMessageToIndexLog(taskID: BuildSystemIntegration.IndexTaskID, message: String) {}
-
-  func sourceFilesDidChange() async {}
 
   var clientSupportsWorkDoneProgress: Bool { false }
 

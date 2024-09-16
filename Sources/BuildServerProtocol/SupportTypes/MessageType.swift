@@ -12,14 +12,16 @@
 
 import LanguageServerProtocol
 
-/// This request is a no-op and doesn't have any effects.
-///
-/// If the build system is currently updating the build graph, this request should return after those updates have
-/// finished processing.
-public struct WaitForBuildSystemUpdatesRequest: RequestType, Hashable {
-  public typealias Response = VoidResponse
+public enum MessageType: Int, Sendable, Codable {
+  /// An error message.
+  case error = 1
 
-  public static let method: String = "workspace/waitForBuildSystemUpdates"
+  /// A warning message.
+  case warning = 2
 
-  public init() {}
+  /// An information message.
+  case info = 3
+
+  /// A log message.
+  case log = 4
 }
