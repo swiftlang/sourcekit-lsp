@@ -441,13 +441,13 @@ fileprivate extension Array<AnnotatedTestItem> {
         // as the root item.
         if rootItem.isExtension && !item.isExtension {
           var newItem = item
-          newItem.testItem.children = (newItem.testItem.children + rootItem.testItem.children).deduplicateIds()
+          newItem.testItem.children = (newItem.testItem.children + rootItem.testItem.children).deduplicatingIds()
           rootItem = newItem
         } else if rootItem.testItem.children.isEmpty && item.testItem.children.isEmpty {
           itemDict[item.testItem.ambiguousTestDifferentiator] = item
           continue
         } else {
-          rootItem.testItem.children = (rootItem.testItem.children + item.testItem.children).deduplicateIds()
+          rootItem.testItem.children = (rootItem.testItem.children + item.testItem.children).deduplicatingIds()
         }
 
         itemDict[id] = rootItem
@@ -487,7 +487,7 @@ fileprivate extension Array<AnnotatedTestItem> {
         .mergingTestsInExtensions()
       return newItem
     }
-    return result.deduplicateIds()
+    return result.deduplicatingIds()
   }
 
   func prefixTestsWithModuleName(workspace: Workspace) async -> Self {
@@ -518,16 +518,25 @@ fileprivate extension Array<TestItem> {
   ///
   /// If we encounter one of these cases, we need to deduplicate the ID
   /// by appending `/filename:filename:lineNumber`.
-  func deduplicateIds() -> [TestItem] {
+  func deduplicatingIds() -> [TestItem] {
     var idCounts: [String: Int] = [:]
     var result: [TestItem] = []
+    var hasDuplicates = false
+    result.reserveCapacity(self.count)
 
     for element in self where element.children.isEmpty {
       idCounts[element.id, default: 0] += 1
+      if idCounts[element.id, default: 0] > 1 {
+        hasDuplicates = true
+      }
+    }
+
+    if !hasDuplicates {
+      return self
     }
 
     for element in self {
-      if idCounts[element.id] ?? 0 > 1 {
+      if idCounts[element.id, default: 0] > 1 {
         var newItem = element
         newItem.id = newItem.ambiguousTestDifferentiator
         result.append(newItem)
