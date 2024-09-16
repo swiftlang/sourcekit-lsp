@@ -1434,9 +1434,25 @@ final class LocalSwiftTests: XCTestCase {
 
     let positions = testClient.openDocument(
       """
+      struct A: ExpressibleByIntegerLiteral { init(integerLiteral value: Int) {} }
+      struct B: ExpressibleByIntegerLiteral { init(integerLiteral value: Int) {} }
+      struct C: ExpressibleByIntegerLiteral { init(integerLiteral value: Int) {} }
+
+      func + (lhs: A, rhs: B) -> A { fatalError() }
+      func + (lhs: B, rhs: C) -> A { fatalError() }
+      func + (lhs: C, rhs: A) -> A { fatalError() }
+
+      func + (lhs: B, rhs: A) -> B { fatalError() }
+      func + (lhs: C, rhs: B) -> B { fatalError() }
+      func + (lhs: A, rhs: C) -> B { fatalError() }
+
+      func + (lhs: C, rhs: B) -> C { fatalError() }
+      func + (lhs: B, rhs: C) -> C { fatalError() }
+      func + (lhs: A, rhs: A) -> C { fatalError() }
+
       1️⃣class Foo {
         func slow(x: Invalid1, y: Invalid2) {
-          x / y / x / y / x / y / x / y.
+          let x: C = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10
         }
       }2️⃣
       """,
