@@ -9,17 +9,12 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
+
 import BuildServerProtocol
 import LanguageServerProtocol
 
 /// Handles build system events, such as file build settings changes.
-package protocol BuildSystemDelegate: AnyObject, Sendable {
-  /// Notify the delegate that the build targets have changed.
-  ///
-  /// The callee should request new sources and outputs for the build targets of
-  /// interest.
-  func buildTargetsChanged(_ changes: [BuildTargetEvent]) async
-
+package protocol BuildSystemManagerDelegate: AnyObject, Sendable {
   /// Notify the delegate that the given files' build settings have changed.
   func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async
 
@@ -31,8 +26,18 @@ package protocol BuildSystemDelegate: AnyObject, Sendable {
   /// refresh is not necessary.
   func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async
 
-  /// Notify the delegate that the file handling capability of this build system
-  /// for some file has changed. The delegate should discard any cached file
-  /// handling capability.
-  func fileHandlingCapabilityChanged() async
+  /// Notify the delegate that some information about the given build targets has changed and that it should recompute
+  /// any information based on top of it.
+  func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async
+
+  /// Whether the client can handle `WorkDoneProgress` requests.
+  var clientSupportsWorkDoneProgress: Bool { get async }
+
+  func sendNotificationToClient(_ notification: some NotificationType)
+
+  func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response
+
+  /// Wait until the connection to the client has been initialized, ie. wait until `SourceKitLSPServer` has replied
+  /// to the `initialize` request.
+  func waitUntilInitialized() async
 }

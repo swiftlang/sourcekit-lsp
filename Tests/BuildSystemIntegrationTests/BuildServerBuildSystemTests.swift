@@ -15,6 +15,7 @@ import BuildSystemIntegration
 import Foundation
 import ISDBTestSupport
 import LanguageServerProtocol
+import SKSupport
 import SKTestSupport
 import TSCBasic
 import XCTest
@@ -53,7 +54,10 @@ final class BuildServerBuildSystemTests: XCTestCase {
   let buildFolder = try! AbsolutePath(validating: NSTemporaryDirectory())
 
   func testServerInitialize() async throws {
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root)
+    let buildSystem = try await BuildServerBuildSystem(
+      projectRoot: root,
+      connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP")
+    )
 
     assertEqual(
       await buildSystem.indexDatabasePath,
@@ -66,78 +70,96 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testFileRegistration() async throws {
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root)
-
-    let fileUrl = URL(fileURLWithPath: "/some/file/path")
-    let expectation = XCTestExpectation(description: "\(fileUrl) settings updated")
-    let buildSystemDelegate = TestDelegate(settingsExpectations: [DocumentURI(fileUrl): expectation])
-    defer {
-      // BuildSystemManager has a weak reference to delegate. Keep it alive.
-      _fixLifetime(buildSystemDelegate)
-    }
-    await buildSystem.setDelegate(buildSystemDelegate)
-    await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
+    let uri = DocumentURI(filePath: "/some/file/path", isDirectory: false)
+    let expectation = self.expectation(description: "\(uri) settings updated")
+    let testMessageHandler = TestMessageHandler(targetExpectations: [
+      (OnBuildTargetDidChangeNotification(changes: nil), expectation)
+    ])
+    let buildSystem = try await BuildServerBuildSystem(
+      projectRoot: root,
+      connectionToSourceKitLSP: testMessageHandler.connection
+    )
+    _ = try await buildSystem.sourceKitOptions(
+      request: TextDocumentSourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        target: .dummy,
+        language: .swift
+      )
+    )
 
     XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: defaultTimeout), .completed)
   }
 
   func testBuildTargetsChanged() async throws {
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root)
-
-    let fileUrl = URL(fileURLWithPath: "/some/file/path")
+    let uri = DocumentURI(filePath: "/some/file/path", isDirectory: false)
     let expectation = XCTestExpectation(description: "target changed")
-    let targetIdentifier = BuildTargetIdentifier(uri: try DocumentURI(string: "build://target/a"))
-    let buildSystemDelegate = TestDelegate(targetExpectations: [
-      BuildTargetEvent(
-        target: targetIdentifier,
-        kind: .created,
-        data: .dictionary(["key": "value"])
-      ): expectation
+    let testMessageHandler = TestMessageHandler(targetExpectations: [
+      (
+        OnBuildTargetDidChangeNotification(changes: [
+          BuildTargetEvent(
+            target: BuildTargetIdentifier(uri: try! URI(string: "build://target/a")),
+            kind: .created,
+            dataKind: nil,
+            data: LSPAny.dictionary(["key": "value"])
+          )
+        ]), expectation
+      )
     ])
     defer {
       // BuildSystemManager has a weak reference to delegate. Keep it alive.
-      _fixLifetime(buildSystemDelegate)
+      _fixLifetime(testMessageHandler)
     }
-    await buildSystem.setDelegate(buildSystemDelegate)
-    await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
+    let buildSystem = try await BuildServerBuildSystem(
+      projectRoot: root,
+      connectionToSourceKitLSP: testMessageHandler.connection
+    )
+    _ = try await buildSystem.sourceKitOptions(
+      request: TextDocumentSourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        target: .dummy,
+        language: .swift
+      )
+    )
 
     try await fulfillmentOfOrThrow([expectation])
   }
 }
 
-final class TestDelegate: BuildSystemDelegate {
+fileprivate final class TestMessageHandler: MessageHandler {
+  let targetExpectations: [(OnBuildTargetDidChangeNotification, XCTestExpectation)]
 
-  let settingsExpectations: [DocumentURI: XCTestExpectation]
-  let targetExpectations: [BuildTargetEvent: XCTestExpectation]
-  let dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation]
+  var connection: LocalConnection {
+    let connection = LocalConnection(receiverName: "Test message handler")
+    connection.start(handler: self)
+    return connection
+  }
 
-  package init(
-    settingsExpectations: [DocumentURI: XCTestExpectation] = [:],
-    targetExpectations: [BuildTargetEvent: XCTestExpectation] = [:],
-    dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation] = [:]
-  ) {
-    self.settingsExpectations = settingsExpectations
+  package init(targetExpectations: [(OnBuildTargetDidChangeNotification, XCTestExpectation)] = []) {
     self.targetExpectations = targetExpectations
-    self.dependenciesUpdatedExpectations = dependenciesUpdatedExpectations
   }
 
-  func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
-    for event in changes {
-      targetExpectations[event]?.fulfill()
+  func didChangeBuildTarget(notification: OnBuildTargetDidChangeNotification) {
+    for (expectedNotification, expectation) in targetExpectations {
+      if expectedNotification == notification {
+        expectation.fulfill()
+      }
     }
   }
 
-  func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
-    for uri in changedFiles {
-      settingsExpectations[uri]?.fulfill()
-    }
+  func handle<Request: RequestType>(
+    _ request: Request,
+    id: RequestID,
+    reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
+  ) {
+    reply(.failure(.methodNotFound(Request.method)))
   }
 
-  package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
-    for uri in changedFiles {
-      dependenciesUpdatedExpectations[uri]?.fulfill()
+  func handle(_ notification: some NotificationType) {
+    switch notification {
+    case let notification as OnBuildTargetDidChangeNotification:
+      didChangeBuildTarget(notification: notification)
+    default:
+      break
     }
   }
-
-  func fileHandlingCapabilityChanged() {}
 }

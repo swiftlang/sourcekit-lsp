@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
@@ -75,7 +76,7 @@ package enum FileToIndex: CustomLogStringConvertible {
 /// A file to index and the target in which the file should be indexed.
 package struct FileAndTarget: Sendable {
   package let file: FileToIndex
-  package let target: ConfiguredTarget
+  package let target: BuildTargetIdentifier
 }
 
 private enum IndexKind {
@@ -120,7 +121,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   private let indexFilesWithUpToDateUnit: Bool
 
   /// See `SemanticIndexManager.logMessageToIndexLog`.
-  private let logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
+  private let logMessageToIndexLog: @Sendable (_ taskID: String, _ message: String) -> Void
 
   /// How long to wait until we cancel an update indexstore task. This timeout should be long enough that all
   /// `swift-frontend` tasks finish within it. It prevents us from blocking the index if the type checker gets stuck on
@@ -153,7 +154,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     index: UncheckedIndex,
     indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>,
     indexFilesWithUpToDateUnit: Bool,
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: String, _ message: String) -> Void,
     timeout: Duration,
     testHooks: IndexTestHooks
   ) {
@@ -217,7 +218,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     }
   }
 
-  private func updateIndexStore(forSingleFile file: FileToIndex, in target: ConfiguredTarget) async {
+  private func updateIndexStore(forSingleFile file: FileToIndex, in target: BuildTargetIdentifier) async {
     guard await !indexStoreUpToDateTracker.isUpToDate(file.sourceFile) else {
       // If we know that the file is up-to-date without having ot hit the index, do that because it's fastest.
       return
@@ -234,7 +235,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     if file.mainFile != file.sourceFile {
       logger.log("Updating index store of \(file.forLogging) using main file \(file.mainFile.forLogging)")
     }
-    guard let language = await buildSystemManager.defaultLanguage(for: file.mainFile) else {
+    guard let language = await buildSystemManager.defaultLanguage(for: file.mainFile, in: target) else {
       logger.error("Not indexing \(file.forLogging) because its language could not be determined")
       return
     }
@@ -254,7 +255,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       logger.error("Not indexing \(file.forLogging) because it has fallback compiler arguments")
       return
     }
-    guard let toolchain = await buildSystemManager.toolchain(for: file.mainFile, language) else {
+    guard let toolchain = await buildSystemManager.toolchain(for: file.mainFile, in: target, language: language) else {
       logger.error(
         "Not updating index store for \(file.forLogging) because no toolchain could be determined for the document"
       )
@@ -362,17 +363,17 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     defer {
       signposter.endInterval("Indexing", state)
     }
-    let logID = IndexTaskID.updateIndexStore(id: id)
+    let taskId = "indexing-\(id)"
     logMessageToIndexLog(
-      logID,
+      taskId,
       """
       Indexing \(indexFile.pseudoPath)
       \(processArguments.joined(separator: " "))
       """
     )
 
-    let stdoutHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
-    let stderrHandler = PipeAsStringHandler { logMessageToIndexLog(logID, $0) }
+    let stdoutHandler = PipeAsStringHandler { logMessageToIndexLog(taskId, $0) }
+    let stderrHandler = PipeAsStringHandler { logMessageToIndexLog(taskId, $0) }
 
     let result: ProcessResult
     do {
@@ -387,11 +388,11 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         )
       }
     } catch {
-      logMessageToIndexLog(logID, "Finished error in \(start.duration(to: .now)): \(error)")
+      logMessageToIndexLog(taskId, "Finished error in \(start.duration(to: .now)): \(error)")
       throw error
     }
     let exitStatus = result.exitStatus.exhaustivelySwitchable
-    logMessageToIndexLog(logID, "Finished with \(exitStatus.description) in \(start.duration(to: .now))")
+    logMessageToIndexLog(taskId, "Finished with \(exitStatus.description) in \(start.duration(to: .now))")
     switch exitStatus {
     case .terminated(code: 0):
       break

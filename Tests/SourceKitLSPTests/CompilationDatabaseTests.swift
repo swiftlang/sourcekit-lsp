@@ -38,7 +38,7 @@ final class CompilationDatabaseTests: XCTestCase {
 
     let (mainUri, positions) = try project.openDocument("main.cpp")
 
-    // Do a sanity check and verify that we get the expected result from a hover response before modifing the compile commands.
+    // Do a sanity check and verify that we get the expected result from a hover response before modifying the compile commands.
 
     let highlightRequest = DocumentHighlightRequest(
       textDocument: TextDocumentIdentifier(mainUri),
@@ -65,7 +65,7 @@ final class CompilationDatabaseTests: XCTestCase {
     )
 
     // Ensure that the DidChangeWatchedFilesNotification is handled before we continue.
-    try await project.testClient.send(BarrierRequest())
+    try await project.testClient.send(PollIndexRequest())
 
     // DocumentHighlight should now point to the definition in the `#else` block.
 

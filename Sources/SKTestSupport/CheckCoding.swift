@@ -43,12 +43,9 @@ package func checkCoding<T: Codable & Equatable>(
   XCTAssertEqual(json, str, file: file, line: line)
 
   let decoder = JSONDecoder()
-  XCTAssertNoThrow(
-    try {
-      let decodedValue = try decoder.decode(WrapFragment<T>.self, from: data).value
-      XCTAssertEqual(value, decodedValue, file: file, line: line)
-    }()
-  )
+  let decodedValue = try! decoder.decode(WrapFragment<T>.self, from: data).value
+
+  XCTAssertEqual(value, decodedValue, file: file, line: line)
 }
 
 /// JSONEncoder requires the top-level value to be encoded as a JSON container (array or object). Give it one.

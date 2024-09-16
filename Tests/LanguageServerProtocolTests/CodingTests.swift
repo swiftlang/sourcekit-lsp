@@ -1343,29 +1343,6 @@ final class CodingTests: XCTestCase {
         """
     )
   }
-
-  func testDocumentUriQueryParameterCoding() throws {
-    checkCoding(
-      try DocumentURI(string: "scheme://host?parent=scheme://host?line%3D2"),
-      json: #"""
-        "scheme:\/\/host?parent%3Dscheme:\/\/host%3Fline%253D2"
-        """#
-    )
-
-    checkCoding(
-      try DocumentURI(string: "scheme://host?parent=scheme://host?parent%3Dscheme://host%3Fkey%253Dvalue"),
-      json: #"""
-        "scheme:\/\/host?parent%3Dscheme:\/\/host%3Fparent%253Dscheme:\/\/host%253Fkey%25253Dvalue"
-        """#
-    )
-
-    checkCoding(
-      try DocumentURI(string: "scheme://host?parent=with%23hash"),
-      json: #"""
-        "scheme:\/\/host?parent%3Dwith%2523hash"
-        """#
-    )
-  }
 }
 
 func with<T>(_ value: T, mutate: (inout T) -> Void) -> T {

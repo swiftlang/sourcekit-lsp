@@ -176,6 +176,11 @@ extension SourceKitLSPServer {
   ///
   /// The returned list of tests is not sorted. It should be sorted before being returned to the editor.
   private func tests(in workspace: Workspace) async -> [AnnotatedTestItem] {
+    // If files have recently been added to the workspace (which is communicated by a `workspace/didChangeWatchedFiles`
+    // notification, wait these changes to be reflected in the build system so we can include the updated files in the
+    // tests.
+    await workspace.buildSystemManager.waitForUpToDateBuildGraph()
+
     // Gather all tests classes and test methods. We include test from different sources:
     //  - For all files that have been not been modified since they were last indexed in the semantic index, include
     //    XCTests from the semantic index.
@@ -499,8 +504,8 @@ fileprivate extension Array<AnnotatedTestItem> {
 
 extension TestItem {
   fileprivate func prefixIDWithModuleName(workspace: Workspace) async -> TestItem {
-    guard let configuredTarget = await workspace.buildSystemManager.canonicalConfiguredTarget(for: self.location.uri),
-      let moduleName = await workspace.buildSystemManager.moduleName(for: self.location.uri, in: configuredTarget)
+    guard let canonicalTarget = await workspace.buildSystemManager.canonicalTarget(for: self.location.uri),
+      let moduleName = await workspace.buildSystemManager.moduleName(for: self.location.uri, in: canonicalTarget)
     else {
       return self
     }

@@ -16,6 +16,7 @@ import SKSupport
 import SKTestSupport
 import SemanticIndex
 import SourceKitLSP
+import SwiftExtensions
 import ToolchainRegistry
 import XCTest
 
@@ -535,11 +536,11 @@ final class BackgroundIndexingTests: XCTestCase {
     var testHooks = TestHooks()
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       [
-        ExpectedPreparation(targetID: "LibA", runDestinationID: "destination"),
-        ExpectedPreparation(targetID: "LibB", runDestinationID: "destination"),
+        try ExpectedPreparation(target: "LibA", destination: .target),
+        try ExpectedPreparation(target: "LibB", destination: .target),
       ],
       [
-        ExpectedPreparation(targetID: "LibB", runDestinationID: "destination")
+        try ExpectedPreparation(target: "LibB", destination: .target)
       ],
     ])
     testHooks.indexTestHooks = expectedPreparationTracker.testHooks
@@ -639,25 +640,25 @@ final class BackgroundIndexingTests: XCTestCase {
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       // Preparation of targets during the initial of the target
       [
-        ExpectedPreparation(targetID: "LibA", runDestinationID: "destination"),
-        ExpectedPreparation(targetID: "LibB", runDestinationID: "destination"),
-        ExpectedPreparation(targetID: "LibC", runDestinationID: "destination"),
-        ExpectedPreparation(targetID: "LibD", runDestinationID: "destination"),
+        try ExpectedPreparation(target: "LibA", destination: .target),
+        try ExpectedPreparation(target: "LibB", destination: .target),
+        try ExpectedPreparation(target: "LibC", destination: .target),
+        try ExpectedPreparation(target: "LibD", destination: .target),
       ],
       // LibB's preparation has already started by the time we browse through the other files, so we finish its preparation
       [
-        ExpectedPreparation(
-          targetID: "LibB",
-          runDestinationID: "destination",
+        try ExpectedPreparation(
+          target: "LibB",
+          destination: .target,
           didStart: { libBStartedPreparation.signal() },
           didFinish: { allDocumentsOpened.waitOrXCTFail() }
         )
       ],
       // And now we just want to prepare LibD, and not LibC
       [
-        ExpectedPreparation(
-          targetID: "LibD",
-          runDestinationID: "destination",
+        try ExpectedPreparation(
+          target: "LibD",
+          destination: .target,
           didFinish: { libDPreparedForEditing.signal() }
         )
       ],
@@ -1267,7 +1268,7 @@ final class BackgroundIndexingTests: XCTestCase {
     let packageInitialized = AtomicBool(initialValue: false)
 
     var testHooks = TestHooks()
-    testHooks.swiftpmTestHooks.reloadPackageDidStart = {
+    testHooks.buildSystemTestHooks.swiftPMTestHooks.reloadPackageDidStart = {
       if packageInitialized.value {
         XCTFail("Build graph should not get reloaded when random file gets added")
       }

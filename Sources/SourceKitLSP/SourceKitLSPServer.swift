@@ -35,35 +35,6 @@ package typealias URL = Foundation.URL
 /// Disambiguate LanguageServerProtocol.Language and IndexstoreDB.Language
 package typealias Language = LanguageServerProtocol.Language
 
-/// A request and a callback that returns the request's reply
-fileprivate final class RequestAndReply<Params: RequestType>: Sendable {
-  let params: Params
-  private let replyBlock: @Sendable (LSPResult<Params.Response>) -> Void
-
-  /// Whether a reply has been made. Every request must reply exactly once.
-  private let replied: AtomicBool = AtomicBool(initialValue: false)
-
-  package init(_ request: Params, reply: @escaping @Sendable (LSPResult<Params.Response>) -> Void) {
-    self.params = request
-    self.replyBlock = reply
-  }
-
-  deinit {
-    precondition(replied.value, "request never received a reply")
-  }
-
-  /// Call the `replyBlock` with the result produced by the given closure.
-  func reply(_ body: @Sendable () async throws -> Params.Response) async {
-    precondition(!replied.value, "replied to request more than once")
-    replied.value = true
-    do {
-      replyBlock(.success(try await body()))
-    } catch {
-      replyBlock(.failure(ResponseError(error)))
-    }
-  }
-}
-
 /// The SourceKit-LSP server.
 ///
 /// This is the client-facing language server implementation, providing indexing, multiple-toolchain
@@ -127,13 +98,7 @@ package actor SourceKitLSPServer {
   /// `SourceKitLSPServer`.
   /// `nonisolated(unsafe)` because `indexProgressManager` will not be modified after it is assigned from the
   /// initializer.
-  private nonisolated(unsafe) var indexProgressManager: IndexProgressManager!
-
-  /// Implicitly unwrapped optional so we can create an `SharedWorkDoneProgressManager` that has a weak reference to
-  /// `SourceKitLSPServer`.
-  /// `nonisolated(unsafe)` because `packageLoadingWorkDoneProgress` will not be modified after it is assigned from the
-  /// initializer.
-  private nonisolated(unsafe) var packageLoadingWorkDoneProgress: SharedWorkDoneProgressManager!
+  private(set) nonisolated(unsafe) var indexProgressManager: IndexProgressManager!
 
   /// Implicitly unwrapped optional so we can create an `SharedWorkDoneProgressManager` that has a weak reference to
   /// `SourceKitLSPServer`.
@@ -230,11 +195,6 @@ package actor SourceKitLSPServer {
     ])
     self.indexProgressManager = nil
     self.indexProgressManager = IndexProgressManager(sourceKitLSPServer: self)
-    self.packageLoadingWorkDoneProgress = SharedWorkDoneProgressManager(
-      sourceKitLSPServer: self,
-      tokenPrefix: "package-reloading",
-      title: "SourceKit-LSP: Reloading Package"
-    )
     self.sourcekitdCrashedWorkDoneProgress = SharedWorkDoneProgressManager(
       sourceKitLSPServer: self,
       tokenPrefix: "sourcekitd-crashed",
@@ -244,7 +204,7 @@ package actor SourceKitLSPServer {
   }
 
   /// Await until the server has send the reply to the initialize request.
-  func waitUntilInitialized() async {
+  package func waitUntilInitialized() async {
     // The polling of `initialized` is not perfect but it should be OK, because
     //  - In almost all cases the server should already be initialized.
     //  - If it's not initialized, we expect initialization to finish fairly quickly. Even if initialization takes 5s
@@ -273,21 +233,29 @@ package actor SourceKitLSPServer {
     }
     let rootURLs = workspacesAndIsImplicit.filter { !$0.isImplicit }.compactMap { $0.workspace.rootUri?.fileURL }
     while url.pathComponents.count > 1 && rootURLs.contains(where: { $0.isPrefix(of: url) }) {
+      defer {
+        url.deleteLastPathComponent()
+      }
       // Ignore workspaces that have the same project root as an existing workspace.
       // This might happen if there is an existing SwiftPM workspace that hasn't been reloaded after a new file
       // was added to it and thus currently doesn't know that it can handle that file. In that case, we shouldn't open
       // a new workspace for the same root. Instead, the existing workspace's build system needs to be reloaded.
-      let workspace = await self.createWorkspace(WorkspaceFolder(uri: DocumentURI(url))) { buildSystem in
-        guard let buildSystem else {
-          // If we didn't create a build system, `url` is not capable of handling the document.
-          return false
-        }
-        return !projectRoots.contains(await buildSystem.projectRoot)
+      let uri = DocumentURI(url)
+      guard let buildSystemKind = determineBuildSystem(forWorkspaceFolder: uri, options: self.options) else {
+        continue
       }
-      if let workspace {
-        return workspace
+      guard !projectRoots.contains(buildSystemKind.projectRoot) else {
+        continue
       }
-      url.deleteLastPathComponent()
+      guard
+        let workspace = await orLog(
+          "Creating workspace",
+          { try await createWorkspace(workspaceFolder: uri, buildSystemKind: buildSystemKind) }
+        )
+      else {
+        continue
+      }
+      return workspace
     }
     return nil
   }
@@ -319,32 +287,21 @@ package actor SourceKitLSPServer {
   private func computeWorkspaceForDocument(uri: DocumentURI) async -> Workspace? {
     // Pick the workspace with the best FileHandlingCapability for this file.
     // If there is a tie, use the workspace that occurred first in the list.
-    var bestWorkspace: (workspace: Workspace?, fileHandlingCapability: FileHandlingCapability) = (nil, .unhandled)
-    for workspace in self.workspaces {
-      let fileHandlingCapability = await workspace.buildSystemManager.fileHandlingCapability(for: uri)
-      if fileHandlingCapability > bestWorkspace.fileHandlingCapability {
-        bestWorkspace = (workspace, fileHandlingCapability)
-      }
+    var bestWorkspace = await self.workspaces.asyncFirst {
+      await !$0.buildSystemManager.targets(for: uri).isEmpty
     }
-    if bestWorkspace.fileHandlingCapability < .handled {
+    if bestWorkspace == nil {
       // We weren't able to handle the document with any of the known workspaces. See if any of the document's parent
       // directories contain a workspace that might be able to handle the document
       if let workspace = await self.findImplicitWorkspace(for: uri) {
         logger.log("Opening implicit workspace at \(workspace.rootUri.forLogging) to handle \(uri.forLogging)")
         self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: true))
-        bestWorkspace = (workspace, .handled)
+        bestWorkspace = workspace
       }
     }
-    self.workspaceForUri[uri] = WeakWorkspace(bestWorkspace.workspace)
-    if let workspace = bestWorkspace.workspace {
-      return workspace
-    }
-    if let workspace = self.workspaces.only {
-      // Special handling: If there is only one workspace, open all files in it, even it it cannot handle the document.
-      // This retains the behavior of SourceKit-LSP before it supported multiple workspaces.
-      return workspace
-    }
-    return nil
+    let workspace = bestWorkspace ?? self.workspaces.first
+    self.workspaceForUri[uri] = WeakWorkspace(workspace)
+    return workspace
   }
 
   /// Check that the entries in `workspaceForUri` are still up-to-date after workspaces might have changed.
@@ -369,7 +326,6 @@ package actor SourceKitLSPServer {
             return
           }
           if let oldWorkspace = oldWorkspace {
-            // FIXME: Can this cause race conditions?
             await self.closeDocument(
               DidCloseTextDocumentNotification(
                 textDocument: TextDocumentIdentifier(docUri)
@@ -576,9 +532,16 @@ package actor SourceKitLSPServer {
       return service
     }
 
-    guard let toolchain = await workspace.buildSystemManager.toolchain(for: uri, language),
-      let service = await languageService(for: toolchain, language, in: workspace)
-    else {
+    let toolchain = await workspace.buildSystemManager.toolchain(
+      for: uri,
+      in: workspace.buildSystemManager.canonicalTarget(for: uri),
+      language: language
+    )
+    guard let toolchain else {
+      logger.error("Failed to determine toolchain for \(uri)")
+      return nil
+    }
+    guard let service = await languageService(for: toolchain, language, in: workspace) else {
       logger.error("Failed to create language service for \(uri)")
       return nil
     }
@@ -834,88 +797,20 @@ extension SourceKitLSPServer: MessageHandler {
   }
 }
 
-// MARK: - Build System Delegate
-
-extension SourceKitLSPServer: BuildSystemDelegate {
-  package func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
-    // TODO: do something with these changes once build target support is in place
-    // (https://github.com/swiftlang/sourcekit-lsp/issues/1226)
-  }
-
-  private func affectedOpenDocumentsForChangeSet(
-    _ changes: Set<DocumentURI>,
-    _ documentManager: DocumentManager
-  ) -> Set<DocumentURI> {
-    // An empty change set is treated as if all open files have been modified.
-    guard !changes.isEmpty else {
-      return documentManager.openDocuments
-    }
-    return documentManager.openDocuments.intersection(changes)
-  }
-
-  /// Handle a build settings change notification from the `BuildSystem`.
-  /// This has two primary cases:
-  /// - Initial settings reported for a given file, now we can fully open it
-  /// - Changed settings for an already open file
-  package func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
-    for uri in changedFiles {
-      guard self.documentManager.openDocuments.contains(uri) else {
-        continue
-      }
-
-      guard let service = await self.workspaceForDocument(uri: uri)?.documentService(for: uri) else {
-        continue
-      }
-
-      await service.documentUpdatedBuildSettings(uri)
-    }
-  }
-
-  /// Handle a dependencies updated notification from the `BuildSystem`.
-  /// We inform the respective language services as long as the given file is open
-  /// (not queued for opening).
-  package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
-    // Split the changedFiles into the workspaces they belong to.
-    // Then invoke affectedOpenDocumentsForChangeSet for each workspace with its affected files.
-    let changedFilesAndWorkspace = await changedFiles.asyncMap {
-      return (uri: $0, workspace: await self.workspaceForDocument(uri: $0))
-    }
-    for workspace in self.workspaces {
-      let changedFilesForWorkspace = Set(changedFilesAndWorkspace.filter({ $0.workspace === workspace }).map(\.uri))
-      if changedFilesForWorkspace.isEmpty {
-        continue
-      }
-      for uri in self.affectedOpenDocumentsForChangeSet(changedFilesForWorkspace, self.documentManager) {
-        logger.log("Dependencies updated for opened file \(uri.forLogging)")
-        if let service = workspace.documentService(for: uri) {
-          await service.documentDependenciesUpdated(uri)
-        }
-      }
-    }
-  }
-
-  package func fileHandlingCapabilityChanged() {
-    logger.log("Updating URI to workspace because file handling capability of a workspace changed")
-    self.scheduleUpdateOfUriToWorkspace()
-  }
-}
-
 extension SourceKitLSPServer {
-  nonisolated func logMessageToIndexLog(taskID: IndexTaskID, message: String) {
-    var message: Substring = message[...]
-    while message.last?.isNewline ?? false {
-      message = message.dropLast(1)
-    }
-    let messageWithEmojiLinePrefixes = message.split(separator: "\n", omittingEmptySubsequences: false).map {
-      "\(taskID.emojiRepresentation) \($0)"
-    }.joined(separator: "\n")
+  nonisolated package func logMessageToIndexLog(taskID: String, message: String) {
     self.sendNotificationToClient(
       LogMessageNotification(
         type: .info,
-        message: messageWithEmojiLinePrefixes,
+        message: prefixMessageWithTaskEmoji(taskID: taskID, message: message),
         logName: "SourceKit-LSP: Indexing"
       )
     )
+  }
+
+  func fileHandlingCapabilityChanged() {
+    logger.log("Updating URI to workspace because file handling capability of a workspace changed")
+    self.scheduleUpdateOfUriToWorkspace()
   }
 }
 
@@ -925,86 +820,41 @@ extension SourceKitLSPServer {
 
   // MARK: - General
 
-  private func reloadPackageStatusCallback(_ status: ReloadPackageStatus) async {
-    switch status {
-    case .start:
-      await packageLoadingWorkDoneProgress.start()
-    case .end:
-      await packageLoadingWorkDoneProgress.end()
-    }
-  }
-
   /// Creates a workspace at the given `uri`.
   ///
   /// If the build system that was determined for the workspace does not satisfy `condition`, `nil` is returned.
   private func createWorkspace(
-    _ workspaceFolder: WorkspaceFolder,
-    condition: (BuildSystem?) async -> Bool = { _ in true }
-  ) async -> Workspace? {
+    workspaceFolder: DocumentURI,
+    buildSystemKind: BuildSystemKind?
+  ) async throws -> Workspace {
     guard let capabilityRegistry = capabilityRegistry else {
+      struct NoCapabilityRegistryError: Error {}
       logger.log("Cannot open workspace before server is initialized")
-      return nil
+      throw NoCapabilityRegistryError()
     }
     let testHooks = self.testHooks
     let options = SourceKitLSPOptions.merging(
       base: self.options,
       override: SourceKitLSPOptions(
-        path: workspaceFolder.uri.fileURL?
+        path: workspaceFolder.fileURL?
           .appendingPathComponent(".sourcekit-lsp")
           .appendingPathComponent("config.json")
       )
     )
-    logger.log("Creating workspace at \(workspaceFolder.uri.forLogging) with options: \(options.forLogging)")
-    let buildSystem = await createBuildSystem(
-      rootUri: workspaceFolder.uri,
-      options: options,
-      testHooks: testHooks,
-      toolchainRegistry: toolchainRegistry,
-      reloadPackageStatusCallback: { [weak self] status in
-        await self?.reloadPackageStatusCallback(status)
-      }
-    )
-    guard await condition(buildSystem) else {
-      return nil
-    }
-    await orLog("Initial build graph generation") {
-      // Schedule an initial generation of the build graph. Once the build graph is loaded, the build system will send
-      // call `fileHandlingCapabilityChanged`, which allows us to move documents to a workspace with this build
-      // system.
-      try await buildSystem?.scheduleBuildGraphGeneration()
-    }
+    logger.log("Creating workspace at \(workspaceFolder.forLogging) with options: \(options.forLogging)")
 
-    let projectRoot = await buildSystem?.projectRoot.pathString
-    let buildSystemType =
-      if let buildSystem {
-        String(describing: type(of: buildSystem))
-      } else {
-        "<fallback build system>"
-      }
-    logger.log(
-      "Created workspace at \(workspaceFolder.uri.forLogging) as \(buildSystemType, privacy: .public) with project root \(projectRoot ?? "<nil>")"
-    )
-
-    let workspace = try? await Workspace(
+    let workspace = await Workspace(
+      sourceKitLSPServer: self,
       documentManager: self.documentManager,
-      rootUri: workspaceFolder.uri,
+      rootUri: workspaceFolder,
       capabilityRegistry: capabilityRegistry,
-      buildSystem: buildSystem,
+      buildSystemKind: buildSystemKind,
       toolchainRegistry: self.toolchainRegistry,
       options: options,
       testHooks: testHooks,
-      indexTaskScheduler: indexTaskScheduler,
-      logMessageToIndexLog: { [weak self] taskID, message in
-        self?.logMessageToIndexLog(taskID: taskID, message: message)
-      },
-      indexTasksWereScheduled: { [weak self] count in
-        self?.indexProgressManager.indexTasksWereScheduled(count: count)
-      },
-      indexProgressStatusDidChange: { [weak self] in
-        self?.indexProgressManager.indexProgressStatusDidChange()
-      }
+      indexTaskScheduler: indexTaskScheduler
     )
-    if let workspace, options.backgroundIndexingOrDefault, workspace.semanticIndexManager == nil,
+    if options.backgroundIndexingOrDefault, workspace.semanticIndexManager == nil,
       !self.didSendBackgroundIndexingNotSupportedNotification
     {
       self.sendNotificationToClient(
@@ -1077,20 +927,34 @@ extension SourceKitLSPServer {
 
     await workspaceQueue.async { [testHooks] in
       if let workspaceFolders = req.workspaceFolders {
-        self.workspacesAndIsImplicit += await workspaceFolders.asyncCompactMap {
-          guard let workspace = await self.createWorkspace($0) else {
-            return nil
+        self.workspacesAndIsImplicit += await workspaceFolders.asyncCompactMap { workspaceFolder in
+          await orLog("Creating workspace from workspaceFolders") {
+            let workspace = try await self.createWorkspace(
+              workspaceFolder: workspaceFolder.uri,
+              buildSystemKind: determineBuildSystem(forWorkspaceFolder: workspaceFolder.uri, options: self.options)
+            )
+            return (workspace: workspace, isImplicit: false)
           }
-          return (workspace: workspace, isImplicit: false)
         }
       } else if let uri = req.rootURI {
-        let workspaceFolder = WorkspaceFolder(uri: uri)
-        if let workspace = await self.createWorkspace(workspaceFolder) {
+        let workspace = await orLog("Creating workspace from rootURI") {
+          try await self.createWorkspace(
+            workspaceFolder: uri,
+            buildSystemKind: determineBuildSystem(forWorkspaceFolder: uri, options: self.options)
+          )
+        }
+        if let workspace {
           self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
         }
       } else if let path = req.rootPath {
-        let workspaceFolder = WorkspaceFolder(uri: DocumentURI(URL(fileURLWithPath: path)))
-        if let workspace = await self.createWorkspace(workspaceFolder) {
+        let uri = DocumentURI(URL(fileURLWithPath: path))
+        let workspace = await orLog("Creating workspace from rootPath") {
+          try await self.createWorkspace(
+            workspaceFolder: uri,
+            buildSystemKind: determineBuildSystem(forWorkspaceFolder: uri, options: self.options)
+          )
+        }
+        if let workspace {
           self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
         }
       }
@@ -1100,25 +964,15 @@ extension SourceKitLSPServer {
 
         let options = self.options
         let workspace = await Workspace(
+          sourceKitLSPServer: self,
           documentManager: self.documentManager,
           rootUri: req.rootURI,
           capabilityRegistry: self.capabilityRegistry!,
+          buildSystemKind: nil,
           toolchainRegistry: self.toolchainRegistry,
           options: options,
           testHooks: testHooks,
-          underlyingBuildSystem: nil,
-          index: nil,
-          indexDelegate: nil,
-          indexTaskScheduler: self.indexTaskScheduler,
-          logMessageToIndexLog: { [weak self] taskID, message in
-            self?.logMessageToIndexLog(taskID: taskID, message: message)
-          },
-          indexTasksWereScheduled: { [weak self] count in
-            self?.indexProgressManager.indexTasksWereScheduled(count: count)
-          },
-          indexProgressStatusDidChange: { [weak self] in
-            self?.indexProgressManager.indexProgressStatusDidChange()
-          }
+          indexTaskScheduler: self.indexTaskScheduler
         )
 
         self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
@@ -1126,9 +980,6 @@ extension SourceKitLSPServer {
     }.value
 
     assert(!self.workspaces.isEmpty)
-    for workspace in self.workspaces {
-      await workspace.buildSystemManager.setDelegate(self)
-    }
 
     return InitializeResult(
       capabilities: await self.serverCapabilities(
@@ -1274,7 +1125,7 @@ extension SourceKitLSPServer {
     watchers.append(FileSystemWatcher(globPattern: "**/compile_commands.json", kind: [.create, .change, .delete]))
     watchers.append(FileSystemWatcher(globPattern: "**/compile_flags.txt", kind: [.create, .change, .delete]))
     // Watch for changes to `.swiftmodule` files to detect updated modules during a build.
-    // See comments in `SwiftPMBuildSystem.filesDidChange``
+    // See comments in `SwiftPMBuildSystem.filesDidChange`
     watchers.append(FileSystemWatcher(globPattern: "**/*.swiftmodule", kind: [.create, .change, .delete]))
     await registry.registerDidChangeWatchedFiles(watchers: watchers, server: self)
   }
@@ -1347,9 +1198,6 @@ extension SourceKitLSPServer {
     for workspace in self.workspaces {
       await workspace.buildSystemManager.setMainFilesProvider(nil)
       workspace.closeIndex()
-
-      // Break retain cycle with the BSM.
-      await workspace.buildSystemManager.setDelegate(nil)
     }
   }
 
@@ -1540,9 +1388,13 @@ extension SourceKitLSPServer {
         }
       }
       if let added = notification.event.added {
-        let newWorkspaces = await added.asyncCompactMap { await self.createWorkspace($0) }
-        for workspace in newWorkspaces {
-          await workspace.buildSystemManager.setDelegate(self)
+        let newWorkspaces = await added.asyncCompactMap { workspaceFolder in
+          await orLog("Creating workspace after workspace folder change") {
+            try await self.createWorkspace(
+              workspaceFolder: workspaceFolder.uri,
+              buildSystemKind: determineBuildSystem(forWorkspaceFolder: workspaceFolder.uri, options: self.options)
+            )
+          }
         }
         self.workspacesAndIsImplicit += newWorkspaces.map { (workspace: $0, isImplicit: false) }
       }
@@ -1940,7 +1792,7 @@ extension SourceKitLSPServer {
         == canonicalOriginatorLocation
     }
 
-    var locations = try await symbols.asyncMap { (symbol) -> [Location] in
+    var locations = try await symbols.asyncFlatMap { (symbol) -> [Location] in
       var locations: [Location]
       if let bestLocalDeclaration = symbol.bestLocalDeclaration,
         !(symbol.isDynamic ?? true),
@@ -1978,7 +1830,7 @@ extension SourceKitLSPServer {
       }
 
       return locations
-    }.flatMap { $0 }
+    }
 
     // Remove any duplicate locations. We might end up with duplicate locations when performing a definition request
     // on eg. `MyStruct()` when no explicit initializer is declared. In this case we get two symbol infos, one for the

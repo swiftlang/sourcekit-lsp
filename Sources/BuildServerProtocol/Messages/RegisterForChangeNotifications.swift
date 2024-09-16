@@ -9,12 +9,17 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
+
 import LanguageServerProtocol
 
 /// The register for changes request is sent from the language
 /// server to the build server to register or unregister for
 /// changes in file options or dependencies. On changes a
 /// FileOptionsChangedNotification is sent.
+///
+/// - Important: This request has been deprecated. Build servers should instead implement the
+///   `textDocument/sourceKitOptions` request.
+///   See https://forums.swift.org/t/extending-functionality-of-build-server-protocol-with-sourcekit-lsp/74400
 public struct RegisterForChanges: RequestType {
   public static let method: String = "textDocument/registerForChanges"
   public typealias Response = VoidResponse
@@ -39,12 +44,24 @@ public enum RegisterAction: String, Hashable, Codable, Sendable {
 /// The FileOptionsChangedNotification is sent from the
 /// build server to the language server when it detects
 /// changes to a registered files build settings.
+///
+/// - Important: This request has been deprecated. Build servers should instead implement the
+///   `textDocument/sourceKitOptions` request.
+///   See https://forums.swift.org/t/extending-functionality-of-build-server-protocol-with-sourcekit-lsp/74400
 public struct FileOptionsChangedNotification: NotificationType {
+  public struct Options: ResponseType, Hashable {
+    /// The compiler options required for the requested file.
+    public var options: [String]
+
+    /// The working directory for the compile command.
+    public var workingDirectory: String?
+  }
+
   public static let method: String = "build/sourceKitOptionsChanged"
 
   /// The URI of the document that has changed settings.
   public var uri: URI
 
   /// The updated options for the registered file.
-  public var updatedOptions: SourceKitOptionsResult
+  public var updatedOptions: Options
 }

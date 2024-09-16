@@ -10,8 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import BuildSystemIntegration
 import LanguageServerProtocol
+import SKSupport
 import SKTestSupport
 import TSCBasic
 import XCTest
@@ -288,11 +290,14 @@ final class CompilationDatabaseTests: XCTestCase {
       ]
       """
     ) { buildSystem in
-      let settings = await buildSystem.buildSettings(
-        for: DocumentURI(URL(fileURLWithPath: "/a/a.swift")),
-        in: ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy"),
-        language: .swift
+      let settings = try await buildSystem.sourceKitOptions(
+        request: TextDocumentSourceKitOptionsRequest(
+          textDocument: TextDocumentIdentifier(DocumentURI(URL(fileURLWithPath: "/a/a.swift"))),
+          target: BuildTargetIdentifier.dummy,
+          language: .swift
+        )
       )
+
       XCTAssertNotNil(settings)
       XCTAssertEqual(settings?.workingDirectory, "/a")
       XCTAssertEqual(settings?.compilerArguments, ["-swift-version", "4", "/a/a.swift"])
@@ -420,6 +425,7 @@ private func checkCompilationDatabaseBuildSystem(
   let buildSystem = CompilationDatabaseBuildSystem(
     projectRoot: try AbsolutePath(validating: "/a"),
     searchPaths: try [RelativePath(validating: ".")],
+    connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
     fileSystem: fs
   )
   try await block(XCTUnwrap(buildSystem))

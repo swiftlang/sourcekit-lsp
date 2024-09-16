@@ -11,10 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 import Build
+import BuildServerProtocol
 @_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
 import PackageModel
 import SKOptions
+import SKSupport
 import SKTestSupport
 import SourceKitLSP
 import TSCBasic
@@ -28,11 +30,21 @@ import struct PackageModel.BuildFlags
 #endif
 
 fileprivate extension SwiftPMBuildSystem {
-  func buildSettings(for uri: DocumentURI, language: Language) async throws -> FileBuildSettings? {
-    guard let target = self.configuredTargets(for: uri).only else {
+  func buildSettings(for uri: DocumentURI, language: Language) async throws -> TextDocumentSourceKitOptionsResponse? {
+    guard let target = self.targets(for: uri).only else {
       return nil
     }
-    return try await buildSettings(for: uri, in: target, language: language)
+    return try await sourceKitOptions(
+      request: TextDocumentSourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        target: target,
+        language: language
+      )
+    )
+  }
+
+  func waitForUpToDateBuildGraph() async {
+    let _: VoidResponse = await self.waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest())
   }
 }
 
@@ -47,50 +59,13 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         ]
       )
       let packageRoot = tempDir.appending(component: "pkg")
-      let tr = ToolchainRegistry.forTesting
-      await assertThrowsError(
-        try await SwiftPMBuildSystem(
-          workspacePath: packageRoot,
-          toolchainRegistry: tr,
-          fileSystem: fs,
-          options: SourceKitLSPOptions(),
-          testHooks: SwiftPMTestHooks()
-        )
-      )
-    }
-  }
-
-  func testUnparsablePackage() async throws {
-    let fs = localFileSystem
-    try await withTestScratchDir { tempDir in
-      try fs.createFiles(
-        root: tempDir,
-        files: [
-          "pkg/Sources/lib/a.swift": "",
-          "pkg/Package.swift": """
-          // swift-tools-version:4.2
-          import PackageDescription
-          let pack
-          """,
-        ]
-      )
-      let packageRoot = tempDir.appending(component: "pkg")
-      let tr = ToolchainRegistry.forTesting
-      let buildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
-        toolchainRegistry: tr,
-        fileSystem: fs,
-        options: SourceKitLSPOptions(),
-        testHooks: SwiftPMTestHooks()
-      )
-      await assertThrowsError(try await buildSystem.schedulePackageReload().value)
+      XCTAssertNil(SwiftPMBuildSystem.projectRoot(for: packageRoot, options: .testDefault()))
     }
   }
 
   func testNoToolchain() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -107,10 +82,10 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = tempDir.appending(component: "pkg")
       await assertThrowsError(
         try await SwiftPMBuildSystem(
-          workspacePath: packageRoot,
+          projectRoot: packageRoot,
           toolchainRegistry: ToolchainRegistry(toolchains: []),
-          fileSystem: fs,
           options: SourceKitLSPOptions(),
+          connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
           testHooks: SwiftPMTestHooks()
         )
       )
@@ -119,9 +94,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
   func testBasicSwiftArgs() async throws {
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -138,13 +112,13 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
+        connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.schedulePackageReload().value
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
@@ -203,13 +177,13 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: localFileSystem,
         options: SourceKitLSPOptions(),
+        connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.schedulePackageReload().value
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aPlusSomething = packageRoot.appending(components: "Sources", "lib", "a+something.swift")
       let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
@@ -239,9 +213,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testBuildSetup() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -266,13 +239,13 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
 
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(swiftPM: options),
+        connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.schedulePackageReload().value
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
@@ -289,9 +262,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testDefaultSDKs() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -313,10 +285,10 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
 
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: tempDir.appending(component: "pkg"),
+        projectRoot: tempDir.appending(component: "pkg"),
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(swiftPM: options),
+        connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy"),
         testHooks: SwiftPMTestHooks()
       )
       let path = await swiftpmBuildSystem.destinationBuildParameters.toolchain.sdkRootPath
@@ -329,9 +301,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testManifestArgs() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -348,13 +319,13 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
+        connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.schedulePackageReload().value
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let source = try resolveSymlinks(packageRoot.appending(component: "Package.swift"))
       let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: source.asURI, language: .swift))
@@ -366,9 +337,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testMultiFileSwift() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -385,13 +355,13 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
+        connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.schedulePackageReload().value
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
@@ -408,9 +378,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testMultiTargetSwift() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/libA/a.swift": "",
@@ -434,13 +403,13 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
+        connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.schedulePackageReload().value
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
@@ -469,9 +438,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testUnknownFile() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/libA/a.swift": "",
@@ -489,13 +457,13 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
+        connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.schedulePackageReload().value
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
@@ -511,9 +479,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testBasicCXXArgs() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.cpp": "",
@@ -533,13 +500,13 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
+        connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.schedulePackageReload().value
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
@@ -596,9 +563,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testDeploymentTargetSwift() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -614,13 +580,13 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = tempDir.appending(component: "pkg")
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: ToolchainRegistry.forTesting,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
+        connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.schedulePackageReload().value
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
@@ -641,9 +607,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testSymlinkInWorkspaceSwift() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg_real/Sources/lib/a.swift": "",
@@ -666,13 +631,13 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: packageRoot, options: .testDefault())),
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
+        connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.schedulePackageReload().value
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift1 = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let aswift2 =
@@ -702,9 +667,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testSymlinkInWorkspaceCXX() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg_real/Sources/lib/a.cpp": "",
@@ -734,13 +698,13 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
 
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: symlinkRoot,
+        projectRoot: XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: symlinkRoot, options: .testDefault())),
         toolchainRegistry: ToolchainRegistry.forTesting,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
+        connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.schedulePackageReload().value
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       for file in [acpp, ah] {
         let args = try unwrap(
@@ -754,9 +718,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testSwiftDerivedSources() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -774,13 +737,13 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
+        connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.schedulePackageReload().value
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
@@ -796,9 +759,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testNestedInvalidPackageSwift() async throws {
-    let fs = InMemoryFileSystem()
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/Package.swift": "// not a valid package",
@@ -812,24 +774,16 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = try resolveSymlinks(tempDir.appending(components: "pkg", "Sources", "lib"))
-      let tr = ToolchainRegistry.forTesting
-      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
-        toolchainRegistry: tr,
-        fileSystem: fs,
-        options: SourceKitLSPOptions(),
-        testHooks: SwiftPMTestHooks()
-      )
+      let workspaceRoot = try resolveSymlinks(tempDir.appending(components: "pkg", "Sources", "lib"))
+      let projectRoot = SwiftPMBuildSystem.projectRoot(for: workspaceRoot, options: .testDefault())
 
-      assertEqual(await swiftpmBuildSystem.projectRoot, try resolveSymlinks(tempDir.appending(component: "pkg")))
+      assertEqual(projectRoot, try resolveSymlinks(tempDir.appending(component: "pkg")))
     }
   }
 
   func testPluginArgs() async throws {
-    let fs = localFileSystem
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try localFileSystem.createFiles(
         root: tempDir,
         files: [
           "pkg/Plugins/MyPlugin/a.swift": "",
@@ -850,13 +804,13 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.forTesting
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        workspacePath: packageRoot,
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
-        fileSystem: fs,
         options: SourceKitLSPOptions(),
+        connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.schedulePackageReload().value
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Plugins", "MyPlugin", "a.swift")
       let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple

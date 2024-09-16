@@ -10,10 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
 import SKLogging
+import SwiftExtensions
 
 /// The logging subsystem that should be used for all index-related logging.
 let indexLoggingSubsystem = "org.swift.sourcekit-lsp.indexing"
@@ -72,7 +74,7 @@ package enum IndexTaskStatus: Comparable {
 package enum IndexProgressStatus: Sendable {
   case preparingFileForEditorFunctionality
   case generatingBuildGraph
-  case indexing(preparationTasks: [ConfiguredTarget: IndexTaskStatus], indexTasks: [DocumentURI: IndexTaskStatus])
+  case indexing(preparationTasks: [BuildTargetIdentifier: IndexTaskStatus], indexTasks: [DocumentURI: IndexTaskStatus])
   case upToDate
 
   package func merging(with other: IndexProgressStatus) -> IndexProgressStatus {
@@ -144,7 +146,7 @@ package final actor SemanticIndexManager {
   /// ...). `nil` if no build graph is currently being generated.
   private var generateBuildGraphTask: Task<Void, Never>?
 
-  private let preparationUpToDateTracker = UpToDateTracker<ConfiguredTarget>()
+  private let preparationUpToDateTracker = UpToDateTracker<BuildTargetIdentifier>()
 
   private let indexStoreUpToDateTracker = UpToDateTracker<DocumentURI>()
 
@@ -152,7 +154,7 @@ package final actor SemanticIndexManager {
   /// executing.
   ///
   /// After a preparation task finishes, it is removed from this dictionary.
-  private var inProgressPreparationTasks: [ConfiguredTarget: InProgressPreparationTask] = [:]
+  private var inProgressPreparationTasks: [BuildTargetIdentifier: InProgressPreparationTask] = [:]
 
   /// The files that are currently being index, either waiting for their target to be prepared, waiting for the index
   /// store update task to be scheduled in the task scheduler or which currently have an index store update running.
@@ -174,7 +176,7 @@ package final actor SemanticIndexManager {
   private let indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
 
   /// Callback that is called when an indexing task produces output it wants to log to the index log.
-  private let logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
+  private let logMessageToIndexLog: @Sendable (_ taskID: String, _ message: String) -> Void
 
   /// Called when files are scheduled to be indexed.
   ///
@@ -217,7 +219,7 @@ package final actor SemanticIndexManager {
     updateIndexStoreTimeout: Duration,
     testHooks: IndexTestHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: String, _ message: String) -> Void,
     indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
     indexProgressStatusDidChange: @escaping @Sendable () -> Void
   ) {
@@ -248,23 +250,13 @@ package final actor SemanticIndexManager {
   /// Regenerate the build graph (also resolving package dependencies) and then index all the source files known to the
   /// build system that don't currently have a unit with a timestamp that matches the mtime of the file.
   ///
-  /// This method is intended to initially update the index of a project after it is opened.
-  package func scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(indexFilesWithUpToDateUnit: Bool = false) async {
+  /// If `filesToIndex` is `nil`, all files in the build system with out-of-date units are indexed.
+  package func scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
+    filesToIndex: [DocumentURI]?,
+    indexFilesWithUpToDateUnit: Bool
+  ) async {
     generateBuildGraphTask = Task(priority: .low) {
       await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "build-graph-generation") {
-        logger.log(
-          "Starting build graph generation with priority \(Task.currentPriority.rawValue, privacy: .public)"
-        )
-        let signposter = logger.makeSignposter()
-        let signpostID = signposter.makeSignpostID()
-        let state = signposter.beginInterval("Preparing", id: signpostID, "Generating build graph")
-        let startDate = Date()
-        defer {
-          logger.log(
-            "Finished build graph generation in \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms"
-          )
-          signposter.endInterval("Preparing", state)
-        }
         await testHooks.buildGraphGenerationDidStart?()
         await self.buildSystemManager.waitForUpToDateBuildGraph()
         // Ensure that we have an up-to-date indexstore-db. Waiting for the indexstore-db to be updated is cheaper than
@@ -273,7 +265,14 @@ package final actor SemanticIndexManager {
         await testHooks.buildGraphGenerationDidFinish?()
         // TODO: Ideally this would be a type like any Collection<DocumentURI> & Sendable but that doesn't work due to
         // https://github.com/swiftlang/swift/issues/75602
-        var filesToIndex: [DocumentURI] = await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
+        var filesToIndex: [DocumentURI] =
+          if let filesToIndex {
+            filesToIndex
+          } else {
+            await orLog("Getting files to index") {
+              try await self.buildSystemManager.buildableSourceFiles().keys.sorted { $0.stringValue < $1.stringValue }
+            } ?? []
+          }
         if !indexFilesWithUpToDateUnit {
           let index = index.checked(for: .modifiedFiles)
           filesToIndex = filesToIndex.filter { !index.hasUpToDateUnit(for: $0) }
@@ -290,7 +289,7 @@ package final actor SemanticIndexManager {
   package func scheduleReindex() async {
     await indexStoreUpToDateTracker.markAllKnownOutOfDate()
     await preparationUpToDateTracker.markAllKnownOutOfDate()
-    await scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(indexFilesWithUpToDateUnit: true)
+    await scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(filesToIndex: nil, indexFilesWithUpToDateUnit: true)
   }
 
   /// Wait for all in-progress index tasks to finish.
@@ -343,31 +342,20 @@ package final actor SemanticIndexManager {
     let changedFiles = events.map(\.uri)
     await indexStoreUpToDateTracker.markOutOfDate(changedFiles)
 
-    // Note that configured targets are the right abstraction layer here (instead of a non-configured target) because a
-    // build system might have targets that include different source files. Hence a source file might be in target T
-    // configured for macOS but not in target T configured for iOS.
-    let targets = await changedFiles.asyncMap { await buildSystemManager.configuredTargets(for: $0) }.flatMap { $0 }
-    if let dependentTargets = await buildSystemManager.targets(dependingOn: targets) {
-      logger.info(
-        """
-        Marking targets as out-of-date: \
-        \(String(dependentTargets.map(\.description).joined(separator: ", ")))
-        """
-      )
-      await preparationUpToDateTracker.markOutOfDate(dependentTargets)
-    } else {
-      logger.info("Marking all targets as out-of-date")
-      await preparationUpToDateTracker.markAllKnownOutOfDate()
-      // `markAllOutOfDate` only marks targets out-of-date that have been indexed before. Also mark all targets with
-      // in-progress preparation out of date. So we don't get into the following situation, which would result in an
-      // incorrect up-to-date status of a target
-      //  - Target preparation starts for the first time
-      //  - Files changed
-      //  - Target preparation finishes.
-      await preparationUpToDateTracker.markOutOfDate(inProgressPreparationTasks.keys)
-    }
+    let targets = await changedFiles.asyncMap { await buildSystemManager.targets(for: $0) }.flatMap { $0 }
+    let dependentTargets = await buildSystemManager.targets(dependingOn: Set(targets))
+    logger.info(
+      """
+      Marking targets as out-of-date: \
+      \(String(dependentTargets.map(\.uri.stringValue).joined(separator: ", ")))
+      """
+    )
+    await preparationUpToDateTracker.markOutOfDate(dependentTargets)
 
-    await scheduleBackgroundIndex(files: changedFiles, indexFilesWithUpToDateUnit: false)
+    await scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
+      filesToIndex: changedFiles,
+      indexFilesWithUpToDateUnit: false
+    )
   }
 
   /// Returns the files that should be indexed to get up-to-date index information for the given files.
@@ -377,7 +365,12 @@ package final actor SemanticIndexManager {
   private func filesToIndex(
     toCover files: some Collection<DocumentURI> & Sendable
   ) async -> [FileToIndex] {
-    let sourceFiles = Set(await buildSystemManager.sourceFiles().map(\.uri))
+    let sourceFiles = await orLog("Getting source files in project") {
+      Set(try await buildSystemManager.buildableSourceFiles().keys)
+    }
+    guard let sourceFiles else {
+      return []
+    }
     let filesToReIndex = await files.asyncCompactMap { (uri) -> FileToIndex? in
       if sourceFiles.contains(uri) {
         // If this is a source file, just index it.
@@ -405,9 +398,9 @@ package final actor SemanticIndexManager {
   package func schedulePreparationForEditorFunctionality(of uri: DocumentURI, priority: TaskPriority? = nil) {
     if inProgressPrepareForEditorTask?.document == uri {
       // We are already preparing this document, so nothing to do. This is necessary to avoid the following scenario:
-      // Determining the canonical configured target for a document takes 1s and we get a new document request for the
+      // Determining the canonical target for a document takes 1s and we get a new document request for the
       // document ever 0.5s, which would cancel the previous in-progress preparation task, cancelling the canonical
-      // configured target configuration, never actually getting to the actual preparation.
+      // target configuration, never actually getting to the actual preparation.
       return
     }
     let id = UUID()
@@ -437,7 +430,7 @@ package final actor SemanticIndexManager {
   ///
   /// If file's target is known to be up-to-date, this returns almost immediately.
   package func prepareFileForEditorFunctionality(_ uri: DocumentURI) async {
-    guard let target = await buildSystemManager.canonicalConfiguredTarget(for: uri) else {
+    guard let target = await buildSystemManager.canonicalTarget(for: uri) else {
       return
     }
     if Task.isCancelled {
@@ -452,7 +445,11 @@ package final actor SemanticIndexManager {
 
   // MARK: - Helper functions
 
-  private func prepare(targets: [ConfiguredTarget], purpose: TargetPreparationPurpose, priority: TaskPriority?) async {
+  private func prepare(
+    targets: [BuildTargetIdentifier],
+    purpose: TargetPreparationPurpose,
+    priority: TaskPriority?
+  ) async {
     // Perform a quick initial check whether the target is up-to-date, in which case we don't need to schedule a
     // preparation operation at all.
     // We will check the up-to-date status again in `PreparationTaskDescription.execute`. This ensures that if we
@@ -580,11 +577,6 @@ package final actor SemanticIndexManager {
       if await indexStoreUpToDateTracker.isUpToDate($0.sourceFile) {
         return false
       }
-      guard let language = await buildSystemManager.defaultLanguage(for: $0.mainFile),
-        UpdateIndexStoreTaskDescription.canIndex(language: language)
-      else {
-        return false
-      }
       return true
     }
     // sort files to get deterministic indexing order
@@ -593,33 +585,37 @@ package final actor SemanticIndexManager {
 
     // Sort the targets in topological order so that low-level targets get built before high-level targets, allowing us
     // to index the low-level targets ASAP.
-    var filesByTarget: [ConfiguredTarget: [FileToIndex]] = [:]
+    var filesByTarget: [BuildTargetIdentifier: [FileToIndex]] = [:]
     for fileToIndex in outOfDateFiles {
-      guard let target = await buildSystemManager.canonicalConfiguredTarget(for: fileToIndex.mainFile) else {
+      guard let target = await buildSystemManager.canonicalTarget(for: fileToIndex.mainFile) else {
         logger.error(
           "Not indexing \(fileToIndex.forLogging) because the target could not be determined"
         )
         continue
       }
+      guard let language = await buildSystemManager.defaultLanguage(for: fileToIndex.mainFile, in: target),
+        UpdateIndexStoreTaskDescription.canIndex(language: language)
+      else {
+        continue
+      }
+
       filesByTarget[target, default: []].append(fileToIndex)
     }
 
-    var sortedTargets: [ConfiguredTarget] =
+    // The targets sorted in reverse topological order, low-level targets before high-level targets. If topological
+    // sorting fails, sorted in another deterministic way where the actual order doesn't matter.
+    var sortedTargets: [BuildTargetIdentifier] =
       await orLog("Sorting targets") { try await buildSystemManager.topologicalSort(of: Array(filesByTarget.keys)) }
-      ?? Array(filesByTarget.keys).sorted(by: {
-        ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID)
-      })
+      ?? Array(filesByTarget.keys).sorted { $0.uri.stringValue < $1.uri.stringValue }
 
     if Set(sortedTargets) != Set(filesByTarget.keys) {
       logger.fault(
         """
         Sorting targets topologically changed set of targets:
-        \(sortedTargets.map(\.targetID).joined(separator: ", ")) != \(filesByTarget.keys.map(\.targetID).joined(separator: ", "))
+        \(sortedTargets.map(\.uri.stringValue).joined(separator: ", ")) != \(filesByTarget.keys.map(\.uri.stringValue).joined(separator: ", "))
         """
       )
-      sortedTargets = Array(filesByTarget.keys).sorted(by: {
-        ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID)
-      })
+      sortedTargets = Array(filesByTarget.keys).sorted { $0.uri.stringValue < $1.uri.stringValue }
     }
 
     var indexTasks: [Task<Void, Never>] = []

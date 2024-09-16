@@ -96,7 +96,7 @@ package struct SwiftCompileCommand: Sendable, Equatable {
 
 package actor SwiftLanguageService: LanguageService, Sendable {
   /// The ``SourceKitLSPServer`` instance that created this `SwiftLanguageService`.
-  weak var sourceKitLSPServer: SourceKitLSPServer?
+  private(set) weak var sourceKitLSPServer: SourceKitLSPServer?
 
   let sourcekitd: SourceKitD
 
@@ -152,7 +152,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
 
   var documentManager: DocumentManager {
     get throws {
-      guard let sourceKitLSPServer = self.sourceKitLSPServer else {
+      guard let sourceKitLSPServer else {
         throw ResponseError.unknown("Connection to the editor closed")
       }
       return sourceKitLSPServer.documentManager
@@ -417,6 +417,9 @@ extension SwiftLanguageService {
   }
 
   package func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
+    guard (try? documentManager.openDocuments.contains(uri)) ?? false else {
+      return
+    }
     // Close and re-open the document internally to inform sourcekitd to update the compile command. At the moment
     // there's no better way to do this.
     // Schedule the document re-open in the SourceKit-LSP server. This ensures that the re-open happens exclusively with
@@ -425,6 +428,9 @@ extension SwiftLanguageService {
   }
 
   package func documentDependenciesUpdated(_ uri: DocumentURI) async {
+    guard (try? documentManager.openDocuments.contains(uri)) ?? false else {
+      return
+    }
     await orLog("Sending dependencyUpdated request to sourcekitd") {
       let req = sourcekitd.dictionary([
         keys.request: requests.dependencyUpdated

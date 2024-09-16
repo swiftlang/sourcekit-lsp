@@ -15,6 +15,7 @@ import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKLogging
+import SKOptions
 import SKSupport
 import SwiftExtensions
 import ToolchainRegistry
@@ -66,19 +67,16 @@ package actor BuildServerBuildSystem: MessageHandler {
   package private(set) var indexDatabasePath: AbsolutePath?
   package private(set) var indexStorePath: AbsolutePath?
 
-  /// Delegate to handle any build system events.
-  package weak var delegate: BuildSystemDelegate?
-
-  /// - Note: Needed to set the delegate from a different actor isolation context
-  package func setDelegate(_ delegate: BuildSystemDelegate?) async {
-    self.delegate = delegate
-  }
+  package let connectionToSourceKitLSP: any Connection
 
   /// The build settings that have been received from the build server.
-  private var buildSettings: [DocumentURI: FileBuildSettings] = [:]
+  private var buildSettings: [DocumentURI: TextDocumentSourceKitOptionsResponse] = [:]
+
+  private var urisRegisteredForChanges: Set<URI> = []
 
   package init(
     projectRoot: AbsolutePath,
+    connectionToSourceKitLSP: any Connection,
     fileSystem: FileSystem = localFileSystem
   ) async throws {
     let configPath = projectRoot.appending(component: "buildServer.json")
@@ -98,17 +96,18 @@ package actor BuildServerBuildSystem: MessageHandler {
     #endif
     self.projectRoot = projectRoot
     self.serverConfig = config
+    self.connectionToSourceKitLSP = connectionToSourceKitLSP
     try await self.initializeBuildServer()
   }
 
   /// Creates a build system using the Build Server Protocol config.
   ///
   /// - Returns: nil if `projectRoot` has no config or there is an error parsing it.
-  package init?(projectRoot: AbsolutePath?) async {
+  package init?(projectRoot: AbsolutePath?, connectionToSourceKitLSP: any Connection) async {
     guard let projectRoot else { return nil }
 
     do {
-      try await self.init(projectRoot: projectRoot)
+      try await self.init(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
     } catch is FileSystemError {
       // config file was missing, no build server for this workspace
       return nil
@@ -120,11 +119,11 @@ package actor BuildServerBuildSystem: MessageHandler {
 
   deinit {
     if let buildServer = self.buildServer {
-      _ = buildServer.send(ShutdownBuild()) { result in
+      _ = buildServer.send(BuildShutdownRequest()) { result in
         if let error = result.failure {
           logger.fault("Error shutting down build server: \(error.forLogging)")
         }
-        buildServer.send(ExitBuildNotification())
+        buildServer.send(OnBuildExitNotification())
         buildServer.close()
       }
     }
@@ -159,7 +158,7 @@ package actor BuildServerBuildSystem: MessageHandler {
       Language.swift,
     ]
 
-    let initializeRequest = InitializeBuild(
+    let initializeRequest = InitializeBuildRequest(
       displayName: "SourceKit-LSP",
       version: "1.0",
       bspVersion: "2.0",
@@ -169,14 +168,14 @@ package actor BuildServerBuildSystem: MessageHandler {
 
     let buildServer = try makeJSONRPCBuildServer(client: self, serverPath: serverPath, serverFlags: flags)
     let response = try await buildServer.send(initializeRequest)
-    buildServer.send(InitializedBuildNotification())
+    buildServer.send(OnBuildInitializedNotification())
     logger.log("Initialized build server \(response.displayName)")
 
     // see if index store was set as part of the server metadata
-    if let indexDbPath = readReponseDataKey(data: response.data, key: "indexDatabasePath") {
+    if let indexDbPath = readResponseDataKey(data: response.data, key: "indexDatabasePath") {
       self.indexDatabasePath = try AbsolutePath(validating: indexDbPath, relativeTo: self.projectRoot)
     }
-    if let indexStorePath = readReponseDataKey(data: response.data, key: "indexStorePath") {
+    if let indexStorePath = readResponseDataKey(data: response.data, key: "indexStorePath") {
       self.indexStorePath = try AbsolutePath(validating: indexStorePath, relativeTo: self.projectRoot)
     }
     self.buildServer = buildServer
@@ -194,7 +193,7 @@ package actor BuildServerBuildSystem: MessageHandler {
       """
     )
     bspMessageHandlingQueue.async {
-      if let params = params as? BuildTargetsChangedNotification {
+      if let params = params as? OnBuildTargetDidChangeNotification {
         await self.handleBuildTargetsChanged(params)
       } else if let params = params as? FileOptionsChangedNotification {
         await self.handleFileOptionsChanged(params)
@@ -219,17 +218,13 @@ package actor BuildServerBuildSystem: MessageHandler {
     reply(.failure(ResponseError.methodNotFound(R.method)))
   }
 
-  func handleBuildTargetsChanged(
-    _ notification: BuildTargetsChangedNotification
-  ) async {
-    await self.delegate?.buildTargetsChanged(notification.changes)
+  func handleBuildTargetsChanged(_ notification: OnBuildTargetDidChangeNotification) {
+    connectionToSourceKitLSP.send(notification)
   }
 
-  func handleFileOptionsChanged(
-    _ notification: FileOptionsChangedNotification
-  ) async {
+  func handleFileOptionsChanged(_ notification: FileOptionsChangedNotification) async {
     let result = notification.updatedOptions
-    let settings = FileBuildSettings(
+    let settings = TextDocumentSourceKitOptionsResponse(
       compilerArguments: result.options,
       workingDirectory: result.workingDirectory
     )
@@ -238,13 +233,16 @@ package actor BuildServerBuildSystem: MessageHandler {
 
   /// Record the new build settings for the given document and inform the delegate
   /// about the changed build settings.
-  private func buildSettingsChanged(for document: DocumentURI, settings: FileBuildSettings?) async {
+  private func buildSettingsChanged(for document: DocumentURI, settings: TextDocumentSourceKitOptionsResponse?) async {
     buildSettings[document] = settings
-    await self.delegate?.fileBuildSettingsChanged([document])
+    // FIXME: (BSP migration) When running in the legacy mode where teh BSP server pushes build settings to us, we could
+    // consider having a separate target for each source file so that we can update individual targets instead of having
+    // to send an update for all targets.
+    connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
   }
 }
 
-private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
+private func readResponseDataKey(data: LSPAny?, key: String) -> String? {
   if case .dictionary(let dataDict)? = data,
     case .string(let stringVal)? = dataDict[key]
   {
@@ -254,112 +252,84 @@ private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
   return nil
 }
 
-extension BuildServerBuildSystem: BuildSystem {
+extension BuildServerBuildSystem: BuiltInBuildSystem {
+  static package func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath? {
+    guard localFileSystem.isFile(workspaceFolder.appending(component: "buildServer.json")) else {
+      return nil
+    }
+    return workspaceFolder
+  }
+
   package nonisolated var supportsPreparation: Bool { false }
 
-  /// The build settings for the given file.
-  ///
-  /// Returns `nil` if no build settings have been received from the build
-  /// server yet or if no build settings are available for this file.
-  package func buildSettings(
-    for document: DocumentURI,
-    in target: ConfiguredTarget,
-    language: Language
-  ) async -> FileBuildSettings? {
-    return buildSettings[document]
+  package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
+    // TODO: (BSP migration) Forward this request to the BSP server
+    return WorkspaceBuildTargetsResponse(targets: [
+      BuildTarget(
+        id: .dummy,
+        displayName: "Compilation database",
+        baseDirectory: nil,
+        tags: [.test],
+        capabilities: BuildTargetCapabilities(),
+        // Be conservative with the languages that might be used in the target. SourceKit-LSP doesn't use this property.
+        languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift],
+        dependencies: []
+      )
+    ])
   }
 
-  package func defaultLanguage(for document: DocumentURI) async -> Language? {
-    return nil
+  package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+    // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
+    // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).
+    // TODO: (BSP migration) Forward this request to the BSP server
+    return BuildTargetSourcesResponse(items: [])
   }
 
-  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
-    return nil
-  }
+  package func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) {}
 
-  package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
-  }
-
-  package func scheduleBuildGraphGeneration() {}
-
-  package func waitForUpToDateBuildGraph() async {}
-
-  package func topologicalSort(of targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
-    return nil
-  }
-
-  package func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
-    return nil
-  }
-
-  package func prepare(
-    targets: [ConfiguredTarget],
-    logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
-  ) async throws {
+  package func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
     throw PrepareNotSupportedError()
   }
 
-  package func registerForChangeNotifications(for uri: DocumentURI) {
-    let request = RegisterForChanges(uri: uri, action: .register)
-    _ = self.buildServer?.send(request) { result in
-      if let error = result.failure {
-        logger.error("Error registering \(uri): \(error.forLogging)")
+  package func sourceKitOptions(
+    request: TextDocumentSourceKitOptionsRequest
+  ) async throws -> TextDocumentSourceKitOptionsResponse? {
+    // FIXME: (BSP Migration) If the BSP server supports it, send the `SourceKitOptions` request to it. Only do the
+    // `RegisterForChanges` dance if we are in the legacy mode.
 
-        Task {
-          // BuildServer registration failed, so tell our delegate that no build
-          // settings are available.
-          await self.buildSettingsChanged(for: uri, settings: nil)
+    // Support the pre Swift 6.1 build settings workflow where SourceKit-LSP registers for changes for a file and then
+    // expects updates to those build settings to get pushed to SourceKit-LSP with `FileOptionsChangedNotification`.
+    // We do so by registering for changes when requesting build settings for a document for the first time. We never
+    // unregister for changes. The expectation is that all BSP servers migrate to the `SourceKitOptionsRequest` soon,
+    // which renders this code path dead.
+    let uri = request.textDocument.uri
+    if !urisRegisteredForChanges.contains(uri) {
+      let request = RegisterForChanges(uri: uri, action: .register)
+      _ = self.buildServer?.send(request) { result in
+        if let error = result.failure {
+          logger.error("Error registering \(request.uri): \(error.forLogging)")
+
+          Task {
+            // BuildServer registration failed, so tell our delegate that no build
+            // settings are available.
+            await self.buildSettingsChanged(for: request.uri, settings: nil)
+          }
         }
       }
     }
-  }
 
-  /// Unregister the given file for build-system level change notifications, such as command
-  /// line flag changes, dependency changes, etc.
-  package func unregisterForChangeNotifications(for uri: DocumentURI) {
-    let request = RegisterForChanges(uri: uri, action: .unregister)
-    _ = self.buildServer?.send(request) { result in
-      if let error = result.failure {
-        logger.error("Error unregistering \(uri.forLogging): \(error.forLogging)")
-      }
-    }
-  }
-
-  package func filesDidChange(_ events: [FileEvent]) {}
-
-  package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    guard
-      let fileUrl = uri.fileURL,
-      let path = try? AbsolutePath(validating: fileUrl.path)
-    else {
-      return .unhandled
+    guard let buildSettings = buildSettings[uri] else {
+      return nil
     }
 
-    // TODO: We should not make any assumptions about which files the build server can handle.
-    // Instead we should query the build server which files it can handle
-    // (https://github.com/swiftlang/sourcekit-lsp/issues/492).
-
-    if projectRoot.isAncestorOfOrEqual(to: path) {
-      return .handled
-    }
-
-    if let realpath = try? resolveSymlinks(path), realpath != path, projectRoot.isAncestorOfOrEqual(to: realpath) {
-      return .handled
-    }
-
-    return .unhandled
+    return TextDocumentSourceKitOptionsResponse(
+      compilerArguments: buildSettings.compilerArguments,
+      workingDirectory: buildSettings.workingDirectory
+    )
   }
 
-  package func sourceFiles() async -> [SourceFileInfo] {
-    // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
-    // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).
-    return []
-  }
-
-  package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) {
-    // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
-    // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).
+  package func waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
+    return VoidResponse()
   }
 }
 

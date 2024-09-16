@@ -13,14 +13,13 @@
 import Foundation
 import LanguageServerProtocol
 import SKLogging
-import SKSupport
 import SwiftExtensions
 
 /// Represents a single `WorkDoneProgress` task that gets communicated with the client.
 ///
 /// The work done progress is started when the object is created and ended when the object is destroyed.
 /// In between, updates can be sent to the client.
-actor WorkDoneProgressManager {
+package actor WorkDoneProgressManager {
   private enum Status: Equatable {
     case inProgress(message: String?, percentage: Int?)
     case done
@@ -34,7 +33,11 @@ actor WorkDoneProgressManager {
   /// The queue on which progress updates are sent to the client.
   private let progressUpdateQueue = AsyncQueue<Serial>()
 
-  private weak var server: SourceKitLSPServer?
+  private let connectionToClient: any Connection
+
+  /// Closure that wait until the connection between SourceKit-LSP and the editor has been initialized. Other than that,
+  /// the closure should not perform any work.
+  private let waitUntilClientInitialized: () async -> Void
 
   /// A string with which the `token` of the generated `WorkDoneProgress` sent to the client starts.
   ///
@@ -60,42 +63,18 @@ actor WorkDoneProgressManager {
   /// The last status that was sent to the client. Used so we don't send no-op updates to the client.
   private var lastStatus: Status? = nil
 
-  init?(
-    server: SourceKitLSPServer,
-    tokenPrefix: String,
-    initialDebounce: Duration? = nil,
-    title: String,
-    message: String? = nil,
-    percentage: Int? = nil
-  ) async {
-    guard let capabilityRegistry = await server.capabilityRegistry else {
-      return nil
-    }
-    self.init(
-      server: server,
-      capabilityRegistry: capabilityRegistry,
-      tokenPrefix: tokenPrefix,
-      initialDebounce: initialDebounce,
-      title: title,
-      message: message,
-      percentage: percentage
-    )
-  }
-
-  init?(
-    server: SourceKitLSPServer,
-    capabilityRegistry: CapabilityRegistry,
+  package init?(
+    connectionToClient: any Connection,
+    waitUntilClientInitialized: @escaping () async -> Void,
     tokenPrefix: String,
     initialDebounce: Duration? = nil,
     title: String,
     message: String? = nil,
     percentage: Int? = nil
   ) {
-    guard capabilityRegistry.clientCapabilities.window?.workDoneProgress ?? false else {
-      return nil
-    }
     self.tokenPrefix = tokenPrefix
-    self.server = server
+    self.connectionToClient = connectionToClient
+    self.waitUntilClientInitialized = waitUntilClientInitialized
     self.title = title
     self.pendingStatus = .inProgress(message: message, percentage: percentage)
     progressUpdateQueue.async {
@@ -114,15 +93,11 @@ actor WorkDoneProgressManager {
     guard statusToSend != lastStatus else {
       return
     }
-    guard let server else {
-      // SourceKitLSPServer has been destroyed, we don't have a way to send notifications to the client anymore.
-      return
-    }
-    await server.waitUntilInitialized()
+    await waitUntilClientInitialized()
     switch statusToSend {
     case .inProgress(message: let message, percentage: let percentage):
       if let token {
-        server.sendNotificationToClient(
+        connectionToClient.send(
           WorkDoneProgress(
             token: token,
             value: .report(WorkDoneProgressReport(cancellable: false, message: message, percentage: percentage))
@@ -131,11 +106,11 @@ actor WorkDoneProgressManager {
       } else {
         let token = ProgressToken.string("\(tokenPrefix).\(UUID().uuidString)")
         do {
-          _ = try await server.client.send(CreateWorkDoneProgressRequest(token: token))
+          _ = try await connectionToClient.send(CreateWorkDoneProgressRequest(token: token))
         } catch {
           return
         }
-        server.sendNotificationToClient(
+        connectionToClient.send(
           WorkDoneProgress(
             token: token,
             value: .begin(WorkDoneProgressBegin(title: title, message: message, percentage: percentage))
@@ -145,14 +120,14 @@ actor WorkDoneProgressManager {
       }
     case .done:
       if let token {
-        server.sendNotificationToClient(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd())))
+        connectionToClient.send(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd())))
         self.token = nil
       }
     }
     lastStatus = statusToSend
   }
 
-  func update(message: String? = nil, percentage: Int? = nil) {
+  package func update(message: String? = nil, percentage: Int? = nil) {
     pendingStatus = .inProgress(message: message, percentage: percentage)
     progressUpdateQueue.async {
       await self.sendProgressUpdateAssumingOnProgressUpdateQueue()
@@ -162,7 +137,7 @@ actor WorkDoneProgressManager {
   /// Ends the work done progress. Any further update calls are no-ops.
   ///
   /// `end` must be should be called before the `WorkDoneProgressManager` is deallocated.
-  func end() {
+  package func end() {
     pendingStatus = .done
     progressUpdateQueue.async {
       await self.sendProgressUpdateAssumingOnProgressUpdateQueue()
@@ -180,73 +155,8 @@ actor WorkDoneProgressManager {
       // in `progressUpdateQueue`, which keep the `WorkDoneProgressManager` alive and thus prevent the work done
       // progress to be implicitly ended by the deinitializer.
       if let token {
-        server?.sendNotificationToClient(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd())))
+        connectionToClient.send(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd())))
       }
-    }
-  }
-}
-
-/// A `WorkDoneProgressManager` that essentially has two states. If any operation tracked by this type is currently
-/// running, it displays a work done progress in the client. If multiple operations are running at the same time, it
-/// doesn't show multiple work done progress in the client. For example, we only want to show one progress indicator
-/// when sourcekitd has crashed, not one per `SwiftLanguageService`.
-actor SharedWorkDoneProgressManager {
-  private weak var sourceKitLSPServer: SourceKitLSPServer?
-
-  /// The number of in-progress operations. When greater than 0 `workDoneProgress` non-nil and a work done progress is
-  /// displayed to the user.
-  private var inProgressOperations = 0
-  private var workDoneProgress: WorkDoneProgressManager?
-
-  private let tokenPrefix: String
-  private let title: String
-  private let message: String?
-
-  package init(
-    sourceKitLSPServer: SourceKitLSPServer,
-    tokenPrefix: String,
-    title: String,
-    message: String? = nil
-  ) {
-    self.sourceKitLSPServer = sourceKitLSPServer
-    self.tokenPrefix = tokenPrefix
-    self.title = title
-    self.message = message
-  }
-
-  func start() async {
-    guard let sourceKitLSPServer else {
-      return
-    }
-    // Do all asynchronous operations up-front so that incrementing `inProgressOperations` and setting `workDoneProgress`
-    // cannot be interrupted by an `await` call
-    let initialDebounceDuration = await sourceKitLSPServer.options.workDoneProgressDebounceDurationOrDefault
-    let capabilityRegistry = await sourceKitLSPServer.capabilityRegistry
-
-    inProgressOperations += 1
-    if let capabilityRegistry, workDoneProgress == nil {
-      workDoneProgress = WorkDoneProgressManager(
-        server: sourceKitLSPServer,
-        capabilityRegistry: capabilityRegistry,
-        tokenPrefix: tokenPrefix,
-        initialDebounce: initialDebounceDuration,
-        title: title,
-        message: message
-      )
-    }
-  }
-
-  func end() async {
-    if inProgressOperations > 0 {
-      inProgressOperations -= 1
-    } else {
-      logger.fault(
-        "Unbalanced calls to SharedWorkDoneProgressManager.start and end for \(self.tokenPrefix, privacy: .public)"
-      )
-    }
-    if inProgressOperations == 0, let workDoneProgress {
-      self.workDoneProgress = nil
-      await workDoneProgress.end()
     }
   }
 }

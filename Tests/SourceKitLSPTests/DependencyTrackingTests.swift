@@ -40,7 +40,7 @@ final class DependencyTrackingTests: XCTestCase {
       usePullDiagnostics: false
     )
 
-    let (libBUri, _) = try project.openDocument("LibB.swift")
+    _ = try project.openDocument("LibB.swift")
 
     let initialDiags = try await project.testClient.nextDiagnosticsNotification()
     // Semantic analysis: expect module import error.
@@ -58,7 +58,14 @@ final class DependencyTrackingTests: XCTestCase {
 
     try await SwiftPMTestProject.build(at: project.scratchDirectory)
 
-    await project.testClient.server.filesDependenciesUpdated([libBUri])
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(
+        changes:
+          FileManager.default.findFiles(withExtension: "swiftmodule", in: project.scratchDirectory).map {
+            FileEvent(uri: DocumentURI($0), type: .created)
+          }
+      )
+    )
 
     let updatedDiags = try await project.testClient.nextDiagnosticsNotification()
     // Semantic analysis: no more errors expected, import should resolve since we built.
@@ -102,7 +109,8 @@ final class DependencyTrackingTests: XCTestCase {
     let contents = "int libX(int value);"
     try contents.write(to: generatedHeaderURL, atomically: true, encoding: .utf8)
 
-    await project.testClient.server.filesDependenciesUpdated([mainUri])
+    let workspace = try await unwrap(project.testClient.server.workspaceForDocument(uri: mainUri))
+    await workspace.filesDependenciesUpdated([mainUri])
 
     let updatedDiags = try await project.testClient.nextDiagnosticsNotification()
     // No more errors expected, import should resolve since we the generated header file

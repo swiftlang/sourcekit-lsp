@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import Foundation
 import LanguageServerProtocol
 import SKLogging
@@ -24,7 +25,7 @@ import func TSCBasic.resolveSymlinks
 /// A single compilation database command.
 ///
 /// See https://clang.llvm.org/docs/JSONCompilationDatabase.html
-package struct CompilationDatabaseCompileCommand: Equatable {
+package struct CompilationDatabaseCompileCommand: Equatable, Codable {
 
   /// The working directory for the compilation.
   package var directory: String
@@ -44,9 +45,40 @@ package struct CompilationDatabaseCompileCommand: Equatable {
     self.commandLine = commandLine
     self.output = output
   }
-}
 
-extension CompilationDatabase.Command {
+  private enum CodingKeys: String, CodingKey {
+    case directory
+    case file
+    case command
+    case arguments
+    case output
+  }
+
+  package init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.directory = try container.decode(String.self, forKey: .directory)
+    self.filename = try container.decode(String.self, forKey: .file)
+    self.output = try container.decodeIfPresent(String.self, forKey: .output)
+    if let arguments = try container.decodeIfPresent([String].self, forKey: .arguments) {
+      self.commandLine = arguments
+    } else if let command = try container.decodeIfPresent(String.self, forKey: .command) {
+      #if os(Windows)
+      self.commandLine = splitWindowsCommandLine(command, initialCommandName: true)
+      #else
+      self.commandLine = splitShellEscapedCommand(command)
+      #endif
+    } else {
+      throw CompilationDatabaseDecodingError.missingCommandOrArguments
+    }
+  }
+
+  package func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(directory, forKey: .directory)
+    try container.encode(filename, forKey: .file)
+    try container.encode(commandLine, forKey: .arguments)
+    try container.encodeIfPresent(output, forKey: .output)
+  }
 
   /// The `DocumentURI` for this file. If `filename` is relative and `directory` is
   /// absolute, returns the concatenation. However, if both paths are relative,
@@ -67,7 +99,7 @@ extension CompilationDatabase.Command {
 package protocol CompilationDatabase {
   typealias Command = CompilationDatabaseCompileCommand
   subscript(_ uri: DocumentURI) -> [Command] { get }
-  var allCommands: AnySequence<Command> { get }
+  var sourceItems: [SourceItem] { get }
 }
 
 /// Loads the compilation database located in `directory`, if one can be found in `additionalSearchPaths` or in the default search paths of "." and "build".
@@ -111,17 +143,19 @@ package func tryLoadCompilationDatabase(
 ///
 /// See https://clang.llvm.org/docs/JSONCompilationDatabase.html under Alternatives
 package struct FixedCompilationDatabase: CompilationDatabase, Equatable {
-  package var allCommands: AnySequence<CompilationDatabaseCompileCommand> { AnySequence([]) }
-
   private let fixedArgs: [String]
   private let directory: String
 
   package subscript(path: DocumentURI) -> [CompilationDatabaseCompileCommand] {
     [Command(directory: directory, filename: path.pseudoPath, commandLine: fixedArgs + [path.pseudoPath])]
   }
-}
 
-extension FixedCompilationDatabase {
+  package var sourceItems: [SourceItem] {
+    return [
+      SourceItem(uri: URI(filePath: directory, isDirectory: true), kind: .directory, generated: false)
+    ]
+  }
+
   /// Loads the compilation database located in `directory`, if any.
   /// - Returns: `nil` if `compile_flags.txt` was not found
   package init?(directory: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
@@ -168,9 +202,9 @@ extension FixedCompilationDatabase {
 /// ```
 ///
 /// See https://clang.llvm.org/docs/JSONCompilationDatabase.html
-package struct JSONCompilationDatabase: CompilationDatabase, Equatable {
-  var pathToCommands: [DocumentURI: [Int]] = [:]
-  var commands: [CompilationDatabaseCompileCommand] = []
+package struct JSONCompilationDatabase: CompilationDatabase, Equatable, Codable {
+  private var pathToCommands: [DocumentURI: [Int]] = [:]
+  private var commands: [CompilationDatabaseCompileCommand] = []
 
   package init(_ commands: [CompilationDatabaseCompileCommand] = []) {
     for command in commands {
@@ -178,36 +212,6 @@ package struct JSONCompilationDatabase: CompilationDatabase, Equatable {
     }
   }
 
-  package subscript(_ uri: DocumentURI) -> [CompilationDatabaseCompileCommand] {
-    if let indices = pathToCommands[uri] {
-      return indices.map { commands[$0] }
-    }
-    if let fileURL = uri.fileURL, let indices = pathToCommands[DocumentURI(fileURL.resolvingSymlinksInPath())] {
-      return indices.map { commands[$0] }
-    }
-    return []
-  }
-
-  package var allCommands: AnySequence<CompilationDatabaseCompileCommand> { AnySequence(commands) }
-
-  package mutating func add(_ command: CompilationDatabaseCompileCommand) {
-    let uri = command.uri
-    pathToCommands[uri, default: []].append(commands.count)
-
-    if let fileURL = uri.fileURL,
-      let symlinksResolved = try? resolveSymlinks(AbsolutePath(validating: fileURL.path))
-    {
-      let canonical = DocumentURI(filePath: symlinksResolved.pathString, isDirectory: false)
-      if canonical != uri {
-        pathToCommands[canonical, default: []].append(commands.count)
-      }
-    }
-
-    commands.append(command)
-  }
-}
-
-extension JSONCompilationDatabase: Codable {
   package init(from decoder: Decoder) throws {
     var container = try decoder.unkeyedContainer()
     while !container.isAtEnd {
@@ -215,13 +219,6 @@ extension JSONCompilationDatabase: Codable {
     }
   }
 
-  package func encode(to encoder: Encoder) throws {
-    var container = encoder.unkeyedContainer()
-    try commands.forEach { try container.encode($0) }
-  }
-}
-
-extension JSONCompilationDatabase {
   /// Loads the compilation database located in `directory`, if any.
   ///
   /// - Returns: `nil` if `compile_commands.json` was not found
@@ -241,45 +238,46 @@ extension JSONCompilationDatabase {
       self = try JSONDecoder().decode(JSONCompilationDatabase.self, from: data)
     }
   }
+
+  package func encode(to encoder: Encoder) throws {
+    var container = encoder.unkeyedContainer()
+    try commands.forEach { try container.encode($0) }
+  }
+
+  package subscript(_ uri: DocumentURI) -> [CompilationDatabaseCompileCommand] {
+    if let indices = pathToCommands[uri] {
+      return indices.map { commands[$0] }
+    }
+    if let fileURL = uri.fileURL, let indices = pathToCommands[DocumentURI(fileURL.resolvingSymlinksInPath())] {
+      return indices.map { commands[$0] }
+    }
+    return []
+  }
+
+  package var sourceItems: [SourceItem] {
+    return commands.map {
+      SourceItem(uri: $0.uri, kind: .file, generated: false)
+    }
+  }
+
+  private mutating func add(_ command: CompilationDatabaseCompileCommand) {
+    let uri = command.uri
+    pathToCommands[uri, default: []].append(commands.count)
+
+    if let fileURL = uri.fileURL,
+      let symlinksResolved = try? resolveSymlinks(AbsolutePath(validating: fileURL.path))
+    {
+      let canonical = DocumentURI(filePath: symlinksResolved.pathString, isDirectory: false)
+      if canonical != uri {
+        pathToCommands[canonical, default: []].append(commands.count)
+      }
+    }
+
+    commands.append(command)
+  }
 }
 
 enum CompilationDatabaseDecodingError: Error {
   case missingCommandOrArguments
   case fixedDatabaseDecodingError
-}
-
-extension CompilationDatabase.Command: Codable {
-  private enum CodingKeys: String, CodingKey {
-    case directory
-    case file
-    case command
-    case arguments
-    case output
-  }
-
-  package init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.directory = try container.decode(String.self, forKey: .directory)
-    self.filename = try container.decode(String.self, forKey: .file)
-    self.output = try container.decodeIfPresent(String.self, forKey: .output)
-    if let arguments = try container.decodeIfPresent([String].self, forKey: .arguments) {
-      self.commandLine = arguments
-    } else if let command = try container.decodeIfPresent(String.self, forKey: .command) {
-      #if os(Windows)
-      self.commandLine = splitWindowsCommandLine(command, initialCommandName: true)
-      #else
-      self.commandLine = splitShellEscapedCommand(command)
-      #endif
-    } else {
-      throw CompilationDatabaseDecodingError.missingCommandOrArguments
-    }
-  }
-
-  package func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encode(directory, forKey: .directory)
-    try container.encode(filename, forKey: .file)
-    try container.encode(commandLine, forKey: .arguments)
-    try container.encodeIfPresent(output, forKey: .output)
-  }
 }
