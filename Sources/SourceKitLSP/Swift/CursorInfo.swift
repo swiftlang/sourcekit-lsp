@@ -29,7 +29,7 @@ struct CursorInfo {
   /// The annotated declaration XML string.
   var annotatedDeclaration: String?
 
-  #if swift(>=6.2)
+  #if compiler(>=6.2)
   #warning(
     "Documentation transitioned from XML to the raw string in Swift 6.0. We should be able to remove documentationXML now"
   )

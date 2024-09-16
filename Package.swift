@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 
 import Foundation
 import PackageDescription
@@ -405,8 +405,7 @@ let package = Package(
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ]
     ),
-  ],
-  swiftLanguageVersions: [.v5, .version("6")]
+  ]
 )
 
 // MARK: - Parse build arguments

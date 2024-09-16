@@ -42,7 +42,6 @@ func assertSingleFileRename(
   file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
-  try await SkipUnless.sourcekitdSupportsRename()
   let testClient = try await TestSourceKitLSPClient()
   let uri = DocumentURI(for: language, testName: testName)
   let positions = testClient.openDocument(markedSource, uri: uri, language: language)
@@ -141,7 +140,6 @@ func assertMultiFileRename(
   file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
-  try await SkipUnless.sourcekitdSupportsRename()
   let project = try await SwiftPMTestProject(
     files: files,
     manifest: manifest,

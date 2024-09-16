@@ -52,11 +52,7 @@ extension AbsolutePath {
     .directory
   }
 }
-#if compiler(<5.11)
-extension AbsolutePath: ExpressibleByArgument {}
-#else
 extension AbsolutePath: @retroactive ExpressibleByArgument {}
-#endif
 
 extension RelativePath {
   public init?(argument: String) {
@@ -69,11 +65,7 @@ extension RelativePath {
     self = path
   }
 }
-#if compiler(<5.11)
-extension RelativePath: ExpressibleByArgument {}
-#else
 extension RelativePath: @retroactive ExpressibleByArgument {}
-#endif
 
 extension PathPrefixMapping {
   public init?(argument: String) {
