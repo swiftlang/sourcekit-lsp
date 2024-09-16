@@ -295,7 +295,7 @@ package struct NonDarwinLogger: Sendable {
   private let subsystem: String
   private let category: String
   private let logLevel: NonDarwinLogLevel
-  private let privacyLevel: NonDarwinLogPrivacy
+  fileprivate let privacyLevel: NonDarwinLogPrivacy
   private let overrideLogHandler: (@Sendable (String) -> Void)?
 
   /// - Parameters:
@@ -385,22 +385,34 @@ package struct NonDarwinLogger: Sendable {
   }
 
   package func makeSignposter() -> NonDarwinSignposter {
-    return NonDarwinSignposter()
+    return NonDarwinSignposter(logger: self)
   }
 }
 
 // MARK: - Signposter
 
-package struct NonDarwinSignpostID: Sendable {}
+package struct NonDarwinSignpostID: Sendable {
+  fileprivate let id: UInt32
+}
 
-package struct NonDarwinSignpostIntervalState: Sendable {}
+package struct NonDarwinSignpostIntervalState: Sendable {
+  fileprivate let id: NonDarwinSignpostID
+}
+
+private let nextSignpostID = AtomicUInt32(initialValue: 0)
 
 /// A type that is API-compatible to `OSLogMessage` for all uses within sourcekit-lsp.
 ///
 /// Since non-Darwin platforms don't have signposts, the type just has no-op operations.
 package struct NonDarwinSignposter: Sendable {
+  private let logger: NonDarwinLogger
+
+  fileprivate init(logger: NonDarwinLogger) {
+    self.logger = logger
+  }
+
   package func makeSignpostID() -> NonDarwinSignpostID {
-    return NonDarwinSignpostID()
+    return NonDarwinSignpostID(id: nextSignpostID.fetchAndIncrement())
   }
 
   package func beginInterval(
@@ -408,15 +420,19 @@ package struct NonDarwinSignposter: Sendable {
     id: NonDarwinSignpostID,
     _ message: NonDarwinLogMessage
   ) -> NonDarwinSignpostIntervalState {
-    return NonDarwinSignpostIntervalState()
+    logger.log(level: .debug, "Signpost \(id.id) begin: \(name) - \(message.value.string(for: logger.privacyLevel))")
+    return NonDarwinSignpostIntervalState(id: id)
   }
 
-  package func emitEvent(_ name: StaticString, id: NonDarwinSignpostID, _ message: NonDarwinLogMessage = "") {}
+  package func emitEvent(_ name: StaticString, id: NonDarwinSignpostID, _ message: NonDarwinLogMessage = "") {
+    logger.log(level: .debug, "Signpost \(id.id) event: \(name) - \(message.value.string(for: logger.privacyLevel))")
+  }
 
   package func endInterval(
     _ name: StaticString,
     _ state: NonDarwinSignpostIntervalState,
     _ message: StaticString = ""
   ) {
+    logger.log(level: .debug, "Signpost \(state.id.id) end: \(name) - \(message)")
   }
 }

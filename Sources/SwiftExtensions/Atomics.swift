@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import CAtomics
+private import CAtomics
 
 #if compiler(>=6.2)
 #warning("We should be able to use atomics in the stdlib when we raise the deployment target to require Swift 6")

@@ -10,8 +10,8 @@ add_library(SourceKitLSP STATIC
   LanguageService.swift
   MessageHandlingDependencyTracker.swift
   Rename.swift
-  ResponseError+Init.swift
   SemanticTokensLegend+SourceKitLSPLegend.swift
+  SharedWorkDoneProgressManager.swift
   SourceKitIndexDelegate.swift
   SourceKitLSPCommandMetadata.swift
   SourceKitLSPServer.swift
@@ -19,7 +19,6 @@ add_library(SourceKitLSP STATIC
   TestDiscovery.swift
   TestHooks.swift
   TextEdit+IsNoop.swift
-  WorkDoneProgressManager.swift
   Workspace.swift
 )
 target_sources(SourceKitLSP PRIVATE
@@ -57,7 +56,6 @@ target_sources(SourceKitLSP PRIVATE
   Swift/SemanticRefactorCommand.swift
   Swift/SemanticRefactoring.swift
   Swift/SemanticTokens.swift
-  Swift/SourceKitD+ResponseError.swift
   Swift/SwiftCodeLensScanner.swift
   Swift/SwiftCommand.swift
   Swift/SwiftLanguageService.swift

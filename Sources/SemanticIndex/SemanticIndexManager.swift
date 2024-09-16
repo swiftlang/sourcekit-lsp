@@ -15,6 +15,7 @@ import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
 import SKLogging
+import SwiftExtensions
 
 /// The logging subsystem that should be used for all index-related logging.
 let indexLoggingSubsystem = "org.swift.sourcekit-lsp.indexing"
@@ -249,23 +250,13 @@ package final actor SemanticIndexManager {
   /// Regenerate the build graph (also resolving package dependencies) and then index all the source files known to the
   /// build system that don't currently have a unit with a timestamp that matches the mtime of the file.
   ///
-  /// This method is intended to initially update the index of a project after it is opened.
-  package func scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(indexFilesWithUpToDateUnit: Bool = false) async {
+  /// If `filesToIndex` is `nil`, all files in the build system with out-of-date units are indexed.
+  package func scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
+    filesToIndex: [DocumentURI]?,
+    indexFilesWithUpToDateUnit: Bool
+  ) async {
     generateBuildGraphTask = Task(priority: .low) {
       await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "build-graph-generation") {
-        logger.log(
-          "Starting build graph generation with priority \(Task.currentPriority.rawValue, privacy: .public)"
-        )
-        let signposter = logger.makeSignposter()
-        let signpostID = signposter.makeSignpostID()
-        let state = signposter.beginInterval("Preparing", id: signpostID, "Generating build graph")
-        let startDate = Date()
-        defer {
-          logger.log(
-            "Finished build graph generation in \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms"
-          )
-          signposter.endInterval("Preparing", state)
-        }
         await testHooks.buildGraphGenerationDidStart?()
         await self.buildSystemManager.waitForUpToDateBuildGraph()
         // Ensure that we have an up-to-date indexstore-db. Waiting for the indexstore-db to be updated is cheaper than
@@ -275,9 +266,13 @@ package final actor SemanticIndexManager {
         // TODO: Ideally this would be a type like any Collection<DocumentURI> & Sendable but that doesn't work due to
         // https://github.com/swiftlang/swift/issues/75602
         var filesToIndex: [DocumentURI] =
-          await orLog("Getting files to index") {
-            try await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
-          } ?? []
+          if let filesToIndex {
+            filesToIndex
+          } else {
+            await orLog("Getting files to index") {
+              try await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
+            } ?? []
+          }
         if !indexFilesWithUpToDateUnit {
           let index = index.checked(for: .modifiedFiles)
           filesToIndex = filesToIndex.filter { !index.hasUpToDateUnit(for: $0) }
@@ -294,7 +289,7 @@ package final actor SemanticIndexManager {
   package func scheduleReindex() async {
     await indexStoreUpToDateTracker.markAllKnownOutOfDate()
     await preparationUpToDateTracker.markAllKnownOutOfDate()
-    await scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(indexFilesWithUpToDateUnit: true)
+    await scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(filesToIndex: nil, indexFilesWithUpToDateUnit: true)
   }
 
   /// Wait for all in-progress index tasks to finish.
@@ -357,7 +352,10 @@ package final actor SemanticIndexManager {
     )
     await preparationUpToDateTracker.markOutOfDate(dependentTargets)
 
-    await scheduleBackgroundIndex(files: changedFiles, indexFilesWithUpToDateUnit: false)
+    await scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
+      filesToIndex: changedFiles,
+      indexFilesWithUpToDateUnit: false
+    )
   }
 
   /// Returns the files that should be indexed to get up-to-date index information for the given files.

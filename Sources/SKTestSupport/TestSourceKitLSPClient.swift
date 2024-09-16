@@ -123,7 +123,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     }
     self.notificationYielder = notificationYielder
 
-    let serverToClientConnection = LocalConnection(name: "client")
+    let serverToClientConnection = LocalConnection(receiverName: "client")
     self.serverToClientConnection = serverToClientConnection
     server = SourceKitLSPServer(
       client: serverToClientConnection,

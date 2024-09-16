@@ -12,6 +12,7 @@
 
 import BuildServerProtocol
 import Dispatch
+import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SKOptions
@@ -69,7 +70,9 @@ fileprivate class RequestCache<Request: RequestType & Hashable, Result: Sendable
 /// Since some `BuildSystem`s may require a bit of a time to compute their arguments asynchronously,
 /// this class has a configurable `buildSettings` timeout which denotes the amount of time to give
 /// the build system before applying the fallback arguments.
-package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
+package actor BuildSystemManager: QueueBasedMessageHandler {
+  package static let signpostLoggingCategory: String = "build-system-manager-message-handling"
+
   /// The files for which the delegate has requested change notifications, ie.
   /// the files for which the delegate wants to get `filesDependenciesUpdated`
   /// callbacks if the file's build settings.
@@ -141,25 +144,35 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     }
   }
 
+  private let connectionFromBuildSystemToSourceKitLSP: LocalConnection
+  private var connectionToBuildSystem: LocalConnection?
+
   package init(
     buildSystemKind: BuildSystemKind?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
-    swiftpmTestHooks: SwiftPMTestHooks,
-    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
+    buildSystemTestHooks: BuildSystemTestHooks
   ) async {
     self.fallbackBuildSystem = FallbackBuildSystem(options: options.fallbackBuildSystemOrDefault)
     self.toolchainRegistry = toolchainRegistry
     self.options = options
     self.projectRoot = buildSystemKind?.projectRoot
+    connectionFromBuildSystemToSourceKitLSP = LocalConnection(receiverName: "BuildSystemManager")
+    connectionFromBuildSystemToSourceKitLSP.start(handler: self)
     self.buildSystem = await BuiltInBuildSystemAdapter(
       buildSystemKind: buildSystemKind,
       toolchainRegistry: toolchainRegistry,
       options: options,
-      swiftpmTestHooks: swiftpmTestHooks,
-      reloadPackageStatusCallback: reloadPackageStatusCallback,
-      messageHandler: self
+      buildSystemTestHooks: buildSystemTestHooks,
+      connectionToSourceKitLSP: connectionFromBuildSystemToSourceKitLSP
     )
+    if let buildSystem {
+      let connectionFromSourceKitLSPToBuildSystem = LocalConnection(receiverName: "\(type(of: buildSystem))")
+      connectionFromSourceKitLSPToBuildSystem.start(handler: buildSystem)
+      self.connectionToBuildSystem = connectionFromSourceKitLSPToBuildSystem
+    } else {
+      self.connectionToBuildSystem = nil
+    }
     // The debounce duration of 500ms was chosen arbitrarily without any measurements.
     self.filesDependenciesUpdatedDebouncer = Debouncer(
       debounceDuration: .milliseconds(500),
@@ -179,7 +192,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
     // FIXME: (BSP migration) Forward file watch patterns from this initialize request to the client
     initializeResult = Task { () -> InitializeBuildResponse? in
-      guard let buildSystem else {
+      guard let connectionToBuildSystem else {
         return nil
       }
       guard let buildSystemKind else {
@@ -187,7 +200,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
         return nil
       }
       return await orLog("Initializing build system") {
-        try await buildSystem.send(
+        try await connectionToBuildSystem.send(
           InitializeBuildRequest(
             displayName: "SourceKit-LSP",
             version: "unknown",
@@ -200,8 +213,13 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     }
   }
 
+  deinit {
+    connectionFromBuildSystemToSourceKitLSP.close()
+    connectionToBuildSystem?.close()
+  }
+
   package func filesDidChange(_ events: [FileEvent]) async {
-    await self.buildSystem?.send(BuildServerProtocol.DidChangeWatchedFilesNotification(changes: events))
+    connectionToBuildSystem?.send(BuildServerProtocol.DidChangeWatchedFilesNotification(changes: events))
 
     var targetsWithUpdatedDependencies: Set<BuildTargetIdentifier> = []
     // If a Swift file within a target is updated, reload all the other files within the target since they might be
@@ -245,25 +263,51 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     await self.filesDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
   }
 
-  /// Implementation of `MessageHandler`, handling notifications from the build system.
-  ///
-  /// - Important: Do not call directly.
-  package func handle(_ notification: some LanguageServerProtocol.NotificationType) async {
+  // FIXME: (BSP Migration) Can we use more fine-grained dependency tracking here?
+  package let messageHandlingQueue = AsyncQueue<Serial>()
+
+  package func handleImpl(_ notification: some NotificationType) async {
     switch notification {
     case let notification as DidChangeBuildTargetNotification:
       await self.didChangeBuildTarget(notification: notification)
     case let notification as BuildServerProtocol.LogMessageNotification:
       await self.logMessage(notification: notification)
+    case let notification as BuildServerProtocol.WorkDoneProgress:
+      await self.workDoneProgress(notification: notification)
     default:
       logger.error("Ignoring unknown notification \(type(of: notification).method)")
     }
   }
 
-  /// Implementation of `MessageHandler`, handling requests from the build system.
-  ///
-  /// - Important: Do not call directly.
-  package nonisolated func handle<R: RequestType>(_ request: R) async throws -> R.Response {
-    throw ResponseError.methodNotFound(R.method)
+  package func handleImpl<Request: RequestType>(_ request: RequestAndReply<Request>) async {
+    switch request {
+    case let request as RequestAndReply<BuildServerProtocol.CreateWorkDoneProgressRequest>:
+      await request.reply { try await self.createWorkDoneProgress(request: request.params) }
+    default:
+      await request.reply { throw ResponseError.methodNotFound(Request.method) }
+    }
+  }
+
+  private func createWorkDoneProgress(
+    request: BuildServerProtocol.CreateWorkDoneProgressRequest
+  ) async throws -> BuildServerProtocol.CreateWorkDoneProgressRequest.Response {
+    guard let delegate else {
+      throw ResponseError.unknown("Connection to client closed")
+    }
+    guard await delegate.clientSupportsWorkDoneProgress else {
+      throw ResponseError.unknown("Client does not support work done progress")
+    }
+    await delegate.waitUntilInitialized()
+    return try await delegate.sendRequestToClient(request as LanguageServerProtocol.CreateWorkDoneProgressRequest)
+  }
+
+  private func workDoneProgress(notification: BuildServerProtocol.WorkDoneProgress) async {
+    guard let delegate else {
+      logger.fault("Ignoring work done progress form build system because connection to client closed")
+      return
+    }
+    await delegate.waitUntilInitialized()
+    delegate.sendNotificationToClient(notification as LanguageServerProtocol.WorkDoneProgress)
   }
 
   /// - Note: Needed so we can set the delegate from a different isolation context.
@@ -365,7 +409,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
   /// Returns all the `ConfiguredTarget`s that the document is part of.
   package func targets(for document: DocumentURI) async -> [BuildTargetIdentifier] {
-    guard let buildSystem else {
+    guard let connectionToBuildSystem else {
       return []
     }
 
@@ -374,7 +418,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     let request = InverseSourcesRequest(textDocument: TextDocumentIdentifier(uri: document))
     do {
       let response = try await cachedTargetsForDocument.get(request) { document in
-        return try await buildSystem.send(request)
+        return try await connectionToBuildSystem.send(request)
       }
       return response.targets
     } catch {
@@ -430,7 +474,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     in target: BuildTargetIdentifier?,
     language: Language
   ) async throws -> FileBuildSettings? {
-    guard let buildSystem, let target else {
+    guard let connectionToBuildSystem, let target else {
       return nil
     }
     let request = SourceKitOptionsRequest(textDocument: TextDocumentIdentifier(uri: document), target: target)
@@ -441,7 +485,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     // very quickly from `settings(for:language:)`.
     // https://github.com/apple/sourcekit-lsp/issues/1181
     let response = try await cachedSourceKitOptions.get(request) { request in
-      try await buildSystem.send(request)
+      try await connectionToBuildSystem.send(request)
     }
     guard let response else {
       return nil
@@ -514,8 +558,10 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
   package func waitForUpToDateBuildGraph() async {
     await orLog("Waiting for build system updates") {
-      let _: VoidResponse? = try await self.buildSystem?.send(WaitForBuildSystemUpdatesRequest())
+      let _: VoidResponse? = try await connectionToBuildSystem?.send(WaitForBuildSystemUpdatesRequest())
     }
+    // Handle any messages the build system might have sent us while updating.
+    await self.messageHandlingQueue.async {}.valuePropagatingCancellation
   }
 
   /// The root targets of the project have depth of 0 and all target dependencies have a greater depth than the target
@@ -574,7 +620,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     targets: [BuildTargetIdentifier],
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
-    let _: VoidResponse? = try await buildSystem?.send(PrepareTargetsRequest(targets: targets))
+    let _: VoidResponse? = try await connectionToBuildSystem?.send(PrepareTargetsRequest(targets: targets))
     await orLog("Calling fileDependenciesUpdated") {
       let filesInPreparedTargets = try await self.sourceFiles(in: targets).flatMap(\.sources).map(\.uri)
       await filesDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets))
@@ -592,13 +638,13 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   }
 
   package func buildTargets() async throws -> [BuildTargetIdentifier: (target: BuildTarget, depth: Int)] {
-    guard let buildSystem else {
+    guard let connectionToBuildSystem else {
       return [:]
     }
 
     let request = BuildTargetsRequest()
     let result = try await cachedBuildTargets.get(request) { request in
-      let buildTargets = try await buildSystem.send(request).targets
+      let buildTargets = try await connectionToBuildSystem.send(request).targets
       let depths = await self.targetDepths(for: buildTargets)
       var result: [BuildTargetIdentifier: (target: BuildTarget, depth: Int)] = [:]
       result.reserveCapacity(buildTargets.count)
@@ -622,7 +668,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   }
 
   package func sourceFiles(in targets: some Sequence<BuildTargetIdentifier>) async throws -> [SourcesItem] {
-    guard let buildSystem else {
+    guard let connectionToBuildSystem else {
       return []
     }
 
@@ -632,7 +678,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     let sortedTargets = targets.sorted { $0.uri.stringValue < $1.uri.stringValue }
     let request = BuildTargetSourcesRequest(targets: sortedTargets)
     let response = try await cachedTargetSources.get(request) { request in
-      try await buildSystem.send(request)
+      try await connectionToBuildSystem.send(request)
     }
     return response.items
   }

@@ -96,7 +96,7 @@ package struct SwiftCompileCommand: Sendable, Equatable {
 
 package actor SwiftLanguageService: LanguageService, Sendable {
   /// The ``SourceKitLSPServer`` instance that created this `SwiftLanguageService`.
-  weak var sourceKitLSPServer: SourceKitLSPServer?
+  private(set) weak var sourceKitLSPServer: SourceKitLSPServer?
 
   let sourcekitd: SourceKitD
 
@@ -152,7 +152,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
 
   var documentManager: DocumentManager {
     get throws {
-      guard let sourceKitLSPServer = self.sourceKitLSPServer else {
+      guard let sourceKitLSPServer else {
         throw ResponseError.unknown("Connection to the editor closed")
       }
       return sourceKitLSPServer.documentManager

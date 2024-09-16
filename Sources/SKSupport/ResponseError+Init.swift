@@ -26,4 +26,21 @@ extension ResponseError {
       self = .unknown("Unknown error: \(error)")
     }
   }
+
+  private init(_ value: SKDError) {
+    switch value {
+    case .requestCancelled:
+      self = .cancelled
+    case .timedOut:
+      self = .unknown("sourcekitd request timed out")
+    case .requestFailed(let desc):
+      self = .unknown("sourcekitd request failed: \(desc)")
+    case .requestInvalid(let desc):
+      self = .unknown("sourcekitd invalid request \(desc)")
+    case .missingRequiredSymbol(let desc):
+      self = .unknown("sourcekitd missing required symbol '\(desc)'")
+    case .connectionInterrupted:
+      self = .unknown("sourcekitd connection interrupted")
+    }
+  }
 }

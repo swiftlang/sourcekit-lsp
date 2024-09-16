@@ -16,6 +16,7 @@ import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SKSupport
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process

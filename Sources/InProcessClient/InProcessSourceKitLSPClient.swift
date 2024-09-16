@@ -15,6 +15,7 @@ import LanguageServerProtocol
 import SKOptions
 import SKSupport
 import SourceKitLSP
+import SwiftExtensions
 import ToolchainRegistry
 
 /// Launches a `SourceKitLSPServer` in-process and allows sending messages to it.
@@ -34,7 +35,7 @@ public final class InProcessSourceKitLSPClient: Sendable {
     workspaceFolders: [WorkspaceFolder],
     messageHandler: any MessageHandler
   ) async throws {
-    let serverToClientConnection = LocalConnection(name: "client")
+    let serverToClientConnection = LocalConnection(receiverName: "client")
     self.server = SourceKitLSPServer(
       client: serverToClientConnection,
       toolchainRegistry: toolchainRegistry,

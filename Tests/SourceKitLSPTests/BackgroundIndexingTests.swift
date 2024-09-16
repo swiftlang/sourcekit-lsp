@@ -16,6 +16,7 @@ import SKSupport
 import SKTestSupport
 import SemanticIndex
 import SourceKitLSP
+import SwiftExtensions
 import ToolchainRegistry
 import XCTest
 
@@ -1268,7 +1269,7 @@ final class BackgroundIndexingTests: XCTestCase {
     let packageInitialized = AtomicBool(initialValue: false)
 
     var testHooks = TestHooks()
-    testHooks.swiftpmTestHooks.reloadPackageDidStart = {
+    testHooks.buildSystemTestHooks.swiftPMTestHooks.reloadPackageDidStart = {
       if packageInitialized.value {
         XCTFail("Build graph should not get reloaded when random file gets added")
       }

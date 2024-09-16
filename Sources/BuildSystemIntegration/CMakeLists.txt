@@ -13,6 +13,7 @@ add_library(BuildSystemIntegration STATIC
   IndexTaskID.swift
   MainFilesProvider.swift
   PathPrefixMapping.swift
+  QueueBasedMessageHandler.swift
   SplitShellCommand.swift
   SwiftPMBuildSystem.swift
   TestBuildSystem.swift)

@@ -28,24 +28,24 @@ package actor TestBuildSystem: BuiltInBuildSystem {
   package let indexStorePath: AbsolutePath? = nil
   package let indexDatabasePath: AbsolutePath? = nil
 
-  private weak var messageHandler: BuiltInBuildSystemMessageHandler?
+  private let connectionToSourceKitLSP: any Connection
 
   /// Build settings by file.
   private var buildSettingsByFile: [DocumentURI: SourceKitOptionsResponse] = [:]
 
-  package func setBuildSettings(for uri: DocumentURI, to buildSettings: SourceKitOptionsResponse?) async {
+  package func setBuildSettings(for uri: DocumentURI, to buildSettings: SourceKitOptionsResponse?) {
     buildSettingsByFile[uri] = buildSettings
-    await self.messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildTargetNotification(changes: nil))
+    connectionToSourceKitLSP.send(DidChangeBuildTargetNotification(changes: nil))
   }
 
   package nonisolated var supportsPreparation: Bool { false }
 
   package init(
     projectRoot: AbsolutePath,
-    messageHandler: any BuiltInBuildSystemMessageHandler
+    connectionToSourceKitLSP: any Connection
   ) {
     self.projectRoot = projectRoot
-    self.messageHandler = messageHandler
+    self.connectionToSourceKitLSP = connectionToSourceKitLSP
   }
 
   package func buildTargets(request: BuildTargetsRequest) async throws -> BuildTargetsResponse {

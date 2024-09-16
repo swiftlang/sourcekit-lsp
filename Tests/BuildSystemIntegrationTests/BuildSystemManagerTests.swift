@@ -22,7 +22,7 @@ import XCTest
 
 fileprivate extension BuildSystemManager {
   func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
-    await self.handle(DidChangeBuildTargetNotification(changes: nil))
+    handle(DidChangeBuildTargetNotification(changes: nil))
   }
 }
 
@@ -46,8 +46,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: nil,
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      swiftpmTestHooks: SwiftPMTestHooks(),
-      reloadPackageStatusCallback: { _ in }
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
@@ -105,8 +104,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      swiftpmTestHooks: SwiftPMTestHooks(),
-      reloadPackageStatusCallback: { _ in }
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
@@ -114,6 +112,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let del = await BSMDelegate(bsm)
 
     await bs.setBuildSettings(for: a, to: SourceKitOptionsResponse(compilerArguments: ["x"]))
+    // Wait for the new build settings to settle before registering for change notifications
+    await bsm.waitForUpToDateBuildGraph()
     await bsm.registerForChangeNotifications(for: a, language: .swift)
     assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.compilerArguments, ["x"])
 
@@ -132,8 +132,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      swiftpmTestHooks: SwiftPMTestHooks(),
-      reloadPackageStatusCallback: { _ in }
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
@@ -154,8 +153,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      swiftpmTestHooks: SwiftPMTestHooks(),
-      reloadPackageStatusCallback: { _ in }
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
@@ -192,8 +190,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      swiftpmTestHooks: SwiftPMTestHooks(),
-      reloadPackageStatusCallback: { _ in }
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
@@ -203,6 +200,8 @@ final class BuildSystemManagerTests: XCTestCase {
     await bs.setBuildSettings(for: cpp1, to: SourceKitOptionsResponse(compilerArguments: ["C++ 1"]))
     await bs.setBuildSettings(for: cpp2, to: SourceKitOptionsResponse(compilerArguments: ["C++ 2"]))
 
+    // Wait for the new build settings to settle before registering for change notifications
+    await bsm.waitForUpToDateBuildGraph()
     await bsm.registerForChangeNotifications(for: h, language: .c)
     assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h, language: .c)?.compilerArguments, ["C++ 1"])
 
@@ -251,8 +250,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      swiftpmTestHooks: SwiftPMTestHooks(),
-      reloadPackageStatusCallback: { _ in }
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
@@ -262,8 +260,10 @@ final class BuildSystemManagerTests: XCTestCase {
     let cppArg = "C++ Main File"
     await bs.setBuildSettings(for: cpp, to: SourceKitOptionsResponse(compilerArguments: [cppArg, cpp.pseudoPath]))
 
-    await bsm.registerForChangeNotifications(for: h1, language: .c)
+    // Wait for the new build settings to settle before registering for change notifications
+    await bsm.waitForUpToDateBuildGraph()
 
+    await bsm.registerForChangeNotifications(for: h1, language: .c)
     await bsm.registerForChangeNotifications(for: h2, language: .c)
 
     let expectedArgsH1 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h1.pseudoPath])
@@ -293,8 +293,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      swiftpmTestHooks: SwiftPMTestHooks(),
-      reloadPackageStatusCallback: { _ in }
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
@@ -304,6 +303,9 @@ final class BuildSystemManagerTests: XCTestCase {
     await bs.setBuildSettings(for: a, to: SourceKitOptionsResponse(compilerArguments: ["a"]))
     await bs.setBuildSettings(for: b, to: SourceKitOptionsResponse(compilerArguments: ["b"]))
     await bs.setBuildSettings(for: c, to: SourceKitOptionsResponse(compilerArguments: ["c"]))
+
+    // Wait for the new build settings to settle before registering for change notifications
+    await bsm.waitForUpToDateBuildGraph()
 
     await bsm.registerForChangeNotifications(for: a, language: .swift)
     await bsm.registerForChangeNotifications(for: b, language: .swift)
@@ -318,7 +320,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let changedB = expectation(description: "changed settings b")
     let changedC = expectation(description: "changed settings c")
     await del.setExpected([
-      (b, .swift, FileBuildSettings(compilerArguments: ["b"]), changedA),
+      (b, .swift, FileBuildSettings(compilerArguments: ["new-b"]), changedA),
       (b, .swift, FileBuildSettings(compilerArguments: ["new-b"]), changedB),
       (b, .swift, FileBuildSettings(compilerArguments: ["new-b"]), changedC),
     ])
@@ -408,4 +410,14 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
   nonisolated func logMessageToIndexLog(taskID: BuildSystemIntegration.IndexTaskID, message: String) {}
 
   func sourceFilesDidChange() async {}
+
+  var clientSupportsWorkDoneProgress: Bool { false }
+
+  nonisolated func sendNotificationToClient(_ notification: some NotificationType) {}
+
+  func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response {
+    throw ResponseError.methodNotFound(R.method)
+  }
+
+  func waitUntilInitialized() async {}
 }

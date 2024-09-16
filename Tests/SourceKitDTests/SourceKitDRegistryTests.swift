@@ -13,6 +13,7 @@
 import SKSupport
 import SKTestSupport
 import SourceKitD
+import SwiftExtensions
 import TSCBasic
 import XCTest
 

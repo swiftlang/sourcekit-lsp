@@ -11,7 +11,8 @@ add_library(BuildServerProtocol STATIC
   RegisterForChangeNotifications.swift
   ShutdownBuild.swift
   SourceKitOptionsRequest.swift
-  WaitForBuildSystemUpdates.swift)
+  WaitForBuildSystemUpdates.swift
+  WorkDoneProgress.swift)
 set_target_properties(BuildServerProtocol PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 target_link_libraries(BuildServerProtocol PRIVATE

@@ -67,7 +67,7 @@ package actor BuildServerBuildSystem: MessageHandler {
   package private(set) var indexDatabasePath: AbsolutePath?
   package private(set) var indexStorePath: AbsolutePath?
 
-  package weak var messageHandler: BuiltInBuildSystemMessageHandler?
+  package let connectionToSourceKitLSP: any Connection
 
   /// The build settings that have been received from the build server.
   private var buildSettings: [DocumentURI: SourceKitOptionsResponse] = [:]
@@ -76,7 +76,7 @@ package actor BuildServerBuildSystem: MessageHandler {
 
   package init(
     projectRoot: AbsolutePath,
-    messageHandler: BuiltInBuildSystemMessageHandler?,
+    connectionToSourceKitLSP: any Connection,
     fileSystem: FileSystem = localFileSystem
   ) async throws {
     let configPath = projectRoot.appending(component: "buildServer.json")
@@ -96,18 +96,18 @@ package actor BuildServerBuildSystem: MessageHandler {
     #endif
     self.projectRoot = projectRoot
     self.serverConfig = config
-    self.messageHandler = messageHandler
+    self.connectionToSourceKitLSP = connectionToSourceKitLSP
     try await self.initializeBuildServer()
   }
 
   /// Creates a build system using the Build Server Protocol config.
   ///
   /// - Returns: nil if `projectRoot` has no config or there is an error parsing it.
-  package init?(projectRoot: AbsolutePath?, messageHandler: BuiltInBuildSystemMessageHandler?) async {
+  package init?(projectRoot: AbsolutePath?, connectionToSourceKitLSP: any Connection) async {
     guard let projectRoot else { return nil }
 
     do {
-      try await self.init(projectRoot: projectRoot, messageHandler: messageHandler)
+      try await self.init(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
     } catch is FileSystemError {
       // config file was missing, no build server for this workspace
       return nil
@@ -218,8 +218,8 @@ package actor BuildServerBuildSystem: MessageHandler {
     reply(.failure(ResponseError.methodNotFound(R.method)))
   }
 
-  func handleBuildTargetsChanged(_ notification: DidChangeBuildTargetNotification) async {
-    await self.messageHandler?.sendNotificationToSourceKitLSP(notification)
+  func handleBuildTargetsChanged(_ notification: DidChangeBuildTargetNotification) {
+    connectionToSourceKitLSP.send(notification)
   }
 
   func handleFileOptionsChanged(_ notification: FileOptionsChangedNotification) async {
@@ -238,7 +238,7 @@ package actor BuildServerBuildSystem: MessageHandler {
     // FIXME: (BSP migration) When running in the legacy mode where teh BSP server pushes build settings to us, we could
     // consider having a separate target for each source file so that we can update individual targets instead of having
     // to send an update for all targets.
-    await self.messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildTargetNotification(changes: nil))
+    connectionToSourceKitLSP.send(DidChangeBuildTargetNotification(changes: nil))
   }
 }
 

@@ -31,7 +31,19 @@ package protocol BuildSystemManagerDelegate: AnyObject, Sendable {
   func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async
 
   /// Log the given message to the client's index log.
+  // FIXME: (BSP Migration) Use `sendNotificationToClient`
   func logMessageToIndexLog(taskID: IndexTaskID, message: String)
+
+  /// Whether the client can handle `WorkDoneProgress` requests.
+  var clientSupportsWorkDoneProgress: Bool { get async }
+
+  func sendNotificationToClient(_ notification: some NotificationType)
+
+  func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response
+
+  /// Wait until the connection to the client has been initialized, ie. wait until `SourceKitLSPServer` has replied
+  /// to the `initialize` request.
+  func waitUntilInitialized() async
 
   /// Notify the delegate that the list of source files in the build system might have changed.
   func sourceFilesDidChange() async

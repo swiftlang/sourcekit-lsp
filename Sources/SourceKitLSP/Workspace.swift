@@ -50,6 +50,12 @@ fileprivate func firstNonNil<T>(
 ///
 /// Typically a workspace is contained in a root directory.
 package final class Workspace: Sendable, BuildSystemManagerDelegate {
+  /// The ``SourceKitLSPServer`` instance that created this `Workspace`.
+  private(set) weak nonisolated(unsafe) var sourceKitLSPServer: SourceKitLSPServer? {
+    didSet {
+      preconditionFailure("sourceKitLSPServer must not be modified. It is only a var because it is weak")
+    }
+  }
 
   /// The root directory of the workspace.
   package let rootUri: DocumentURI?
@@ -83,14 +89,8 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
   /// `nil` if background indexing is not enabled.
   let semanticIndexManager: SemanticIndexManager?
 
-  /// A callback that should be called when the build system wants to log a message to the index log.
-  private let logMessageToIndexLogCallback: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
-
-  /// A callback that should be called when the file handling capability (ie. the presence of a target for a source
-  /// files) of this workspace changes.
-  private let fileHandlingCapabilityChangedCallback: @Sendable () async -> Void
-
   private init(
+    sourceKitLSPServer: SourceKitLSPServer?,
     rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
     options: SourceKitLSPOptions,
@@ -98,19 +98,14 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     buildSystemManager: BuildSystemManager,
     index uncheckedIndex: UncheckedIndex?,
     indexDelegate: SourceKitIndexDelegate?,
-    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
-    indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
-    indexProgressStatusDidChange: @escaping @Sendable () -> Void,
-    fileHandlingCapabilityChanged: @escaping @Sendable () async -> Void
+    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async {
+    self.sourceKitLSPServer = sourceKitLSPServer
     self.rootUri = rootUri
     self.capabilityRegistry = capabilityRegistry
     self.options = options
     self._uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
     self.buildSystemManager = buildSystemManager
-    self.logMessageToIndexLogCallback = logMessageToIndexLog
-    self.fileHandlingCapabilityChangedCallback = fileHandlingCapabilityChanged
     if options.backgroundIndexingOrDefault, let uncheckedIndex,
       await buildSystemManager.initializationData?.supportsPreparation ?? false
     {
@@ -120,9 +115,15 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
         updateIndexStoreTimeout: options.indexOrDefault.updateIndexStoreTimeoutOrDefault,
         testHooks: testHooks.indexTestHooks,
         indexTaskScheduler: indexTaskScheduler,
-        logMessageToIndexLog: logMessageToIndexLog,
-        indexTasksWereScheduled: indexTasksWereScheduled,
-        indexProgressStatusDidChange: indexProgressStatusDidChange
+        logMessageToIndexLog: { [weak sourceKitLSPServer] in
+          sourceKitLSPServer?.logMessageToIndexLog(taskID: $0, message: $1)
+        },
+        indexTasksWereScheduled: { [weak sourceKitLSPServer] in
+          sourceKitLSPServer?.indexProgressManager.indexTasksWereScheduled(count: $0)
+        },
+        indexProgressStatusDidChange: { [weak sourceKitLSPServer] in
+          sourceKitLSPServer?.indexProgressManager.indexProgressStatusDidChange()
+        }
       )
     } else {
       self.semanticIndexManager = nil
@@ -135,7 +136,10 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
     }
     if let semanticIndexManager {
-      await semanticIndexManager.scheduleBuildGraphGenerationAndBackgroundIndexAllFiles()
+      await semanticIndexManager.scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
+        filesToIndex: nil,
+        indexFilesWithUpToDateUnit: false
+      )
     }
   }
 
@@ -146,6 +150,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
   ///   - clientCapabilities: The client capabilities provided during server initialization.
   ///   - toolchainRegistry: The toolchain registry.
   convenience init(
+    sourceKitLSPServer: SourceKitLSPServer,
     documentManager: DocumentManager,
     rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
@@ -153,19 +158,13 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     testHooks: TestHooks,
-    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
-    indexTasksWereScheduled: @Sendable @escaping (Int) -> Void,
-    indexProgressStatusDidChange: @Sendable @escaping () -> Void,
-    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void,
-    fileHandlingCapabilityChanged: @Sendable @escaping () async -> Void
+    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async {
     let buildSystemManager = await BuildSystemManager(
       buildSystemKind: buildSystemKind,
       toolchainRegistry: toolchainRegistry,
       options: options,
-      swiftpmTestHooks: testHooks.swiftpmTestHooks,
-      reloadPackageStatusCallback: reloadPackageStatusCallback
+      buildSystemTestHooks: testHooks.buildSystemTestHooks
     )
     let buildSystem = await buildSystemManager.buildSystem?.underlyingBuildSystem
 
@@ -213,6 +212,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     await buildSystemManager.setMainFilesProvider(UncheckedIndex(index))
 
     await self.init(
+      sourceKitLSPServer: sourceKitLSPServer,
       rootUri: rootUri,
       capabilityRegistry: capabilityRegistry,
       options: options,
@@ -220,11 +220,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       buildSystemManager: buildSystemManager,
       index: UncheckedIndex(index),
       indexDelegate: indexDelegate,
-      indexTaskScheduler: indexTaskScheduler,
-      logMessageToIndexLog: logMessageToIndexLog,
-      indexTasksWereScheduled: indexTasksWereScheduled,
-      indexProgressStatusDidChange: indexProgressStatusDidChange,
-      fileHandlingCapabilityChanged: fileHandlingCapabilityChanged
+      indexTaskScheduler: indexTaskScheduler
     )
     await buildSystemManager.setDelegate(self)
   }
@@ -236,6 +232,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async -> Workspace {
     return await Workspace(
+      sourceKitLSPServer: nil,
       rootUri: nil,
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
       options: options,
@@ -243,11 +240,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       buildSystemManager: buildSystemManager,
       index: nil,
       indexDelegate: nil,
-      indexTaskScheduler: indexTaskScheduler,
-      logMessageToIndexLog: { _, _ in },
-      indexTasksWereScheduled: { _ in },
-      indexProgressStatusDidChange: {},
-      fileHandlingCapabilityChanged: {}
+      indexTaskScheduler: indexTaskScheduler
     )
   }
 
@@ -313,11 +306,39 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
   }
 
   package func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {
-    await self.fileHandlingCapabilityChangedCallback()
+    await sourceKitLSPServer?.fileHandlingCapabilityChanged()
   }
 
   package func logMessageToIndexLog(taskID: IndexTaskID, message: String) {
-    self.logMessageToIndexLogCallback(taskID, message)
+    sourceKitLSPServer?.logMessageToIndexLog(taskID: taskID, message: message)
+  }
+
+  package var clientSupportsWorkDoneProgress: Bool {
+    get async {
+      await sourceKitLSPServer?.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false
+    }
+  }
+
+  package func sendNotificationToClient(_ notification: some NotificationType) {
+    guard let sourceKitLSPServer else {
+      logger.error(
+        "Not sending \(type(of: notification), privacy: .public) to the client because sourceKitLSPServer has been deallocated"
+      )
+      return
+    }
+    sourceKitLSPServer.sendNotificationToClient(notification)
+
+  }
+
+  package func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response {
+    guard let sourceKitLSPServer else {
+      throw ResponseError.unknown("Connection to the editor closed")
+    }
+    return try await sourceKitLSPServer.sendRequestToClient(request)
+  }
+
+  package func waitUntilInitialized() async {
+    await sourceKitLSPServer?.waitUntilInitialized()
   }
 
   package func sourceFilesDidChange() async {
