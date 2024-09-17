@@ -138,6 +138,20 @@ class CodeCompletionSession {
     return try await task.valuePropagatingCancellation
   }
 
+  /// Close all code completion sessions for the given files.
+  ///
+  /// This should only be necessary to do if the dependencies have updated. In all other cases `completionList` will
+  /// decide whether an existing code completion session can be reused.
+  static func close(sourcekitd: any SourceKitD, uris: Set<DocumentURI>) {
+    completionQueue.async {
+      if let session = completionSessions[ObjectIdentifier(sourcekitd)], uris.contains(session.uri),
+        session.state == .open
+      {
+        await session.close()
+      }
+    }
+  }
+
   // MARK: - Implementation
 
   private let sourcekitd: any SourceKitD

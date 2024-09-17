@@ -1540,6 +1540,62 @@ final class BackgroundIndexingTests: XCTestCase {
       return definitionAfterEdit?.locations == [Location(uri: libAUri, range: Range(newAMarkers["2️⃣"]))]
     }
   }
+
+  func testCodeCompletionShowsUpdatedResultsAfterDependencyUpdated() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": """
+        public struct LibA {
+
+        }
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+
+        func test() {
+          LibA().1️⃣
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """,
+      options: SourceKitLSPOptions(
+        backgroundPreparationMode: SourceKitLSPOptions.BackgroundPreparationMode.enabled.rawValue
+      ),
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("LibB.swift")
+
+    let completionBeforeEdit = try await project.testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertEqual(completionBeforeEdit.items.map(\.label), ["self"])
+
+    let libAUri = try project.uri(for: "LibA.swift")
+    try """
+    public struct LibA {
+      public func test() {}
+    }
+    """.write(to: XCTUnwrap(libAUri.fileURL), atomically: true, encoding: .utf8)
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: libAUri, type: .changed)])
+    )
+    try await repeatUntilExpectedResult {
+      let completionAfterEdit = try await project.testClient.send(
+        CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      )
+      return completionAfterEdit.items.map(\.label) == ["self", "test()"]
+    }
+  }
 }
 
 extension HoverResponseContents {

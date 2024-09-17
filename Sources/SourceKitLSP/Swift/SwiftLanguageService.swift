@@ -427,19 +427,27 @@ extension SwiftLanguageService {
     sourceKitLSPServer?.handle(ReopenTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
   }
 
-  package func documentDependenciesUpdated(_ uri: DocumentURI) async {
-    guard (try? documentManager.openDocuments.contains(uri)) ?? false else {
+  package func documentDependenciesUpdated(_ uris: Set<DocumentURI>) async {
+    let uris = uris.filter { (try? documentManager.openDocuments.contains($0)) ?? false }
+    guard !uris.isEmpty else {
       return
     }
+
     await orLog("Sending dependencyUpdated request to sourcekitd") {
       let req = sourcekitd.dictionary([
         keys.request: requests.dependencyUpdated
       ])
       _ = try await self.sendSourcekitdRequest(req, fileContents: nil)
     }
-    await macroExpansionManager.purge(primaryFile: uri)
-    // `documentUpdatedBuildSettings` already handles reopening the document, so we do that here as well.
-    await self.documentUpdatedBuildSettings(uri)
+    // Even after sending the `dependencyUpdated` request to sourcekitd, the code completion session has state from
+    // before the AST update. Close it and open a new code completion session on the next completion request.
+    CodeCompletionSession.close(sourcekitd: sourcekitd, uris: uris)
+
+    for uri in uris {
+      await macroExpansionManager.purge(primaryFile: uri)
+      // `documentUpdatedBuildSettings` already handles reopening the document, so we do that here as well.
+      await self.documentUpdatedBuildSettings(uri)
+    }
   }
 
   // MARK: - Text synchronization

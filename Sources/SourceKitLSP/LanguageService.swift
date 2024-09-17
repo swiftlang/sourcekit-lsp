@@ -156,9 +156,9 @@ package protocol LanguageService: AnyObject, Sendable {
   /// the respective `DocumentURI` has been opened.
   func documentUpdatedBuildSettings(_ uri: DocumentURI) async
 
-  /// Sent when the `BuildSystem` has detected that dependencies of the given file have changed
+  /// Sent when the `BuildSystem` has detected that dependencies of the given files have changed
   /// (e.g. header files, swiftmodule files, other compiler input files).
-  func documentDependenciesUpdated(_ uri: DocumentURI) async
+  func documentDependenciesUpdated(_ uris: Set<DocumentURI>) async
 
   // MARK: - Text Document
 

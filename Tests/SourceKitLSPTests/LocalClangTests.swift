@@ -346,7 +346,7 @@ final class LocalClangTests: XCTestCase {
       in: project.testClient.server.workspaceForDocument(uri: mainUri)!
     )!
 
-    await clangdServer.documentDependenciesUpdated(mainUri)
+    await clangdServer.documentDependenciesUpdated([mainUri])
 
     // Now we should get a diagnostic in main.c file because `Object` is no longer defined.
     let editedDiags = try await project.testClient.nextDiagnosticsNotification()
