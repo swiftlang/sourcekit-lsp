@@ -1476,6 +1476,70 @@ final class BackgroundIndexingTests: XCTestCase {
     let callsAfterRedirect = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
     XCTAssertEqual(callsAfterRedirect?.only?.from.name, "updated()")
   }
+
+  func testInvalidatePreparationStatusOfTransitiveDependencies() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": """
+        public struct LibA {
+
+        }
+        """,
+        "LibB/LibB.swift": "",
+        "LibC/LibC.swift": """
+        import LibA
+
+        func test() {
+          LibA().1️⃣test()
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+           .target(name: "LibC", dependencies: ["LibB"]),
+          ]
+        )
+        """,
+      options: SourceKitLSPOptions(
+        backgroundPreparationMode: SourceKitLSPOptions.BackgroundPreparationMode.enabled.rawValue
+      ),
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("LibC.swift")
+
+    let definitionBeforeEdit = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertNil(definitionBeforeEdit)
+
+    let libAUri = try project.uri(for: "LibA.swift")
+    let (newAMarkers, newAContents) = DocumentPositions.extract(
+      from: """
+        public struct LibA {
+          public func 2️⃣test() {}
+        }
+        """
+    )
+    try newAContents.write(to: XCTUnwrap(libAUri.fileURL), atomically: true, encoding: .utf8)
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: libAUri, type: .changed)])
+    )
+
+    // Triggering a definition request causes `LibC` to be re-prepared. Repeat the request until LibC has been prepared
+    // and we get the expected result.
+    try await repeatUntilExpectedResult {
+      let definitionAfterEdit = try await project.testClient.send(
+        DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      )
+      return definitionAfterEdit?.locations == [Location(uri: libAUri, range: Range(newAMarkers["2️⃣"]))]
+    }
+  }
 }
 
 extension HoverResponseContents {

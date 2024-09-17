@@ -15,6 +15,7 @@ add_library(SwiftExtensions STATIC
   Sequence+ContainsAnyIn.swift
   Task+WithPriorityChangedHandler.swift
   ThreadSafeBox.swift
+  TransitiveClosure.swift
 )
 set_target_properties(SwiftExtensions PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
