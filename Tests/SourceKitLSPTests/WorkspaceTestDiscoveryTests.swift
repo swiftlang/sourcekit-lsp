@@ -158,17 +158,17 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     // Now update the file on disk and recompute tests. This should give use tests using the syntactic index, which will
     // include the tests in here even though `NotQuiteTests` doesn't inherit from XCTest
 
-    let newMarkedFileContents = """
-      import XCTest
+    let (newFilePositions, newFileContents) = DocumentPositions.extract(
+      from: """
+        import XCTest
 
-      class ClassThatMayInheritFromXCTest {}
+        class ClassThatMayInheritFromXCTest {}
 
-      3️⃣class NotQuiteTests: ClassThatMayInheritFromXCTest {
-        4️⃣func testSomething() {}5️⃣
-      }6️⃣
-      """
-    let newFileContents = extractMarkers(newMarkedFileContents).textWithoutMarkers
-    let newFilePositions = DocumentPositions(markedText: newMarkedFileContents)
+        3️⃣class NotQuiteTests: ClassThatMayInheritFromXCTest {
+          4️⃣func testSomething() {}5️⃣
+        }6️⃣
+        """
+    )
     try newFileContents.write(to: try XCTUnwrap(myTestsUri.fileURL), atomically: true, encoding: .utf8)
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: myTestsUri, type: .changed)]))
 
@@ -612,24 +612,24 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       manifest: packageManifestWithTestTarget
     )
 
-    let markedFileContents = """
-      import XCTest
+    let (positions, fileContents) = DocumentPositions.extract(
+      from: """
+        import XCTest
 
-      1️⃣class 2️⃣MyTests: XCTestCase {
-        3️⃣func 4️⃣testSomething() {}5️⃣
-      }6️⃣
-      """
+        1️⃣class 2️⃣MyTests: XCTestCase {
+          3️⃣func 4️⃣testSomething() {}5️⃣
+        }6️⃣
+        """
+    )
 
     let url = try XCTUnwrap(project.uri(for: "MyTests.swift").fileURL)
       .deletingLastPathComponent()
       .appendingPathComponent("MyNewTests.swift")
     let uri = DocumentURI(url)
-    try extractMarkers(markedFileContents).textWithoutMarkers.write(to: url, atomically: true, encoding: .utf8)
+    try fileContents.write(to: url, atomically: true, encoding: .utf8)
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: .created)])
     )
-
-    let positions = DocumentPositions(markedText: markedFileContents)
 
     let tests = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(

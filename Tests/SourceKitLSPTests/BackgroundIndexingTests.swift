@@ -422,17 +422,18 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     XCTAssertEqual(callsBeforeEdit, [])
 
-    let otherFileMarkedContents = """
-      func 2️⃣bar() {
-        3️⃣foo()
-      }
-      """
+    let (otherFilePositions, otherFileMarkedContents) = DocumentPositions.extract(
+      from: """
+        func 2️⃣bar() {
+          3️⃣foo()
+        }
+        """
+    )
 
     let otherFileUri = try project.uri(for: "MyOtherFile.swift")
     let otherFileUrl = try XCTUnwrap(otherFileUri.fileURL)
-    let otherFilePositions = DocumentPositions(markedText: otherFileMarkedContents)
 
-    try extractMarkers(otherFileMarkedContents).textWithoutMarkers.write(
+    try otherFileMarkedContents.write(
       to: otherFileUrl,
       atomically: true,
       encoding: .utf8
@@ -489,16 +490,17 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     XCTAssertEqual(callsBeforeEdit, [])
 
-    let headerNewMarkedContents = """
-      void someFunc();
+    let (newPositions, headerNewMarkedContents) = DocumentPositions.extract(
+      from: """
+        void someFunc();
 
-      void 2️⃣test() {
-        3️⃣someFunc();
-      };
-      """
-    let newPositions = DocumentPositions(markedText: headerNewMarkedContents)
+        void 2️⃣test() {
+          3️⃣someFunc();
+        };
+        """
+    )
 
-    try extractMarkers(headerNewMarkedContents).textWithoutMarkers.write(
+    try headerNewMarkedContents.write(
       to: try XCTUnwrap(uri.fileURL),
       atomically: true,
       encoding: .utf8

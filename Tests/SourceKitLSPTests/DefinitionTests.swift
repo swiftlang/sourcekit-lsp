@@ -353,9 +353,7 @@ class DefinitionTests: XCTestCase {
     )
     XCTAssertNil(beforeChangingFileA)
 
-    let updatedAMarkedCode = "func 2️⃣sayHello() {}"
-    let updatedACode = extractMarkers(updatedAMarkedCode).textWithoutMarkers
-    let updatedAPositions = DocumentPositions(markedText: updatedAMarkedCode)
+    let (updatedAPositions, updatedACode) = DocumentPositions.extract(from: "func 2️⃣sayHello() {}")
 
     let aUri = try project.uri(for: "FileA.swift")
     try updatedACode.write(to: try XCTUnwrap(aUri.fileURL), atomically: true, encoding: .utf8)
