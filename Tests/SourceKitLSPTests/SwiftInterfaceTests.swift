@@ -27,18 +27,13 @@ final class SwiftInterfaceTests: XCTestCase {
 
     testClient.openDocument("import Foundation", uri: uri)
 
-    let _resp = try await testClient.send(
+    let resp = try await testClient.send(
       DefinitionRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 0, utf16index: 10)
       )
     )
-    let resp = try XCTUnwrap(_resp)
-    guard case .locations(let locations) = resp else {
-      XCTFail("Unexpected response: \(resp)")
-      return
-    }
-    let location = try XCTUnwrap(locations.only)
+    let location = try XCTUnwrap(resp?.locations?.only)
     XCTAssertTrue(location.uri.pseudoPath.hasSuffix("/Foundation.swiftinterface"))
     let fileContents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
     // Sanity-check that the generated Swift Interface contains Swift code
@@ -115,19 +110,14 @@ final class SwiftInterfaceTests: XCTestCase {
     )
 
     let (mainUri, mainPositions) = try project.openDocument("main.swift")
-    let _resp =
+    let response =
       try await project.testClient.send(
         DefinitionRequest(
           textDocument: TextDocumentIdentifier(mainUri),
           position: mainPositions["1️⃣"]
         )
       )
-    let resp = try XCTUnwrap(_resp)
-    guard case .locations(let locations) = resp else {
-      XCTFail("Unexpected response: \(resp)")
-      return
-    }
-    let location = try XCTUnwrap(locations.only)
+    let location = try XCTUnwrap(response?.locations?.only)
     XCTAssertTrue(location.uri.pseudoPath.hasSuffix("/MyLibrary.swiftinterface"))
     let fileContents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
     XCTAssertTrue(
@@ -201,11 +191,7 @@ private func assertSystemSwiftInterface(
       position: position
     )
   )
-  guard case .locations(let jump) = definition else {
-    XCTFail("Response is not locations", line: line)
-    return
-  }
-  let location = try XCTUnwrap(jump.only)
+  let location = try XCTUnwrap(definition?.locations?.only)
   XCTAssertTrue(
     location.uri.pseudoPath.hasSuffix(swiftInterfaceFile),
     "Path was: '\(location.uri.pseudoPath)'",
