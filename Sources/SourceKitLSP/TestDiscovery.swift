@@ -273,6 +273,7 @@ extension SourceKitLSPServer {
       .flatMap { $0 }
       .sorted { $0.testItem.location < $1.testItem.location }
       .mergingTestsInExtensions()
+      .deduplicatingIds()
   }
 
   func documentTests(
@@ -283,6 +284,7 @@ extension SourceKitLSPServer {
     return try await documentTestsWithoutMergingExtensions(req, workspace: workspace, languageService: languageService)
       .prefixTestsWithModuleName(workspace: workspace)
       .mergingTestsInExtensions()
+      .deduplicatingIds()
   }
 
   private func documentTestsWithoutMergingExtensions(
@@ -441,16 +443,20 @@ fileprivate extension Array<AnnotatedTestItem> {
         // as the root item.
         if rootItem.isExtension && !item.isExtension {
           var newItem = item
-          newItem.testItem.children = (newItem.testItem.children + rootItem.testItem.children).deduplicatingIds()
+          newItem.testItem.children += rootItem.testItem.children
           rootItem = newItem
-        } else if rootItem.testItem.children.isEmpty && item.testItem.children.isEmpty {
-          itemDict[item.testItem.ambiguousTestDifferentiator] = item
-          continue
         } else {
-          rootItem.testItem.children = (rootItem.testItem.children + item.testItem.children).deduplicatingIds()
+          rootItem.testItem.children += item.testItem.children
         }
 
-        itemDict[id] = rootItem
+        // If this item shares an ID with a sibling and both are leaf
+        // test items, store it by its disambiguated id to ensure we
+        // don't overwrite the existing element.
+        if rootItem.testItem.children.isEmpty && item.testItem.children.isEmpty {
+          itemDict[item.testItem.ambiguousTestDifferentiator] = item
+        } else {
+          itemDict[id] = rootItem
+        }
       } else {
         itemDict[id] = item
       }
@@ -487,7 +493,7 @@ fileprivate extension Array<AnnotatedTestItem> {
         .mergingTestsInExtensions()
       return newItem
     }
-    return result.deduplicatingIds()
+    return result
   }
 
   func prefixTestsWithModuleName(workspace: Workspace) async -> Self {
@@ -520,32 +526,18 @@ fileprivate extension Array<TestItem> {
   /// by appending `/filename:filename:lineNumber`.
   func deduplicatingIds() -> [TestItem] {
     var idCounts: [String: Int] = [:]
-    var result: [TestItem] = []
-    var hasDuplicates = false
-    result.reserveCapacity(self.count)
-
     for element in self where element.children.isEmpty {
       idCounts[element.id, default: 0] += 1
-      if idCounts[element.id, default: 0] > 1 {
-        hasDuplicates = true
-      }
     }
 
-    if !hasDuplicates {
-      return self
-    }
-
-    for element in self {
-      if idCounts[element.id, default: 0] > 1 {
-        var newItem = element
+    return self.map {
+      var newItem = $0
+      newItem.children = newItem.children.deduplicatingIds()
+      if idCounts[newItem.id, default: 0] > 1 {
         newItem.id = newItem.ambiguousTestDifferentiator
-        result.append(newItem)
-      } else {
-        result.append(element)
       }
+      return newItem
     }
-
-    return result
   }
 }
 
