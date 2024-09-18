@@ -206,7 +206,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       toolchainRegistry: toolchainRegistry,
       options: options,
       buildSystemTestHooks: buildSystemTestHooks,
-      messagesToSourceKitLSPHandler: self
+      messagesToSourceKitLSPHandler: WeakMessageHandler(self)
     )
     if let buildSystem {
       let connectionToBuildSystem = LocalConnection(receiverName: "Build system")
