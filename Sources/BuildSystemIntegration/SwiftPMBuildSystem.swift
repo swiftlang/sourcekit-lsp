@@ -404,7 +404,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     self.swiftPMTargets = [:]
     self.targetDependencies = [:]
 
-    buildDescription.traverseModules { buildTarget, parent, depth in
+    buildDescription.traverseModules { buildTarget, parent in
       let targetIdentifier = orLog("Getting build target identifier") { try BuildTargetIdentifier(buildTarget) }
       guard let targetIdentifier else {
         return
