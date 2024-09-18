@@ -20,7 +20,6 @@ import XCTest
 final class ExpandMacroTests: XCTestCase {
   func testFreestandingMacroExpansion() async throws {
     try await SkipUnless.canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild()
-    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
 
     let files: [RelativeFileLocation: String] = [
       "MyMacros/MyMacros.swift": #"""
@@ -175,7 +174,6 @@ final class ExpandMacroTests: XCTestCase {
 
   func testAttachedMacroExpansion() async throws {
     try await SkipUnless.canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild()
-    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
 
     let files: [RelativeFileLocation: String] = [
       "MyMacros/MyMacros.swift": #"""
@@ -365,7 +363,6 @@ final class ExpandMacroTests: XCTestCase {
 
   func testNestedMacroExpansion() async throws {
     try await SkipUnless.canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild()
-    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
 
     let files: [RelativeFileLocation: String] = [
       "MyMacros/MyMacros.swift": #"""

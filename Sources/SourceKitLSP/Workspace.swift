@@ -290,11 +290,17 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
   /// We inform the respective language services as long as the given file is open
   /// (not queued for opening).
   package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
+    var documentsByService: [ObjectIdentifier: (Set<DocumentURI>, LanguageService)] = [:]
     for uri in changedFiles {
-      logger.log("Dependencies updated for opened file \(uri.forLogging)")
-      if let service = documentService(for: uri) {
-        await service.documentDependenciesUpdated(uri)
+      logger.log("Dependencies updated for file \(uri.forLogging)")
+      guard let languageService = documentService(for: uri) else {
+        logger.error("No document service exists for \(uri.forLogging)")
+        continue
       }
+      documentsByService[ObjectIdentifier(languageService), default: ([], languageService)].0.insert(uri)
+    }
+    for (documents, service) in documentsByService.values {
+      await service.documentDependenciesUpdated(documents)
     }
   }
 

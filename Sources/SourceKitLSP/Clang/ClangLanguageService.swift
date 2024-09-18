@@ -498,16 +498,18 @@ extension ClangLanguageService {
     }
   }
 
-  package func documentDependenciesUpdated(_ uri: DocumentURI) {
-    // In order to tell clangd to reload an AST, we send it an empty `didChangeTextDocument`
-    // with `forceRebuild` set in case any missing header files have been added.
-    // This works well for us as the moment since clangd ignores the document version.
-    let notification = DidChangeTextDocumentNotification(
-      textDocument: VersionedTextDocumentIdentifier(uri, version: 0),
-      contentChanges: [],
-      forceRebuild: true
-    )
-    clangd.send(notification)
+  package func documentDependenciesUpdated(_ uris: Set<DocumentURI>) {
+    for uri in uris {
+      // In order to tell clangd to reload an AST, we send it an empty `didChangeTextDocument`
+      // with `forceRebuild` set in case any missing header files have been added.
+      // This works well for us as the moment since clangd ignores the document version.
+      let notification = DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 0),
+        contentChanges: [],
+        forceRebuild: true
+      )
+      clangd.send(notification)
+    }
   }
 
   // MARK: - Text Document
