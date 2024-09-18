@@ -33,11 +33,7 @@ class DefinitionTests: XCTestCase {
     let response = try await testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
-    guard case .locations(let locations) = response else {
-      XCTFail("Expected locations response")
-      return
-    }
-    XCTAssertEqual(locations, [Location(uri: uri, range: Range(positions["1️⃣"]))])
+    XCTAssertEqual(response?.locations, [Location(uri: uri, range: Range(positions["1️⃣"]))])
   }
 
   func testJumpToDefinitionIncludesOverrides() async throws {
@@ -60,12 +56,8 @@ class DefinitionTests: XCTestCase {
     let response = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["3️⃣"])
     )
-    guard case .locations(let locations) = response else {
-      XCTFail("Expected locations response")
-      return
-    }
     XCTAssertEqual(
-      locations,
+      response?.locations,
       [
         Location(uri: project.fileURI, range: Range(project.positions["1️⃣"])),
         Location(uri: project.fileURI, range: Range(project.positions["2️⃣"])),
@@ -96,12 +88,8 @@ class DefinitionTests: XCTestCase {
     let response = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["3️⃣"])
     )
-    guard case .locations(let locations) = response else {
-      XCTFail("Expected locations response")
-      return
-    }
     XCTAssertEqual(
-      locations,
+      response?.locations,
       [
         Location(uri: project.fileURI, range: Range(project.positions["1️⃣"])),
         Location(uri: project.fileURI, range: Range(project.positions["2️⃣"])),
@@ -134,12 +122,8 @@ class DefinitionTests: XCTestCase {
     let response = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
     )
-    guard case .locations(let locations) = response else {
-      XCTFail("Expected locations response")
-      return
-    }
     XCTAssertEqual(
-      locations,
+      response?.locations,
       [
         Location(uri: uri, range: Range(positions["1️⃣"])),
         Location(uri: uri, range: Range(positions["2️⃣"])),
@@ -182,13 +166,8 @@ class DefinitionTests: XCTestCase {
     let response = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
-    guard case .locations(let locations) = response else {
-      XCTFail("Expected locations response")
-      return
-    }
 
-    XCTAssertEqual(locations.count, 1)
-    let location = try XCTUnwrap(locations.first)
+    let location = try XCTUnwrap(response?.locations?.only)
     XCTAssertEqual(
       location,
       Location(uri: try project.uri(for: "test.c"), range: Range(try project.position(of: "1️⃣", in: "test.c")))
@@ -284,13 +263,7 @@ class DefinitionTests: XCTestCase {
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
     )
 
-    guard case .locations(let locations) = response else {
-      XCTFail("Expected locations response")
-      return
-    }
-
-    XCTAssertEqual(locations.count, 1)
-    let location = try XCTUnwrap(locations.first)
+    let location = try XCTUnwrap(response?.locations?.only)
     XCTAssertEqual(location, try project.location(from: "1️⃣", to: "2️⃣", in: "LibA.h"))
   }
 
@@ -331,13 +304,7 @@ class DefinitionTests: XCTestCase {
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
     )
 
-    guard case .locations(let locations) = response else {
-      XCTFail("Expected locations response")
-      return
-    }
-
-    XCTAssertEqual(locations.count, 1)
-    let location = try XCTUnwrap(locations.first)
+    let location = try XCTUnwrap(response?.locations?.only)
     XCTAssertEqual(location, try project.location(from: "1️⃣", to: "2️⃣", in: "LibA.h"))
   }
 
@@ -359,12 +326,8 @@ class DefinitionTests: XCTestCase {
     let response = try await testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
-    guard case .locations(let locations) = response else {
-      XCTFail("Expected locations response")
-      return
-    }
     XCTAssertEqual(
-      locations,
+      response?.locations,
       [Location(uri: uri, range: Range(positions["1️⃣"]))]
     )
   }
@@ -390,9 +353,7 @@ class DefinitionTests: XCTestCase {
     )
     XCTAssertNil(beforeChangingFileA)
 
-    let updatedAMarkedCode = "func 2️⃣sayHello() {}"
-    let updatedACode = extractMarkers(updatedAMarkedCode).textWithoutMarkers
-    let updatedAPositions = DocumentPositions(markedText: updatedAMarkedCode)
+    let (updatedAPositions, updatedACode) = DocumentPositions.extract(from: "func 2️⃣sayHello() {}")
 
     let aUri = try project.uri(for: "FileA.swift")
     try updatedACode.write(to: try XCTUnwrap(aUri.fileURL), atomically: true, encoding: .utf8)
@@ -625,10 +586,6 @@ class DefinitionTests: XCTestCase {
     let response = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["1️⃣"])
     )
-    guard case .locations(let locations) = response else {
-      XCTFail("Expected locations response")
-      return
-    }
-    XCTAssertEqual(locations, [Location(uri: project.fileURI, range: Range(project.positions["2️⃣"]))])
+    XCTAssertEqual(response?.locations, [Location(uri: project.fileURI, range: Range(project.positions["2️⃣"]))])
   }
 }

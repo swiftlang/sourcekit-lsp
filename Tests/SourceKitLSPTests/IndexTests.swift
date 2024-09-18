@@ -63,10 +63,7 @@ final class IndexTests: XCTestCase {
         position: libCPositions["3️⃣"]
       )
     )
-    guard case .locations(let jump) = response else {
-      XCTFail("Response is not locations")
-      return
-    }
+    let jump = try XCTUnwrap(response?.locations)
 
     XCTAssertEqual(jump.count, 1)
     XCTAssertEqual(jump.first?.uri, libAUri)
@@ -126,10 +123,7 @@ final class IndexTests: XCTestCase {
           position: project.positions["2️⃣"]
         )
       )
-      guard case .locations(let jump) = response else {
-        XCTFail("Response is not locations")
-        return nil
-      }
+      let jump = try XCTUnwrap(response?.locations)
       XCTAssertEqual(jump.count, 1)
       XCTAssertEqual(jump.first?.uri, project.fileURI)
       XCTAssertEqual(jump.first?.range.lowerBound, project.positions["1️⃣"])

@@ -48,6 +48,18 @@ package struct SourceFileInfo: Sendable {
   }
 }
 
+private struct BuildTargetInfo {
+  /// The build target itself.
+  var target: BuildTarget
+
+  /// The maximum depth at which this target occurs at the build graph, ie. the number of edges on the longest path
+  /// from this target to a root target (eg. an executable)
+  var depth: Int
+
+  /// The targets that depend on this target, ie. the inverse of `BuildTarget.dependencies`.
+  var dependents: Set<BuildTargetIdentifier>
+}
+
 fileprivate extension SourceItem {
   var sourceKitData: SourceKitSourceItemData? {
     guard dataKind == .sourceKit, case .dictionary(let data) = data else {
@@ -144,9 +156,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
   private var cachedSourceKitOptions = RequestCache<TextDocumentSourceKitOptionsRequest>()
 
-  private var cachedBuildTargets = Cache<
-    WorkspaceBuildTargetsRequest, [BuildTargetIdentifier: (target: BuildTarget, depth: Int)]
-  >()
+  private var cachedBuildTargets = Cache<WorkspaceBuildTargetsRequest, [BuildTargetIdentifier: BuildTargetInfo]>()
 
   private var cachedTargetSources = RequestCache<BuildTargetSourcesRequest>()
 
@@ -602,18 +612,22 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
   /// The root targets of the project have depth of 0 and all target dependencies have a greater depth than the target
   /// itself.
-  private func targetDepths(for buildTargets: [BuildTarget]) -> [BuildTargetIdentifier: Int] {
+  private func targetDepthsAndDependents(
+    for buildTargets: [BuildTarget]
+  ) -> (depths: [BuildTargetIdentifier: Int], dependents: [BuildTargetIdentifier: Set<BuildTargetIdentifier>]) {
     var nonRoots: Set<BuildTargetIdentifier> = []
     for buildTarget in buildTargets {
       nonRoots.formUnion(buildTarget.dependencies)
     }
     let targetsById = Dictionary(elements: buildTargets, keyedBy: \.id)
+    var dependents: [BuildTargetIdentifier: Set<BuildTargetIdentifier>] = [:]
     var depths: [BuildTargetIdentifier: Int] = [:]
     let rootTargets = buildTargets.filter { !nonRoots.contains($0.id) }
     var worksList: [(target: BuildTargetIdentifier, depth: Int)] = rootTargets.map { ($0.id, 0) }
     while let (target, depth) = worksList.popLast() {
       depths[target] = max(depths[target, default: 0], depth)
       for dependency in targetsById[target]?.dependencies ?? [] {
+        dependents[dependency, default: []].insert(target)
         // Check if we have already recorded this target with a greater depth, in which case visiting it again will
         // not increase its depth or any of its children.
         if depths[target, default: 0] < depth + 1 {
@@ -621,7 +635,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         }
       }
     }
-    return depths
+    return (depths, dependents)
   }
 
   /// Sort the targets so that low-level targets occur before high-level targets.
@@ -647,13 +661,14 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// Returns the list of targets that might depend on the given target and that need to be re-prepared when a file in
   /// `target` is modified.
   package func targets(dependingOn targetIds: Set<BuildTargetIdentifier>) async -> [BuildTargetIdentifier] {
-    // TODO: We should also return transitive dependencies here (https://github.com/swiftlang/sourcekit-lsp/issues/1672)
     guard
-      let buildTargets = await orLog("Getting build targets for dependencies", { try await self.buildTargets().values })
+      let buildTargets = await orLog("Getting build targets for dependents", { try await self.buildTargets() })
     else {
       return []
     }
-    return buildTargets.filter { $0.target.dependencies.contains(anyIn: targetIds) }.map { $0.target.id }
+
+    return transitiveClosure(of: targetIds, successors: { buildTargets[$0]?.dependents ?? [] })
+      .sorted { $0.uri.stringValue < $1.uri.stringValue }
   }
 
   package func prepare(targets: Set<BuildTargetIdentifier>) async throws {
@@ -675,7 +690,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     self.watchedFiles[uri] = nil
   }
 
-  private func buildTargets() async throws -> [BuildTargetIdentifier: (target: BuildTarget, depth: Int)] {
+  private func buildTargets() async throws -> [BuildTargetIdentifier: BuildTargetInfo] {
     guard let connectionToBuildSystem else {
       return [:]
     }
@@ -683,8 +698,8 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     let request = WorkspaceBuildTargetsRequest()
     let result = try await cachedBuildTargets.get(request) { request in
       let buildTargets = try await connectionToBuildSystem.send(request).targets
-      let depths = await self.targetDepths(for: buildTargets)
-      var result: [BuildTargetIdentifier: (target: BuildTarget, depth: Int)] = [:]
+      let (depths, dependents) = await self.targetDepthsAndDependents(for: buildTargets)
+      var result: [BuildTargetIdentifier: BuildTargetInfo] = [:]
       result.reserveCapacity(buildTargets.count)
       for buildTarget in buildTargets {
         guard result[buildTarget.id] == nil else {
@@ -698,7 +713,14 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
           logger.fault("Did not compute depth for target \(buildTarget.id)")
           depth = 0
         }
-        result[buildTarget.id] = (buildTarget, depth)
+        let targetDependents: Set<BuildTargetIdentifier>
+        if let d = dependents[buildTarget.id] {
+          targetDependents = d
+        } else {
+          logger.fault("Did not compute dependents for target \(buildTarget.id)")
+          targetDependents = []
+        }
+        result[buildTarget.id] = BuildTargetInfo(target: buildTarget, depth: depth, dependents: targetDependents)
       }
       return result
     }

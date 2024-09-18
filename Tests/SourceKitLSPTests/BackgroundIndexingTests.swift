@@ -422,17 +422,18 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     XCTAssertEqual(callsBeforeEdit, [])
 
-    let otherFileMarkedContents = """
-      func 2️⃣bar() {
-        3️⃣foo()
-      }
-      """
+    let (otherFilePositions, otherFileMarkedContents) = DocumentPositions.extract(
+      from: """
+        func 2️⃣bar() {
+          3️⃣foo()
+        }
+        """
+    )
 
     let otherFileUri = try project.uri(for: "MyOtherFile.swift")
     let otherFileUrl = try XCTUnwrap(otherFileUri.fileURL)
-    let otherFilePositions = DocumentPositions(markedText: otherFileMarkedContents)
 
-    try extractMarkers(otherFileMarkedContents).textWithoutMarkers.write(
+    try otherFileMarkedContents.write(
       to: otherFileUrl,
       atomically: true,
       encoding: .utf8
@@ -489,16 +490,17 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     XCTAssertEqual(callsBeforeEdit, [])
 
-    let headerNewMarkedContents = """
-      void someFunc();
+    let (newPositions, headerNewMarkedContents) = DocumentPositions.extract(
+      from: """
+        void someFunc();
 
-      void 2️⃣test() {
-        3️⃣someFunc();
-      };
-      """
-    let newPositions = DocumentPositions(markedText: headerNewMarkedContents)
+        void 2️⃣test() {
+          3️⃣someFunc();
+        };
+        """
+    )
 
-    try extractMarkers(headerNewMarkedContents).textWithoutMarkers.write(
+    try headerNewMarkedContents.write(
       to: try XCTUnwrap(uri.fileURL),
       atomically: true,
       encoding: .utf8
@@ -1473,6 +1475,70 @@ final class BackgroundIndexingTests: XCTestCase {
 
     let callsAfterRedirect = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
     XCTAssertEqual(callsAfterRedirect?.only?.from.name, "updated()")
+  }
+
+  func testInvalidatePreparationStatusOfTransitiveDependencies() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": """
+        public struct LibA {
+
+        }
+        """,
+        "LibB/LibB.swift": "",
+        "LibC/LibC.swift": """
+        import LibA
+
+        func test() {
+          LibA().1️⃣test()
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+           .target(name: "LibC", dependencies: ["LibB"]),
+          ]
+        )
+        """,
+      options: SourceKitLSPOptions(
+        backgroundPreparationMode: SourceKitLSPOptions.BackgroundPreparationMode.enabled.rawValue
+      ),
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("LibC.swift")
+
+    let definitionBeforeEdit = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertNil(definitionBeforeEdit)
+
+    let libAUri = try project.uri(for: "LibA.swift")
+    let (newAMarkers, newAContents) = DocumentPositions.extract(
+      from: """
+        public struct LibA {
+          public func 2️⃣test() {}
+        }
+        """
+    )
+    try newAContents.write(to: XCTUnwrap(libAUri.fileURL), atomically: true, encoding: .utf8)
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: libAUri, type: .changed)])
+    )
+
+    // Triggering a definition request causes `LibC` to be re-prepared. Repeat the request until LibC has been prepared
+    // and we get the expected result.
+    try await repeatUntilExpectedResult {
+      let definitionAfterEdit = try await project.testClient.send(
+        DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      )
+      return definitionAfterEdit?.locations == [Location(uri: libAUri, range: Range(newAMarkers["2️⃣"]))]
+    }
   }
 }
 

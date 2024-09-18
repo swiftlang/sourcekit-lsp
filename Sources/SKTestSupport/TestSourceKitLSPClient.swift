@@ -417,6 +417,11 @@ package struct DocumentPositions {
     self.positions = positions
   }
 
+  package static func extract(from markedText: String) -> (positions: DocumentPositions, textWithoutMarkers: String) {
+    let (markers, textWithoutMarkers) = extractMarkers(markedText)
+    return (DocumentPositions(markers: markers, textWithoutMarkers: textWithoutMarkers), textWithoutMarkers)
+  }
+
   /// Returns the position of the given marker and traps if the document from which these `DocumentPositions` were
   /// derived didn't contain the marker.
   package subscript(_ marker: String) -> Position {
