@@ -21,6 +21,7 @@ import SwiftExtensions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
+import func TSCBasic.resolveSymlinks
 
 fileprivate typealias RequestCache<Request: RequestType & Hashable> = Cache<Request, Request.Response>
 
@@ -75,6 +76,18 @@ fileprivate extension BuildTarget {
       return nil
     }
     return SourceKitBuildTarget(fromLSPDictionary: data)
+  }
+}
+
+fileprivate extension DocumentURI {
+  /// If this is a file URI pointing to a symlink, return the realpath of the URI, otherwise return `nil`.
+  var symlinkTarget: DocumentURI? {
+    guard let fileUrl = fileURL, let path = AbsolutePath(validatingOrNil: fileUrl.path),
+      let symlinksResolved = try? TSCBasic.resolveSymlinks(path), symlinksResolved != path
+    else {
+      return nil
+    }
+    return DocumentURI(symlinksResolved.asURL)
   }
 }
 
@@ -570,9 +583,8 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       return nil
     }
     if connectionToBuildSystem == nil {
-      // If there is no build system and we only have the fallback build system,
-      // we will never get real build settings. Consider the build settings
-      // non-fallback.
+      // If there is no build system and we only have the fallback build system, we will never get real build settings.
+      // Consider the build settings non-fallback.
       settings.isFallback = false
     }
     return settings
@@ -588,16 +600,37 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     for document: DocumentURI,
     language: Language
   ) async -> FileBuildSettings? {
-    let mainFile = await mainFile(for: document, language: language)
-    let target = await canonicalTarget(for: mainFile)
-    guard var settings = await buildSettings(for: mainFile, in: target, language: language) else {
+    func mainFileAndSettings(
+      basedOn document: DocumentURI
+    ) async -> (mainFile: DocumentURI, settings: FileBuildSettings)? {
+      let mainFile = await self.mainFile(for: document, language: language)
+      let target = await canonicalTarget(for: mainFile)
+      guard let settings = await buildSettings(for: mainFile, in: target, language: language) else {
+        return nil
+      }
+      return (mainFile, settings)
+    }
+
+    var settings: FileBuildSettings?
+    var mainFile: DocumentURI?
+    if let mainFileAndSettings = await mainFileAndSettings(basedOn: document) {
+      (mainFile, settings) = mainFileAndSettings
+    }
+    if settings?.isFallback ?? true, let symlinkTarget = document.symlinkTarget,
+      let mainFileAndSettings = await mainFileAndSettings(basedOn: symlinkTarget)
+    {
+      (mainFile, settings) = mainFileAndSettings
+    }
+    guard var settings, let mainFile else {
       return nil
     }
+
     if mainFile != document {
       // If the main file isn't the file itself, we need to patch the build settings
       // to reference `document` instead of `mainFile`.
       settings = settings.patching(newFile: document, originalFile: mainFile)
     }
+
     await BuildSettingsLogger.shared.log(settings: settings, for: document)
     return settings
   }
