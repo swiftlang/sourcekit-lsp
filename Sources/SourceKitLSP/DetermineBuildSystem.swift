@@ -22,7 +22,7 @@ import struct TSCBasic.RelativePath
 fileprivate extension WorkspaceType {
   var buildSystemType: BuiltInBuildSystem.Type {
     switch self {
-    case .buildServer: return BuildServerBuildSystem.self
+    case .buildServer: return LegacyBuildServerBuildSystem.self
     case .compilationDatabase: return CompilationDatabaseBuildSystem.self
     case .swiftPM: return SwiftPMBuildSystem.self
     }

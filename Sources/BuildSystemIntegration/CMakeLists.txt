@@ -1,6 +1,5 @@
 
 add_library(BuildSystemIntegration STATIC
-  BuildServerBuildSystem.swift
   BuildSettingsLogger.swift
   BuildSystemManager.swift
   BuildSystemManagerDelegate.swift
@@ -14,6 +13,7 @@ add_library(BuildSystemIntegration STATIC
   FallbackBuildSettings.swift
   FileBuildSettings.swift
   Language+InferredFromFileExtension.swift
+  LegacyBuildServerBuildSystem.swift
   MainFilesProvider.swift
   PathPrefixMapping.swift
   PrefixMessageWithTaskEmoji.swift

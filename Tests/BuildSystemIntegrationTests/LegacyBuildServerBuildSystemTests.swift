@@ -54,7 +54,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
   let buildFolder = try! AbsolutePath(validating: NSTemporaryDirectory())
 
   func testServerInitialize() async throws {
-    let buildSystem = try await BuildServerBuildSystem(
+    let buildSystem = try await LegacyBuildServerBuildSystem(
       projectRoot: root,
       connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP")
     )
@@ -75,7 +75,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
     let testMessageHandler = TestMessageHandler(targetExpectations: [
       (OnBuildTargetDidChangeNotification(changes: nil), expectation)
     ])
-    let buildSystem = try await BuildServerBuildSystem(
+    let buildSystem = try await LegacyBuildServerBuildSystem(
       projectRoot: root,
       connectionToSourceKitLSP: testMessageHandler.connection
     )
@@ -109,7 +109,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
       // BuildSystemManager has a weak reference to delegate. Keep it alive.
       _fixLifetime(testMessageHandler)
     }
-    let buildSystem = try await BuildServerBuildSystem(
+    let buildSystem = try await LegacyBuildServerBuildSystem(
       projectRoot: root,
       connectionToSourceKitLSP: testMessageHandler.connection
     )

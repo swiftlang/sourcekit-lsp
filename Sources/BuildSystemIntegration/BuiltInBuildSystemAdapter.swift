@@ -48,7 +48,10 @@ private func createBuildSystem(
 ) async -> BuiltInBuildSystem? {
   switch buildSystemKind {
   case .buildServer(let projectRoot):
-    return await BuildServerBuildSystem(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
+    return await LegacyBuildServerBuildSystem(
+      projectRoot: projectRoot,
+      connectionToSourceKitLSP: connectionToSourceKitLSP
+    )
   case .compilationDatabase(let projectRoot):
     return CompilationDatabaseBuildSystem(
       projectRoot: projectRoot,

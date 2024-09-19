@@ -1,6 +1,6 @@
 import json
 import sys
-from typing import Optional
+from typing import Dict, List, Optional
 
 
 class RequestError(Exception):
@@ -39,14 +39,14 @@ class AbstractBuildServer:
             try:
                 result = self.handle_message(message)
                 if result:
-                    response_message: dict[str, object] = {
+                    response_message: Dict[str, object] = {
                         "jsonrpc": "2.0",
                         "id": message["id"],
                         "result": result,
                     }
                     self.send_raw_message(response_message)
             except RequestError as e:
-                error_response_message: dict[str, object] = {
+                error_response_message: Dict[str, object] = {
                     "jsonrpc": "2.0",
                     "id": message["id"],
                     "error": {
@@ -56,12 +56,12 @@ class AbstractBuildServer:
                 }
                 self.send_raw_message(error_response_message)
 
-    def handle_message(self, message: dict[str, object]) -> Optional[dict[str, object]]:
+    def handle_message(self, message: Dict[str, object]) -> Optional[Dict[str, object]]:
         """
         Dispatch handling of the given method, received from SourceKit-LSP to the message handling function.
         """
         method: str = str(message["method"])
-        params: dict[str, object] = message["params"]  # type: ignore
+        params: Dict[str, object] = message["params"]  # type: ignore
         if method == "build/exit":
             return self.exit(params)
         elif method == "build/initialize":
@@ -77,7 +77,7 @@ class AbstractBuildServer:
         if "id" in message:
             raise RequestError(code=-32601, message=f"Method not found: {method}")
 
-    def send_raw_message(self, message: dict[str, object]):
+    def send_raw_message(self, message: Dict[str, object]):
         """
         Send a raw message to SourceKit-LSP. The message needs to have all JSON-RPC wrapper fields.
 
@@ -89,24 +89,37 @@ class AbstractBuildServer:
         )
         sys.stdout.flush()
 
-    def send_notification(self, method: str, params: dict[str, object]):
+    def send_notification(self, method: str, params: Dict[str, object]):
         """
         Send a notification with the given method and parameters to SourceKit-LSP.
         """
-        message: dict[str, object] = {
+        message: Dict[str, object] = {
             "jsonrpc": "2.0",
             "method": method,
             "params": params,
         }
         self.send_raw_message(message)
 
+    def send_sourcekit_options_changed(self, uri: str, options: List[str]):
+        """
+        Send a `build/sourceKitOptionsChanged` notification to SourceKit-LSP, informing it about new build settings
+        using the old push-based settings model.
+        """
+        self.send_notification(
+            "build/sourceKitOptionsChanged",
+            {
+                "uri": uri,
+                "updatedOptions": {"options": options},
+            },
+        )
+
     # Message handling functions.
     # Subclasses should override these to provide functionality.
 
-    def exit(self, notification: dict[str, object]) -> None:
+    def exit(self, notification: Dict[str, object]) -> None:
         pass
 
-    def initialize(self, request: dict[str, object]) -> dict[str, object]:
+    def initialize(self, request: Dict[str, object]) -> Dict[str, object]:
         return {
             "displayName": "test server",
             "version": "0.1",
@@ -119,11 +132,11 @@ class AbstractBuildServer:
             },
         }
 
-    def initialized(self, notification: dict[str, object]) -> None:
+    def initialized(self, notification: Dict[str, object]) -> None:
         pass
 
-    def register_for_changes(self, notification: dict[str, object]):
+    def register_for_changes(self, notification: Dict[str, object]):
         pass
 
-    def shutdown(self, notification: dict[str, object]) -> None:
+    def shutdown(self, notification: Dict[str, object]) -> None:
         pass

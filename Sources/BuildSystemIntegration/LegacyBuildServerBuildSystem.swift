@@ -41,11 +41,15 @@ func executable(_ name: String) -> String {
   #endif
 }
 
-/// A `BuildSystem` based on communicating with a build server
+#if compiler(>=6.3)
+#warning("We have had a one year transition period to the pull based build server. Consider removing this build server")
+#endif
+
+/// A `BuildSystem` based on communicating with a build server using the old push-based settings model.
 ///
-/// Provides build settings from a build server launched based on a
-/// `buildServer.json` configuration file provided in the repo root.
-package actor BuildServerBuildSystem: MessageHandler {
+/// This build server should be phased out in favor of the pull-based settings model described in
+/// https://forums.swift.org/t/extending-functionality-of-build-server-protocol-with-sourcekit-lsp/74400
+package actor LegacyBuildServerBuildSystem: MessageHandler {
   package let projectRoot: AbsolutePath
   let serverConfig: BuildServerConfig
 
@@ -252,7 +256,7 @@ private func readResponseDataKey(data: LSPAny?, key: String) -> String? {
   return nil
 }
 
-extension BuildServerBuildSystem: BuiltInBuildSystem {
+extension LegacyBuildServerBuildSystem: BuiltInBuildSystem {
   static package func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath? {
     guard localFileSystem.isFile(workspaceFolder.appending(component: "buildServer.json")) else {
       return nil
@@ -267,7 +271,7 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     return WorkspaceBuildTargetsResponse(targets: [
       BuildTarget(
         id: .dummy,
-        displayName: "Compilation database",
+        displayName: "BuildServer",
         baseDirectory: nil,
         tags: [.test],
         capabilities: BuildTargetCapabilities(),
@@ -279,10 +283,18 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
   }
 
   package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+    guard request.targets.contains(.dummy) else {
+      return BuildTargetSourcesResponse(items: [])
+    }
     // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).
     // TODO: (BSP migration) Forward this request to the BSP server
-    return BuildTargetSourcesResponse(items: [])
+    return BuildTargetSourcesResponse(items: [
+      SourcesItem(
+        target: .dummy,
+        sources: [SourceItem(uri: DocumentURI(self.projectRoot.asURL), kind: .directory, generated: false)]
+      )
+    ])
   }
 
   package func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) {}
@@ -304,6 +316,7 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     // which renders this code path dead.
     let uri = request.textDocument.uri
     if !urisRegisteredForChanges.contains(uri) {
+      urisRegisteredForChanges.insert(uri)
       let request = RegisterForChanges(uri: uri, action: .register)
       _ = self.buildServer?.send(request) { result in
         if let error = result.failure {
