@@ -204,9 +204,6 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   /// The entry point via with we can access the `SourceKitLSPAPI` provided by SwiftPM.
   private var buildDescription: SourceKitLSPAPI.BuildDescription?
 
-  /// Maps source and header files to the target that include them.
-  private var fileToTargets: [DocumentURI: Set<BuildTargetIdentifier>] = [:]
-
   /// Maps target ids to their SwiftPM build target.
   private var swiftPMTargets: [BuildTargetIdentifier: SwiftBuildTarget] = [:]
 
@@ -405,18 +402,12 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     /// with only some properties modified.
 
     self.swiftPMTargets = [:]
-    self.fileToTargets = [:]
     self.targetDependencies = [:]
 
     buildDescription.traverseModules { buildTarget, parent, depth in
       let targetIdentifier = orLog("Getting build target identifier") { try BuildTargetIdentifier(buildTarget) }
       guard let targetIdentifier else {
         return
-      }
-      if swiftPMTargets[targetIdentifier] == nil {
-        for source in buildTarget.sources + buildTarget.headers {
-          fileToTargets[DocumentURI(source), default: []].insert(targetIdentifier)
-        }
       }
       if let parent,
         let parentIdentifier = orLog("Getting parent build target identifier", { try BuildTargetIdentifier(parent) })
@@ -576,27 +567,6 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     )
   }
 
-  package func targets(for uri: DocumentURI) -> [BuildTargetIdentifier] {
-    guard let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
-      // We can't determine targets for non-file URIs.
-      return []
-    }
-
-    let targets = buildTargets(for: uri)
-    if !targets.isEmpty {
-      // Sort targets to get deterministic ordering. The actual order does not matter.
-      return targets.sorted { $0.uri.stringValue < $1.uri.stringValue }
-    }
-
-    if path.basename == "Package.swift"
-      && projectRoot == (try? TSCBasic.resolveSymlinks(TSCBasic.AbsolutePath(path.parentDirectory)))
-    {
-      return [BuildTargetIdentifier.forPackageManifest]
-    }
-
-    return []
-  }
-
   package func waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
     await self.packageLoadingQueue.async {}.valuePropagatingCancellation
     return VoidResponse()
@@ -705,23 +675,6 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
         logger.error("Preparation of target \(target.forLogging) exited abnormally \(exception)")
       }
     }
-  }
-
-  /// Returns the resolved target descriptions for the given file, if one is known.
-  private func buildTargets(for file: DocumentURI) -> Set<BuildTargetIdentifier> {
-    if let targets = fileToTargets[file] {
-      return targets
-    }
-
-    if let fileURL = file.fileURL,
-      let realpath = try? resolveSymlinks(AbsolutePath(validating: fileURL.path)),
-      let targets = fileToTargets[DocumentURI(realpath.asURL)]
-    {
-      fileToTargets[file] = targets
-      return targets
-    }
-
-    return []
   }
 
   /// An event is relevant if it modifies a file that matches one of the file rules used by the SwiftPM workspace.
