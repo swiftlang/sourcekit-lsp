@@ -10,30 +10,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildSystemIntegration
 import LanguageServerProtocol
 import SKLogging
 import SKOptions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
-import struct TSCBasic.RelativePath
-
-fileprivate extension WorkspaceType {
-  var buildSystemType: BuiltInBuildSystem.Type {
-    switch self {
-    case .buildServer: return LegacyBuildServerBuildSystem.self
-    case .compilationDatabase: return CompilationDatabaseBuildSystem.self
-    case .swiftPM: return SwiftPMBuildSystem.self
-    }
-  }
-}
 
 /// Determine which build system should be started to handle the given workspace folder and at which folder that build
 /// system's project root is (see `BuiltInBuildSystem.projectRoot(for:options:)`).
 ///
 /// Returns `nil` if no build system can handle this workspace folder.
-func determineBuildSystem(
+package func determineBuildSystem(
   forWorkspaceFolder workspaceFolder: DocumentURI,
   options: SourceKitLSPOptions
 ) -> BuildSystemKind? {
@@ -50,11 +38,18 @@ func determineBuildSystem(
     return nil
   }
   for buildSystemType in buildSystemPreference {
-    if let projectRoot = buildSystemType.buildSystemType.projectRoot(for: workspaceFolderPath, options: options) {
-      switch buildSystemType {
-      case .buildServer: return .buildServer(projectRoot: projectRoot)
-      case .compilationDatabase: return .compilationDatabase(projectRoot: projectRoot)
-      case .swiftPM: return .swiftPM(projectRoot: projectRoot)
+    switch buildSystemType {
+    case .buildServer:
+      if let projectRoot = ExternalBuildSystemAdapter.projectRoot(for: workspaceFolderPath, options: options) {
+        return .buildServer(projectRoot: projectRoot)
+      }
+    case .compilationDatabase:
+      if let projectRoot = CompilationDatabaseBuildSystem.projectRoot(for: workspaceFolderPath, options: options) {
+        return .compilationDatabase(projectRoot: projectRoot)
+      }
+    case .swiftPM:
+      if let projectRoot = SwiftPMBuildSystem.projectRoot(for: workspaceFolderPath, options: options) {
+        return .swiftPM(projectRoot: projectRoot)
       }
     }
   }

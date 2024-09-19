@@ -21,6 +21,7 @@ import SwiftExtensions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
+import struct TSCBasic.RelativePath
 import func TSCBasic.resolveSymlinks
 
 fileprivate typealias RequestCache<Request: RequestType & Hashable> = Cache<Request, Request.Response>
@@ -91,6 +92,112 @@ fileprivate extension DocumentURI {
   }
 }
 
+fileprivate extension InitializeBuildResponse {
+  var sourceKitData: SourceKitInitializeBuildResponseData? {
+    guard dataKind == nil || dataKind == .sourceKit else {
+      return nil
+    }
+    guard case .dictionary(let data) = data else {
+      return nil
+    }
+    return SourceKitInitializeBuildResponseData(fromLSPDictionary: data)
+  }
+}
+
+/// A build system adapter is responsible for receiving messages from the `BuildSystemManager` and forwarding them to
+/// the build system. For built-in build systems, this means that we need to translate the BSP messages to methods in
+/// the `BuiltInBuildSystem` protocol. For external (aka. out-of-process, aka. BSP servers) build systems, this means
+/// that we need to manage the external build system's lifetime.
+private enum BuildSystemAdapter {
+  case builtIn(BuiltInBuildSystemAdapter)
+  case external(ExternalBuildSystemAdapter)
+}
+
+private extension BuildSystemKind {
+  private static func createBuiltInBuildSystemAdapter(
+    projectRoot: AbsolutePath,
+    messagesToSourceKitLSPHandler: any MessageHandler,
+    _ createBuildSystem: @Sendable (_ connectionToSourceKitLSP: any Connection) async throws -> BuiltInBuildSystem?
+  ) async -> (buildSystemAdapter: BuildSystemAdapter, connectionToBuildSystem: any Connection)? {
+    let connectionToSourceKitLSP = LocalConnection(receiverName: "BuildSystemManager")
+    connectionToSourceKitLSP.start(handler: messagesToSourceKitLSPHandler)
+
+    let buildSystem = await orLog("Creating build system") {
+      try await createBuildSystem(connectionToSourceKitLSP)
+    }
+    guard let buildSystem else {
+      logger.log("Failed to create build system at \(projectRoot.pathString)")
+      return nil
+    }
+    logger.log("Created \(type(of: buildSystem), privacy: .public) at \(projectRoot.pathString)")
+    let buildSystemAdapter = BuiltInBuildSystemAdapter(
+      underlyingBuildSystem: buildSystem,
+      connectionToSourceKitLSP: connectionToSourceKitLSP
+    )
+    let connectionToBuildSystem = LocalConnection(receiverName: "Build system")
+    connectionToBuildSystem.start(handler: buildSystemAdapter)
+    return (.builtIn(buildSystemAdapter), connectionToBuildSystem)
+  }
+
+  /// Create a `BuildSystemAdapter` that manages a build system of this kind and return a connection that can be used
+  /// to send messages to the build system.
+  func createBuildSystemAdapter(
+    toolchainRegistry: ToolchainRegistry,
+    options: SourceKitLSPOptions,
+    buildSystemTestHooks testHooks: BuildSystemTestHooks,
+    messagesToSourceKitLSPHandler: any MessageHandler
+  ) async -> (buildSystemAdapter: BuildSystemAdapter, connectionToBuildSystem: any Connection)? {
+    switch self {
+    case .buildServer(projectRoot: let projectRoot):
+      let buildSystem = await orLog("Creating external build system") {
+        try await ExternalBuildSystemAdapter(
+          projectRoot: projectRoot,
+          messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
+        )
+      }
+      guard let buildSystem else {
+        logger.log("Failed to create external build system at \(projectRoot.pathString)")
+        return nil
+      }
+      logger.log("Created external build server at \(projectRoot.pathString)")
+      return (.external(buildSystem), buildSystem.connectionToBuildServer)
+    case .compilationDatabase(projectRoot: let projectRoot):
+      return await Self.createBuiltInBuildSystemAdapter(
+        projectRoot: projectRoot,
+        messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
+      ) { connectionToSourceKitLSP in
+        CompilationDatabaseBuildSystem(
+          projectRoot: projectRoot,
+          searchPaths: (options.compilationDatabaseOrDefault.searchPaths ?? []).compactMap {
+            try? RelativePath(validating: $0)
+          },
+          connectionToSourceKitLSP: connectionToSourceKitLSP
+        )
+      }
+    case .swiftPM(projectRoot: let projectRoot):
+      return await Self.createBuiltInBuildSystemAdapter(
+        projectRoot: projectRoot,
+        messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
+      ) { connectionToSourceKitLSP in
+        try await SwiftPMBuildSystem(
+          projectRoot: projectRoot,
+          toolchainRegistry: toolchainRegistry,
+          options: options,
+          connectionToSourceKitLSP: connectionToSourceKitLSP,
+          testHooks: testHooks.swiftPMTestHooks
+        )
+      }
+    case .testBuildSystem(projectRoot: let projectRoot):
+      return await Self.createBuiltInBuildSystemAdapter(
+        projectRoot: projectRoot,
+        messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
+      ) { connectionToSourceKitLSP in
+        TestBuildSystem(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
+      }
+    }
+  }
+}
+
 /// Entry point for all build system queries.
 package actor BuildSystemManager: QueueBasedMessageHandler {
   package static let signpostLoggingCategory: String = "build-system-manager-message-handling"
@@ -110,11 +217,6 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// get `fileBuildSettingsChanged` and `filesDependenciesUpdated` callbacks.
   private var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
 
-  /// The underlying primary build system.
-  ///
-  /// - Important: The only time this should be modified is in the initializer. Afterwards, it must be constant.
-  private var buildSystem: BuiltInBuildSystemAdapter?
-
   /// The connection through which the `BuildSystemManager` can send requests to the build system.
   ///
   /// Access to this property should generally go through the non-underscored version, which waits until the build
@@ -131,12 +233,19 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
   }
 
+  /// The build system adapter that is used to answer build system queries.
+  private var buildSystemAdapter: BuildSystemAdapter?
+
   /// If the underlying build system is a `TestBuildSystem`, return it. Otherwise, `nil`
   ///
   /// - Important: For testing purposes only.
   package var testBuildSystem: TestBuildSystem? {
     get async {
-      return await buildSystem?.testBuildSystem
+      switch buildSystemAdapter {
+      case .builtIn(let builtInBuildSystemAdapter): return await builtInBuildSystemAdapter.testBuildSystem
+      case .external: return nil
+      case nil: return nil
+      }
     }
   }
 
@@ -205,16 +314,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// The `SourceKitInitializeBuildResponseData` received from the `build/initialize` request, if any.
   package var initializationData: SourceKitInitializeBuildResponseData? {
     get async {
-      guard let initializeResult = await initializeResult.value else {
-        return nil
-      }
-      guard initializeResult.dataKind == nil || initializeResult.dataKind == .sourceKit else {
-        return nil
-      }
-      guard case .dictionary(let data) = initializeResult.data else {
-        return nil
-      }
-      return SourceKitInitializeBuildResponseData(fromLSPDictionary: data)
+      return await initializeResult.value?.sourceKitData
     }
   }
 
@@ -227,20 +327,15 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     self.toolchainRegistry = toolchainRegistry
     self.options = options
     self.projectRoot = buildSystemKind?.projectRoot
-    self.buildSystem = await BuiltInBuildSystemAdapter(
-      buildSystemKind: buildSystemKind,
+    let buildSystemAdapterAndConnection = await buildSystemKind?.createBuildSystemAdapter(
       toolchainRegistry: toolchainRegistry,
       options: options,
       buildSystemTestHooks: buildSystemTestHooks,
       messagesToSourceKitLSPHandler: WeakMessageHandler(self)
     )
-    if let buildSystem {
-      let connectionToBuildSystem = LocalConnection(receiverName: "Build system")
-      connectionToBuildSystem.start(handler: buildSystem)
-      self._connectionToBuildSystem = connectionToBuildSystem
-    } else {
-      self._connectionToBuildSystem = nil
-    }
+    self.buildSystemAdapter = buildSystemAdapterAndConnection?.buildSystemAdapter
+    self._connectionToBuildSystem = buildSystemAdapterAndConnection?.connectionToBuildSystem
+
     // The debounce duration of 500ms was chosen arbitrarily without any measurements.
     self.filesDependenciesUpdatedDebouncer = Debouncer(
       debounceDuration: .milliseconds(500),
@@ -277,6 +372,27 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
             capabilities: BuildClientCapabilities(languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift])
           )
         )
+      }
+      if let initializeResponse, !(initializeResponse.sourceKitData?.sourceKitOptionsProvider ?? false),
+        case .external(let externalBuildSystemAdapter) = buildSystemAdapter
+      {
+        // The BSP server does not support the pull-based settings model. Inject a `LegacyBuildServerBuildSystem` that
+        // offers the pull-based model to `BuildSystemManager` and uses the push-based model to get build settings from
+        // the build server.
+        logger.log("Launched a legacy BSP server. Using push-based build settings model.")
+        let legacyBuildServer = await LegacyBuildServerBuildSystem(
+          projectRoot: buildSystemKind.projectRoot,
+          initializationData: initializeResponse,
+          externalBuildSystemAdapter
+        )
+        let adapter = BuiltInBuildSystemAdapter(
+          underlyingBuildSystem: legacyBuildServer,
+          connectionToSourceKitLSP: legacyBuildServer.connectionToSourceKitLSP
+        )
+        self.buildSystemAdapter = .builtIn(adapter)
+        let connectionToBuildSystem = LocalConnection(receiverName: "Legacy BSP server")
+        connectionToBuildSystem.start(handler: adapter)
+        self._connectionToBuildSystem = connectionToBuildSystem
       }
       _connectionToBuildSystem.send(OnBuildInitializedNotification())
       return initializeResponse
@@ -782,7 +898,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   }
 
   package func sourceFiles(in targets: Set<BuildTargetIdentifier>) async throws -> [SourcesItem] {
-    guard let connectionToBuildSystem = await connectionToBuildSystem else {
+    guard let connectionToBuildSystem = await connectionToBuildSystem, !targets.isEmpty else {
       return []
     }
 

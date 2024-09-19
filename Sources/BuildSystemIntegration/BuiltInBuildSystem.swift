@@ -28,13 +28,6 @@ package struct PrepareNotSupportedError: Error, CustomStringConvertible {
 
 /// Provider of FileBuildSettings and other build-related information.
 package protocol BuiltInBuildSystem: AnyObject, Sendable {
-  /// When opening an LSP workspace at `workspaceFolder`, determine the directory in which a project of this build system
-  /// starts. For example, a user might open the `Sources` folder of a SwiftPM project, then the project root is the
-  /// directory containing `Package.swift`.
-  ///
-  /// Returns `nil` if the build system can't handle the given workspace folder
-  static func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath?
-
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
   /// was found.

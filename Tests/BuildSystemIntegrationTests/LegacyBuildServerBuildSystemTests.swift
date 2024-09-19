@@ -20,146 +20,78 @@ import SKTestSupport
 import TSCBasic
 import XCTest
 
-/// The path to the INPUTS directory of shared test projects.
-private let skTestSupportInputsDirectory: URL = {
-  #if os(macOS)
-  var resources =
-    productsDirectory
-    .appendingPathComponent("SourceKitLSP_SKTestSupport.bundle")
-    .appendingPathComponent("Contents")
-    .appendingPathComponent("Resources")
-  if !FileManager.default.fileExists(atPath: resources.path) {
-    // Xcode and command-line swiftpm differ about the path.
-    resources.deleteLastPathComponent()
-    resources.deleteLastPathComponent()
-  }
-  #else
-  let resources = XCTestCase.productsDirectory
-    .appendingPathComponent("SourceKitLSP_SKTestSupport.resources")
-  #endif
-  guard FileManager.default.fileExists(atPath: resources.path) else {
-    fatalError("missing resources \(resources.path)")
-  }
-  return resources.appendingPathComponent("INPUTS", isDirectory: true).standardizedFileURL
-}()
-
-final class BuildServerBuildSystemTests: XCTestCase {
-  private var root: AbsolutePath {
-    try! AbsolutePath(
-      validating:
-        skTestSupportInputsDirectory
-        .appendingPathComponent(testDirectoryName, isDirectory: true).path
-    )
-  }
-  let buildFolder = try! AbsolutePath(validating: NSTemporaryDirectory())
-
-  func testServerInitialize() async throws {
-    let buildSystem = try await LegacyBuildServerBuildSystem(
-      projectRoot: root,
-      connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP")
+final class LegacyBuildServerBuildSystemTests: XCTestCase {
+  func testBuildSettingsFromBuildServer() async throws {
+    let project = try await BuildServerTestProject(
+      files: [
+        "Test.swift": """
+        #if DEBUG
+        #error("DEBUG SET")
+        #else
+        #error("DEBUG NOT SET")
+        #endif
+        """
+      ],
+      buildServer: """
+        class BuildServer(LegacyBuildServer):
+          def register_for_changes(self, notification: Dict[str, object]):
+            if notification["action"] == "register":
+              self.send_notification(
+                "build/sourceKitOptionsChanged",
+                {
+                  "uri": notification["uri"],
+                  "updatedOptions": {
+                    "options": ["$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
+                  },
+                },
+              )
+        """
     )
 
-    assertEqual(
-      await buildSystem.indexDatabasePath,
-      try AbsolutePath(validating: "some/index/db/path", relativeTo: root)
-    )
-    assertEqual(
-      await buildSystem.indexStorePath,
-      try AbsolutePath(validating: "some/index/store/path", relativeTo: root)
-    )
-  }
-
-  func testFileRegistration() async throws {
-    let uri = DocumentURI(filePath: "/some/file/path", isDirectory: false)
-    let expectation = self.expectation(description: "\(uri) settings updated")
-    let testMessageHandler = TestMessageHandler(targetExpectations: [
-      (OnBuildTargetDidChangeNotification(changes: nil), expectation)
-    ])
-    let buildSystem = try await LegacyBuildServerBuildSystem(
-      projectRoot: root,
-      connectionToSourceKitLSP: testMessageHandler.connection
-    )
-    _ = try await buildSystem.sourceKitOptions(
-      request: TextDocumentSourceKitOptionsRequest(
-        textDocument: TextDocumentIdentifier(uri),
-        target: .dummy,
-        language: .swift
+    let (uri, _) = try project.openDocument("Test.swift")
+    try await repeatUntilExpectedResult {
+      let diags = try await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
       )
-    )
-
-    XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: defaultTimeout), .completed)
-  }
-
-  func testBuildTargetsChanged() async throws {
-    let uri = DocumentURI(filePath: "/some/file/path", isDirectory: false)
-    let expectation = XCTestExpectation(description: "target changed")
-    let testMessageHandler = TestMessageHandler(targetExpectations: [
-      (
-        OnBuildTargetDidChangeNotification(changes: [
-          BuildTargetEvent(
-            target: BuildTargetIdentifier(uri: try! URI(string: "build://target/a")),
-            kind: .created,
-            dataKind: nil,
-            data: LSPAny.dictionary(["key": "value"])
-          )
-        ]), expectation
-      )
-    ])
-    defer {
-      // BuildSystemManager has a weak reference to delegate. Keep it alive.
-      _fixLifetime(testMessageHandler)
-    }
-    let buildSystem = try await LegacyBuildServerBuildSystem(
-      projectRoot: root,
-      connectionToSourceKitLSP: testMessageHandler.connection
-    )
-    _ = try await buildSystem.sourceKitOptions(
-      request: TextDocumentSourceKitOptionsRequest(
-        textDocument: TextDocumentIdentifier(uri),
-        target: .dummy,
-        language: .swift
-      )
-    )
-
-    try await fulfillmentOfOrThrow([expectation])
-  }
-}
-
-fileprivate final class TestMessageHandler: MessageHandler {
-  let targetExpectations: [(OnBuildTargetDidChangeNotification, XCTestExpectation)]
-
-  var connection: LocalConnection {
-    let connection = LocalConnection(receiverName: "Test message handler")
-    connection.start(handler: self)
-    return connection
-  }
-
-  package init(targetExpectations: [(OnBuildTargetDidChangeNotification, XCTestExpectation)] = []) {
-    self.targetExpectations = targetExpectations
-  }
-
-  func didChangeBuildTarget(notification: OnBuildTargetDidChangeNotification) {
-    for (expectedNotification, expectation) in targetExpectations {
-      if expectedNotification == notification {
-        expectation.fulfill()
-      }
+      return diags.fullReport?.items.map(\.message) == ["DEBUG SET"]
     }
   }
 
-  func handle<Request: RequestType>(
-    _ request: Request,
-    id: RequestID,
-    reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
-  ) {
-    reply(.failure(.methodNotFound(Request.method)))
-  }
+  func testBuildSettingsFromBuildServerChanged() async throws {
+    let project = try await BuildServerTestProject(
+      files: [
+        "Test.swift": """
+        #if DEBUG
+        #error("DEBUG SET")
+        #else
+        #error("DEBUG NOT SET")
+        #endif
+        """
+      ],
+      buildServer: """
+        import threading
 
-  func handle(_ notification: some NotificationType) {
-    switch notification {
-    case let notification as OnBuildTargetDidChangeNotification:
-      didChangeBuildTarget(notification: notification)
-    default:
-      break
+        class BuildServer(LegacyBuildServer):
+          def send_delayed_options_changed(self, uri: str):
+            self.send_sourcekit_options_changed(uri, ["$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS])
+
+          def register_for_changes(self, notification: Dict[str, object]):
+            if notification["action"] != "register":
+              return
+            self.send_sourcekit_options_changed(
+              notification["uri"],
+              ["$TEST_DIR/Test.swift", $SDK_ARGS]
+            )
+            threading.Timer(1, self.send_delayed_options_changed, [notification["uri"]]).start()
+        """
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+    try await repeatUntilExpectedResult {
+      let diags = try await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+      )
+      return diags.fullReport?.items.map(\.message) == ["DEBUG SET"]
     }
   }
 }

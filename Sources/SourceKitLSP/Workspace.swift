@@ -107,7 +107,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     self._uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
     self.buildSystemManager = buildSystemManager
     if options.backgroundIndexingOrDefault, let uncheckedIndex,
-      await buildSystemManager.initializationData?.supportsPreparation ?? false
+      await buildSystemManager.initializationData?.prepareProvider ?? false
     {
       self.semanticIndexManager = SemanticIndexManager(
         index: uncheckedIndex,

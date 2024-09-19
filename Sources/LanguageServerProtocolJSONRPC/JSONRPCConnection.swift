@@ -14,6 +14,7 @@ import Dispatch
 import Foundation
 import LanguageServerProtocol
 import SKLogging
+import SwiftExtensions
 
 #if canImport(CDispatch)
 import struct CDispatch.dispatch_fd_t
@@ -181,8 +182,75 @@ public final class JSONRPCConnection: Connection {
     sendIO.setLimit(highWater: Int.max)
   }
 
+  /// Creates and starts a `JSONRPCConnection` that connects to a subprocess launched with the specified arguments.
+  ///
+  /// `client` is the message handler that handles the messages sent from the subprocess to SourceKit-LSP.
+  public static func start(
+    executable: URL,
+    arguments: [String],
+    name: StaticString,
+    protocol messageRegistry: MessageRegistry,
+    stderrLoggingCategory: String,
+    client: MessageHandler,
+    terminationHandler: @Sendable @escaping (_ terminationStatus: Int32) -> Void
+  ) throws -> (connection: JSONRPCConnection, process: Process) {
+    let clientToServer = Pipe()
+    let serverToClient = Pipe()
+
+    let connection = JSONRPCConnection(
+      name: "\(name)",
+      protocol: messageRegistry,
+      inFD: serverToClient.fileHandleForReading,
+      outFD: clientToServer.fileHandleForWriting
+    )
+
+    connection.start(receiveHandler: client) {
+      // Keep the pipes alive until we close the connection.
+      withExtendedLifetime((clientToServer, serverToClient)) {}
+    }
+    let process = Foundation.Process()
+    logger.log(
+      "Launching build server at \(executable.path) with options [\(arguments.joined(separator: " "))]"
+    )
+    process.executableURL = executable
+    process.arguments = arguments
+    process.standardOutput = serverToClient
+    process.standardInput = clientToServer
+    let logForwarder = PipeAsStringHandler {
+      Logger(subsystem: LoggingScope.subsystem, category: stderrLoggingCategory).info("\($0)")
+    }
+    let stderrHandler = Pipe()
+    stderrHandler.fileHandleForReading.readabilityHandler = { fileHandle in
+      let newData = fileHandle.availableData
+      if newData.count == 0 {
+        stderrHandler.fileHandleForReading.readabilityHandler = nil
+      } else {
+        logForwarder.handleDataFromPipe(newData)
+      }
+    }
+    process.standardError = stderrHandler
+    process.terminationHandler = { process in
+      logger.log(
+        level: process.terminationReason == .exit ? .default : .error,
+        "\(name) exited: \(String(reflecting: process.terminationReason)) \(process.terminationStatus)"
+      )
+      connection.close()
+      terminationHandler(process.terminationStatus)
+    }
+    try process.run()
+
+    return (connection, process)
+  }
+
   deinit {
     assert(state == .closed)
+  }
+
+  /// Change the handler that handles messages from the JSON-RPC connection to a new handler.
+  public func changeReceiveHandler(_ receiveHandler: MessageHandler) {
+    queue.sync {
+      self.receiveHandler = receiveHandler
+    }
   }
 
   /// Start processing `inFD` and send messages to `receiveHandler`.

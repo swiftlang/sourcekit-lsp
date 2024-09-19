@@ -70,8 +70,14 @@ class AbstractBuildServer:
             return self.initialized(params)
         elif method == "build/shutdown":
             return self.shutdown(params)
+        elif method == "buildTarget/sources":
+            return self.buildtarget_sources(params)
         elif method == "textDocument/registerForChanges":
             return self.register_for_changes(params)
+        elif method == "textDocument/sourceKitOptions":
+            return self.textdocument_sourcekitoptions(params)
+        elif method == "workspace/buildTargets":
+            return self.workspace_build_targets(params)
 
         # ignore other notifications
         if "id" in message:
@@ -100,19 +106,6 @@ class AbstractBuildServer:
         }
         self.send_raw_message(message)
 
-    def send_sourcekit_options_changed(self, uri: str, options: List[str]):
-        """
-        Send a `build/sourceKitOptionsChanged` notification to SourceKit-LSP, informing it about new build settings
-        using the old push-based settings model.
-        """
-        self.send_notification(
-            "build/sourceKitOptionsChanged",
-            {
-                "uri": uri,
-                "updatedOptions": {"options": options},
-            },
-        )
-
     # Message handling functions.
     # Subclasses should override these to provide functionality.
 
@@ -129,6 +122,7 @@ class AbstractBuildServer:
             "data": {
                 "indexDatabasePath": "some/index/db/path",
                 "indexStorePath": "some/index/store/path",
+                "sourceKitOptionsProvider": True,
             },
         }
 
@@ -138,5 +132,54 @@ class AbstractBuildServer:
     def register_for_changes(self, notification: Dict[str, object]):
         pass
 
+    def textdocument_sourcekitoptions(
+        self, request: Dict[str, object]
+    ) -> Dict[str, object]:
+        raise RequestError(
+            code=-32601, message=f"'textDocument/sourceKitOptions' not implemented"
+        )
+
     def shutdown(self, notification: Dict[str, object]) -> None:
         pass
+
+    def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
+        raise RequestError(
+            code=-32601, message=f"'buildTarget/sources' not implemented"
+        )
+
+    def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
+        raise RequestError(
+            code=-32601, message=f"'workspace/buildTargets' not implemented"
+        )
+
+
+class LegacyBuildServer(AbstractBuildServer):
+    def send_sourcekit_options_changed(self, uri: str, options: List[str]):
+        """
+        Send a `build/sourceKitOptionsChanged` notification to SourceKit-LSP, informing it about new build settings
+        using the old push-based settings model.
+        """
+        self.send_notification(
+            "build/sourceKitOptionsChanged",
+            {
+                "uri": uri,
+                "updatedOptions": {"options": options},
+            },
+        )
+
+    """
+    A build server that doesn't declare the `sourceKitOptionsProvider` and uses the push-based settings model.
+    """
+
+    def initialize(self, request: Dict[str, object]) -> Dict[str, object]:
+        return {
+            "displayName": "test server",
+            "version": "0.1",
+            "bspVersion": "2.0",
+            "rootUri": "blah",
+            "capabilities": {"languageIds": ["a", "b"]},
+            "data": {
+                "indexDatabasePath": "some/index/db/path",
+                "indexStorePath": "some/index/store/path",
+            },
+        }

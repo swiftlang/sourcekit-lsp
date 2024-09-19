@@ -38,45 +38,8 @@ package enum BuildSystemKind {
   }
 }
 
-/// Create a build system of the given type.
-private func createBuildSystem(
-  buildSystemKind: BuildSystemKind,
-  options: SourceKitLSPOptions,
-  buildSystemTestHooks: BuildSystemTestHooks,
-  toolchainRegistry: ToolchainRegistry,
-  connectionToSourceKitLSP: any Connection
-) async -> BuiltInBuildSystem? {
-  switch buildSystemKind {
-  case .buildServer(let projectRoot):
-    return await LegacyBuildServerBuildSystem(
-      projectRoot: projectRoot,
-      connectionToSourceKitLSP: connectionToSourceKitLSP
-    )
-  case .compilationDatabase(let projectRoot):
-    return CompilationDatabaseBuildSystem(
-      projectRoot: projectRoot,
-      searchPaths: (options.compilationDatabaseOrDefault.searchPaths ?? []).compactMap {
-        try? RelativePath(validating: $0)
-      },
-      connectionToSourceKitLSP: connectionToSourceKitLSP
-    )
-  case .swiftPM(let projectRoot):
-    return await orLog("Creating SwiftPMBuildSystem") {
-      return try await SwiftPMBuildSystem(
-        projectRoot: projectRoot,
-        toolchainRegistry: toolchainRegistry,
-        options: options,
-        connectionToSourceKitLSP: connectionToSourceKitLSP,
-        testHooks: buildSystemTestHooks.swiftPMTestHooks
-      )
-    }
-  case .testBuildSystem(let projectRoot):
-    return TestBuildSystem(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
-  }
-}
-
 /// A type that outwardly acts as a BSP build server and internally uses a `BuiltInBuildSystem` to satisfy the requests.
-package actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
+actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
   package static let signpostLoggingCategory: String = "build-system-message-handling"
 
   /// The queue on which all messages from SourceKit-LSP (or more specifically `BuildSystemManager`) are handled.
@@ -95,34 +58,14 @@ package actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
     return underlyingBuildSystem as? TestBuildSystem
   }
 
-  /// `messageHandler` is a handler that handles messages sent from the build system to SourceKit-LSP.
-  init?(
-    buildSystemKind: BuildSystemKind?,
-    toolchainRegistry: ToolchainRegistry,
-    options: SourceKitLSPOptions,
-    buildSystemTestHooks: BuildSystemTestHooks,
-    messagesToSourceKitLSPHandler: MessageHandler
-  ) async {
-    guard let buildSystemKind else {
-      return nil
-    }
-    self.connectionToSourceKitLSP = LocalConnection(receiverName: "BuildSystemManager")
-    connectionToSourceKitLSP.start(handler: messagesToSourceKitLSPHandler)
-
-    let buildSystem = await createBuildSystem(
-      buildSystemKind: buildSystemKind,
-      options: options,
-      buildSystemTestHooks: buildSystemTestHooks,
-      toolchainRegistry: toolchainRegistry,
-      connectionToSourceKitLSP: connectionToSourceKitLSP
-    )
-    guard let buildSystem else {
-      logger.log("Failed to create build system for \(buildSystemKind.projectRoot.pathString)")
-      return nil
-    }
-    logger.log("Created \(type(of: buildSystem), privacy: .public) for \(buildSystemKind.projectRoot.pathString)")
-
-    self.underlyingBuildSystem = buildSystem
+  /// Create a `BuiltInBuildSystemAdapter` form an existing `BuiltInBuildSystem` and connection to communicate messages
+  /// from the build system to SourceKit-LSP.
+  init(
+    underlyingBuildSystem: BuiltInBuildSystem,
+    connectionToSourceKitLSP: LocalConnection
+  ) {
+    self.underlyingBuildSystem = underlyingBuildSystem
+    self.connectionToSourceKitLSP = connectionToSourceKitLSP
   }
 
   deinit {
@@ -139,7 +82,8 @@ package actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
       data: SourceKitInitializeBuildResponseData(
         indexDatabasePath: await underlyingBuildSystem.indexDatabasePath?.pathString,
         indexStorePath: await underlyingBuildSystem.indexStorePath?.pathString,
-        supportsPreparation: underlyingBuildSystem.supportsPreparation
+        prepareProvider: underlyingBuildSystem.supportsPreparation,
+        sourceKitOptionsProvider: true
       ).encodeToLSPAny()
     )
   }

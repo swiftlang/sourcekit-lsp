@@ -16,7 +16,10 @@ export interface SourceKitInitializeBuildResponseData {
   indexDatabasePath?: string;
 
   /** Whether the build server supports the `buildTarget/prepare` request */
-  supportsPreparation?: bool;
+  prepareProvider?: bool;
+
+  /** Whether the server implements the `textDocument/sourceKitOptions` request. */
+  sourceKitOptionsProvider?: bool;
 }
 ```
 

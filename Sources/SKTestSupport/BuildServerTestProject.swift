@@ -14,6 +14,15 @@ import Foundation
 import ISDBTestSupport
 import XCTest
 
+fileprivate let sdkArgs =
+  if let defaultSDKPath {
+    """
+    "-sdk", "\(defaultSDKPath)",
+    """
+  } else {
+    ""
+  }
+
 /// The path to the INPUTS directory of shared test projects.
 private let skTestSupportInputsDirectory: URL = {
   #if os(macOS)
@@ -40,8 +49,15 @@ private let skTestSupportInputsDirectory: URL = {
 /// Creates a project that uses a BSP server to provide build settings.
 ///
 /// The build server is implemented in Python on top of the code in `AbstractBuildServer.py`.
+///
+/// The build server can contain `$SDK_ARGS`, which will replaced by `"-sdk", "/path/to/sdk"` on macOS and by an empty
+/// string on all other platforms.
 package class BuildServerTestProject: MultiFileTestProject {
-  package init(files: [RelativeFileLocation: String], buildServer: String) async throws {
+  package init(
+    files: [RelativeFileLocation: String],
+    buildServer: String,
+    testName: String = #function
+  ) async throws {
     var files = files
     files["buildServer.json"] = """
       {
@@ -58,12 +74,15 @@ package class BuildServerTestProject: MultiFileTestProject {
 
       sys.path.append("\(skTestSupportInputsDirectory.path)")
 
-      from AbstractBuildServer import AbstractBuildServer
+      from AbstractBuildServer import AbstractBuildServer, LegacyBuildServer
 
       \(buildServer)
 
       BuildServer().run()
-      """
-    try await super.init(files: files)
+      """.replacing("$SDK_ARGS", with: sdkArgs)
+    try await super.init(
+      files: files,
+      testName: testName
+    )
   }
 }

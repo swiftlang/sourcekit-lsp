@@ -178,6 +178,7 @@ let package = Package(
       dependencies: [
         "LanguageServerProtocol",
         "SKLogging",
+        "SwiftExtensions",
       ],
       exclude: ["CMakeLists.txt"]
     ),
