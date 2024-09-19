@@ -1394,8 +1394,24 @@ final class BackgroundIndexingTests: XCTestCase {
     _ = try await SwiftPMTestProject(
       files: [
         "Test.swift": """
-        func slow(x: Invalid1, y: Invalid2) {
-          x / y / x / y / x / y / x / y
+        struct A: ExpressibleByIntegerLiteral { init(integerLiteral value: Int) {} }
+        struct B: ExpressibleByIntegerLiteral { init(integerLiteral value: Int) {} }
+        struct C: ExpressibleByIntegerLiteral { init(integerLiteral value: Int) {} }
+
+        func + (lhs: A, rhs: B) -> A { fatalError() }
+        func + (lhs: B, rhs: C) -> A { fatalError() }
+        func + (lhs: C, rhs: A) -> A { fatalError() }
+
+        func + (lhs: B, rhs: A) -> B { fatalError() }
+        func + (lhs: C, rhs: B) -> B { fatalError() }
+        func + (lhs: A, rhs: C) -> B { fatalError() }
+
+        func + (lhs: C, rhs: B) -> C { fatalError() }
+        func + (lhs: B, rhs: C) -> C { fatalError() }
+        func + (lhs: A, rhs: A) -> C { fatalError() }
+
+        func slow() {
+          let x: C = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10
         }
         """
       ],
@@ -1404,10 +1420,10 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     // Creating the `SwiftPMTestProject` implicitly waits for background indexing to finish.
     // Preparation of `Test.swift` should finish instantly because it doesn't type check the function body.
-    // Type-checking the body relies on rdar://80582770, which makes the line hard to type check. We should hit the
-    // timeout of 1s. Adding another 2s to escalate a SIGINT (to which swift-frontend doesn't respond) to a SIGKILL mean
-    // that the initial indexing should be done in ~3s. 30s should be enough to always finish within this time while
-    // also testing that we don't wait for type checking of Test.swift to finish.
+    // Type-checking of `slow()` should be slow because the expression has exponential complexity in the type checker.
+    // We should hit the timeout of 1s. Adding another 2s to escalate a SIGINT (to which swift-frontend doesn't respond)
+    // to a SIGKILL mean that the initial indexing should be done in ~3s. 30s should be enough to always finish within
+    // this time while also testing that we don't wait for type checking of Test.swift to finish.
     XCTAssert(Date().timeIntervalSince(dateStarted) < 30)
   }
 
