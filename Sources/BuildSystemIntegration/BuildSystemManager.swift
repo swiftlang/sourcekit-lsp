@@ -727,6 +727,12 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     return result
   }
 
+  package func buildTarget(named identifier: BuildTargetIdentifier) async -> BuildTarget? {
+    return await orLog("Getting built target with ID") {
+      try await buildTargets()[identifier]?.target
+    }
+  }
+
   package func sourceFiles(in targets: Set<BuildTargetIdentifier>) async throws -> [SourcesItem] {
     guard let connectionToBuildSystem else {
       return []

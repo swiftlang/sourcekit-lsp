@@ -522,6 +522,14 @@ extension SwiftLanguageService {
     for uri: DocumentURI,
     in workspace: Workspace
   ) async throws -> [AnnotatedTestItem]? {
+    let targetIdentifiers = await workspace.buildSystemManager.targets(for: uri)
+    let isInTestTarget = await targetIdentifiers.asyncContains(where: {
+      await workspace.buildSystemManager.buildTarget(named: $0)?.tags.contains(.test) ?? true
+    })
+    if !targetIdentifiers.isEmpty && !isInTestTarget {
+      // If we know the targets for the file and the file is not part of any test target, don't scan it for tests.
+      return nil
+    }
     let snapshot = try documentManager.latestSnapshot(uri)
     let semanticSymbols = workspace.index(checkedFor: .deletedFiles)?.symbols(inFilePath: snapshot.uri.pseudoPath)
     let xctestSymbols = await SyntacticSwiftXCTestScanner.findTestSymbols(
