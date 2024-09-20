@@ -453,7 +453,10 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
 
   package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
     var targets = self.swiftPMTargets.map { (targetId, target) in
-      var tags: [BuildTargetTag] = [.test]
+      var tags: [BuildTargetTag] = []
+      if target.isTestTarget {
+        tags.append(.test)
+      }
       if !target.isPartOfRootPackage {
         tags.append(.dependency)
       }

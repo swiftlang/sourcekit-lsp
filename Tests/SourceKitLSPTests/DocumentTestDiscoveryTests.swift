@@ -1424,4 +1424,21 @@ final class DocumentTestDiscoveryTests: XCTestCase {
       ]
     )
   }
+
+  func testSwiftTestingTestsAreNotReportedInNonTestTargets() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "FileA.swift": """
+          @Suite struct MyTests {
+          @Test func inStruct() {}
+        }
+        """
+      ]
+    )
+
+    let (uri, _) = try project.openDocument("FileA.swift")
+
+    let tests = try await project.testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(tests, [])
+  }
 }

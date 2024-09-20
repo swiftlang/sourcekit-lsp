@@ -81,4 +81,11 @@ extension Sequence {
 
     return nil
   }
+
+  /// Just like `Sequence.contains` but allows an `async` predicate function.
+  package func asyncContains(
+    @_inheritActorContext where predicate: @Sendable (Element) async throws -> Bool
+  ) async rethrows -> Bool {
+    return try await asyncFirst(predicate) != nil
+  }
 }

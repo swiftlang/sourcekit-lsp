@@ -1063,6 +1063,21 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       ]
     )
   }
+
+  func testSwiftTestingTestsAreNotDiscoveredInNonTestTargets() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "FileA.swift": """
+          @Suite struct MyTests {
+          @Test func inStruct() {}
+        }
+        """
+      ]
+    )
+
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
+    XCTAssertEqual(tests, [])
+  }
 }
 
 extension TestItem {
