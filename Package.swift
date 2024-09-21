@@ -420,7 +420,7 @@ func hasEnvironmentVariable(_ name: String) -> Bool {
 ///
 /// This is useful when running tests using `swift test` because xctest will not display the output from `os_log` on the
 /// command line.
-var forceNonDarwinLogger: Bool { hasEnvironmentVariable("SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER") }
+var forceNonDarwinLogger: Bool { hasEnvironmentVariable("SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER") }
 
 // When building the toolchain on the CI, don't add the CI's runpath for the
 // final build before installing.
@@ -474,7 +474,7 @@ var sourcekitLSPLinkSettings: [LinkerSetting] {
 
 var lspLoggingSwiftSettings: [SwiftSetting] {
   if forceNonDarwinLogger {
-    return [.define("SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER")]
+    return [.define("SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER")]
   } else {
     return []
   }

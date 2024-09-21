@@ -12,7 +12,7 @@
 
 import Foundation
 
-#if canImport(os) && !SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER
+#if canImport(os) && !SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER
 import os  // os_log
 
 package typealias LogLevel = os.OSLogType
