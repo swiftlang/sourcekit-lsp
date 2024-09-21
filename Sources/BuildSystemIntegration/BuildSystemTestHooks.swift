@@ -10,10 +10,21 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LanguageServerProtocol
+
 package struct BuildSystemTestHooks: Sendable {
   package var swiftPMTestHooks: SwiftPMTestHooks
 
-  package init(swiftPMTestHooks: SwiftPMTestHooks = SwiftPMTestHooks()) {
+  /// A hook that will be executed before a request is handled by a `BuiltInBuildSystem`.
+  ///
+  /// This allows requests to be artificially delayed.
+  package var handleRequest: (@Sendable (any RequestType) async -> Void)?
+
+  package init(
+    swiftPMTestHooks: SwiftPMTestHooks = SwiftPMTestHooks(),
+    handleRequest: (@Sendable (any RequestType) async -> Void)? = nil
+  ) {
     self.swiftPMTestHooks = swiftPMTestHooks
+    self.handleRequest = handleRequest
   }
 }
