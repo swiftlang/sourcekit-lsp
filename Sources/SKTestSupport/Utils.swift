@@ -113,7 +113,7 @@ fileprivate extension URL {
 }
 
 let globalModuleCache: URL? = {
-  if let customModuleCache = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_TEST_MODULE_CACHE"] {
+  if let customModuleCache = ProcessInfo.processInfo.environment["SOURCEKITLSP_TEST_MODULE_CACHE"] {
     if customModuleCache.isEmpty {
       return nil
     }
