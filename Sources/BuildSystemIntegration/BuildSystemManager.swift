@@ -257,6 +257,8 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// get `fileBuildSettingsChanged` and `filesDependenciesUpdated` callbacks.
   private var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
 
+  private var connectionToClient: BuildSystemManagerConnectionToClient?
+
   /// The build system adapter that is used to answer build system queries.
   private var buildSystemAdapter: BuildSystemAdapter?
 
@@ -356,10 +358,12 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     buildSystemKind: BuildSystemKind?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
+    connectionToClient: BuildSystemManagerConnectionToClient,
     buildSystemTestHooks: BuildSystemTestHooks
   ) async {
     self.toolchainRegistry = toolchainRegistry
     self.options = options
+    self.connectionToClient = connectionToClient
     self.projectRoot = buildSystemKind?.projectRoot
     self.buildSystemAdapter = await buildSystemKind?.createBuildSystemAdapter(
       toolchainRegistry: toolchainRegistry,
@@ -424,6 +428,14 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         let connectionToBuildSystem = LocalConnection(receiverName: "Legacy BSP server")
         connectionToBuildSystem.start(handler: adapter)
         self.buildSystemAdapter = .builtIn(adapter, connectionToBuildSystem: connectionToBuildSystem)
+      }
+      Task {
+        var filesToWatch = initializeResponse?.sourceKitData?.watchers ?? []
+        filesToWatch.append(FileSystemWatcher(globPattern: "**/*.swift", kind: [.change]))
+        if !options.backgroundIndexingOrDefault {
+          filesToWatch.append(FileSystemWatcher(globPattern: "**/*.swiftmodule", kind: [.create, .change, .delete]))
+        }
+        await connectionToClient.watchFiles(filesToWatch)
       }
       await buildSystemAdapter.send(OnBuildInitializedNotification())
       return initializeResponse
@@ -516,31 +528,29 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       } else {
         notification.message
       }
-    delegate?.sendNotificationToClient(
+    await connectionToClient?.send(
       LanguageServerProtocol.LogMessageNotification(type: .info, message: message, logName: "SourceKit-LSP: Indexing")
     )
   }
 
   private func workDoneProgress(notification: BuildServerProtocol.WorkDoneProgress) async {
-    guard let delegate else {
-      logger.fault("Ignoring work done progress form build system because connection to client closed")
+    guard let connectionToClient else {
+      logger.fault("Ignoring work done progress from build system because connection to client closed")
       return
     }
-    await delegate.waitUntilInitialized()
-    delegate.sendNotificationToClient(notification as LanguageServerProtocol.WorkDoneProgress)
+    await connectionToClient.send(notification as LanguageServerProtocol.WorkDoneProgress)
   }
 
   private func createWorkDoneProgress(
     request: BuildServerProtocol.CreateWorkDoneProgressRequest
   ) async throws -> BuildServerProtocol.CreateWorkDoneProgressRequest.Response {
-    guard let delegate else {
+    guard let connectionToClient else {
       throw ResponseError.unknown("Connection to client closed")
     }
-    guard await delegate.clientSupportsWorkDoneProgress else {
+    guard await connectionToClient.clientSupportsWorkDoneProgress else {
       throw ResponseError.unknown("Client does not support work done progress")
     }
-    await delegate.waitUntilInitialized()
-    return try await delegate.sendRequestToClient(request as LanguageServerProtocol.CreateWorkDoneProgressRequest)
+    return try await connectionToClient.send(request as LanguageServerProtocol.CreateWorkDoneProgressRequest)
   }
 
   // MARK: Build System queries

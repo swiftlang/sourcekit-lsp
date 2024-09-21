@@ -15,6 +15,7 @@ import BuildServerProtocol
 import LanguageServerProtocol
 import SKLogging
 import SKOptions
+import SKSupport
 import SKTestSupport
 import TSCBasic
 import ToolchainRegistry
@@ -46,6 +47,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: nil,
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
+      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
@@ -104,6 +106,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
+      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
@@ -132,6 +135,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
+      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
@@ -153,6 +157,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
+      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
@@ -193,6 +198,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
+      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
@@ -253,6 +259,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
+      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
@@ -318,6 +325,8 @@ private final actor ManualMainFilesProvider: MainFilesProvider {
 
 /// A `BuildSystemDelegate` setup for testing.
 private actor BSMDelegate: BuildSystemManagerDelegate {
+  func watchFiles(_ fileWatchers: [LanguageServerProtocol.FileSystemWatcher]) async {}
+
   fileprivate typealias ExpectedBuildSettingChangedCall = (
     uri: DocumentURI, language: Language, settings: FileBuildSettings?, expectation: XCTestExpectation,
     file: StaticString, line: UInt

@@ -55,6 +55,9 @@ actor LegacyBuildServerBuildSystem: MessageHandler, BuiltInBuildSystem {
   private let bspMessageHandlingQueue = AsyncQueue<Serial>()
 
   package let projectRoot: AbsolutePath
+
+  var fileWatchers: [FileSystemWatcher] = []
+
   let indexDatabasePath: AbsolutePath?
   let indexStorePath: AbsolutePath?
 

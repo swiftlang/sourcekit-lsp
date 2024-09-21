@@ -217,6 +217,8 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   /// The directory containing `Package.swift`.
   package let projectRoot: TSCAbsolutePath
 
+  package let fileWatchers: [FileSystemWatcher]
+
   package let toolsBuildParameters: BuildParameters
   package let destinationBuildParameters: BuildParameters
 
@@ -278,6 +280,13 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   ) async throws {
     self.projectRoot = projectRoot
     self.options = options
+    self.fileWatchers =
+      ["Package.swift", "Package.resolved"].map {
+        FileSystemWatcher(globPattern: projectRoot.appending(component: $0).pathString, kind: [.change])
+      }
+      + FileRuleDescription.builtinRules.flatMap({ $0.fileTypes }).map { fileExtension in
+        FileSystemWatcher(globPattern: "**/*.\(fileExtension)", kind: [.create, .change, .delete])
+      }
     let toolchain = await toolchainRegistry.preferredToolchain(containing: [
       \.clang, \.clangd, \.sourcekitd, \.swift, \.swiftc,
     ])

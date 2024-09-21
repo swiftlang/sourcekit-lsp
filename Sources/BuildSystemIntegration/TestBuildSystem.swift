@@ -30,6 +30,9 @@ import struct TSCBasic.AbsolutePath
 /// and other components.
 package actor TestBuildSystem: BuiltInBuildSystem {
   package let projectRoot: AbsolutePath
+
+  package let fileWatchers: [FileSystemWatcher] = []
+
   package let indexStorePath: AbsolutePath? = nil
   package let indexDatabasePath: AbsolutePath? = nil
 

@@ -176,10 +176,35 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     testHooks: TestHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async {
+    struct ConnectionToClient: BuildSystemManagerConnectionToClient {
+      let sourceKitLSPServer: SourceKitLSPServer
+      func send(_ notification: some NotificationType) async {
+        await sourceKitLSPServer.waitUntilInitialized()
+        sourceKitLSPServer.sendNotificationToClient(notification)
+      }
+
+      func send<R: RequestType>(_ request: R) async throws -> R.Response {
+        await sourceKitLSPServer.waitUntilInitialized()
+        return try await sourceKitLSPServer.sendRequestToClient(request)
+      }
+
+      /// Whether the client can handle `WorkDoneProgress` requests.
+      var clientSupportsWorkDoneProgress: Bool {
+        get async {
+          await sourceKitLSPServer.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false
+        }
+      }
+
+      func watchFiles(_ fileWatchers: [FileSystemWatcher]) async {
+        await sourceKitLSPServer.watchFiles(fileWatchers)
+      }
+    }
+
     let buildSystemManager = await BuildSystemManager(
       buildSystemKind: buildSystemKind,
       toolchainRegistry: toolchainRegistry,
       options: options,
+      connectionToClient: ConnectionToClient(sourceKitLSPServer: sourceKitLSPServer),
       buildSystemTestHooks: testHooks.buildSystemTestHooks
     )
 
@@ -330,24 +355,6 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     get async {
       await sourceKitLSPServer?.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false
     }
-  }
-
-  package func sendNotificationToClient(_ notification: some NotificationType) {
-    guard let sourceKitLSPServer else {
-      logger.error(
-        "Not sending \(type(of: notification), privacy: .public) to the client because sourceKitLSPServer has been deallocated"
-      )
-      return
-    }
-    sourceKitLSPServer.sendNotificationToClient(notification)
-
-  }
-
-  package func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response {
-    guard let sourceKitLSPServer else {
-      throw ResponseError.unknown("Connection to the editor closed")
-    }
-    return try await sourceKitLSPServer.sendRequestToClient(request)
   }
 
   package func waitUntilInitialized() async {

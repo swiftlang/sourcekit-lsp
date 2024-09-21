@@ -87,6 +87,11 @@ package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
 
   package let projectRoot: AbsolutePath
 
+  package let fileWatchers: [FileSystemWatcher] = [
+    FileSystemWatcher(globPattern: "**/compile_commands.json", kind: [.create, .change, .delete]),
+    FileSystemWatcher(globPattern: "**/compile_flags.txt", kind: [.create, .change, .delete]),
+  ]
+
   private var _indexStorePath: Cachable<AbsolutePath?> = .noValue
   package var indexStorePath: AbsolutePath? {
     _indexStorePath.get {

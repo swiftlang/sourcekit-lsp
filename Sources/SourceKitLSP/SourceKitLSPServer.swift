@@ -194,6 +194,9 @@ package actor SourceKitLSPServer {
 
   var onExit: () -> Void
 
+  /// The files that we asked the client to watch.
+  private var watchers: Set<FileSystemWatcher> = []
+
   /// Creates a language server for the given client.
   package init(
     client: Connection,
@@ -1144,21 +1147,6 @@ extension SourceKitLSPServer {
     if let commandOptions = server.executeCommandProvider {
       await registry.registerExecuteCommandIfNeeded(commands: commandOptions.commands, server: self)
     }
-
-    // From our side, we could specify the watch patterns as part of the initial server capabilities but LSP only allows
-    // dynamic registration of watch patterns.
-    // This must be a superset of the files that return true for SwiftPM's `Workspace.fileAffectsSwiftOrClangBuildSettings`.
-    var watchers = FileRuleDescription.builtinRules.flatMap({ $0.fileTypes }).map { fileExtension in
-      return FileSystemWatcher(globPattern: "**/*.\(fileExtension)", kind: [.create, .change, .delete])
-    }
-    watchers.append(FileSystemWatcher(globPattern: "**/Package.swift", kind: [.change]))
-    watchers.append(FileSystemWatcher(globPattern: "**/Package.resolved", kind: [.change]))
-    watchers.append(FileSystemWatcher(globPattern: "**/compile_commands.json", kind: [.create, .change, .delete]))
-    watchers.append(FileSystemWatcher(globPattern: "**/compile_flags.txt", kind: [.create, .change, .delete]))
-    // Watch for changes to `.swiftmodule` files to detect updated modules during a build.
-    // See comments in `SwiftPMBuildSystem.filesDidChange`
-    watchers.append(FileSystemWatcher(globPattern: "**/*.swiftmodule", kind: [.create, .change, .delete]))
-    await registry.registerDidChangeWatchedFiles(watchers: watchers, server: self)
   }
 
   func clientInitialized(_: InitializedNotification) {
@@ -1262,6 +1250,20 @@ extension SourceKitLSPServer {
 
     // Call onExit only once, and hop off queue to allow the handler to call us back.
     self.onExit()
+  }
+
+  /// Start watching for changes with the given patterns.
+  func watchFiles(_ fileWatchers: [FileSystemWatcher]) async {
+    await self.waitUntilInitialized()
+    if fileWatchers.allSatisfy({ self.watchers.contains($0) }) {
+      // All watchers already registered. Nothing to do.
+      return
+    }
+    self.watchers.formUnion(fileWatchers)
+    await self.capabilityRegistry?.registerDidChangeWatchedFiles(
+      watchers: self.watchers.sorted { $0.globPattern < $1.globPattern },
+      server: self
+    )
   }
 
   // MARK: - Text synchronization

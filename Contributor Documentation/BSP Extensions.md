@@ -20,6 +20,11 @@ export interface SourceKitInitializeBuildResponseData {
 
   /** Whether the server implements the `textDocument/sourceKitOptions` request. */
   sourceKitOptionsProvider?: bool;
+
+  /** The files to watch for changes.
+   * Changes to these files are sent to the BSP server using `workspace/didChangeWatchedFiles`.
+   * `FileSystemWatcher` is the same as in LSP. */
+  watchers: [FileSystemWatcher]?
 }
 ```
 
@@ -148,6 +153,8 @@ export interface SourceKitBuildTarget {
 ## `workspace/didChangeWatchedFiles`
 
 Notification sent from SourceKit-LSP to the build system to indicate that files within the project have been modified.
+
+SourceKit-LSP may send file change notifications for a superset of the files that the BSP server requested to watch in `watchers`. It is the BSP server’s responsibility to filter the file watch notifications for the ones it is actually interested in.
 
 Definition is the same as in LSP.
 
