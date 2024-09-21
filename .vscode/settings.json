@@ -3,6 +3,8 @@
     // Show log messages when running tests on macOS
     "SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER": "1",
     // Decrease timeout to 10s locally from the default 3min we allow by default. This is usually sufficient and makes test fail faster.
-    "SOURCEKITLSP_TEST_TIMEOUT": "10"
+    "SOURCEKITLSP_TEST_TIMEOUT": "10",
+    // Logging faults indicates that there is an issue in the code. Raise an XCTFail to catch these cases.
+    "SOURCEKITLSP_XCTFAIL_ON_FAULT": "1",
   },
 }

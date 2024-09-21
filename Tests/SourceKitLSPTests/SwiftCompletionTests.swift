@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import XCTest
@@ -236,21 +237,23 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertFalse(inOrAfterFoo.items.isEmpty)
     }
 
-    let outOfRange1 = try await testClient.send(
-      CompletionRequest(
-        textDocument: TextDocumentIdentifier(uri),
-        position: Position(line: 0, utf16index: 4)
+    try await withLoggingFaultsAllowed {
+      let outOfRange1 = try await testClient.send(
+        CompletionRequest(
+          textDocument: TextDocumentIdentifier(uri),
+          position: Position(line: 0, utf16index: 4)
+        )
       )
-    )
-    XCTAssertTrue(outOfRange1.isIncomplete)
+      XCTAssertTrue(outOfRange1.isIncomplete)
 
-    let outOfRange2 = try await testClient.send(
-      CompletionRequest(
-        textDocument: TextDocumentIdentifier(uri),
-        position: Position(line: 1, utf16index: 0)
+      let outOfRange2 = try await testClient.send(
+        CompletionRequest(
+          textDocument: TextDocumentIdentifier(uri),
+          position: Position(line: 1, utf16index: 0)
+        )
       )
-    )
-    XCTAssertTrue(outOfRange2.isIncomplete)
+      XCTAssertTrue(outOfRange2.isIncomplete)
+    }
   }
 
   func testCompletionOptional() async throws {

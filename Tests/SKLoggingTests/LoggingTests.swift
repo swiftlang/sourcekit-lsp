@@ -111,38 +111,41 @@ final class LoggingTests: XCTestCase {
   }
 
   func testLogLevels() async {
-    await assertLogging(
-      logLevel: .default,
-      expected: ["d", "e", "f"]
-    ) {
-      $0.fault("d")
-      $0.error("e")
-      $0.log("f")
-      $0.info("g")
-      $0.debug("h")
+    await withLoggingFaultsAllowed {
+      await assertLogging(
+        logLevel: .default,
+        expected: ["d", "e", "f"]
+      ) {
+        $0.fault("d")
+        $0.error("e")
+        $0.log("f")
+        $0.info("g")
+        $0.debug("h")
+      }
+
+      await assertLogging(
+        logLevel: .error,
+        expected: ["d", "e"]
+      ) {
+        $0.fault("d")
+        $0.error("e")
+        $0.log("f")
+        $0.info("g")
+        $0.debug("h")
+      }
+
+      await assertLogging(
+        logLevel: .fault,
+        expected: ["d"]
+      ) {
+        $0.fault("d")
+        $0.error("e")
+        $0.log("f")
+        $0.info("g")
+        $0.debug("h")
+      }
     }
 
-    await assertLogging(
-      logLevel: .error,
-      expected: ["d", "e"]
-    ) {
-      $0.fault("d")
-      $0.error("e")
-      $0.log("f")
-      $0.info("g")
-      $0.debug("h")
-    }
-
-    await assertLogging(
-      logLevel: .fault,
-      expected: ["d"]
-    ) {
-      $0.fault("d")
-      $0.error("e")
-      $0.log("f")
-      $0.info("g")
-      $0.debug("h")
-    }
   }
 
   func testPrivacyMaskingLevels() async {

@@ -211,6 +211,8 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
     # `NonDarwinLogger` that prints to stderr so we can view the log output in CI test
     # runs.
     additional_env['SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER'] = '1'
+    # Logging faults indicates that there is an issue in the code. Raise an XCTFail to catch these cases.
+    additional_env['SOURCEKITLSP_XCTFAIL_ON_FAULT'] = '1'
 
     # CI doesn't contain any sensitive information. Log everything.
     additional_env['SOURCEKITLSP_LOG_PRIVACY_LEVEL'] = 'sensitive'

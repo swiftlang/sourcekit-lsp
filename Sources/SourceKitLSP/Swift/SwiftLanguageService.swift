@@ -198,7 +198,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     // The debounce duration of 500ms was chosen arbitrarily without scientific research.
     self.refreshDiagnosticsDebouncer = Debouncer(debounceDuration: .milliseconds(500)) { [weak sourceKitLSPServer] in
       guard let sourceKitLSPServer else {
-        logger.fault("Not sending DiagnosticRefreshRequest to client because sourceKitLSPServer has been deallocated")
+        logger.log("Not sending DiagnosticRefreshRequest to client because sourceKitLSPServer has been deallocated")
         return
       }
       _ = await orLog("Sending DiagnosticRefreshRequest to client after document dependencies updated") {

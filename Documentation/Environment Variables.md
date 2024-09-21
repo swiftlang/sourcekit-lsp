@@ -5,6 +5,7 @@ The following environment variables can be used to control some behavior in Sour
 ## Build time
 
 - `SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER`: Use the `NonDarwinLogger` to log to stderr, even when building SourceKit-LSP on macOS. This is useful when running tests using `swift test` because it writes the log messages to stderr, which is displayed during the `swift test` invocation.
+- `SOURCEKITLSP_XCTFAIL_ON_FAULT`: When a fault is logged, record it using `XCTFail`, verifying that no faults are logged during test execution, since faults indicate Must only be set when running tests. A `sourcekit-lsp` binary built with this flag will not launch because it can’t load XCTest. Has no effect if os_log is used (ie. when building on macOS without `SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER` set).
 - `SOURCEKITLSP_CI_INSTALL`: Modifies rpaths in a way that’s necessary to build SourceKit-LSP to be included in a distributed toolchain. Should not be used locally.
 - `SWIFTCI_USE_LOCAL_DEPS`: Assume that all of SourceKit-LSP’s dependencies are checked out next to it and use those instead of cloning the repositories. Primarily intended for CI environments that check out related branches.
 

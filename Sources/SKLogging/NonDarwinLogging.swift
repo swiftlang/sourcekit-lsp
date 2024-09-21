@@ -12,6 +12,40 @@
 
 import SwiftExtensions
 
+#if SOURCEKITLSP_XCTFAIL_ON_FAULT
+import XCTest
+
+private let allowFault = AtomicBool(initialValue: false)
+
+/// If `SOURCEKITLSP_XCTFAIL_ON_FAULT` is set, allow faults to be logged for the duration of `body`, so functionality
+/// that logs a fault can be tested.
+package func withLoggingFaultsAllowed<T>(_ body: () throws -> T) rethrows -> T {
+  let oldValue = allowFault.value
+  allowFault.value = true
+  defer { allowFault.value = oldValue }
+  return try body()
+}
+
+/// If `SOURCEKITLSP_XCTFAIL_ON_FAULT` is set, allow faults to be logged for the duration of `body`, so functionality
+/// that logs a fault can be tested.
+package func withLoggingFaultsAllowed<T: Sendable>(_ body: () async throws -> T) async rethrows -> T {
+  let oldValue = allowFault.value
+  allowFault.value = true
+  defer { allowFault.value = oldValue }
+  return try await body()
+}
+#else
+// No-op since `SOURCEKITLSP_XCTFAIL_ON_FAULT` is not set.
+package func withLoggingFaultsAllowed<T>(_ body: () throws -> T) rethrows -> T {
+  return try body()
+}
+
+// No-op since `SOURCEKITLSP_XCTFAIL_ON_FAULT` is not set.
+package func withLoggingFaultsAllowed<T: Sendable>(_ body: () async throws -> T) async rethrows -> T {
+  return try await body()
+}
+#endif
+
 #if canImport(Darwin)
 import Foundation
 #else
@@ -328,6 +362,11 @@ package struct NonDarwinLogger: Sendable {
     level: NonDarwinLogLevel,
     _ message: @autoclosure @escaping @Sendable () -> NonDarwinLogMessage
   ) {
+    #if SOURCEKITLSP_XCTFAIL_ON_FAULT
+    if level == .fault, !allowFault.value {
+      XCTFail(message().value.string(for: .private))
+    }
+    #endif
     guard level >= self.logLevel else { return }
     let date = Date()
     loggingQueue.async(priority: .utility) { @LogHandlerActor in

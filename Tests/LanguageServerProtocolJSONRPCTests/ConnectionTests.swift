@@ -12,6 +12,7 @@
 
 import LanguageServerProtocol
 @_spi(Testing) import LanguageServerProtocolJSONRPC
+import SKLogging
 import SKTestSupport
 import XCTest
 
@@ -144,12 +145,13 @@ class ConnectionTests: XCTestCase {
       typealias Response = VoidResponse
     }
 
-    _ = client.send(UnknownRequest()) { result in
-      XCTAssertEqual(result, .failure(ResponseError.methodNotFound("unknown")))
-      expectation.fulfill()
+    try await withLoggingFaultsAllowed {
+      _ = client.send(UnknownRequest()) { result in
+        XCTAssertEqual(result, .failure(ResponseError.methodNotFound("unknown")))
+        expectation.fulfill()
+      }
+      try await fulfillmentOfOrThrow([expectation])
     }
-
-    try await fulfillmentOfOrThrow([expectation])
   }
 
   func testUnknownNotification() async throws {
@@ -160,18 +162,20 @@ class ConnectionTests: XCTestCase {
       static let method: String = "unknown"
     }
 
-    client.send(UnknownNotification())
+    try await withLoggingFaultsAllowed {
+      client.send(UnknownNotification())
 
-    // Nothing bad should happen; check that the next request works.
+      // Nothing bad should happen; check that the next request works.
 
-    _ = client.send(EchoRequest(string: "hello!")) { resp in
-      assertNoThrow {
-        XCTAssertEqual(try resp.get(), "hello!")
+      _ = client.send(EchoRequest(string: "hello!")) { resp in
+        assertNoThrow {
+          XCTAssertEqual(try resp.get(), "hello!")
+        }
+        expectation.fulfill()
       }
-      expectation.fulfill()
-    }
 
-    try await fulfillmentOfOrThrow([expectation])
+      try await fulfillmentOfOrThrow([expectation])
+    }
   }
 
   func testUnexpectedResponse() async throws {
@@ -179,18 +183,20 @@ class ConnectionTests: XCTestCase {
     let expectation = self.expectation(description: "response received")
 
     // response to unknown request
-    connection.clientToServerConnection.sendReply(.success(VoidResponse()), id: .string("unknown"))
+    try await withLoggingFaultsAllowed {
+      connection.clientToServerConnection.sendReply(.success(VoidResponse()), id: .string("unknown"))
 
-    // Nothing bad should happen; check that the next request works.
+      // Nothing bad should happen; check that the next request works.
 
-    _ = client.send(EchoRequest(string: "hello!")) { resp in
-      assertNoThrow {
-        XCTAssertEqual(try resp.get(), "hello!")
+      _ = client.send(EchoRequest(string: "hello!")) { resp in
+        assertNoThrow {
+          XCTAssertEqual(try resp.get(), "hello!")
+        }
+        expectation.fulfill()
       }
-      expectation.fulfill()
-    }
 
-    try await fulfillmentOfOrThrow([expectation])
+      try await fulfillmentOfOrThrow([expectation])
+    }
   }
 
   func testSendAfterClose() async throws {
@@ -296,9 +302,11 @@ class ConnectionTests: XCTestCase {
         "params": {}
       }
       """
-    connection.clientToServerConnection.send(message: messageContents)
+    try await withLoggingFaultsAllowed {
+      connection.clientToServerConnection.send(message: messageContents)
 
-    try await fulfillmentOfOrThrow([expectation])
+      try await fulfillmentOfOrThrow([expectation])
+    }
   }
 }
 

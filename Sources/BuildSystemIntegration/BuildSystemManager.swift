@@ -248,7 +248,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     ) {
       [weak self] (filesWithUpdatedDependencies) in
       guard let self, let delegate = await self.delegate else {
-        logger.fault("Not calling filesDependenciesUpdated because no delegate exists in SwiftPMBuildSystem")
+        logger.log("Not calling filesDependenciesUpdated because no delegate exists in SwiftPMBuildSystem")
         return
       }
       let changedWatchedFiles = await self.watchedFilesReferencing(mainFiles: filesWithUpdatedDependencies)
@@ -761,14 +761,11 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
           logger.fault("Did not compute depth for target \(buildTarget.id)")
           depth = 0
         }
-        let targetDependents: Set<BuildTargetIdentifier>
-        if let d = dependents[buildTarget.id] {
-          targetDependents = d
-        } else {
-          logger.fault("Did not compute dependents for target \(buildTarget.id)")
-          targetDependents = []
-        }
-        result[buildTarget.id] = BuildTargetInfo(target: buildTarget, depth: depth, dependents: targetDependents)
+        result[buildTarget.id] = BuildTargetInfo(
+          target: buildTarget,
+          depth: depth,
+          dependents: dependents[buildTarget.id] ?? []
+        )
       }
       return result
     }
