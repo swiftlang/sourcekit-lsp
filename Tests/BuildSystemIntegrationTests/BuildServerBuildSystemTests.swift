@@ -233,4 +233,74 @@ final class BuildServerBuildSystemTests: XCTestCase {
       return diags.fullReport?.items.map(\.message) == ["DEBUG SET"]
     }
   }
+
+  func testCrashRecovery() async throws {
+    try SkipUnless.longTestsEnabled()
+
+    let project = try await BuildServerTestProject(
+      files: [
+        "Crash.swift": "",
+        "Test.swift": """
+        #if DEBUG
+        #error("DEBUG SET")
+        #else
+        #error("DEBUG NOT SET")
+        #endif
+        """,
+      ],
+      buildServer: """
+        import threading
+
+        class BuildServer(AbstractBuildServer):
+          def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "targets": [
+                {
+                  "id": {"uri": "bsp://dummy"},
+                  "tags": [],
+                  "languageIds": [],
+                  "dependencies": [],
+                  "capabilities": {},
+                }
+              ]
+            }
+
+          def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "items": [
+                {
+                  "target": {"uri": "bsp://dummy"},
+                  "sources": [
+                    {"uri": "file://$TEST_DIR/Crash.swift", "kind": 1, "generated": False},
+                    {"uri": "file://$TEST_DIR/Test.swift", "kind": 1, "generated": False},
+                  ],
+                }
+              ]
+            }
+
+          def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
+            # Crash when getting build settings for Crash.swift
+            assert "Crash.swift" not in request["textDocument"]["uri"]
+            return {
+              "compilerArguments": ["$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
+            }
+        """
+    )
+
+    // Crash the build server
+    let (crashUri, _) = try project.openDocument("Crash.swift")
+    _ = try await project.testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(crashUri)))
+    project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(crashUri)))
+
+    // Check that we still get results for Test.swift (after relaunching the BSP server)
+    let (uri, _) = try project.openDocument("Test.swift")
+
+    try await repeatUntilExpectedResult {
+      let diagnostics = try await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+      )
+      return diagnostics.fullReport?.items.map(\.message) == ["DEBUG SET"]
+    }
+
+  }
 }

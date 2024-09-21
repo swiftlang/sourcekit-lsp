@@ -216,17 +216,17 @@ actor ClangLanguageService: LanguageService, MessageHandler {
       return
     }
 
-    let restartDelay: Int
+    let restartDelay: Duration
     if let lastClangdRestart = self.lastClangdRestart, Date().timeIntervalSince(lastClangdRestart) < 30 {
       logger.log("clangd has already been restarted in the last 30 seconds. Delaying another restart by 10 seconds.")
-      restartDelay = 10
+      restartDelay = .seconds(10)
     } else {
-      restartDelay = 0
+      restartDelay = .zero
     }
     self.lastClangdRestart = Date()
 
     Task {
-      try await Task.sleep(nanoseconds: UInt64(restartDelay) * 1_000_000_000)
+      try await Task.sleep(for: restartDelay)
       self.clangRestartScheduled = false
       do {
         try self.startClangdProcess()
