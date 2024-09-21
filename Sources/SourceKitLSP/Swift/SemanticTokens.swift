@@ -29,7 +29,9 @@ import SwiftSyntax
 extension SwiftLanguageService {
   /// Requests the semantic highlighting tokens for the given snapshot from sourcekitd.
   private func semanticHighlightingTokens(for snapshot: DocumentSnapshot) async throws -> SyntaxHighlightingTokens? {
-    guard let buildSettings = await self.buildSettings(for: snapshot.uri), !buildSettings.isFallback else {
+    guard let buildSettings = await self.buildSettings(for: snapshot.uri, fallbackAfterTimeout: false),
+      !buildSettings.isFallback
+    else {
       return nil
     }
 

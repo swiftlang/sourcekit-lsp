@@ -141,10 +141,12 @@ extension SwiftLanguageService {
   /// - Parameters:
   ///   - url: Document URI in which to perform the request. Must be an open document.
   ///   - range: The position range within the document to lookup the symbol at.
-  ///   - completion: Completion block to asynchronously receive the CursorInfo, or error.
+  ///   - fallbackSettingsAfterTimeout: Whether fallback build settings should be used for the cursor info request if no
+  ///     build settings can be retrieved within a timeout.
   func cursorInfo(
     _ uri: DocumentURI,
     _ range: Range<Position>,
+    fallbackSettingsAfterTimeout: Bool,
     additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil
   ) async throws -> (cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand]) {
     let documentManager = try self.documentManager
@@ -161,7 +163,8 @@ extension SwiftLanguageService {
       keys.length: offsetRange.upperBound != offsetRange.lowerBound ? offsetRange.count : nil,
       keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
-      keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDRequestValue]?,
+      keys.compilerArgs: await self.buildSettings(for: uri, fallbackAfterTimeout: fallbackSettingsAfterTimeout)?
+        .compilerArgs as [SKDRequestValue]?,
     ])
 
     appendAdditionalParameters?(skreq)

@@ -169,6 +169,8 @@ extension Collection where Element: Sendable {
 
 package struct TimeoutError: Error, CustomStringConvertible {
   package var description: String { "Timed out" }
+
+  package init() {}
 }
 
 /// Executes `body`. If it doesn't finish after `duration`, throws a `TimeoutError`.
@@ -217,5 +219,49 @@ package func withTimeout<T: Sendable>(
         _ = try? await task.value
       }
     }
+  }
+}
+
+/// Executes `body`. If it doesn't finish after `duration`, return `nil` and continue running body. When `body` returns
+/// a value after the timeout, `resultReceivedAfterTimeout` is called.
+///
+/// - Important: `body` will not be cancelled when the timeout is received. Use the other overload of `withTimeout` if
+///   `body` should be cancelled after `timeout`.
+package func withTimeout<T: Sendable>(
+  _ timeout: Duration,
+  body: @escaping @Sendable () async throws -> T?,
+  resultReceivedAfterTimeout: @escaping @Sendable () async -> Void
+) async throws -> T? {
+  let didHitTimeout = AtomicBool(initialValue: false)
+
+  let stream = AsyncThrowingStream<T?, Error> { continuation in
+    Task {
+      try await Task.sleep(for: timeout)
+      didHitTimeout.value = true
+      continuation.yield(nil)
+    }
+
+    Task {
+      do {
+        let result = try await body()
+        if didHitTimeout.value {
+          await resultReceivedAfterTimeout()
+        }
+        continuation.yield(result)
+      } catch {
+        continuation.yield(with: .failure(error))
+      }
+    }
+  }
+
+  for try await value in stream {
+    return value
+  }
+  // The only reason for the loop above to terminate is if the Task got cancelled or if the continuation finishes
+  // (which it never does).
+  if Task.isCancelled {
+    throw CancellationError()
+  } else {
+    preconditionFailure("Continuation never finishes")
   }
 }
