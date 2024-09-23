@@ -844,7 +844,8 @@ extension SwiftLanguageService {
         // Ignore any providers that failed to provide refactoring actions.
         return []
       }
-    }.flatMap { $0 }.sorted { $0.title < $1.title }
+    }
+    .flatMap { $0 }
   }
 
   func retrieveSyntaxCodeActions(_ request: CodeActionRequest) async throws -> [CodeAction] {
