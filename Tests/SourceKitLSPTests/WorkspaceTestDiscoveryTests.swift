@@ -245,6 +245,49 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     )
   }
 
+  func testSwiftTestingTestsWithDuplicateFunctionIdentifiersAcrossDocuments() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/MyLibraryTests/MyTests1.swift": """
+        import Testing
+
+        1️⃣@Test(arguments: [1, 2, 3])
+        private func foo(_ x: Int) {}2️⃣
+        """,
+        "Tests/MyLibraryTests/MyTests2.swift": """
+        import Testing
+
+        3️⃣@Test(arguments: [1, 2, 3])
+        private func foo(_ x: Int) {}4️⃣
+        """,
+      ],
+      manifest: packageManifestWithTestTarget
+    )
+
+    let test1Position = try project.position(of: "1️⃣", in: "MyTests1.swift")
+    let test2Position = try project.position(of: "3️⃣", in: "MyTests2.swift")
+
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
+
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyLibraryTests.foo(_:)/MyTests1.swift:\(test1Position.line + 1):\(test1Position.utf16index + 2)",
+          label: "foo(_:)",
+          style: TestStyle.swiftTesting,
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "MyTests1.swift")
+        ),
+        TestItem(
+          id: "MyLibraryTests.foo(_:)/MyTests2.swift:\(test2Position.line + 1):\(test2Position.utf16index + 2)",
+          label: "foo(_:)",
+          style: TestStyle.swiftTesting,
+          location: try project.location(from: "3️⃣", to: "4️⃣", in: "MyTests2.swift")
+        ),
+      ]
+    )
+  }
+
   func testSwiftTestingAndXCTestInTheSameFile() async throws {
     try SkipUnless.longTestsEnabled()
 

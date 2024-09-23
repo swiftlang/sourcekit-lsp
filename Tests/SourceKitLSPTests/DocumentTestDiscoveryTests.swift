@@ -418,6 +418,139 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
+  func testSwiftTestingTestsWithDuplicateFunctionIdentifiers() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      1️⃣@Test(arguments: [1, 2, 3])
+      func foo(_ x: Int) {}2️⃣
+      3️⃣@Test(arguments: ["a", "b", "c"])
+      func foo(_ x: String) {}4️⃣
+      """,
+      uri: uri
+    )
+
+    let filename = uri.fileURL?.lastPathComponent ?? ""
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "foo(_:)/\(filename):\(positions["1️⃣"].line + 1):\(positions["1️⃣"].utf16index + 2)",
+          label: "foo(_:)",
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"])
+        ),
+        TestItem(
+          id: "foo(_:)/\(filename):\(positions["3️⃣"].line + 1):\(positions["3️⃣"].utf16index + 2)",
+          label: "foo(_:)",
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"])
+        ),
+      ]
+    )
+  }
+
+  func testSwiftTestingTestsWithDuplicateFunctionIdentifiersInSuite() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      1️⃣struct MySuite {
+        3️⃣@Test(arguments: [1, 2, 3])
+        func foo(_ x: Int) {}4️⃣
+        5️⃣@Test(arguments: ["a", "b", "c"])
+        func foo(_ x: String) {}6️⃣
+      }2️⃣
+      """,
+      uri: uri
+    )
+
+    let filename = uri.fileURL?.lastPathComponent ?? ""
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MySuite",
+          label: "MySuite",
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
+          children: [
+            TestItem(
+              id: "MySuite/foo(_:)/\(filename):\(positions["3️⃣"].line + 1):\(positions["3️⃣"].utf16index + 2)",
+              label: "foo(_:)",
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"])
+            ),
+            TestItem(
+              id: "MySuite/foo(_:)/\(filename):\(positions["5️⃣"].line + 1):\(positions["5️⃣"].utf16index + 2)",
+              label: "foo(_:)",
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"])
+            ),
+          ]
+        )
+      ]
+    )
+  }
+
+  func testSwiftTestingTestsWithDuplicateFunctionIdentifiersInExtension() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+      1️⃣struct MySuite {
+        3️⃣@Test(arguments: [1, 2, 3])
+        func foo(_ x: Int) {}4️⃣
+      }2️⃣
+
+      extension MySuite {
+        5️⃣@Test(arguments: ["a", "b", "c"])
+        func foo(_ x: String) {}6️⃣
+      }
+      """,
+      uri: uri
+    )
+
+    let filename = uri.fileURL?.lastPathComponent ?? ""
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MySuite",
+          label: "MySuite",
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
+          children: [
+            TestItem(
+              id: "MySuite/foo(_:)/\(filename):\(positions["3️⃣"].line + 1):\(positions["3️⃣"].utf16index + 2)",
+              label: "foo(_:)",
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"])
+            ),
+            TestItem(
+              id: "MySuite/foo(_:)/\(filename):\(positions["5️⃣"].line + 1):\(positions["5️⃣"].utf16index + 2)",
+              label: "foo(_:)",
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"])
+            ),
+          ]
+        )
+      ]
+    )
+  }
+
   func testSwiftTestingSuiteWithNoTests() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)

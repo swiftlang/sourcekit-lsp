@@ -278,6 +278,7 @@ extension SourceKitLSPServer {
       .flatMap { $0 }
       .sorted { $0.testItem.location < $1.testItem.location }
       .mergingTestsInExtensions()
+      .deduplicatingIds()
   }
 
   func documentTests(
@@ -288,6 +289,7 @@ extension SourceKitLSPServer {
     return try await documentTestsWithoutMergingExtensions(req, workspace: workspace, languageService: languageService)
       .prefixTestsWithModuleName(workspace: workspace)
       .mergingTestsInExtensions()
+      .deduplicatingIds()
   }
 
   private func documentTestsWithoutMergingExtensions(
@@ -452,7 +454,14 @@ fileprivate extension Array<AnnotatedTestItem> {
           rootItem.testItem.children += item.testItem.children
         }
 
-        itemDict[id] = rootItem
+        // If this item shares an ID with a sibling and both are leaf
+        // test items, store it by its disambiguated id to ensure we
+        // don't overwrite the existing element.
+        if rootItem.testItem.children.isEmpty && item.testItem.children.isEmpty {
+          itemDict[item.testItem.ambiguousTestDifferentiator] = item
+        } else {
+          itemDict[id] = rootItem
+        }
       } else {
         itemDict[id] = item
       }
@@ -502,7 +511,55 @@ fileprivate extension Array<AnnotatedTestItem> {
   }
 }
 
+fileprivate extension Array<TestItem> {
+  /// If multiple testItems share the same ID we add more context to make it unique.
+  /// Two tests can share the same ID when two swift testing tests accept
+  /// arguments of different types, i.e:
+  /// ```
+  /// @Test(arguments: [1,2,3]) func foo(_ x: Int) {}
+  /// @Test(arguments: ["a", "b", "c"]) func foo(_ x: String) {}
+  /// ```
+  ///
+  /// or when tests are in separate files but don't conflict because they are marked
+  /// private, i.e:
+  /// ```
+  /// File1.swift: @Test private func foo() {}
+  /// File2.swift: @Test private func foo() {}
+  /// ```
+  ///
+  /// If we encounter one of these cases, we need to deduplicate the ID
+  /// by appending `/filename:filename:lineNumber`.
+  func deduplicatingIds() -> [TestItem] {
+    var idCounts: [String: Int] = [:]
+    for element in self where element.children.isEmpty {
+      idCounts[element.id, default: 0] += 1
+    }
+
+    return self.map {
+      var newItem = $0
+      newItem.children = newItem.children.deduplicatingIds()
+      if idCounts[newItem.id, default: 0] > 1 {
+        newItem.id = newItem.ambiguousTestDifferentiator
+      }
+      return newItem
+    }
+  }
+}
+
 extension TestItem {
+  /// A fully qualified name to disambiguate identical TestItem IDs.
+  /// This matches the IDs produced by `swift test list` when there are
+  /// tests that cannot be disambiguated by their simple ID.
+  fileprivate var ambiguousTestDifferentiator: String {
+    let filename = self.location.uri.arbitrarySchemeURL.lastPathComponent
+    let position = location.range.lowerBound
+    // Lines and columns start at 1.
+    // swift-testing tests start from _after_ the @ symbol in @Test, so we need to add an extra column.
+    // see https://github.com/swiftlang/swift-testing/blob/cca6de2be617aded98ecdecb0b3b3a81eec013f3/Sources/TestingMacros/Support/AttributeDiscovery.swift#L153
+    let columnOffset = self.style == TestStyle.swiftTesting ? 2 : 1
+    return "\(self.id)/\(filename):\(position.line + 1):\(position.utf16index + columnOffset)"
+  }
+
   fileprivate func prefixIDWithModuleName(workspace: Workspace) async -> TestItem {
     guard let canonicalTarget = await workspace.buildSystemManager.canonicalTarget(for: self.location.uri),
       let moduleName = await workspace.buildSystemManager.moduleName(for: self.location.uri, in: canonicalTarget)
