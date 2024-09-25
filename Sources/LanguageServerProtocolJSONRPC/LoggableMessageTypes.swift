@@ -14,37 +14,27 @@ import Foundation
 import LanguageServerProtocol
 import SKLogging
 
-fileprivate extension Encodable {
-  var prettyPrintJSON: String {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting.insert(.prettyPrinted)
-    encoder.outputFormatting.insert(.sortedKeys)
-    guard let data = try? encoder.encode(self) else {
-      return "\(self)"
-    }
-    guard let string = String(data: data, encoding: .utf8) else {
-      return "\(self)"
-    }
-    // Don't escape '/'. Most JSON readers don't need it escaped and it makes
-    // paths a lot easier to read and copy-paste.
-    return string.replacingOccurrences(of: "\\/", with: "/")
-  }
-}
-
 // MARK: - RequestType
 
-fileprivate struct AnyRequestType: CustomLogStringConvertible {
+package struct AnyRequestType: CustomLogStringConvertible {
   let request: any RequestType
 
-  public var description: String {
+  package init(request: any RequestType) {
+    self.request = request
+  }
+
+  package var description: String {
     return """
       \(type(of: request).method)
-      \(request.prettyPrintJSON)
+      \(request.prettyPrintedJSON)
       """
   }
 
-  public var redactedDescription: String {
-    return "\(type(of: request).method)"
+  package var redactedDescription: String {
+    return """
+      \(type(of: request).method)
+      \(request.prettyPrintedRedactedJSON)
+      """
   }
 }
 
@@ -56,18 +46,25 @@ extension RequestType {
 
 // MARK: - NotificationType
 
-fileprivate struct AnyNotificationType: CustomLogStringConvertible {
+package struct AnyNotificationType: CustomLogStringConvertible {
   let notification: any NotificationType
 
-  public var description: String {
+  package init(notification: any NotificationType) {
+    self.notification = notification
+  }
+
+  package var description: String {
     return """
       \(type(of: notification).method)
-      \(notification.prettyPrintJSON)
+      \(notification.prettyPrintedJSON)
       """
   }
 
-  public var redactedDescription: String {
-    return "\(type(of: notification).method)"
+  package var redactedDescription: String {
+    return """
+      \(type(of: notification).method)
+      \(notification.prettyPrintedRedactedJSON)
+      """
   }
 }
 
@@ -79,19 +76,24 @@ extension NotificationType {
 
 // MARK: - ResponseType
 
-fileprivate struct AnyResponseType: CustomLogStringConvertible {
+package struct AnyResponseType: CustomLogStringConvertible {
   let response: any ResponseType
 
-  var description: String {
+  package init(response: any ResponseType) {
+    self.response = response
+  }
+
+  package var description: String {
     return """
       \(type(of: response))
-      \(response.prettyPrintJSON)
+      \(response.prettyPrintedJSON)
       """
   }
 
-  var redactedDescription: String {
+  package var redactedDescription: String {
     return """
       \(type(of: response))
+      \(response.prettyPrintedRedactedJSON)
       """
   }
 }

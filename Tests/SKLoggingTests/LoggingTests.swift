@@ -212,46 +212,4 @@ final class LoggingTests: XCTestCase {
       $0.log("got \(LogStringConvertible().forLogging)")
     }
   }
-
-  func testRecursiveRedactedDescription() {
-    struct Outer {
-      struct Inner {
-        var publicValue: Int
-        var redactedValue: String
-      }
-      var inner: Inner
-    }
-
-    XCTAssertEqual(
-      recursiveRedactedDescription(of: Outer(inner: Outer.Inner(publicValue: 42, redactedValue: "password"))),
-      """
-      {inner: {publicValue: 42, redactedValue: MD5 digest: 5f4dcc3b5aa765d61d8327deb882cf99}}
-      """
-    )
-
-    XCTAssertEqual(recursiveRedactedDescription(of: (nil as Int?) as Any), "nil")
-
-    XCTAssertEqual(recursiveRedactedDescription(of: (42 as Int?) as Any), "42")
-
-    XCTAssertEqual(
-      recursiveRedactedDescription(of: ("abc" as String?) as Any),
-      "MD5 digest: 900150983cd24fb0d6963f7d28e17f72"
-    )
-
-    struct Something: CustomLogStringConvertible {
-      let x = 1
-      let y = "hi"
-
-      var redactedDescription: String {
-        recursiveRedactedDescription(of: self)
-      }
-
-      var description: String { "" }
-    }
-
-    XCTAssertEqual(
-      Something().redactedDescription,
-      "{x: 1, y: MD5 digest: 49f68a5c8493ec2c0bf489821c21fc3b}"
-    )
-  }
 }
