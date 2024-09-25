@@ -10,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+public import LanguageServerProtocol
+#else
 import LanguageServerProtocol
+#endif
 
 /// Like the language server protocol, the shutdown build request is
 /// sent from the client to the server. It asks the server to shut down,

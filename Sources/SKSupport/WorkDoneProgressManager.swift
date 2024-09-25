@@ -10,10 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Foundation
+package import LanguageServerProtocol
+import SKLogging
+import SwiftExtensions
+#else
 import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SwiftExtensions
+#endif
 
 /// Represents a single `WorkDoneProgress` task that gets communicated with the client.
 ///

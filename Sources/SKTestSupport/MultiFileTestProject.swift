@@ -10,10 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+package import LanguageServerProtocol
+package import SKOptions
+package import SourceKitLSP
+#else
 import Foundation
 import LanguageServerProtocol
 import SKOptions
 import SourceKitLSP
+#endif
 
 /// The location of a test file within test workspace.
 package struct RelativeFileLocation: Hashable, ExpressibleByStringLiteral {

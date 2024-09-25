@@ -10,9 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+package import LanguageServerProtocol
+package import struct TSCBasic.AbsolutePath
+#else
 import Foundation
 import LanguageServerProtocol
-import TSCBasic
+import struct TSCBasic.AbsolutePath
+#endif
 
 extension Language {
   var fileExtension: String {

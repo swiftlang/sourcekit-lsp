@@ -10,12 +10,21 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+package import LanguageServerProtocol
+package import SKOptions
+package import SourceKitLSP
+import TSCBasic
+import ToolchainRegistry
+#else
 import Foundation
 import LanguageServerProtocol
 import SKOptions
 import SourceKitLSP
 import TSCBasic
 import ToolchainRegistry
+#endif
 
 private struct SwiftSyntaxCShimsModulemapNotFoundError: Error {}
 

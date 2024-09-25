@@ -10,6 +10,21 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+public import ArgumentParser
+import Foundation
+import InProcessClient
+import LanguageServerProtocol
+import SKOptions
+import SKSupport
+import SourceKitLSP
+import SwiftExtensions
+import ToolchainRegistry
+
+import struct TSCBasic.AbsolutePath
+import class TSCBasic.Process
+import class TSCUtility.PercentProgressAnimation
+#else
 import ArgumentParser
 import Foundation
 import InProcessClient
@@ -23,6 +38,7 @@ import ToolchainRegistry
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import class TSCUtility.PercentProgressAnimation
+#endif
 
 private actor IndexLogMessageHandler: MessageHandler {
   var hasSeenError: Bool = false

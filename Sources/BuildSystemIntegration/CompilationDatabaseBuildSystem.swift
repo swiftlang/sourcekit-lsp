@@ -10,6 +10,21 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import BuildServerProtocol
+import Dispatch
+package import LanguageServerProtocol
+import SKLogging
+package import SKOptions
+import SKSupport
+import ToolchainRegistry
+
+import struct Foundation.URL
+package import struct TSCBasic.AbsolutePath
+package import protocol TSCBasic.FileSystem
+package import struct TSCBasic.RelativePath
+package import var TSCBasic.localFileSystem
+#else
 import BuildServerProtocol
 import Dispatch
 import LanguageServerProtocol
@@ -23,6 +38,7 @@ import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 import struct TSCBasic.RelativePath
 import var TSCBasic.localFileSystem
+#endif
 
 fileprivate enum Cachable<Value> {
   case noValue

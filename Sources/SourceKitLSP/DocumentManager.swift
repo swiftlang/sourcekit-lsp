@@ -10,12 +10,21 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Dispatch
+package import LanguageServerProtocol
+import SKLogging
+package import SKSupport
+import SemanticIndex
+package import SwiftSyntax
+#else
 import Dispatch
 import LanguageServerProtocol
 import SKLogging
 import SKSupport
 import SemanticIndex
 import SwiftSyntax
+#endif
 
 /// An immutable snapshot of a document at a given time.
 ///

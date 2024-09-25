@@ -10,9 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import struct TSCBasic.AbsolutePath
+package import struct TSCBasic.ByteString
+package import protocol TSCBasic.FileSystem
+#else
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.ByteString
 import protocol TSCBasic.FileSystem
+#endif
 
 extension FileSystem {
 

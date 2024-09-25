@@ -19,8 +19,13 @@ import SKSupport
 import SwiftExtensions
 import ToolchainRegistry
 
+#if compiler(>=6)
+package import struct TSCBasic.AbsolutePath
+package import struct TSCBasic.RelativePath
+#else
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
+#endif
 
 package enum BuildSystemKind {
   case buildServer(projectRoot: AbsolutePath)

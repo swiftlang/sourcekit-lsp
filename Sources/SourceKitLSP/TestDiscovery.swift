@@ -10,11 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import IndexStoreDB
+package import LanguageServerProtocol
+import SKLogging
+import SemanticIndex
+import SwiftSyntax
+#else
 import IndexStoreDB
 import LanguageServerProtocol
 import SKLogging
 import SemanticIndex
 import SwiftSyntax
+#endif
 
 package enum TestStyle {
   package static let xcTest = "XCTest"

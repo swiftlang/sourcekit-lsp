@@ -10,11 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Foundation
+package import LanguageServerProtocol
+package import SKOptions
+package import SwiftSyntax
+package import ToolchainRegistry
+#else
 import Foundation
 import LanguageServerProtocol
 import SKOptions
 import SwiftSyntax
 import ToolchainRegistry
+#endif
 
 /// The state of a `ToolchainLanguageServer`
 package enum LanguageServerState {

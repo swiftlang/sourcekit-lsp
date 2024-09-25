@@ -10,10 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Foundation
+package import LanguageServerProtocol
+import SKLogging
+import SwiftSyntax
+#else
 import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SwiftSyntax
+#endif
 
 extension SwiftLanguageService {
   package func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {

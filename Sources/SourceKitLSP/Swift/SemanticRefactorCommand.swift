@@ -10,8 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import LanguageServerProtocol
+import SourceKitD
+#else
 import LanguageServerProtocol
 import SourceKitD
+#endif
 
 package struct SemanticRefactorCommand: SwiftCommand {
   typealias Response = SemanticRefactoring

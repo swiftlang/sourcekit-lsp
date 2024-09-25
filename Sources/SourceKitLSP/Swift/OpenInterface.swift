@@ -10,11 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Foundation
+package import LanguageServerProtocol
+import SKLogging
+import SKSupport
+import SourceKitD
+#else
 import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SKSupport
 import SourceKitD
+#endif
 
 struct GeneratedInterfaceInfo {
   var contents: String

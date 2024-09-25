@@ -10,6 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import IndexStoreDB
+package import LanguageServerProtocol
+import SKLogging
+import SKSupport
+import SemanticIndex
+import SourceKitD
+import SwiftSyntax
+#else
 import IndexStoreDB
 import LanguageServerProtocol
 import SKLogging
@@ -17,6 +26,7 @@ import SKSupport
 import SemanticIndex
 import SourceKitD
 import SwiftSyntax
+#endif
 
 // MARK: - Helper types
 

@@ -10,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+public import LanguageServerProtocol
+#else
 import LanguageServerProtocol
+#endif
 
 /// The workspace build targets request is sent from the client to the server to
 /// ask for the list of all available build targets in the workspace.

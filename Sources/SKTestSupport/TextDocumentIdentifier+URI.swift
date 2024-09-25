@@ -10,10 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+package import LanguageServerProtocol
+
+import struct TSCBasic.AbsolutePath
+#else
 import Foundation
 import LanguageServerProtocol
 
 import struct TSCBasic.AbsolutePath
+#endif
 
 package extension TextDocumentIdentifier {
   init(_ url: URL) {

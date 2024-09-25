@@ -14,11 +14,19 @@ import Foundation
 import SKLogging
 import SwiftExtensions
 
+#if compiler(>=6)
+package import struct TSCBasic.AbsolutePath
+package import class TSCBasic.Process
+package import enum TSCBasic.ProcessEnv
+package import struct TSCBasic.ProcessEnvironmentBlock
+package import struct TSCBasic.ProcessResult
+#else
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import enum TSCBasic.ProcessEnv
 import struct TSCBasic.ProcessEnvironmentBlock
 import struct TSCBasic.ProcessResult
+#endif
 
 #if os(Windows)
 import WinSDK

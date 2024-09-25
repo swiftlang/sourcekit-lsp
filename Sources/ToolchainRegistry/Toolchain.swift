@@ -14,11 +14,19 @@ import RegexBuilder
 import SKLogging
 import SwiftExtensions
 
+#if compiler(>=6)
+import enum PackageLoading.Platform
+public import struct TSCBasic.AbsolutePath
+public import protocol TSCBasic.FileSystem
+public import class TSCBasic.Process
+public import var TSCBasic.localFileSystem
+#else
 import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 import class TSCBasic.Process
 import var TSCBasic.localFileSystem
+#endif
 
 /// A Swift version consisting of the major and minor component.
 package struct SwiftVersion: Sendable, Comparable, CustomStringConvertible {

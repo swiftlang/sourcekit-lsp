@@ -10,12 +10,21 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import LanguageServerProtocol
+package import SKOptions
+
+import enum PackageLoading.Platform
+import struct TSCBasic.AbsolutePath
+import class TSCBasic.Process
+#else
 import LanguageServerProtocol
 import SKOptions
 
 import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
+#endif
 
 /// The path to the SDK.
 private let sdkpath: AbsolutePath? = {

@@ -10,10 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Foundation
+@preconcurrency package import IndexStoreDB
+package import LanguageServerProtocol
+import SKLogging
+#else
 import Foundation
 @preconcurrency import IndexStoreDB
 import LanguageServerProtocol
 import SKLogging
+#endif
 
 /// Essentially a `DocumentManager` from the `SourceKitLSP` module.
 ///

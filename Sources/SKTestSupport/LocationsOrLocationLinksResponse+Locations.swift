@@ -10,11 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import LanguageServerProtocol
+#else
 import LanguageServerProtocol
+#endif
 
 extension LocationsOrLocationLinksResponse {
   /// If this is the `locations` case, return the locations, otherwise return `nil`.
-  public var locations: [Location]? {
+  package var locations: [Location]? {
     switch self {
     case .locations(let locations): return locations
     case .locationLinks: return nil

@@ -10,6 +10,21 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import BuildServerProtocol
+import Dispatch
+import Foundation
+package import LanguageServerProtocol
+import SKLogging
+package import SKOptions
+package import SKSupport
+package import SwiftExtensions
+package import ToolchainRegistry
+
+package import struct TSCBasic.AbsolutePath
+package import struct TSCBasic.RelativePath
+package import func TSCBasic.resolveSymlinks
+#else
 import BuildServerProtocol
 import Dispatch
 import Foundation
@@ -23,6 +38,7 @@ import ToolchainRegistry
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 import func TSCBasic.resolveSymlinks
+#endif
 
 fileprivate typealias RequestCache<Request: RequestType & Hashable> = Cache<Request, Request.Response>
 

@@ -10,6 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import BuildServerProtocol
+import Foundation
+package import LanguageServerProtocol
+import SKLogging
+import SKSupport
+
+package import struct TSCBasic.AbsolutePath
+package import protocol TSCBasic.FileSystem
+package import struct TSCBasic.RelativePath
+package import var TSCBasic.localFileSystem
+package import func TSCBasic.resolveSymlinks
+#else
 import BuildServerProtocol
 import Foundation
 import LanguageServerProtocol
@@ -21,6 +34,7 @@ import protocol TSCBasic.FileSystem
 import struct TSCBasic.RelativePath
 import var TSCBasic.localFileSystem
 import func TSCBasic.resolveSymlinks
+#endif
 
 /// A single compilation database command.
 ///

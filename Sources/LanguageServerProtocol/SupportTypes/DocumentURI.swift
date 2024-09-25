@@ -10,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+public import Foundation
+#else
 import Foundation
+#endif
 
 struct FailedToConstructDocumentURIFromStringError: Error, CustomStringConvertible {
   let string: String

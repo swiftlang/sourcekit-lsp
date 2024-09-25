@@ -10,6 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import InProcessClient
+public import LanguageServerProtocol
+package import LanguageServerProtocolJSONRPC
+package import SKSupport
+import SwiftExtensions
+import XCTest
+
+package import class Foundation.Pipe
+#else
 import InProcessClient
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
@@ -18,6 +28,7 @@ import SwiftExtensions
 import XCTest
 
 import class Foundation.Pipe
+#endif
 
 package final class TestJSONRPCConnection: Sendable {
   package let clientToServer: Pipe = Pipe()

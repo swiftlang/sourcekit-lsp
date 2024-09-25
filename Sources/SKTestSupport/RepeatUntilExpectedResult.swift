@@ -10,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import XCTest
+#else
 import XCTest
+#endif
 
 /// Runs the body repeatedly once per second until it returns `true`, giving up after `timeout`.
 ///

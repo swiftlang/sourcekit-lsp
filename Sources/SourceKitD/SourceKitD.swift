@@ -10,10 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+@_exported public import Csourcekitd
+import Dispatch
+import Foundation
+import SwiftExtensions
+#else
 @_exported import Csourcekitd
 import Dispatch
 import Foundation
 import SwiftExtensions
+#endif
 
 fileprivate struct SourceKitDRequestHandle: Sendable {
   /// `nonisolated(unsafe)` is fine because we just use the handle as an opaque value.

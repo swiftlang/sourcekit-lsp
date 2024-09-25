@@ -10,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+public import XCTest
+#else
 import XCTest
+#endif
 
 /// Base class for a performance test case in SourceKit-LSP.
 ///

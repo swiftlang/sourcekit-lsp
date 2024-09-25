@@ -10,13 +10,29 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import BuildServerProtocol
+import SKLogging
+#else
 import BuildServerProtocol
 import SKLogging
+#endif
 
 extension BuildTargetIdentifier {
   package static let dummy: BuildTargetIdentifier = BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy"))
 }
 
+#if compiler(>=6)
+extension BuildTargetIdentifier: CustomLogStringConvertible {
+  package var description: String {
+    return uri.stringValue
+  }
+
+  package var redactedDescription: String {
+    return uri.stringValue.hashForLogging
+  }
+}
+#else
 extension BuildTargetIdentifier: CustomLogStringConvertible {
   public var description: String {
     return uri.stringValue
@@ -26,3 +42,4 @@ extension BuildTargetIdentifier: CustomLogStringConvertible {
     return uri.stringValue.hashForLogging
   }
 }
+#endif

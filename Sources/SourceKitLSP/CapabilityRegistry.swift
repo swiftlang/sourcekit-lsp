@@ -10,9 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import LanguageServerProtocol
+import SKLogging
+import SKSupport
+#else
 import LanguageServerProtocol
 import SKLogging
 import SKSupport
+#endif
 
 /// A class which tracks the client's capabilities as well as our dynamic
 /// capability registrations in order to avoid registering conflicting
