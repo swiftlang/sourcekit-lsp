@@ -568,21 +568,10 @@ final class WorkspaceTests: XCTestCase {
     // thus workspace membership should switch to PackageB.
 
     // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
-    var didReceiveCorrectWorkspaceMembership = false
-
-    // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
     let packageBRootUri = DocumentURI(project.scratchDirectory.appendingPathComponent("PackageB"))
-    for _ in 0..<30 {
-      let workspace = await project.testClient.server.workspaceForDocument(uri: mainUri)
-      if workspace?.rootUri == packageBRootUri {
-        didReceiveCorrectWorkspaceMembership = true
-        break
-      }
-      logger.log("Received incorrect workspace \(workspace?.rootUri?.pseudoPath ?? "<nil>"). Trying again in 1s")
-      try await Task.sleep(for: .seconds(1))
+    try await repeatUntilExpectedResult {
+      await project.testClient.server.workspaceForDocument(uri: mainUri)?.rootUri == packageBRootUri
     }
-
-    XCTAssert(didReceiveCorrectWorkspaceMembership)
   }
 
   func testMixedPackage() async throws {

@@ -140,7 +140,9 @@ private extension BuildSystemKind {
     buildSystemTestHooks: BuildSystemTestHooks,
     _ createBuildSystem: @Sendable (_ connectionToSourceKitLSP: any Connection) async throws -> BuiltInBuildSystem?
   ) async -> BuildSystemAdapter? {
-    let connectionToSourceKitLSP = LocalConnection(receiverName: "BuildSystemManager")
+    let connectionToSourceKitLSP = LocalConnection(
+      receiverName: "BuildSystemManager for \(projectRoot.asURL.lastPathComponent)"
+    )
     connectionToSourceKitLSP.start(handler: messagesToSourceKitLSPHandler)
 
     let buildSystem = await orLog("Creating build system") {
@@ -156,7 +158,9 @@ private extension BuildSystemKind {
       connectionToSourceKitLSP: connectionToSourceKitLSP,
       buildSystemTestHooks: buildSystemTestHooks
     )
-    let connectionToBuildSystem = LocalConnection(receiverName: "Build system")
+    let connectionToBuildSystem = LocalConnection(
+      receiverName: "\(type(of: buildSystem)) for \(projectRoot.asURL.lastPathComponent)"
+    )
     connectionToBuildSystem.start(handler: buildSystemAdapter)
     return .builtIn(buildSystemAdapter, connectionToBuildSystem: connectionToBuildSystem)
   }
