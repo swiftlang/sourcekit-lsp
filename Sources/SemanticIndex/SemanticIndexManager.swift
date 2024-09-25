@@ -414,7 +414,12 @@ package final actor SemanticIndexManager {
       }
     }
     if let inProgressPrepareForEditorTask {
-      logger.debug("Cancelling preparation of \(inProgressPrepareForEditorTask.document) because \(uri) was opened")
+      // Cancel the in progress prepare for editor task to indicate that we are no longer interested in it.
+      // This will cancel the preparation of `inProgressPrepareForEditorTask`'s target if it hasn't started yet.
+      // (see comment at the end of `SemanticIndexManager.prepare`).
+      logger.debug(
+        "Marking preparation of \(inProgressPrepareForEditorTask.document) as no longer relevant because \(uri) was opened"
+      )
       inProgressPrepareForEditorTask.task.cancel()
     }
     inProgressPrepareForEditorTask = InProgressPrepareForEditorTask(
