@@ -1,0 +1,8 @@
+{
+  "swift.swiftEnvironmentVariables": {
+    // Show log messages when running tests on macOS
+    "SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER": "1",
+    // Decrease timeout to 10s locally from the default 3min we allow by default. This is usually sufficient and makes test fail faster.
+    "SOURCEKIT_LSP_TEST_TIMEOUT": "10"
+  },
+}
