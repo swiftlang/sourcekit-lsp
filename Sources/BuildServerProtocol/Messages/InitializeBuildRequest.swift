@@ -270,12 +270,21 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
   public var indexStorePath: String?
 
   /// Whether the build server supports the `buildTarget/prepare` request.
-  public var supportsPreparation: Bool?
+  public var prepareProvider: Bool?
 
-  public init(indexDatabasePath: String?, indexStorePath: String?, supportsPreparation: Bool?) {
+  /// Whether the server implements the `textDocument/sourceKitOptions` request.
+  public var sourceKitOptionsProvider: Bool?
+
+  public init(
+    indexDatabasePath: String?,
+    indexStorePath: String?,
+    prepareProvider: Bool?,
+    sourceKitOptionsProvider: Bool?
+  ) {
     self.indexDatabasePath = indexDatabasePath
     self.indexStorePath = indexStorePath
-    self.supportsPreparation = supportsPreparation
+    self.prepareProvider = prepareProvider
+    self.sourceKitOptionsProvider = sourceKitOptionsProvider
   }
 
   public init?(fromLSPDictionary dictionary: [String: LanguageServerProtocol.LSPAny]) {
@@ -285,8 +294,11 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
     if case .string(let indexStorePath) = dictionary[CodingKeys.indexStorePath.stringValue] {
       self.indexStorePath = indexStorePath
     }
-    if case .bool(let supportsPreparation) = dictionary[CodingKeys.supportsPreparation.stringValue] {
-      self.supportsPreparation = supportsPreparation
+    if case .bool(let prepareProvider) = dictionary[CodingKeys.prepareProvider.stringValue] {
+      self.prepareProvider = prepareProvider
+    }
+    if case .bool(let sourceKitOptionsProvider) = dictionary[CodingKeys.sourceKitOptionsProvider.stringValue] {
+      self.sourceKitOptionsProvider = sourceKitOptionsProvider
     }
   }
 
@@ -298,8 +310,11 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
     if let indexStorePath {
       result[CodingKeys.indexStorePath.stringValue] = .string(indexStorePath)
     }
-    if let supportsPreparation {
-      result[CodingKeys.supportsPreparation.stringValue] = .bool(supportsPreparation)
+    if let prepareProvider {
+      result[CodingKeys.prepareProvider.stringValue] = .bool(prepareProvider)
+    }
+    if let sourceKitOptionsProvider {
+      result[CodingKeys.sourceKitOptionsProvider.stringValue] = .bool(sourceKitOptionsProvider)
     }
     return .dictionary(result)
   }

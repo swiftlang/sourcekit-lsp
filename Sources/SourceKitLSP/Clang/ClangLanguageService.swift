@@ -175,58 +175,27 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     // Since we are starting a new clangd process, reset the list of open document
     openDocuments = [:]
 
-    let usToClangd: Pipe = Pipe()
-    let clangdToUs: Pipe = Pipe()
-
-    let connectionToClangd = JSONRPCConnection(
-      name: "clangd",
-      protocol: MessageRegistry.lspProtocol,
-      inFD: clangdToUs.fileHandleForReading,
-      outFD: usToClangd.fileHandleForWriting
-    )
-    self.clangd = connectionToClangd
-
-    connectionToClangd.start(receiveHandler: self) {
-      // Keep the pipes alive until we close the connection.
-      withExtendedLifetime((usToClangd, clangdToUs)) {}
-    }
-
-    let process = Foundation.Process()
-    process.executableURL = clangdPath.asURL
-    process.arguments =
-      [
+    let (connectionToClangd, process) = try JSONRPCConnection.start(
+      executable: clangdPath.asURL,
+      arguments: [
         "-compile_args_from=lsp",  // Provide compiler args programmatically.
         "-background-index=false",  // Disable clangd indexing, we use the build
         "-index=false",  // system index store instead.
-      ] + clangdOptions
+      ] + clangdOptions,
+      name: "clangd",
+      protocol: MessageRegistry.lspProtocol,
+      stderrLoggingCategory: "clangd-stderr",
+      client: self,
+      terminationHandler: { [weak self] terminationStatus in
+        guard let self = self else { return }
+        Task {
+          await self.handleClangdTermination(terminationStatus: terminationStatus)
+        }
 
-    process.standardOutput = clangdToUs
-    process.standardInput = usToClangd
-    let logForwarder = PipeAsStringHandler {
-      Logger(subsystem: LoggingScope.subsystem, category: "clangd-stderr").info("\($0)")
-    }
-    let stderrHandler = Pipe()
-    stderrHandler.fileHandleForReading.readabilityHandler = { fileHandle in
-      let newData = fileHandle.availableData
-      if newData.count == 0 {
-        stderrHandler.fileHandleForReading.readabilityHandler = nil
-      } else {
-        logForwarder.handleDataFromPipe(newData)
       }
-    }
-    process.standardError = stderrHandler
-    process.terminationHandler = { [weak self] process in
-      logger.log(
-        level: process.terminationReason == .exit ? .default : .error,
-        "clangd exited: \(String(reflecting: process.terminationReason)) \(process.terminationStatus)"
-      )
-      connectionToClangd.close()
-      guard let self = self else { return }
-      Task {
-        await self.handleClangdTermination(terminationStatus: process.terminationStatus)
-      }
-    }
-    try process.run()
+    )
+    self.clangd = connectionToClangd
+
     #if os(Windows)
     self.hClangd = process.processHandle
     #else
