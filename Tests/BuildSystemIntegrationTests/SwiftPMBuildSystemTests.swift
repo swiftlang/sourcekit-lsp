@@ -1030,6 +1030,7 @@ private func buildPath(
   options: SourceKitLSPOptions.SwiftPMOptions = SourceKitLSPOptions.SwiftPMOptions(),
   platform: String
 ) -> AbsolutePath {
-  let buildPath = AbsolutePath(validatingOrNil: options.scratchPath) ?? root.appending(component: ".build")
+  let buildPath =
+    AbsolutePath(validatingOrNil: options.scratchPath) ?? root.appending(components: ".build", "index-build")
   return buildPath.appending(components: platform, "\(options.configuration ?? .debug)")
 }
