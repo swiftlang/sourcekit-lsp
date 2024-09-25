@@ -244,9 +244,9 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
       }
       return await self.finalizeExecution()
     }
+    _isExecuting.value = true
     executionTask = task
     executionTaskCreatedContinuation.yield(task)
-    _isExecuting.value = true
     await executionStateChangedCallback?(self, .executing)
     return await task.value
   }
