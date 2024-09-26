@@ -23,7 +23,7 @@ import Foundation
 import WinSDK
 #endif
 
-#if !canImport(os) || SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER
+#if !canImport(os) || SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER
 fileprivate struct FailedToCreateFileError: Error, CustomStringConvertible {
   let logFile: URL
 
@@ -188,7 +188,7 @@ private func cleanOldLogFilesImpl(logFileDirectory: URL, maxAge: TimeInterval) {
 ///
 /// No-op when using OSLog.
 package func setUpGlobalLogFileHandler(logFileDirectory: URL, logFileMaxBytes: Int, logRotateCount: Int) async {
-  #if !canImport(os) || SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER
+  #if !canImport(os) || SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER
   await setUpGlobalLogFileHandlerImpl(
     logFileDirectory: logFileDirectory,
     logFileMaxBytes: logFileMaxBytes,
@@ -202,7 +202,7 @@ package func setUpGlobalLogFileHandler(logFileDirectory: URL, logFileMaxBytes: I
 ///
 /// No-op when using OSLog.
 package func cleanOldLogFiles(logFileDirectory: URL, maxAge: TimeInterval) {
-  #if !canImport(os) || SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER
+  #if !canImport(os) || SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER
   cleanOldLogFilesImpl(logFileDirectory: logFileDirectory, maxAge: maxAge)
   #endif
 }

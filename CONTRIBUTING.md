@@ -9,21 +9,21 @@ SourceKit-LSP is a SwiftPM package, so you can build and test it using anything 
 SourceKit-LSP builds with the latest released Swift version and all its tests pass or, if unsupported by the latest Swift version, are skipped. Using the `main` development branch of SourceKit-LSP with an older Swift versions is not supported.
 
 > [!TIP]
-> SourceKit-LSP’s logging is usually very useful to debug test failures. On macOS these logs are written to the system log by default. To redirect them to stderr, build SourceKit-LSP with the `SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER` environment variable set to `1`:
+> SourceKit-LSP’s logging is usually very useful to debug test failures. On macOS these logs are written to the system log by default. To redirect them to stderr, build SourceKit-LSP with the `SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER` environment variable set to `1`:
 > - In VS Code: Add the following to your `settings.json`:
 >   ```json
->   "swift.swiftEnvironmentVariables": { "SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER": "1" },
+>   "swift.swiftEnvironmentVariables": { "SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER": "1" },
 >   ```
 > - In Xcode
 >   1. Product -> Scheme -> Edit Scheme…
 >   2. Select the Arguments tab in the Run section
->   3. Add a `SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER` environment variable with value `1`
-> - On the command line: Set the `SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER` environment variable to `1` when running tests, e.g by running `SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER=1 swift test --parallel`
+>   3. Add a `SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER` environment variable with value `1`
+> - On the command line: Set the `SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER` environment variable to `1` when running tests, e.g by running `SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER=1 swift test --parallel`
 
 > [!TIP]
 > Other useful environment variables during test execution are:
 > - `SKIP_LONG_TESTS`: Skips tests that usually take longer than 1 second to execute. This significantly speeds up test time, especially with `swift test --parallel`
-> - `SOURCEKITLSP_KEEP_TEST_SCRATCH_DIR`: Does not delete the temporary files created during test execution. Allows inspection of the test projects after the test finishes.
+> - `SOURCEKIT_LSP_KEEP_TEST_SCRATCH_DIR`: Does not delete the temporary files created during test execution. Allows inspection of the test projects after the test finishes.
 
 ### Linux
 

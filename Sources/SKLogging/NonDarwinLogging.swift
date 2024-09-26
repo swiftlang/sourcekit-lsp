@@ -25,7 +25,7 @@ package enum LogConfig {
   /// The globally set log level
   package static let logLevel = ThreadSafeBox<NonDarwinLogLevel>(
     initialValue: {
-      if let envVar = ProcessInfo.processInfo.environment["SOURCEKITLSP_LOG_LEVEL"],
+      if let envVar = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_LOG_LEVEL"],
         let logLevel = NonDarwinLogLevel(envVar)
       {
         return logLevel
@@ -41,7 +41,7 @@ package enum LogConfig {
   /// The globally set privacy level
   package static let privacyLevel = ThreadSafeBox<NonDarwinLogPrivacy>(
     initialValue: {
-      if let envVar = ProcessInfo.processInfo.environment["SOURCEKITLSP_LOG_PRIVACY_LEVEL"],
+      if let envVar = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_LOG_PRIVACY_LEVEL"],
         let privacyLevel = NonDarwinLogPrivacy(envVar)
       {
         return privacyLevel

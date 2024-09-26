@@ -210,13 +210,13 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
     # 'swift test' doesn't print os_log output to the command line. Use the
     # `NonDarwinLogger` that prints to stderr so we can view the log output in CI test
     # runs.
-    additional_env['SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER'] = '1'
+    additional_env['SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER'] = '1'
 
     # CI doesn't contain any sensitive information. Log everything.
-    additional_env['SOURCEKITLSP_LOG_PRIVACY_LEVEL'] = 'sensitive'
+    additional_env['SOURCEKIT_LSP_LOG_PRIVACY_LEVEL'] = 'sensitive'
 
     # Log with the highest log level to simplify debugging of CI failures.
-    additional_env['SOURCEKITLSP_LOG_LEVEL'] = 'debug'
+    additional_env['SOURCEKIT_LSP_LOG_LEVEL'] = 'debug'
 
     bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, additional_env=additional_env)
     tests = os.path.join(bin_path, 'sk-tests')

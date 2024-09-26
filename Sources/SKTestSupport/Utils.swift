@@ -49,7 +49,8 @@ extension DocumentURI {
   }
 }
 
-package let cleanScratchDirectories = (ProcessInfo.processInfo.environment["SOURCEKITLSP_KEEP_TEST_SCRATCH_DIR"] == nil)
+package let cleanScratchDirectories =
+  (ProcessInfo.processInfo.environment["SOURCEKIT_LSP_KEEP_TEST_SCRATCH_DIR"] == nil)
 
 /// An empty directory in which a test with `#function` name `testName` can store temporary data.
 package func testScratchDir(testName: String = #function) throws -> URL {
@@ -72,7 +73,7 @@ package func testScratchDir(testName: String = #function) throws -> URL {
 /// test name.
 ///
 /// The temporary directory will be deleted at the end of `directory` unless the
-/// `SOURCEKITLSP_KEEP_TEST_SCRATCH_DIR` environment variable is set.
+/// `SOURCEKIT_LSP_KEEP_TEST_SCRATCH_DIR` environment variable is set.
 package func withTestScratchDir<T>(
   @_inheritActorContext _ body: @Sendable (AbsolutePath) async throws -> T,
   testName: String = #function
