@@ -10,14 +10,21 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import LanguageServerProtocol
+import SKLogging
+import SKSupport
+import SwiftExtensions
+#else
 import LanguageServerProtocol
 import SKLogging
 import SKSupport
 import SwiftExtensions
+#endif
 
 /// A lightweight way of describing tasks that are created from handling LSP
 /// requests or notifications for the purpose of dependency tracking.
-enum MessageHandlingDependencyTracker: DependencyTracker {
+package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependencyTracker {
   /// A task that changes the global configuration of sourcekit-lsp in any way.
   ///
   /// No other tasks must execute simultaneously with this task since they
@@ -50,7 +57,7 @@ enum MessageHandlingDependencyTracker: DependencyTracker {
   case freestanding
 
   /// Whether this request needs to finish before `other` can start executing.
-  func isDependency(of other: MessageHandlingDependencyTracker) -> Bool {
+  package func isDependency(of other: MessageHandlingDependencyTracker) -> Bool {
     switch (self, other) {
     // globalConfigurationChange
     case (.globalConfigurationChange, _): return true
@@ -83,7 +90,7 @@ enum MessageHandlingDependencyTracker: DependencyTracker {
     }
   }
 
-  init(_ notification: any NotificationType) {
+  package init(_ notification: some NotificationType) {
     switch notification {
     case is CancelRequestNotification:
       self = .freestanding
@@ -148,7 +155,7 @@ enum MessageHandlingDependencyTracker: DependencyTracker {
     }
   }
 
-  init(_ request: any RequestType) {
+  package init(_ request: some RequestType) {
     switch request {
     case let request as any TextDocumentRequest: self = .documentRequest(request.textDocument.uri)
     case is ApplyEditRequest:

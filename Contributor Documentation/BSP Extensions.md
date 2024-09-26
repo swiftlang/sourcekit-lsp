@@ -2,6 +2,12 @@
 
 SourceKit-LSP extends the BSP protocol in the following ways.
 
+## `$/cancelRequest`
+
+Notification sent from SourceKit-LSP to the BSP server to cancel a request. If a BSP server doesn’t support cancellation, it should ignore this notification.
+
+Definition is the same as in LSP.
+
 ## `build/initialize`
 
 `InitializeBuildResultDataKind` can be `sourceKit`, in which case `InitializeBuildResultData` contains the following data.
