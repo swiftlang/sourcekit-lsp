@@ -15,7 +15,7 @@ import Foundation
 /// The default duration how long tests should wait for responses from
 /// SourceKit-LSP / sourcekitd / clangd.
 package let defaultTimeout: TimeInterval = {
-  if let customTimeoutStr = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_TEST_TIMEOUT"],
+  if let customTimeoutStr = ProcessInfo.processInfo.environment["SOURCEKITLSP_TEST_TIMEOUT"],
     let customTimeout = TimeInterval(customTimeoutStr)
   {
     return customTimeout

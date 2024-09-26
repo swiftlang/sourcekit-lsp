@@ -186,7 +186,7 @@ def get_swiftpm_environment_variables(swift_exec: str, args: argparse.Namespace)
         env['SKIP_LONG_TESTS'] = '1'
 
     if args.action == 'install':
-        env['SOURCEKIT_LSP_CI_INSTALL'] = "1"
+        env['SOURCEKITLSP_CI_INSTALL'] = "1"
 
     return env
 
@@ -211,6 +211,8 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
     # `NonDarwinLogger` that prints to stderr so we can view the log output in CI test
     # runs.
     additional_env['SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER'] = '1'
+    # Logging faults indicates that there is an issue in the code. Raise an XCTFail to catch these cases.
+    additional_env['SOURCEKITLSP_XCTFAIL_ON_FAULT'] = '1'
 
     # CI doesn't contain any sensitive information. Log everything.
     additional_env['SOURCEKITLSP_LOG_PRIVACY_LEVEL'] = 'sensitive'
@@ -230,7 +232,7 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
     ] + swiftpm_args
 
     with tempfile.TemporaryDirectory() as test_module_cache:
-        additional_env['SOURCEKIT_LSP_TEST_MODULE_CACHE'] = f"{test_module_cache}/module-cache"
+        additional_env['SOURCEKITLSP_TEST_MODULE_CACHE'] = f"{test_module_cache}/module-cache"
         # Try running tests in parallel. If that fails, run tests in serial to get capture more readable output.
         try:
             check_call(cmd + ['--parallel'], additional_env=additional_env, verbose=args.verbose)

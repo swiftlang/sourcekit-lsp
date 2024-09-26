@@ -422,9 +422,15 @@ func hasEnvironmentVariable(_ name: String) -> Bool {
 /// command line.
 var forceNonDarwinLogger: Bool { hasEnvironmentVariable("SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER") }
 
+/// Call `XCTFail` when a fault is logged using `NonDarwinLogger`.
+///
+/// A logged fault should always indicate a bug in SourceKit-LSP. This is useful to verify that we don't log any faults
+/// during test execution.
+var xctfailOnFault: Bool { hasEnvironmentVariable("SOURCEKITLSP_XCTFAIL_ON_FAULT") }
+
 // When building the toolchain on the CI, don't add the CI's runpath for the
 // final build before installing.
-var installAction: Bool { hasEnvironmentVariable("SOURCEKIT_LSP_CI_INSTALL") }
+var installAction: Bool { hasEnvironmentVariable("SOURCEKITLSP_CI_INSTALL") }
 
 /// Assume that all the package dependencies are checked out next to sourcekit-lsp and use that instead of fetching a
 /// remote dependency.
