@@ -20,18 +20,6 @@ body:
       label: Editor
       description: Which text editor are you using (and LSP extension/plugin if applicable)?
       placeholder: Eg. Visual Studio Code with Swift extension 1.9.0, Neovim
-  - type: dropdown
-    id: reproduces-with-swift-6
-    attributes:
-      label: Does the issue reproduce with Swift 6?
-      description: |
-        Does the issue also reproduce using a [recent Swift 6 Development Snapshot](https://www.swift.org/download/#swift-60-development)?
-
-        We have made significant changes to SourceKit-LSP in Swift 6 and the issue might have already been fixed. If you didn’t try, that is fine.
-      options:
-        - "Yes"
-        - "No"
-        - I didn’t try
   - type: textarea
     id: description
     attributes:
@@ -49,5 +37,5 @@ body:
     attributes:
       label: Logging
       description: |
-        If you are using SourceKit-LSP from Swift 6, running `sourcekit-lsp diagnose` in terminal and attaching the generated bundle helps us diagnose the issue.
+        Run `sourcekit-lsp diagnose` in terminal and attach the generated bundle to help us diagnose the issue.
         The generated bundle may contain paths to files on disk as well as portions of your source code. This greatly helps in reproducing issues, but you should only attach it if you feel comfortable doing so.
