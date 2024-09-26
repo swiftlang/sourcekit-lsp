@@ -75,9 +75,9 @@ actor LegacyBuildServerBuildSystem: MessageHandler, BuiltInBuildSystem {
     self.indexDatabasePath = nil
     self.indexStorePath = nil
     self.connectionToSourceKitLSP = LocalConnection(receiverName: "BuildSystemManager")
-    self.connectionToSourceKitLSP.start(handler: externalBuildSystemAdapter.messagesToSourceKitLSPHandler)
-    externalBuildSystemAdapter.connectionToBuildServer.changeReceiveHandler(self)
-    self.buildServer = externalBuildSystemAdapter.connectionToBuildServer
+    await self.connectionToSourceKitLSP.start(handler: externalBuildSystemAdapter.messagesToSourceKitLSPHandler)
+    await externalBuildSystemAdapter.changeMessageToSourceKitLSPHandler(to: self)
+    self.buildServer = await externalBuildSystemAdapter.connectionToBuildServer
   }
 
   /// Handler for notifications received **from** the builder server, ie.

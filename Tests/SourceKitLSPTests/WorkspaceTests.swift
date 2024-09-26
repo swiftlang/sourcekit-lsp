@@ -579,7 +579,7 @@ final class WorkspaceTests: XCTestCase {
         break
       }
       logger.log("Received incorrect workspace \(workspace?.rootUri?.pseudoPath ?? "<nil>"). Trying again in 1s")
-      try await Task.sleep(nanoseconds: 1_000_000_000)
+      try await Task.sleep(for: .seconds(1))
     }
 
     XCTAssert(didReceiveCorrectWorkspaceMembership)
