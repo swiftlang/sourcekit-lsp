@@ -468,22 +468,22 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       } else {
         nil
       }
-    self.cachedSourceKitOptions.clear { cacheKey in
+    self.cachedSourceKitOptions.clear(isolation: self) { cacheKey in
       guard let updatedTargets else {
         // All targets might have changed
         return true
       }
       return updatedTargets.contains(cacheKey.target)
     }
-    self.cachedBuildTargets.clearAll()
-    self.cachedTargetSources.clear { cacheKey in
+    self.cachedBuildTargets.clearAll(isolation: self)
+    self.cachedTargetSources.clear(isolation: self) { cacheKey in
       guard let updatedTargets else {
         // All targets might have changed
         return true
       }
       return !updatedTargets.intersection(cacheKey.targets).isEmpty
     }
-    self.cachedSourceFilesAndDirectories.clearAll()
+    self.cachedSourceFilesAndDirectories.clearAll(isolation: self)
 
     await delegate?.buildTargetsChanged(notification.changes)
     await delegate?.fileBuildSettingsChanged(Set(watchedFiles.keys))
@@ -680,7 +680,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     // For now, this should be fine because all build systems return
     // very quickly from `settings(for:language:)`.
     // https://github.com/apple/sourcekit-lsp/issues/1181
-    let response = try await cachedSourceKitOptions.get(request) { request in
+    let response = try await cachedSourceKitOptions.get(request, isolation: self) { request in
       try await buildSystemAdapter.send(request)
     }
     guard let response else {
@@ -873,7 +873,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
 
     let request = WorkspaceBuildTargetsRequest()
-    let result = try await cachedBuildTargets.get(request) { request in
+    let result = try await cachedBuildTargets.get(request, isolation: self) { request in
       let buildTargets = try await buildSystemAdapter.send(request).targets
       let (depths, dependents) = await self.targetDepthsAndDependents(for: buildTargets)
       var result: [BuildTargetIdentifier: BuildTargetInfo] = [:]
@@ -917,7 +917,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
     // If we have a cached request for a superset of the targets, serve the result from that cache entry.
     let fromSuperset = await orLog("Getting source files from superset request") {
-      try await cachedTargetSources.get { request in
+      try await cachedTargetSources.get(isolation: self) { request in
         targets.isSubset(of: request.targets)
       } transform: { response in
         return BuildTargetSourcesResponse(items: response.items.filter { targets.contains($0.target) })
@@ -928,7 +928,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
 
     let request = BuildTargetSourcesRequest(targets: targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
-    let response = try await cachedTargetSources.get(request) { request in
+    let response = try await cachedTargetSources.get(request, isolation: self) { request in
       try await buildSystemAdapter.send(request)
     }
     return response.items
@@ -959,7 +959,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       sourcesItems: sourcesItems
     )
 
-    return try await cachedSourceFilesAndDirectories.get(key) { key in
+    return try await cachedSourceFilesAndDirectories.get(key, isolation: self) { key in
       var files: [DocumentURI: SourceFileInfo] = [:]
       var directories: [DocumentURI: SourceFileInfo] = [:]
       for sourcesItem in key.sourcesItems {

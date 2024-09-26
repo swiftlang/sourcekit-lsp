@@ -1494,6 +1494,7 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testInvalidatePreparationStatusOfTransitiveDependencies() async throws {
+    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
