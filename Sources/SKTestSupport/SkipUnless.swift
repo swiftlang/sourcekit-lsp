@@ -106,6 +106,304 @@ package actor SkipUnless {
     }
   }
 
+  package static func sourcekitdHasSemanticTokensRequest(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
+      let testClient = try await TestSourceKitLSPClient()
+      let uri = DocumentURI(for: .swift)
+      testClient.openDocument("0.bitPattern", uri: uri)
+      let response = try unwrap(
+        await testClient.send(DocumentSemanticTokensRequest(textDocument: TextDocumentIdentifier(uri)))
+      )
+
+      let tokens = SyntaxHighlightingTokens(lspEncodedTokens: response.data)
+
+      // If we don't have semantic token support in sourcekitd, the second token is an identifier based on the syntax
+      // tree, not a property.
+      return tokens.tokens != [
+        SyntaxHighlightingToken(
+          range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 1),
+          kind: .number,
+          modifiers: []
+        ),
+        SourceKitLSP.SyntaxHighlightingToken(
+          range: Position(line: 0, utf16index: 2)..<Position(line: 0, utf16index: 12),
+          kind: .identifier,
+          modifiers: []
+        ),
+      ]
+    }
+  }
+
+  package static func sourcekitdSupportsRename(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
+      let testClient = try await TestSourceKitLSPClient()
+      let uri = DocumentURI(for: .swift)
+      let positions = testClient.openDocument("func 1️⃣test() {}", uri: uri)
+      do {
+        _ = try await testClient.send(
+          RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"], newName: "test2")
+        )
+      } catch let error as ResponseError {
+        return error.message != "Running sourcekit-lsp with a version of sourcekitd that does not support rename"
+      }
+      return true
+    }
+  }
+
+  /// Checks whether the sourcekitd contains a fix to rename labels of enum cases correctly
+  /// (https://github.com/apple/swift/pull/74241).
+  package static func sourcekitdCanRenameEnumCaseLabels(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+      let testClient = try await TestSourceKitLSPClient()
+      let uri = DocumentURI(for: .swift)
+      let positions = testClient.openDocument(
+        """
+        enum MyEnum {
+          case 1️⃣myCase(2️⃣String)
+        }
+        """,
+        uri: uri
+      )
+
+      let renameResult = try await testClient.send(
+        RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"], newName: "myCase(label:)")
+      )
+      return renameResult?.changes == [uri: [TextEdit(range: Range(positions["2️⃣"]), newText: "label: ")]]
+    }
+  }
+
+  /// Whether clangd has support for the `workspace/indexedRename` request.
+  package static func clangdSupportsIndexBasedRename(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
+      let testClient = try await TestSourceKitLSPClient()
+      let uri = DocumentURI(for: .c)
+      let positions = testClient.openDocument("void 1️⃣test() {}", uri: uri)
+      do {
+        _ = try await testClient.send(
+          IndexedRenameRequest(
+            textDocument: TextDocumentIdentifier(uri),
+            oldName: "test",
+            newName: "test2",
+            positions: [uri: [positions["1️⃣"]]]
+          )
+        )
+      } catch let error as ResponseError {
+        return error.message != "method not found"
+      }
+      return true
+    }
+  }
+
+  /// SwiftPM moved the location where it stores Swift modules to a subdirectory in
+  /// https://github.com/swiftlang/swift-package-manager/pull/7103.
+  package static func swiftpmStoresModulesInSubdirectory(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
+      let workspace = try await SwiftPMTestProject(files: ["test.swift": ""])
+      try await SwiftPMTestProject.build(at: workspace.scratchDirectory)
+      let modulesDirectory = workspace.scratchDirectory
+        .appendingPathComponent(".build")
+        .appendingPathComponent("debug")
+        .appendingPathComponent("Modules")
+        .appendingPathComponent("MyLibrary.swiftmodule")
+      return FileManager.default.fileExists(atPath: modulesDirectory.path)
+    }
+  }
+
+  package static func toolchainContainsSwiftFormat(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
+      return await ToolchainRegistry.forTesting.default?.swiftFormat != nil
+    }
+  }
+
+  /// Checks if the toolchain contains https://github.com/apple/swift/pull/74080.
+  package static func sourcekitdReportsOverridableFunctionDefinitionsAsDynamic(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    struct ExpectedLocationsResponse: Error {}
+
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+      let project = try await IndexedSingleSwiftFileTestProject(
+        """
+        protocol TestProtocol {
+          func 1️⃣doThing()
+        }
+
+        struct TestImpl: TestProtocol {}
+        extension TestImpl {
+          func 2️⃣doThing() { }
+        }
+        """
+      )
+
+      let response = try await project.testClient.send(
+        DefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["1️⃣"])
+      )
+      guard case .locations(let locations) = response else {
+        throw ExpectedLocationsResponse()
+      }
+      return locations.contains { $0.range == Range(project.positions["2️⃣"]) }
+    }
+  }
+
+  package static func sourcekitdReturnsRawDocumentationResponse(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    struct ExpectedMarkdownContentsError: Error {}
+
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+      // The XML-based doc comment conversion did not preserve `Precondition`.
+      let testClient = try await TestSourceKitLSPClient()
+      let uri = DocumentURI(for: .swift)
+      let positions = testClient.openDocument(
+        """
+        /// - Precondition: Must have an apple
+        func 1️⃣test() {}
+        """,
+        uri: uri
+      )
+      let response = try await testClient.send(
+        HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      )
+      let hover = try XCTUnwrap(response, file: file, line: line)
+      XCTAssertNil(hover.range, file: file, line: line)
+      guard case .markupContent(let content) = hover.contents else {
+        throw ExpectedMarkdownContentsError()
+      }
+      return content.value.contains("Precondition")
+    }
+  }
+
+  /// Checks whether the index contains a fix that prevents it from adding relations to non-indexed locals
+  /// (https://github.com/apple/swift/pull/72930).
+  package static func indexOnlyHasContainedByRelationsToIndexedDecls(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+      let project = try await IndexedSingleSwiftFileTestProject(
+        """
+        func foo() {}
+
+        func 1️⃣testFunc(x: String) {
+          let myVar = foo
+        }
+        """
+      )
+      let prepare = try await project.testClient.send(
+        CallHierarchyPrepareRequest(
+          textDocument: TextDocumentIdentifier(project.fileURI),
+          position: project.positions["1️⃣"]
+        )
+      )
+      let initialItem = try XCTUnwrap(prepare?.only)
+      let calls = try await project.testClient.send(CallHierarchyOutgoingCallsRequest(item: initialItem))
+      return calls != []
+    }
+  }
+
+  public static func swiftPMSupportsExperimentalPrepareForIndexing(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    struct NoSwiftInToolchain: Error {}
+
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+      guard let swift = await ToolchainRegistry.forTesting.default?.swift else {
+        throw NoSwiftInToolchain()
+      }
+
+      let result = try await Process.run(
+        arguments: [swift.pathString, "build", "--help-hidden"],
+        workingDirectory: nil
+      )
+      guard let output = String(bytes: try result.output.get(), encoding: .utf8) else {
+        return false
+      }
+      return output.contains("--experimental-prepare-for-indexing")
+    }
+  }
+
+  package static func swiftPMStoresModulesForTargetAndHostInSeparateFolders(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    struct NoSwiftInToolchain: Error {}
+
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+      guard let swift = await ToolchainRegistry.forTesting.default?.swift else {
+        throw NoSwiftInToolchain()
+      }
+
+      let project = try await SwiftPMTestProject(
+        files: [
+          "Lib/MyFile.swift": """
+          public func foo() {}
+          """,
+          "MyExec/MyExec.swift": """
+          import Lib
+          func bar() {
+            foo()
+          }
+          """,
+          "Plugins/MyPlugin/MyPlugin.swift": "",
+        ],
+        manifest: """
+          let package = Package(
+            name: "MyLibrary",
+            targets: [
+             .target(name: "Lib"),
+             .executableTarget(name: "MyExec", dependencies: ["Lib"]),
+             .plugin(
+               name: "MyPlugin",
+               capability: .command(
+                 intent: .sourceCodeFormatting(),
+                 permissions: []
+               ),
+               dependencies: ["MyExec"]
+             )
+            ]
+          )
+          """
+      )
+      do {
+        // In older version of SwiftPM building `MyPlugin` followed by `Lib` resulted in an error about a redefinition
+        // of Lib when building Lib.
+        for target in ["MyPlugin", "Lib"] {
+          var arguments = [
+            swift.pathString, "build", "--package-path", project.scratchDirectory.path, "--target", target,
+          ]
+          if let globalModuleCache {
+            arguments += ["-Xswiftc", "-module-cache-path", "-Xswiftc", globalModuleCache.path]
+          }
+          try await Process.run(arguments: arguments, workingDirectory: nil)
+        }
+        return true
+      } catch {
+        return false
+      }
+    }
+  }
+
   /// A long test is a test that takes longer than 1-2s to execute.
   package static func longTestsEnabled() throws {
     if let value = ProcessInfo.processInfo.environment["SKIP_LONG_TESTS"], value == "1" || value == "YES" {
@@ -197,6 +495,37 @@ package actor SkipUnless {
         }
         return .featureUnsupported(skipMessage: "Skipping because toolchain can not compile for wasm")
       }
+    }
+  }
+
+  /// Checks if sourcekitd contains https://github.com/swiftlang/swift/pull/71049
+  package static func solverBasedCursorInfoWorksForMemoryOnlyFiles(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    struct ExpectedLocationsResponse: Error {}
+
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+      let testClient = try await TestSourceKitLSPClient()
+      let uri = DocumentURI(for: .swift)
+      let positions = testClient.openDocument(
+        """
+        func foo() -> Int { 1 }
+        func foo() -> String { "" }
+        func test() {
+          _ = 3️⃣foo()
+        }
+        """,
+        uri: uri
+      )
+
+      let response = try await testClient.send(
+        DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+      )
+      guard case .locations(let locations) = response else {
+        throw ExpectedLocationsResponse()
+      }
+      return locations.count > 0
     }
   }
 }

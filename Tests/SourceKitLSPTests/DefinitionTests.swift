@@ -200,6 +200,7 @@ class DefinitionTests: XCTestCase {
   }
 
   func testAmbiguousDefinition() async throws {
+    try await SkipUnless.solverBasedCursorInfoWorksForMemoryOnlyFiles()
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -567,6 +568,8 @@ class DefinitionTests: XCTestCase {
   }
 
   func testJumpToSatisfiedProtocolRequirementInExtension() async throws {
+    try await SkipUnless.sourcekitdReportsOverridableFunctionDefinitionsAsDynamic()
+
     let project = try await IndexedSingleSwiftFileTestProject(
       """
       protocol TestProtocol {

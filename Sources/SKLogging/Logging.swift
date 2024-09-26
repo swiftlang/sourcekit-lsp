@@ -19,9 +19,15 @@ package typealias LogLevel = os.OSLogType
 package typealias Logger = os.Logger
 package typealias Signposter = OSSignposter
 
+#if compiler(<5.11)
+extension OSSignposter: @unchecked Sendable {}
+extension OSSignpostID: @unchecked Sendable {}
+extension OSSignpostIntervalState: @unchecked Sendable {}
+#else
 extension OSSignposter: @retroactive @unchecked Sendable {}
 extension OSSignpostID: @retroactive @unchecked Sendable {}
 extension OSSignpostIntervalState: @retroactive @unchecked Sendable {}
+#endif
 
 extension os.Logger {
   package func makeSignposter() -> Signposter {

@@ -227,6 +227,7 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testIncomingCallHierarchyShowsSurroundingFunctionCall() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
     // We used to show `myVar` as the caller here
     let project = try await IndexedSingleSwiftFileTestProject(
       """
@@ -268,6 +269,7 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testIncomingCallHierarchyFromComputedProperty() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
     let project = try await IndexedSingleSwiftFileTestProject(
       """
       func 1️⃣foo() {}
@@ -597,6 +599,7 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testUnappliedFunctionReferenceInIncomingCallHierarchy() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
     let project = try await IndexedSingleSwiftFileTestProject(
       """
       func 1️⃣foo() {}
@@ -637,6 +640,7 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testUnappliedFunctionReferenceInOutgoingCallHierarchy() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
     let project = try await IndexedSingleSwiftFileTestProject(
       """
       func 1️⃣foo() {}
@@ -677,6 +681,7 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testIncomingCallHierarchyForPropertyInitializedWithClosure() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
     let project = try await IndexedSingleSwiftFileTestProject(
       """
       func 1️⃣foo() -> Int {}
@@ -717,6 +722,7 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testOutgoingCallHierarchyForPropertyInitializedWithClosure() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
     let project = try await IndexedSingleSwiftFileTestProject(
       """
       func 1️⃣foo() -> Int {}
@@ -757,6 +763,7 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testInitializerInCallHierarchy() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
     let project = try await IndexedSingleSwiftFileTestProject(
       """
       func 1️⃣foo() {}
@@ -799,6 +806,7 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testCallHierarchyOfNestedClass() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
     let project = try await IndexedSingleSwiftFileTestProject(
       """
       func 1️⃣foo() {}
@@ -843,6 +851,7 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testIncomingCallHierarchyFromComputedMember() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
     let project = try await IndexedSingleSwiftFileTestProject(
       """
       struct Foo {

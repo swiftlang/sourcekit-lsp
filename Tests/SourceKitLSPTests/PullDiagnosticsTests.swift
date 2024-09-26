@@ -204,7 +204,13 @@ final class PullDiagnosticsTests: XCTestCase {
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
     )
     XCTAssert(
-      (beforeBuilding.fullReport?.items ?? []).contains { $0.message == "No such module 'LibA'" }
+      (beforeBuilding.fullReport?.items ?? []).contains(where: {
+        #if compiler(>=6.1)
+        #warning("When we drop support for Swift 5.10 we no longer need to check for the Objective-C error message")
+        #endif
+        return $0.message == "No such module 'LibA'" || $0.message == "Could not build Objective-C module 'LibA'"
+      }
+      )
     )
 
     let diagnosticsRefreshRequestReceived = self.expectation(description: "DiagnosticsRefreshRequest received")

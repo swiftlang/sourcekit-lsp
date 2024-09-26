@@ -105,6 +105,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testRanged() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     try await assertSemanticTokens(
       markedContents: """
         let x = 1
@@ -124,6 +126,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testLexicalTokens() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     try await assertSemanticTokens(
       markedContents: """
         1️⃣let 2️⃣x = 3️⃣3
@@ -147,6 +151,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testLexicalTokensForMultiLineComments() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     try await assertSemanticTokens(
       markedContents: """
         1️⃣let 2️⃣x = 3️⃣3 4️⃣/*
@@ -166,6 +172,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testLexicalTokensForDocComments() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     try await assertSemanticTokens(
       markedContents: """
         1️⃣/** abc */
@@ -179,6 +187,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testLexicalTokensForBackticks() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     try await assertSemanticTokens(
       markedContents: """
         1️⃣var 2️⃣`if` = 3️⃣20
@@ -223,6 +233,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testSemanticTokens() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     try await assertSemanticTokens(
       markedContents: """
         1️⃣struct 2️⃣X {}
@@ -271,6 +283,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testSemanticTokensForProtocols() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     try await assertSemanticTokens(
       markedContents: """
         1️⃣protocol 2️⃣X {}
@@ -314,6 +328,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testSemanticTokensForFunctionSignatures() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     try await assertSemanticTokens(
       markedContents: "1️⃣func 2️⃣f(3️⃣x: 4️⃣Int, _ 5️⃣y: 6️⃣String) {}",
       expected: [
@@ -328,6 +344,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testSemanticTokensForFunctionSignaturesWithEmoji() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     try await assertSemanticTokens(
       markedContents: "1️⃣func 2️⃣x👍y() {}",
       expected: [
@@ -338,6 +356,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testSemanticTokensForStaticMethods() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     try await assertSemanticTokens(
       markedContents: """
         1️⃣class 2️⃣X {
@@ -382,6 +402,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testSemanticTokensForEnumMembers() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     try await assertSemanticTokens(
       markedContents: """
         1️⃣enum 2️⃣Maybe<3️⃣T> {
@@ -435,6 +457,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testRegexSemanticTokens() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     try await assertSemanticTokens(
       markedContents: """
         1️⃣let 2️⃣r = 3️⃣/a[bc]*/
@@ -448,6 +472,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testOperatorDeclaration() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     try await assertSemanticTokens(
       markedContents: """
         1️⃣infix 2️⃣operator 3️⃣?= :4️⃣ComparisonPrecedence
@@ -462,6 +488,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testEmptyEdit() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -495,6 +523,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testReplaceUntilMiddleOfToken() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -541,6 +571,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testReplaceUntilEndOfToken() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -592,6 +624,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testInsertSpaceBeforeToken() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -627,6 +661,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testInsertSpaceAfterToken() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -655,6 +691,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testInsertNewline() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -689,6 +727,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testRemoveNewline() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -724,6 +764,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testInsertTokens() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -773,6 +815,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testSemanticMultiEdit() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -831,6 +875,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testActor() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     try await assertSemanticTokens(
       markedContents: """
         1️⃣actor 2️⃣MyActor {}
@@ -849,6 +895,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testArgumentLabels() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     try await assertSemanticTokens(
       markedContents: """
         1️⃣func 2️⃣foo(3️⃣arg: 4️⃣Int) {}
@@ -867,6 +915,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testFunctionDeclarationWithFirstAndSecondName() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     try await assertSemanticTokens(
       markedContents: """
         1️⃣func 2️⃣foo(3️⃣arg 4️⃣internalName: 5️⃣Int) {}
@@ -882,6 +932,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testClang() async throws {
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
     try await assertSemanticTokens(
       markedContents: """
         int 1️⃣main() {}
