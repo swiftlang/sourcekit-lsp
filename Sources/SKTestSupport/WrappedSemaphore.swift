@@ -51,16 +51,12 @@ package struct WrappedSemaphore: Sendable {
   }
 
   /// Wait for a signal and emit an XCTFail if the semaphore is not signaled within `timeout`.
-  package func waitOrXCTFail(
-    timeout: DispatchTime = DispatchTime.now() + .seconds(Int(defaultTimeout)),
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) {
+  package func waitOrXCTFail(timeout: DispatchTime = DispatchTime.now() + .seconds(Int(defaultTimeout))) {
     switch self.wait(timeout: timeout) {
     case .success:
       break
     case .timedOut:
-      XCTFail("\(name) timed out", file: file, line: line)
+      XCTFail("\(name) timed out")
     }
   }
 }

@@ -31,7 +31,6 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `cxxCompilerFlags: string[]`: Extra arguments passed to the compiler for C++ files
   - `swiftCompilerFlags: string[]`: Extra arguments passed to the compiler for Swift files
   - `sdk: string`: The SDK to use for fallback arguments. Default is to infer the SDK using `xcrun`.
-- `buildSettingsTimeout: int`: Number of milliseconds to wait for build settings from the build system before using fallback build settings.
 - `clangdOptions: string[]`: Extra command line arguments passed to `clangd` when launching it
 - `index`: Dictionary with the following keys, defining options related to indexing
     - `indexStorePath: string`: Directory in which a separate compilation stores the index store. By default, inferred from the build system.

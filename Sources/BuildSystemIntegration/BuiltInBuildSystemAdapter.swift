@@ -51,8 +51,6 @@ actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
   /// The connection with which messages are sent to `BuildSystemManager`.
   private let connectionToSourceKitLSP: LocalConnection
 
-  private let buildSystemTestHooks: BuildSystemTestHooks
-
   /// If the underlying build system is a `TestBuildSystem`, return it. Otherwise, `nil`
   ///
   /// - Important: For testing purposes only.
@@ -64,12 +62,10 @@ actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
   /// from the build system to SourceKit-LSP.
   init(
     underlyingBuildSystem: BuiltInBuildSystem,
-    connectionToSourceKitLSP: LocalConnection,
-    buildSystemTestHooks: BuildSystemTestHooks
+    connectionToSourceKitLSP: LocalConnection
   ) {
     self.underlyingBuildSystem = underlyingBuildSystem
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
-    self.buildSystemTestHooks = buildSystemTestHooks
   }
 
   deinit {
@@ -106,7 +102,6 @@ actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
   }
 
   package func handleImpl<Request: RequestType>(_ request: RequestAndReply<Request>) async {
-    await buildSystemTestHooks.handleRequest?(request.params)
     switch request {
     case let request as RequestAndReply<BuildShutdownRequest>:
       await request.reply { VoidResponse() }

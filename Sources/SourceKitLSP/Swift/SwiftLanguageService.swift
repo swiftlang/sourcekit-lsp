@@ -989,7 +989,6 @@ extension SwiftLanguageService {
       )
       let snapshot = try await self.latestSnapshot(for: req.textDocument.uri)
       let buildSettings = await self.buildSettings(for: req.textDocument.uri)
-      try Task.checkCancellation()
       let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
         for: snapshot,
         buildSettings: buildSettings

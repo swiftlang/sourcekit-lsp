@@ -10,12 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildServerProtocol
 @_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
 import SKOptions
 import SKTestSupport
-import SourceKitLSP
 import TSCBasic
 import XCTest
 
@@ -161,48 +159,5 @@ final class FallbackBuildSystemTests: XCTestCase {
     let source = DocumentURI(filePath: "/my/source.mm", isDirectory: false)
 
     XCTAssertNil(fallbackBuildSettings(for: source, language: Language(rawValue: "unknown"), options: .init()))
-  }
-
-  func testFallbackBuildSettingsWhileBuildSystemIsComputingBuildSettings() async throws {
-    let fallbackResultsReceived = WrappedSemaphore(name: "Fallback results received")
-    let project = try await SwiftPMTestProject(
-      files: [
-        "Test.swift": """
-        let x: 1️⃣String = 1
-        """
-      ],
-      testHooks: TestHooks(
-        buildSystemTestHooks: BuildSystemTestHooks(
-          handleRequest: { request in
-            if request is TextDocumentSourceKitOptionsRequest {
-              fallbackResultsReceived.waitOrXCTFail()
-            }
-          }
-        )
-      )
-    )
-
-    let (uri, positions) = try project.openDocument("Test.swift")
-
-    let diagsBeforeBuildSettings = try await project.testClient.send(
-      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
-    )
-    XCTAssertEqual(diagsBeforeBuildSettings.fullReport?.items, [])
-
-    let hoverBeforeBuildSettings = try await project.testClient.send(
-      HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
-    )
-    XCTAssertNotNil(hoverBeforeBuildSettings?.contents)
-
-    fallbackResultsReceived.signal()
-
-    try await repeatUntilExpectedResult {
-      let diagsAfterBuildSettings = try await project.testClient.send(
-        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
-      )
-      return diagsAfterBuildSettings.fullReport?.items.map(\.message) == [
-        "Cannot convert value of type 'Int' to specified type 'String'"
-      ]
-    }
   }
 }
