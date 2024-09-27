@@ -82,3 +82,28 @@ public final class AtomicUInt32: Sendable {
     return atomic_uint32_fetch_and_increment(atomic)
   }
 }
+
+public final class AtomicInt32: Sendable {
+  private nonisolated(unsafe) let atomic: UnsafeMutablePointer<CAtomicInt32>
+
+  public init(initialValue: Int32) {
+    self.atomic = atomic_int32_create(initialValue)
+  }
+
+  public var value: Int32 {
+    get {
+      atomic_int32_get(atomic)
+    }
+    set {
+      atomic_int32_set(atomic, newValue)
+    }
+  }
+
+  deinit {
+    atomic_int32_destroy(atomic)
+  }
+
+  public func fetchAndIncrement() -> Int32 {
+    return atomic_int32_fetch_and_increment(atomic)
+  }
+}
