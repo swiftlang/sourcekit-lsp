@@ -44,4 +44,30 @@ static inline void atomic_uint32_destroy(CAtomicUInt32 *_Nonnull atomic) {
   free(atomic);
 }
 
+typedef struct {
+  _Atomic(int32_t) value;
+} CAtomicInt32;
+
+static inline CAtomicInt32 *_Nonnull atomic_int32_create(int32_t initialValue) {
+  CAtomicInt32 *atomic = malloc(sizeof(CAtomicInt32));
+  atomic->value = initialValue;
+  return atomic;
+}
+
+static inline int32_t atomic_int32_get(CAtomicInt32 *_Nonnull atomic) {
+  return atomic->value;
+}
+
+static inline void atomic_int32_set(CAtomicInt32 *_Nonnull atomic, int32_t newValue) {
+  atomic->value = newValue;
+}
+
+static inline int32_t atomic_int32_fetch_and_increment(CAtomicInt32 *_Nonnull atomic) {
+  return atomic->value++;
+}
+
+static inline void atomic_int32_destroy(CAtomicInt32 *_Nonnull atomic) {
+  free(atomic);
+}
+
 #endif // SOURCEKITLSP_CATOMICS_H
