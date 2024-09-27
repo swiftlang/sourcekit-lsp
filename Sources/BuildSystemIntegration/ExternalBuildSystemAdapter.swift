@@ -170,7 +170,7 @@ actor ExternalBuildSystemAdapter {
         if terminationStatus != 0 {
           Task {
             await orLog("Restarting BSP server") {
-              try await handleBspServerCrash()
+              try await self.handleBspServerCrash()
             }
           }
         }
