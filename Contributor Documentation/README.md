@@ -8,4 +8,5 @@ The following documentation documents are primarily intended for developers of S
 - [Logging](Logging.md)
 - [Modules](Modules.md)
 - [Overview](Overview.md)
+- [Swift Version](Swift%20Version.md)
 - [Testing](Testing.md)

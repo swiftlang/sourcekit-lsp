@@ -448,7 +448,23 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
 
       throw NonFileURIError(uri: file)
     }
-    return try buildTarget.compileArguments(for: fileURL)
+    let compileArguments = try buildTarget.compileArguments(for: fileURL)
+
+    #if compiler(>=6.1)
+    #warning("When we drop support for Swift 5.10 we no longer need to adjust compiler arguments for the Modules move")
+    #endif
+    // Fix up compiler arguments that point to a `/Modules` subdirectory if the Swift version in the toolchain is less
+    // than 6.0 because it places the modules one level higher up.
+    let toolchainVersion = await orLog("Getting Swift version") { try await toolchain.swiftVersion }
+    guard let toolchainVersion, toolchainVersion < SwiftVersion(6, 0) else {
+      return compileArguments
+    }
+    return compileArguments.map { argument in
+      if argument.hasSuffix("/Modules"), argument.contains(self.swiftPMWorkspace.location.scratchDirectory.pathString) {
+        return String(argument.dropLast(8))
+      }
+      return argument
+    }
   }
 
   package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {

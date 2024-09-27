@@ -644,6 +644,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testPrepeareRenameOnDefinition() async throws {
+    try await SkipUnless.sourcekitdSupportsRename()
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -662,6 +663,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testPrepeareRenameOnReference() async throws {
+    try await SkipUnless.sourcekitdSupportsRename()
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -681,6 +683,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testGlobalRenameC() async throws {
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "Sources/MyLibrary/include/lib.h": """
@@ -713,6 +716,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testGlobalRenameObjC() async throws {
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "Sources/MyLibrary/include/lib.h": """
@@ -1086,6 +1090,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameAfterFileMove() async throws {
+    try await SkipUnless.sourcekitdSupportsRename()
     let project = try await SwiftPMTestProject(
       files: [
         "definition.swift": """
@@ -1165,6 +1170,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameEnumCaseWithUnlabeledAssociatedValue() async throws {
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
     try await assertSingleFileRename(
       """
       enum MyEnum {
@@ -1182,6 +1188,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testAddLabelToEnumCase() async throws {
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
     try await assertSingleFileRename(
       """
       enum MyEnum {
@@ -1199,6 +1206,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRemoveLabelFromEnumCase() async throws {
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
     try await assertSingleFileRename(
       """
       enum MyEnum {
@@ -1224,6 +1232,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameEnumCaseWithUnderscoreLabel() async throws {
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
     try await assertSingleFileRename(
       """
       enum MyEnum {
@@ -1249,6 +1258,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameEnumCaseWithUnderscoreToLabelMatchingInternalName() async throws {
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
     try await assertSingleFileRename(
       """
       enum MyEnum {
@@ -1274,6 +1284,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameEnumCaseWithUnderscoreToLabelNotMatchingInternalName() async throws {
+    try await SkipUnless.sourcekitdCanRenameEnumCaseLabels()
     // Note that the renamed code doesn't compile because enum cases can't have an external and internal parameter name.
     // But it's probably the best thing we can do because we don't want to erase the user-specified internal name, which
     // they didn't request to rename. Also, this is a pretty niche case and having a special case for it is probably not
@@ -1303,6 +1314,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameDoesNotReportEditsIfNoActualChangeIsMade() async throws {
+    try await SkipUnless.sourcekitdSupportsRename()
     let project = try await SwiftPMTestProject(
       files: [
         "FileA.swift": """

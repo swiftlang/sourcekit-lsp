@@ -18,9 +18,9 @@ package class Cache<Key: Sendable & Hashable, Result: Sendable> {
 
   package func get(
     _ key: Key,
-    isolation: isolated any Actor = #isolation,
-    compute: @Sendable @escaping (Key) async throws(Error) -> Result
-  ) async throws(Error) -> Result {
+    isolation: isolated any Actor,
+    compute: @Sendable @escaping (Key) async throws -> Result
+  ) async throws -> Result {
     let task: Task<Result, Error>
     if let cached = storage[key] {
       task = cached
@@ -34,8 +34,8 @@ package class Cache<Key: Sendable & Hashable, Result: Sendable> {
   }
 
   package func get(
+    isolation: isolated any Actor,
     whereKey keyPredicate: (Key) -> Bool,
-    isolation: isolated any Actor = #isolation,
     transform: @Sendable @escaping (Result) -> Result
   ) async throws -> Result? {
     for (key, value) in storage {
@@ -46,7 +46,7 @@ package class Cache<Key: Sendable & Hashable, Result: Sendable> {
     return nil
   }
 
-  package func clear(where condition: (Key) -> Bool, isolation: isolated any Actor = #isolation) {
+  package func clear(isolation: isolated any Actor, where condition: (Key) -> Bool) {
     for key in storage.keys {
       if condition(key) {
         storage[key] = nil
@@ -54,7 +54,7 @@ package class Cache<Key: Sendable & Hashable, Result: Sendable> {
     }
   }
 
-  package func clearAll(isolation: isolated any Actor = #isolation) {
+  package func clearAll(isolation: isolated any Actor) {
     storage.removeAll()
   }
 }
