@@ -1241,6 +1241,16 @@ extension SourceKitLSPServer {
           await service.shutdown()
         }
       }
+      for workspace in workspaces {
+        taskGroup.addTask {
+          await orLog("Shutting down build server") {
+            // If the build server doesn't shut down in 1 second, don't delay SourceKit-LSP's shutdown because of it.
+            try await withTimeout(.seconds(2)) {
+              await workspace.buildSystemManager.shutdown()
+            }
+          }
+        }
+      }
     }
 
     // We have a semantic guarantee that no request or notification should be

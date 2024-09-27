@@ -118,7 +118,7 @@ actor ExternalBuildSystemAdapter {
   }
 
   /// Send a notification to the build server.
-  func send(_ notification: some NotificationType) async {
+  func send(_ notification: some NotificationType) {
     guard let connectionToBuildServer else {
       logger.error("Dropping notification because BSP server has crashed: \(notification.forLogging)")
       return

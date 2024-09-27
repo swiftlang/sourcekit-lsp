@@ -430,6 +430,23 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
   }
 
+  /// Explicitly shut down the build server.
+  ///
+  /// The build server is automatically shut down using a background task when `BuildSystemManager` is deallocated.
+  /// This, however, leads to possible race conditions where the shutdown task might not finish before the test is done,
+  /// which could result in the connection being reported as a leak. To avoid this problem, we want to explicitly shut
+  /// down the build server when the `SourceKitLSPServer` gets shut down.
+  package func shutdown() async {
+    guard let buildSystemAdapter = await self.buildSystemAdapterAfterInitialized else {
+      return
+    }
+    await orLog("Sending shutdown request to build server") {
+      _ = try await buildSystemAdapter.send(BuildShutdownRequest())
+      await buildSystemAdapter.send(OnBuildExitNotification())
+    }
+    self.buildSystemAdapter = nil
+  }
+
   deinit {
     // Shut down the build server before closing the connection to it
     Task { [buildSystemAdapter, initializeResult] in

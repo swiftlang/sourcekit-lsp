@@ -38,7 +38,7 @@ class AbstractBuildServer:
 
             try:
                 result = self.handle_message(message)
-                if result:
+                if result is not None:
                     response_message: Dict[str, object] = {
                         "jsonrpc": "2.0",
                         "id": message["id"],
@@ -139,8 +139,8 @@ class AbstractBuildServer:
             code=-32601, message=f"'textDocument/sourceKitOptions' not implemented"
         )
 
-    def shutdown(self, notification: Dict[str, object]) -> None:
-        pass
+    def shutdown(self, request: Dict[str, object]) -> Dict[str, object]:
+        return {}
 
     def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
         raise RequestError(
