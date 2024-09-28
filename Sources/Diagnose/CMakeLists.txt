@@ -1,5 +1,4 @@
 add_library(Diagnose STATIC
-  ActiveRequestsCommand.swift
   CommandLineArgumentsReducer.swift
   DebugCommand.swift
   DiagnoseCommand.swift
@@ -19,7 +18,8 @@ add_library(Diagnose STATIC
   SourceReducer.swift
   StderrStreamConcurrencySafe.swift
   SwiftFrontendCrashScraper.swift
-  Toolchain+SwiftFrontend.swift)
+  Toolchain+SwiftFrontend.swift
+  TraceFromSignpostsCommand.swift)
 
 set_target_properties(Diagnose PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
