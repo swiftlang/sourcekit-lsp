@@ -204,7 +204,7 @@ struct SourceKitLSP: AsyncParsableCommand {
   @Option(
     help: "Specify the directory where generated files will be stored"
   )
-  var generatedFilesPath: String = defaultDirectoryForGeneratedFiles.pathString
+  var generatedFilesPath: String? = nil
 
   @Option(
     name: .customLong("experimental-feature"),

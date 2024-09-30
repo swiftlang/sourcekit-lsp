@@ -868,7 +868,7 @@ extension SourceKitLSPServer {
       )
     )
     logger.log("Creating workspace at \(workspaceFolder.forLogging) with options: \(options.forLogging)")
-    logger.logFullObjectInMultipleLogMessages(header: "Options for workspace", options)
+    logger.logFullObjectInMultipleLogMessages(header: "Options for workspace", options.loggingProxy)
 
     let workspace = await Workspace(
       sourceKitLSPServer: self,
@@ -952,7 +952,7 @@ extension SourceKitLSPServer {
     )
 
     logger.log("Initialized SourceKit-LSP")
-    logger.logFullObjectInMultipleLogMessages(header: "SourceKit-LSP Options", self.options)
+    logger.logFullObjectInMultipleLogMessages(header: "SourceKit-LSP Options", options.loggingProxy)
 
     await workspaceQueue.async { [testHooks] in
       if let workspaceFolders = req.workspaceFolders {
@@ -2655,5 +2655,29 @@ fileprivate extension URL {
       return false
     }
     return other.pathComponents[0..<self.pathComponents.count] == self.pathComponents[...]
+  }
+}
+
+extension SourceKitLSPOptions {
+  /// We can't conform `SourceKitLSPOptions` to `CustomLogStringConvertible` because that would require a public import
+  /// of `SKLogging`. Instead, define an internal type that performs the logging of `SourceKitLSPOptions`.
+  struct LoggingProxy: CustomLogStringConvertible {
+    let options: SourceKitLSPOptions
+
+    var description: String {
+      options.prettyPrintedJSON
+    }
+
+    var redactedDescription: String {
+      options.prettyPrintedRedactedJSON
+    }
+  }
+
+  var loggingProxy: LoggingProxy {
+    LoggingProxy(options: self)
+  }
+
+  var forLogging: CustomLogStringConvertibleWrapper {
+    return self.loggingProxy.forLogging
   }
 }

@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Csourcekitd
 import SKSupport
 import SKTestSupport
 import SourceKitD

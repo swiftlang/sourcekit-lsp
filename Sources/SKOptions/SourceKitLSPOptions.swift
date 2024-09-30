@@ -13,10 +13,10 @@
 #if compiler(>=6)
 public import Foundation
 public import LanguageServerProtocol
-public import SKLogging
-public import SKSupport
+import SKLogging
+import SKSupport
 
-public import struct TSCBasic.AbsolutePath
+import struct TSCBasic.AbsolutePath
 #else
 import Foundation
 import LanguageServerProtocol
@@ -29,7 +29,7 @@ import struct TSCBasic.AbsolutePath
 /// Options that can be used to modify SourceKit-LSP's behavior.
 ///
 /// See `ConfigurationFile.md` for a description of the configuration file's behavior.
-public struct SourceKitLSPOptions: Sendable, Codable, Equatable, CustomLogStringConvertible {
+public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   public struct SwiftPMOptions: Sendable, Codable, Equatable {
     /// Build configuration (debug|release).
     ///
@@ -431,9 +431,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, CustomLogString
     )
   }
 
-  public var generatedFilesAbsolutePath: AbsolutePath {
-    if let absolutePath = AbsolutePath(validatingOrNil: generatedFilesPath) {
-      return absolutePath
+  public var generatedFilesAbsolutePath: URL {
+    if let generatedFilesPath {
+      return URL(fileURLWithPath: generatedFilesPath)
     }
     return defaultDirectoryForGeneratedFiles
   }
@@ -443,13 +443,5 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, CustomLogString
       return false
     }
     return experimentalFeatures.contains(feature)
-  }
-
-  public var description: String {
-    self.prettyPrintedJSON
-  }
-
-  public var redactedDescription: String {
-    self.prettyPrintedRedactedJSON
   }
 }

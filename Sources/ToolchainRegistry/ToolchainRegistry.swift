@@ -11,16 +11,17 @@
 //===----------------------------------------------------------------------===//
 
 import Dispatch
+import Foundation
 import SKSupport
 
 #if compiler(>=6)
-public import struct TSCBasic.AbsolutePath
-public import protocol TSCBasic.FileSystem
-public import class TSCBasic.Process
-public import enum TSCBasic.ProcessEnv
-public import struct TSCBasic.ProcessEnvironmentKey
-public import func TSCBasic.getEnvSearchPaths
-public import var TSCBasic.localFileSystem
+package import struct TSCBasic.AbsolutePath
+package import protocol TSCBasic.FileSystem
+package import class TSCBasic.Process
+package import enum TSCBasic.ProcessEnv
+package import struct TSCBasic.ProcessEnvironmentKey
+package import func TSCBasic.getEnvSearchPaths
+package import var TSCBasic.localFileSystem
 #else
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
@@ -36,7 +37,7 @@ import var TSCBasic.localFileSystem
 /// Most users will use the `shared` ToolchainRegistry, although it's possible to create more. A
 /// ToolchainRegistry is usually initialized by performing a search of predetermined paths,
 /// e.g. `ToolchainRegistry(searchPaths: ToolchainRegistry.defaultSearchPaths)`.
-public final actor ToolchainRegistry {
+package final actor ToolchainRegistry {
   /// The reason why a toolchain got added to the registry.
   ///
   /// Used to determine the default toolchain. For example, a toolchain discoverd by the `SOURCEKIT_TOOLCHAIN_PATH`
@@ -147,7 +148,7 @@ public final actor ToolchainRegistry {
   /// * (Darwin) The currently selected Xcode
   /// * (Darwin) `[~]/Library/Developer/Toolchains`
   /// * `env SOURCEKIT_PATH, PATH`
-  public init(
+  package init(
     installPath: AbsolutePath? = nil,
     environmentVariables: [ProcessEnvironmentKey] = ["SOURCEKIT_TOOLCHAIN_PATH"],
     xcodes: [AbsolutePath] = [_currentXcodeDeveloperPath].compactMap({ $0 }),
@@ -279,7 +280,7 @@ extension ToolchainRegistry {
 
 extension ToolchainRegistry {
   /// The path of the current Xcode.app/Contents/Developer.
-  public static var _currentXcodeDeveloperPath: AbsolutePath? {
+  package static var _currentXcodeDeveloperPath: AbsolutePath? {
     guard let str = try? Process.checkNonZeroExit(args: "/usr/bin/xcode-select", "-p") else { return nil }
     return try? AbsolutePath(validating: str.trimmingCharacters(in: .whitespacesAndNewlines))
   }

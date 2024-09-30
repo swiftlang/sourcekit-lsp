@@ -10,17 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+import SwiftExtensions
+
+package import struct TSCBasic.AbsolutePath
+#else
 import Foundation
 import SwiftExtensions
 
-#if compiler(>=6)
-package import struct TSCBasic.AbsolutePath
-#else
 import struct TSCBasic.AbsolutePath
 #endif
 
 extension AbsolutePath {
-
   /// Inititializes an absolute path from a string, expanding a leading `~` to `homeDirectoryForCurrentUser` first.
   package init(expandingTilde path: String) throws {
     if path.first == "~" {
@@ -36,6 +38,6 @@ extension AbsolutePath {
 
 /// The default directory to write generated files
 /// `<TEMPORARY_DIRECTORY>/sourcekit-lsp/`
-package var defaultDirectoryForGeneratedFiles: AbsolutePath {
-  try! AbsolutePath(validating: NSTemporaryDirectory()).appending(component: "sourcekit-lsp")
+package var defaultDirectoryForGeneratedFiles: URL {
+  URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("sourcekit-lsp")
 }

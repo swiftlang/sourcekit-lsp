@@ -12,6 +12,7 @@
 
 #if compiler(>=6)
 package import BuildSystemIntegration
+import Csourcekitd
 import Dispatch
 import Foundation
 import IndexStoreDB
@@ -30,6 +31,7 @@ package import ToolchainRegistry
 import struct TSCBasic.AbsolutePath
 #else
 import BuildSystemIntegration
+import Csourcekitd
 import Dispatch
 import Foundation
 import IndexStoreDB
@@ -135,12 +137,12 @@ package actor SwiftLanguageService: LanguageService, Sendable {
 
   /// Directory where generated Swift interfaces will be stored.
   var generatedInterfacesPath: URL {
-    options.generatedFilesAbsolutePath.asURL.appendingPathComponent("GeneratedInterfaces")
+    options.generatedFilesAbsolutePath.appendingPathComponent("GeneratedInterfaces")
   }
 
   /// Directory where generated Macro expansions  will be stored.
   var generatedMacroExpansionsPath: URL {
-    options.generatedFilesAbsolutePath.asURL.appendingPathComponent("GeneratedMacroExpansions")
+    options.generatedFilesAbsolutePath.appendingPathComponent("GeneratedMacroExpansions")
   }
 
   /// For each edited document, the last task that was triggered to send a `PublishDiagnosticsNotification`.

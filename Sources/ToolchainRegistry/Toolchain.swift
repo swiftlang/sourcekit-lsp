@@ -16,10 +16,10 @@ import SwiftExtensions
 
 #if compiler(>=6)
 import enum PackageLoading.Platform
-public import struct TSCBasic.AbsolutePath
-public import protocol TSCBasic.FileSystem
-public import class TSCBasic.Process
-public import var TSCBasic.localFileSystem
+package import struct TSCBasic.AbsolutePath
+package import protocol TSCBasic.FileSystem
+package import class TSCBasic.Process
+package import var TSCBasic.localFileSystem
 #else
 import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath
@@ -149,7 +149,7 @@ public final class Toolchain: Sendable {
     }
   }
 
-  public init(
+  package init(
     identifier: String,
     displayName: String,
     path: AbsolutePath? = nil,

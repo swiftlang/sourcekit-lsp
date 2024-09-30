@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #if compiler(>=6)
-public import Foundation
+package import Foundation
 
-public import struct TSCBasic.ByteString
+package import struct TSCBasic.ByteString
 #else
 import Foundation
 
@@ -21,10 +21,8 @@ import struct TSCBasic.ByteString
 #endif
 
 extension ByteString {
-
   /// Access the contents of `self` as `Data`. The contents are not copied, so it is not safe to
   /// store a reference to the data object.
-  @inlinable
   package func withUnsafeData<R>(_ body: (Data) throws -> R) rethrows -> R {
     let contents = self.contents
     return try contents.withUnsafeBytes { buffer in

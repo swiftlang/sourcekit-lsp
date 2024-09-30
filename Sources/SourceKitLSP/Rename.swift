@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #if compiler(>=6)
+import Csourcekitd
 import IndexStoreDB
 package import LanguageServerProtocol
 import SKLogging
@@ -19,6 +20,7 @@ import SemanticIndex
 import SourceKitD
 import SwiftSyntax
 #else
+import Csourcekitd
 import IndexStoreDB
 import LanguageServerProtocol
 import SKLogging

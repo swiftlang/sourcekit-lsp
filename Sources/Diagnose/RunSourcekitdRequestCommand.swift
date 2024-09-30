@@ -12,6 +12,7 @@
 
 #if compiler(>=6)
 package import ArgumentParser
+import Csourcekitd
 import Foundation
 import SKSupport
 import SourceKitD
@@ -20,6 +21,7 @@ import ToolchainRegistry
 import struct TSCBasic.AbsolutePath
 #else
 import ArgumentParser
+import Csourcekitd
 import Foundation
 import SKSupport
 import SourceKitD
