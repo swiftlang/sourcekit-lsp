@@ -20,12 +20,9 @@ import XCTest
 ///
 /// This is useful to test some request that requires global state to be updated but will eventually converge on the
 /// correct result.
-///
-/// If `bodyHasOneSecondDelay` is true, it is assume that the body already has a one-second delay between iterations.
 package func repeatUntilExpectedResult(
-  _ body: () async throws -> Bool,
-  bodyHasOneSecondDelay: Bool = false,
   timeout: TimeInterval = defaultTimeout,
+  _ body: () async throws -> Bool,
   file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
@@ -33,9 +30,7 @@ package func repeatUntilExpectedResult(
     if try await body() {
       return
     }
-    if !bodyHasOneSecondDelay {
-      try await Task.sleep(for: .seconds(1))
-    }
+    try await Task.sleep(for: .seconds(1))
   }
   XCTFail("Failed to get expected result", file: file, line: line)
 }

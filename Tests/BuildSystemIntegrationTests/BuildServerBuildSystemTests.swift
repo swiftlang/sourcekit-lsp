@@ -247,9 +247,11 @@ final class BuildServerBuildSystemTests: XCTestCase {
         #error("DEBUG NOT SET")
         #endif
         """,
+        "should_crash": "dummy file to indicate that BSP server should crash",
       ],
       buildServer: """
         import threading
+        import os
 
         class BuildServer(AbstractBuildServer):
           def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
@@ -279,23 +281,25 @@ final class BuildServerBuildSystemTests: XCTestCase {
             }
 
           def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
-            # Crash when getting build settings for Crash.swift
-            assert "Crash.swift" not in request["textDocument"]["uri"]
+            if os.path.exists("$TEST_DIR/should_crash"):
+              assert False
             return {
               "compilerArguments": ["$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
             }
         """
     )
 
-    // Crash the build server
-    let (crashUri, _) = try project.openDocument("Crash.swift")
-    _ = try await project.testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(crashUri)))
-    project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(crashUri)))
-
     // Check that we still get results for Test.swift (after relaunching the BSP server)
     let (uri, _) = try project.openDocument("Test.swift")
 
-    try await repeatUntilExpectedResult {
+    // While the BSP server is crashing, we shouldn't get any build settings and thus get empty diagnostics.
+    let diagnosticsBeforeCrash = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(diagnosticsBeforeCrash.fullReport?.items, [])
+    try FileManager.default.removeItem(at: project.scratchDirectory.appendingPathComponent("should_crash"))
+
+    try await repeatUntilExpectedResult(timeout: 20) {
       let diagnostics = try await project.testClient.send(
         DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
       )
