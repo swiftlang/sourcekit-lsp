@@ -335,6 +335,7 @@ package actor SourceKitLSPServer {
   /// `SourceKitLSPServer`.
   private func scheduleUpdateOfUriToWorkspace() {
     messageHandlingQueue.async(priority: .low, metadata: .globalConfigurationChange) {
+      logger.info("Updating URI to workspace")
       // For each document that has moved to a different workspace, close it in
       // the old workspace and open it in the new workspace.
       for docUri in self.documentManager.openDocuments {
@@ -355,6 +356,9 @@ package actor SourceKitLSPServer {
               workspace: oldWorkspace
             )
           }
+          logger.info(
+            "Changing workspace of \(docUri.forLogging) from \(oldWorkspace?.rootUri?.forLogging) to \(newWorkspace?.rootUri?.forLogging)"
+          )
           self.workspaceForUri[docUri] = WeakWorkspace(newWorkspace)
           if let newWorkspace = newWorkspace {
             await self.openDocument(
@@ -831,7 +835,7 @@ extension SourceKitLSPServer {
   }
 
   func fileHandlingCapabilityChanged() {
-    logger.log("Updating URI to workspace because file handling capability of a workspace changed")
+    logger.log("Scheduling update of URI to workspace because file handling capability of a workspace changed")
     self.scheduleUpdateOfUriToWorkspace()
   }
 }
