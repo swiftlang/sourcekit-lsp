@@ -303,4 +303,65 @@ final class BuildServerBuildSystemTests: XCTestCase {
     }
 
   }
+
+  func testBuildServerConfigPath() async throws {
+    let project = try await BuildServerTestProject(
+      // The build config file currently lies in `<workspace root>/buildServer.json`.
+      //
+      // However, as the current logic prefers existence of `.json files` in
+      // `<workspace root>/.bsp/`, the only file that exists is `test.json`
+      // which is not a valid one. Hence, this test will fail.
+      files: [
+        "Test.swift": """
+        #if DEBUG
+        #error("DEBUG SET")
+        #else
+        #error("DEBUG NOT SET")
+        #endif
+        """,
+        ".bsp/test.json": "{}"
+      ],
+      buildServer: """
+        class BuildServer(AbstractBuildServer):
+          def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "targets": [
+                {
+                  "id": {"uri": "bsp://dummy"},
+                  "tags": [],
+                  "languageIds": [],
+                  "dependencies": [],
+                  "capabilities": {},
+                }
+              ]
+            }
+
+          def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "items": [
+                {
+                  "target": {"uri": "bsp://dummy"},
+                  "sources": [
+                    {"uri": "file://$TEST_DIR/Test.swift", "kind": 1, "generated": False}
+                  ],
+                }
+              ]
+            }
+
+          def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "compilerArguments": ["$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
+            }
+        """
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+
+    try await repeatUntilExpectedResult {
+      let diags = try await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+      )
+      return diags.fullReport?.items.map(\.message) == ["DEBUG SET"]
+    }
+  }
 }
