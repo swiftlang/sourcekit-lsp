@@ -55,11 +55,12 @@ private let skTestSupportInputsDirectory: URL = {
 package class BuildServerTestProject: MultiFileTestProject {
   package init(
     files: [RelativeFileLocation: String],
+    buildServerConfigLocation: RelativeFileLocation = ".bsp/sourcekit-lsp.json",
     buildServer: String,
     testName: String = #function
   ) async throws {
     var files = files
-    files["buildServer.json"] = """
+    files[buildServerConfigLocation] = """
       {
         "name": "client name",
         "version": "10",

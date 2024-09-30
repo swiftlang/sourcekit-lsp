@@ -305,6 +305,61 @@ final class BuildServerBuildSystemTests: XCTestCase {
       )
       return diagnostics.fullReport?.items.map(\.message) == ["DEBUG SET"]
     }
+  }
 
+  func testBuildServerConfigAtLegacyLocation() async throws {
+    let project = try await BuildServerTestProject(
+      files: [
+        "Test.swift": """
+        #if DEBUG
+        #error("DEBUG SET")
+        #else
+        #error("DEBUG NOT SET")
+        #endif
+        """
+      ],
+      buildServerConfigLocation: "buildServer.json",
+      buildServer: """
+        class BuildServer(AbstractBuildServer):
+          def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "targets": [
+                {
+                  "id": {"uri": "bsp://dummy"},
+                  "tags": [],
+                  "languageIds": [],
+                  "dependencies": [],
+                  "capabilities": {},
+                }
+              ]
+            }
+
+          def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "items": [
+                {
+                  "target": {"uri": "bsp://dummy"},
+                  "sources": [
+                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False}
+                  ],
+                }
+              ]
+            }
+
+          def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "compilerArguments": ["$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
+            }
+        """
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+
+    try await repeatUntilExpectedResult {
+      let diags = try await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+      )
+      return diags.fullReport?.items.map(\.message) == ["DEBUG SET"]
+    }
   }
 }
