@@ -29,4 +29,31 @@ final class AsyncUtilsTests: XCTestCase {
     }
     try await fulfillmentOfOrThrow([expectation])
   }
+
+  func testWithTimeoutReturnsImmediatelyEvenIfBodyDoesntCooperateInCancellation() async throws {
+    let start = Date()
+    await assertThrowsError(
+      try await withTimeout(.seconds(0.1)) { sleep(10) }
+    ) { error in
+      XCTAssert(error is TimeoutError, "Received unexpected error \(error)")
+    }
+    XCTAssert(Date().timeIntervalSince(start) < 5)
+  }
+
+  func testWithTimeoutEscalatesPriority() async throws {
+    let expectation = self.expectation(description: "Timeout started")
+    let task = Task(priority: .background) {
+      // We don't actually hit the timeout. It's just a large value.
+      try await withTimeout(.seconds(defaultTimeout * 2)) {
+        expectation.fulfill()
+        try await repeatUntilExpectedResult {
+          return Task.currentPriority > .background
+        }
+      }
+    }
+    try await fulfillmentOfOrThrow([expectation])
+    try await Task(priority: .high) {
+      try await task.value
+    }.value
+  }
 }
