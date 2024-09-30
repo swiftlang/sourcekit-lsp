@@ -113,7 +113,7 @@ package struct IndexCommand: AsyncParsableCommand {
 
     let messageHandler = IndexLogMessageHandler()
     let inProcessClient = try await InProcessSourceKitLSPClient(
-      toolchainRegistry: ToolchainRegistry(installPath: installPath),
+      toolchainPath: installPath?.asURL,
       options: options,
       workspaceFolders: [WorkspaceFolder(uri: DocumentURI(URL(fileURLWithPath: project)))],
       messageHandler: messageHandler

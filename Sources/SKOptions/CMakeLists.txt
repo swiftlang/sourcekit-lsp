@@ -1,6 +1,7 @@
 
 add_library(SKOptions STATIC
   BuildConfiguration.swift
+  ExperimentalFeatures.swift
   SourceKitLSPOptions.swift
   WorkspaceType.swift)
 set_target_properties(SKOptions PROPERTIES

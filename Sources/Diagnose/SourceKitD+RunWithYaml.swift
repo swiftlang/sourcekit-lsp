@@ -11,8 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 #if compiler(>=6)
+import Csourcekitd
 package import SourceKitD
 #else
+import Csourcekitd
 import SourceKitD
 #endif
 

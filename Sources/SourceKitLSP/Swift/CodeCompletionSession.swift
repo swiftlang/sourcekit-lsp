@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Csourcekitd
 import Dispatch
 import LanguageServerProtocol
 import SKLogging

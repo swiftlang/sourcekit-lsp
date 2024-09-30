@@ -16,7 +16,7 @@ import InProcessClient
 package import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 package import SKOptions
-package import SKSupport
+import SKSupport
 package import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax

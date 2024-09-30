@@ -12,20 +12,26 @@
 
 #if compiler(>=6)
 import BuildSystemIntegration
+public import Foundation
 public import LanguageServerProtocol
-public import SKOptions
+package import SKOptions
 import SKSupport
-public import SourceKitLSP
+import SourceKitLSP
 import SwiftExtensions
-public import ToolchainRegistry
+import ToolchainRegistry
+
+import struct TSCBasic.AbsolutePath
 #else
 import BuildSystemIntegration
+import Foundation
 import LanguageServerProtocol
 import SKOptions
 import SKSupport
 import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
+
+import struct TSCBasic.AbsolutePath
 #endif
 
 /// Launches a `SourceKitLSPServer` in-process and allows sending messages to it.
@@ -34,13 +40,27 @@ public final class InProcessSourceKitLSPClient: Sendable {
 
   private let nextRequestID = AtomicUInt32(initialValue: 0)
 
+  public convenience init(
+    toolchainPath: URL?,
+    capabilities: ClientCapabilities = ClientCapabilities(),
+    workspaceFolders: [WorkspaceFolder],
+    messageHandler: any MessageHandler
+  ) async throws {
+    try await self.init(
+      toolchainPath: toolchainPath,
+      options: SourceKitLSPOptions(),
+      capabilities: capabilities,
+      workspaceFolders: workspaceFolders,
+      messageHandler: messageHandler
+    )
+  }
+
   /// Create a new `SourceKitLSPServer`. An `InitializeRequest` is automatically sent to the server.
   ///
   /// `messageHandler` handles notifications and requests sent from the SourceKit-LSP server to the client.
-  public init(
-    toolchainRegistry: ToolchainRegistry,
+  package init(
+    toolchainPath: URL?,
     options: SourceKitLSPOptions = SourceKitLSPOptions(),
-    testHooks: TestHooks = TestHooks(),
     capabilities: ClientCapabilities = ClientCapabilities(),
     workspaceFolders: [WorkspaceFolder],
     messageHandler: any MessageHandler
@@ -48,9 +68,9 @@ public final class InProcessSourceKitLSPClient: Sendable {
     let serverToClientConnection = LocalConnection(receiverName: "client")
     self.server = SourceKitLSPServer(
       client: serverToClientConnection,
-      toolchainRegistry: toolchainRegistry,
+      toolchainRegistry: ToolchainRegistry(installPath: AbsolutePath(validatingOrNil: toolchainPath?.path)),
       options: options,
-      testHooks: testHooks,
+      testHooks: TestHooks(),
       onExit: {
         serverToClientConnection.close()
       }

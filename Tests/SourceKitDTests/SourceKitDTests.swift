@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Csourcekitd
 import Foundation
 import ISDBTestSupport
 import LanguageServerProtocol

@@ -11,12 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 #if compiler(>=6)
-@_exported public import Csourcekitd
+package import Csourcekitd
 import Dispatch
 import Foundation
 import SwiftExtensions
 #else
-@_exported import Csourcekitd
+import Csourcekitd
 import Dispatch
 import Foundation
 import SwiftExtensions
