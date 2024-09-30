@@ -10,6 +10,7 @@ add_library(SKSupport STATIC
   LineTable.swift
   LocalConnection.swift
   Process+Run.swift
+  QueueBasedMessageHandler.swift
   RequestAndReply.swift
   ResponseError+Init.swift
   SwitchableProcessResultExitStatus.swift

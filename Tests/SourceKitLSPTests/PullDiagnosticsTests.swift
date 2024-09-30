@@ -297,7 +297,7 @@ final class PullDiagnosticsTests: XCTestCase {
 
   func testDontReturnEmptyDiagnosticsIfDiagnosticRequestIsCancelled() async throws {
     let diagnosticRequestCancelled = self.expectation(description: "diagnostic request cancelled")
-    let packageLoadingDidFinish = self.expectation(description: "Package loading did finsish")
+    let packageLoadingDidFinish = self.expectation(description: "Package loading did finish")
     var testHooks = TestHooks()
     testHooks.buildSystemTestHooks.swiftPMTestHooks.reloadPackageDidFinish = {
       packageLoadingDidFinish.fulfill()

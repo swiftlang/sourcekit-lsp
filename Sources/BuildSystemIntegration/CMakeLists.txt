@@ -19,7 +19,6 @@ add_library(BuildSystemIntegration STATIC
   MainFilesProvider.swift
   PathPrefixMapping.swift
   PrefixMessageWithTaskEmoji.swift
-  QueueBasedMessageHandler.swift
   SplitShellCommand.swift
   SwiftPMBuildSystem.swift
   TestBuildSystem.swift)

@@ -240,9 +240,11 @@ private extension BuildSystemKind {
 
 /// Entry point for all build system queries.
 package actor BuildSystemManager: QueueBasedMessageHandler {
-  package static let signpostLoggingCategory: String = "build-system-manager-message-handling"
+  package let messageHandlingHelper = QueueBasedMessageHandlerHelper(
+    signpostLoggingCategory: "build-system-manager-message-handling",
+    createLoggingScope: false
+  )
 
-  /// The queue on which messages from the build system are handled.
   package let messageHandlingQueue = AsyncQueue<BuildSystemMessageDependencyTracker>()
 
   /// The root of the project that this build system manages.
@@ -471,7 +473,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
   // MARK: Handling messages from the build system
 
-  package func handleImpl(_ notification: some NotificationType) async {
+  package func handle(notification: some NotificationType) async {
     switch notification {
     case let notification as OnBuildTargetDidChangeNotification:
       await self.didChangeBuildTarget(notification: notification)
@@ -484,7 +486,12 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
   }
 
-  package func handleImpl<Request: RequestType>(_ request: RequestAndReply<Request>) async {
+  package func handle<Request: RequestType>(
+    request: Request,
+    id: RequestID,
+    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
+  ) async {
+    let request = RequestAndReply(request, reply: reply)
     switch request {
     case let request as RequestAndReply<BuildServerProtocol.CreateWorkDoneProgressRequest>:
       await request.reply { try await self.createWorkDoneProgress(request: request.params) }
@@ -814,7 +821,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       )
     }
     // Handle any messages the build system might have sent us while updating.
-    await self.messageHandlingQueue.async(metadata: .stateChange) {}.valuePropagatingCancellation
+    await messageHandlingQueue.async(metadata: .stateChange) {}.valuePropagatingCancellation
   }
 
   /// The root targets of the project have depth of 0 and all target dependencies have a greater depth than the target

@@ -45,7 +45,10 @@ package enum BuildSystemKind {
 
 /// A type that outwardly acts as a BSP build server and internally uses a `BuiltInBuildSystem` to satisfy the requests.
 actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
-  package static let signpostLoggingCategory: String = "build-system-message-handling"
+  let messageHandlingHelper = QueueBasedMessageHandlerHelper(
+    signpostLoggingCategory: "build-system-message-handling",
+    createLoggingScope: false
+  )
 
   /// The queue on which all messages from SourceKit-LSP (or more specifically `BuildSystemManager`) are handled.
   package let messageHandlingQueue = AsyncQueue<BuildSystemMessageDependencyTracker>()
@@ -94,7 +97,7 @@ actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
     )
   }
 
-  package func handleImpl(_ notification: some NotificationType) async {
+  package func handle(notification: some NotificationType) async {
     switch notification {
     case is OnBuildExitNotification:
       break
@@ -107,7 +110,12 @@ actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
     }
   }
 
-  package func handleImpl<Request: RequestType>(_ request: RequestAndReply<Request>) async {
+  func handle<Request: RequestType>(
+    request: Request,
+    id: RequestID,
+    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
+  ) async {
+    let request = RequestAndReply(request, reply: reply)
     switch request {
     case let request as RequestAndReply<BuildShutdownRequest>:
       await request.reply { VoidResponse() }

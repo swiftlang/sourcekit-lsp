@@ -10,14 +10,23 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import BuildServerProtocol
+package import LanguageServerProtocol
+import SKLogging
+import SKSupport
+import SwiftExtensions
+#else
 import BuildServerProtocol
 import LanguageServerProtocol
 import SKLogging
+import SKSupport
 import SwiftExtensions
+#endif
 
 /// A lightweight way of describing tasks that are created from handling BSP
 /// requests or notifications for the purpose of dependency tracking.
-package enum BuildSystemMessageDependencyTracker: DependencyTracker {
+package enum BuildSystemMessageDependencyTracker: QueueBasedMessageHandlerDependencyTracker {
   /// A task that modifies some state. It is a barrier for all requests that read state.
   case stateChange
 
@@ -42,7 +51,7 @@ package enum BuildSystemMessageDependencyTracker: DependencyTracker {
     }
   }
 
-  init(_ notification: any NotificationType) {
+  package init(_ notification: some NotificationType) {
     switch notification {
     case is FileOptionsChangedNotification:
       self = .stateChange
@@ -67,7 +76,7 @@ package enum BuildSystemMessageDependencyTracker: DependencyTracker {
     }
   }
 
-  init(_ request: any RequestType) {
+  package init(_ request: some RequestType) {
     switch request {
     case is BuildShutdownRequest:
       self = .stateChange

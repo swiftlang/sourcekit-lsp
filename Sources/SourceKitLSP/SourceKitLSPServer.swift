@@ -21,10 +21,10 @@ import LanguageServerProtocolJSONRPC
 import PackageLoading
 import SKLogging
 package import SKOptions
-import SKSupport
+package import SKSupport
 import SemanticIndex
 import SourceKitD
-import SwiftExtensions
+package import SwiftExtensions
 package import ToolchainRegistry
 
 import struct PackageModel.BuildFlags
@@ -63,22 +63,16 @@ package typealias Language = LanguageServerProtocol.Language
 /// and cross-language support. Requests may be dispatched to language-specific services or handled
 /// centrally, but this is transparent to the client.
 package actor SourceKitLSPServer {
-  /// The queue on which all messages (notifications, requests, responses) are
-  /// handled.
-  ///
-  /// The queue is blocked until the message has been sufficiently handled to
-  /// avoid out-of-order handling of messages. For sourcekitd, this means that
-  /// a request has been sent to sourcekitd and for clangd, this means that we
-  /// have forwarded the request to clangd.
-  ///
-  /// The actual semantic handling of the message happens off this queue.
-  private let messageHandlingQueue = AsyncQueue<MessageHandlingDependencyTracker>()
+  package let messageHandlingHelper = QueueBasedMessageHandlerHelper(
+    signpostLoggingCategory: "message-handling",
+    createLoggingScope: true
+  )
 
-  /// The queue on which we start and stop keeping track of cancellation.
-  ///
-  /// Having a queue for this ensures that we started keeping track of a
-  /// request's task before handling any cancellation request for it.
-  private let cancellationMessageHandlingQueue = AsyncQueue<Serial>()
+  package let messageHandlingQueue = AsyncQueue<MessageHandlingDependencyTracker>()
+
+  /// The queue on which we keep track of `inProgressTextDocumentRequests` to ensure updates to
+  /// `inProgressTextDocumentRequests` are handled in order.
+  package let textDocumentTrackingQueue = AsyncQueue<Serial>()
 
   /// The queue on which all modifications of `workspaceForUri` happen. This means that the value of
   /// `workspacesAndIsImplicit` and `workspaceForUri` can't change while executing a closure on `workspaceQueue`.
@@ -158,39 +152,8 @@ package actor SourceKitLSPServer {
     }
   }
 
-  /// The requests that we are currently handling.
-  ///
-  /// Used to cancel the tasks if the client requests cancellation.
-  private var inProgressRequestsByID: [RequestID: Task<(), Never>] = [:]
-
   /// For all currently handled text document requests a mapping from the document to the corresponding request ID.
   private var inProgressTextDocumentRequests: [DocumentURI: Set<RequestID>] = [:]
-
-  /// Up to 10 request IDs that have recently finished.
-  ///
-  /// This is only used so we don't log an error when receiving a `CancelRequestNotification` for a request that has
-  /// just returned a response.
-  private var recentlyFinishedRequests: [RequestID] = []
-
-  /// - Note: Needed so we can set an in-progress request from a different
-  ///   isolation context.
-  private func setInProgressRequest(for id: RequestID, _ request: some RequestType, task: Task<(), Never>?) {
-    self.inProgressRequestsByID[id] = task
-    if task == nil {
-      recentlyFinishedRequests.append(id)
-      while recentlyFinishedRequests.count > 10 {
-        recentlyFinishedRequests.removeFirst()
-      }
-    }
-
-    if let request = request as? any TextDocumentRequest {
-      if task == nil {
-        inProgressTextDocumentRequests[request.textDocument.uri, default: []].remove(id)
-      } else {
-        inProgressTextDocumentRequests[request.textDocument.uri, default: []].insert(id)
-      }
-    }
-  }
 
   var onExit: () -> Void
 
@@ -588,44 +551,50 @@ package actor SourceKitLSPServer {
 
 // MARK: - MessageHandler
 
-private let notificationIDForLogging = AtomicUInt32(initialValue: 1)
-
-extension SourceKitLSPServer: MessageHandler {
-  package nonisolated func handle(_ params: some NotificationType) {
-    let notificationID = notificationIDForLogging.fetchAndIncrement()
-    withLoggingScope("notification-\(notificationID % 100)") {
-      // Request cancellation needs to be able to overtake any other message we
-      // are currently handling. Ordering is not important here. We thus don't
-      // need to execute it on `messageHandlingQueue`.
-      switch params {
-      case let params as CancelRequestNotification:
-        self.cancelRequest(params)
-        return
-      case let params as DidChangeTextDocumentNotification:
-        self.cancelTextDocumentRequests(for: params.textDocument.uri)
-      case let params as DidCloseTextDocumentNotification:
-        self.cancelTextDocumentRequests(for: params.textDocument.uri)
-      default:
-        break
-      }
-
-      let signposter = Logger(subsystem: LoggingScope.subsystem, category: "message-handling")
-        .makeSignposter()
-      let signpostID = signposter.makeSignpostID()
-      let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: params))")
-      messageHandlingQueue.async(metadata: MessageHandlingDependencyTracker(params)) {
-        signposter.emitEvent("Start handling", id: signpostID)
-
-        // Only use the last two digits of the notification ID for the logging scope to avoid creating too many scopes.
-        // See comment in `withLoggingScope`.
-        // The last 2 digits should be sufficient to differentiate between multiple concurrently running notifications.
-        await self.handleImpl(params)
-        signposter.endInterval("Notification", state, "Done")
-      }
+extension SourceKitLSPServer: QueueBasedMessageHandler {
+  package nonisolated func didReceive(notification: some NotificationType) {
+    let textDocumentUri: DocumentURI
+    switch notification {
+    case let params as DidChangeTextDocumentNotification:
+      textDocumentUri = params.textDocument.uri
+    case let params as DidCloseTextDocumentNotification:
+      textDocumentUri = params.textDocument.uri
+    default:
+      return
+    }
+    textDocumentTrackingQueue.async(priority: .high) {
+      await self.cancelTextDocumentRequests(for: textDocumentUri)
     }
   }
 
-  private func handleImpl(_ notification: some NotificationType) async {
+  /// Cancel all in-progress text document requests for the given document.
+  ///
+  /// As a user makes an edit to a file, these requests are most likely no longer relevant. It also makes sure that a
+  /// long-running sourcekitd request can't block the entire language server if the client does not cancel all requests.
+  /// For example, consider the following sequence of requests:
+  ///  - `textDocument/semanticTokens/full` for document A
+  ///  - `textDocument/didChange` for document A
+  ///  - `textDocument/formatting` for document A
+  ///
+  /// If the editor is not cancelling the semantic tokens request on edit (like VS Code does), then the `didChange`
+  /// notification is blocked on the semantic tokens request finishing. Hence, we also can't run the
+  /// `textDocument/formatting` request. Cancelling the semantic tokens on the edit fixes the issue.
+  ///
+  /// This method is a no-op if `cancelTextDocumentRequestsOnEditAndClose` is disabled.
+  ///
+  /// - Important: Should be invoked on `textDocumentTrackingQueue` to ensure that new text document requests are
+  ///   registered before a notification that triggers cancellation might come in.
+  private func cancelTextDocumentRequests(for uri: DocumentURI) {
+    guard self.options.cancelTextDocumentRequestsOnEditAndCloseOrDefault else {
+      return
+    }
+    for requestID in self.inProgressTextDocumentRequests[uri, default: []] {
+      logger.info("Implicitly cancelling request \(requestID)")
+      self.messageHandlingHelper.cancelRequest(id: requestID)
+    }
+  }
+
+  package func handle(notification: some NotificationType) async {
     logger.log("Received notification: \(notification.forLogging)")
 
     switch notification {
@@ -655,48 +624,34 @@ extension SourceKitLSPServer: MessageHandler {
     }
   }
 
-  package nonisolated func handle<R: RequestType>(
-    _ params: R,
-    id: RequestID,
-    reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
-  ) {
-    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "message-handling").makeSignposter()
-    let signpostID = signposter.makeSignpostID()
-    let state = signposter.beginInterval("Request", id: signpostID, "\(R.self)")
-
-    let task = messageHandlingQueue.async(metadata: MessageHandlingDependencyTracker(params)) {
-      signposter.emitEvent("Start handling", id: signpostID)
-      // Only use the last two digits of the request ID for the logging scope to avoid creating too many scopes.
-      // See comment in `withLoggingScope`.
-      // The last 2 digits should be sufficient to differentiate between multiple concurrently running requests.
-      await withLoggingScope("request-\(id.numericValue % 100)") {
-        await withTaskCancellationHandler {
-          await self.testHooks.handleRequest?(params)
-          await self.handleImpl(params, id: id, reply: reply)
-          signposter.endInterval("Request", state, "Done")
-        } onCancel: {
-          signposter.emitEvent("Cancelled", id: signpostID)
-        }
-      }
-      // We have handled the request and can't cancel it anymore.
-      // Stop keeping track of it to free the memory.
-      self.cancellationMessageHandlingQueue.async(priority: .background) {
-        await self.setInProgressRequest(for: id, params, task: nil)
-      }
+  package nonisolated func didReceive(request: some RequestType, id: RequestID) {
+    guard let request = request as? any TextDocumentRequest else {
+      return
     }
-    // Keep track of the ID -> Task management with low priority. Once we cancel
-    // a request, the cancellation task runs with a high priority and depends on
-    // this task, which will elevate this task's priority.
-    cancellationMessageHandlingQueue.async(priority: .background) {
-      await self.setInProgressRequest(for: id, params, task: task)
+    textDocumentTrackingQueue.async(priority: .background) {
+      await self.registerInProgressTextDocumentRequest(request, id: id)
     }
   }
 
-  private func handleImpl<R: RequestType>(
-    _ params: R,
+  /// - Important: Should be invoked on `textDocumentTrackingQueue` to ensure that new text document requests are
+  ///   registered before a notification that triggers cancellation might come in.
+  private func registerInProgressTextDocumentRequest(_ request: any TextDocumentRequest, id: RequestID) {
+    self.inProgressTextDocumentRequests[request.textDocument.uri, default: []].insert(id)
+  }
+
+  package func handle<Request: RequestType>(
+    request params: Request,
     id: RequestID,
-    reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
+    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
   ) async {
+    defer {
+      if let request = params as? any TextDocumentRequest {
+        self.inProgressTextDocumentRequests[request.textDocument.uri, default: []].remove(id)
+      }
+    }
+
+    await self.testHooks.handleRequest?(params)
+
     let startDate = Date()
 
     let request = RequestAndReply(params) { result in
@@ -708,7 +663,7 @@ extension SourceKitLSPServer: MessageHandler {
           logger.log(
             """
             Succeeded (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
-            \(R.method, privacy: .public)
+            \(Request.method, privacy: .public)
             \(response.forLogging)
             """
           )
@@ -716,7 +671,7 @@ extension SourceKitLSPServer: MessageHandler {
           logger.log(
             """
             Failed (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
-            \(R.method, privacy: .public)(\(id, privacy: .public))
+            \(Request.method, privacy: .public)(\(id, privacy: .public))
             \(error.forLogging, privacy: .private)
             """
           )
@@ -821,7 +776,7 @@ extension SourceKitLSPServer: MessageHandler {
       await request.reply { try await workspaceTests(request.params) }
     // IMPORTANT: When adding a new entry to this switch, also add it to the `MessageHandlingDependencyTracker` initializer.
     default:
-      await request.reply { throw ResponseError.methodNotFound(R.method) }
+      await request.reply { throw ResponseError.methodNotFound(Request.method) }
     }
   }
 }
@@ -1151,54 +1106,6 @@ extension SourceKitLSPServer {
 
   func clientInitialized(_: InitializedNotification) {
     // Nothing to do.
-  }
-
-  private nonisolated func cancelRequest(_ notification: CancelRequestNotification) {
-    // Since the request is very cheap to execute and stops other requests
-    // from performing more work, we execute it with a high priority.
-    cancellationMessageHandlingQueue.async(priority: .high) {
-      if let task = await self.inProgressRequestsByID[notification.id] {
-        task.cancel()
-        return
-      }
-      if await !self.recentlyFinishedRequests.contains(notification.id) {
-        logger.error(
-          "Cannot cancel request \(notification.id, privacy: .public) because it hasn't been scheduled for execution yet"
-        )
-      }
-    }
-  }
-
-  /// Cancel all in-progress text document requests for the given document.
-  ///
-  /// As a user makes an edit to a file, these requests are most likely no longer relevant. It also makes sure that a
-  /// long-running sourcekitd request can't block the entire language server if the client does not cancel all requests.
-  /// For example, consider the following sequence of requests:
-  ///  - `textDocument/semanticTokens/full` for document A
-  ///  - `textDocument/didChange` for document A
-  ///  - `textDocument/formatting` for document A
-  ///
-  /// If the editor is not cancelling the semantic tokens request on edit (like VS Code does), then the `didChange`
-  /// notification is blocked on the semantic tokens request finishing. Hence, we also can't run the
-  /// `textDocument/formatting` request. Cancelling the semantic tokens on the edit fixes the issue.
-  ///
-  /// This method is a no-op if `cancelTextDocumentRequestsOnEditAndClose` is disabled.
-  private nonisolated func cancelTextDocumentRequests(for uri: DocumentURI) {
-    // Since the request is very cheap to execute and stops other requests
-    // from performing more work, we execute it with a high priority.
-    cancellationMessageHandlingQueue.async(priority: .high) {
-      await self.cancelTextDocumentRequestsImpl(for: uri)
-    }
-  }
-
-  private func cancelTextDocumentRequestsImpl(for uri: DocumentURI) {
-    guard self.options.cancelTextDocumentRequestsOnEditAndCloseOrDefault else {
-      return
-    }
-    for requestID in self.inProgressTextDocumentRequests[uri, default: []] {
-      logger.info("Implicitly cancelling request \(requestID)")
-      self.inProgressRequestsByID[requestID]?.cancel()
-    }
   }
 
   /// The server is about to exit, and the server should flush any buffered state.
@@ -2628,19 +2535,6 @@ fileprivate func transitiveSubtypeClosure(ofUsrs usrs: [String], index: CheckedI
     result += transitiveSubtypes
   }
   return result
-}
-
-fileprivate extension RequestID {
-  /// Returns a numeric value for this request ID.
-  ///
-  /// For request IDs that are numbers, this is straightforward. For string-based request IDs, this uses a hash to
-  /// convert the string into a number.
-  var numericValue: Int {
-    switch self {
-    case .number(let number): return number
-    case .string(let string): return Int(string) ?? abs(string.hashValue)
-    }
-  }
 }
 
 fileprivate extension Sequence where Element: Hashable {
