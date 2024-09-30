@@ -10,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+public import LanguageServerProtocol
+#else
 import LanguageServerProtocol
+#endif
 
 /// Like the language server protocol, the initialize request is sent
 /// as the first request from the client to the server. If the server

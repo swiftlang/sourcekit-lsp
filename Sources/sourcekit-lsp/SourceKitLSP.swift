@@ -10,6 +10,26 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+public import ArgumentParser
+import BuildSystemIntegration
+import Csourcekitd  // Not needed here, but fixes debugging...
+import Diagnose
+import Dispatch
+import Foundation
+import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
+import SKLogging
+import SKOptions
+import SKSupport
+import SourceKitLSP
+import SwiftExtensions
+import ToolchainRegistry
+
+public import struct TSCBasic.AbsolutePath
+public import struct TSCBasic.RelativePath
+public import var TSCBasic.localFileSystem
+#else
 import ArgumentParser
 import BuildSystemIntegration
 import Csourcekitd  // Not needed here, but fixes debugging...
@@ -28,6 +48,7 @@ import ToolchainRegistry
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 import var TSCBasic.localFileSystem
+#endif
 
 extension AbsolutePath {
   public init?(argument: String) {

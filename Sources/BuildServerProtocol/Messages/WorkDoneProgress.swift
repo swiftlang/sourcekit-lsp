@@ -10,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+public import LanguageServerProtocol
+#else
 import LanguageServerProtocol
+#endif
 
 public typealias CreateWorkDoneProgressRequest = LanguageServerProtocol.CreateWorkDoneProgressRequest
 public typealias WorkDoneProgress = LanguageServerProtocol.WorkDoneProgress

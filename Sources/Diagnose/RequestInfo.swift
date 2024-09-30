@@ -10,8 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+import RegexBuilder
+#else
 import Foundation
 import RegexBuilder
+#endif
 
 /// All the information necessary to replay a sourcektid request.
 package struct RequestInfo: Sendable {

@@ -10,11 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+public import Dispatch
+public import Foundation
+public import LanguageServerProtocol
+import SKLogging
+import SwiftExtensions
+#else
 import Dispatch
 import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SwiftExtensions
+#endif
 
 #if canImport(CDispatch)
 import struct CDispatch.dispatch_fd_t

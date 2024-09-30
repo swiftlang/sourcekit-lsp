@@ -10,8 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+import ToolchainRegistry
+#else
 import Foundation
 import ToolchainRegistry
+#endif
 
 extension Toolchain {
   /// The path to `swift-frontend` in the toolchain, found relative to `swift`.

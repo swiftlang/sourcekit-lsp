@@ -10,12 +10,21 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import LanguageServerProtocol
+import SKLogging
+package import SKOptions
+import ToolchainRegistry
+
+import struct TSCBasic.AbsolutePath
+#else
 import LanguageServerProtocol
 import SKLogging
 import SKOptions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
+#endif
 
 /// Determine which build system should be started to handle the given workspace folder and at which folder that build
 /// system's project root is (see `BuiltInBuildSystem.projectRoot(for:options:)`).

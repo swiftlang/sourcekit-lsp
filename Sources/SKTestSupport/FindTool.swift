@@ -10,9 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+
+import class TSCBasic.Process
+#else
 import Foundation
 
 import class TSCBasic.Process
+#endif
 
 #if os(Windows)
 import WinSDK

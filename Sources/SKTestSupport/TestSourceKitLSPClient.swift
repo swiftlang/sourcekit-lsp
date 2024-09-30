@@ -10,6 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Foundation
+import InProcessClient
+package import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
+package import SKOptions
+package import SKSupport
+package import SourceKitLSP
+import SwiftExtensions
+import SwiftSyntax
+import ToolchainRegistry
+import XCTest
+#else
 import Foundation
 import InProcessClient
 import LanguageServerProtocol
@@ -21,6 +34,7 @@ import SwiftExtensions
 import SwiftSyntax
 import ToolchainRegistry
 import XCTest
+#endif
 
 extension SourceKitLSPOptions {
   package static func testDefault(experimentalFeatures: Set<ExperimentalFeature>? = nil) -> SourceKitLSPOptions {

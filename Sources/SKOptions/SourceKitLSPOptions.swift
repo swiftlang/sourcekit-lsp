@@ -10,12 +10,21 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+public import Foundation
+public import LanguageServerProtocol
+public import SKLogging
+public import SKSupport
+
+public import struct TSCBasic.AbsolutePath
+#else
 import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SKSupport
 
 import struct TSCBasic.AbsolutePath
+#endif
 
 /// Options that can be used to modify SourceKit-LSP's behavior.
 ///

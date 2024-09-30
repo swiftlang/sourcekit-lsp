@@ -10,6 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import BuildSystemIntegration
+public import LanguageServerProtocol
+public import SKOptions
+import SKSupport
+public import SourceKitLSP
+import SwiftExtensions
+public import ToolchainRegistry
+#else
 import BuildSystemIntegration
 import LanguageServerProtocol
 import SKOptions
@@ -17,6 +26,7 @@ import SKSupport
 import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
+#endif
 
 /// Launches a `SourceKitLSPServer` in-process and allows sending messages to it.
 public final class InProcessSourceKitLSPClient: Sendable {

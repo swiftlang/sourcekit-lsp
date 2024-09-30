@@ -10,11 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import BuildSystemIntegration
+import Foundation
+package import LanguageServerProtocol
+import SKLogging
+import SemanticIndex
+#else
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SemanticIndex
+#endif
 
 extension UncheckedIndex {
   package func mainFilesContainingFile(_ uri: DocumentURI) -> Set<DocumentURI> {

@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SKSupport
@@ -17,7 +18,6 @@ import SourceKitD
 import SwiftDiagnostics
 
 extension CodeAction {
-
   /// Creates a CodeAction from a list for sourcekit fixits.
   ///
   /// If this is from a note, the note's description should be passed as `fromNote`.

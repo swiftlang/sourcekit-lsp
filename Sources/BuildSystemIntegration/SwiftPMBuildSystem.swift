@@ -10,6 +10,37 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Basics
+@preconcurrency import Build
+package import BuildServerProtocol
+import Dispatch
+import Foundation
+package import LanguageServerProtocol
+@preconcurrency import PackageGraph
+import PackageLoading
+import PackageModel
+import SKLogging
+package import SKOptions
+import SKSupport
+@preconcurrency package import SPMBuildCore
+import SourceControl
+package import SourceKitLSPAPI
+import SwiftExtensions
+package import ToolchainRegistry
+@preconcurrency import Workspace
+
+package import struct Basics.AbsolutePath
+package import struct Basics.IdentifiableSet
+package import struct Basics.TSCAbsolutePath
+import struct Foundation.URL
+package import struct TSCBasic.AbsolutePath
+package import protocol TSCBasic.FileSystem
+package import class TSCBasic.Process
+package import var TSCBasic.localFileSystem
+package import func TSCBasic.resolveSymlinks
+package import class ToolchainRegistry.Toolchain
+#else
 import Basics
 @preconcurrency import Build
 import BuildServerProtocol
@@ -22,6 +53,7 @@ import PackageModel
 import SKLogging
 import SKOptions
 import SKSupport
+@preconcurrency import SPMBuildCore
 import SourceControl
 import SourceKitLSPAPI
 import SwiftExtensions
@@ -38,12 +70,9 @@ import class TSCBasic.Process
 import var TSCBasic.localFileSystem
 import func TSCBasic.resolveSymlinks
 import class ToolchainRegistry.Toolchain
+#endif
 
 fileprivate typealias AbsolutePath = Basics.AbsolutePath
-
-#if canImport(SPMBuildCore)
-@preconcurrency import SPMBuildCore
-#endif
 
 /// A build target in SwiftPM
 package typealias SwiftBuildTarget = SourceKitLSPAPI.BuildTarget

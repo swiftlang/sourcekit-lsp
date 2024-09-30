@@ -10,9 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+package import LanguageServerProtocol
+import RegexBuilder
+#else
 import Foundation
 import LanguageServerProtocol
 import RegexBuilder
+#endif
 
 /// Represents url of macro expansion reference document as follows:
 /// `sourcekit-lsp://swift-macro-expansion/LaCb-LcCd.swift?fromLine=&fromColumn=&toLine=&toColumn=&bufferName=&parent=`

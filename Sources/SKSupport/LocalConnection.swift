@@ -10,10 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Dispatch
+package import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
+import SKLogging
+#else
 import Dispatch
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKLogging
+#endif
 
 /// A connection between two message handlers in the same process.
 ///

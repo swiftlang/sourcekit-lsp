@@ -10,6 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import ArgumentParser
+import Foundation
+import SKSupport
+import SourceKitD
+import ToolchainRegistry
+
+import struct TSCBasic.AbsolutePath
+#else
 import ArgumentParser
 import Foundation
 import SKSupport
@@ -17,6 +26,7 @@ import SourceKitD
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
+#endif
 
 package struct RunSourceKitdRequestCommand: AsyncParsableCommand {
   package static let configuration = CommandConfiguration(

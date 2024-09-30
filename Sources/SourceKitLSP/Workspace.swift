@@ -10,6 +10,21 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import BuildServerProtocol
+package import BuildSystemIntegration
+import IndexStoreDB
+package import LanguageServerProtocol
+import SKLogging
+package import SKOptions
+import SKSupport
+package import SemanticIndex
+import SwiftExtensions
+import ToolchainRegistry
+
+import struct TSCBasic.AbsolutePath
+import struct TSCBasic.RelativePath
+#else
 import BuildServerProtocol
 import BuildSystemIntegration
 import IndexStoreDB
@@ -23,6 +38,7 @@ import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
+#endif
 
 /// Same as `??` but allows the right-hand side of the operator to 'await'.
 fileprivate func firstNonNil<T>(_ optional: T?, _ defaultValue: @autoclosure () async throws -> T) async rethrows -> T {

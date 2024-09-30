@@ -10,10 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Foundation
+package import SKLogging
+import SKSupport
+import SwiftExtensions
+#else
 import Foundation
 import SKLogging
 import SKSupport
 import SwiftExtensions
+#endif
 
 /// See comment on ``TaskDescriptionProtocol/dependencies(to:taskPriority:)``
 package enum TaskDependencyAction<TaskDescription: TaskDescriptionProtocol> {

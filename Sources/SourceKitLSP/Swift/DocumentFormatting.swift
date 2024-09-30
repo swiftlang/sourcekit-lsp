@@ -10,6 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Foundation
+package import LanguageServerProtocol
+import SKLogging
+import SwiftParser
+import SwiftSyntax
+
+import struct TSCBasic.AbsolutePath
+import class TSCBasic.Process
+import func TSCBasic.withTemporaryFile
+#else
 import Foundation
 import LanguageServerProtocol
 import SKLogging
@@ -19,6 +30,7 @@ import SwiftSyntax
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import func TSCBasic.withTemporaryFile
+#endif
 
 fileprivate extension String {
   init?(bytes: [UInt8], encoding: Encoding) {

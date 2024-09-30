@@ -10,6 +10,28 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import BuildServerProtocol
+import BuildSystemIntegration
+import Dispatch
+import Foundation
+import IndexStoreDB
+package import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
+import PackageLoading
+import SKLogging
+package import SKOptions
+import SKSupport
+import SemanticIndex
+import SourceKitD
+import SwiftExtensions
+package import ToolchainRegistry
+
+import struct PackageModel.BuildFlags
+import struct TSCBasic.AbsolutePath
+import protocol TSCBasic.FileSystem
+import var TSCBasic.localFileSystem
+#else
 import BuildServerProtocol
 import BuildSystemIntegration
 import Dispatch
@@ -30,8 +52,7 @@ import struct PackageModel.BuildFlags
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 import var TSCBasic.localFileSystem
-
-package typealias URL = Foundation.URL
+#endif
 
 /// Disambiguate LanguageServerProtocol.Language and IndexstoreDB.Language
 package typealias Language = LanguageServerProtocol.Language

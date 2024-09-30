@@ -10,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import SourceKitD
+#else
 import SourceKitD
+#endif
 
 extension SourceKitD {
   /// Parse the request from YAML and execute it.

@@ -10,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+public import LanguageServerProtocol
+#else
 import LanguageServerProtocol
+#endif
 
 /// Notification sent from SourceKit-LSP to the build system to indicate that files within the project have been modified.
 public typealias OnWatchedFilesDidChangeNotification = LanguageServerProtocol.DidChangeWatchedFilesNotification

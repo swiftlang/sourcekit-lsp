@@ -10,9 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+public import Foundation
+
+public import struct TSCBasic.ByteString
+#else
 import Foundation
 
 import struct TSCBasic.ByteString
+#endif
 
 extension ByteString {
 

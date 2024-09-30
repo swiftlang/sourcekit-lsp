@@ -10,11 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import ArgumentParser
+import Foundation
+import RegexBuilder
+
+import class TSCBasic.Process
+#else
 import ArgumentParser
 import Foundation
 import RegexBuilder
 
 import class TSCBasic.Process
+#endif
 
 package struct ActiveRequestsCommand: AsyncParsableCommand {
   package static let configuration: CommandConfiguration = CommandConfiguration(

@@ -10,8 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+package import LanguageServerProtocol
+import SKSupport
+#else
+import Foundation
 import LanguageServerProtocol
 import SKSupport
+#endif
 
 package extension DocumentSnapshot {
   /// Creates a `DocumentSnapshot` with the file contents from disk.

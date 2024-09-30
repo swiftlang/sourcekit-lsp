@@ -10,6 +10,25 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import BuildSystemIntegration
+import Dispatch
+import Foundation
+import IndexStoreDB
+package import LanguageServerProtocol
+import SKLogging
+package import SKOptions
+import SKSupport
+import SemanticIndex
+package import SourceKitD
+import SwiftExtensions
+import SwiftParser
+import SwiftParserDiagnostics
+package import SwiftSyntax
+package import ToolchainRegistry
+
+import struct TSCBasic.AbsolutePath
+#else
 import BuildSystemIntegration
 import Dispatch
 import Foundation
@@ -27,6 +46,7 @@ import SwiftSyntax
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
+#endif
 
 #if os(Windows)
 import WinSDK

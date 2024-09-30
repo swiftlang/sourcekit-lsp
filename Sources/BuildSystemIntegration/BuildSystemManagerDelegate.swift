@@ -10,8 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import BuildServerProtocol
+package import LanguageServerProtocol
+#else
 import BuildServerProtocol
 import LanguageServerProtocol
+#endif
 
 /// Handles build system events, such as file build settings changes.
 package protocol BuildSystemManagerDelegate: AnyObject, Sendable {

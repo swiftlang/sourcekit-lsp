@@ -3,6 +3,11 @@
 import Foundation
 import PackageDescription
 
+/// Swift settings that should be applied to every Swift target.
+let globalSwiftSettings: [SwiftSetting] = [
+  .enableUpcomingFeature("InternalImportsByDefault")
+]
+
 let package = Package(
   name: "SourceKitLSP",
   platforms: [.macOS(.v13)],
@@ -36,6 +41,7 @@ let package = Package(
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
       exclude: ["CMakeLists.txt"],
+      swiftSettings: globalSwiftSettings,
       linkerSettings: sourcekitLSPLinkSettings
     ),
 
@@ -46,7 +52,8 @@ let package = Package(
       dependencies: [
         "LanguageServerProtocol"
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: globalSwiftSettings
     ),
 
     // MARK: BuildSystemIntegration
@@ -67,7 +74,8 @@ let package = Package(
         .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: globalSwiftSettings
     ),
 
     .testTarget(
@@ -79,7 +87,8 @@ let package = Package(
         "SKTestSupport",
         "SourceKitLSP",
         "ToolchainRegistry",
-      ]
+      ],
+      swiftSettings: globalSwiftSettings
     ),
 
     // MARK: CAtomics
@@ -124,7 +133,8 @@ let package = Package(
         .product(name: "SwiftParser", package: "swift-syntax"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: globalSwiftSettings
     ),
 
     .testTarget(
@@ -137,7 +147,8 @@ let package = Package(
         "SourceKitD",
         "ToolchainRegistry",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-      ]
+      ],
+      swiftSettings: globalSwiftSettings
     ),
 
     // MARK: InProcessClient
@@ -152,7 +163,8 @@ let package = Package(
         "SourceKitLSP",
         "ToolchainRegistry",
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: globalSwiftSettings
     ),
 
     // MARK: LanguageServerProtocol
@@ -160,7 +172,8 @@ let package = Package(
     .target(
       name: "LanguageServerProtocol",
       dependencies: [],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: globalSwiftSettings
     ),
 
     .testTarget(
@@ -168,7 +181,8 @@ let package = Package(
       dependencies: [
         "LanguageServerProtocol",
         "SKTestSupport",
-      ]
+      ],
+      swiftSettings: globalSwiftSettings
     ),
 
     // MARK: LanguageServerProtocolJSONRPC
@@ -180,7 +194,8 @@ let package = Package(
         "SKLogging",
         "SwiftExtensions",
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: globalSwiftSettings
     ),
 
     .testTarget(
@@ -188,7 +203,8 @@ let package = Package(
       dependencies: [
         "LanguageServerProtocolJSONRPC",
         "SKTestSupport",
-      ]
+      ],
+      swiftSettings: globalSwiftSettings
     ),
 
     // MARK: SemanticIndex
@@ -203,7 +219,8 @@ let package = Package(
         "ToolchainRegistry",
         .product(name: "IndexStoreDB", package: "indexstore-db"),
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: globalSwiftSettings
     ),
 
     .testTarget(
@@ -212,7 +229,8 @@ let package = Package(
         "SemanticIndex",
         "SKLogging",
         "SKTestSupport",
-      ]
+      ],
+      swiftSettings: globalSwiftSettings
     ),
 
     // MARK: SKLogging
@@ -224,7 +242,7 @@ let package = Package(
         .product(name: "Crypto", package: "swift-crypto"),
       ],
       exclude: ["CMakeLists.txt"],
-      swiftSettings: lspLoggingSwiftSettings
+      swiftSettings: globalSwiftSettings + lspLoggingSwiftSettings
     ),
 
     .testTarget(
@@ -232,7 +250,8 @@ let package = Package(
       dependencies: [
         "SKLogging",
         "SKTestSupport",
-      ]
+      ],
+      swiftSettings: globalSwiftSettings
     ),
 
     // MARK: SKOptions
@@ -245,7 +264,8 @@ let package = Package(
         "SKSupport",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: globalSwiftSettings
     ),
 
     // MARK: SKSupport
@@ -260,7 +280,8 @@ let package = Package(
         "SwiftExtensions",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: globalSwiftSettings
     ),
 
     .testTarget(
@@ -269,7 +290,8 @@ let package = Package(
         "SKSupport",
         "SKTestSupport",
         "SwiftExtensions",
-      ]
+      ],
+      swiftSettings: globalSwiftSettings
     ),
 
     // MARK: SKTestSupport
@@ -291,7 +313,8 @@ let package = Package(
         .product(name: "ISDBTestSupport", package: "indexstore-db"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      resources: [.copy("INPUTS")]
+      resources: [.copy("INPUTS")],
+      swiftSettings: globalSwiftSettings
     ),
 
     // MARK: SourceKitD
@@ -304,7 +327,8 @@ let package = Package(
         "SwiftExtensions",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      exclude: ["CMakeLists.txt", "sourcekitd_uids.swift.gyb"]
+      exclude: ["CMakeLists.txt", "sourcekitd_uids.swift.gyb"],
+      swiftSettings: globalSwiftSettings
     ),
 
     .testTarget(
@@ -315,7 +339,8 @@ let package = Package(
         "SKTestSupport",
         "SwiftExtensions",
         "ToolchainRegistry",
-      ]
+      ],
+      swiftSettings: globalSwiftSettings
     ),
 
     // MARK: SourceKitLSP
@@ -346,7 +371,8 @@ let package = Package(
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         .product(name: "SwiftPM-auto", package: "swift-package-manager"),
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: globalSwiftSettings
     ),
 
     .testTarget(
@@ -372,7 +398,8 @@ let package = Package(
         // be used by test cases that test macros (see `SwiftPMTestProject.macroPackageManifest`).
         .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
         .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
-      ]
+      ],
+      swiftSettings: globalSwiftSettings
     ),
 
     // MARK: SwiftExtensions
@@ -380,7 +407,8 @@ let package = Package(
     .target(
       name: "SwiftExtensions",
       dependencies: ["CAtomics"],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: globalSwiftSettings
     ),
 
     // MARK: ToolchainRegistry
@@ -394,7 +422,8 @@ let package = Package(
         .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: globalSwiftSettings
     ),
 
     .testTarget(
@@ -404,7 +433,8 @@ let package = Package(
         "ToolchainRegistry",
         .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-      ]
+      ],
+      swiftSettings: globalSwiftSettings
     ),
   ],
   swiftLanguageVersions: [.v5, .version("6")]

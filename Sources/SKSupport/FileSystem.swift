@@ -13,7 +13,11 @@
 import Foundation
 import SwiftExtensions
 
+#if compiler(>=6)
+package import struct TSCBasic.AbsolutePath
+#else
 import struct TSCBasic.AbsolutePath
+#endif
 
 extension AbsolutePath {
 

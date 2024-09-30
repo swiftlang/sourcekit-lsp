@@ -13,10 +13,18 @@
 import RegexBuilder
 
 #if canImport(Darwin)
+#if compiler(>=6)
+package import Foundation
+#else
 import Foundation
+#endif
 #else
 // TODO: @preconcurrency needed because stderr is not sendable on Linux https://github.com/swiftlang/swift/issues/75601
+#if compiler(>=6)
+@preconcurrency package import Foundation
+#else
 @preconcurrency import Foundation
+#endif
 #endif
 
 #if os(Windows)

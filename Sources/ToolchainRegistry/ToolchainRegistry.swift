@@ -13,6 +13,15 @@
 import Dispatch
 import SKSupport
 
+#if compiler(>=6)
+public import struct TSCBasic.AbsolutePath
+public import protocol TSCBasic.FileSystem
+public import class TSCBasic.Process
+public import enum TSCBasic.ProcessEnv
+public import struct TSCBasic.ProcessEnvironmentKey
+public import func TSCBasic.getEnvSearchPaths
+public import var TSCBasic.localFileSystem
+#else
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 import class TSCBasic.Process
@@ -20,6 +29,7 @@ import enum TSCBasic.ProcessEnv
 import struct TSCBasic.ProcessEnvironmentKey
 import func TSCBasic.getEnvSearchPaths
 import var TSCBasic.localFileSystem
+#endif
 
 /// Set of known toolchains.
 ///

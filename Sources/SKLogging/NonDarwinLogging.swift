@@ -10,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import SwiftExtensions
+#else
 import SwiftExtensions
+#endif
 
 #if canImport(Darwin)
 import Foundation

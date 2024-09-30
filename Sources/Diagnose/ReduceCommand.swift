@@ -10,6 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import ArgumentParser
+import Foundation
+import ToolchainRegistry
+
+import struct TSCBasic.AbsolutePath
+import class TSCBasic.Process
+import class TSCUtility.PercentProgressAnimation
+#else
 import ArgumentParser
 import Foundation
 import ToolchainRegistry
@@ -17,6 +26,7 @@ import ToolchainRegistry
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import class TSCUtility.PercentProgressAnimation
+#endif
 
 package struct ReduceCommand: AsyncParsableCommand {
   package static let configuration: CommandConfiguration = CommandConfiguration(

@@ -9,7 +9,12 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
+
+#if compiler(>=6)
+package import LanguageServerProtocol
+#else
 import LanguageServerProtocol
+#endif
 
 /// The set of known Swift commands.
 ///

@@ -14,7 +14,11 @@ import Foundation
 import SKLogging
 import SwiftExtensions
 
+#if compiler(>=6)
+package import struct TSCBasic.AbsolutePath
+#else
 import struct TSCBasic.AbsolutePath
+#endif
 
 extension sourcekitd_api_keys: @unchecked Sendable {}
 extension sourcekitd_api_requests: @unchecked Sendable {}

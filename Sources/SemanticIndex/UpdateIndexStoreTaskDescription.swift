@@ -10,6 +10,20 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import BuildServerProtocol
+import BuildSystemIntegration
+import Foundation
+package import LanguageServerProtocol
+import SKLogging
+import SKSupport
+import SwiftExtensions
+import ToolchainRegistry
+
+import struct TSCBasic.AbsolutePath
+import class TSCBasic.Process
+import struct TSCBasic.ProcessResult
+#else
 import BuildServerProtocol
 import BuildSystemIntegration
 import Foundation
@@ -22,6 +36,7 @@ import ToolchainRegistry
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import struct TSCBasic.ProcessResult
+#endif
 
 private let updateIndexStoreIDForLogging = AtomicUInt32(initialValue: 1)
 

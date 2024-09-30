@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import LanguageServerProtocol
 import PackageModel
 import PackageModelSyntax

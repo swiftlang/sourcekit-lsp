@@ -10,12 +10,21 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import BuildServerProtocol
+package import BuildSystemIntegration
+import Foundation
+package import LanguageServerProtocol
+import SKLogging
+import SwiftExtensions
+#else
 import BuildServerProtocol
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SwiftExtensions
+#endif
 
 /// The logging subsystem that should be used for all index-related logging.
 let indexLoggingSubsystem = "org.swift.sourcekit-lsp.indexing"
