@@ -44,6 +44,9 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// was found.
   var projectRoot: AbsolutePath { get async }
 
+  /// The files to watch for changes.
+  var fileWatchers: [FileSystemWatcher] { get async }
+
   /// The path to the raw index store data, if any.
   var indexStorePath: AbsolutePath? { get async }
 

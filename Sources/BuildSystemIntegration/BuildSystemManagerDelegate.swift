@@ -35,15 +35,21 @@ package protocol BuildSystemManagerDelegate: AnyObject, Sendable {
   /// Notify the delegate that some information about the given build targets has changed and that it should recompute
   /// any information based on top of it.
   func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async
+}
 
+/// Methods with which the `BuildSystemManager` can send messages to the client (aka. editor).
+///
+/// This is distinct from `BuildSystemManagerDelegate` because the delegate only gets set on the build system after the
+/// workspace that created it has been initialized (see `BuildSystemManager.setDelegate`). But the `BuildSystemManager`
+/// can send notifications to the client immediately.
+package protocol BuildSystemManagerConnectionToClient: Sendable {
   /// Whether the client can handle `WorkDoneProgress` requests.
   var clientSupportsWorkDoneProgress: Bool { get async }
 
-  func sendNotificationToClient(_ notification: some NotificationType)
+  func send(_ notification: some NotificationType) async
 
-  func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response
+  func send<R: RequestType>(_ request: R) async throws -> R.Response
 
-  /// Wait until the connection to the client has been initialized, ie. wait until `SourceKitLSPServer` has replied
-  /// to the `initialize` request.
-  func waitUntilInitialized() async
+  /// Start watching for file changes with the given glob patterns.
+  func watchFiles(_ fileWatchers: [FileSystemWatcher]) async
 }

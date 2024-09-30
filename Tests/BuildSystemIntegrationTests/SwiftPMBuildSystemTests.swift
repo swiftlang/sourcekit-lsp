@@ -81,7 +81,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           projectRoot: packageRoot,
           toolchainRegistry: ToolchainRegistry(toolchains: []),
           options: SourceKitLSPOptions(),
-          connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
+          connectionToSourceKitLSP: LocalConnection(receiverName: "dummy"),
           testHooks: SwiftPMTestHooks()
         )
       )
@@ -110,6 +110,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSystemKind: .swiftPM(projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
+        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
         buildSystemTestHooks: BuildSystemTestHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
@@ -173,6 +174,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSystemKind: .swiftPM(projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
+        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
         buildSystemTestHooks: BuildSystemTestHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
@@ -230,6 +232,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSystemKind: .swiftPM(projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(swiftPM: options),
+        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
         buildSystemTestHooks: BuildSystemTestHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
@@ -306,6 +309,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSystemKind: .swiftPM(projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
+        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
         buildSystemTestHooks: BuildSystemTestHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
@@ -341,6 +345,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSystemKind: .swiftPM(projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
+        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
         buildSystemTestHooks: BuildSystemTestHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
@@ -389,6 +394,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSystemKind: .swiftPM(projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
+        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
         buildSystemTestHooks: BuildSystemTestHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
@@ -443,6 +449,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSystemKind: .swiftPM(projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
+        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
         buildSystemTestHooks: BuildSystemTestHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
@@ -488,6 +495,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSystemKind: .swiftPM(projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
+        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
         buildSystemTestHooks: BuildSystemTestHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
@@ -567,6 +575,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSystemKind: .swiftPM(projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
+        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
         buildSystemTestHooks: BuildSystemTestHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
@@ -617,6 +626,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSystemKind: .swiftPM(projectRoot: projectRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
+        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
         buildSystemTestHooks: BuildSystemTestHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
@@ -692,6 +702,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSystemKind: .swiftPM(projectRoot: projectRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
+        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
         buildSystemTestHooks: BuildSystemTestHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
@@ -732,6 +743,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSystemKind: .swiftPM(projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
+        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
         buildSystemTestHooks: BuildSystemTestHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
@@ -799,6 +811,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSystemKind: .swiftPM(projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
+        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
         buildSystemTestHooks: BuildSystemTestHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()

@@ -14,6 +14,7 @@ import BuildServerProtocol
 @_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
 import SKOptions
+import SKSupport
 import SKTestSupport
 @_spi(Testing) import SemanticIndex
 @_spi(Testing) import SourceKitLSP
@@ -21,9 +22,20 @@ import TSCBasic
 import ToolchainRegistry
 import XCTest
 
-final class BuildSystemTests: XCTestCase {
+fileprivate struct DummyBuildSystemManagerConnectionToClient: BuildSystemManagerConnectionToClient {
+  var clientSupportsWorkDoneProgress: Bool = false
 
-  /// The mock client used to communicate with the SourceKit-LSP server.
+  func send(_ notification: some NotificationType) async {}
+
+  func send<Request: RequestType>(_ request: Request) async throws -> Request.Response {
+    throw ResponseError.unknown("Not implemented")
+  }
+
+  func watchFiles(_ fileWatchers: [LanguageServerProtocol.FileSystemWatcher]) async {}
+}
+
+final class BuildSystemTests: XCTestCase {
+  /// The mock client used to communicate with the SourceKit-LSP server.p
   ///
   /// - Note: Set before each test run in `setUp`.
   private var testClient: TestSourceKitLSPClient! = nil
@@ -52,6 +64,7 @@ final class BuildSystemTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: .forTesting,
       options: .testDefault(),
+      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
       buildSystemTestHooks: BuildSystemTestHooks()
     )
     buildSystem = try await unwrap(buildSystemManager.testBuildSystem)

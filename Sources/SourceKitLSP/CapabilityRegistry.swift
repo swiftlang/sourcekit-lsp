@@ -45,7 +45,7 @@ package final actor CapabilityRegistry {
   private var pullDiagnostics: [CapabilityRegistration: DiagnosticRegistrationOptions] = [:]
 
   /// Dynamically registered file watchers.
-  private var didChangeWatchedFiles: DidChangeWatchedFilesRegistrationOptions?
+  private var didChangeWatchedFiles: (id: String, options: DidChangeWatchedFilesRegistrationOptions)?
 
   /// Dynamically registered command IDs.
   private var commandIds: Set<String> = []
@@ -209,12 +209,16 @@ package final actor CapabilityRegistry {
   ) async {
     guard clientHasDynamicDidChangeWatchedFilesRegistration else { return }
     if let registration = didChangeWatchedFiles {
-      if watchers != registration.watchers {
-        logger.fault(
-          "Unable to register new file system watchers \(watchers) due to pre-existing options \(registration.watchers)"
+      do {
+        _ = try await server.client.send(
+          UnregisterCapabilityRequest(unregistrations: [
+            Unregistration(id: registration.id, method: DidChangeWatchedFilesNotification.method)
+          ])
         )
+      } catch {
+        logger.error("Failed to unregister capability \(DidChangeWatchedFilesNotification.method).")
+        return
       }
-      return
     }
     let registrationOptions = DidChangeWatchedFilesRegistrationOptions(
       watchers: watchers
@@ -224,7 +228,7 @@ package final actor CapabilityRegistry {
       registerOptions: registrationOptions.encodeToLSPAny()
     )
 
-    self.didChangeWatchedFiles = registrationOptions
+    self.didChangeWatchedFiles = (registration.id, registrationOptions)
 
     do {
       _ = try await server.client.send(RegisterCapabilityRequest(registrations: [registration]))

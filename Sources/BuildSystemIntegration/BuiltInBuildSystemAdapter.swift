@@ -87,6 +87,7 @@ actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
       data: SourceKitInitializeBuildResponseData(
         indexDatabasePath: await underlyingBuildSystem.indexDatabasePath?.pathString,
         indexStorePath: await underlyingBuildSystem.indexStorePath?.pathString,
+        watchers: await underlyingBuildSystem.fileWatchers,
         prepareProvider: underlyingBuildSystem.supportsPreparation,
         sourceKitOptionsProvider: true
       ).encodeToLSPAny()
