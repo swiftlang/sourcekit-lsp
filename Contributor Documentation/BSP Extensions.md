@@ -12,7 +12,8 @@ export interface SourceKitInitializeBuildResponseData {
    * for `swiftc` or `clang` invocations **/
   indexStorePath?: string;
 
-  /** The path at which SourceKit-LSP can store its index database, aggregating data from `indexStorePath` */
+  /** The path at which SourceKit-LSP can store its index database, aggregating data from `indexStorePath`.
+   * This should point to a directory that can be exclusively managed by SourceKit-LSP. Its exact location can be arbitrary. */
   indexDatabasePath?: string;
 
   /** Whether the build server supports the `buildTarget/prepare` request */
@@ -31,9 +32,9 @@ export interface SourceKitInitializeBuildResponseData {
 
 The prepare build target request is sent from the client to the server to prepare the given list of build targets for editor functionality.
 
-To do so, the build server should build Swift modules for all dependencies of this module so that all `import` statements in this module can be resolved.
+To do so, the build server should perform any work that is necessary to typecheck the files in the given target. This includes, but is not limited to: Building Swift modules for all dependencies and running code generation scripts. Compared to a full build, the build server may skip actions that are not necessary for type checking, such as object file generation but the exact steps necessary are dependent on the build system. SwiftPM implements this step using the `swift build --experimental-prepare-for-indexing` command.
 
-The server communicates during the initialize handshake whether this method is supported or not by setting `supportsPreparation` in `SourceKitInitializeBuildResponseData`.
+The server communicates during the initialize handshake whether this method is supported or not by setting `prepareProvider: true` in `SourceKitInitializeBuildResponseData`.
 
 - method: `buildTarget/prepare`
 - params: `PrepareParams`
