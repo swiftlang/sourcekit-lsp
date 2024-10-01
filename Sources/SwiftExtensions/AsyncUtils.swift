@@ -176,18 +176,46 @@ package func withTimeout<T: Sendable>(
   _ duration: Duration,
   _ body: @escaping @Sendable () async throws -> T
 ) async throws -> T {
-  try await withThrowingTaskGroup(of: T.self) { taskGroup in
-    taskGroup.addTask {
+  var mutableTasks: [Task<Void, Error>] = []
+  let stream = AsyncThrowingStream<T, Error> { continuation in
+    let bodyTask = Task<Void, Error> {
+      do {
+        let result = try await body()
+        continuation.yield(result)
+      } catch {
+        continuation.yield(with: .failure(error))
+      }
+    }
+
+    let timeoutTask = Task {
       try await Task.sleep(for: duration)
-      throw TimeoutError()
+      bodyTask.cancel()
+      continuation.yield(with: .failure(TimeoutError()))
     }
-    taskGroup.addTask {
-      return try await body()
-    }
-    for try await value in taskGroup {
-      taskGroup.cancelAll()
+    mutableTasks = [bodyTask, timeoutTask]
+  }
+
+  let tasks = mutableTasks
+
+  return try await withTaskPriorityChangedHandler {
+    for try await value in stream {
       return value
     }
-    throw CancellationError()
+    // The only reason for the loop above to terminate is if the Task got cancelled or if the continuation finishes
+    // (which it never does).
+    if Task.isCancelled {
+      for task in tasks {
+        task.cancel()
+      }
+      throw CancellationError()
+    } else {
+      preconditionFailure("Continuation never finishes")
+    }
+  } taskPriorityChanged: {
+    for task in tasks {
+      Task(priority: Task.currentPriority) {
+        _ = try? await task.value
+      }
+    }
   }
 }
