@@ -17,7 +17,7 @@ import XCTest
 
 private typealias CodeActionCapabilities = TextDocumentClientCapabilities.CodeAction
 private typealias CodeActionLiteralSupport = CodeActionCapabilities.CodeActionLiteralSupport
-private typealias CodeActionKindCapabilities = CodeActionLiteralSupport.CodeActionKind
+private typealias CodeActionKindCapabilities = CodeActionLiteralSupport.CodeActionKindValueSet
 
 private let clientCapabilitiesWithCodeActionSupport: ClientCapabilities = {
   var documentCapabilities = TextDocumentClientCapabilities()
