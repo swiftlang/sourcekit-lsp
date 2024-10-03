@@ -70,22 +70,15 @@ def swiftpm_bin_path(swift_exec: str, swiftpm_args: List[str], additional_env: D
 
 def get_build_target(swift_exec: str, args: argparse.Namespace, cross_compile: bool = False) -> str:
     """Returns the target-triple of the current machine or for cross-compilation."""
-    try:
-        command = [swift_exec, '-print-target-info']
-        if cross_compile:
-            cross_compile_json = json.load(open(args.cross_compile_config))
-            command += ['-target', cross_compile_json["target"]]
-        target_info_json = subprocess.check_output(command, stderr=subprocess.PIPE, universal_newlines=True).strip()
-        args.target_info = json.loads(target_info_json)
-        if '-apple-macosx' in args.target_info["target"]["unversionedTriple"]:
-            return args.target_info["target"]["unversionedTriple"]
-        return args.target_info["target"]["triple"]
-    except Exception as e:
-        # Temporary fallback for Darwin.
-        if platform.system() == 'Darwin':
-            return 'x86_64-apple-macosx'
-        else:
-            fatal_error(str(e))
+    command = [swift_exec, '-print-target-info']
+    if cross_compile:
+        cross_compile_json = json.load(open(args.cross_compile_config))
+        command += ['-target', cross_compile_json["target"]]
+    target_info_json = subprocess.check_output(command, stderr=subprocess.PIPE, universal_newlines=True).strip()
+    args.target_info = json.loads(target_info_json)
+    if '-apple-macosx' in args.target_info["target"]["unversionedTriple"]:
+        return args.target_info["target"]["unversionedTriple"]
+    return args.target_info["target"]["triple"]
 
 # -----------------------------------------------------------------------------
 # Build SourceKit-LSP
@@ -144,7 +137,7 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace, suppress_verb
 
     if args.cross_compile_host:
         if build_os.startswith('macosx') and args.cross_compile_host.startswith('macosx-'):
-            swiftpm_args += ["--arch", "x86_64", "--arch", "arm64"]
+            swiftpm_args += ["--arch", args.cross_compile_host[7:]]
         elif args.cross_compile_host.startswith('android-'):
             print('Cross-compiling for %s' % args.cross_compile_host)
             swiftpm_args += ['--destination', args.cross_compile_config]
