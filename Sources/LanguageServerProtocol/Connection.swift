@@ -61,14 +61,14 @@ public final class WeakMessageHandler: MessageHandler, Sendable {
     self.handler = handler
   }
 
-  public func handle(_ params: some LanguageServerProtocol.NotificationType) {
+  public func handle(_ params: some NotificationType) {
     handler?.handle(params)
   }
 
   public func handle<Request: RequestType>(
     _ params: Request,
-    id: LanguageServerProtocol.RequestID,
-    reply: @Sendable @escaping (LanguageServerProtocol.LSPResult<Request.Response>) -> Void
+    id: RequestID,
+    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
   ) {
     guard let handler = handler else {
       reply(.failure(.unknown("Handler has been deallocated")))
