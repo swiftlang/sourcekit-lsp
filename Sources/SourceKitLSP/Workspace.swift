@@ -177,13 +177,26 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async {
     struct ConnectionToClient: BuildSystemManagerConnectionToClient {
-      let sourceKitLSPServer: SourceKitLSPServer
+      weak var sourceKitLSPServer: SourceKitLSPServer?
       func send(_ notification: some NotificationType) async {
+        guard let sourceKitLSPServer else {
+          // `SourceKitLSPServer` has been destructed. We are tearing down the
+          // language server. Nothing left to do.
+          logger.error(
+            "Ignoring notificaiton \(type(of: notification).method) because connection to editor has been closed"
+          )
+          return
+        }
         await sourceKitLSPServer.waitUntilInitialized()
         sourceKitLSPServer.sendNotificationToClient(notification)
       }
 
       func send<R: RequestType>(_ request: R) async throws -> R.Response {
+        guard let sourceKitLSPServer else {
+          // `SourceKitLSPServer` has been destructed. We are tearing down the
+          // language server. Nothing left to do.
+          throw ResponseError.unknown("Connection to the editor closed")
+        }
         await sourceKitLSPServer.waitUntilInitialized()
         return try await sourceKitLSPServer.sendRequestToClient(request)
       }
@@ -191,12 +204,12 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       /// Whether the client can handle `WorkDoneProgress` requests.
       var clientSupportsWorkDoneProgress: Bool {
         get async {
-          await sourceKitLSPServer.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false
+          await sourceKitLSPServer?.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false
         }
       }
 
       func watchFiles(_ fileWatchers: [FileSystemWatcher]) async {
-        await sourceKitLSPServer.watchFiles(fileWatchers)
+        await sourceKitLSPServer?.watchFiles(fileWatchers)
       }
     }
 
