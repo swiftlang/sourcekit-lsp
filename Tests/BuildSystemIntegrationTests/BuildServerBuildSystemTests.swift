@@ -299,7 +299,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
     XCTAssertEqual(diagnosticsBeforeCrash.fullReport?.items, [])
     try FileManager.default.removeItem(at: project.scratchDirectory.appendingPathComponent("should_crash"))
 
-    try await repeatUntilExpectedResult(timeout: 20) {
+    try await repeatUntilExpectedResult(timeout: .seconds(20)) {
       let diagnostics = try await project.testClient.send(
         DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
       )

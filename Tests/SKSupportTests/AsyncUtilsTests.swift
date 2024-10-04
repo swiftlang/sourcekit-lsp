@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKLogging
 import SKSupport
 import SKTestSupport
 import SwiftExtensions
@@ -46,7 +47,8 @@ final class AsyncUtilsTests: XCTestCase {
       // We don't actually hit the timeout. It's just a large value.
       try await withTimeout(.seconds(defaultTimeout * 2)) {
         expectation.fulfill()
-        try await repeatUntilExpectedResult {
+        try await repeatUntilExpectedResult(sleepInterval: .seconds(0.1)) {
+          logger.debug("Current priority: \(Task.currentPriority.rawValue)")
           return Task.currentPriority > .background
         }
       }

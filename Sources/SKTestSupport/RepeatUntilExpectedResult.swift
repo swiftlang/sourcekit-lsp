@@ -10,27 +10,34 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
-package import XCTest
-#else
+import SKLogging
 import XCTest
-#endif
 
 /// Runs the body repeatedly once per second until it returns `true`, giving up after `timeout`.
 ///
 /// This is useful to test some request that requires global state to be updated but will eventually converge on the
 /// correct result.
+///
+/// `sleepInterval` is the duration to wait before re-executing the body.
 package func repeatUntilExpectedResult(
-  timeout: TimeInterval = defaultTimeout,
+  timeout: Duration = .seconds(defaultTimeout),
+  sleepInterval: Duration = .seconds(1),
   _ body: () async throws -> Bool,
   file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
-  for _ in 0..<Int(timeout) {
+  logger.info("x: \(Int(timeout.seconds / sleepInterval.seconds))")
+  for _ in 0..<Int(timeout.seconds / sleepInterval.seconds) {
     if try await body() {
       return
     }
-    try await Task.sleep(for: .seconds(1))
+    try await Task.sleep(for: sleepInterval)
   }
   XCTFail("Failed to get expected result", file: file, line: line)
+}
+
+fileprivate extension Duration {
+  var seconds: Double {
+    return Double(self.components.attoseconds) / 1_000_000_000_000_000_000 + Double(self.components.seconds)
+  }
 }
