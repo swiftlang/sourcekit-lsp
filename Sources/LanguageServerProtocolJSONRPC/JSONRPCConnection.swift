@@ -172,13 +172,14 @@ public final class JSONRPCConnection: Connection {
     )
 
     ioGroup.notify(queue: queue) { [weak self] in
-      guard let self = self else { return }
+      guard let self else { return }
+      for outstandingRequest in self.outstandingRequests.values {
+        outstandingRequest.replyHandler(LSPResult.failure(ResponseError.internalError("JSON-RPC Connection closed")))
+      }
+      self.outstandingRequests = [:]
+      self.receiveHandler = nil  // break retain cycle
       Task {
-        for outstandingRequest in self.outstandingRequests.values {
-          outstandingRequest.replyHandler(LSPResult.failure(ResponseError.internalError("JSON-RPC Connection closed")))
-        }
         await self.closeHandler?()
-        self.receiveHandler = nil  // break retain cycle
       }
     }
 
