@@ -14,7 +14,7 @@ import Foundation
 import LanguageServerProtocol
 
 /// A Reference Document is a document whose url scheme is `sourcekit-lsp:` and whose content can only be retrieved
-/// using `GetReferenceDocumentRequest`. The enum represents a specific type of reference document and its
+/// using `TextDocumentContentRequest`. The enum represents a specific type of reference document and its
 /// associated value represents the data necessary to generate the document's contents and its url
 ///
 /// The `url` will be of the form: `sourcekit-lsp://<document-type>/<display-name>?<parameters>`
