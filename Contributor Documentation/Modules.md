@@ -51,7 +51,7 @@ Types that are API-compatible with OSLog that allow logging to OSLog when buildi
 
 ### SKOptions
 
-Configuration options to change how SourceKit-LSP behaves, based on [Configuration files](Configuration%20File.md).
+Configuration options to change how SourceKit-LSP behaves, based on [Configuration files](../Documentation/Configuration%20File.md).
 
 ### SKSupport
 
