@@ -26,7 +26,6 @@ package func repeatUntilExpectedResult(
   file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
-  logger.info("x: \(Int(timeout.seconds / sleepInterval.seconds))")
   for _ in 0..<Int(timeout.seconds / sleepInterval.seconds) {
     if try await body() {
       return

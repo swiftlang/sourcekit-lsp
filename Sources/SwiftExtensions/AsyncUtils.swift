@@ -189,8 +189,8 @@ package func withTimeout<T: Sendable>(
 
     let timeoutTask = Task {
       try await Task.sleep(for: duration)
-      bodyTask.cancel()
       continuation.yield(with: .failure(TimeoutError()))
+      bodyTask.cancel()
     }
     mutableTasks = [bodyTask, timeoutTask]
   }
