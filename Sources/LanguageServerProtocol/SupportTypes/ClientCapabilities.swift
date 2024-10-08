@@ -289,7 +289,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
     }
 
     /// Capabilities specific to `CompletionItemKind`.
-    public struct CompletionItemKind: Hashable, Codable, Sendable {
+    public struct CompletionItemKindValueSet: Hashable, Codable, Sendable {
 
       /// The completion kind values that the client can support.
       ///
@@ -310,7 +310,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
 
     public var completionItem: CompletionItem? = nil
 
-    public var completionItemKind: CompletionItemKind? = nil
+    public var completionItemKind: CompletionItemKindValueSet? = nil
 
     /// Whether the client supports sending context information in a `textDocument/completion` request.
     public var contextSupport: Bool? = nil
@@ -318,7 +318,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
     public init(
       dynamicRegistration: Bool? = nil,
       completionItem: CompletionItem? = nil,
-      completionItemKind: CompletionItemKind? = nil,
+      completionItemKind: CompletionItemKindValueSet? = nil,
       contextSupport: Bool? = nil
     ) {
       self.dynamicRegistration = dynamicRegistration
@@ -383,7 +383,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
   public struct DocumentSymbol: Hashable, Codable, Sendable {
 
     /// Capabilities specific to `SymbolKind`.
-    public struct SymbolKind: Hashable, Codable, Sendable {
+    public struct SymbolKindValueSet: Hashable, Codable, Sendable {
 
       /// The symbol kind values that the client can support.
       ///
@@ -400,13 +400,13 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
     /// Whether the client supports dynamic registration of this request.
     public var dynamicRegistration: Bool? = nil
 
-    public var symbolKind: SymbolKind? = nil
+    public var symbolKind: SymbolKindValueSet? = nil
 
     public var hierarchicalDocumentSymbolSupport: Bool? = nil
 
     public init(
       dynamicRegistration: Bool? = nil,
-      symbolKind: SymbolKind? = nil,
+      symbolKind: SymbolKindValueSet? = nil,
       hierarchicalDocumentSymbolSupport: Bool? = nil
     ) {
       self.dynamicRegistration = dynamicRegistration
