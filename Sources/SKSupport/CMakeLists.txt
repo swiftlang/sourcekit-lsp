@@ -6,6 +6,7 @@ add_library(SKSupport STATIC
   Debouncer.swift
   Dictionary+InitWithElementsKeyedBy.swift
   DocumentURI+CustomLogStringConvertible.swift
+  DocumentURI+symlinkTarget.swift
   FileSystem.swift
   LineTable.swift
   LocalConnection.swift

@@ -55,7 +55,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         ]
       )
       let packageRoot = tempDir.appending(component: "pkg")
-      XCTAssertNil(SwiftPMBuildSystem.projectRoot(for: packageRoot, options: .testDefault()))
+      XCTAssertNil(SwiftPMBuildSystem.projectRoot(for: packageRoot.asURL, options: .testDefault()))
     }
   }
 
@@ -621,9 +621,9 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").pathString)
       )
 
-      let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: packageRoot, options: .testDefault()))
+      let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: packageRoot.asURL, options: .testDefault()))
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: projectRoot),
+        buildSystemKind: .swiftPM(projectRoot: try AbsolutePath(validating: projectRoot.path)),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -697,9 +697,9 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").pathString)
       )
 
-      let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: symlinkRoot, options: .testDefault()))
+      let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: symlinkRoot.asURL, options: .testDefault()))
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: projectRoot),
+        buildSystemKind: .swiftPM(projectRoot: try AbsolutePath(validating: projectRoot.path)),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -779,10 +779,10 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let workspaceRoot = try resolveSymlinks(tempDir.appending(components: "pkg", "Sources", "lib"))
+      let workspaceRoot = tempDir.appending(components: "pkg", "Sources", "lib").asURL
       let projectRoot = SwiftPMBuildSystem.projectRoot(for: workspaceRoot, options: .testDefault())
 
-      assertEqual(projectRoot, try resolveSymlinks(tempDir.appending(component: "pkg")))
+      assertEqual(projectRoot, tempDir.appending(component: "pkg").asURL)
     }
   }
 

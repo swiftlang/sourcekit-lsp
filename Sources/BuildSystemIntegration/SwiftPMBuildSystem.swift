@@ -15,7 +15,7 @@ package import Basics
 @preconcurrency import Build
 package import BuildServerProtocol
 import Dispatch
-import Foundation
+package import Foundation
 package import LanguageServerProtocol
 @preconcurrency import PackageGraph
 import PackageLoading
@@ -33,12 +33,10 @@ package import ToolchainRegistry
 package import struct Basics.AbsolutePath
 package import struct Basics.IdentifiableSet
 package import struct Basics.TSCAbsolutePath
-import struct Foundation.URL
-package import struct TSCBasic.AbsolutePath
-package import protocol TSCBasic.FileSystem
-package import class TSCBasic.Process
-package import var TSCBasic.localFileSystem
-package import func TSCBasic.resolveSymlinks
+import struct TSCBasic.AbsolutePath
+import protocol TSCBasic.FileSystem
+import class TSCBasic.Process
+import var TSCBasic.localFileSystem
 package import class ToolchainRegistry.Toolchain
 #else
 import Basics
@@ -68,7 +66,6 @@ import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 import class TSCBasic.Process
 import var TSCBasic.localFileSystem
-import func TSCBasic.resolveSymlinks
 import class ToolchainRegistry.Toolchain
 #endif
 
@@ -240,26 +237,18 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
 
   private var targetDependencies: [BuildTargetIdentifier: Set<BuildTargetIdentifier>] = [:]
 
-  static package func projectRoot(
-    for path: TSCBasic.AbsolutePath,
-    options: SourceKitLSPOptions
-  ) -> TSCBasic.AbsolutePath? {
-    guard var path = try? resolveSymlinks(path) else {
-      return nil
-    }
+  static package func projectRoot(for path: URL, options: SourceKitLSPOptions) -> URL? {
+    var path = path.realpath
     while true {
       let packagePath = path.appending(component: "Package.swift")
-      if localFileSystem.isFile(packagePath) {
-        let contents = try? localFileSystem.readFileContents(packagePath)
-        if contents?.cString.contains("PackageDescription") == true {
-          return path
-        }
+      if (try? String(contentsOf: packagePath, encoding: .utf8))?.contains("PackageDescription") ?? false {
+        return path
       }
 
-      if path.isRoot {
-        return nil
+      if (try? AbsolutePath(validating: path.path))?.isRoot ?? true {
+        break
       }
-      path = path.parentDirectory
+      path.deleteLastPathComponent()
     }
     return nil
   }
@@ -611,7 +600,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       let buildSettings = FileBuildSettings(
         compilerArguments: try await compilerArguments(for: DocumentURI(substituteFile), in: swiftPMTarget),
         workingDirectory: projectRoot.pathString
-      ).patching(newFile: DocumentURI(try resolveSymlinks(path).asURL), originalFile: DocumentURI(substituteFile))
+      ).patching(newFile: DocumentURI(path.asURL.realpath), originalFile: DocumentURI(substituteFile))
       return TextDocumentSourceKitOptionsResponse(
         compilerArguments: buildSettings.compilerArguments,
         workingDirectory: buildSettings.workingDirectory
