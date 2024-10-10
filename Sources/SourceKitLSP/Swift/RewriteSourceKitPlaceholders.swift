@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import SKLogging
-@_spi(SourceKitLSP) import SwiftRefactor
+@_spi(RawSyntax) import SwiftSyntax
 
 func rewriteSourceKitPlaceholders(in string: String, clientSupportsSnippets: Bool) -> String {
   var result = string
@@ -22,7 +22,7 @@ func rewriteSourceKitPlaceholders(in string: String, clientSupportsSnippets: Boo
       return string
     }
     let rawPlaceholder = String(result[start.lowerBound..<end.upperBound])
-    guard let displayName = EditorPlaceholderData(text: rawPlaceholder)?.nameForSnippet else {
+    guard let displayName = nameForSnippet(rawPlaceholder) else {
       logger.fault("Failed to decode placeholder \(rawPlaceholder) in \(string)")
       return string
     }
@@ -33,15 +33,14 @@ func rewriteSourceKitPlaceholders(in string: String, clientSupportsSnippets: Boo
   return result
 }
 
-fileprivate extension EditorPlaceholderData {
-  var nameForSnippet: Substring {
-    switch self {
-    case .basic(text: let text): return text
-    case .typed(text: let text, type: _): return text
-    #if RESILIENT_LIBRARIES
-    @unknown default:
-      fatalError("Unknown case")
-    #endif
+/// Parse a SourceKit placeholder and extract the display name suitable for a
+/// LSP snippet.
+fileprivate func nameForSnippet(_ text: String) -> String? {
+  var text = text
+  return text.withSyntaxText {
+    guard let data = RawEditorPlaceholderData(syntaxText: $0) else {
+      return nil
     }
+    return String(syntaxText: data.typeForExpansionText ?? data.displayText)
   }
 }
