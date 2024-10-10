@@ -130,6 +130,9 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
         (options.swiftPMOrDefault.swiftCompilerFlags ?? []) + ["-module-cache-path", globalModuleCache.path]
     }
     options.backgroundIndexing = enableBackgroundIndexing
+    if options.sourcekitdRequestTimeout == nil {
+      options.sourcekitdRequestTimeout = defaultTimeout
+    }
 
     var notificationYielder: AsyncStream<any NotificationType>.Continuation!
     self.notifications = AsyncStream { continuation in
