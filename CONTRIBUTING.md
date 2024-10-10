@@ -38,16 +38,12 @@ $ swift build -Xcxx -I/usr/lib/swift -Xcxx -I/usr/lib/swift/Block
 
 ### Windows
 
-You must provide the following dependencies for SourceKit-LSP:
-- SQLite3 ninja
+To build SourceKit-LSP on Windows, swift-syntax needs to be built as dynamic libraries so it does not exceed the maximum symbol limit in a single binary. Additionally, the equivalent search paths to the linux build need to be passed. Run the following in Command Prompt.
 
 ```cmd
-> swift build -Xcc -I<absolute path to SQLite header search path> -Xlinker -L<absolute path to SQLite library search path> -Xcc -I%SDKROOT%\usr\include -Xcc -I%SDKROOT%\usr\include\Block
+> set SWIFTSYNTAX_BUILD_DYNAMIC_LIBRARIES=1
+> swift build -Xcc -I%SDKROOT%\usr\include -Xcc -I%SDKROOT%\usr\include\Block
 ```
-
-The header and library search paths must be passed to the build by absolute path. This allows the clang importer and linker to find the dependencies.
-
-Additionally, as SourceKit-LSP depends on libdispatch and the Blocks runtime, which are part of the SDK, but not in the default search path, need to be explicitly added.
 
 ### Devcontainer
 
