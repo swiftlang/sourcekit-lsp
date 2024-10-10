@@ -27,10 +27,10 @@ extension DocumentURI {
     guard let fileUrl = fileURL else {
       return nil
     }
-    let realpath = fileUrl.realpath
-    if realpath == fileURL {
+    let realpath = DocumentURI(fileUrl.realpath)
+    if realpath == self {
       return nil
     }
-    return DocumentURI(realpath)
+    return realpath
   }
 }

@@ -102,7 +102,10 @@ package class MultiFileTestProject {
 
     var fileData: [String: FileData] = [:]
     for (fileLocation, markedText) in files {
-      let markedText = markedText.replacingOccurrences(of: "$TEST_DIR", with: scratchDirectory.path)
+      let markedText =
+        markedText
+        .replacingOccurrences(of: "$TEST_DIR_URL", with: scratchDirectory.absoluteString)
+        .replacingOccurrences(of: "$TEST_DIR", with: scratchDirectory.path)
       let fileURL = fileLocation.url(relativeTo: scratchDirectory)
       try FileManager.default.createDirectory(
         at: fileURL.deletingLastPathComponent(),

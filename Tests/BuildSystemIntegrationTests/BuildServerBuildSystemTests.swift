@@ -53,7 +53,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
                 {
                   "target": {"uri": "bsp://dummy"},
                   "sources": [
-                    {"uri": "file://$TEST_DIR/Test.swift", "kind": 1, "generated": False}
+                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False}
                   ],
                 }
               ]
@@ -123,7 +123,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
                 {
                   "target": {"uri": "bsp://dummy"},
                   "sources": [
-                    {"uri": "file://$TEST_DIR/Test.swift", "kind": 1, "generated": False}
+                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False}
                   ],
                 }
               ]
@@ -197,7 +197,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
                 {
                   "target": {"uri": "bsp://dummy"},
                   "sources": [
-                    {"uri": "file://$TEST_DIR/Test.swift", "kind": 1, "generated": False}
+                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False}
                   ],
                 }
               ]
@@ -273,8 +273,8 @@ final class BuildServerBuildSystemTests: XCTestCase {
                 {
                   "target": {"uri": "bsp://dummy"},
                   "sources": [
-                    {"uri": "file://$TEST_DIR/Crash.swift", "kind": 1, "generated": False},
-                    {"uri": "file://$TEST_DIR/Test.swift", "kind": 1, "generated": False},
+                    {"uri": "$TEST_DIR_URL/Crash.swift", "kind": 1, "generated": False},
+                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False},
                   ],
                 }
               ]

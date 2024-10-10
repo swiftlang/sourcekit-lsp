@@ -34,6 +34,10 @@ import struct TSCBasic.RelativePath
 import var TSCBasic.localFileSystem
 #endif
 
+#if os(Windows)
+import WinSDK
+#endif
+
 /// A single compilation database command.
 ///
 /// See https://clang.llvm.org/docs/JSONCompilationDatabase.html
@@ -97,7 +101,7 @@ package struct CompilationDatabaseCompileCommand: Equatable, Codable {
   /// it falls back to `filename`, which is more likely to be the identifier
   /// that a caller will be looking for.
   package var uri: DocumentURI {
-    if filename.hasPrefix("/") || !directory.hasPrefix("/") {
+    if filename.isAbsolutePath || !directory.isAbsolutePath {
       return DocumentURI(filePath: filename, isDirectory: false)
     } else {
       return DocumentURI(URL(fileURLWithPath: directory).appendingPathComponent(filename, isDirectory: false))
@@ -287,4 +291,16 @@ package struct JSONCompilationDatabase: CompilationDatabase, Equatable, Codable 
 enum CompilationDatabaseDecodingError: Error {
   case missingCommandOrArguments
   case fixedDatabaseDecodingError
+}
+
+fileprivate extension String {
+  var isAbsolutePath: Bool {
+    #if os(Windows)
+    Array(self.utf16).withUnsafeBufferPointer { buffer in
+      return !PathIsRelativeW(buffer.baseAddress)
+    }
+    #else
+    return self.hasPrefix("/")
+    #endif
+  }
 }

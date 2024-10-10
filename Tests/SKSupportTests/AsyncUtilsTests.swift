@@ -16,6 +16,10 @@ import SKTestSupport
 import SwiftExtensions
 import XCTest
 
+#if os(Windows)
+import WinSDK
+#endif
+
 final class AsyncUtilsTests: XCTestCase {
   func testWithTimeout() async throws {
     let expectation = self.expectation(description: "withTimeout body finished")
@@ -34,7 +38,13 @@ final class AsyncUtilsTests: XCTestCase {
   func testWithTimeoutReturnsImmediatelyEvenIfBodyDoesntCooperateInCancellation() async throws {
     let start = Date()
     await assertThrowsError(
-      try await withTimeout(.seconds(0.1)) { sleep(10) }
+      try await withTimeout(.seconds(0.1)) {
+        #if os(Windows)
+        Sleep(10_000 /*ms*/)
+        #else
+        sleep(10 /*s*/)
+        #endif
+      }
     ) { error in
       XCTAssert(error is TimeoutError, "Received unexpected error \(error)")
     }

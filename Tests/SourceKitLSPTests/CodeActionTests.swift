@@ -1119,11 +1119,12 @@ final class CodeActionTests: XCTestCase {
     ranges: [(String, String)] = [],
     exhaustive: Bool = true,
     expected: (_ uri: DocumentURI, _ positions: DocumentPositions) -> [CodeAction],
+    testName: String = #function,
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI(for: .swift)
+    let uri = DocumentURI(for: .swift, testName: testName)
     let positions = testClient.openDocument(markedText, uri: uri)
 
     var ranges = ranges

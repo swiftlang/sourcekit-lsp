@@ -245,6 +245,10 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testClangModules() async throws {
+    #if os(Windows)
+    // TODO: Enable this test once https://github.com/swiftlang/swift-foundation/issues/973 is fixed
+    try XCTSkipIf(true, "https://github.com/swiftlang/swift-foundation/issues/973")
+    #endif
     let project = try await MultiFileTestProject(
       files: [
         "ClangModuleA.h": """
