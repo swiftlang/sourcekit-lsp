@@ -152,16 +152,27 @@ final class CompilationDatabaseTests: XCTestCase {
     )
   }
 
-  func testJSONCompilationDatabaseLookup() {
+  func testJSONCompilationDatabaseLookup() throws {
+    #if os(Windows)
+    let fileSystemRoot = "c:/"
+    #else
+    let fileSystemRoot = "/"
+    #endif
+
     let cmd1 = CompilationDatabase.Command(directory: "a", filename: "b", commandLine: [], output: nil)
-    let cmd2 = CompilationDatabase.Command(directory: "/c", filename: "b", commandLine: [], output: nil)
-    let cmd3 = CompilationDatabase.Command(directory: "/c", filename: "/b", commandLine: [], output: nil)
+    let cmd2 = CompilationDatabase.Command(directory: "\(fileSystemRoot)c", filename: "b", commandLine: [], output: nil)
+    let cmd3 = CompilationDatabase.Command(
+      directory: "\(fileSystemRoot)c",
+      filename: "\(fileSystemRoot)b",
+      commandLine: [],
+      output: nil
+    )
 
     let db = JSONCompilationDatabase([cmd1, cmd2, cmd3])
 
     XCTAssertEqual(db[DocumentURI(filePath: "b", isDirectory: false)], [cmd1])
-    XCTAssertEqual(db[DocumentURI(filePath: "/c/b", isDirectory: false)], [cmd2])
-    XCTAssertEqual(db[DocumentURI(filePath: "/b", isDirectory: false)], [cmd3])
+    XCTAssertEqual(db[DocumentURI(filePath: "\(fileSystemRoot)c/b", isDirectory: false)], [cmd2])
+    XCTAssertEqual(db[DocumentURI(filePath: "\(fileSystemRoot)b", isDirectory: false)], [cmd3])
   }
 
   func testJSONCompilationDatabaseFromDirectory() throws {
@@ -250,19 +261,16 @@ final class CompilationDatabaseTests: XCTestCase {
         """
     )
 
-    let db = try tryLoadCompilationDatabase(
-      directory: AbsolutePath(validating: "/a"),
-      fs
-    )
-    XCTAssertNotNil(db)
+    let db = try XCTUnwrap(tryLoadCompilationDatabase(directory: AbsolutePath(validating: "/a"), fs))
 
+    // Note: Use `AbsolutePath(validating:).pathString` to normalize forward slashes to backslashes on Windows
     XCTAssertEqual(
-      db![DocumentURI(filePath: "/a/b", isDirectory: false)],
+      db[DocumentURI(filePath: "/a/b", isDirectory: false)],
       [
         CompilationDatabase.Command(
           directory: try AbsolutePath(validating: "/a").pathString,
-          filename: "/a/b",
-          commandLine: ["clang", "-xc++", "-I", "libwidget/include/", "/a/b"],
+          filename: try AbsolutePath(validating: "/a/b").pathString,
+          commandLine: ["clang", "-xc++", "-I", "libwidget/include/", try AbsolutePath(validating: "/a/b").pathString],
           output: nil
         )
       ]

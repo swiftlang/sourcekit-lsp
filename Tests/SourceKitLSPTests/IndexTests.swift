@@ -99,6 +99,10 @@ final class IndexTests: XCTestCase {
   }
 
   func testIndexShutdown() async throws {
+    #if os(Windows)
+    // TODO: Fix this test (https://github.com/swiftlang/sourcekit-lsp/issues/1750)
+    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1750")
+    #endif
 
     func listdir(_ url: URL) throws -> [URL] {
       try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)

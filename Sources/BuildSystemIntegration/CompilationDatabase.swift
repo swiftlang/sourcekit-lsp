@@ -21,7 +21,6 @@ package import struct TSCBasic.AbsolutePath
 package import protocol TSCBasic.FileSystem
 package import struct TSCBasic.RelativePath
 package import var TSCBasic.localFileSystem
-package import func TSCBasic.resolveSymlinks
 #else
 import BuildServerProtocol
 import Foundation
@@ -33,7 +32,10 @@ import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 import struct TSCBasic.RelativePath
 import var TSCBasic.localFileSystem
-import func TSCBasic.resolveSymlinks
+#endif
+
+#if os(Windows)
+import WinSDK
 #endif
 
 /// A single compilation database command.
@@ -99,7 +101,7 @@ package struct CompilationDatabaseCompileCommand: Equatable, Codable {
   /// it falls back to `filename`, which is more likely to be the identifier
   /// that a caller will be looking for.
   package var uri: DocumentURI {
-    if filename.hasPrefix("/") || !directory.hasPrefix("/") {
+    if filename.isAbsolutePath || !directory.isAbsolutePath {
       return DocumentURI(filePath: filename, isDirectory: false)
     } else {
       return DocumentURI(URL(fileURLWithPath: directory).appendingPathComponent(filename, isDirectory: false))
@@ -262,7 +264,7 @@ package struct JSONCompilationDatabase: CompilationDatabase, Equatable, Codable 
     if let indices = pathToCommands[uri] {
       return indices.map { commands[$0] }
     }
-    if let fileURL = uri.fileURL, let indices = pathToCommands[DocumentURI(fileURL.resolvingSymlinksInPath())] {
+    if let fileURL = uri.fileURL, let indices = pathToCommands[DocumentURI(fileURL.realpath)] {
       return indices.map { commands[$0] }
     }
     return []
@@ -278,13 +280,8 @@ package struct JSONCompilationDatabase: CompilationDatabase, Equatable, Codable 
     let uri = command.uri
     pathToCommands[uri, default: []].append(commands.count)
 
-    if let fileURL = uri.fileURL,
-      let symlinksResolved = try? resolveSymlinks(AbsolutePath(validating: fileURL.path))
-    {
-      let canonical = DocumentURI(filePath: symlinksResolved.pathString, isDirectory: false)
-      if canonical != uri {
-        pathToCommands[canonical, default: []].append(commands.count)
-      }
+    if let symlinkTarget = uri.symlinkTarget {
+      pathToCommands[symlinkTarget, default: []].append(commands.count)
     }
 
     commands.append(command)
@@ -294,4 +291,16 @@ package struct JSONCompilationDatabase: CompilationDatabase, Equatable, Codable 
 enum CompilationDatabaseDecodingError: Error {
   case missingCommandOrArguments
   case fixedDatabaseDecodingError
+}
+
+fileprivate extension String {
+  var isAbsolutePath: Bool {
+    #if os(Windows)
+    Array(self.utf16).withUnsafeBufferPointer { buffer in
+      return !PathIsRelativeW(buffer.baseAddress)
+    }
+    #else
+    return self.hasPrefix("/")
+    #endif
+  }
 }

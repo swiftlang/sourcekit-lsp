@@ -57,7 +57,9 @@ package func determineBuildSystem(
         return .compilationDatabase(projectRoot: projectRoot)
       }
     case .swiftPM:
-      if let projectRoot = SwiftPMBuildSystem.projectRoot(for: workspaceFolderPath, options: options) {
+      if let projectRootURL = SwiftPMBuildSystem.projectRoot(for: workspaceFolderUrl, options: options),
+        let projectRoot = try? AbsolutePath(validating: projectRootURL.path)
+      {
         return .swiftPM(projectRoot: projectRoot)
       }
     }

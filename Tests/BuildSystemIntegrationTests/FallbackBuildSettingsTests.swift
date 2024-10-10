@@ -22,7 +22,7 @@ import struct PackageModel.BuildFlags
 final class FallbackBuildSystemTests: XCTestCase {
 
   func testSwift() throws {
-    let sdk = "/my/sdk"
+    let sdk = try AbsolutePath(validating: "/my/sdk").pathString
     let source = DocumentURI(filePath: "/my/source.swift", isDirectory: false)
 
     XCTAssertEqual(
@@ -32,7 +32,7 @@ final class FallbackBuildSystemTests: XCTestCase {
   }
 
   func testSwiftWithCustomFlags() throws {
-    let sdk = "/my/sdk"
+    let sdk = try AbsolutePath(validating: "/my/sdk").pathString
     let source = DocumentURI(filePath: "/my/source.swift", isDirectory: false)
 
     let options = SourceKitLSPOptions.FallbackBuildSystemOptions(
@@ -49,7 +49,7 @@ final class FallbackBuildSystemTests: XCTestCase {
   }
 
   func testSwiftWithCustomSDKFlag() throws {
-    let sdk = "/my/sdk"
+    let sdk = try AbsolutePath(validating: "/my/sdk").pathString
     let source = DocumentURI(filePath: "/my/source.swift", isDirectory: false)
 
     let options = SourceKitLSPOptions.FallbackBuildSystemOptions(
@@ -63,7 +63,7 @@ final class FallbackBuildSystemTests: XCTestCase {
   }
 
   func testCXX() throws {
-    let sdk = "/my/sdk"
+    let sdk = try AbsolutePath(validating: "/my/sdk").pathString
     let source = DocumentURI(filePath: "/my/source.cpp", isDirectory: false)
 
     XCTAssertEqual(
@@ -77,7 +77,7 @@ final class FallbackBuildSystemTests: XCTestCase {
   }
 
   func testCXXWithCustomFlags() throws {
-    let sdk = "/my/sdk"
+    let sdk = try AbsolutePath(validating: "/my/sdk").pathString
     let source = DocumentURI(filePath: "/my/source.cpp", isDirectory: false)
 
     let options = SourceKitLSPOptions.FallbackBuildSystemOptions(
@@ -92,7 +92,7 @@ final class FallbackBuildSystemTests: XCTestCase {
   }
 
   func testCXXWithCustomIsysroot() throws {
-    let sdk = "/my/sdk"
+    let sdk = try AbsolutePath(validating: "/my/sdk").pathString
     let source = DocumentURI(filePath: "/my/source.cpp", isDirectory: false)
 
     let options = SourceKitLSPOptions.FallbackBuildSystemOptions(
@@ -111,7 +111,7 @@ final class FallbackBuildSystemTests: XCTestCase {
   }
 
   func testC() throws {
-    let sdk = "/my/sdk"
+    let sdk = try AbsolutePath(validating: "/my/sdk").pathString
     let source = DocumentURI(filePath: "/my/source.c", isDirectory: false)
 
     XCTAssertEqual(
@@ -121,7 +121,7 @@ final class FallbackBuildSystemTests: XCTestCase {
   }
 
   func testCWithCustomFlags() throws {
-    let sdk = "/my/sdk"
+    let sdk = try AbsolutePath(validating: "/my/sdk").pathString
     let source = DocumentURI(filePath: "/my/source.c", isDirectory: false)
 
     let options = SourceKitLSPOptions.FallbackBuildSystemOptions(
@@ -136,7 +136,7 @@ final class FallbackBuildSystemTests: XCTestCase {
   }
 
   func testObjC() throws {
-    let sdk = "/my/sdk"
+    let sdk = try AbsolutePath(validating: "/my/sdk").pathString
     let source = DocumentURI(filePath: "/my/source.m", isDirectory: false)
 
     XCTAssertEqual(
@@ -146,7 +146,7 @@ final class FallbackBuildSystemTests: XCTestCase {
   }
 
   func testObjCXX() throws {
-    let sdk = "/my/sdk"
+    let sdk = try AbsolutePath(validating: "/my/sdk").pathString
     let source = DocumentURI(filePath: "/my/source.mm", isDirectory: false)
 
     XCTAssertEqual(

@@ -326,7 +326,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
       // safer, can also indefinitely hang as `CreateRemoteThread` may not be serviced depending on the state of
       // the process. This just attempts to terminate the process, risking a deadlock and resource leaks, which is fine
       // since we only use `crash` from tests.
-      _ = TerminateProcess(self.hClangd, 0)
+      _ = TerminateProcess(self.hClangd, 255)
     }
     #else
     if let pid = self.clangdPid {

@@ -17,23 +17,32 @@ import XCTest
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 
-final class ProcessLaunchTests: XCTestCase {
+final class ProcessRunTests: XCTestCase {
   func testWorkingDirectory() async throws {
-    let project = try await MultiFileTestProject(files: [
-      "parent dir/subdir A/a.txt": "",
-      "parent dir/subdir B/b.txt": "",
-      "parent dir/subdir C/c.txt": "",
-    ])
+    try await withTestScratchDir { tempDir in
+      let workingDir = tempDir.appending(component: "working-dir")
+      try FileManager.default.createDirectory(at: workingDir.asURL, withIntermediateDirectories: true)
 
-    let ls = try await unwrap(findTool(name: "ls"))
+      #if os(Windows)
+      // On Windows, Python 3 gets installed as python.exe
+      let pythonName = "python"
+      #else
+      let pythonName = "python3"
+      #endif
+      let python = try await unwrap(findTool(name: pythonName))
 
-    let result = try await Process.run(
-      arguments: [ls.path, "subdir A", "subdir B"],
-      workingDirectory: AbsolutePath(validating: project.scratchDirectory.path).appending(component: "parent dir")
-    )
-    let stdout = try unwrap(String(bytes: result.output.get(), encoding: .utf8))
-    XCTAssert(stdout.contains("a.txt"), "Directory did not contain a.txt:\n\(stdout)")
-    XCTAssert(stdout.contains("b.txt"), "Directory did not contain b.txt:\n\(stdout)")
-    XCTAssert(!stdout.contains("c.txt"), "Directory contained c.txt:\n\(stdout)")
+      let pythonFile = tempDir.appending(component: "show-cwd.py")
+      try """
+      import os
+      print(os.getcwd(), end='')
+      """.write(to: pythonFile.asURL, atomically: true, encoding: .utf8)
+
+      let result = try await Process.run(
+        arguments: [python.path, pythonFile.pathString],
+        workingDirectory: workingDir
+      )
+      let stdout = try unwrap(String(bytes: result.output.get(), encoding: .utf8))
+      XCTAssertEqual(stdout, workingDir.pathString)
+    }
   }
 }

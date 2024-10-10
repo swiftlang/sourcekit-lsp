@@ -55,7 +55,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         ]
       )
       let packageRoot = tempDir.appending(component: "pkg")
-      XCTAssertNil(SwiftPMBuildSystem.projectRoot(for: packageRoot, options: .testDefault()))
+      XCTAssertNil(SwiftPMBuildSystem.projectRoot(for: packageRoot.asURL, options: .testDefault()))
     }
   }
 
@@ -169,7 +169,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
+      let packageRoot = try AbsolutePath(validating: tempDir.appending(component: "pkg").asURL.realpath.path)
       let buildSystemManager = await BuildSystemManager(
         buildSystemKind: .swiftPM(projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
@@ -182,9 +182,15 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let aPlusSomething = packageRoot.appending(components: "Sources", "lib", "a+something.swift")
 
       assertNotNil(await buildSystemManager.initializationData?.indexStorePath)
+      let pathWithPlusEscaped = "\(aPlusSomething.asURL.path.replacing("+", with: "%2B"))"
+      #if os(Windows)
+      let urlWithPlusEscaped = try XCTUnwrap(URL(string: "file:///\(pathWithPlusEscaped)"))
+      #else
+      let urlWithPlusEscaped = try XCTUnwrap(URL(string: "file://\(pathWithPlusEscaped)"))
+      #endif
       let arguments = try await unwrap(
         buildSystemManager.buildSettingsInferredFromMainFile(
-          for: DocumentURI(URL(string: "file://\(aPlusSomething.asURL.path.replacing("+", with: "%2B"))")!),
+          for: DocumentURI(urlWithPlusEscaped),
           language: .swift
         )
       )
@@ -621,9 +627,9 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").pathString)
       )
 
-      let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: packageRoot, options: .testDefault()))
+      let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: packageRoot.asURL, options: .testDefault()))
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: projectRoot),
+        buildSystemKind: .swiftPM(projectRoot: try AbsolutePath(validating: projectRoot.path)),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -697,9 +703,9 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").pathString)
       )
 
-      let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: symlinkRoot, options: .testDefault()))
+      let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: symlinkRoot.asURL, options: .testDefault()))
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: projectRoot),
+        buildSystemKind: .swiftPM(projectRoot: try AbsolutePath(validating: projectRoot.path)),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -779,14 +785,18 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let workspaceRoot = try resolveSymlinks(tempDir.appending(components: "pkg", "Sources", "lib"))
+      let workspaceRoot = tempDir.appending(components: "pkg", "Sources", "lib").asURL
       let projectRoot = SwiftPMBuildSystem.projectRoot(for: workspaceRoot, options: .testDefault())
 
-      assertEqual(projectRoot, try resolveSymlinks(tempDir.appending(component: "pkg")))
+      assertEqual(projectRoot, tempDir.appending(component: "pkg").asURL)
     }
   }
 
   func testPluginArgs() async throws {
+    #if os(Windows)
+    // TODO: Enable this test once https://github.com/swiftlang/swift-foundation/issues/973 is fixed
+    try XCTSkipIf(true, "https://github.com/swiftlang/swift-foundation/issues/973")
+    #endif
     try await withTestScratchDir { tempDir in
       try localFileSystem.createFiles(
         root: tempDir,

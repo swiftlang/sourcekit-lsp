@@ -17,7 +17,7 @@ import XCTest
 fileprivate let sdkArgs =
   if let defaultSDKPath {
     """
-    "-sdk", "\(defaultSDKPath)",
+    "-sdk", "\(defaultSDKPath.replacing(#"\"#, with: #"\\"#))",
     """
   } else {
     ""
