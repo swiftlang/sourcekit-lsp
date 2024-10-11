@@ -30,7 +30,7 @@ To disable extended logging again, remove the configuration profile as described
 
 ### Non-Apple platforms
 
-Create a [configuration file](Configuration%20File.md) with the following contents at `~/.sourcekit-lsp/config.json` with the following contents:
+To enable extended logging on non-Apple platforms, create a [configuration file](Configuration%20File.md) with the following contents at `~/.sourcekit-lsp/config.json` with the following contents:
 ```json
 {
   "logging": {
