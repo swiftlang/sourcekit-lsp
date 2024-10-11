@@ -13,10 +13,12 @@
 #if compiler(>=6)
 package import Foundation
 package import LanguageServerProtocol
+import SwiftExtensions
 package import struct TSCBasic.AbsolutePath
 #else
 import Foundation
 import LanguageServerProtocol
+import SwiftExtensions
 import struct TSCBasic.AbsolutePath
 #endif
 
@@ -66,10 +68,17 @@ package func testScratchDir(testName: String = #function) throws -> URL {
   if let firstDash = uuid.firstIndex(of: "-") {
     uuid = uuid[..<firstDash]
   }
-  let url = FileManager.default.temporaryDirectory
-    .realpath
+  // Including the test name in the directory frequently makes path lengths of test files exceed the maximum path length
+  // on Windows. Choose shorter directory names on that platform to avoid that issue.
+  #if os(Windows)
+  let url = FileManager.default.temporaryDirectory.realpath
+    .appendingPathComponent("lsp-test")
+    .appendingPathComponent("\(uuid)")
+  #else
+  let url = FileManager.default.temporaryDirectory.realpath
     .appendingPathComponent("sourcekit-lsp-test-scratch")
     .appendingPathComponent("\(testBaseName)-\(uuid)")
+  #endif
   try? FileManager.default.removeItem(at: url)
   try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
   return url
@@ -92,31 +101,6 @@ package func withTestScratchDir<T>(
     }
   }
   return try await body(try AbsolutePath(validating: scratchDirectory.path))
-}
-
-fileprivate extension URL {
-  /// Assuming this is a file URL, resolves all symlinks in the path.
-  ///
-  /// - Note: We need this because `URL.resolvingSymlinksInPath()` not only resolves symlinks but also standardizes the
-  ///   path by stripping away `private` prefixes. Since sourcekitd is not performing this standardization, using
-  ///   `resolvingSymlinksInPath` can lead to slightly mismatched URLs between the sourcekit-lsp response and the test
-  ///   assertion.
-  var realpath: URL {
-    #if canImport(Darwin)
-    return self.path.withCString { path in
-      guard let realpath = Darwin.realpath(path, nil) else {
-        return self
-      }
-      let result = URL(fileURLWithPath: String(cString: realpath))
-      free(realpath)
-      return result
-    }
-    #else
-    // Non-Darwin platforms don't have the `/private` stripping issue, so we can just use `self.resolvingSymlinksInPath`
-    // here.
-    return self.resolvingSymlinksInPath()
-    #endif
-  }
 }
 
 let globalModuleCache: URL? = {

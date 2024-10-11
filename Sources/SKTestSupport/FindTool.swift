@@ -48,8 +48,14 @@ package func findTool(name: String) async -> URL? {
     return nil
   }
   #if os(Windows)
-  path = String((path.split { $0.isNewline })[0])
+  // where.exe returns all files that match the name. We only care about the first one.
+  if let newlineIndex = path.firstIndex(where: \.isNewline) {
+    path = String(path[..<newlineIndex])
+  }
   #endif
   path = path.trimmingCharacters(in: .whitespacesAndNewlines)
+  if path.isEmpty {
+    return nil
+  }
   return URL(fileURLWithPath: path, isDirectory: false)
 }

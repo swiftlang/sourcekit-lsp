@@ -65,7 +65,7 @@ final class SwiftInterfaceTests: XCTestCase {
       uri: project.fileURI,
       position: project.positions["1️⃣"],
       testClient: project.testClient,
-      swiftInterfaceFile: "/Swift.String.swiftinterface",
+      swiftInterfaceFile: "Swift.String.swiftinterface",
       linePrefix: "@frozen public struct String"
     )
     // Test stdlib with two submodules
@@ -73,7 +73,7 @@ final class SwiftInterfaceTests: XCTestCase {
       uri: project.fileURI,
       position: project.positions["2️⃣"],
       testClient: project.testClient,
-      swiftInterfaceFile: "/Swift.Math.Integers.swiftinterface",
+      swiftInterfaceFile: "Swift.Math.Integers.swiftinterface",
       linePrefix: "@frozen public struct Int"
     )
     // Test concurrency
@@ -81,7 +81,7 @@ final class SwiftInterfaceTests: XCTestCase {
       uri: project.fileURI,
       position: project.positions["3️⃣"],
       testClient: project.testClient,
-      swiftInterfaceFile: "/_Concurrency.swiftinterface",
+      swiftInterfaceFile: "_Concurrency.swiftinterface",
       linePrefix: "@inlinable public func withTaskGroup"
     )
   }
@@ -118,7 +118,7 @@ final class SwiftInterfaceTests: XCTestCase {
         )
       )
     let location = try XCTUnwrap(response?.locations?.only)
-    XCTAssertTrue(location.uri.pseudoPath.hasSuffix("/MyLibrary.swiftinterface"))
+    XCTAssertTrue(location.uri.pseudoPath.hasSuffix("MyLibrary.swiftinterface"))
     let fileContents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
     XCTAssertTrue(
       fileContents.contains(
@@ -152,7 +152,7 @@ final class SwiftInterfaceTests: XCTestCase {
       uri: uri,
       position: positions["1️⃣"],
       testClient: testClient,
-      swiftInterfaceFile: "/Swift.Collection.Array.swiftinterface",
+      swiftInterfaceFile: "Swift.Collection.Array.swiftinterface",
       linePrefix: "@inlinable public func filter(_ isIncluded: (Element) throws -> Bool) rethrows -> [Element]"
     )
   }
@@ -171,7 +171,7 @@ final class SwiftInterfaceTests: XCTestCase {
       uri: project.fileURI,
       position: project.positions["1️⃣"],
       testClient: project.testClient,
-      swiftInterfaceFile: "/Swift.Collection.Array.swiftinterface",
+      swiftInterfaceFile: "Swift.Collection.Array.swiftinterface",
       linePrefix: "@inlinable public func filter(_ isIncluded: (Element) throws -> Bool) rethrows -> [Element]"
     )
   }
@@ -192,8 +192,9 @@ private func assertSystemSwiftInterface(
     )
   )
   let location = try XCTUnwrap(definition?.locations?.only)
-  XCTAssertTrue(
-    location.uri.pseudoPath.hasSuffix(swiftInterfaceFile),
+  XCTAssertEqual(
+    location.uri.fileURL?.lastPathComponent,
+    swiftInterfaceFile,
     "Path was: '\(location.uri.pseudoPath)'",
     line: line
   )

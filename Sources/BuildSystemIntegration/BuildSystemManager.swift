@@ -23,7 +23,6 @@ package import ToolchainRegistry
 
 package import struct TSCBasic.AbsolutePath
 package import struct TSCBasic.RelativePath
-package import func TSCBasic.resolveSymlinks
 #else
 import BuildServerProtocol
 import Dispatch
@@ -37,7 +36,6 @@ import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
-import func TSCBasic.resolveSymlinks
 #endif
 
 fileprivate typealias RequestCache<Request: RequestType & Hashable> = Cache<Request, Request.Response>
@@ -93,18 +91,6 @@ fileprivate extension BuildTarget {
       return nil
     }
     return SourceKitBuildTarget(fromLSPDictionary: data)
-  }
-}
-
-fileprivate extension DocumentURI {
-  /// If this is a file URI pointing to a symlink, return the realpath of the URI, otherwise return `nil`.
-  var symlinkTarget: DocumentURI? {
-    guard let fileUrl = fileURL, let path = AbsolutePath(validatingOrNil: fileUrl.path),
-      let symlinksResolved = try? TSCBasic.resolveSymlinks(path), symlinksResolved != path
-    else {
-      return nil
-    }
-    return DocumentURI(symlinksResolved.asURL)
   }
 }
 

@@ -25,7 +25,7 @@ import struct TSCBasic.AbsolutePath
 private let sdkArg: String = {
   if let sdk = defaultSDKPath {
     return """
-      "-sdk", "\(sdk)",
+      "-sdk", "\(sdk.replacing(#"\"#, with: #"\\"#))"
       """
   } else {
     return ""
@@ -36,7 +36,7 @@ private let sdkArg: String = {
 /// YAML. Otherwise, return an empty string.
 private let sdkArgs: [String] = {
   if let sdk = defaultSDKPath {
-    return ["-sdk", "\(sdk)"]
+    return ["-sdk", sdk]
   } else {
     return []
   }
@@ -254,7 +254,7 @@ private func assertReduceSourceKitD(
 
     let request =
       request
-      .replacingOccurrences(of: "$FILE", with: testFilePath)
+      .replacingOccurrences(of: "$FILE", with: testFilePath.replacing(#"\"#, with: #"\\"#))
       .replacingOccurrences(of: "$OFFSET", with: String(markerOffset))
 
     let requestInfo = try RequestInfo(request: request)

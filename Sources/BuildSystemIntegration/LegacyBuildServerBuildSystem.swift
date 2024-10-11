@@ -26,7 +26,6 @@ import struct TSCBasic.FileSystemError
 import func TSCBasic.getEnvSearchPaths
 import var TSCBasic.localFileSystem
 import func TSCBasic.lookupExecutablePath
-import func TSCBasic.resolveSymlinks
 
 #if compiler(>=6.3)
 #warning("We have had a one year transition period to the pull based build server. Consider removing this build server")

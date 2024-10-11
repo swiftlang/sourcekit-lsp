@@ -87,6 +87,19 @@ package struct IndexedSingleSwiftFileTestProject {
 
       // The following are needed so we can import XCTest
       let sdkUrl = URL(fileURLWithPath: sdk)
+      #if os(Windows)
+      let xctestModuleDir =
+        sdkUrl
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("Library")
+        .appendingPathComponent("XCTest-development")
+        .appendingPathComponent("usr")
+        .appendingPathComponent("lib")
+        .appendingPathComponent("swift")
+        .appendingPathComponent("windows")
+      compilerArguments += ["-I", xctestModuleDir.path]
+      #else
       let usrLibDir =
         sdkUrl
         .deletingLastPathComponent()
@@ -103,6 +116,7 @@ package struct IndexedSingleSwiftFileTestProject {
         "-I", usrLibDir.path,
         "-F", frameworksDir.path,
       ]
+      #endif
     }
 
     let compilationDatabase = JSONCompilationDatabase(
