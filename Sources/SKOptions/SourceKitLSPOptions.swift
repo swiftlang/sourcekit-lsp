@@ -297,16 +297,13 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
 
   /// The time that `SwiftLanguageService` should wait after an edit before starting to compute diagnostics and
   /// sending a `PublishDiagnosticsNotification`.
-  ///
-  /// This is mostly intended for testing purposes so we don't need to wait the debouncing time to get a diagnostics
-  /// notification when running unit tests.
   public var swiftPublishDiagnosticsDebounceDuration: Double? = nil
 
   public var swiftPublishDiagnosticsDebounceDurationOrDefault: Duration {
     if let swiftPublishDiagnosticsDebounceDuration {
       return .seconds(swiftPublishDiagnosticsDebounceDuration)
     }
-    return .seconds(2)
+    return .seconds(1)
   }
 
   /// When a task is started that should be displayed to the client as a work done progress, how many milliseconds to
