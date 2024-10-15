@@ -17,6 +17,10 @@ import SourceKitLSP
 import SwiftExtensions
 import XCTest
 
+#if os(Windows)
+import WinSDK
+#endif
+
 final class PullDiagnosticsTests: XCTestCase {
   func testUnknownIdentifierDiagnostic() async throws {
     let testClient = try await TestSourceKitLSPClient()
@@ -309,7 +313,11 @@ final class PullDiagnosticsTests: XCTestCase {
         if Task.isCancelled {
           break
         }
-        usleep(10_000)
+        #if os(Windows)
+        Sleep(10 /*ms*/)
+        #else
+        usleep(10_000 /*µs*/)
+        #endif
       }
     }
     let project = try await SwiftPMTestProject(

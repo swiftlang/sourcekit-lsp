@@ -128,11 +128,8 @@ let package = Package(
         "SwiftExtensions",
         "ToolchainRegistry",
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
-        .product(name: "SwiftIDEUtils", package: "swift-syntax"),
-        .product(name: "SwiftSyntax", package: "swift-syntax"),
-        .product(name: "SwiftParser", package: "swift-syntax"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-      ],
+      ] + swiftSyntaxDependencies(["SwiftIDEUtils", "SwiftSyntax", "SwiftParser"]),
       exclude: ["CMakeLists.txt"],
       swiftSettings: globalSwiftSettings
     ),
@@ -360,17 +357,14 @@ let package = Package(
         "SwiftExtensions",
         "ToolchainRegistry",
         .product(name: "IndexStoreDB", package: "indexstore-db"),
-        .product(name: "SwiftBasicFormat", package: "swift-syntax"),
         .product(name: "Crypto", package: "swift-crypto"),
-        .product(name: "SwiftDiagnostics", package: "swift-syntax"),
-        .product(name: "SwiftIDEUtils", package: "swift-syntax"),
-        .product(name: "SwiftParser", package: "swift-syntax"),
-        .product(name: "SwiftParserDiagnostics", package: "swift-syntax"),
-        .product(name: "SwiftRefactor", package: "swift-syntax"),
-        .product(name: "SwiftSyntax", package: "swift-syntax"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         .product(name: "SwiftPM-auto", package: "swift-package-manager"),
-      ],
+      ]
+        + swiftSyntaxDependencies([
+          "SwiftBasicFormat", "SwiftDiagnostics", "SwiftIDEUtils", "SwiftParser", "SwiftParserDiagnostics",
+          "SwiftRefactor", "SwiftSyntax",
+        ]),
       exclude: ["CMakeLists.txt"],
       swiftSettings: globalSwiftSettings
     ),
@@ -391,14 +385,10 @@ let package = Package(
         "ToolchainRegistry",
         .product(name: "IndexStoreDB", package: "indexstore-db"),
         .product(name: "ISDBTestSupport", package: "indexstore-db"),
-        .product(name: "SwiftParser", package: "swift-syntax"),
-        .product(name: "SwiftSyntax", package: "swift-syntax"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         // Depend on `SwiftCompilerPlugin` and `SwiftSyntaxMacros` so the modules are built before running tests and can
-        // be used by test cases that test macros (see `SwiftPMTestProject.macroPackageManifest`).
-        .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
-        .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
-      ],
+        // be used by test cases that test macros (see `SwiftPMTestProject.macroPackageManifest`)
+      ] + swiftSyntaxDependencies(["SwiftParser", "SwiftSyntax", "SwiftCompilerPlugin", "SwiftSyntaxMacros"]),
       swiftSettings: globalSwiftSettings
     ),
 
@@ -440,6 +430,14 @@ let package = Package(
   swiftLanguageVersions: [.v5, .version("6")]
 )
 
+func swiftSyntaxDependencies(_ names: [String]) -> [Target.Dependency] {
+  if buildDynamicSwiftSyntaxLibrary {
+    return [.product(name: "_SwiftSyntaxDynamic", package: "swift-syntax")]
+  } else {
+    return names.map { .product(name: $0, package: "swift-syntax") }
+  }
+}
+
 // MARK: - Parse build arguments
 
 func hasEnvironmentVariable(_ name: String) -> Bool {
@@ -459,6 +457,13 @@ var installAction: Bool { hasEnvironmentVariable("SOURCEKIT_LSP_CI_INSTALL") }
 /// Assume that all the package dependencies are checked out next to sourcekit-lsp and use that instead of fetching a
 /// remote dependency.
 var useLocalDependencies: Bool { hasEnvironmentVariable("SWIFTCI_USE_LOCAL_DEPS") }
+
+/// Whether swift-syntax is being built as a single dynamic library instead of as a separate library per module.
+///
+/// This means that the swift-syntax symbols don't need to be statically linked, which allows us to stay below the
+/// maximum number of exported symbols on Windows, in turn allowing us to build sourcekit-lsp using SwiftPM on Windows
+/// and run its tests.
+var buildDynamicSwiftSyntaxLibrary: Bool { hasEnvironmentVariable("SWIFTSYNTAX_BUILD_DYNAMIC_LIBRARY") }
 
 // MARK: - Dependencies
 
