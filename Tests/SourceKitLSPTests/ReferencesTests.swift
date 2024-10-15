@@ -17,6 +17,10 @@ import XCTest
 /// Tests that test the overall state of the SourceKit-LSP server, that's not really specific to any language
 final class ReferencesTests: XCTestCase {
   func testReferencesInMacro() async throws {
+    #if os(Windows)
+    // FIXME: https://github.com/swiftlang/sourcekit-lsp/issues/1758
+    try XCTSkipIf(true, "Disabled until https://github.com/swiftlang/sourcekit-lsp/issues/1758 is fixed")
+    #endif
     let project = try await IndexedSingleSwiftFileTestProject(
       """
       import Observation

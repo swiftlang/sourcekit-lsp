@@ -17,6 +17,7 @@ package import SKOptions
 package import SourceKitLSP
 import TSCBasic
 import ToolchainRegistry
+import XCTest
 #else
 import Foundation
 import LanguageServerProtocol
@@ -24,6 +25,7 @@ import SKOptions
 import SourceKitLSP
 import TSCBasic
 import ToolchainRegistry
+import XCTest
 #endif
 
 private struct SwiftSyntaxCShimsModulemapNotFoundError: Error {}
@@ -171,6 +173,13 @@ package class SwiftPMTestProject: MultiFileTestProject {
     cleanUp: (@Sendable () -> Void)? = nil,
     testName: String = #function
   ) async throws {
+    #if os(Windows)
+    // FIXME: Enable when https://github.com/swiftlang/swift-package-manager/issues/8038 is fixed
+    try XCTSkipIf(
+      true,
+      "SwiftPM tests fail nondeterministically due to https://github.com/swiftlang/swift-package-manager/issues/8038"
+    )
+    #endif
     var filesByPath: [RelativeFileLocation: String] = [:]
     for (fileLocation, contents) in files {
       let directories =
