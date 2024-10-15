@@ -31,7 +31,7 @@ package func findTool(name: String) async -> URL? {
   #elseif os(Windows)
   var buf = [WCHAR](repeating: 0, count: Int(MAX_PATH))
   GetWindowsDirectoryW(&buf, DWORD(MAX_PATH))
-  var wherePath = String(decodingCString: &buf, as: UTF16.self)
+  let wherePath = String(decodingCString: &buf, as: UTF16.self)
     .appendingPathComponent("system32")
     .appendingPathComponent("where.exe")
   let cmd = [wherePath, name]

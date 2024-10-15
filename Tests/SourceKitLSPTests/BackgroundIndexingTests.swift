@@ -535,6 +535,14 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testPrepareTargetAfterEditToDependency() async throws {
+    #if os(Windows)
+    // FIXME: Enable when https://github.com/swiftlang/swift-package-manager/issues/8038 is fixed
+    try XCTSkipIf(
+      true,
+      "SwiftPM tests fail nondeterministically due to https://github.com/swiftlang/swift-package-manager/issues/8038"
+    )
+    #endif
+
     var testHooks = TestHooks()
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       [
@@ -634,6 +642,14 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testDontStackTargetPreparationForEditorFunctionality() async throws {
+    #if os(Windows)
+    // FIXME: Enable when https://github.com/swiftlang/swift-package-manager/issues/8038 is fixed
+    try XCTSkipIf(
+      true,
+      "SwiftPM tests fail nondeterministically due to https://github.com/swiftlang/swift-package-manager/issues/8038"
+    )
+    #endif
+
     let allDocumentsOpened = WrappedSemaphore(name: "All documents opened")
     let libBStartedPreparation = WrappedSemaphore(name: "LibB started preparing")
     let libDPreparedForEditing = WrappedSemaphore(name: "LibD prepared for editing")
@@ -765,6 +781,14 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testIndexingHappensInParallel() async throws {
+    #if os(Windows)
+    // FIXME: Enable when https://github.com/swiftlang/swift-package-manager/issues/8038 is fixed
+    try XCTSkipIf(
+      true,
+      "SwiftPM tests fail nondeterministically due to https://github.com/swiftlang/swift-package-manager/issues/8038"
+    )
+    #endif
+
     let fileAIndexingStarted = WrappedSemaphore(name: "FileA indexing started")
     let fileBIndexingStarted = WrappedSemaphore(name: "FileB indexing started")
 
