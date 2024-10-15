@@ -34,7 +34,7 @@ final class SwiftInterfaceTests: XCTestCase {
       )
     )
     let location = try XCTUnwrap(resp?.locations?.only)
-    XCTAssertTrue(location.uri.pseudoPath.hasSuffix("/Foundation.swiftinterface"))
+    XCTAssertTrue(location.uri.pseudoPath.hasSuffix("Foundation.swiftinterface"))
     let fileContents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
     // Sanity-check that the generated Swift Interface contains Swift code
     XCTAssert(
