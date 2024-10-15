@@ -99,11 +99,6 @@ final class IndexTests: XCTestCase {
   }
 
   func testIndexShutdown() async throws {
-    #if os(Windows)
-    // TODO: Fix this test (https://github.com/swiftlang/sourcekit-lsp/issues/1750)
-    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1750")
-    #endif
-
     func listdir(_ url: URL) throws -> [URL] {
       try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
     }
@@ -139,8 +134,11 @@ final class IndexTests: XCTestCase {
       }
 
       let versionContentsBefore = try listdir(versionedPath)
-      XCTAssertEqual(versionContentsBefore.count, 1)
-      XCTAssert(versionContentsBefore.first?.lastPathComponent.starts(with: "p") ?? false)
+      XCTAssertEqual(versionContentsBefore.count, 1, "Received multiple versions: \(versionContentsBefore)")
+      XCTAssert(
+        versionContentsBefore.first?.lastPathComponent.starts(with: "p") ?? false,
+        "Received unexpected version: \(versionContentsBefore.first?.lastPathComponent ?? "<nil>")"
+      )
 
       try await project.testClient.send(ShutdownRequest())
       return versionedPath
