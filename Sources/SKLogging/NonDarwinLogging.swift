@@ -282,10 +282,17 @@ actor LogHandlerActor {
 /// The handler that is called to log a message from `NonDarwinLogger` unless `overrideLogHandler` is set on the logger.
 @LogHandlerActor
 var logHandler: @Sendable (String) async -> Void = { message in
-  // Print to stdout. When using the sourcekit-lsp binary, we will have stdout redirected to stderr, so it ends up
-  // logging to stderr. During test execution, we log to stdout, which is generally better handled than logging to
-  // stderr by XCTest (for some reason logging to stderr will hang test execution when running tests in parallel).
-  print(message + "\n")
+  // On Windows, print to stdout by default because printing to stderr causes XCTest execution to deadlock when running
+  // tests in parallel on Windows.
+  // On all other platforms, print to stderr by default because otherwise XCTest will interleave log output with its own
+  // output, causing hard-to-read-output.
+  // When running SourceKit-LSP as a process (ie. in the real world), stdout is redirected to stderr, so the two are
+  // equivalent.
+  #if os(Windows)
+  print(message + "\r\n")
+  #else
+  fputs(message + "\n", stderr)
+  #endif
 }
 
 /// The queue on which we log messages.
