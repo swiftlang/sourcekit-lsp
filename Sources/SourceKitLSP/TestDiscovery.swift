@@ -205,7 +205,7 @@ extension SourceKitLSPServer {
       return documentManager.fileHasInMemoryModifications(uri)
     }
 
-    let filesWithInMemoryState = documentManager.documents.keys.filter { uri in
+    let filesWithInMemoryState = documentManager.openDocuments.filter { uri in
       // Use the index to check for in-memory modifications so we can re-use its cache. If no index exits, ask the
       // document manager directly.
       if let index {
