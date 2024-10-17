@@ -307,7 +307,6 @@ let package = Package(
         "SourceKitLSP",
         "SwiftExtensions",
         "ToolchainRegistry",
-        .product(name: "ISDBTestSupport", package: "indexstore-db"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
       resources: [.copy("INPUTS")],
@@ -384,7 +383,6 @@ let package = Package(
         "SourceKitLSP",
         "ToolchainRegistry",
         .product(name: "IndexStoreDB", package: "indexstore-db"),
-        .product(name: "ISDBTestSupport", package: "indexstore-db"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         // Depend on `SwiftCompilerPlugin` and `SwiftSyntaxMacros` so the modules are built before running tests and can
         // be used by test cases that test macros (see `SwiftPMTestProject.macroPackageManifest`)
