@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import ISDBTestSupport
 import XCTest
 
 fileprivate let sdkArgs =
@@ -37,7 +36,8 @@ private let skTestSupportInputsDirectory: URL = {
     resources.deleteLastPathComponent()
   }
   #else
-  let resources = XCTestCase.productsDirectory
+  let resources =
+    productsDirectory
     .appendingPathComponent("SourceKitLSP_SKTestSupport.resources")
   #endif
   guard FileManager.default.fileExists(atPath: resources.path) else {

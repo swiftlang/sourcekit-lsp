@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import ISDBTestSupport
 import LanguageServerProtocol
 import SKTestSupport
 import TSCBasic
