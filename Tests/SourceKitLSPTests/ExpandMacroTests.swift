@@ -59,7 +59,7 @@ final class ExpandMacroTests: XCTestCase {
       """,
     ]
 
-    for (getReferenceDocument, peekDocuments) in cartesianProduct([true], [true]) {
+    for (getReferenceDocument, peekDocuments) in cartesianProduct([true, false], [true, false]) {
       let project = try await SwiftPMTestProject(
         files: files,
         manifest: SwiftPMTestProject.macroPackageManifest,
