@@ -104,7 +104,7 @@ package final class DocumentManager: InMemoryDocumentManager, Sendable {
   private let queue: DispatchQueue = DispatchQueue(label: "document-manager-queue")
 
   // `nonisolated(unsafe)` is fine because `documents` is guarded by queue.
-  nonisolated(unsafe) var documents: [DocumentURI: Document] = [:]
+  private nonisolated(unsafe) var documents: [DocumentURI: Document] = [:]
 
   package init() {}
 
