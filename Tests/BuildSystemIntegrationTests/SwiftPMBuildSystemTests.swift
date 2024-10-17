@@ -121,7 +121,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       assertNotNil(await buildSystemManager.initializationData?.indexDatabasePath)
       assertNotNil(await buildSystemManager.initializationData?.indexStorePath)
       let arguments = try await unwrap(
-        buildSystemManager.buildSettingsInferredFromMainFile(for: aswift.asURI, language: .swift)
+        buildSystemManager.buildSettingsInferredFromMainFile(
+          for: aswift.asURI,
+          language: .swift,
+          fallbackAfterTimeout: false
+        )
       ).compilerArguments
 
       assertArgumentsContain("-module-name", "lib", arguments: arguments)
@@ -191,7 +195,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let arguments = try await unwrap(
         buildSystemManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(urlWithPlusEscaped),
-          language: .swift
+          language: .swift,
+          fallbackAfterTimeout: false
         )
       )
       .compilerArguments
@@ -246,7 +251,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
 
       let arguments = try await unwrap(
-        buildSystemManager.buildSettingsInferredFromMainFile(for: aswift.asURI, language: .swift)
+        buildSystemManager.buildSettingsInferredFromMainFile(
+          for: aswift.asURI,
+          language: .swift,
+          fallbackAfterTimeout: false
+        )
       ).compilerArguments
 
       assertArgumentsContain("-typecheck", arguments: arguments)
@@ -322,7 +331,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       let source = try resolveSymlinks(packageRoot.appending(component: "Package.swift"))
       let arguments = try await unwrap(
-        buildSystemManager.buildSettingsInferredFromMainFile(for: source.asURI, language: .swift)
+        buildSystemManager.buildSettingsInferredFromMainFile(
+          for: source.asURI,
+          language: .swift,
+          fallbackAfterTimeout: false
+        )
       ).compilerArguments
 
       assertArgumentsContain("-swift-version", "4.2", arguments: arguments)
@@ -360,12 +373,20 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
 
       let argumentsA = try await unwrap(
-        buildSystemManager.buildSettingsInferredFromMainFile(for: aswift.asURI, language: .swift)
+        buildSystemManager.buildSettingsInferredFromMainFile(
+          for: aswift.asURI,
+          language: .swift,
+          fallbackAfterTimeout: false
+        )
       ).compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: argumentsA)
       assertArgumentsContain(bswift.pathString, arguments: argumentsA)
       let argumentsB = try await unwrap(
-        buildSystemManager.buildSettingsInferredFromMainFile(for: aswift.asURI, language: .swift)
+        buildSystemManager.buildSettingsInferredFromMainFile(
+          for: aswift.asURI,
+          language: .swift,
+          fallbackAfterTimeout: false
+        )
       ).compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: argumentsB)
       assertArgumentsContain(bswift.pathString, arguments: argumentsB)
@@ -408,7 +429,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
       let arguments = try await unwrap(
-        buildSystemManager.buildSettingsInferredFromMainFile(for: aswift.asURI, language: .swift)
+        buildSystemManager.buildSettingsInferredFromMainFile(
+          for: aswift.asURI,
+          language: .swift,
+          fallbackAfterTimeout: false
+        )
       ).compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: arguments)
       assertArgumentsDoNotContain(bswift.pathString, arguments: arguments)
@@ -421,7 +446,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
 
       let argumentsB = try await unwrap(
-        buildSystemManager.buildSettingsInferredFromMainFile(for: bswift.asURI, language: .swift)
+        buildSystemManager.buildSettingsInferredFromMainFile(
+          for: bswift.asURI,
+          language: .swift,
+          fallbackAfterTimeout: false
+        )
       ).compilerArguments
       assertArgumentsContain(bswift.pathString, arguments: argumentsB)
       assertArgumentsDoNotContain(aswift.pathString, arguments: argumentsB)
@@ -462,15 +491,26 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
-      assertNotNil(await buildSystemManager.buildSettingsInferredFromMainFile(for: aswift.asURI, language: .swift))
+      assertNotNil(
+        await buildSystemManager.buildSettingsInferredFromMainFile(
+          for: aswift.asURI,
+          language: .swift,
+          fallbackAfterTimeout: false
+        )
+      )
       assertEqual(
-        await buildSystemManager.buildSettingsInferredFromMainFile(for: bswift.asURI, language: .swift)?.isFallback,
+        await buildSystemManager.buildSettingsInferredFromMainFile(
+          for: bswift.asURI,
+          language: .swift,
+          fallbackAfterTimeout: false
+        )?.isFallback,
         true
       )
       assertEqual(
         await buildSystemManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(URL(string: "https://www.apple.com")!),
-          language: .swift
+          language: .swift,
+          fallbackAfterTimeout: false
         )?.isFallback,
         true
       )
@@ -515,7 +555,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       for file in [acxx, header] {
         let args = try await unwrap(
-          buildSystemManager.buildSettingsInferredFromMainFile(for: file.asURI, language: .cpp)
+          buildSystemManager.buildSettingsInferredFromMainFile(
+            for: file.asURI,
+            language: .cpp,
+            fallbackAfterTimeout: false
+          )
         ).compilerArguments
 
         assertArgumentsContain("-std=c++14", arguments: args)
@@ -588,7 +632,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let arguments = try await unwrap(
-        buildSystemManager.buildSettingsInferredFromMainFile(for: aswift.asURI, language: .swift)
+        buildSystemManager.buildSettingsInferredFromMainFile(
+          for: aswift.asURI,
+          language: .swift,
+          fallbackAfterTimeout: false
+        )
       ).compilerArguments
       assertArgumentsContain("-target", arguments: arguments)  // Only one!
 
@@ -642,10 +690,18 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let manifest = packageRoot.appending(components: "Package.swift")
 
       let argumentsFromSymlink = try await unwrap(
-        buildSystemManager.buildSettingsInferredFromMainFile(for: aswiftSymlink.asURI, language: .swift)
+        buildSystemManager.buildSettingsInferredFromMainFile(
+          for: aswiftSymlink.asURI,
+          language: .swift,
+          fallbackAfterTimeout: false
+        )
       ).compilerArguments
       let argumentsFromReal = try await unwrap(
-        buildSystemManager.buildSettingsInferredFromMainFile(for: aswiftReal.asURI, language: .swift)
+        buildSystemManager.buildSettingsInferredFromMainFile(
+          for: aswiftReal.asURI,
+          language: .swift,
+          fallbackAfterTimeout: false
+        )
       ).compilerArguments
 
       // The arguments retrieved from the symlink and the real document should be the same, except that both should
@@ -663,7 +719,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       assertArgumentsDoNotContain(aswiftSymlink.pathString, arguments: argumentsFromReal)
 
       let argsManifest = try await unwrap(
-        buildSystemManager.buildSettingsInferredFromMainFile(for: manifest.asURI, language: .swift)
+        buildSystemManager.buildSettingsInferredFromMainFile(
+          for: manifest.asURI,
+          language: .swift,
+          fallbackAfterTimeout: false
+        )
       ).compilerArguments
       XCTAssertNotNil(argsManifest)
 
@@ -717,7 +777,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         let args = try unwrap(
           await buildSystemManager.buildSettingsInferredFromMainFile(
             for: symlinkRoot.appending(components: file).asURI,
-            language: .cpp
+            language: .cpp,
+            fallbackAfterTimeout: false
           )?
           .compilerArguments
         )
@@ -756,7 +817,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let arguments = try await unwrap(
-        buildSystemManager.buildSettingsInferredFromMainFile(for: aswift.asURI, language: .swift)
+        buildSystemManager.buildSettingsInferredFromMainFile(
+          for: aswift.asURI,
+          language: .swift,
+          fallbackAfterTimeout: false
+        )
       )
       .compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: arguments)
@@ -830,7 +895,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       assertNotNil(await buildSystemManager.initializationData?.indexStorePath)
       let arguments = try await unwrap(
-        buildSystemManager.buildSettingsInferredFromMainFile(for: aswift.asURI, language: .swift)
+        buildSystemManager.buildSettingsInferredFromMainFile(
+          for: aswift.asURI,
+          language: .swift,
+          fallbackAfterTimeout: false
+        )
       ).compilerArguments
 
       // Plugins get compiled with the same compiler arguments as the package manifest

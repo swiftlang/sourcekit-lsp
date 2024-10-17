@@ -14,7 +14,6 @@ add_library(BuildSystemIntegration STATIC
   ExternalBuildSystemAdapter.swift
   FallbackBuildSettings.swift
   FileBuildSettings.swift
-  Language+InferredFromFileExtension.swift
   LegacyBuildServerBuildSystem.swift
   MainFilesProvider.swift
   PathPrefixMapping.swift

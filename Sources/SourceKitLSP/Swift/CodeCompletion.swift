@@ -34,7 +34,7 @@ extension SwiftLanguageService {
 
     let clientSupportsSnippets =
       capabilityRegistry.clientCapabilities.textDocument?.completion?.completionItem?.snippetSupport ?? false
-    let buildSettings = await buildSettings(for: snapshot.uri)
+    let buildSettings = await buildSettings(for: snapshot.uri, fallbackAfterTimeout: false)
 
     let inferredIndentationWidth = BasicFormat.inferIndentation(of: await syntaxTreeManager.syntaxTree(for: snapshot))
 

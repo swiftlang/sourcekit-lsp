@@ -118,7 +118,11 @@ final class BuildSystemManagerTests: XCTestCase {
     // Wait for the new build settings to settle before registering for change notifications
     await bsm.waitForUpToDateBuildGraph()
     await bsm.registerForChangeNotifications(for: a, language: .swift)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.compilerArguments, ["x"])
+    assertEqual(
+      await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift, fallbackAfterTimeout: false)?
+        .compilerArguments,
+      ["x"]
+    )
 
     let changed = expectation(description: "changed settings")
     await del.setExpected([
@@ -166,7 +170,10 @@ final class BuildSystemManagerTests: XCTestCase {
     let del = await BSMDelegate(bsm)
     let fallbackSettings = fallbackBuildSettings(for: a, language: .swift, options: .init())
     await bsm.registerForChangeNotifications(for: a, language: .swift)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), fallbackSettings)
+    assertEqual(
+      await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift, fallbackAfterTimeout: false),
+      fallbackSettings
+    )
 
     let changed = expectation(description: "changed settings")
     await del.setExpected([(a, .swift, FileBuildSettings(compilerArguments: ["non-fallback", "args"]), changed)])
@@ -212,7 +219,10 @@ final class BuildSystemManagerTests: XCTestCase {
     // Wait for the new build settings to settle before registering for change notifications
     await bsm.waitForUpToDateBuildGraph()
     await bsm.registerForChangeNotifications(for: h, language: .c)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h, language: .c)?.compilerArguments, ["C++ 1"])
+    assertEqual(
+      await bsm.buildSettingsInferredFromMainFile(for: h, language: .c, fallbackAfterTimeout: false)?.compilerArguments,
+      ["C++ 1"]
+    )
 
     await mainFiles.updateMainFiles(for: h, to: [cpp2])
 
@@ -281,8 +291,14 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let expectedArgsH1 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h1.pseudoPath])
     let expectedArgsH2 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h2.pseudoPath])
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h1, language: .c), expectedArgsH1)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h2, language: .c), expectedArgsH2)
+    assertEqual(
+      await bsm.buildSettingsInferredFromMainFile(for: h1, language: .c, fallbackAfterTimeout: false),
+      expectedArgsH1
+    )
+    assertEqual(
+      await bsm.buildSettingsInferredFromMainFile(for: h2, language: .c, fallbackAfterTimeout: false),
+      expectedArgsH2
+    )
 
     let newCppArg = "New C++ Main File"
     let changed1 = expectation(description: "initial settings h1 via cpp")
@@ -362,7 +378,11 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
       self.expected.remove(at: expectedIndex)
 
       XCTAssertEqual(uri, expected.uri, file: expected.file, line: expected.line)
-      let settings = await bsm.buildSettingsInferredFromMainFile(for: uri, language: expected.language)
+      let settings = await bsm.buildSettingsInferredFromMainFile(
+        for: uri,
+        language: expected.language,
+        fallbackAfterTimeout: false
+      )
       XCTAssertEqual(settings, expected.settings, file: expected.file, line: expected.line)
       expected.expectation.fulfill()
     }

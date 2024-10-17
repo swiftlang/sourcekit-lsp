@@ -86,7 +86,7 @@ actor MacroExpansionManager {
     }
 
     let snapshot = try await swiftLanguageService.latestSnapshot(for: uri)
-    let buildSettings = await swiftLanguageService.buildSettings(for: uri)
+    let buildSettings = await swiftLanguageService.buildSettings(for: uri, fallbackAfterTimeout: false)
 
     if let cacheEntry = cache.first(where: {
       $0.snapshotID == snapshot.id && $0.range == range && $0.buildSettings == buildSettings

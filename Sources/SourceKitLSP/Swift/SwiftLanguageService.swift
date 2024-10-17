@@ -259,7 +259,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     }
   }
 
-  func buildSettings(for document: DocumentURI) async -> SwiftCompileCommand? {
+  func buildSettings(for document: DocumentURI, fallbackAfterTimeout: Bool) async -> SwiftCompileCommand? {
     let primaryDocument = document.primaryFile ?? document
 
     guard let sourceKitLSPServer else {
@@ -271,7 +271,8 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     }
     if let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
       for: primaryDocument,
-      language: .swift
+      language: .swift,
+      fallbackAfterTimeout: fallbackAfterTimeout
     ) {
       return SwiftCompileCommand(settings)
     } else {
@@ -428,7 +429,7 @@ extension SwiftLanguageService {
         try await self.sendSourcekitdRequest(closeReq, fileContents: nil)
       }
 
-      let buildSettings = await buildSettings(for: snapshot.uri)
+      let buildSettings = await buildSettings(for: snapshot.uri, fallbackAfterTimeout: true)
       let openReq = openDocumentSourcekitdRequest(
         snapshot: snapshot,
         compileCommand: buildSettings
@@ -450,7 +451,7 @@ extension SwiftLanguageService {
     guard (try? documentManager.openDocuments.contains(uri)) ?? false else {
       return
     }
-    let newBuildSettings = await self.buildSettings(for: uri)
+    let newBuildSettings = await self.buildSettings(for: uri, fallbackAfterTimeout: false)
     if newBuildSettings != buildSettingsForOpenFiles[uri] {
       // Close and re-open the document internally to inform sourcekitd to update the compile command. At the moment
       // there's no better way to do this.
@@ -516,7 +517,7 @@ extension SwiftLanguageService {
       cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
       await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
 
-      let buildSettings = await self.buildSettings(for: snapshot.uri)
+      let buildSettings = await self.buildSettings(for: snapshot.uri, fallbackAfterTimeout: true)
       buildSettingsForOpenFiles[snapshot.uri] = buildSettings
 
       let req = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: buildSettings)
@@ -578,7 +579,7 @@ extension SwiftLanguageService {
       }
       do {
         let snapshot = try await self.latestSnapshot(for: document)
-        let buildSettings = await self.buildSettings(for: document)
+        let buildSettings = await self.buildSettings(for: document, fallbackAfterTimeout: false)
         let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
           for: snapshot,
           buildSettings: buildSettings
@@ -688,7 +689,8 @@ extension SwiftLanguageService {
   package func hover(_ req: HoverRequest) async throws -> HoverResponse? {
     let uri = req.textDocument.uri
     let position = req.position
-    let cursorInfoResults = try await cursorInfo(uri, position..<position).cursorInfo
+    let cursorInfoResults = try await cursorInfo(uri, position..<position, fallbackSettingsAfterTimeout: false)
+      .cursorInfo
 
     let symbolDocumentations = cursorInfoResults.compactMap { (cursorInfo) -> String? in
       if let documentation = cursorInfo.documentation {
@@ -891,6 +893,7 @@ extension SwiftLanguageService {
     let cursorInfoResponse = try await cursorInfo(
       params.textDocument.uri,
       params.range,
+      fallbackSettingsAfterTimeout: true,
       additionalParameters: additionalCursorInfoParameters
     )
 
@@ -917,7 +920,7 @@ extension SwiftLanguageService {
 
   func retrieveQuickFixCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
     let snapshot = try await self.latestSnapshot(for: params.textDocument.uri)
-    let buildSettings = await self.buildSettings(for: params.textDocument.uri)
+    let buildSettings = await self.buildSettings(for: params.textDocument.uri, fallbackAfterTimeout: true)
     let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
       for: snapshot,
       buildSettings: buildSettings
@@ -1010,7 +1013,8 @@ extension SwiftLanguageService {
         req.textDocument.uri.primaryFile ?? req.textDocument.uri
       )
       let snapshot = try await self.latestSnapshot(for: req.textDocument.uri)
-      let buildSettings = await self.buildSettings(for: req.textDocument.uri)
+      let buildSettings = await self.buildSettings(for: req.textDocument.uri, fallbackAfterTimeout: false)
+      try Task.checkCancellation()
       let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
         for: snapshot,
         buildSettings: buildSettings

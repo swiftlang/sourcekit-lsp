@@ -254,7 +254,12 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       logger.error("Not indexing \(file.forLogging) because its language could not be determined")
       return
     }
-    let buildSettings = await buildSystemManager.buildSettings(for: file.mainFile, in: target, language: language)
+    let buildSettings = await buildSystemManager.buildSettings(
+      for: file.mainFile,
+      in: target,
+      language: language,
+      fallbackAfterTimeout: false
+    )
     guard let buildSettings else {
       logger.error("Not indexing \(file.forLogging) because it has no compiler arguments")
       return

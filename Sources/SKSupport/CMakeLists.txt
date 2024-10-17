@@ -8,6 +8,7 @@ add_library(SKSupport STATIC
   DocumentURI+CustomLogStringConvertible.swift
   DocumentURI+symlinkTarget.swift
   FileSystem.swift
+  Language+InferredFromFileExtension.swift
   LineTable.swift
   LocalConnection.swift
   Process+Run.swift
