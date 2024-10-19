@@ -330,6 +330,11 @@ final class SemanticTokensTests: XCTestCase {
   func testSemanticTokensForFunctionSignatures() async throws {
     try await SkipUnless.sourcekitdHasSemanticTokensRequest()
 
+    #if os(Windows)
+    // FIXME: Run when https://github.com/swiftlang/sourcekit-lsp/issues/1770 is fixed
+    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1770")
+    #endif
+
     try await assertSemanticTokens(
       markedContents: "1️⃣func 2️⃣f(3️⃣x: 4️⃣Int, _ 5️⃣y: 6️⃣String) {}",
       expected: [
@@ -403,6 +408,11 @@ final class SemanticTokensTests: XCTestCase {
 
   func testSemanticTokensForEnumMembers() async throws {
     try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
+    #if os(Windows)
+    // FIXME: Run when https://github.com/swiftlang/sourcekit-lsp/issues/1770 is fixed
+    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1770")
+    #endif
 
     try await assertSemanticTokens(
       markedContents: """
@@ -490,6 +500,11 @@ final class SemanticTokensTests: XCTestCase {
   func testEmptyEdit() async throws {
     try await SkipUnless.sourcekitdHasSemanticTokensRequest()
 
+    #if os(Windows)
+    // FIXME: Run when https://github.com/swiftlang/sourcekit-lsp/issues/1770 is fixed
+    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1770")
+    #endif
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -573,6 +588,11 @@ final class SemanticTokensTests: XCTestCase {
   func testReplaceUntilEndOfToken() async throws {
     try await SkipUnless.sourcekitdHasSemanticTokensRequest()
 
+    #if os(Windows)
+    // FIXME: Run when https://github.com/swiftlang/sourcekit-lsp/issues/1770 is fixed
+    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1770")
+    #endif
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -625,6 +645,11 @@ final class SemanticTokensTests: XCTestCase {
 
   func testInsertSpaceBeforeToken() async throws {
     try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
+    #if os(Windows)
+    // FIXME: Run when https://github.com/swiftlang/sourcekit-lsp/issues/1770 is fixed
+    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1770")
+    #endif
 
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
@@ -692,6 +717,11 @@ final class SemanticTokensTests: XCTestCase {
 
   func testInsertNewline() async throws {
     try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
+    #if os(Windows)
+    // FIXME: Run when https://github.com/swiftlang/sourcekit-lsp/issues/1770 is fixed
+    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1770")
+    #endif
 
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
@@ -765,6 +795,11 @@ final class SemanticTokensTests: XCTestCase {
 
   func testInsertTokens() async throws {
     try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
+    #if os(Windows)
+    // FIXME: Run when https://github.com/swiftlang/sourcekit-lsp/issues/1770 is fixed
+    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1770")
+    #endif
 
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
@@ -897,6 +932,11 @@ final class SemanticTokensTests: XCTestCase {
   func testArgumentLabels() async throws {
     try await SkipUnless.sourcekitdHasSemanticTokensRequest()
 
+    #if os(Windows)
+    // FIXME: Run when https://github.com/swiftlang/sourcekit-lsp/issues/1770 is fixed
+    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1770")
+    #endif
+
     try await assertSemanticTokens(
       markedContents: """
         1️⃣func 2️⃣foo(3️⃣arg: 4️⃣Int) {}
@@ -916,6 +956,11 @@ final class SemanticTokensTests: XCTestCase {
 
   func testFunctionDeclarationWithFirstAndSecondName() async throws {
     try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+
+    #if os(Windows)
+    // FIXME: Run when https://github.com/swiftlang/sourcekit-lsp/issues/1770 is fixed
+    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1770")
+    #endif
 
     try await assertSemanticTokens(
       markedContents: """
