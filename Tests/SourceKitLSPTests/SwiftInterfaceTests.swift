@@ -43,11 +43,6 @@ final class SwiftInterfaceTests: XCTestCase {
   }
 
   func testDefinitionInSystemModuleInterface() async throws {
-    #if os(Windows)
-    // FIXME: Enable when https://github.com/swiftlang/sourcekit-lsp/issues/1771 is fixed
-    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1771")
-    #endif
-
     let project = try await IndexedSingleSwiftFileTestProject(
       """
       public func libFunc() async {
@@ -140,11 +135,6 @@ final class SwiftInterfaceTests: XCTestCase {
   }
 
   func testJumpToSynthesizedExtensionMethodInSystemModuleWithoutIndex() async throws {
-    #if os(Windows)
-    // FIXME: Enable when https://github.com/swiftlang/sourcekit-lsp/issues/1771 is fixed
-    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1771")
-    #endif
-
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -167,11 +157,6 @@ final class SwiftInterfaceTests: XCTestCase {
   }
 
   func testJumpToSynthesizedExtensionMethodInSystemModuleWithIndex() async throws {
-    #if os(Windows)
-    // FIXME: Enable when https://github.com/swiftlang/sourcekit-lsp/issues/1771 is fixed
-    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1771")
-    #endif
-
     let project = try await IndexedSingleSwiftFileTestProject(
       """
       func test(x: [String]) {
