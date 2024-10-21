@@ -14,6 +14,7 @@
 package import LanguageServerProtocol
 import SKLogging
 package import SKOptions
+import SwiftExtensions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
@@ -21,6 +22,7 @@ import struct TSCBasic.AbsolutePath
 import LanguageServerProtocol
 import SKLogging
 import SKOptions
+import SwiftExtensions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
@@ -42,7 +44,7 @@ package func determineBuildSystem(
     buildSystemPreference.insert(defaultBuildSystem, at: 0)
   }
   guard let workspaceFolderUrl = workspaceFolder.fileURL,
-    let workspaceFolderPath = try? AbsolutePath(validating: workspaceFolderUrl.path)
+    let workspaceFolderPath = try? AbsolutePath(validating: workspaceFolderUrl.filePath)
   else {
     return nil
   }
@@ -58,7 +60,7 @@ package func determineBuildSystem(
       }
     case .swiftPM:
       if let projectRootURL = SwiftPMBuildSystem.projectRoot(for: workspaceFolderUrl, options: options),
-        let projectRoot = try? AbsolutePath(validating: projectRootURL.path)
+        let projectRoot = try? AbsolutePath(validating: projectRootURL.filePath)
       {
         return .swiftPM(projectRoot: projectRoot)
       }

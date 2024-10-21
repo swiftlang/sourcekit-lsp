@@ -13,6 +13,7 @@
 #if compiler(>=6)
 package import Foundation
 import SourceKitD
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
@@ -20,6 +21,7 @@ import struct TSCBasic.ProcessResult
 #else
 import Foundation
 import SourceKitD
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
@@ -147,9 +149,9 @@ package class OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
   package func runSwiftFrontend(request: RequestInfo) async throws -> SourceKitDRequestResult {
     try request.fileContents.write(to: temporarySourceFile, atomically: true, encoding: .utf8)
 
-    let arguments = request.compilerArgs.replacing(["$FILE"], with: [temporarySourceFile.path])
+    let arguments = request.compilerArgs.replacing(["$FILE"], with: [try temporarySourceFile.filePath])
 
-    let process = Process(arguments: [swiftFrontend.path] + arguments)
+    let process = Process(arguments: [try swiftFrontend.filePath] + arguments)
     try process.launch()
     let result = try await process.waitUntilExit()
 
@@ -167,9 +169,9 @@ package class OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
         "debug",
         "run-sourcekitd-request",
         "--sourcekitd",
-        sourcekitd.path,
+        try sourcekitd.filePath,
         "--request-file",
-        temporaryRequestFile.path,
+        try temporaryRequestFile.filePath,
       ]
     )
     try process.launch()

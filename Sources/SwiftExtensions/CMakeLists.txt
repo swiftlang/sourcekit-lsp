@@ -8,6 +8,7 @@ add_library(SwiftExtensions STATIC
   CartesianProduct.swift
   Collection+Only.swift
   Collection+PartitionIntoBatches.swift
+  FileManagerExtensions.swift
   NSLock+WithLock.swift
   PipeAsStringHandler.swift
   ResultExtensions.swift
@@ -16,7 +17,7 @@ add_library(SwiftExtensions STATIC
   Task+WithPriorityChangedHandler.swift
   ThreadSafeBox.swift
   TransitiveClosure.swift
-  URL+realpath.swift
+  URLExtensions.swift
 )
 set_target_properties(SwiftExtensions PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})

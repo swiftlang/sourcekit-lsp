@@ -332,8 +332,14 @@ final class CompilationDatabaseTests: XCTestCase {
       ]
       """
     ) { buildSystem in
-      assertEqual(URL(fileURLWithPath: await buildSystem.indexStorePath?.pathString ?? "").path, "/b")
-      assertEqual(URL(fileURLWithPath: await buildSystem.indexDatabasePath?.pathString ?? "").path, "/IndexDatabase")
+      assertEqual(
+        try URL(fileURLWithPath: await buildSystem.indexStorePath?.pathString ?? "").filePath,
+        "\(pathSeparator)b"
+      )
+      assertEqual(
+        try URL(fileURLWithPath: await buildSystem.indexDatabasePath?.pathString ?? "").filePath,
+        "\(pathSeparator)IndexDatabase"
+      )
     }
   }
 
@@ -417,10 +423,24 @@ final class CompilationDatabaseTests: XCTestCase {
       ]
       """
     ) { buildSystem in
-      assertEqual(URL(fileURLWithPath: await buildSystem.indexStorePath?.pathString ?? "").path, "/b")
-      assertEqual(URL(fileURLWithPath: await buildSystem.indexDatabasePath?.pathString ?? "").path, "/IndexDatabase")
+      assertEqual(
+        try URL(fileURLWithPath: await buildSystem.indexStorePath?.pathString ?? "").filePath,
+        "\(pathSeparator)b"
+      )
+      assertEqual(
+        try URL(fileURLWithPath: await buildSystem.indexDatabasePath?.pathString ?? "").filePath,
+        "\(pathSeparator)IndexDatabase"
+      )
     }
   }
+}
+
+fileprivate var pathSeparator: String {
+  #if os(Windows)
+  return #"\"#
+  #else
+  return "/"
+  #endif
 }
 
 private func checkCompilationDatabaseBuildSystem(

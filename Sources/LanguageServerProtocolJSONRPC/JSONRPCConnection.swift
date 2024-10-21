@@ -219,7 +219,7 @@ public final class JSONRPCConnection: Connection {
     }
     let process = Foundation.Process()
     logger.log(
-      "Launching build server at \(executable.path) with options [\(arguments.joined(separator: " "))]"
+      "Launching build server at \(executable.description) with options [\(arguments.joined(separator: " "))]"
     )
     process.executableURL = executable
     process.arguments = arguments

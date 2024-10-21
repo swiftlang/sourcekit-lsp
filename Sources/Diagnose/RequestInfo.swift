@@ -13,9 +13,11 @@
 #if compiler(>=6)
 package import Foundation
 import RegexBuilder
+import SwiftExtensions
 #else
 import Foundation
 import RegexBuilder
+import SwiftExtensions
 #endif
 
 /// All the information necessary to replay a sourcektid request.
@@ -48,7 +50,7 @@ package struct RequestInfo: Sendable {
       requestTemplate
       .replacingOccurrences(of: "$OFFSET", with: String(offset))
       .replacingOccurrences(of: "$COMPILER_ARGS", with: compilerArgs)
-      .replacingOccurrences(of: "$FILE", with: file.path)
+      .replacingOccurrences(of: "$FILE", with: try file.filePath.replacing(#"\"#, with: #"\\"#))
   }
 
   /// A fake value that is used to indicate that we are reducing a `swift-frontend` issue instead of a sourcekitd issue.

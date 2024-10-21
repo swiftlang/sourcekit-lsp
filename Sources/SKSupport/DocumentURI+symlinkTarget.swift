@@ -27,7 +27,9 @@ extension DocumentURI {
     guard let fileUrl = fileURL else {
       return nil
     }
-    let realpath = DocumentURI(fileUrl.realpath)
+    guard let realpath = try? DocumentURI(fileUrl.realpath) else {
+      return nil
+    }
     if realpath == self {
       return nil
     }

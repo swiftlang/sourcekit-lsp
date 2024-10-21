@@ -15,6 +15,7 @@ import Foundation
 import LanguageServerProtocol
 import SKTestSupport
 @_spi(Testing) import SourceKitLSP
+import SwiftExtensions
 import ToolchainRegistry
 import XCTest
 
@@ -784,9 +785,9 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
 
     let compilationDatabase = JSONCompilationDatabase([
       JSONCompilationDatabase.Command(
-        directory: project.scratchDirectory.path,
+        directory: try project.scratchDirectory.filePath,
         filename: uri.pseudoPath,
-        commandLine: [swiftc.path, uri.pseudoPath]
+        commandLine: [try swiftc.filePath, uri.pseudoPath]
       )
     ])
 

@@ -892,7 +892,7 @@ final class BackgroundIndexingTests: XCTestCase {
         .appendingPathComponent(".index-build")
     )
     XCTAssertFalse(
-      FileManager.default.fileExists(atPath: nestedIndexBuildURL.path),
+      FileManager.default.fileExists(at: nestedIndexBuildURL),
       "No file should exist at \(nestedIndexBuildURL)"
     )
   }
@@ -1263,7 +1263,7 @@ final class BackgroundIndexingTests: XCTestCase {
       arguments: [
         unwrap(ToolchainRegistry.forTesting.default?.swift?.pathString),
         "package", "update",
-        "--package-path", project.scratchDirectory.path,
+        "--package-path", project.scratchDirectory.filePath,
       ],
       workingDirectory: nil
     )

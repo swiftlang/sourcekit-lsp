@@ -14,6 +14,7 @@
 package import ArgumentParser
 import Foundation
 import ToolchainRegistry
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
@@ -22,6 +23,7 @@ import class TSCUtility.PercentProgressAnimation
 import ArgumentParser
 import Foundation
 import ToolchainRegistry
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
@@ -172,7 +174,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
         .deletingLastPathComponent()
         .deletingLastPathComponent()
 
-      guard let toolchain = try Toolchain(AbsolutePath(validating: toolchainPath.path)),
+      guard let toolchain = try Toolchain(AbsolutePath(validating: toolchainPath.filePath)),
         let sourcekitd = toolchain.sourcekitd
       else {
         continue
@@ -223,7 +225,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     #if os(macOS)
     reportProgress(.collectingLogMessages(progress: 0), message: "Collecting log messages")
     let outputFileUrl = bundlePath.appendingPathComponent("log.txt")
-    guard FileManager.default.createFile(atPath: outputFileUrl.path, contents: nil) else {
+    guard FileManager.default.createFile(atPath: try outputFileUrl.filePath, contents: nil) else {
       throw GenericError("Failed to create log.txt")
     }
     let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
@@ -316,7 +318,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
   @MainActor
   private func addSwiftVersion(toBundle bundlePath: URL) async throws {
     let outputFileUrl = bundlePath.appendingPathComponent("swift-versions.txt")
-    guard FileManager.default.createFile(atPath: outputFileUrl.path, contents: nil) else {
+    guard FileManager.default.createFile(atPath: try outputFileUrl.filePath, contents: nil) else {
       throw GenericError("Failed to create file at \(outputFileUrl)")
     }
     let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
@@ -333,9 +335,9 @@ package struct DiagnoseCommand: AsyncParsableCommand {
         continue
       }
 
-      try fileHandle.write(contentsOf: "\(swiftUrl.path) --version\n".data(using: .utf8)!)
+      try fileHandle.write(contentsOf: "\(swiftUrl.filePath) --version\n".data(using: .utf8)!)
       let process = Process(
-        arguments: [swiftUrl.path, "--version"],
+        arguments: [try swiftUrl.filePath, "--version"],
         outputRedirection: .stream(
           stdout: { try? fileHandle.write(contentsOf: $0) },
           stderr: { _ in }
@@ -417,7 +419,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
       Bundle created.
       When filing an issue at https://github.com/swiftlang/sourcekit-lsp/issues/new,
       please attach the bundle located at
-      \(bundlePath.path)
+      \(try bundlePath.filePath)
       """
     )
 
@@ -428,7 +430,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     // is responsible for showing the diagnose bundle location to the user
     if self.bundleOutputPath == nil {
       do {
-        _ = try await Process.run(arguments: ["open", "-R", bundlePath.path], workingDirectory: nil)
+        _ = try await Process.run(arguments: ["open", "-R", bundlePath.filePath], workingDirectory: nil)
       } catch {
         // If revealing the bundle in Finder should fail, we don't care. We still printed the bundle path to stdout.
       }

@@ -60,7 +60,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
           def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
             return {
-              "compilerArguments": ["$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
+              "compilerArguments": [r"$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
             }
         """
     )
@@ -131,7 +131,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
           def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
             assert self.timer_has_fired
             return {
-              "compilerArguments": ["$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
+              "compilerArguments": [r"$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
             }
         """
     )
@@ -205,12 +205,12 @@ final class BuildServerBuildSystemTests: XCTestCase {
           def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
             if self.timer_has_fired:
               return {
-                "compilerArguments": ["$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
+                "compilerArguments": [r"$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
               }
             else:
               threading.Timer(1, self.timer_fired).start()
               return {
-                "compilerArguments": ["$TEST_DIR/Test.swift", $SDK_ARGS]
+                "compilerArguments": [r"$TEST_DIR/Test.swift", $SDK_ARGS]
               }
         """
     )
@@ -280,10 +280,10 @@ final class BuildServerBuildSystemTests: XCTestCase {
             }
 
           def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
-            if os.path.exists("$TEST_DIR/should_crash"):
+            if os.path.exists(r"$TEST_DIR/should_crash"):
               assert False
             return {
-              "compilerArguments": ["$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
+              "compilerArguments": [r"$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
             }
         """
     )
@@ -347,7 +347,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
           def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
             return {
-              "compilerArguments": ["$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
+              "compilerArguments": [r"$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
             }
         """
     )

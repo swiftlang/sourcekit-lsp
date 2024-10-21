@@ -125,9 +125,9 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     cleanUp: @Sendable @escaping () -> Void = {}
   ) async throws {
     var options = options
-    if let globalModuleCache {
+    if let globalModuleCache = try globalModuleCache {
       options.swiftPMOrDefault.swiftCompilerFlags =
-        (options.swiftPMOrDefault.swiftCompilerFlags ?? []) + ["-module-cache-path", globalModuleCache.path]
+        (options.swiftPMOrDefault.swiftCompilerFlags ?? []) + ["-module-cache-path", try globalModuleCache.filePath]
     }
     options.backgroundIndexing = enableBackgroundIndexing
     if options.sourcekitdRequestTimeout == nil {

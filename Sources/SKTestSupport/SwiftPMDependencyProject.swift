@@ -56,7 +56,7 @@ package class SwiftPMDependencyProject {
     // We can't use `workingDirectory` because Amazon Linux doesn't support working directories (or at least
     // TSCBasic.Process doesn't support working directories on Amazon Linux)
     let process = TSCBasic.Process(
-      arguments: [git.path, "-C", workingDirectory.path] + arguments
+      arguments: [try git.filePath, "-C", try workingDirectory.filePath] + arguments
     )
     try process.launch()
     let processResult = try await process.waitUntilExit()
@@ -102,7 +102,7 @@ package class SwiftPMDependencyProject {
 
   package func tag(changedFiles: [URL], version: String) async throws {
     try await runGitCommand(
-      ["add"] + changedFiles.map(\.path),
+      ["add"] + changedFiles.map { try $0.filePath },
       workingDirectory: packageDirectory
     )
     try await runGitCommand(

@@ -68,7 +68,7 @@ public final class InProcessSourceKitLSPClient: Sendable {
     let serverToClientConnection = LocalConnection(receiverName: "client")
     self.server = SourceKitLSPServer(
       client: serverToClientConnection,
-      toolchainRegistry: ToolchainRegistry(installPath: AbsolutePath(validatingOrNil: toolchainPath?.path)),
+      toolchainRegistry: ToolchainRegistry(installPath: AbsolutePath(validatingOrNil: try? toolchainPath?.filePath)),
       options: options,
       testHooks: TestHooks(),
       onExit: {
