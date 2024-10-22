@@ -264,7 +264,7 @@ package struct JSONCompilationDatabase: CompilationDatabase, Equatable, Codable 
     if let indices = pathToCommands[uri] {
       return indices.map { commands[$0] }
     }
-    if let fileURL = uri.fileURL, let indices = pathToCommands[DocumentURI(fileURL.realpath)] {
+    if let fileURL = try? uri.fileURL?.realpath, let indices = pathToCommands[DocumentURI(fileURL)] {
       return indices.map { commands[$0] }
     }
     return []

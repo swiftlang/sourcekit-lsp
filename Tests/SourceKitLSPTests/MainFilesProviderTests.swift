@@ -13,6 +13,7 @@
 import LanguageServerProtocol
 import SKTestSupport
 import SourceKitLSP
+import SwiftExtensions
 import XCTest
 
 final class MainFilesProviderTests: XCTestCase {
@@ -186,7 +187,7 @@ final class MainFilesProviderTests: XCTestCase {
     XCTAssertEqual(preEditDiag.message, "Unused variable 'fromMyLibrary'")
 
     let newFancyLibraryContents = """
-      #include "\(project.scratchDirectory.path)/Sources/shared.h"
+      #include "\(try project.scratchDirectory.filePath)/Sources/shared.h"
       """
     let fancyLibraryUri = try project.uri(for: "MyFancyLibrary.c")
     try newFancyLibraryContents.write(to: try XCTUnwrap(fancyLibraryUri.fileURL), atomically: false, encoding: .utf8)

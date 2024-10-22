@@ -71,11 +71,11 @@ package func testScratchDir(testName: String = #function) throws -> URL {
   // Including the test name in the directory frequently makes path lengths of test files exceed the maximum path length
   // on Windows. Choose shorter directory names on that platform to avoid that issue.
   #if os(Windows)
-  let url = FileManager.default.temporaryDirectory.realpath
+  let url = try FileManager.default.temporaryDirectory.realpath
     .appendingPathComponent("lsp-test")
     .appendingPathComponent("\(uuid)")
   #else
-  let url = FileManager.default.temporaryDirectory.realpath
+  let url = try FileManager.default.temporaryDirectory.realpath
     .appendingPathComponent("sourcekit-lsp-test-scratch")
     .appendingPathComponent("\(testBaseName)-\(uuid)")
   #endif
@@ -100,17 +100,19 @@ package func withTestScratchDir<T>(
       try? FileManager.default.removeItem(at: scratchDirectory)
     }
   }
-  return try await body(try AbsolutePath(validating: scratchDirectory.path))
+  return try await body(try AbsolutePath(validating: scratchDirectory.filePath))
 }
 
-let globalModuleCache: URL? = {
-  if let customModuleCache = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_TEST_MODULE_CACHE"] {
-    if customModuleCache.isEmpty {
-      return nil
+var globalModuleCache: URL? {
+  get throws {
+    if let customModuleCache = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_TEST_MODULE_CACHE"] {
+      if customModuleCache.isEmpty {
+        return nil
+      }
+      return URL(fileURLWithPath: customModuleCache)
     }
-    return URL(fileURLWithPath: customModuleCache)
+    return try FileManager.default.temporaryDirectory.realpath
+      .appendingPathComponent("sourcekit-lsp-test-scratch")
+      .appendingPathComponent("shared-module-cache")
   }
-  return FileManager.default.temporaryDirectory.realpath
-    .appendingPathComponent("sourcekit-lsp-test-scratch")
-    .appendingPathComponent("shared-module-cache")
-}()
+}

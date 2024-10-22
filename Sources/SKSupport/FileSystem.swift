@@ -27,7 +27,7 @@ extension AbsolutePath {
   package init(expandingTilde path: String) throws {
     if path.first == "~" {
       try self.init(
-        AbsolutePath(validating: FileManager.default.homeDirectoryForCurrentUser.path),
+        AbsolutePath(validating: FileManager.default.homeDirectoryForCurrentUser.filePath),
         validating: String(path.dropFirst(2))
       )
     } else {

@@ -587,7 +587,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         logger.error("Toolchain is not a file URL")
         return nil
       }
-      return try AbsolutePath(validating: toolchainUrl.path)
+      return try AbsolutePath(validating: toolchainUrl.filePath)
     }
     if let toolchainPath {
       if let toolchain = await self.toolchainRegistry.toolchain(withPath: toolchainPath) {
@@ -645,10 +645,10 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         result.formUnion(targets)
       }
       if !filesAndDirectories.directories.isEmpty,
-        let documentPath = AbsolutePath(validatingOrNil: document.fileURL?.path)
+        let documentPath = AbsolutePath(validatingOrNil: try? document.fileURL?.filePath)
       {
         for (directory, info) in filesAndDirectories.directories {
-          guard let directoryPath = AbsolutePath(validatingOrNil: directory.fileURL?.path) else {
+          guard let directoryPath = AbsolutePath(validatingOrNil: try? directory.fileURL?.filePath) else {
             continue
           }
           if documentPath.isDescendant(of: directoryPath) {

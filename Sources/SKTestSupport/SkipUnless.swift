@@ -220,7 +220,7 @@ package actor SkipUnless {
         .appendingPathComponent("debug")
         .appendingPathComponent("Modules")
         .appendingPathComponent("MyLibrary.swiftmodule")
-      return FileManager.default.fileExists(atPath: modulesDirectory.path)
+      return FileManager.default.fileExists(at: modulesDirectory)
     }
   }
 
@@ -390,10 +390,10 @@ package actor SkipUnless {
         // of Lib when building Lib.
         for target in ["MyPlugin", "Lib"] {
           var arguments = [
-            swift.pathString, "build", "--package-path", project.scratchDirectory.path, "--target", target,
+            swift.pathString, "build", "--package-path", try project.scratchDirectory.filePath, "--target", target,
           ]
-          if let globalModuleCache {
-            arguments += ["-Xswiftc", "-module-cache-path", "-Xswiftc", globalModuleCache.path]
+          if let globalModuleCache = try globalModuleCache {
+            arguments += ["-Xswiftc", "-module-cache-path", "-Xswiftc", try globalModuleCache.filePath]
           }
           try await Process.run(arguments: arguments, workingDirectory: nil)
         }

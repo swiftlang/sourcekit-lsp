@@ -16,19 +16,21 @@ import Foundation
 package import LanguageServerProtocol
 import SKLogging
 import SemanticIndex
+import SwiftExtensions
 #else
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SemanticIndex
+import SwiftExtensions
 #endif
 
 extension UncheckedIndex {
   package func mainFilesContainingFile(_ uri: DocumentURI) -> Set<DocumentURI> {
     let mainFiles: Set<DocumentURI>
-    if let url = uri.fileURL {
-      let mainFilePaths = Set(self.underlyingIndexStoreDB.mainFilesContainingFile(path: url.path))
+    if let filePath = orLog("File path to get main files", { try uri.fileURL?.filePath }) {
+      let mainFilePaths = Set(self.underlyingIndexStoreDB.mainFilesContainingFile(path: filePath))
       mainFiles = Set(
         mainFilePaths
           .filter { FileManager.default.fileExists(atPath: $0) }

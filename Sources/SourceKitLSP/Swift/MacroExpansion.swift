@@ -17,6 +17,7 @@ import SKLogging
 import SKOptions
 import SKSupport
 import SourceKitD
+import SwiftExtensions
 
 /// Caches the contents of macro expansions that were recently requested by the user.
 actor MacroExpansionManager {
@@ -276,7 +277,7 @@ extension SwiftLanguageService {
         )
       } catch {
         throw ResponseError.unknown(
-          "Failed to create directory for complete macro expansion at path: \(completeExpansionFilePath.path)"
+          "Failed to create directory for complete macro expansion at \(completeExpansionFilePath.description)"
         )
       }
 
@@ -286,7 +287,7 @@ extension SwiftLanguageService {
         try completeExpansionFileContent.write(to: completeExpansionFilePath, atomically: true, encoding: .utf8)
       } catch {
         throw ResponseError.unknown(
-          "Unable to write complete macro expansion to file path: \"\(completeExpansionFilePath.path)\""
+          "Unable to write complete macro expansion to \"\(completeExpansionFilePath.description)\""
         )
       }
 

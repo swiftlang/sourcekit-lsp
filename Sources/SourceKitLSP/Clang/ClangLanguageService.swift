@@ -456,14 +456,14 @@ extension ClangLanguageService {
 
     // The compile command changed, send over the new one.
     if let compileCommand = clangBuildSettings?.compileCommand,
-      let pathString = (try? AbsolutePath(validating: url.path))?.pathString
+      let pathString = AbsolutePath(validatingOrNil: try? url.filePath)?.pathString
     {
       let notification = DidChangeConfigurationNotification(
         settings: .clangd(ClangWorkspaceSettings(compilationDatabaseChanges: [pathString: compileCommand]))
       )
       clangd.send(notification)
     } else {
-      logger.error("No longer have build settings for \(url.path) but can't send null build settings to clangd")
+      logger.error("No longer have build settings for \(url.description) but can't send null build settings to clangd")
     }
   }
 

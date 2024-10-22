@@ -169,7 +169,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = try AbsolutePath(validating: tempDir.appending(component: "pkg").asURL.realpath.path)
+      let packageRoot = try AbsolutePath(validating: tempDir.appending(component: "pkg").asURL.realpath.filePath)
       let buildSystemManager = await BuildSystemManager(
         buildSystemKind: .swiftPM(projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
@@ -182,7 +182,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let aPlusSomething = packageRoot.appending(components: "Sources", "lib", "a+something.swift")
 
       assertNotNil(await buildSystemManager.initializationData?.indexStorePath)
-      let pathWithPlusEscaped = "\(aPlusSomething.asURL.path.replacing("+", with: "%2B"))"
+      let pathWithPlusEscaped = "\(try aPlusSomething.asURL.filePath.replacing("+", with: "%2B"))"
       #if os(Windows)
       let urlWithPlusEscaped = try XCTUnwrap(URL(string: "file:///\(pathWithPlusEscaped)"))
       #else
@@ -629,7 +629,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: packageRoot.asURL, options: .testDefault()))
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: try AbsolutePath(validating: projectRoot.path)),
+        buildSystemKind: .swiftPM(projectRoot: try AbsolutePath(validating: projectRoot.filePath)),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -705,7 +705,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: symlinkRoot.asURL, options: .testDefault()))
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: try AbsolutePath(validating: projectRoot.path)),
+        buildSystemKind: .swiftPM(projectRoot: try AbsolutePath(validating: projectRoot.filePath)),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -794,8 +794,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
   func testPluginArgs() async throws {
     #if os(Windows)
-    // TODO: Enable this test once https://github.com/swiftlang/swift-foundation/issues/973 is fixed
-    try XCTSkipIf(true, "https://github.com/swiftlang/swift-foundation/issues/973")
+    // TODO: Enable this test once https://github.com/swiftlang/sourcekit-lsp/issues/1775 is fixed
+    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1775")
     #endif
     try await withTestScratchDir { tempDir in
       try localFileSystem.createFiles(

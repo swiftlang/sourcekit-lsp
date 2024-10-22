@@ -16,6 +16,7 @@ import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKLogging
 import SKOptions
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import func TSCBasic.getEnvSearchPaths
@@ -224,7 +225,7 @@ actor ExternalBuildSystemAdapter {
         .filter { $0.pathExtension == "json" }
 
       if let configFileURL = jsonFiles?.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }).first,
-        let configFilePath = AbsolutePath(validatingOrNil: configFileURL.path)
+        let configFilePath = AbsolutePath(validatingOrNil: try? configFileURL.filePath)
       {
         return configFilePath
       }

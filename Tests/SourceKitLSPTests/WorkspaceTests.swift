@@ -16,6 +16,7 @@ import SKLogging
 import SKOptions
 import SKTestSupport
 import SourceKitLSP
+import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
 import XCTest
@@ -721,7 +722,7 @@ final class WorkspaceTests: XCTestCase {
     try await TSCBasic.Process.checkNonZeroExit(arguments: [
       ToolchainRegistry.forTesting.default!.swift!.pathString,
       "build",
-      "--package-path", packageDir.path,
+      "--package-path", packageDir.filePath,
       "-Xswiftc", "-index-ignore-system-modules",
       "-Xcc", "-index-ignore-system-symbols",
     ])

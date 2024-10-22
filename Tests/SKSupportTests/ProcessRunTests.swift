@@ -12,6 +12,7 @@
 
 import SKSupport
 import SKTestSupport
+import SwiftExtensions
 import XCTest
 
 import struct TSCBasic.AbsolutePath
@@ -38,7 +39,7 @@ final class ProcessRunTests: XCTestCase {
       """.write(to: pythonFile.asURL, atomically: true, encoding: .utf8)
 
       let result = try await Process.run(
-        arguments: [python.path, pythonFile.pathString],
+        arguments: [python.filePath, pythonFile.pathString],
         workingDirectory: workingDir
       )
       let stdout = try unwrap(String(bytes: result.output.get(), encoding: .utf8))

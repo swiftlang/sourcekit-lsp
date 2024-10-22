@@ -15,11 +15,13 @@ import Foundation
 @preconcurrency package import IndexStoreDB
 package import LanguageServerProtocol
 import SKLogging
+import SwiftExtensions
 #else
 import Foundation
 @preconcurrency import IndexStoreDB
 import LanguageServerProtocol
 import SKLogging
+import SwiftExtensions
 #endif
 
 /// Essentially a `DocumentManager` from the `SourceKitLSP` module.
@@ -276,8 +278,9 @@ private struct IndexOutOfDateChecker {
       // If there are no in-memory modifications check if there are on-disk modifications.
       fallthrough
     case .modifiedFiles:
-      guard let fileURL = (mainFile ?? filePath).fileURL,
-        let lastUnitDate = index.dateOfLatestUnitFor(filePath: fileURL.path)
+      guard
+        let filePathStr = orLog("Realpath for up-to-date", { try (mainFile ?? filePath).fileURL?.realpath.filePath }),
+        let lastUnitDate = index.dateOfLatestUnitFor(filePath: filePathStr)
       else {
         return false
       }
@@ -346,16 +349,18 @@ private struct IndexOutOfDateChecker {
       guard var fileURL = uri.fileURL else {
         return .fileDoesNotExist
       }
-      var modificationDate = try Self.modificationDate(atPath: fileURL.path)
+      var modificationDate = try Self.modificationDate(atPath: fileURL.filePath)
 
       // Get the maximum mtime in the symlink chain as the modification date of the URI. That way if either the symlink
       // is changed to point to a different file or if the underlying file is modified, the modification time is
       // updated.
-      while let relativeSymlinkDestination = try? FileManager.default.destinationOfSymbolicLink(atPath: fileURL.path),
+      while let relativeSymlinkDestination = try? FileManager.default.destinationOfSymbolicLink(
+        atPath: fileURL.filePath
+      ),
         let symlinkDestination = URL(string: relativeSymlinkDestination, relativeTo: fileURL)
       {
         fileURL = symlinkDestination
-        modificationDate = max(modificationDate, try Self.modificationDate(atPath: fileURL.path))
+        modificationDate = max(modificationDate, try Self.modificationDate(atPath: fileURL.filePath))
       }
 
       return .date(modificationDate)
@@ -379,7 +384,7 @@ private struct IndexOutOfDateChecker {
     }
     let fileExists =
       if let fileUrl = uri.fileURL {
-        FileManager.default.fileExists(atPath: fileUrl.path)
+        FileManager.default.fileExists(at: fileUrl)
       } else {
         false
       }

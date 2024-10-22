@@ -80,7 +80,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
             .appendingPathComponent("include")
             .appendingPathComponent("module.modulemap")
         }
-        .first { FileManager.default.fileExists(atPath: $0.path) }
+        .first { FileManager.default.fileExists(at: $0) }
 
       guard let swiftSyntaxCShimsModulemap else {
         throw SwiftSyntaxCShimsModulemapNotFoundError()
@@ -106,7 +106,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
         let enumerator = FileManager.default.enumerator(at: dir, includingPropertiesForKeys: nil)
         while let file = enumerator?.nextObject() as? URL {
           if file.pathExtension == "o" {
-            objectFiles.append(file.path)
+            objectFiles.append(try file.filePath)
           }
         }
       }
@@ -121,9 +121,9 @@ package class SwiftPMTestProject: MultiFileTestProject {
       if let toolchainVersion = try await ToolchainRegistry.forTesting.default?.swiftVersion,
         toolchainVersion < SwiftVersion(6, 0)
       {
-        moduleSearchPath = productsDirectory.path
+        moduleSearchPath = try productsDirectory.filePath
       } else {
-        moduleSearchPath = "\(productsDirectory.path)/Modules"
+        moduleSearchPath = "\(try productsDirectory.filePath)/Modules"
       }
 
       return """
@@ -140,7 +140,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
               name: "MyMacros",
               swiftSettings: [.unsafeFlags([
                 "-I", "\(moduleSearchPath)",
-                "-Xcc", "-fmodule-map-file=\(swiftSyntaxCShimsModulemap.path)"
+                "-Xcc", "-fmodule-map-file=\(try swiftSyntaxCShimsModulemap.filePath)"
               ])],
               linkerSettings: [
                 .unsafeFlags([
@@ -233,16 +233,16 @@ package class SwiftPMTestProject: MultiFileTestProject {
       throw Error.swiftNotFound
     }
     var arguments = [
-      swift.path,
+      try swift.filePath,
       "build",
-      "--package-path", path.path,
+      "--package-path", try path.filePath,
       "--build-tests",
       "-Xswiftc", "-index-ignore-system-modules",
       "-Xcc", "-index-ignore-system-symbols",
     ]
-    if let globalModuleCache {
+    if let globalModuleCache = try globalModuleCache {
       arguments += [
-        "-Xswiftc", "-module-cache-path", "-Xswiftc", globalModuleCache.path,
+        "-Xswiftc", "-module-cache-path", "-Xswiftc", try globalModuleCache.filePath,
       ]
     }
     try await Process.checkNonZeroExit(arguments: arguments)
@@ -254,10 +254,10 @@ package class SwiftPMTestProject: MultiFileTestProject {
       throw Error.swiftNotFound
     }
     let arguments = [
-      swift.path,
+      try swift.filePath,
       "package",
       "resolve",
-      "--package-path", path.path,
+      "--package-path", try path.filePath,
     ]
     try await Process.checkNonZeroExit(arguments: arguments)
   }

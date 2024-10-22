@@ -65,8 +65,8 @@ func getOrCreateLogFileHandle(logDirectory: URL, logRotateCount: Int) -> FileHan
 
   do {
     try FileManager.default.createDirectory(at: logDirectory, withIntermediateDirectories: true)
-    if !FileManager.default.fileExists(atPath: logFileUrl.path) {
-      guard FileManager.default.createFile(atPath: logFileUrl.path, contents: nil) else {
+    if !FileManager.default.fileExists(at: logFileUrl) {
+      guard FileManager.default.createFile(atPath: try logFileUrl.filePath, contents: nil) else {
         throw FailedToCreateFileError(logFile: logFileUrl)
       }
     }
@@ -79,7 +79,7 @@ func getOrCreateLogFileHandle(logDirectory: URL, logRotateCount: Int) -> FileHan
     // We will try creating a log file again once this section of the log reaches `maxLogFileSize` but that means that
     // we'll only log this error every `maxLogFileSize` bytes, which is a lot less spammy than logging it on every log
     // call.
-    fputs("Failed to open file handle for log file at \(logFileUrl.path): \(error)", stderr)
+    fputs("Failed to open file handle for log file at \(logFileUrl): \(error)", stderr)
     logFileHandle = FileHandle.standardError
     return FileHandle.standardError
   }
@@ -176,7 +176,7 @@ private func cleanOldLogFilesImpl(logFileDirectory: URL, maxAge: TimeInterval) {
     guard
       let modificationDate = orLog(
         "Getting mtime of old log file",
-        { try FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] }
+        { try FileManager.default.attributesOfItem(atPath: url.filePath)[.modificationDate] }
       ) as? Date,
       Date().timeIntervalSince(modificationDate) > maxAge
     else {

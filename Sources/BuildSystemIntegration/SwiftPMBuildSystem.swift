@@ -238,14 +238,16 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   private var targetDependencies: [BuildTargetIdentifier: Set<BuildTargetIdentifier>] = [:]
 
   static package func projectRoot(for path: URL, options: SourceKitLSPOptions) -> URL? {
-    var path = path.realpath
+    guard var path = orLog("Getting realpath for project root", { try path.realpath }) else {
+      return nil
+    }
     while true {
       let packagePath = path.appending(component: "Package.swift")
       if (try? String(contentsOf: packagePath, encoding: .utf8))?.contains("PackageDescription") ?? false {
         return path
       }
 
-      if (try? AbsolutePath(validating: path.path))?.isRoot ?? true {
+      if (try? AbsolutePath(validating: path.filePath))?.isRoot ?? true {
         break
       }
       path.deleteLastPathComponent()
@@ -572,7 +574,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   package func sourceKitOptions(
     request: TextDocumentSourceKitOptionsRequest
   ) async throws -> TextDocumentSourceKitOptionsResponse? {
-    guard let url = request.textDocument.uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
+    guard let url = request.textDocument.uri.fileURL, let path = try? AbsolutePath(validating: url.filePath) else {
       // We can't determine build settings for non-file URIs.
       return nil
     }
@@ -587,7 +589,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     }
 
     if !swiftPMTarget.sources.lazy.map(DocumentURI.init).contains(request.textDocument.uri),
-      let substituteFile = swiftPMTarget.sources.sorted(by: { $0.path < $1.path }).first
+      let substituteFile = swiftPMTarget.sources.sorted(by: { $0.description < $1.description }).first
     {
       logger.info("Getting compiler arguments for \(url) using substitute file \(substituteFile)")
       // If `url` is not part of the target's source, it's most likely a header file. Fake compiler arguments for it
@@ -600,7 +602,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       let buildSettings = FileBuildSettings(
         compilerArguments: try await compilerArguments(for: DocumentURI(substituteFile), in: swiftPMTarget),
         workingDirectory: projectRoot.pathString
-      ).patching(newFile: DocumentURI(path.asURL.realpath), originalFile: DocumentURI(substituteFile))
+      ).patching(newFile: DocumentURI(try path.asURL.realpath), originalFile: DocumentURI(substituteFile))
       return TextDocumentSourceKitOptionsResponse(
         compilerArguments: buildSettings.compilerArguments,
         workingDirectory: buildSettings.workingDirectory

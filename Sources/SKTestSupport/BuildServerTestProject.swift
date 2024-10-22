@@ -16,7 +16,7 @@ import XCTest
 fileprivate let sdkArgs =
   if let defaultSDKPath {
     """
-    "-sdk", "\(defaultSDKPath.replacing(#"\"#, with: #"\\"#))",
+    "-sdk", r"\(defaultSDKPath)",
     """
   } else {
     ""
@@ -30,7 +30,7 @@ private let skTestSupportInputsDirectory: URL = {
     .appendingPathComponent("SourceKitLSP_SKTestSupport.bundle")
     .appendingPathComponent("Contents")
     .appendingPathComponent("Resources")
-  if !FileManager.default.fileExists(atPath: resources.path) {
+  if !FileManager.default.fileExists(at: resources) {
     // Xcode and command-line swiftpm differ about the path.
     resources.deleteLastPathComponent()
     resources.deleteLastPathComponent()
@@ -40,8 +40,8 @@ private let skTestSupportInputsDirectory: URL = {
     productsDirectory
     .appendingPathComponent("SourceKitLSP_SKTestSupport.resources")
   #endif
-  guard FileManager.default.fileExists(atPath: resources.path) else {
-    fatalError("missing resources \(resources.path)")
+  guard FileManager.default.fileExists(at: resources) else {
+    fatalError("missing resources \(resources)")
   }
   return resources.appendingPathComponent("INPUTS", isDirectory: true).standardizedFileURL
 }()
@@ -73,7 +73,7 @@ package class BuildServerTestProject: MultiFileTestProject {
       import sys
       from typing import Dict, List, Optional
 
-      sys.path.append("\(skTestSupportInputsDirectory.path)")
+      sys.path.append(r"\(try skTestSupportInputsDirectory.filePath)")
 
       from AbstractBuildServer import AbstractBuildServer, LegacyBuildServer
 

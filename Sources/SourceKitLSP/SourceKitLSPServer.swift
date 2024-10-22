@@ -2149,7 +2149,7 @@ extension SourceKitLSPServer {
       }
       // Add the file name and line to the detail string
       if let url = location.uri.fileURL,
-        let basename = (try? AbsolutePath(validating: url.path))?.basename
+        let basename = (try? AbsolutePath(validating: url.filePath))?.basename
       {
         detail = "Extension at \(basename):\(location.range.lowerBound.line + 1)"
       } else if let moduleName = moduleName {

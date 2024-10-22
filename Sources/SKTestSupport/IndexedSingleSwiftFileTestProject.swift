@@ -69,13 +69,13 @@ package struct IndexedSingleSwiftFileTestProject {
     try extractMarkers(markedText).textWithoutMarkers.write(to: testFileURL, atomically: false, encoding: .utf8)
 
     var compilerArguments: [String] = [
-      testFileURL.path,
-      "-index-store-path", indexURL.path,
+      try testFileURL.filePath,
+      "-index-store-path", try indexURL.filePath,
       "-typecheck",
     ]
-    if let globalModuleCache {
+    if let globalModuleCache = try globalModuleCache {
       compilerArguments += [
-        "-module-cache-path", globalModuleCache.path,
+        "-module-cache-path", try globalModuleCache.filePath,
       ]
     }
     if !indexSystemModules {
@@ -98,7 +98,7 @@ package struct IndexedSingleSwiftFileTestProject {
         .appendingPathComponent("lib")
         .appendingPathComponent("swift")
         .appendingPathComponent("windows")
-      compilerArguments += ["-I", xctestModuleDir.path]
+      compilerArguments += ["-I", try xctestModuleDir.filePath]
       #else
       let usrLibDir =
         sdkUrl
@@ -113,8 +113,8 @@ package struct IndexedSingleSwiftFileTestProject {
         .appendingPathComponent("Library")
         .appendingPathComponent("Frameworks")
       compilerArguments += [
-        "-I", usrLibDir.path,
-        "-F", frameworksDir.path,
+        "-I", try usrLibDir.filePath,
+        "-F", try frameworksDir.filePath,
       ]
       #endif
     }
@@ -122,9 +122,9 @@ package struct IndexedSingleSwiftFileTestProject {
     let compilationDatabase = JSONCompilationDatabase(
       [
         JSONCompilationDatabase.Command(
-          directory: testWorkspaceDirectory.path,
-          filename: testFileURL.path,
-          commandLine: [swiftc.path] + compilerArguments
+          directory: try testWorkspaceDirectory.filePath,
+          filename: try testFileURL.filePath,
+          commandLine: [try swiftc.filePath] + compilerArguments
         )
       ]
     )
@@ -136,7 +136,7 @@ package struct IndexedSingleSwiftFileTestProject {
 
     // Run swiftc to build the index store
     do {
-      try await Process.checkNonZeroExit(arguments: [swiftc.path] + compilerArguments)
+      try await Process.checkNonZeroExit(arguments: [swiftc.filePath] + compilerArguments)
     } catch {
       if !allowBuildFailure {
         throw error
@@ -146,8 +146,8 @@ package struct IndexedSingleSwiftFileTestProject {
     // Create the test client
     var options = SourceKitLSPOptions.testDefault()
     options.indexOrDefault = SourceKitLSPOptions.IndexOptions(
-      indexStorePath: indexURL.path,
-      indexDatabasePath: indexDBURL.path
+      indexStorePath: try indexURL.filePath,
+      indexDatabasePath: try indexDBURL.filePath
     )
     self.testClient = try await TestSourceKitLSPClient(
       options: options,

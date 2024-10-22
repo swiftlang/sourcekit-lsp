@@ -40,7 +40,7 @@ final class LegacyBuildServerBuildSystemTests: XCTestCase {
                 {
                   "uri": notification["uri"],
                   "updatedOptions": {
-                    "options": ["$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
+                    "options": [r"$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
                   },
                 },
               )
@@ -72,14 +72,14 @@ final class LegacyBuildServerBuildSystemTests: XCTestCase {
 
         class BuildServer(LegacyBuildServer):
           def send_delayed_options_changed(self, uri: str):
-            self.send_sourcekit_options_changed(uri, ["$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS])
+            self.send_sourcekit_options_changed(uri, [r"$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS])
 
           def register_for_changes(self, notification: Dict[str, object]):
             if notification["action"] != "register":
               return
             self.send_sourcekit_options_changed(
               notification["uri"],
-              ["$TEST_DIR/Test.swift", $SDK_ARGS]
+              [r"$TEST_DIR/Test.swift", $SDK_ARGS]
             )
             threading.Timer(1, self.send_delayed_options_changed, [notification["uri"]]).start()
         """
