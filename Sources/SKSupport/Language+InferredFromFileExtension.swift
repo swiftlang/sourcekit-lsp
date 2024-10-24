@@ -10,11 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Foundation
+package import LanguageServerProtocol
+#else
 import Foundation
 import LanguageServerProtocol
+#endif
 
 extension Language {
-  init?(inferredFromFileExtension uri: DocumentURI) {
+  package init?(inferredFromFileExtension uri: DocumentURI) {
     // URL.pathExtension is only set for file URLs but we want to also infer a file extension for non-file URLs like
     // untitled:file.cpp
     let pathExtension = uri.fileURL?.pathExtension ?? (uri.pseudoPath as NSString).pathExtension

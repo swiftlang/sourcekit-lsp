@@ -89,7 +89,8 @@ extension SwiftLanguageService {
       keys.request: requests.collectVariableType,
       keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
-      keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDRequestValue]?,
+      keys.compilerArgs: await self.buildSettings(for: uri, fallbackAfterTimeout: false)?.compilerArgs
+        as [SKDRequestValue]?,
     ])
 
     if let range = range {

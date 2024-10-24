@@ -129,14 +129,15 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     try startClangdProcess()
   }
 
-  private func buildSettings(for document: DocumentURI) async -> ClangBuildSettings? {
+  private func buildSettings(for document: DocumentURI, fallbackAfterTimeout: Bool) async -> ClangBuildSettings? {
     guard let workspace = workspace.value, let language = openDocuments[document] else {
       return nil
     }
     guard
       let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
         for: document,
-        language: language
+        language: language,
+        fallbackAfterTimeout: fallbackAfterTimeout
       )
     else {
       return nil
@@ -340,7 +341,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
 
 extension ClangLanguageService {
 
-  /// Intercept clangd's `PublishDiagnosticsNotification` to withold it if we're using fallback
+  /// Intercept clangd's `PublishDiagnosticsNotification` to withhold it if we're using fallback
   /// build settings.
   func publishDiagnostics(_ notification: PublishDiagnosticsNotification) async {
     // Technically, the publish diagnostics notification could still originate
@@ -354,7 +355,9 @@ extension ClangLanguageService {
     // short and we expect clangd to send us new diagnostics with the updated
     // non-fallback settings very shortly after, which will override the
     // incorrect result, making it very temporary.
-    let buildSettings = await self.buildSettings(for: notification.uri)
+    // TODO: We want to know the build settings that are currently transmitted to clangd, not whichever ones we would
+    // get next. (https://github.com/swiftlang/sourcekit-lsp/issues/1761)
+    let buildSettings = await self.buildSettings(for: notification.uri, fallbackAfterTimeout: true)
     guard let sourceKitLSPServer else {
       logger.fault("Cannot publish diagnostics because SourceKitLSPServer has been destroyed")
       return
@@ -452,7 +455,7 @@ extension ClangLanguageService {
       logger.error("Received updated build settings for non-file URI '\(uri.forLogging)'. Ignoring the update.")
       return
     }
-    let clangBuildSettings = await self.buildSettings(for: uri)
+    let clangBuildSettings = await self.buildSettings(for: uri, fallbackAfterTimeout: false)
 
     // The compile command changed, send over the new one.
     if let compileCommand = clangBuildSettings?.compileCommand,

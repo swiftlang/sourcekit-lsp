@@ -100,7 +100,8 @@ extension SwiftLanguageService {
       keys.groupName: groupName,
       keys.name: interfaceURI.pseudoPath,
       keys.synthesizedExtension: 1,
-      keys.compilerArgs: await self.buildSettings(for: document)?.compilerArgs as [SKDRequestValue]?,
+      keys.compilerArgs: await self.buildSettings(for: document, fallbackAfterTimeout: false)?.compilerArgs
+        as [SKDRequestValue]?,
     ])
 
     let dict = try await sendSourcekitdRequest(skreq, fileContents: nil)

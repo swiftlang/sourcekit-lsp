@@ -139,6 +139,7 @@ private extension BuildSystemKind {
   private static func createBuiltInBuildSystemAdapter(
     projectRoot: AbsolutePath,
     messagesToSourceKitLSPHandler: any MessageHandler,
+    buildSystemTestHooks: BuildSystemTestHooks,
     _ createBuildSystem: @Sendable (_ connectionToSourceKitLSP: any Connection) async throws -> BuiltInBuildSystem?
   ) async -> BuildSystemAdapter? {
     let connectionToSourceKitLSP = LocalConnection(
@@ -156,7 +157,8 @@ private extension BuildSystemKind {
     logger.log("Created \(type(of: buildSystem), privacy: .public) at \(projectRoot.pathString)")
     let buildSystemAdapter = BuiltInBuildSystemAdapter(
       underlyingBuildSystem: buildSystem,
-      connectionToSourceKitLSP: connectionToSourceKitLSP
+      connectionToSourceKitLSP: connectionToSourceKitLSP,
+      buildSystemTestHooks: buildSystemTestHooks
     )
     let connectionToBuildSystem = LocalConnection(
       receiverName: "\(type(of: buildSystem)) for \(projectRoot.asURL.lastPathComponent)"
@@ -190,7 +192,8 @@ private extension BuildSystemKind {
     case .compilationDatabase(projectRoot: let projectRoot):
       return await Self.createBuiltInBuildSystemAdapter(
         projectRoot: projectRoot,
-        messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
+        messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
+        buildSystemTestHooks: testHooks
       ) { connectionToSourceKitLSP in
         CompilationDatabaseBuildSystem(
           projectRoot: projectRoot,
@@ -203,7 +206,8 @@ private extension BuildSystemKind {
     case .swiftPM(projectRoot: let projectRoot):
       return await Self.createBuiltInBuildSystemAdapter(
         projectRoot: projectRoot,
-        messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
+        messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
+        buildSystemTestHooks: testHooks
       ) { connectionToSourceKitLSP in
         try await SwiftPMBuildSystem(
           projectRoot: projectRoot,
@@ -216,7 +220,8 @@ private extension BuildSystemKind {
     case .testBuildSystem(projectRoot: let projectRoot):
       return await Self.createBuiltInBuildSystemAdapter(
         projectRoot: projectRoot,
-        messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
+        messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
+        buildSystemTestHooks: testHooks
       ) { connectionToSourceKitLSP in
         TestBuildSystem(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
       }
@@ -411,7 +416,8 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         )
         let adapter = BuiltInBuildSystemAdapter(
           underlyingBuildSystem: legacyBuildServer,
-          connectionToSourceKitLSP: legacyBuildServer.connectionToSourceKitLSP
+          connectionToSourceKitLSP: legacyBuildServer.connectionToSourceKitLSP,
+          buildSystemTestHooks: buildSystemTestHooks
         )
         let connectionToBuildSystem = LocalConnection(receiverName: "Legacy BSP server")
         connectionToBuildSystem.start(handler: adapter)
@@ -672,7 +678,12 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// Returns the target's module name as parsed from the `BuildTargetIdentifier`'s compiler arguments.
   package func moduleName(for document: DocumentURI, in target: BuildTargetIdentifier) async -> String? {
     guard let language = await self.defaultLanguage(for: document, in: target),
-      let buildSettings = await buildSettings(for: document, in: target, language: language)
+      let buildSettings = await buildSettings(
+        for: document,
+        in: target,
+        language: language,
+        fallbackAfterTimeout: false
+      )
     else {
       return nil
     }
@@ -715,11 +726,6 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       language: language
     )
 
-    // TODO: We should only wait `fallbackSettingsTimeout` for build settings
-    // and return fallback afterwards.
-    // For now, this should be fine because all build systems return
-    // very quickly from `settings(for:language:)`.
-    // https://github.com/apple/sourcekit-lsp/issues/1181
     let response = try await cachedSourceKitOptions.get(request, isolation: self) { request in
       try await buildSystemAdapter.send(request)
     }
@@ -740,19 +746,30 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// Only call this method if it is known that `document` is a main file. Prefer `buildSettingsInferredFromMainFile`
   /// otherwise. If `document` is a header file, this will most likely return fallback settings because header files
   /// don't have build settings by themselves.
+  ///
+  /// If `fallbackAfterTimeout` is true fallback build settings will be returned if no build settings can be found in
+  /// `SourceKitLSPOptions.buildSettingsTimeoutOrDefault`.
   package func buildSettings(
     for document: DocumentURI,
     in target: BuildTargetIdentifier?,
-    language: Language
+    language: Language,
+    fallbackAfterTimeout: Bool
   ) async -> FileBuildSettings? {
-    do {
-      if let target,
-        let buildSettings = try await buildSettingsFromBuildSystem(for: document, in: target, language: language)
-      {
-        return buildSettings
+    if let target {
+      let buildSettingsFromBuildSystem = await orLog("Getting build settings") {
+        if fallbackAfterTimeout {
+          try await withTimeout(options.buildSettingsTimeoutOrDefault) {
+            return try await self.buildSettingsFromBuildSystem(for: document, in: target, language: language)
+          } resultReceivedAfterTimeout: {
+            await self.delegate?.fileBuildSettingsChanged([document])
+          }
+        } else {
+          try await self.buildSettingsFromBuildSystem(for: document, in: target, language: language)
+        }
       }
-    } catch {
-      logger.error("Getting build settings failed: \(error.forLogging)")
+      if let buildSettingsFromBuildSystem {
+        return buildSettingsFromBuildSystem
+      }
     }
 
     guard
@@ -780,14 +797,27 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// by the header file.
   package func buildSettingsInferredFromMainFile(
     for document: DocumentURI,
-    language: Language
+    language: Language,
+    fallbackAfterTimeout: Bool
   ) async -> FileBuildSettings? {
     func mainFileAndSettings(
       basedOn document: DocumentURI
     ) async -> (mainFile: DocumentURI, settings: FileBuildSettings)? {
       let mainFile = await self.mainFile(for: document, language: language)
-      let target = await canonicalTarget(for: mainFile)
-      guard let settings = await buildSettings(for: mainFile, in: target, language: language) else {
+      let settings = await orLog("Getting build settings") {
+        let target = try await withTimeout(options.buildSettingsTimeoutOrDefault) {
+          await self.canonicalTarget(for: mainFile)
+        } resultReceivedAfterTimeout: {
+          await self.delegate?.fileBuildSettingsChanged([document])
+        }
+        return await self.buildSettings(
+          for: mainFile,
+          in: target,
+          language: language,
+          fallbackAfterTimeout: fallbackAfterTimeout
+        )
+      }
+      guard let settings else {
         return nil
       }
       return (mainFile, settings)

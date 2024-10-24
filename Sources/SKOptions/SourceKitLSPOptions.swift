@@ -250,6 +250,13 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     set { fallbackBuildSystem = newValue }
   }
 
+  /// Number of milliseconds to wait for build settings from the build system before using fallback build settings.
+  public var buildSettingsTimeout: Int?
+  public var buildSettingsTimeoutOrDefault: Duration {
+    // The default timeout of 500ms was chosen arbitrarily without any measurements.
+    get { .milliseconds(buildSettingsTimeout ?? 500) }
+  }
+
   public var clangdOptions: [String]?
 
   private var index: IndexOptions?
