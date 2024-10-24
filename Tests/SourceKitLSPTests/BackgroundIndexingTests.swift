@@ -1451,9 +1451,11 @@ final class BackgroundIndexingTests: XCTestCase {
     // Preparation of `Test.swift` should finish instantly because it doesn't type check the function body.
     // Type-checking of `slow()` should be slow because the expression has exponential complexity in the type checker.
     // We should hit the timeout of 1s. Adding another 2s to escalate a SIGINT (to which swift-frontend doesn't respond)
-    // to a SIGKILL mean that the initial indexing should be done in ~3s. 30s should be enough to always finish within
-    // this time while also testing that we don't wait for type checking of Test.swift to finish.
-    XCTAssert(Date().timeIntervalSince(dateStarted) < 30)
+    // to a SIGKILL mean that the initial indexing should be done in ~3s. 90s should be enough to always finish within
+    // this time while also testing that we don't wait for type checking of Test.swift to finish, even on slow CI
+    // systems where package loading might take a while and just calling `swift build` to prepare `Test.swift` also has
+    // a delay.
+    XCTAssertLessThan(Date().timeIntervalSince(dateStarted), 90)
   }
 
   func testRedirectSymlink() async throws {
