@@ -622,7 +622,7 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
-  func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
+  func textDocumentContent(_ req: TextDocumentContentRequest) async throws -> TextDocumentContentResponse {
     throw ResponseError.unknown("unsupported method")
   }
 }

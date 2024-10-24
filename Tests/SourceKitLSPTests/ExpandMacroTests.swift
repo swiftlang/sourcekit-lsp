@@ -59,13 +59,12 @@ final class ExpandMacroTests: XCTestCase {
       """,
     ]
 
-    for (getReferenceDocument, peekDocuments) in cartesianProduct([true], [true]) {
+    for peekDocuments in [true] {
       let project = try await SwiftPMTestProject(
         files: files,
         manifest: SwiftPMTestProject.macroPackageManifest,
         capabilities: ClientCapabilities(experimental: [
           "workspace/peekDocuments": .bool(peekDocuments),
-          "workspace/getReferenceDocument": .bool(getReferenceDocument),
         ]),
         options: SourceKitLSPOptions.testDefault(),
         enableBackgroundIndexing: true
@@ -93,7 +92,7 @@ final class ExpandMacroTests: XCTestCase {
 
         let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
 
-        if peekDocuments && getReferenceDocument {
+        if peekDocuments {
           let expectation = self.expectation(description: "Handle Peek Documents Request")
           let peekDocumentsRequestURIs = ThreadSafeBox<[DocumentURI]?>(initialValue: nil)
 
@@ -114,9 +113,9 @@ final class ExpandMacroTests: XCTestCase {
 
           var filesContents = [String]()
           for uri in uris {
-            let result = try await project.testClient.send(GetReferenceDocumentRequest(uri: uri))
+            let result = try await project.testClient.send(TextDocumentContentRequest(uri: uri))
 
-            filesContents.append(result.content)
+            filesContents.append(result.text)
           }
 
           XCTAssertEqual(
@@ -234,13 +233,12 @@ final class ExpandMacroTests: XCTestCase {
       """#,
     ]
 
-    for (getReferenceDocument, peekDocuments) in cartesianProduct([true, false], [true, false]) {
+    for peekDocuments in [true, false] {
       let project = try await SwiftPMTestProject(
         files: files,
         manifest: SwiftPMTestProject.macroPackageManifest,
         capabilities: ClientCapabilities(experimental: [
           "workspace/peekDocuments": .bool(peekDocuments),
-          "workspace/getReferenceDocument": .bool(getReferenceDocument),
         ]),
         options: SourceKitLSPOptions.testDefault(),
         enableBackgroundIndexing: true
@@ -268,7 +266,7 @@ final class ExpandMacroTests: XCTestCase {
 
         let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
 
-        if peekDocuments && getReferenceDocument {
+        if peekDocuments {
           let expectation = self.expectation(description: "Handle Peek Documents Request")
 
           let peekDocumentsRequestURIs = ThreadSafeBox<[DocumentURI]?>(initialValue: nil)
@@ -290,9 +288,9 @@ final class ExpandMacroTests: XCTestCase {
 
           var filesContents = [String]()
           for uri in uris {
-            let result = try await project.testClient.send(GetReferenceDocumentRequest(uri: uri))
+            let result = try await project.testClient.send(TextDocumentContentRequest(uri: uri))
 
-            filesContents.append(result.content)
+            filesContents.append(result.text)
           }
 
           XCTAssertEqual(
@@ -437,7 +435,6 @@ final class ExpandMacroTests: XCTestCase {
       manifest: SwiftPMTestProject.macroPackageManifest,
       capabilities: ClientCapabilities(experimental: [
         "workspace/peekDocuments": .bool(true),
-        "workspace/getReferenceDocument": .bool(true),
       ]),
       options: SourceKitLSPOptions.testDefault(),
       enableBackgroundIndexing: true
@@ -473,10 +470,10 @@ final class ExpandMacroTests: XCTestCase {
     try await fulfillmentOfOrThrow([outerPeekDocumentRequestReceived])
 
     let outerPeekDocumentURI = try XCTUnwrap(outerPeekDocumentsRequestURIs.value?.only)
-    let outerMacroExpansion = try await project.testClient.send(GetReferenceDocumentRequest(uri: outerPeekDocumentURI))
+    let outerMacroExpansion = try await project.testClient.send(TextDocumentContentRequest(uri: outerPeekDocumentURI))
 
-    guard outerMacroExpansion.content == "/* padding */ #intermediate" else {
-      XCTFail("Received unexpected macro expansion content: \(outerMacroExpansion.content)")
+    guard outerMacroExpansion.text == "/* padding */ #intermediate" else {
+      XCTFail("Received unexpected macro expansion content: \(outerMacroExpansion.text)")
       return
     }
 
@@ -509,11 +506,11 @@ final class ExpandMacroTests: XCTestCase {
 
     let intermediatePeekDocumentURI = try XCTUnwrap(intermediatePeekDocumentsRequestURIs.value?.only)
     let intermediateMacroExpansion = try await project.testClient.send(
-      GetReferenceDocumentRequest(uri: intermediatePeekDocumentURI)
+      TextDocumentContentRequest(uri: intermediatePeekDocumentURI)
     )
 
-    guard intermediateMacroExpansion.content == "#stringify(1 + 2)" else {
-      XCTFail("Received unexpected macro expansion content: \(intermediateMacroExpansion.content)")
+    guard intermediateMacroExpansion.text == "#stringify(1 + 2)" else {
+      XCTFail("Received unexpected macro expansion content: \(intermediateMacroExpansion.text)")
       return
     }
 
@@ -545,8 +542,8 @@ final class ExpandMacroTests: XCTestCase {
     try await fulfillmentOfOrThrow([innerPeekDocumentRequestReceived])
 
     let innerPeekDocumentURI = try XCTUnwrap(innerPeekDocumentsRequestURIs.value?.only)
-    let innerMacroExpansion = try await project.testClient.send(GetReferenceDocumentRequest(uri: innerPeekDocumentURI))
+    let innerMacroExpansion = try await project.testClient.send(TextDocumentContentRequest(uri: innerPeekDocumentURI))
 
-    XCTAssertEqual(innerMacroExpansion.content, #"(1 + 2, "1 + 2")"#)
+    XCTAssertEqual(innerMacroExpansion.text, #"(1 + 2, "1 + 2")"#)
   }
 }
