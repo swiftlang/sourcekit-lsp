@@ -52,7 +52,6 @@ final class AsyncUtilsTests: XCTestCase {
   }
 
   func testWithTimeoutEscalatesPriority() async throws {
-    try XCTSkipIf(true, "Flakey test: rdar://137640122")
     let expectation = self.expectation(description: "Timeout started")
     let task = Task(priority: .background) {
       // We don't actually hit the timeout. It's just a large value.
