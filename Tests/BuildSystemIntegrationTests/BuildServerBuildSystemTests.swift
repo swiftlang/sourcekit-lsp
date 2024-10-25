@@ -89,17 +89,11 @@ final class BuildServerBuildSystemTests: XCTestCase {
         """
       ],
       buildServer: """
-        import threading
-
         class BuildServer(AbstractBuildServer):
-          timer_has_fired: bool = False
-
-          def timer_fired(self):
-            self.timer_has_fired = True
-            self.send_notification("buildTarget/didChange", {})
+          has_changed_targets: bool = False
 
           def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
-            if self.timer_has_fired:
+            if self.has_changed_targets:
               return {
                 "targets": [
                   {
@@ -112,11 +106,10 @@ final class BuildServerBuildSystemTests: XCTestCase {
                 ]
               }
             else:
-              threading.Timer(1, self.timer_fired).start()
               return {"targets": []}
 
           def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
-            assert self.timer_has_fired
+            assert self.has_changed_targets
             return {
               "items": [
                 {
@@ -129,10 +122,14 @@ final class BuildServerBuildSystemTests: XCTestCase {
             }
 
           def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
-            assert self.timer_has_fired
+            assert self.has_changed_targets
             return {
               "compilerArguments": [r"$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
             }
+
+          def workspace_did_change_watched_files(self, notification: Dict[str, object]) -> None:
+            self.has_changed_targets = True
+            self.send_notification("buildTarget/didChange", {})
         """
     )
 
@@ -143,6 +140,13 @@ final class BuildServerBuildSystemTests: XCTestCase {
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
     XCTAssertEqual(initialDiagnostics.fullReport?.items, [])
+
+    // We use an arbitrary file change to signal to the BSP server that it should send the targets changed notification
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: try DocumentURI(string: "file:///dummy"), type: .created)
+      ])
+    )
 
     // But then the 1s timer in the build server should fire, we get a `buildTarget/didChange` notification and we have
     // build settings for Test.swift
@@ -168,14 +172,8 @@ final class BuildServerBuildSystemTests: XCTestCase {
         """
       ],
       buildServer: """
-        import threading
-
         class BuildServer(AbstractBuildServer):
-          timer_has_fired: bool = False
-
-          def timer_fired(self):
-            self.timer_has_fired = True
-            self.send_notification("buildTarget/didChange", {})
+          has_changed_settings: bool = False
 
           def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
             return {
@@ -203,15 +201,18 @@ final class BuildServerBuildSystemTests: XCTestCase {
             }
 
           def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
-            if self.timer_has_fired:
+            if self.has_changed_settings:
               return {
                 "compilerArguments": [r"$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
               }
             else:
-              threading.Timer(1, self.timer_fired).start()
               return {
                 "compilerArguments": [r"$TEST_DIR/Test.swift", $SDK_ARGS]
               }
+
+          def workspace_did_change_watched_files(self, notification: Dict[str, object]) -> None:
+            self.has_changed_settings = True
+            self.send_notification("buildTarget/didChange", {})
         """
     )
 
@@ -222,6 +223,13 @@ final class BuildServerBuildSystemTests: XCTestCase {
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
     XCTAssertEqual(initialDiagnostics.fullReport?.items.map(\.message), ["DEBUG NOT SET"])
+
+    // We use an arbitrary file change to signal to the BSP server that it should send the targets changed notification
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: try DocumentURI(string: "file:///dummy"), type: .created)
+      ])
+    )
 
     // But then the 1s timer in the build server should fire, we get a `buildTarget/didChange` notification and we get
     // build settings for Test.swift that include -DDEBUG

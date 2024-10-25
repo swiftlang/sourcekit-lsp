@@ -76,6 +76,8 @@ class AbstractBuildServer:
             return self.register_for_changes(params)
         elif method == "textDocument/sourceKitOptions":
             return self.textdocument_sourcekitoptions(params)
+        elif method == "workspace/didChangeWatchedFiles":
+            return self.workspace_did_change_watched_files(params)
         elif method == "workspace/buildTargets":
             return self.workspace_build_targets(params)
 
@@ -146,6 +148,9 @@ class AbstractBuildServer:
         raise RequestError(
             code=-32601, message=f"'buildTarget/sources' not implemented"
         )
+
+    def workspace_did_change_watched_files(self, notification: Dict[str, object]) -> None:
+        pass
 
     def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
         raise RequestError(
