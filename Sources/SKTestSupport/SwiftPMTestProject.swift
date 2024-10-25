@@ -173,13 +173,6 @@ package class SwiftPMTestProject: MultiFileTestProject {
     cleanUp: (@Sendable () -> Void)? = nil,
     testName: String = #function
   ) async throws {
-    #if os(Windows)
-    // FIXME: Enable when https://github.com/swiftlang/swift-package-manager/issues/8038 is fixed
-    try XCTSkipIf(
-      true,
-      "SwiftPM tests fail nondeterministically due to https://github.com/swiftlang/swift-package-manager/issues/8038"
-    )
-    #endif
     var filesByPath: [RelativeFileLocation: String] = [:]
     for (fileLocation, contents) in files {
       let directories =

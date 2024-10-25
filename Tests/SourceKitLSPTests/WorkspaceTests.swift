@@ -24,13 +24,6 @@ import XCTest
 final class WorkspaceTests: XCTestCase {
 
   func testMultipleSwiftPMWorkspaces() async throws {
-    #if os(Windows)
-    // FIXME: Enable when https://github.com/swiftlang/swift-package-manager/issues/8038 is fixed
-    try XCTSkipIf(
-      true,
-      "SwiftPM tests fail nondeterministically due to https://github.com/swiftlang/swift-package-manager/issues/8038"
-    )
-    #endif
     // The package manifest is the same for both packages we open.
     let packageManifest = """
       // swift-tools-version: 5.7
@@ -167,13 +160,6 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testOpenPackageManifestInMultiSwiftPMWorkspaceSetup() async throws {
-    #if os(Windows)
-    // FIXME: Enable when https://github.com/swiftlang/swift-package-manager/issues/8038 is fixed
-    try XCTSkipIf(
-      true,
-      "SwiftPM tests fail nondeterministically due to https://github.com/swiftlang/swift-package-manager/issues/8038"
-    )
-    #endif
     let project = try await MultiFileTestProject(
       files: [
         // PackageA
@@ -250,13 +236,6 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testSwiftPMPackageInSubfolder() async throws {
-    #if os(Windows)
-    // FIXME: Enable when https://github.com/swiftlang/swift-package-manager/issues/8038 is fixed
-    try XCTSkipIf(
-      true,
-      "SwiftPM tests fail nondeterministically due to https://github.com/swiftlang/swift-package-manager/issues/8038"
-    )
-    #endif
     let packageManifest = """
       // swift-tools-version: 5.7
 
@@ -336,13 +315,6 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testNestedSwiftPMWorkspacesWithoutDedicatedWorkspaceFolder() async throws {
-    #if os(Windows)
-    // FIXME: Enable when https://github.com/swiftlang/swift-package-manager/issues/8038 is fixed
-    try XCTSkipIf(
-      true,
-      "SwiftPM tests fail nondeterministically due to https://github.com/swiftlang/swift-package-manager/issues/8038"
-    )
-    #endif
     // The package manifest is the same for both packages we open.
     let packageManifest = """
       // swift-tools-version: 5.7
@@ -525,13 +497,6 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testRecomputeFileWorkspaceMembershipOnPackageSwiftChange() async throws {
-    #if os(Windows)
-    // FIXME: Enable when https://github.com/swiftlang/swift-package-manager/issues/8038 is fixed
-    try XCTSkipIf(
-      true,
-      "SwiftPM tests fail nondeterministically due to https://github.com/swiftlang/swift-package-manager/issues/8038"
-    )
-    #endif
     let project = try await MultiFileTestProject(
       files: [
         "PackageA/Sources/MyLibrary/libA.swift": "",
@@ -661,13 +626,6 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testChangeWorkspaceFolders() async throws {
-    #if os(Windows)
-    // FIXME: Enable when https://github.com/swiftlang/swift-package-manager/issues/8038 is fixed
-    try XCTSkipIf(
-      true,
-      "SwiftPM tests fail nondeterministically due to https://github.com/swiftlang/swift-package-manager/issues/8038"
-    )
-    #endif
     let project = try await MultiFileTestProject(
       files: [
         "subdir/Sources/otherPackage/otherPackage.swift": """

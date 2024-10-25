@@ -300,14 +300,6 @@ final class PullDiagnosticsTests: XCTestCase {
   }
 
   func testDontReturnEmptyDiagnosticsIfDiagnosticRequestIsCancelled() async throws {
-    #if os(Windows)
-    // FIXME: Enable when https://github.com/swiftlang/swift-package-manager/issues/8038 is fixed
-    try XCTSkipIf(
-      true,
-      "SwiftPM tests fail nondeterministically due to https://github.com/swiftlang/swift-package-manager/issues/8038"
-    )
-    #endif
-
     let diagnosticRequestCancelled = self.expectation(description: "diagnostic request cancelled")
     let packageLoadingDidFinish = self.expectation(description: "Package loading did finish")
     var testHooks = TestHooks()
