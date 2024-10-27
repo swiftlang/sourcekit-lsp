@@ -363,8 +363,13 @@ class CodeCompletionSession {
       let docBrief: String? = value[sourcekitd.keys.docBrief]
       let utf8CodeUnitsToErase: Int = value[sourcekitd.keys.numBytesToErase] ?? 0
 
-      if let closureExpanded = expandClosurePlaceholders(insertText: insertText) {
-        insertText = closureExpanded
+      switch options.codeCompletionOrDefault.rewriteTrailingClosures {
+      case .full:
+        if let closureExpanded = expandClosurePlaceholders(insertText: insertText) {
+          insertText = closureExpanded
+        }
+      case .never:
+        break
       }
 
       let text = rewriteSourceKitPlaceholders(in: insertText, clientSupportsSnippets: clientSupportsSnippets)

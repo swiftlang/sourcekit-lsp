@@ -219,6 +219,33 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     }
   }
 
+  /// User settings controlling code completion.
+  public struct CodeCompletionOptions: Sendable, Codable, Equatable {
+    /// The extent to which a completion action should apply stylistic or
+    /// convenience transformations before passing a result to the client.
+    public enum RewriteLevel: String, Sendable, Codable {
+      case full, never
+    }
+
+    /// Whether trailing closures should be eagerly expanded by SourceKit-LSP
+    /// before being passed to the client.
+    public var rewriteTrailingClosures: RewriteLevel
+
+    public init(rewriteTrailingClosures: RewriteLevel = .full) {
+      self.rewriteTrailingClosures = rewriteTrailingClosures
+    }
+
+    static func merging(
+      base: CodeCompletionOptions,
+      override: CodeCompletionOptions?
+    ) -> CodeCompletionOptions {
+      return CodeCompletionOptions(
+        rewriteTrailingClosures: override?.rewriteTrailingClosures
+          ?? base.rewriteTrailingClosures
+      )
+    }
+  }
+
   public enum BackgroundPreparationMode: String {
     /// Build a target to prepare it
     case build
@@ -269,6 +296,12 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   public var loggingOrDefault: LoggingOptions {
     get { logging ?? .init() }
     set { logging = newValue }
+  }
+
+  private var codeCompletion: CodeCompletionOptions?
+  public var codeCompletionOrDefault: CodeCompletionOptions {
+    get { codeCompletion ?? .init() }
+    set { codeCompletion = newValue }
   }
 
   /// Default workspace type (buildserver|compdb|swiftpm). Overrides workspace type selection logic.
@@ -349,6 +382,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     clangdOptions: [String]? = nil,
     index: IndexOptions = .init(),
     logging: LoggingOptions = .init(),
+    codeCompletion: CodeCompletionOptions? = nil,
     defaultWorkspaceType: WorkspaceType? = nil,
     generatedFilesPath: String? = nil,
     backgroundIndexing: Bool? = nil,
@@ -365,6 +399,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     self.clangdOptions = clangdOptions
     self.index = index
     self.logging = logging
+    self.codeCompletion = codeCompletion
     self.generatedFilesPath = generatedFilesPath
     self.defaultWorkspaceType = defaultWorkspaceType
     self.backgroundIndexing = backgroundIndexing
@@ -420,6 +455,10 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       clangdOptions: override?.clangdOptions ?? base.clangdOptions,
       index: IndexOptions.merging(base: base.indexOrDefault, override: override?.index),
       logging: LoggingOptions.merging(base: base.loggingOrDefault, override: override?.logging),
+      codeCompletion: CodeCompletionOptions.merging(
+        base: base.codeCompletionOrDefault,
+        override: override?.codeCompletion
+      ),
       defaultWorkspaceType: override?.defaultWorkspaceType ?? base.defaultWorkspaceType,
       generatedFilesPath: override?.generatedFilesPath ?? base.generatedFilesPath,
       backgroundIndexing: override?.backgroundIndexing ?? base.backgroundIndexing,

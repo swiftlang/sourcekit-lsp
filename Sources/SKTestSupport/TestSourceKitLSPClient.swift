@@ -46,6 +46,16 @@ extension SourceKitLSPOptions {
   }
 }
 
+extension SourceKitLSPOptions.CodeCompletionOptions {
+  package static func testDefault(
+    rewriteTrailingClosures: RewriteLevel = .full
+  ) -> SourceKitLSPOptions.CodeCompletionOptions {
+    return SourceKitLSPOptions.CodeCompletionOptions(
+      rewriteTrailingClosures: rewriteTrailingClosures
+    )
+  }
+}
+
 fileprivate struct NotificationTimeoutError: Error, CustomStringConvertible {
   var description: String = "Failed to receive next notification within timeout"
 }

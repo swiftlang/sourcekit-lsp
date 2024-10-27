@@ -13,6 +13,7 @@
 import LanguageServerProtocol
 import SKTestSupport
 import SourceKitLSP
+import SKOptions
 import XCTest
 
 final class SwiftCompletionTests: XCTestCase {
@@ -1029,6 +1030,92 @@ final class SwiftCompletionTests: XCTestCase {
                     ${4:String}
                 }
                 """
+            )
+          )
+        )
+      ]
+    )
+  }
+
+  func testExpandClosuresDisabledByConfig() async throws {
+    let testClient = try await TestSourceKitLSPClient(
+      options: SourceKitLSPOptions(codeCompletion: .testDefault(rewriteTrailingClosures: .never)),
+      capabilities: snippetCapabilities
+    )
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct MyArray {
+          func myMap(_ body: (Int) -> Bool) {}
+      }
+      func test(x: MyArray) {
+          x.1️⃣
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertEqual(
+      completions.items.filter { $0.label.contains("myMap") },
+      [
+        CompletionItem(
+          label: "myMap(body: (Int) -> Bool)",
+          kind: .method,
+          detail: "Void",
+          deprecated: false,
+          sortText: nil,
+          filterText: "myMap(:)",
+          insertText: "myMap(${1:(Int) -> Bool})",
+          insertTextFormat: .snippet,
+          textEdit: .textEdit(
+            TextEdit(
+              range: Range(positions["1️⃣"]),
+              newText: "myMap(${1:(Int) -> Bool})"
+            )
+          )
+        )
+      ]
+    )
+  }
+
+  func testExpandMultipleTrailingClosuresDisabledByConfig() async throws {
+    let testClient = try await TestSourceKitLSPClient(
+      options: SourceKitLSPOptions(codeCompletion: .testDefault(rewriteTrailingClosures: .never)),
+      capabilities: snippetCapabilities
+    )
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct MyArray {
+          func myMap(_ body: (Int) -> Bool, second: (Int) -> String) {}
+      }
+      func test(x: MyArray) {
+          x.1️⃣
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertEqual(
+      completions.items.filter { $0.label.contains("myMap") },
+      [
+        CompletionItem(
+          label: "myMap(body: (Int) -> Bool, second: (Int) -> String)",
+          kind: .method,
+          detail: "Void",
+          deprecated: false,
+          sortText: nil,
+          filterText: "myMap(:second:)",
+          insertText: "myMap(${1:(Int) -> Bool}, second: ${2:(Int) -> String})",
+          insertTextFormat: .snippet,
+          textEdit: .textEdit(
+            TextEdit(
+              range: Range(positions["1️⃣"]),
+              newText: "myMap(${1:(Int) -> Bool}, second: ${2:(Int) -> String})"
             )
           )
         )

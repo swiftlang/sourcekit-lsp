@@ -39,6 +39,8 @@ The structure of the file is currently not guaranteed to be stable. Options may 
     - `indexPrefixMap: [string: string]`: Path remappings for remapping index data for local use.
     - `maxCoresPercentageToUseForBackgroundIndexing: double`: A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting
     - `updateIndexStoreTimeout: int`: Number of seconds to wait for an update index store task to finish before killing it.
+- `codeCompletion`: Dictionary with the following keys, defining options related to code completion actions
+    - `rewriteTrailingClosures: "full"|"never"`: Whether to pre-expand trailing closures when completing a function call expression
 - `logging`: Dictionary with the following keys, changing SourceKit-LSP’s logging behavior on non-Apple platforms. On Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging). These options can only be set globally and not per workspace.
   - `logLevel: "debug"|"info"|"default"|"error"|"fault"`: The level from which one onwards log messages should be written.
   - `privacyLevel: "public"|"private"|"sensitive"`: Whether potentially sensitive information should be redacted. Default is `public`, which redacts potentially sensitive information.
