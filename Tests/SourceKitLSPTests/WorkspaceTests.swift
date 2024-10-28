@@ -585,12 +585,22 @@ final class WorkspaceTests: XCTestCase {
     let packageBManifestPath = project.scratchDirectory
       .appendingPathComponent("PackageB")
       .appendingPathComponent("Package.swift")
-    try newPackageManifest.write(
-      to: packageBManifestPath,
-      atomically: true,
-      encoding: .utf8
-    )
 
+    // Package resolving can open Package.swift in exclusive mode on Windows, which prevents us from writing the new
+    // package manifest. Keep retrying until we get a successful write. This matches what a user would do.
+    try await repeatUntilExpectedResult {
+      do {
+        try newPackageManifest.write(
+          to: packageBManifestPath,
+          atomically: true,
+          encoding: .utf8
+        )
+        return true
+      } catch {
+        logger.error("Writing new package manifest failed, will retry: \(error.forLogging)")
+        return false
+      }
+    }
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
         FileEvent(uri: DocumentURI(packageBManifestPath), type: .changed)
