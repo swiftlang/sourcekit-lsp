@@ -120,7 +120,9 @@ final class BuildSystemTests: XCTestCase {
     await buildSystem.setBuildSettings(for: doc, to: newSettings)
 
     try await repeatUntilExpectedResult {
-      let refreshedDiags = try await testClient.nextDiagnosticsNotification(timeout: .seconds(1))
+      guard let refreshedDiags = try? await testClient.nextDiagnosticsNotification(timeout: .seconds(1)) else {
+        return false
+      }
       return try text == documentManager.latestSnapshot(doc).text && refreshedDiags.diagnostics.count == 0
     }
   }
