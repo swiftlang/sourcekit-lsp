@@ -178,9 +178,14 @@ package func withTimeout<T: Sendable>(
   _ duration: Duration,
   _ body: @escaping @Sendable () async throws -> T
 ) async throws -> T {
+  // Get the priority with which to launch the body task here so that we can pass the same priority as the initial
+  // priority to `withTaskPriorityChangedHandler`. Otherwise, we can get into a race condition where bodyTask gets
+  // launched with a low priority, then the priority gets elevated before we call with `withTaskPriorityChangedHandler`,
+  // we thus don't receive a `taskPriorityChanged` and hence never increase the priority of `bodyTask`.
+  let priority = Task.currentPriority
   var mutableTasks: [Task<Void, Error>] = []
   let stream = AsyncThrowingStream<T, Error> { continuation in
-    let bodyTask = Task<Void, Error> {
+    let bodyTask = Task<Void, Error>(priority: priority) {
       do {
         let result = try await body()
         continuation.yield(result)
@@ -189,7 +194,7 @@ package func withTimeout<T: Sendable>(
       }
     }
 
-    let timeoutTask = Task {
+    let timeoutTask = Task(priority: priority) {
       try await Task.sleep(for: duration)
       continuation.yield(with: .failure(TimeoutError()))
       bodyTask.cancel()
@@ -199,7 +204,7 @@ package func withTimeout<T: Sendable>(
 
   let tasks = mutableTasks
 
-  return try await withTaskPriorityChangedHandler {
+  return try await withTaskPriorityChangedHandler(initialPriority: priority) {
     for try await value in stream {
       return value
     }
