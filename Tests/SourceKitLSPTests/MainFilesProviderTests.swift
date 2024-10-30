@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
@@ -202,10 +203,11 @@ final class MainFilesProviderTests: XCTestCase {
     // diagnostics.
     try await repeatUntilExpectedResult {
       let refreshedDiags = try? await project.testClient.nextDiagnosticsNotification(timeout: .seconds(1))
-      guard let diagnostic = refreshedDiags?.diagnostics.only else {
+      guard refreshedDiags?.diagnostics.only?.message == "Unused variable 'fromMyFancyLibrary'" else {
+        logger.debug("Received unexpected diagnostics: \(refreshedDiags?.forLogging)")
         return false
       }
-      return diagnostic.message == "Unused variable 'fromMyFancyLibrary'"
+      return true
     }
   }
 }

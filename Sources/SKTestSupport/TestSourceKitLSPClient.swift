@@ -248,21 +248,26 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   /// - Note: This also returns any notifications sent before the call to
   ///   `nextNotification`.
   package func nextNotification(timeout: Duration = .seconds(defaultTimeout)) async throws -> any NotificationType {
-    return try await withThrowingTaskGroup(of: (any NotificationType).self) { taskGroup in
-      taskGroup.addTask {
-        for await notification in self.notifications {
-          return notification
-        }
-        throw NotificationTimeoutError()
+    // The task that gets the next notification from `self.notifications`.
+    let notificationYielder = Task {
+      for await notification in self.notifications {
+        return notification
       }
-      taskGroup.addTask {
-        try await Task.sleep(for: timeout)
-        throw NotificationTimeoutError()
-      }
-      let result = try await taskGroup.next()!
-      taskGroup.cancelAll()
-      return result
+      throw NotificationTimeoutError()
     }
+    // After `timeout`, we tell `notificationYielder` that we are no longer interested in its result by cancelling it.
+    // We wait for `notificationYielder` to accept this cancellation instead of returning immediately to avoid a
+    // situation where `notificationYielder` continues running, eats the first notification but it then never gets
+    // delivered to the test because we already delivered a timeout.
+    let cancellationTask = Task {
+      try await Task.sleep(for: timeout)
+      notificationYielder.cancel()
+    }
+    defer {
+      // We have received a value and don't need the cancellationTask anymore
+      cancellationTask.cancel()
+    }
+    return try await notificationYielder.value
   }
 
   /// Await the next diagnostic notification sent to the client.
