@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import XCTest
 
@@ -42,18 +43,21 @@ final class DependencyTrackingTests: XCTestCase {
 
     _ = try project.openDocument("LibB.swift")
 
-    let initialDiags = try await project.testClient.nextDiagnosticsNotification()
-    // Semantic analysis: expect module import error.
-    XCTAssertEqual(initialDiags.diagnostics.count, 1)
-    if let diagnostic = initialDiags.diagnostics.first {
+    // Once we have build settings for the file, we should get an error about `LibA` not existing (background
+    // preparation is disabled). Before that, we might get empty syntactic diagnostics.
+    try await repeatUntilExpectedResult {
+      let initialDiags = try? await project.testClient.nextDiagnosticsNotification(timeout: .seconds(1))
       #if compiler(>=6.1)
       #warning("When we drop support for Swift 5.10 we no longer need to check for the Objective-C error message")
       #endif
-      XCTAssert(
+      if let diagnostic = initialDiags?.diagnostics.only,
         diagnostic.message.contains("Could not build Objective-C module")
-          || diagnostic.message.contains("No such module"),
-        "expected module import error but found \"\(diagnostic.message)\""
-      )
+          || diagnostic.message.contains("No such module")
+      {
+        return true
+      }
+      logger.debug("Received unexpected diagnostics: \(initialDiags?.forLogging)")
+      return false
     }
 
     try await SwiftPMTestProject.build(at: project.scratchDirectory)

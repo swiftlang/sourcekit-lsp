@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import SKLogging
 import SKSupport
 import SKTestSupport
 import SourceKitLSP
@@ -204,18 +205,24 @@ final class PullDiagnosticsTests: XCTestCase {
     )
 
     let (bUri, _) = try project.openDocument("LibB.swift")
-    let beforeBuilding = try await project.testClient.send(
-      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
-    )
-    XCTAssert(
-      (beforeBuilding.fullReport?.items ?? []).contains(where: {
-        #if compiler(>=6.1)
-        #warning("When we drop support for Swift 5.10 we no longer need to check for the Objective-C error message")
-        #endif
-        return $0.message == "No such module 'LibA'" || $0.message == "Could not build Objective-C module 'LibA'"
-      }
+
+    // We might receive empty syntactic diagnostics before getting build settings. Wait until we get the diagnostic
+    // about the missing module.
+    try await repeatUntilExpectedResult {
+      let beforeBuilding = try? await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
       )
-    )
+      #if compiler(>=6.1)
+      #warning("When we drop support for Swift 5.10 we no longer need to check for the Objective-C error message")
+      #endif
+      if (beforeBuilding?.fullReport?.items ?? []).contains(where: {
+        return $0.message == "No such module 'LibA'" || $0.message == "Could not build Objective-C module 'LibA'"
+      }) {
+        return true
+      }
+      logger.debug("Received unexpected diagnostics: \(beforeBuilding?.forLogging)")
+      return false
+    }
 
     let diagnosticsRefreshRequestReceived = self.expectation(description: "DiagnosticsRefreshRequest received")
     project.testClient.handleSingleRequest { (request: DiagnosticsRefreshRequest) in

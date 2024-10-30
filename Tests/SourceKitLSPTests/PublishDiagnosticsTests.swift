@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import XCTest
 
@@ -180,15 +181,22 @@ final class PublishDiagnosticsTests: XCTestCase {
     )
 
     _ = try project.openDocument("LibB.swift")
-    let diagnosticsBeforeBuilding = try await project.testClient.nextDiagnosticsNotification()
-    XCTAssert(
-      diagnosticsBeforeBuilding.diagnostics.contains(where: {
-        #if compiler(>=6.1)
-        #warning("When we drop support for Swift 5.10 we no longer need to check for the Objective-C error message")
-        #endif
+
+    // We might receive empty syntactic diagnostics before getting build settings. Wait until we get the diagnostic
+    // about the missing module.
+    try await repeatUntilExpectedResult {
+      let diagnosticsBeforeBuilding = try? await project.testClient.nextDiagnosticsNotification(timeout: .seconds(1))
+      #if compiler(>=6.1)
+      #warning("When we drop support for Swift 5.10 we no longer need to check for the Objective-C error message")
+      #endif
+      if (diagnosticsBeforeBuilding?.diagnostics ?? []).contains(where: {
         return $0.message == "No such module 'LibA'" || $0.message == "Could not build Objective-C module 'LibA'"
-      })
-    )
+      }) {
+        return true
+      }
+      logger.debug("Received unexpected diagnostics: \(diagnosticsBeforeBuilding?.forLogging)")
+      return false
+    }
 
     try await SwiftPMTestProject.build(at: project.scratchDirectory)
 
