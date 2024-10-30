@@ -53,9 +53,6 @@ struct SemanticTokensLegendTranslator {
         logger.error("Token type '\(tokenType, privacy: .public)' from clangd does not exist in SourceKit-LSP's legend")
         tokenTypeTranslations[UInt32(index)] = .doesNotExistInSourceKitLSP
       case let sourceKitLSPIndex?:
-        logger.info(
-          "Token type '\(tokenType, privacy: .public)' from clangd at index \(index) translated to \(sourceKitLSPIndex)"
-        )
         tokenTypeTranslations[UInt32(index)] = .translation(UInt32(sourceKitLSPIndex))
       }
     }
@@ -72,12 +69,35 @@ struct SemanticTokensLegendTranslator {
         )
         tokenModifierTranslations[UInt32(index)] = .doesNotExistInSourceKitLSP
       case let sourceKitLSPIndex?:
-        logger.error(
-          "Token modifier '\(tokenModifier, privacy: .public)' from clangd at index \(index) translated to \(sourceKitLSPIndex)"
-        )
         tokenModifierTranslations[UInt32(index)] = .translation(UInt32(sourceKitLSPIndex))
       }
     }
+    struct TranslationsLogObject: CustomLogStringConvertible {
+      let translations: [UInt32: Translation]
+
+      var description: String { redactedDescription }
+
+      var redactedDescription: String {
+        translations.sorted { $0.key < $1.key }.map { entry in
+          switch entry.value {
+          case .translation(let translation):
+            return "\(entry.key): \(translation)"
+          case .doesNotExistInSourceKitLSP:
+            return "\(entry.key): does not exist"
+          }
+        }.joined(separator: "\n")
+      }
+    }
+    logger.logFullObjectInMultipleLogMessages(
+      level: .info,
+      header: "clangd token type translations",
+      TranslationsLogObject(translations: tokenTypeTranslations)
+    )
+    logger.logFullObjectInMultipleLogMessages(
+      level: .info,
+      header: "clangd token modifier translations",
+      TranslationsLogObject(translations: tokenModifierTranslations)
+    )
     self.tokenModifierTranslations = tokenModifierTranslations
 
     var tokenModifierTranslationBitmask: UInt32 = 0
