@@ -2402,28 +2402,6 @@ private let maxWorkspaceSymbolResults = 4096
 package typealias Diagnostic = LanguageServerProtocol.Diagnostic
 
 fileprivate extension CheckedIndex {
-  /// If there are any definition occurrences of the given USR, return these.
-  /// Otherwise return declaration occurrences.
-  func definitionOrDeclarationOccurrences(ofUSR usr: String) -> [SymbolOccurrence] {
-    let definitions = occurrences(ofUSR: usr, roles: [.definition])
-    if !definitions.isEmpty {
-      return definitions
-    }
-    return occurrences(ofUSR: usr, roles: [.declaration])
-  }
-
-  /// Find a `SymbolOccurrence` that is considered the primary definition of the symbol with the given USR.
-  ///
-  /// If the USR has an ambiguous definition, the most important role of this function is to deterministically return
-  /// the same result every time.
-  func primaryDefinitionOrDeclarationOccurrence(ofUSR usr: String) -> SymbolOccurrence? {
-    let result = definitionOrDeclarationOccurrences(ofUSR: usr).sorted().first
-    if result == nil {
-      logger.error("Failed to find definition of \(usr) in index")
-    }
-    return result
-  }
-
   /// Get the name of the symbol that is a parent of this symbol, if one exists
   func containerName(of symbol: SymbolOccurrence) -> String? {
     // The container name of accessors is the container of the surrounding variable.

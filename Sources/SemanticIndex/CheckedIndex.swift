@@ -161,6 +161,28 @@ package final class CheckedIndex {
   package func fileHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
     return checker.fileHasInMemoryModifications(uri)
   }
+
+  /// If there are any definition occurrences of the given USR, return these.
+  /// Otherwise return declaration occurrences.
+  package func definitionOrDeclarationOccurrences(ofUSR usr: String) -> [SymbolOccurrence] {
+    let definitions = occurrences(ofUSR: usr, roles: [.definition])
+    if !definitions.isEmpty {
+      return definitions
+    }
+    return occurrences(ofUSR: usr, roles: [.declaration])
+  }
+
+  /// Find a `SymbolOccurrence` that is considered the primary definition of the symbol with the given USR.
+  ///
+  /// If the USR has an ambiguous definition, the most important role of this function is to deterministically return
+  /// the same result every time.
+  package func primaryDefinitionOrDeclarationOccurrence(ofUSR usr: String) -> SymbolOccurrence? {
+    let result = definitionOrDeclarationOccurrences(ofUSR: usr).sorted().first
+    if result == nil {
+      logger.error("Failed to find definition of \(usr) in index")
+    }
+    return result
+  }
 }
 
 /// A wrapper around `IndexStoreDB` that allows the retrieval of a `CheckedIndex` with a specified check level or the

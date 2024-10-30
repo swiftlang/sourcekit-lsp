@@ -1340,6 +1340,92 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
+  func testXCTestIndexedTestsWithExtension() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      import XCTest
+
+      1️⃣final class MyTests: XCTestCase {}2️⃣
+
+      extension MyTests {
+        3️⃣func testOneIsTwo() {}4️⃣
+      }
+      """,
+      allowBuildFailure: true
+    )
+
+    let tests = try await project.testClient.send(
+      DocumentTestsRequest(textDocument: TextDocumentIdentifier(project.fileURI))
+    )
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          location: Location(uri: project.fileURI, range: project.positions["1️⃣"]..<project.positions["2️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/testOneIsTwo()",
+              label: "testOneIsTwo()",
+              location: Location(uri: project.fileURI, range: project.positions["3️⃣"]..<project.positions["4️⃣"])
+            )
+          ]
+        )
+      ]
+    )
+  }
+
+  func testXCTestIndexedTestsWithExtensionInSeparateFile() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/MyLibraryTests/MyTests.swift": """
+        import XCTest
+
+        class MyTests: XCTestCase {
+        }
+        """,
+        "Tests/MyLibraryTests/MoreTests.swift": """
+        import XCTest
+
+        1️⃣extension MyTests {
+          3️⃣func testMe() {}4️⃣
+        }2️⃣
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [.testTarget(name: "MyLibraryTests")]
+        )
+        """,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("MoreTests.swift")
+
+    let tests = try await project.testClient.send(
+      DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyLibraryTests.MyTests",
+          label: "MyTests",
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"]),
+          children: [
+            TestItem(
+              id: "MyLibraryTests.MyTests/testMe()",
+              label: "testMe()",
+              location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"])
+            )
+          ]
+        )
+      ]
+    )
+  }
+
   func testXCTestInvalidXCTestSuiteConstructions() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)

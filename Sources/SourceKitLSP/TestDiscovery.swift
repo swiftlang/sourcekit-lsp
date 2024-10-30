@@ -102,19 +102,34 @@ extension SourceKitLSPServer {
   /// provide ranges for the test cases in source code instead of only the test's location that we get from the index.
   private func testItems(
     for testSymbolOccurrences: [SymbolOccurrence],
+    index: CheckedIndex?,
     resolveLocation: (DocumentURI, Position) -> Location
   ) -> [AnnotatedTestItem] {
     // Arrange tests by the USR they are contained in. This allows us to emit test methods as children of test classes.
     // `occurrencesByParent[nil]` are the root test symbols that aren't a child of another test symbol.
     var occurrencesByParent: [String?: [SymbolOccurrence]] = [:]
 
-    let testSymbolUsrs = Set(testSymbolOccurrences.map(\.symbol.usr))
+    var testSymbolUsrs = Set(testSymbolOccurrences.map(\.symbol.usr))
+
+    // Gather any extension declarations that contains tests and add them to `occurrencesByParent` so we can properly
+    // arrange their test items as the extension's children.
+    for testSymbolOccurrence in testSymbolOccurrences {
+      for parentSymbol in testSymbolOccurrence.relations.filter({ $0.roles.contains(.childOf) }).map(\.symbol) {
+        guard parentSymbol.kind == .extension else {
+          continue
+        }
+        guard let definition = index?.primaryDefinitionOrDeclarationOccurrence(ofUSR: parentSymbol.usr) else {
+          logger.fault("Unable to find primary definition of extension '\(parentSymbol.usr)' containing tests")
+          continue
+        }
+        testSymbolUsrs.insert(parentSymbol.usr)
+        occurrencesByParent[nil, default: []].append(definition)
+      }
+    }
 
     for testSymbolOccurrence in testSymbolOccurrences {
       let childOfUsrs = testSymbolOccurrence.relations
-        .filter { $0.roles.contains(.childOf) }
-        .map(\.symbol.usr)
-        .filter { testSymbolUsrs.contains($0) }
+        .filter { $0.roles.contains(.childOf) }.map(\.symbol.usr).filter { testSymbolUsrs.contains($0) }
       if childOfUsrs.count > 1 {
         logger.fault(
           "Test symbol \(testSymbolOccurrence.symbol.usr) is child or multiple symbols: \(childOfUsrs.joined(separator: ", "))"
@@ -168,7 +183,7 @@ extension SourceKitLSPServer {
           children: children.map(\.testItem),
           tags: []
         ),
-        isExtension: false
+        isExtension: testSymbolOccurrence.symbol.kind == .extension
       )
     }
 
@@ -233,6 +248,7 @@ extension SourceKitLSPServer {
     let testsFromSyntacticIndex = await workspace.syntacticTestIndex.tests()
     let testsFromSemanticIndex = testItems(
       for: semanticTestSymbolOccurrences,
+      index: index,
       resolveLocation: { uri, position in Location(uri: uri, range: Range(position)) }
     )
     let filesWithTestsFromSemanticIndex = Set(testsFromSemanticIndex.map(\.testItem.location.uri))
@@ -337,6 +353,7 @@ extension SourceKitLSPServer {
         // swift-testing tests, which aren't part of the semantic index.
         return testItems(
           for: testSymbols,
+          index: index,
           resolveLocation: { uri, position in
             if uri == snapshot.uri, let documentSymbols,
               let range = findInnermostSymbolRange(containing: position, documentSymbolsResponse: documentSymbols)
