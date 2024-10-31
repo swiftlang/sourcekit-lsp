@@ -36,25 +36,16 @@ package struct LineTable: Hashable, Sendable {
     }
   }
 
-  /// The number of lines.
-  @inlinable
-  package var count: Int { return impl.count }
-
-  /// Returns the given (zero-based) line as a Substring, including the newline.
-  ///
-  /// - parameter line: Line number (zero-based).
-  @inlinable
-  package subscript(line: Int) -> Substring {
-    return content[impl[line]..<(line == count - 1 ? content.endIndex : impl[line + 1])]
-  }
+  /// The number of lines in the line table.
+  package var lineCount: Int { impl.count }
 
   /// Translate String.Index to logical line/utf16 pair.
   package func lineAndUTF16ColumnOf(_ index: String.Index, fromLine: Int = 0) -> (line: Int, utf16Column: Int) {
-    precondition(0 <= fromLine && fromLine < count)
+    precondition(0 <= fromLine && fromLine < impl.count)
 
     // Binary search.
     var lower = fromLine
-    var upper = count
+    var upper = impl.count
     while true {
       let mid = lower + (upper - lower) / 2
       let lineStartIndex = impl[mid]
@@ -69,16 +60,6 @@ package struct LineTable: Hashable, Sendable {
         upper = mid
       }
     }
-  }
-}
-
-extension LineTable: RandomAccessCollection {
-  package var startIndex: Int {
-    return impl.startIndex
-  }
-
-  package var endIndex: Int {
-    return impl.endIndex
   }
 }
 
@@ -101,8 +82,8 @@ extension LineTable {
     utf16Offset toOff: Int,
     with replacement: String
   ) {
-    let start = content.utf16.index(impl[fromLine], offsetBy: fromOff)
-    let end = content.utf16.index(impl[toLine], offsetBy: toOff)
+    let start = self.stringIndexOf(line: fromLine, utf16Column: fromOff)
+    let end = self.stringIndexOf(line: toLine, utf16Column: toOff)
 
     var newText = self.content
     newText.replaceSubrange(start..<end, with: replacement)
@@ -122,8 +103,14 @@ extension LineTable {
     utf16Length: Int,
     with replacement: String
   ) {
-    let start = content.utf16.index(impl[fromLine], offsetBy: fromOff)
-    let end = content.utf16.index(start, offsetBy: utf16Length)
+    let start = self.stringIndexOf(line: fromLine, utf16Column: fromOff)
+    let end: String.UTF16View.Index
+    if let endValue = content.utf16.index(start, offsetBy: utf16Length, limitedBy: content.endIndex) {
+      end = endValue
+    } else {
+      logger.fault("Range end is past end of file \(fromLine):\(fromOff) + \(utf16Length)")
+      end = content.endIndex
+    }
     let (toLine, toOff) = lineAndUTF16ColumnOf(end, fromLine: fromLine)
     self.replace(fromLine: fromLine, utf16Offset: fromOff, toLine: toLine, utf16Offset: toOff, with: replacement)
   }
@@ -158,7 +145,7 @@ extension LineTable {
       )
       return .beforeFirstLine
     }
-    guard line < count else {
+    guard line < impl.count else {
       logger.fault(
         """
         Line \(line) is out-of range (\(callerFile, privacy: .public):\(callerLine, privacy: .public))
@@ -166,7 +153,28 @@ extension LineTable {
       )
       return .afterLastLine
     }
-    return .line(self[line])
+    let start = impl[line]
+    let end: String.Index
+    if line + 1 < impl.count {
+      end = impl[line + 1]
+    } else {
+      end = content.endIndex
+    }
+
+    return .line(content[start..<end])
+  }
+
+  /// Extracts the contents of the line at the given index.
+  ///
+  /// If the line is out-of-bounds, returns `nil` and logs a fault.
+  @inlinable
+  package func line(at line: Int, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> Substring? {
+    switch lineSlice(at: line, callerFile: callerFile, callerLine: callerLine) {
+    case .beforeFirstLine, .afterLastLine:
+      return nil
+    case .line(let line):
+      return line
+    }
   }
 
   /// Converts the given UTF-16-based `line:column`` position to a `String.Index`.

@@ -87,9 +87,9 @@ final class LineTablePerfTests: PerfTestCase {
       self.startMeasuring()
 
       for _ in 1...iterations {
-        let line = (0..<(t.count - 1)).randomElement(using: &lcg) ?? 0
-        let col = (0..<t[line].utf16.count).randomElement(using: &lcg) ?? 0
-        let len = t[line].isEmpty ? 0 : Bool.random() ? 1 : 0
+        let line = (0..<(t.lineCount - 1)).randomElement(using: &lcg) ?? 0
+        let col = (0..<t.line(at: line)!.utf16.count).randomElement(using: &lcg) ?? 0
+        let len = t.line(at: line)!.isEmpty ? 0 : Bool.random() ? 1 : 0
         var newText = String(characters.randomElement(using: &lcg)!)
         if len == 1 && Bool.random(using: &lcg) {
           newText = ""  // deletion

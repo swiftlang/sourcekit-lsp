@@ -417,46 +417,64 @@ class CodeCompletionSession {
     newText: String,
     snapshot: DocumentSnapshot
   ) -> TextEdit {
-    let textEditRangeStart: Position
+    let textEditRangeStart = computeCompletionTextEditStart(
+      completionPos: completionPos,
+      requestPosition: requestPosition,
+      utf8CodeUnitsToErase: utf8CodeUnitsToErase,
+      snapshot: snapshot
+    )
+    return TextEdit(range: textEditRangeStart..<requestPosition, newText: newText)
+  }
 
+  private func computeCompletionTextEditStart(
+    completionPos: Position,
+    requestPosition: Position,
+    utf8CodeUnitsToErase: Int,
+    snapshot: DocumentSnapshot
+  ) -> Position {
     // Compute the TextEdit
     if utf8CodeUnitsToErase == 0 {
       // Nothing to delete. Fast path and avoid UTF-8/UTF-16 conversions
-      textEditRangeStart = completionPos
+      return completionPos
     } else if utf8CodeUnitsToErase == 1 {
       // Fast path: Erasing a single UTF-8 byte code unit means we are also need to erase exactly one UTF-16 code unit, meaning we don't need to process the file contents
       if completionPos.utf16index >= 1 {
         // We can delete the character.
-        textEditRangeStart = Position(line: completionPos.line, utf16index: completionPos.utf16index - 1)
+        return Position(line: completionPos.line, utf16index: completionPos.utf16index - 1)
       } else {
         // Deleting the character would cross line boundaries. This is not supported by LSP.
         // Fall back to ignoring utf8CodeUnitsToErase.
         // If we discover that multi-lines replacements are often needed, we can add an LSP extension to support multi-line edits.
-        textEditRangeStart = completionPos
-      }
-    } else {
-      // We need to delete more than one text character. Do the UTF-8/UTF-16 dance.
-      assert(completionPos.line == requestPosition.line)
-      // Construct a string index for the edit range start by subtracting the UTF-8 code units to erase from the completion position.
-      let line = snapshot.lineTable[completionPos.line]
-      let deletionStartStringIndex = line.utf8.index(snapshot.index(of: completionPos), offsetBy: -utf8CodeUnitsToErase)
-
-      // Compute the UTF-16 offset of the deletion start range. If the start lies in a previous line, this will be negative
-      let deletionStartUtf16Offset = line.utf16.distance(from: line.startIndex, to: deletionStartStringIndex)
-
-      // Check if we are only deleting on one line. LSP does not support deleting over multiple lines.
-      if deletionStartUtf16Offset >= 0 {
-        // We are only deleting characters on the same line. Construct the corresponding text edit.
-        textEditRangeStart = Position(line: completionPos.line, utf16index: deletionStartUtf16Offset)
-      } else {
-        // Deleting the character would cross line boundaries. This is not supported by LSP.
-        // Fall back to ignoring utf8CodeUnitsToErase.
-        // If we discover that multi-lines replacements are often needed, we can add an LSP extension to support multi-line edits.
-        textEditRangeStart = completionPos
+        return completionPos
       }
     }
 
-    return TextEdit(range: textEditRangeStart..<requestPosition, newText: newText)
+    // We need to delete more than one text character. Do the UTF-8/UTF-16 dance.
+    assert(completionPos.line == requestPosition.line)
+    // Construct a string index for the edit range start by subtracting the UTF-8 code units to erase from the completion position.
+    guard let line = snapshot.lineTable.line(at: completionPos.line) else {
+      logger.fault("Code completion position is in out-of-range line \(completionPos.line)")
+      return completionPos
+    }
+    guard
+      let deletionStartStringIndex = line.utf8.index(
+        snapshot.index(of: completionPos),
+        offsetBy: -utf8CodeUnitsToErase,
+        limitedBy: line.utf8.startIndex
+      )
+    else {
+      // Deleting the character would cross line boundaries. This is not supported by LSP.
+      // Fall back to ignoring utf8CodeUnitsToErase.
+      // If we discover that multi-lines replacements are often needed, we can add an LSP extension to support multi-line edits.
+      logger.fault("UTF-8 code units to erase \(utf8CodeUnitsToErase) is before start of line")
+      return completionPos
+    }
+
+    // Compute the UTF-16 offset of the deletion start range.
+    let deletionStartUtf16Offset = line.utf16.distance(from: line.startIndex, to: deletionStartStringIndex)
+    precondition(deletionStartUtf16Offset >= 0)
+
+    return Position(line: completionPos.line, utf16index: deletionStartUtf16Offset)
   }
 }
 
