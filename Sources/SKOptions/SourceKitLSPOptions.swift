@@ -200,21 +200,30 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   public struct LoggingOptions: Sendable, Codable, Equatable {
     /// The level from which one onwards log messages should be written.
     public var level: String?
+
     /// Whether potentially sensitive information should be redacted.
     public var privacyLevel: String?
 
+    /// Write all input received by SourceKit-LSP on stdin to a file in this directory.
+    ///
+    /// Useful to record and replay an entire SourceKit-LSP session.
+    public var inputMirrorDirectory: String?
+
     public init(
       level: String? = nil,
-      privacyLevel: String? = nil
+      privacyLevel: String? = nil,
+      inputMirrorDirectory: String? = nil
     ) {
       self.level = level
       self.privacyLevel = privacyLevel
+      self.inputMirrorDirectory = inputMirrorDirectory
     }
 
     static func merging(base: LoggingOptions, override: LoggingOptions?) -> LoggingOptions {
       return LoggingOptions(
         level: override?.level ?? base.level,
-        privacyLevel: override?.privacyLevel ?? base.privacyLevel
+        privacyLevel: override?.privacyLevel ?? base.privacyLevel,
+        inputMirrorDirectory: override?.inputMirrorDirectory ?? base.inputMirrorDirectory
       )
     }
   }

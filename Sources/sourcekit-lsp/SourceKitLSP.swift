@@ -331,6 +331,24 @@ struct SourceKitLSP: AsyncParsableCommand {
 
     let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
 
+    var inputMirror: FileHandle? = nil
+    if let inputMirrorDirectory = globalConfigurationOptions.loggingOrDefault.inputMirrorDirectory {
+      orLog("Setting up input mirror") {
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.timeZone = NSTimeZone.local
+        let date = dateFormatter.string(from: Date()).replacingOccurrences(of: ":", with: "-")
+
+        let inputMirrorDirectory = URL(fileURLWithPath: inputMirrorDirectory)
+        let inputMirrorURL = inputMirrorDirectory.appendingPathComponent("\(date).log")
+
+        logger.log("Mirroring input to \(inputMirrorURL)")
+        try FileManager.default.createDirectory(at: inputMirrorDirectory, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: try inputMirrorURL.filePath, contents: nil)
+
+        inputMirror = try FileHandle(forWritingTo: inputMirrorURL)
+      }
+    }
+
     let server = SourceKitLSPServer(
       client: clientConnection,
       toolchainRegistry: ToolchainRegistry(installPath: installPath, localFileSystem),
@@ -342,6 +360,7 @@ struct SourceKitLSP: AsyncParsableCommand {
     )
     clientConnection.start(
       receiveHandler: server,
+      mirrorFile: inputMirror,
       closeHandler: {
         await server.prepareForExit()
         // Use _Exit to avoid running static destructors due to https://github.com/swiftlang/swift/issues/55112.
