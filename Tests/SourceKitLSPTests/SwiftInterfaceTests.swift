@@ -200,6 +200,7 @@ private func assertSystemSwiftInterface(
   // load contents of swiftinterface
   let contents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
   let lineTable = LineTable(contents)
-  let destinationLine = lineTable[location.range.lowerBound.line].trimmingCharacters(in: .whitespaces)
+  let destinationLine = try XCTUnwrap(lineTable.line(at: location.range.lowerBound.line))
+    .trimmingCharacters(in: .whitespaces)
   XCTAssert(destinationLine.hasPrefix(linePrefix), "Full line was: '\(destinationLine)'", line: line)
 }

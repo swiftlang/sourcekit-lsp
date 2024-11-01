@@ -14,17 +14,22 @@ import SKSupport
 import TSCBasic
 import XCTest
 
-final class SupportTests: XCTestCase {
+fileprivate extension LineTable {
+  var lines: [Substring] {
+    (0..<lineCount).map { line(at: $0)! }
+  }
+}
 
+final class SupportTests: XCTestCase {
   func checkLines(_ string: String, _ expected: [String], file: StaticString = #filePath, line: UInt = #line) {
     let table = LineTable(string)
-    XCTAssertEqual(table.map { String($0) }, expected, file: file, line: line)
+    XCTAssertEqual(table.lines.map(String.init), expected, file: file, line: line)
   }
 
   func checkOffsets(_ string: String, _ expected: [Int], file: StaticString = #filePath, line: UInt = #line) {
     let table = LineTable(string)
     XCTAssertEqual(
-      table.map { string.utf8.distance(from: string.startIndex, to: $0.startIndex) },
+      table.lines.map { string.utf8.distance(from: string.startIndex, to: $0.startIndex) },
       expected,
       file: file,
       line: line
@@ -69,8 +74,8 @@ final class SupportTests: XCTestCase {
     checkOffsets("\n\u{10000}b", [0, 1])
     checkOffsets("\n\u{10000}b\nc", [0, 1, 7])
 
-    XCTAssertEqual(LineTable("")[0], "")
-    XCTAssertEqual(LineTable("\n")[1], "")
+    XCTAssertEqual(LineTable("").line(at: 0), "")
+    XCTAssertEqual(LineTable("\n").line(at: 1), "")
   }
 
   func checkLineAndColumns(

@@ -135,4 +135,31 @@ final class LifecycleTests: XCTestCase {
     )
     XCTAssertGreaterThan(symbolInfo.count, 0)
   }
+
+  func testEditWithOutOfRangeLine() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    testClient.openDocument("", uri: uri)
+
+    // Check that we don't crash.
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
+        contentChanges: [TextDocumentContentChangeEvent(range: Range(Position(line: 2, utf16index: 0)), text: "new")]
+      )
+    )
+  }
+
+  func testEditWithOutOfRangeColumn() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    testClient.openDocument("", uri: uri)
+
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
+        contentChanges: [TextDocumentContentChangeEvent(range: Range(Position(line: 0, utf16index: 4)), text: "new")]
+      )
+    )
+  }
 }
