@@ -45,7 +45,10 @@ The structure of the file is currently not guaranteed to be stable. Options may 
 - `defaultWorkspaceType: "buildserver"|"compdb"|"swiftpm"`: Overrides workspace type selection logic.
 - `generatedFilesPath: string`: Directory in which generated interfaces and macro expansions should be stored.
 - `backgroundIndexing: bool`: Explicitly enable or disable background indexing.
-- `backgroundPreparationMode: "build"|"noLazy"|"enabled"`: Determines how background indexing should prepare a target. Possible values are: `build`: Build a target to prepare it, `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping, `enabled`: Prepare a target without generating object files and the like
+- `backgroundPreparationMode: "build"|"noLazy"|"enabled"`: Determines how background indexing should prepare a target. Possible values are:
+    - `build`: Build a target to prepare it
+    - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping
+    - `enabled`: Prepare a target without generating object files and the like
 - `cancelTextDocumentRequestsOnEditAndClose: bool`: Whether sending a `textDocument/didChange` or `textDocument/didClose` notification for a document should cancel all pending requests for that document.
 - `experimentalFeatures: string[]`: Experimental features to enable
 - `swiftPublishDiagnosticsDebounceDuration: double`: The time that `SwiftLanguageService` should wait after an edit before starting to compute diagnostics and sending a `PublishDiagnosticsNotification`.
