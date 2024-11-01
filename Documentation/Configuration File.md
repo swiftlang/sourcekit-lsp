@@ -34,11 +34,11 @@ The structure of the file is currently not guaranteed to be stable. Options may 
 - `buildSettingsTimeout: int`: Number of milliseconds to wait for build settings from the build system before using fallback build settings.
 - `clangdOptions: string[]`: Extra command line arguments passed to `clangd` when launching it
 - `index`: Dictionary with the following keys, defining options related to indexing
-    - `indexStorePath: string`: Directory in which a separate compilation stores the index store. By default, inferred from the build system.
-    - `indexDatabasePath: string`: Directory in which the indexstore-db should be stored. By default, inferred from the build system.
-    - `indexPrefixMap: [string: string]`: Path remappings for remapping index data for local use.
-    - `maxCoresPercentageToUseForBackgroundIndexing: double`: A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting
-    - `updateIndexStoreTimeout: int`: Number of seconds to wait for an update index store task to finish before killing it.
+  - `indexStorePath: string`: Directory in which a separate compilation stores the index store. By default, inferred from the build system.
+  - `indexDatabasePath: string`: Directory in which the indexstore-db should be stored. By default, inferred from the build system.
+  - `indexPrefixMap: [string: string]`: Path remappings for remapping index data for local use.
+  - `maxCoresPercentageToUseForBackgroundIndexing: double`: A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting
+  - `updateIndexStoreTimeout: int`: Number of seconds to wait for an update index store task to finish before killing it.
 - `logging`: Dictionary with the following keys, changing SourceKit-LSP’s logging behavior on non-Apple platforms. On Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging). These options can only be set globally and not per workspace.
   - `logLevel: "debug"|"info"|"default"|"error"|"fault"`: The level from which one onwards log messages should be written.
   - `privacyLevel: "public"|"private"|"sensitive"`: Whether potentially sensitive information should be redacted. Default is `public`, which redacts potentially sensitive information.
@@ -47,9 +47,9 @@ The structure of the file is currently not guaranteed to be stable. Options may 
 - `generatedFilesPath: string`: Directory in which generated interfaces and macro expansions should be stored.
 - `backgroundIndexing: bool`: Explicitly enable or disable background indexing.
 - `backgroundPreparationMode: "build"|"noLazy"|"enabled"`: Determines how background indexing should prepare a target. Possible values are:
-    - `build`: Build a target to prepare it
-    - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping
-    - `enabled`: Prepare a target without generating object files and the like
+  - `build`: Build a target to prepare it
+  - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping
+  - `enabled`: Prepare a target without generating object files and the like
 - `cancelTextDocumentRequestsOnEditAndClose: bool`: Whether sending a `textDocument/didChange` or `textDocument/didClose` notification for a document should cancel all pending requests for that document.
 - `experimentalFeatures: string[]`: Experimental features to enable
 - `swiftPublishDiagnosticsDebounceDuration: double`: The time that `SwiftLanguageService` should wait after an edit before starting to compute diagnostics and sending a `PublishDiagnosticsNotification`.
