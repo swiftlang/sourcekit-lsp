@@ -265,9 +265,15 @@ public final class JSONRPCConnection: Connection {
   /// Start processing `inFD` and send messages to `receiveHandler`.
   ///
   /// - parameter receiveHandler: The message handler to invoke for requests received on the `inFD`.
+  /// - parameter mirrorFile: If non-nil, all input received by this `JSONRPCConnection` will be written to the file
+  ///   handle
   ///
   /// - Important: `start` must be called before sending any data over the `JSONRPCConnection`.
-  public func start(receiveHandler: MessageHandler, closeHandler: @escaping @Sendable () async -> Void = {}) {
+  public func start(
+    receiveHandler: MessageHandler,
+    mirrorFile: FileHandle? = nil,
+    closeHandler: @escaping @Sendable () async -> Void = {}
+  ) {
     queue.sync {
       precondition(state == .created)
       state = .running
@@ -292,6 +298,10 @@ public final class JSONRPCConnection: Connection {
 
         guard let data = data, !data.isEmpty else {
           return
+        }
+
+        orLog("Writing data mirror file") {
+          try mirrorFile?.write(contentsOf: data)
         }
 
         // Parse and handle any messages in `buffer + data`, leaving any remaining unparsed bytes in `buffer`.

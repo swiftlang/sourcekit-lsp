@@ -281,6 +281,7 @@ var targets: [Target] = [
   .testTarget(
     name: "SKSupportTests",
     dependencies: [
+      "SKLogging",
       "SKSupport",
       "SKTestSupport",
       "SwiftExtensions",

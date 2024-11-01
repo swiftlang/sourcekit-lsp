@@ -42,6 +42,7 @@ The structure of the file is currently not guaranteed to be stable. Options may 
 - `logging`: Dictionary with the following keys, changing SourceKit-LSP’s logging behavior on non-Apple platforms. On Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging). These options can only be set globally and not per workspace.
   - `logLevel: "debug"|"info"|"default"|"error"|"fault"`: The level from which one onwards log messages should be written.
   - `privacyLevel: "public"|"private"|"sensitive"`: Whether potentially sensitive information should be redacted. Default is `public`, which redacts potentially sensitive information.
+  - `inputMirrorDirectory: string`: Write all input received by SourceKit-LSP on stdin to a file in this directory. Useful to record and replay an entire SourceKit-LSP session.
 - `defaultWorkspaceType: "buildserver"|"compdb"|"swiftpm"`: Overrides workspace type selection logic.
 - `generatedFilesPath: string`: Directory in which generated interfaces and macro expansions should be stored.
 - `backgroundIndexing: bool`: Explicitly enable or disable background indexing.
