@@ -30,6 +30,8 @@ import struct TSCBasic.ProcessResult
 
 #if os(Windows)
 import WinSDK
+#elseif canImport(Android)
+import Android
 #endif
 
 extension Process {

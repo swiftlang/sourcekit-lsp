@@ -18,6 +18,8 @@ import XCTest
 
 #if os(Windows)
 import WinSDK
+#elseif canImport(Android)
+import Android
 #endif
 
 final class AsyncUtilsTests: XCTestCase {
