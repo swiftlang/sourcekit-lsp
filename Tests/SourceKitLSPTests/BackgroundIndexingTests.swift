@@ -889,7 +889,8 @@ final class BackgroundIndexingTests: XCTestCase {
     let nestedIndexBuildURL = try XCTUnwrap(
       project.uri(for: "OtherLib.swift").fileURL?
         .deletingLastPathComponent()
-        .appendingPathComponent(".index-build")
+        .appendingPathComponent(".build")
+        .appendingPathComponent("index-build")
     )
     XCTAssertFalse(
       FileManager.default.fileExists(at: nestedIndexBuildURL),
@@ -1258,7 +1259,7 @@ final class BackgroundIndexingTests: XCTestCase {
     // Simulate a package update which goes as follows:
     //  - The user runs `swift package update`
     //  - This updates `Package.resolved`, which we watch
-    //  - We reload the package, which updates `Dependency.swift` in `.index-build/checkouts`, which we also watch.
+    //  - We reload the package, which updates `Dependency.swift` in `.build/index-build/checkouts`, which we also watch.
     try await Process.run(
       arguments: [
         unwrap(ToolchainRegistry.forTesting.default?.swift?.pathString),
