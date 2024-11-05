@@ -53,6 +53,16 @@ var targets: [Target] = [
     swiftSettings: globalSwiftSettings
   ),
 
+  .testTarget(
+    name: "BuildServerProtocolTests",
+    dependencies: [
+      "BuildServerProtocol",
+      "LanguageServerProtocol",
+      "SKTestSupport",
+    ],
+    swiftSettings: globalSwiftSettings
+  ),
+
   // MARK: BuildSystemIntegration
 
   .target(
