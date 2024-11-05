@@ -17,6 +17,10 @@ import XCTest
 
 import enum PackageLoading.Platform
 
+#if canImport(Android)
+import Android
+#endif
+
 final class ToolchainRegistryTests: XCTestCase {
   func testDefaultSingleToolchain() async throws {
     let tr = ToolchainRegistry(toolchains: [Toolchain(identifier: "a", displayName: "a", path: nil)])

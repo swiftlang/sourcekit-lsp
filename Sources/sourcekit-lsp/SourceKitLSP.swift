@@ -26,6 +26,10 @@ import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
 
+#if canImport(Android)
+import Android
+#endif
+
 public import struct TSCBasic.AbsolutePath
 public import struct TSCBasic.RelativePath
 public import var TSCBasic.localFileSystem
