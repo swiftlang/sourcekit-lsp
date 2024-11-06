@@ -36,7 +36,7 @@ package enum BuildSystemMessageDependencyTracker: QueueBasedMessageHandlerDepend
 
   /// A task that is responsible for logging information to the client. They can be run concurrently to any state read
   /// and changes but logging tasks must be ordered among each other.
-  case logging
+  case taskProgress
 
   /// Whether this request needs to finish before `other` can start executing.
   package func isDependency(of other: BuildSystemMessageDependencyTracker) -> Bool {
@@ -45,9 +45,9 @@ package enum BuildSystemMessageDependencyTracker: QueueBasedMessageHandlerDepend
     case (.stateChange, .stateRead): return true
     case (.stateRead, .stateChange): return true
     case (.stateRead, .stateRead): return false
-    case (.logging, .logging): return true
-    case (.logging, _): return false
-    case (_, .logging): return false
+    case (.taskProgress, .taskProgress): return true
+    case (.taskProgress, _): return false
+    case (_, .taskProgress): return false
     }
   }
 
@@ -60,7 +60,7 @@ package enum BuildSystemMessageDependencyTracker: QueueBasedMessageHandlerDepend
     case is OnBuildInitializedNotification:
       self = .stateChange
     case is OnBuildLogMessageNotification:
-      self = .logging
+      self = .taskProgress
     case is OnBuildTargetDidChangeNotification:
       self = .stateChange
     case is OnWatchedFilesDidChangeNotification:
@@ -84,8 +84,8 @@ package enum BuildSystemMessageDependencyTracker: QueueBasedMessageHandlerDepend
       self = .stateRead
     case is BuildTargetSourcesRequest:
       self = .stateRead
-    case is BuildServerProtocol.CreateWorkDoneProgressRequest:
-      self = .logging
+    case is TaskStartNotification, is TaskProgressNotification, is TaskFinishNotification:
+      self = .taskProgress
     case is InitializeBuildRequest:
       self = .stateChange
     case is RegisterForChanges:

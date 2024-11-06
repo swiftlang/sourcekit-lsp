@@ -122,6 +122,15 @@ public protocol LSPAnyCodable {
   func encodeToLSPAny() -> LSPAny
 }
 
+extension LSPAnyCodable {
+  public init?(fromLSPAny lspAny: LSPAny?) {
+    guard case .dictionary(let dictionary) = lspAny else {
+      return nil
+    }
+    self.init(fromLSPDictionary: dictionary)
+  }
+}
+
 extension Optional: LSPAnyCodable where Wrapped: LSPAnyCodable {
   public init?(fromLSPAny value: LSPAny) {
     if case .null = value {

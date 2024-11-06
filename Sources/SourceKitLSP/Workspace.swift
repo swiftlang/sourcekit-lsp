@@ -13,6 +13,7 @@
 #if compiler(>=6)
 package import BuildServerProtocol
 package import BuildSystemIntegration
+import Foundation
 import IndexStoreDB
 package import LanguageServerProtocol
 import SKLogging
@@ -27,6 +28,7 @@ import struct TSCBasic.RelativePath
 #else
 import BuildServerProtocol
 import BuildSystemIntegration
+import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
 import SKLogging
@@ -177,8 +179,12 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async {
     struct ConnectionToClient: BuildSystemManagerConnectionToClient {
+      func waitUntilInitialized() async {
+        await sourceKitLSPServer?.waitUntilInitialized()
+      }
+
       weak var sourceKitLSPServer: SourceKitLSPServer?
-      func send(_ notification: some NotificationType) async {
+      func send(_ notification: some NotificationType) {
         guard let sourceKitLSPServer else {
           // `SourceKitLSPServer` has been destructed. We are tearing down the
           // language server. Nothing left to do.
@@ -187,18 +193,20 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
           )
           return
         }
-        await sourceKitLSPServer.waitUntilInitialized()
         sourceKitLSPServer.sendNotificationToClient(notification)
       }
 
-      func send<R: RequestType>(_ request: R) async throws -> R.Response {
+      func send<Request: RequestType>(
+        _ request: Request,
+        reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
+      ) -> RequestID {
         guard let sourceKitLSPServer else {
           // `SourceKitLSPServer` has been destructed. We are tearing down the
           // language server. Nothing left to do.
-          throw ResponseError.unknown("Connection to the editor closed")
+          reply(.failure(ResponseError.unknown("Connection to the editor closed")))
+          return .string(UUID().uuidString)
         }
-        await sourceKitLSPServer.waitUntilInitialized()
-        return try await sourceKitLSPServer.sendRequestToClient(request)
+        return sourceKitLSPServer.client.send(request, reply: reply)
       }
 
       /// Whether the client can handle `WorkDoneProgress` requests.

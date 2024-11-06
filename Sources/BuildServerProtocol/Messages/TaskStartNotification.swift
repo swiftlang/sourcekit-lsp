@@ -137,3 +137,27 @@ public struct TestTaskData: Codable, Hashable, Sendable {
     self.target = target
   }
 }
+
+/// If `data` contains a string value for the `workDoneProgressTitle` key, then the task's message will be displayed in
+/// the client as a work done progress with that title.
+public struct WorkDoneProgressTask: LSPAnyCodable {
+  /// The title with which the work done progress should be created in the client.
+  public let title: String
+
+  public init(title: String) {
+    self.title = title
+  }
+
+  public init?(fromLSPDictionary dictionary: [String: LanguageServerProtocol.LSPAny]) {
+    guard case .string(let title) = dictionary["workDoneProgressTitle"] else {
+      return nil
+    }
+    self.title = title
+  }
+
+  public func encodeToLSPAny() -> LanguageServerProtocol.LSPAny {
+    return .dictionary([
+      "workDoneProgressTitle": .string(title)
+    ])
+  }
+}

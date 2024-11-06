@@ -78,19 +78,19 @@ private struct BuildTargetInfo {
 
 fileprivate extension SourceItem {
   var sourceKitData: SourceKitSourceItemData? {
-    guard dataKind == .sourceKit, case .dictionary(let data) = data else {
+    guard dataKind == .sourceKit else {
       return nil
     }
-    return SourceKitSourceItemData(fromLSPDictionary: data)
+    return SourceKitSourceItemData(fromLSPAny: data)
   }
 }
 
 fileprivate extension BuildTarget {
   var sourceKitData: SourceKitBuildTarget? {
-    guard dataKind == .sourceKit, case .dictionary(let data) = data else {
+    guard dataKind == .sourceKit else {
       return nil
     }
-    return SourceKitBuildTarget(fromLSPDictionary: data)
+    return SourceKitBuildTarget(fromLSPAny: data)
   }
 }
 
@@ -99,10 +99,7 @@ fileprivate extension InitializeBuildResponse {
     guard dataKind == nil || dataKind == .sourceKit else {
       return nil
     }
-    guard case .dictionary(let data) = data else {
-      return nil
-    }
-    return SourceKitInitializeBuildResponseData(fromLSPDictionary: data)
+    return SourceKitInitializeBuildResponseData(fromLSPAny: data)
   }
 }
 
@@ -250,7 +247,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// get `fileBuildSettingsChanged` and `filesDependenciesUpdated` callbacks.
   private var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
 
-  private var connectionToClient: BuildSystemManagerConnectionToClient?
+  private var connectionToClient: BuildSystemManagerConnectionToClient
 
   /// The build system adapter that is used to answer build system queries.
   private var buildSystemAdapter: BuildSystemAdapter?
@@ -301,6 +298,10 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       precondition(initializeResult != nil)
     }
   }
+
+  /// For tasks from the build system that should create a work done progress in the client, a mapping from the `TaskId`
+  /// in the build system to a `WorkDoneProgressManager` that manages that work done progress in the client.
+  private var workDoneProgressManagers: [TaskIdentifier: WorkDoneProgressManager] = [:]
 
   /// Debounces calls to `delegate.filesDependenciesUpdated`.
   ///
@@ -443,6 +444,8 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// which could result in the connection being reported as a leak. To avoid this problem, we want to explicitly shut
   /// down the build server when the `SourceKitLSPServer` gets shut down.
   package func shutdown() async {
+    // Clear any pending work done progresses from the build server.
+    self.workDoneProgressManagers.removeAll()
     guard let buildSystemAdapter = await self.buildSystemAdapterAfterInitialized else {
       return
     }
@@ -488,8 +491,12 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       await self.didChangeBuildTarget(notification: notification)
     case let notification as OnBuildLogMessageNotification:
       await self.logMessage(notification: notification)
-    case let notification as BuildServerProtocol.WorkDoneProgress:
-      await self.workDoneProgress(notification: notification)
+    case let notification as TaskFinishNotification:
+      await self.taskFinish(notification: notification)
+    case let notification as TaskProgressNotification:
+      await self.taskProgress(notification: notification)
+    case let notification as TaskStartNotification:
+      await self.taskStart(notification: notification)
     default:
       logger.error("Ignoring unknown notification \(type(of: notification).method)")
     }
@@ -502,8 +509,6 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   ) async {
     let request = RequestAndReply(request, reply: reply)
     switch request {
-    case let request as RequestAndReply<BuildServerProtocol.CreateWorkDoneProgressRequest>:
-      await request.reply { try await self.createWorkDoneProgress(request: request.params) }
     default:
       await request.reply { throw ResponseError.methodNotFound(Request.method) }
     }
@@ -544,29 +549,51 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       } else {
         notification.message
       }
-    await connectionToClient?.send(
+    await connectionToClient.waitUntilInitialized()
+    connectionToClient.send(
       LanguageServerProtocol.LogMessageNotification(type: .info, message: message, logName: "SourceKit-LSP: Indexing")
     )
   }
 
-  private func workDoneProgress(notification: BuildServerProtocol.WorkDoneProgress) async {
-    guard let connectionToClient else {
-      logger.fault("Ignoring work done progress from build system because connection to client closed")
+  private func taskStart(notification: TaskStartNotification) async {
+    guard let workDoneProgressTitle = WorkDoneProgressTask(fromLSPAny: notification.data)?.title,
+      await connectionToClient.clientSupportsWorkDoneProgress
+    else {
       return
     }
-    await connectionToClient.send(notification as LanguageServerProtocol.WorkDoneProgress)
+
+    guard workDoneProgressManagers[notification.taskId.id] == nil else {
+      logger.error("Client is already tracking a work done progress for task \(notification.taskId.id)")
+      return
+    }
+    workDoneProgressManagers[notification.taskId.id] = WorkDoneProgressManager(
+      connectionToClient: connectionToClient,
+      waitUntilClientInitialized: connectionToClient.waitUntilInitialized,
+      tokenPrefix: notification.taskId.id,
+      initialDebounce: options.workDoneProgressDebounceDurationOrDefault,
+      title: workDoneProgressTitle
+    )
   }
 
-  private func createWorkDoneProgress(
-    request: BuildServerProtocol.CreateWorkDoneProgressRequest
-  ) async throws -> BuildServerProtocol.CreateWorkDoneProgressRequest.Response {
-    guard let connectionToClient else {
-      throw ResponseError.unknown("Connection to client closed")
+  private func taskProgress(notification: TaskProgressNotification) async {
+    guard let progressManager = workDoneProgressManagers[notification.taskId.id] else {
+      return
     }
-    guard await connectionToClient.clientSupportsWorkDoneProgress else {
-      throw ResponseError.unknown("Client does not support work done progress")
+    let percentage: Int? =
+      if let progress = notification.progress, let total = notification.total {
+        Int((Double(progress) / Double(total) * 100).rounded())
+      } else {
+        nil
+      }
+    await progressManager.update(message: notification.message, percentage: percentage)
+  }
+
+  private func taskFinish(notification: TaskFinishNotification) async {
+    guard let progressManager = workDoneProgressManagers[notification.taskId.id] else {
+      return
     }
-    return try await connectionToClient.send(request as LanguageServerProtocol.CreateWorkDoneProgressRequest)
+    await progressManager.end()
+    workDoneProgressManagers[notification.taskId.id] = nil
   }
 
   // MARK: Build System queries

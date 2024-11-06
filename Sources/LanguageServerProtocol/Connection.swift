@@ -11,8 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// An abstract connection, allow messages to be sent to a (potentially remote) `MessageHandler`.
-public protocol Connection: AnyObject, Sendable {
-
+public protocol Connection: Sendable {
   /// Send a notification without a reply.
   func send(_ notification: some NotificationType)
 

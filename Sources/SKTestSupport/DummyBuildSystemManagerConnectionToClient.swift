@@ -12,9 +12,11 @@
 
 #if compiler(>=6)
 import BuildSystemIntegration
+import Foundation
 package import LanguageServerProtocol
 #else
 import BuildSystemIntegration
+import Foundation
 import LanguageServerProtocol
 #endif
 
@@ -23,10 +25,16 @@ package struct DummyBuildSystemManagerConnectionToClient: BuildSystemManagerConn
 
   package init() {}
 
-  package func send(_ notification: some NotificationType) async {}
+  func waitUntilInitialized() async {}
 
-  package func send<Request: RequestType>(_ request: Request) async throws -> Request.Response {
-    throw ResponseError.unknown("Not implemented")
+  package func send(_ notification: some LanguageServerProtocol.NotificationType) {}
+
+  package func send<Request: RequestType>(
+    _ request: Request,
+    reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
+  ) -> RequestID {
+    reply(.failure(ResponseError.unknown("Not implemented")))
+    return .string(UUID().uuidString)
   }
 
   package func watchFiles(_ fileWatchers: [LanguageServerProtocol.FileSystemWatcher]) async {}

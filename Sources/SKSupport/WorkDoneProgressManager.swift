@@ -29,7 +29,7 @@ import SwiftExtensions
 package actor WorkDoneProgressManager {
   private enum Status: Equatable {
     case inProgress(message: String?, percentage: Int?)
-    case done
+    case done(message: String?)
   }
 
   /// The token with which the work done progress has been created. `nil` if no work done progress has been created yet,
@@ -125,9 +125,9 @@ package actor WorkDoneProgressManager {
         )
         self.token = token
       }
-    case .done:
+    case .done(let message):
       if let token {
-        connectionToClient.send(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd())))
+        connectionToClient.send(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd(message: message))))
         self.token = nil
       }
     }
@@ -144,15 +144,15 @@ package actor WorkDoneProgressManager {
   /// Ends the work done progress. Any further update calls are no-ops.
   ///
   /// `end` must be should be called before the `WorkDoneProgressManager` is deallocated.
-  package func end() {
-    pendingStatus = .done
+  package func end(message: String? = nil) {
+    pendingStatus = .done(message: message)
     progressUpdateQueue.async {
       await self.sendProgressUpdateAssumingOnProgressUpdateQueue()
     }
   }
 
   deinit {
-    if pendingStatus != .done {
+    guard case .done = pendingStatus else {
       // If there is still a pending work done progress, end it. We know that we don't have any pending updates on
       // `progressUpdateQueue` because they would capture `self` strongly and thus we wouldn't be deallocating this
       // object.
@@ -164,6 +164,7 @@ package actor WorkDoneProgressManager {
       if let token {
         connectionToClient.send(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd())))
       }
+      return
     }
   }
 }
