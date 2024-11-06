@@ -18,6 +18,7 @@ import SKLogging
 import SKOptions
 import SKSupport
 import SwiftExtensions
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import func TSCBasic.getEnvSearchPaths

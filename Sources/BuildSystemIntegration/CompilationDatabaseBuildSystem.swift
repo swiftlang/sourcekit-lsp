@@ -18,6 +18,7 @@ import SKLogging
 package import SKOptions
 import SKSupport
 import ToolchainRegistry
+import TSCExtensions
 
 import struct Foundation.URL
 package import struct TSCBasic.AbsolutePath
@@ -32,6 +33,7 @@ import SKLogging
 import SKOptions
 import SKSupport
 import ToolchainRegistry
+import TSCExtensions
 
 import struct Foundation.URL
 import struct TSCBasic.AbsolutePath

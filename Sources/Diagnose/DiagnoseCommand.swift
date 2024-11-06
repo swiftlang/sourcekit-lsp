@@ -16,6 +16,7 @@ import Foundation
 import ToolchainRegistry
 import SKSupport
 import SwiftExtensions
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
@@ -26,6 +27,7 @@ import Foundation
 import ToolchainRegistry
 import SKSupport
 import SwiftExtensions
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process

@@ -20,6 +20,7 @@ package import SKOptions
 package import SKSupport
 package import SwiftExtensions
 package import ToolchainRegistry
+import TSCExtensions
 
 package import struct TSCBasic.AbsolutePath
 package import struct TSCBasic.RelativePath
@@ -33,6 +34,7 @@ import SKOptions
 import SKSupport
 import SwiftExtensions
 import ToolchainRegistry
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath

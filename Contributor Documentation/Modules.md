@@ -55,8 +55,7 @@ Configuration options to change how SourceKit-LSP behaves, based on [Configurati
 
 ### SKSupport
 
-Contains SourceKit-LSP-specific helper functions. These fall into three different categories:
--  Extensions on top of `swift-tools-support-core`
+Contains SourceKit-LSP-specific helper functions. These fall into two different categories:
 - Functionality that can only be implemented by combining two lower-level modules that don't have a shared dependency, like `SKLogging` + `LanguageServerProtocol`
 - Types that should be sharable by the different modules that implement SourceKit-LSP but that are not generic enough to fit into `SwiftExtensions`, like `ExperimentalFeatures`.
 
@@ -83,3 +82,7 @@ Extensions to the Swift standard library and Foundation. Should not have any oth
 #### ToolchainRegistry
 
 Discovers Swift toolchains on the system.
+
+### TSCExtensions
+
+Extensions on top of `swift-tools-support-core` that might integrate with modules from sourcekit-lsp.

@@ -17,6 +17,7 @@ import SKLogging
 import SKSupport
 import SourceKitLSP
 import SwiftExtensions
+import TSCExtensions
 import ToolchainRegistry
 import XCTest
 

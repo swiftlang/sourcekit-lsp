@@ -17,6 +17,7 @@ import SKLogging
 import SKSupport
 import SwiftParser
 import SwiftSyntax
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
@@ -28,6 +29,7 @@ import SKLogging
 import SKSupport
 import SwiftParser
 import SwiftSyntax
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process

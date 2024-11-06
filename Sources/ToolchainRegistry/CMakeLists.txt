@@ -11,3 +11,6 @@ target_link_libraries(ToolchainRegistry PUBLIC
   SwiftExtensions
   PackageModel
   TSCBasic)
+
+target_link_libraries(ToolchainRegistry PUBLIC
+  TSCExtensions)

@@ -220,15 +220,6 @@ final class SupportTests: XCTestCase {
     XCTAssertEqual(t, LineTable("abp\nq\ngh"))
   }
 
-  func testByteStringWithUnsafeData() {
-    ByteString(encodingAsUTF8: "").withUnsafeData { data in
-      XCTAssertEqual(data.count, 0)
-    }
-    ByteString(encodingAsUTF8: "abc").withUnsafeData { data in
-      XCTAssertEqual(data.count, 3)
-    }
-  }
-
   func testExpandingTilde() throws {
     XCTAssertEqual(try AbsolutePath(expandingTilde: "~/foo").basename, "foo")
     XCTAssertNotEqual(try AbsolutePath(expandingTilde: "~/foo").parentDirectory, .root)

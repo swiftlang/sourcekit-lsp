@@ -22,6 +22,7 @@ import SKSupport
 package import SemanticIndex
 import SwiftExtensions
 import ToolchainRegistry
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
@@ -37,6 +38,7 @@ import SKSupport
 import SemanticIndex
 import SwiftExtensions
 import ToolchainRegistry
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath

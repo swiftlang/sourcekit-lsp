@@ -12,6 +12,7 @@
 
 import Foundation
 import SKSupport
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem

@@ -19,6 +19,7 @@ import SKOptions
 import SKSupport
 import SwiftExtensions
 import SwiftSyntax
+import TSCExtensions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath

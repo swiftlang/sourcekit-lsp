@@ -15,6 +15,7 @@ import Foundation
 package import LanguageServerProtocol
 package import SKOptions
 import SKSupport
+import TSCExtensions
 
 import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath
@@ -24,6 +25,7 @@ import Foundation
 import LanguageServerProtocol
 import SKOptions
 import SKSupport
+import TSCExtensions
 
 import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath

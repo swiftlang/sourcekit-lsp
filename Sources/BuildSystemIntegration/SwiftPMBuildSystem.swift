@@ -28,6 +28,7 @@ import SourceControl
 package import SourceKitLSPAPI
 import SwiftExtensions
 package import ToolchainRegistry
+import TSCExtensions
 @preconcurrency import Workspace
 
 package import struct Basics.AbsolutePath
@@ -56,6 +57,7 @@ import SourceControl
 import SourceKitLSPAPI
 import SwiftExtensions
 import ToolchainRegistry
+import TSCExtensions
 @preconcurrency import Workspace
 
 import struct Basics.AbsolutePath

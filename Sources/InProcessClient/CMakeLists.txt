@@ -12,3 +12,7 @@ target_link_libraries(InProcessClient PUBLIC
   SourceKitLSP
   ToolchainRegistry
 )
+
+target_link_libraries(InProcessClient PRIVATE
+  TSCExtensions
+)

@@ -19,6 +19,7 @@ import SemanticIndex
 import SourceKitLSP
 import SourceKitLSPAPI
 import SwiftExtensions
+import TSCExtensions
 import ToolchainRegistry
 import XCTest
 

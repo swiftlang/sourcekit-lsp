@@ -19,6 +19,7 @@ import SKSupport
 import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 #else
@@ -30,6 +31,7 @@ import SKSupport
 import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 #endif

@@ -78,6 +78,7 @@ var targets: [Target] = [
       "SourceKitD",
       "SwiftExtensions",
       "ToolchainRegistry",
+      "TSCExtensions",
       .product(name: "SwiftPM-auto", package: "swift-package-manager"),
       .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
@@ -135,6 +136,7 @@ var targets: [Target] = [
       "SourceKitLSP",
       "SwiftExtensions",
       "ToolchainRegistry",
+      "TSCExtensions",
       .product(name: "ArgumentParser", package: "swift-argument-parser"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ] + swiftSyntaxDependencies(["SwiftIDEUtils", "SwiftSyntax", "SwiftParser"]),
@@ -167,6 +169,7 @@ var targets: [Target] = [
       "SKOptions",
       "SourceKitLSP",
       "ToolchainRegistry",
+      "TSCExtensions",
     ],
     exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
@@ -222,6 +225,7 @@ var targets: [Target] = [
       "SKLogging",
       "SwiftExtensions",
       "ToolchainRegistry",
+      "TSCExtensions",
       .product(name: "IndexStoreDB", package: "indexstore-db"),
     ],
     exclude: ["CMakeLists.txt"],
@@ -316,6 +320,7 @@ var targets: [Target] = [
       "SourceKitLSP",
       "SwiftExtensions",
       "ToolchainRegistry",
+      "TSCExtensions",
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ],
     resources: [.copy("INPUTS")],
@@ -364,6 +369,7 @@ var targets: [Target] = [
       "SourceKitD",
       "SwiftExtensions",
       "ToolchainRegistry",
+      "TSCExtensions",
       .product(name: "IndexStoreDB", package: "indexstore-db"),
       .product(name: "Crypto", package: "swift-crypto"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
@@ -416,6 +422,7 @@ var targets: [Target] = [
       "SKLogging",
       "SKSupport",
       "SwiftExtensions",
+      "TSCExtensions",
       .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ],
@@ -431,6 +438,30 @@ var targets: [Target] = [
       .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ],
+    swiftSettings: globalSwiftSettings
+  ),
+
+  // MARK: TSCExtensions
+
+  .target(
+    name: "TSCExtensions",
+    dependencies: [
+      "SKLogging",
+      "SwiftExtensions",
+      .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+    ],
+    exclude: ["CMakeLists.txt"],
+    swiftSettings: globalSwiftSettings
+  ),
+
+  .testTarget(
+    name: "TSCExtensionsTests",
+    dependencies: [
+      "SKTestSupport",
+      "SwiftExtensions",
+      "TSCExtensions",
+    ],
+    exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
   ),
 ]

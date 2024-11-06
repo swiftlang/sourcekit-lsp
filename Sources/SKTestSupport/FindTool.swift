@@ -13,11 +13,13 @@
 #if compiler(>=6)
 package import Foundation
 import SKSupport
+import TSCExtensions
 
 import class TSCBasic.Process
 #else
 import Foundation
 import SKSupport
+import TSCExtensions
 
 import class TSCBasic.Process
 #endif

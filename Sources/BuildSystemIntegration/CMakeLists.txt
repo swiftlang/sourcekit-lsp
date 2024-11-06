@@ -37,3 +37,6 @@ target_link_libraries(BuildSystemIntegration PUBLIC
   TSCBasic
   Build
   SourceKitLSPAPI)
+
+target_link_libraries(BuildSystemIntegration PUBLIC
+  TSCExtensions)
