@@ -30,9 +30,9 @@ var targets: [Target] = [
       "BuildSystemIntegration",
       "Diagnose",
       "LanguageServerProtocol",
+      "LanguageServerProtocolExtensions",
       "LanguageServerProtocolJSONRPC",
       "SKOptions",
-      "SKSupport",
       "SourceKitLSP",
       "ToolchainRegistry",
       .product(name: "ArgumentParser", package: "swift-argument-parser"),
@@ -71,10 +71,10 @@ var targets: [Target] = [
     dependencies: [
       "BuildServerProtocol",
       "LanguageServerProtocol",
+      "LanguageServerProtocolExtensions",
       "LanguageServerProtocolJSONRPC",
       "SKLogging",
       "SKOptions",
-      "SKSupport",
       "SKUtilities",
       "SourceKitD",
       "SwiftExtensions",
@@ -130,9 +130,9 @@ var targets: [Target] = [
     dependencies: [
       "BuildSystemIntegration",
       "InProcessClient",
+      "LanguageServerProtocolExtensions",
       "SKLogging",
       "SKOptions",
-      "SKSupport",
       "SKUtilities",
       "SourceKitD",
       "SourceKitLSP",
@@ -192,6 +192,22 @@ var targets: [Target] = [
       "LanguageServerProtocol",
       "SKTestSupport",
     ],
+    swiftSettings: globalSwiftSettings
+  ),
+
+  // MARK: LanguageServerProtocolExtensions
+
+  .target(
+    name: "LanguageServerProtocolExtensions",
+    dependencies: [
+      "LanguageServerProtocol",
+      "LanguageServerProtocolJSONRPC",
+      "SKLogging",
+      "SourceKitD",
+      "SwiftExtensions",
+      .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+    ],
+    exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
   ),
 
@@ -271,8 +287,8 @@ var targets: [Target] = [
     name: "SKOptions",
     dependencies: [
       "LanguageServerProtocol",
+      "LanguageServerProtocolExtensions",
       "SKLogging",
-      "SKSupport",
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ],
     exclude: ["CMakeLists.txt"],
@@ -295,27 +311,8 @@ var targets: [Target] = [
     name: "SKUtilitiesTests",
     dependencies: [
       "SKUtilities",
-      // "SKLogging",
-      // "SKSupport",
       "SKTestSupport",
-      // "SwiftExtensions",
     ],
-    swiftSettings: globalSwiftSettings
-  ),
-
-  // MARK: SKSupport
-
-  .target(
-    name: "SKSupport",
-    dependencies: [
-      "LanguageServerProtocol",
-      "LanguageServerProtocolJSONRPC",
-      "SKLogging",
-      "SourceKitD",
-      "SwiftExtensions",
-      .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-    ],
-    exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
   ),
 
@@ -328,10 +325,10 @@ var targets: [Target] = [
       "CSKTestSupport",
       "InProcessClient",
       "LanguageServerProtocol",
+      "LanguageServerProtocolExtensions",
       "LanguageServerProtocolJSONRPC",
       "SKLogging",
       "SKOptions",
-      "SKSupport",
       "SKUtilities",
       "SourceKitLSP",
       "SwiftExtensions",
@@ -377,11 +374,11 @@ var targets: [Target] = [
       "BuildServerProtocol",
       "BuildSystemIntegration",
       "LanguageServerProtocol",
+      "LanguageServerProtocolExtensions",
       "LanguageServerProtocolJSONRPC",
       "SemanticIndex",
       "SKLogging",
       "SKOptions",
-      "SKSupport",
       "SKUtilities",
       "SourceKitD",
       "SwiftExtensions",
@@ -406,10 +403,10 @@ var targets: [Target] = [
       "BuildServerProtocol",
       "BuildSystemIntegration",
       "LanguageServerProtocol",
+      "LanguageServerProtocolExtensions",
       "SemanticIndex",
       "SKLogging",
       "SKOptions",
-      "SKSupport",
       "SKTestSupport",
       "SKUtilities",
       "SourceKitD",
@@ -447,8 +444,8 @@ var targets: [Target] = [
   .target(
     name: "ToolchainRegistry",
     dependencies: [
+      "LanguageServerProtocolExtensions",
       "SKLogging",
-      "SKSupport",
       "SKUtilities",
       "SwiftExtensions",
       "TSCExtensions",

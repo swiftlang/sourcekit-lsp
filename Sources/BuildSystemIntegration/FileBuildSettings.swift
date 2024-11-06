@@ -12,7 +12,7 @@
 
 import Foundation
 import LanguageServerProtocol
-import SKSupport
+import LanguageServerProtocolExtensions
 
 /// Build settings for a single file.
 ///

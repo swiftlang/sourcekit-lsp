@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SKTestSupport
 import SourceKitD
 @_spi(Testing) import SourceKitLSP

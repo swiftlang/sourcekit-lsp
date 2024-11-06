@@ -14,8 +14,8 @@
 import BuildSystemIntegration
 public import Foundation
 public import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 package import SKOptions
-import SKSupport
 import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
@@ -26,8 +26,8 @@ import struct TSCBasic.AbsolutePath
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKOptions
-import SKSupport
 import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry

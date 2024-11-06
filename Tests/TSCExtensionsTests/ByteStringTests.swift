@@ -13,8 +13,6 @@
 import TSCExtensions
 import XCTest
 
-// import SKSupport
-// import SwiftExtensions
 import struct TSCBasic.ByteString
 
 final class ByteStringTests: XCTestCase {

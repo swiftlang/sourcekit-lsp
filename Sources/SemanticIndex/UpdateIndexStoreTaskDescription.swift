@@ -15,8 +15,8 @@ package import BuildServerProtocol
 import BuildSystemIntegration
 import Foundation
 package import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SwiftExtensions
 import ToolchainRegistry
 import TSCExtensions
@@ -29,8 +29,8 @@ import BuildServerProtocol
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SwiftExtensions
 import ToolchainRegistry
 import TSCExtensions

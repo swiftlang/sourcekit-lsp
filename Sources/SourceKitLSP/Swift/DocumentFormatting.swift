@@ -13,8 +13,8 @@
 #if compiler(>=6)
 import Foundation
 package import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SwiftParser
 import SwiftSyntax
 import TSCExtensions
@@ -25,8 +25,8 @@ import func TSCBasic.withTemporaryFile
 #else
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SwiftParser
 import SwiftSyntax
 import TSCExtensions

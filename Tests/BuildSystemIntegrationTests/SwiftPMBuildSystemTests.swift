@@ -14,9 +14,9 @@ import Build
 import BuildServerProtocol
 @_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import PackageModel
 import SKOptions
-import SKSupport
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions

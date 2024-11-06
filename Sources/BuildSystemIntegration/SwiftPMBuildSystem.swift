@@ -17,12 +17,12 @@ package import BuildServerProtocol
 import Dispatch
 package import Foundation
 package import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 @preconcurrency import PackageGraph
 import PackageLoading
 import PackageModel
 import SKLogging
 package import SKOptions
-import SKSupport
 @preconcurrency package import SPMBuildCore
 import SourceControl
 package import SourceKitLSPAPI
@@ -46,12 +46,12 @@ import BuildServerProtocol
 import Dispatch
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 @preconcurrency import PackageGraph
 import PackageLoading
 import PackageModel
 import SKLogging
 import SKOptions
-import SKSupport
 @preconcurrency import SPMBuildCore
 import SourceControl
 import SourceKitLSPAPI

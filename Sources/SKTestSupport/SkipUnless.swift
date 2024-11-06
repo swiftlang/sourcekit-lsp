@@ -12,9 +12,9 @@
 
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import RegexBuilder
 import SKLogging
-import SKSupport
 import SourceKitLSP
 import SwiftExtensions
 import TSCExtensions

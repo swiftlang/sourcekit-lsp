@@ -1,28 +1,20 @@
 
-add_library(SKSupport STATIC
-  AbsolutePath+Init.swift
-  ByteString.swift
+add_library(LanguageServerProtocolExtensions STATIC
   Connection+Send.swift
-  Debouncer.swift
-  Dictionary+InitWithElementsKeyedBy.swift
   DocumentURI+CustomLogStringConvertible.swift
   DocumentURI+symlinkTarget.swift
-  FileSystem.swift
   Language+InferredFromFileExtension.swift
-  LineTable.swift
   LocalConnection.swift
-  Process+Run.swift
   QueueBasedMessageHandler.swift
   RequestAndReply.swift
   ResponseError+Init.swift
-  SwitchableProcessResultExitStatus.swift
   WorkDoneProgressManager.swift
 )
-set_target_properties(SKSupport PROPERTIES
+set_target_properties(LanguageServerProtocolExtensions PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
-target_link_libraries(SKSupport PUBLIC
+target_link_libraries(LanguageServerProtocolExtensions PUBLIC
   SourceKitD)
-target_link_libraries(SKSupport PRIVATE
+target_link_libraries(LanguageServerProtocolExtensions PRIVATE
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
   SKLogging

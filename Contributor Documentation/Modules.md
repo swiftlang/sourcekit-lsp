@@ -37,6 +37,10 @@ This should be the dedicated entry point for clients that want to run SourceKit-
 
 Swift types to represent the [Language Server Protocol (LSP) specification, version 3.17](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/). These types should also be usable when implementing an LSP client and thus this module should not have any dependencies.
 
+### LanguageServerProtocolExtensions
+
+Extensions on top of `LanguageServerProtocol` and `LanguageServerProtocolJSONRPC` that might require other modules defined in sourcekit-lsp.
+
 ### LanguageServerProtocolJSONRPC
 
 A connection to or from a SourceKit-LSP server. Since message parsing can fail, it needs to handle errors in some way and the design decision here is to use SKLogging, which hardcodes `org.swift.sourcekit-lsp` as the default logging subsystem and thus makes the module unsuitable for generic clients.
@@ -56,11 +60,6 @@ Types that should be sharable by the different modules that implement SourceKit-
 ### SKOptions
 
 Configuration options to change how SourceKit-LSP behaves, based on [Configuration files](../Documentation/Configuration%20File.md).
-
-### SKSupport
-
-Contains SourceKit-LSP-specific helper functions. These fall into two different categories:
-- Functionality that can only be implemented by combining two lower-level modules that don't have a shared dependency, like `SKLogging` + `LanguageServerProtocol`
 
 ### SKTestSupport
 

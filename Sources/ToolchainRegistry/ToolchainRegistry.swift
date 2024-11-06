@@ -12,7 +12,7 @@
 
 import Dispatch
 import Foundation
-import SKSupport
+import LanguageServerProtocolExtensions
 import TSCExtensions
 
 #if compiler(>=6)

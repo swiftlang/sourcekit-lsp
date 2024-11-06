@@ -13,8 +13,8 @@
 #if compiler(>=6)
 package import ArgumentParser
 import Foundation
+import LanguageServerProtocolExtensions
 import ToolchainRegistry
-import SKSupport
 import SwiftExtensions
 import TSCExtensions
 
@@ -24,8 +24,8 @@ import class TSCUtility.PercentProgressAnimation
 #else
 import ArgumentParser
 import Foundation
+import LanguageServerProtocolExtensions
 import ToolchainRegistry
-import SKSupport
 import SwiftExtensions
 import TSCExtensions
 

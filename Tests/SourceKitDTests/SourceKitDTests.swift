@@ -13,7 +13,7 @@
 import Csourcekitd
 import Foundation
 import LanguageServerProtocol
-import SKSupport
+import LanguageServerProtocolExtensions
 import SKTestSupport
 import SourceKitD
 import TSCBasic

@@ -13,8 +13,8 @@
 #if compiler(>=6)
 import Foundation
 package import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 package import SKOptions
-import SKSupport
 import TSCExtensions
 
 import enum PackageLoading.Platform
@@ -23,8 +23,8 @@ import class TSCBasic.Process
 #else
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKOptions
-import SKSupport
 import TSCExtensions
 
 import enum PackageLoading.Platform

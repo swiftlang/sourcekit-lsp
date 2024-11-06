@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
 import SKOptions
-import SKSupport
 import SemanticIndex
 import SwiftExtensions
 

@@ -74,11 +74,11 @@ target_link_libraries(SourceKitLSP PUBLIC
   BuildServerProtocol
   BuildSystemIntegration
   LanguageServerProtocol
+  LanguageServerProtocolExtensions
   LanguageServerProtocolJSONRPC
   SemanticIndex
   SKLogging
   SKOptions
-  SKSupport
   SKUtilities
   SourceKitD
   SwiftExtensions

@@ -14,8 +14,8 @@
 package import BuildServerProtocol
 import Foundation
 package import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SwiftExtensions
 import TSCExtensions
 
@@ -27,8 +27,8 @@ package import var TSCBasic.localFileSystem
 import BuildServerProtocol
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SwiftExtensions
 import TSCExtensions
 

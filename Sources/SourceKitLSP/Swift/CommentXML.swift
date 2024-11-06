@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import SKSupport
+import LanguageServerProtocolExtensions
 
 #if canImport(FoundationXML)
 import FoundationXML

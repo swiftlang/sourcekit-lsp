@@ -14,7 +14,7 @@
 package import BuildSystemIntegration
 import Foundation
 package import LanguageServerProtocol
-import SKSupport
+import LanguageServerProtocolExtensions
 package import SemanticIndex
 
 import struct TSCBasic.AbsolutePath
@@ -23,7 +23,7 @@ import struct TSCBasic.RelativePath
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
-import SKSupport
+import LanguageServerProtocolExtensions
 import SemanticIndex
 
 import struct TSCBasic.AbsolutePath

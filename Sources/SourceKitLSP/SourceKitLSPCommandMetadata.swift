@@ -13,13 +13,13 @@
 #if compiler(>=6)
 import Foundation
 package import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 #else
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 #endif
 
 /// Represents metadata that SourceKit-LSP injects at every command returned by code actions.

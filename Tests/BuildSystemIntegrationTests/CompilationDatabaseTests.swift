@@ -13,7 +13,7 @@
 import BuildServerProtocol
 import BuildSystemIntegration
 import LanguageServerProtocol
-import SKSupport
+import LanguageServerProtocolExtensions
 import SKTestSupport
 import SwiftExtensions
 import TSCBasic

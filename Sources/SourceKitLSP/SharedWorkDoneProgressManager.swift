@@ -12,9 +12,9 @@
 
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
 import SKOptions
-import SKSupport
 import SwiftExtensions
 
 extension WorkDoneProgressManager {

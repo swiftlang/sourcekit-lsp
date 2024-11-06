@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import SKSupport
+import LanguageServerProtocolExtensions
 import TSCExtensions
 
 import struct TSCBasic.AbsolutePath

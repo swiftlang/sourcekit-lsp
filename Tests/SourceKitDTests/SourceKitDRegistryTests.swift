@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Csourcekitd
-import SKSupport
+import LanguageServerProtocolExtensions
 import SKTestSupport
 import SourceKitD
 import SwiftExtensions

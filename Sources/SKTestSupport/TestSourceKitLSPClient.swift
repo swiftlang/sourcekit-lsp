@@ -15,8 +15,8 @@ import Foundation
 import InProcessClient
 package import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
+import LanguageServerProtocolExtensions
 package import SKOptions
-import SKSupport
 import SKUtilities
 package import SourceKitLSP
 import SwiftExtensions
@@ -28,8 +28,8 @@ import Foundation
 import InProcessClient
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
+import LanguageServerProtocolExtensions
 import SKOptions
-import SKSupport
 import SKUtilities
 import SourceKitLSP
 import SwiftExtensions

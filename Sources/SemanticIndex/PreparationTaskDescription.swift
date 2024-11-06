@@ -15,8 +15,8 @@ package import BuildServerProtocol
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
@@ -26,8 +26,8 @@ import BuildServerProtocol
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath

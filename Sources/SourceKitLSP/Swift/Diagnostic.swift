@@ -13,8 +13,8 @@
 import Csourcekitd
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SourceKitD
 import SwiftDiagnostics
 import SwiftSyntax

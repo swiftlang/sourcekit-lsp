@@ -12,8 +12,8 @@
 
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SwiftExtensions
 
 /// Task metadata for `SyntacticTestIndexer.indexingQueue`
