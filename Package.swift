@@ -5,7 +5,8 @@ import PackageDescription
 
 /// Swift settings that should be applied to every Swift target.
 let globalSwiftSettings: [SwiftSetting] = [
-  .enableUpcomingFeature("InternalImportsByDefault")
+  .enableUpcomingFeature("InternalImportsByDefault"),
+  .enableUpcomingFeature("MemberImportVisibility"),
 ]
 
 var products: [Product] = [

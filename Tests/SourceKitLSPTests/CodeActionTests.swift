@@ -13,6 +13,7 @@
 import LanguageServerProtocol
 import SKTestSupport
 import SourceKitLSP
+import SwiftExtensions
 import XCTest
 
 private typealias CodeActionCapabilities = TextDocumentClientCapabilities.CodeAction
@@ -443,10 +444,10 @@ final class CodeActionTests: XCTestCase {
 
     // Check that the Fix-It action contains snippets
 
-    guard let quickFixAction = quickFixCodeActions.filter({ $0.kind == .quickFix }).spm_only else {
+    guard let quickFixAction = quickFixCodeActions.filter({ $0.kind == .quickFix }).only else {
       return XCTFail("Expected exactly one quick fix action")
     }
-    guard let change = quickFixAction.edit?.changes?[uri]?.spm_only else {
+    guard let change = quickFixAction.edit?.changes?[uri]?.only else {
       return XCTFail("Expected exactly one change")
     }
     XCTAssertEqual(
@@ -473,7 +474,7 @@ final class CodeActionTests: XCTestCase {
       return XCTFail("Expected code actions, not commands as a response")
     }
 
-    guard let refactorAction = refactorActions.filter({ $0.kind == .refactor }).spm_only else {
+    guard let refactorAction = refactorActions.filter({ $0.kind == .refactor }).only else {
       return XCTFail("Expected exactly one refactor action")
     }
     guard let command = refactorAction.command else {
@@ -486,7 +487,7 @@ final class CodeActionTests: XCTestCase {
       defer {
         editReceived.fulfill()
       }
-      guard let change = request.edit.changes?[uri]?.spm_only else {
+      guard let change = request.edit.changes?[uri]?.only else {
         XCTFail("Expected exactly one edit")
         return ApplyEditResponse(applied: false, failureReason: "Expected exactly one edit")
       }

@@ -13,6 +13,7 @@
 #if compiler(>=6)
 package import BuildServerProtocol
 package import BuildSystemIntegration
+import Foundation
 import IndexStoreDB
 package import LanguageServerProtocol
 import SKLogging
@@ -27,6 +28,7 @@ import struct TSCBasic.RelativePath
 #else
 import BuildServerProtocol
 import BuildSystemIntegration
+import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
 import SKLogging

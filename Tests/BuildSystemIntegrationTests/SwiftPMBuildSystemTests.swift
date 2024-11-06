@@ -19,6 +19,7 @@ import SKOptions
 import SKSupport
 import SKTestSupport
 import SourceKitLSP
+import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
 import XCTest

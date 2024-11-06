@@ -13,6 +13,7 @@
 #if compiler(>=6)
 import BuildSystemIntegration
 import Foundation
+import IndexStoreDB
 package import LanguageServerProtocol
 import SKLogging
 import SemanticIndex
@@ -20,6 +21,7 @@ import SwiftExtensions
 #else
 import BuildSystemIntegration
 import Foundation
+import IndexStoreDB
 import LanguageServerProtocol
 import SKLogging
 import SemanticIndex

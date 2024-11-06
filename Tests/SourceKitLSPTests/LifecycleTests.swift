@@ -12,6 +12,7 @@
 
 import LanguageServerProtocol
 import SKOptions
+import SKSupport
 import SKTestSupport
 import XCTest
 
@@ -42,9 +43,10 @@ final class LifecycleTests: XCTestCase {
 
   func testEmptySourceKitLSPOptionsCanBeDecoded() {
     // Check that none of the keys in `SourceKitLSPOptions` are required.
-    assertNoThrow {
-      try JSONDecoder().decode(SourceKitLSPOptions.self, from: "{}") == SourceKitLSPOptions()
-    }
+    XCTAssertEqual(
+      try JSONDecoder().decode(SourceKitLSPOptions.self, from: XCTUnwrap("{}".data(using: .utf8))),
+      SourceKitLSPOptions(swiftPM: nil, fallbackBuildSystem: nil, compilationDatabase: nil, index: nil, logging: nil)
+    )
   }
 
   func testCancellation() async throws {

@@ -14,10 +14,12 @@
 package import LanguageServerProtocol
 import SKLogging
 import SKSupport
+import SwiftExtensions
 #else
 import LanguageServerProtocol
 import SKLogging
 import SKSupport
+import SwiftExtensions
 #endif
 
 /// A class which tracks the client's capabilities as well as our dynamic

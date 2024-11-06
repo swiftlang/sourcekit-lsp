@@ -12,6 +12,7 @@
 
 import LanguageServerProtocol
 import SKTestSupport
+import SwiftExtensions
 import XCTest
 
 final class IndexTests: XCTestCase {
@@ -128,7 +129,7 @@ final class IndexTests: XCTestCase {
       XCTAssertEqual(jump.first?.range.lowerBound, project.positions["1️⃣"])
 
       let tmpContents = try listdir(project.indexDBURL)
-      guard let versionedPath = tmpContents.filter({ $0.lastPathComponent.starts(with: "v") }).spm_only else {
+      guard let versionedPath = tmpContents.filter({ $0.lastPathComponent.starts(with: "v") }).only else {
         XCTFail("expected one version path 'v[0-9]*', found \(tmpContents)")
         return nil
       }

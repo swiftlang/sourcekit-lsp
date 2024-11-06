@@ -13,6 +13,7 @@
 import LanguageServerProtocol
 import SwiftRefactor
 import SwiftSyntax
+import SwiftSyntaxBuilder
 
 extension IntegerLiteralExprSyntax.Radix {
   static let allCases: [Self] = [.binary, .octal, .decimal, .hex]

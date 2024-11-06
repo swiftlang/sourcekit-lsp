@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SwiftExtensions
 import XCTest
 
 fileprivate let sdkArgs =

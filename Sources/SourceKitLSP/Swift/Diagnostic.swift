@@ -17,6 +17,7 @@ import SKLogging
 import SKSupport
 import SourceKitD
 import SwiftDiagnostics
+import SwiftSyntax
 
 extension CodeAction {
   /// Creates a CodeAction from a list for sourcekit fixits.

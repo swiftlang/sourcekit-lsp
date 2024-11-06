@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import LanguageServerProtocol
 
 public struct JSONRPCMessageHeader: Hashable {

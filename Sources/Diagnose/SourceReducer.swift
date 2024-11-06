@@ -13,6 +13,7 @@
 import Foundation
 import SKLogging
 import SourceKitD
+import SwiftExtensions
 @_spi(FixItApplier) import SwiftIDEUtils
 import SwiftParser
 import SwiftSyntax

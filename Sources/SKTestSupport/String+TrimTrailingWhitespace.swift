@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
+
 package extension String {
   // This implementation is really slow; to use it outside a test it should be optimized.
   func trimmingTrailingWhitespace() -> String {

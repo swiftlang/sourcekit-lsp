@@ -16,6 +16,7 @@ import SKLogging
 import SKSupport
 import SKTestSupport
 import SourceKitLSP
+import SwiftExtensions
 import XCTest
 
 final class SwiftInterfaceTests: XCTestCase {

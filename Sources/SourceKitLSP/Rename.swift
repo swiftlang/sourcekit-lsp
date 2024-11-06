@@ -12,21 +12,25 @@
 
 #if compiler(>=6)
 import Csourcekitd
+import Foundation
 import IndexStoreDB
 package import LanguageServerProtocol
 import SKLogging
 import SKSupport
 import SemanticIndex
 import SourceKitD
+import SwiftExtensions
 import SwiftSyntax
 #else
 import Csourcekitd
+import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
 import SKLogging
 import SKSupport
 import SemanticIndex
 import SourceKitD
+import SwiftExtensions
 import SwiftSyntax
 #endif
 

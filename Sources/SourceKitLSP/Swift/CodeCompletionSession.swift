@@ -12,6 +12,7 @@
 
 import Csourcekitd
 import Dispatch
+import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SKOptions

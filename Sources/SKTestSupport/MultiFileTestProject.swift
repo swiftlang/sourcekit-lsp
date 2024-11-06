@@ -15,11 +15,13 @@ package import Foundation
 package import LanguageServerProtocol
 package import SKOptions
 package import SourceKitLSP
+import SwiftExtensions
 #else
 import Foundation
 import LanguageServerProtocol
 import SKOptions
 import SourceKitLSP
+import SwiftExtensions
 #endif
 
 /// The location of a test file within test workspace.

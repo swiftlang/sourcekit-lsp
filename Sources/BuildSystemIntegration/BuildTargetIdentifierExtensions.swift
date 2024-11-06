@@ -12,9 +12,11 @@
 
 #if compiler(>=6)
 package import BuildServerProtocol
+import LanguageServerProtocol
 import SKLogging
 #else
 import BuildServerProtocol
+import LanguageServerProtocol
 import SKLogging
 #endif
 

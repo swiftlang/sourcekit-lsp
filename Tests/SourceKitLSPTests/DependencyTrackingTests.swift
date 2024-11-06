@@ -11,8 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
 import SKLogging
 import SKTestSupport
+import SourceKitLSP
+import SwiftExtensions
 import XCTest
 
 final class DependencyTrackingTests: XCTestCase {

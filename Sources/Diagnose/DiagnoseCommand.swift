@@ -14,6 +14,7 @@
 package import ArgumentParser
 import Foundation
 import ToolchainRegistry
+import SKSupport
 import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
@@ -23,6 +24,7 @@ import class TSCUtility.PercentProgressAnimation
 import ArgumentParser
 import Foundation
 import ToolchainRegistry
+import SKSupport
 import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath

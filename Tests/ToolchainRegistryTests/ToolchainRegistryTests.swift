@@ -10,7 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKSupport
 import SKTestSupport
+import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
 import XCTest
