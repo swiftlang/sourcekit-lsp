@@ -5,4 +5,5 @@
     // Decrease timeout to 10s locally from the default 3min we allow by default. This is usually sufficient and makes test fail faster.
     "SOURCEKIT_LSP_TEST_TIMEOUT": "10"
   },
+  "swift.buildArguments": ["--explicit-target-dependency-import-check", "error"]
 }

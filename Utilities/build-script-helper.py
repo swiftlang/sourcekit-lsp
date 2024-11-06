@@ -89,6 +89,7 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace, suppress_verb
         '--package-path', args.package_path,
         '--scratch-path', args.build_path,
         '--configuration', args.configuration,
+        '--explicit-target-dependency-import-check', 'error'
     ]
 
     if args.multiroot_data_file:
