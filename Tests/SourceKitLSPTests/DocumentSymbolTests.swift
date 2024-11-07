@@ -552,7 +552,39 @@ final class DocumentSymbolTests: XCTestCase {
           selectionRange: positions["2️⃣"]..<positions["3️⃣"],
           children: [
             DocumentSymbol(
-              name: "init",
+              name: "init()",
+              detail: nil,
+              kind: .constructor,
+              deprecated: nil,
+              range: positions["4️⃣"]..<positions["6️⃣"],
+              selectionRange: positions["4️⃣"]..<positions["5️⃣"],
+              children: []
+            )
+          ]
+        )
+      ]
+    }
+  }
+
+  func testInitializerWithParameters() async throws {
+    try await assertDocumentSymbols(
+      """
+      1️⃣class 2️⃣Foo3️⃣ {
+        4️⃣init(_ first: Int, second: Int)5️⃣ { }6️⃣
+      }7️⃣
+      """
+    ) { positions in
+      [
+        DocumentSymbol(
+          name: "Foo",
+          detail: nil,
+          kind: .class,
+          deprecated: nil,
+          range: positions["1️⃣"]..<positions["7️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
+          children: [
+            DocumentSymbol(
+              name: "init(_:second:)",
               detail: nil,
               kind: .constructor,
               deprecated: nil,
