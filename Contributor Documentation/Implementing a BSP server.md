@@ -27,7 +27,6 @@ If the build system does not have a notion of targets, eg. because it provides b
 
 If the build system loads the entire build graph during initialization, it may immediately return from `workspace/waitForBuildSystemUpdates`.
 
-
 ## Supporting background indexing
 
 To support background indexing, the build system must set `data.prepareProvider: true` in the `build/initialize` response and implement the `buildTarget/prepare` method.
@@ -37,9 +36,8 @@ To support background indexing, the build system must set `data.prepareProvider:
 The following methods are not necessary to implement for SourceKit-LSP to work but might help with the implementation of the build server.
 
 - `build/logMessage`
-- `window/workDoneProgress/create`
+- `build/taskStart`, `build/taskProgress`, and `build/taskFinish`
 - `workspace/didChangeWatchedFiles`
-- `$/progress`
 
 ## Build server discovery
 

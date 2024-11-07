@@ -24,17 +24,20 @@ fileprivate let requestTypes: [_RequestType.Type] = [
   InitializeBuildRequest.self,
   RegisterForChanges.self,
   TextDocumentSourceKitOptionsRequest.self,
-  WorkspaceWaitForBuildSystemUpdatesRequest.self,
   WorkspaceBuildTargetsRequest.self,
+  WorkspaceWaitForBuildSystemUpdatesRequest.self,
 ]
 
 fileprivate let notificationTypes: [NotificationType.Type] = [
-  OnBuildExitNotification.self,
   FileOptionsChangedNotification.self,
+  OnBuildExitNotification.self,
   OnBuildInitializedNotification.self,
   OnBuildLogMessageNotification.self,
   OnBuildTargetDidChangeNotification.self,
   OnWatchedFilesDidChangeNotification.self,
+  TaskFinishNotification.self,
+  TaskProgressNotification.self,
+  TaskStartNotification.self,
 ]
 
 public let bspRegistry = MessageRegistry(requests: requestTypes, notifications: notificationTypes)

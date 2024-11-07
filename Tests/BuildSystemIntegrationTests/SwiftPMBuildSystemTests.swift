@@ -948,6 +948,36 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       ]
     )
   }
+
+  func testPackageLoadingWorkDoneProgress() async throws {
+    let didReceiveWorkDoneProgressNotification = WrappedSemaphore(name: "work done progress received")
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/Test.swift": ""
+      ],
+      capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
+      testHooks: TestHooks(
+        buildSystemTestHooks: BuildSystemTestHooks(
+          swiftPMTestHooks: SwiftPMTestHooks(reloadPackageDidStart: {
+            didReceiveWorkDoneProgressNotification.waitOrXCTFail()
+          })
+        )
+      ),
+      pollIndex: false,
+      preInitialization: { testClient in
+        testClient.handleMultipleRequests { (request: CreateWorkDoneProgressRequest) in
+          return VoidResponse()
+        }
+      }
+    )
+    let begin = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)
+    XCTAssertEqual(begin.value, .begin(WorkDoneProgressBegin(title: "SourceKit-LSP: Reloading Package")))
+    didReceiveWorkDoneProgressNotification.signal()
+
+    let end = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)
+    XCTAssertEqual(end.token, begin.token)
+    XCTAssertEqual(end.value, .end(WorkDoneProgressEnd()))
+  }
 }
 
 private func assertArgumentsDoNotContain(

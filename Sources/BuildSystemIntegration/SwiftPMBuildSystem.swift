@@ -394,17 +394,18 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   ///
   /// - Important: Must only be called on `packageLoadingQueue`.
   private func reloadPackageAssumingOnPackageLoadingQueue() async throws {
-    let progressManager = WorkDoneProgressManager(
-      connectionToClient: self.connectionToSourceKitLSP,
-      waitUntilClientInitialized: {},
-      tokenPrefix: "package-reloading",
-      initialDebounce: options.workDoneProgressDebounceDurationOrDefault,
-      title: "SourceKit-LSP: Reloading Package"
+    self.connectionToSourceKitLSP.send(
+      TaskStartNotification(
+        taskId: TaskId(id: "package-reloading"),
+        data: WorkDoneProgressTask(title: "SourceKit-LSP: Reloading Package").encodeToLSPAny()
+      )
     )
     await testHooks.reloadPackageDidStart?()
     defer {
       Task {
-        await progressManager?.end()
+        self.connectionToSourceKitLSP.send(
+          TaskFinishNotification(taskId: TaskId(id: "package-reloading"), status: .ok)
+        )
         await testHooks.reloadPackageDidFinish?()
       }
     }

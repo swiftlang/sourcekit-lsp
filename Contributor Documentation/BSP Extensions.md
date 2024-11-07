@@ -35,6 +35,10 @@ export interface SourceKitInitializeBuildResponseData {
 }
 ```
 
+## `build/taskStart`
+
+If `data` contains a string value for the `workDoneProgressTitle` key, then the task's message will be displayed in the client as a work done progress with that title.
+
 ## `buildTarget/didChange`
 
 `changes` can be `null` to indicate that all targets have changed.
@@ -119,12 +123,6 @@ export interface TextDocumentSourceKitOptionsResult {
 }
 ```
 
-## `window/workDoneProgress/create`
-
-Request from the build server to SourceKit-LSP to create a work done progress.
-
-Definition is the same as in LSP.
-
 ## `workspace/buildTargets`
 
 `BuildTargetTag` can have the following additional values
@@ -172,9 +170,3 @@ This request is a no-op and doesn't have any effects.
 If the build system is currently updating the build graph, this request should return after those updates have finished processing.
 
 - method: `workspace/waitForBuildSystemUpdates`
-
-## `$/progress`
-
-Notification from the build server to SourceKit-LSP to update a work done progress created using `window/workDoneProgress/create`.
-
-Definition is the same as in LSP.

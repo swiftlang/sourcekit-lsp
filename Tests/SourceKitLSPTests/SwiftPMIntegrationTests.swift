@@ -309,7 +309,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
       testHooks: TestHooks(
         buildSystemTestHooks: BuildSystemTestHooks(
           swiftPMTestHooks: SwiftPMTestHooks(reloadPackageDidStart: {
-            XCTAssertNoThrow(try? receivedDocumentSymbolsReply.waitOrThrow())
+            receivedDocumentSymbolsReply.waitOrXCTFail()
           })
         )
       ),
@@ -331,7 +331,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
       testHooks: TestHooks(
         buildSystemTestHooks: BuildSystemTestHooks(
           swiftPMTestHooks: SwiftPMTestHooks(reloadPackageDidStart: {
-            XCTAssertNoThrow(try? receivedInitialDiagnosticsReply.waitOrThrow())
+            receivedInitialDiagnosticsReply.waitOrXCTFail()
           })
         )
       ),

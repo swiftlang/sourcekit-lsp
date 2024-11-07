@@ -22,18 +22,6 @@ import TSCBasic
 import ToolchainRegistry
 import XCTest
 
-fileprivate struct DummyBuildSystemManagerConnectionToClient: BuildSystemManagerConnectionToClient {
-  var clientSupportsWorkDoneProgress: Bool = false
-
-  func send(_ notification: some NotificationType) async {}
-
-  func send<Request: RequestType>(_ request: Request) async throws -> Request.Response {
-    throw ResponseError.unknown("Not implemented")
-  }
-
-  func watchFiles(_ fileWatchers: [LanguageServerProtocol.FileSystemWatcher]) async {}
-}
-
 final class BuildSystemTests: XCTestCase {
   /// The mock client used to communicate with the SourceKit-LSP server.p
   ///

@@ -42,13 +42,14 @@ package protocol BuildSystemManagerDelegate: AnyObject, Sendable {
 /// This is distinct from `BuildSystemManagerDelegate` because the delegate only gets set on the build system after the
 /// workspace that created it has been initialized (see `BuildSystemManager.setDelegate`). But the `BuildSystemManager`
 /// can send notifications to the client immediately.
-package protocol BuildSystemManagerConnectionToClient: Sendable {
+package protocol BuildSystemManagerConnectionToClient: Sendable, Connection {
   /// Whether the client can handle `WorkDoneProgress` requests.
   var clientSupportsWorkDoneProgress: Bool { get async }
 
-  func send(_ notification: some NotificationType) async
-
-  func send<R: RequestType>(_ request: R) async throws -> R.Response
+  /// Wait until the connection to the client has been initialized.
+  ///
+  /// No messages should be sent on this connection before this returns.
+  func waitUntilInitialized() async
 
   /// Start watching for file changes with the given glob patterns.
   func watchFiles(_ fileWatchers: [FileSystemWatcher]) async
