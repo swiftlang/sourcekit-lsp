@@ -15,6 +15,7 @@ import Foundation
 import SKLogging
 import SKTestSupport
 import SourceKitD
+import SwiftExtensions
 import ToolchainRegistry
 import XCTest
 

@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SKSupport
 
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem

@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import RegexBuilder
+import SwiftExtensions
 
 #if canImport(Darwin)
 #if compiler(>=6)

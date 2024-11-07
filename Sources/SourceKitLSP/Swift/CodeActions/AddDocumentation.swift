@@ -12,11 +12,13 @@
 
 #if compiler(>=6)
 import SwiftBasicFormat
+import SwiftExtensions
 import SwiftParser
 import SwiftRefactor
 package import SwiftSyntax
 #else
 import SwiftBasicFormat
+import SwiftExtensions
 import SwiftParser
 import SwiftRefactor
 import SwiftSyntax

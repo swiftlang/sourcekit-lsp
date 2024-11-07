@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import RegexBuilder
 import SKLogging
 import SwiftExtensions

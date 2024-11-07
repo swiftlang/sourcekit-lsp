@@ -14,7 +14,9 @@ import Foundation
 import LanguageServerProtocol
 import RegexBuilder
 import SKLogging
+import SKSupport
 import SourceKitLSP
+import SwiftExtensions
 import ToolchainRegistry
 import XCTest
 

@@ -13,12 +13,11 @@
 #if compiler(>=6)
 import Foundation
 package import LanguageServerProtocol
-import struct TSCBasic.AbsolutePath
+import SwiftExtensions
 #else
 import Foundation
 import LanguageServerProtocol
-
-import struct TSCBasic.RelativePath
+import SwiftExtensions
 #endif
 
 extension DocumentURI {

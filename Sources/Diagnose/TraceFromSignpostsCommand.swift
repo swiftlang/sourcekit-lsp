@@ -14,12 +14,14 @@
 package import ArgumentParser
 import Foundation
 import RegexBuilder
+import SwiftExtensions
 
 import class TSCBasic.Process
 #else
 import ArgumentParser
 import Foundation
 import RegexBuilder
+import SwiftExtensions
 
 import class TSCBasic.Process
 #endif

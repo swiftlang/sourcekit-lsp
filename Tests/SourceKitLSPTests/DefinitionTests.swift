@@ -13,6 +13,7 @@
 import LanguageServerProtocol
 @_spi(Testing) import SKLogging
 import SKTestSupport
+import SwiftExtensions
 import XCTest
 
 import enum PackageLoading.Platform

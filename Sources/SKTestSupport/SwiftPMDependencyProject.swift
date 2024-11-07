@@ -13,6 +13,7 @@
 #if compiler(>=6)
 package import Foundation
 import SKSupport
+import SwiftExtensions
 import XCTest
 
 import struct TSCBasic.AbsolutePath
@@ -22,6 +23,7 @@ import struct TSCBasic.ProcessResult
 #else
 import Foundation
 import SKSupport
+import SwiftExtensions
 import XCTest
 
 import struct TSCBasic.AbsolutePath

@@ -11,15 +11,19 @@
 //===----------------------------------------------------------------------===//
 
 #if compiler(>=6)
+import Foundation
 package import LanguageServerProtocol
 package import SKOptions
+import SKSupport
 
 import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 #else
+import Foundation
 import LanguageServerProtocol
 import SKOptions
+import SKSupport
 
 import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath

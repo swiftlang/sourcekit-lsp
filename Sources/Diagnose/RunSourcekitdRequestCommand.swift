@@ -73,7 +73,7 @@ package struct RunSourceKitdRequestCommand: AsyncParsableCommand {
 
     for sourcekitdRequestPath in sourcekitdRequestPaths {
       var requestString = try String(contentsOf: URL(fileURLWithPath: sourcekitdRequestPath), encoding: .utf8)
-      if let lineColumn = position?.split(separator: ":", maxSplits: 2).map(Int.init),
+      if let lineColumn = position?.split(separator: ":", maxSplits: 2).map({ Int($0) }),
         lineColumn.count == 2,
         let line = lineColumn[0],
         let column = lineColumn[1]

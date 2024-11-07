@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import IndexStoreDB
+import LanguageServerProtocol
 
 /// Exhaustive enumeration of all toolchain language servers known to SourceKit-LSP.
 enum LanguageServerType: Hashable {

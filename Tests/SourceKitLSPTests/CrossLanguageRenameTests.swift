@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LanguageServerProtocol
 import SKTestSupport
 import XCTest
 

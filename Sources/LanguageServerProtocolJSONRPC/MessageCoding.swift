@@ -11,8 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 #if compiler(>=6)
+import Foundation
 public import LanguageServerProtocol
 #else
+import Foundation
 import LanguageServerProtocol
 #endif
 

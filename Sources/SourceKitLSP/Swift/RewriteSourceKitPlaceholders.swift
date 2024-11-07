@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import SKLogging
 @_spi(RawSyntax) import SwiftSyntax
 

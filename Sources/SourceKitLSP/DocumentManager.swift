@@ -12,6 +12,7 @@
 
 #if compiler(>=6)
 import Dispatch
+import Foundation
 package import LanguageServerProtocol
 import SKLogging
 package import SKSupport
@@ -19,6 +20,7 @@ import SemanticIndex
 package import SwiftSyntax
 #else
 import Dispatch
+import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SKSupport

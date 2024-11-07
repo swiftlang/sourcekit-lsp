@@ -15,6 +15,7 @@ import SKLogging
 import SKOptions
 import SKSupport
 import SourceKitD
+import SwiftDiagnostics
 import SwiftExtensions
 import SwiftParserDiagnostics
 

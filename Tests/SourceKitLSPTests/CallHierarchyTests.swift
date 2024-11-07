@@ -12,6 +12,7 @@
 
 import LanguageServerProtocol
 import SKTestSupport
+import SwiftExtensions
 import TSCBasic
 import XCTest
 

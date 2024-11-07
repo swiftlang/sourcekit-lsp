@@ -16,6 +16,7 @@ package import Foundation
 package import LanguageServerProtocol
 import SKOptions
 import SourceKitLSP
+import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
 #else
@@ -24,6 +25,7 @@ import Foundation
 import LanguageServerProtocol
 import SKOptions
 import SourceKitLSP
+import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
 #endif

@@ -352,12 +352,12 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   }
 
   public init(
-    swiftPM: SwiftPMOptions = .init(),
-    fallbackBuildSystem: FallbackBuildSystemOptions = .init(),
-    compilationDatabase: CompilationDatabaseOptions = .init(),
+    swiftPM: SwiftPMOptions? = .init(),
+    fallbackBuildSystem: FallbackBuildSystemOptions? = .init(),
+    compilationDatabase: CompilationDatabaseOptions? = .init(),
     clangdOptions: [String]? = nil,
-    index: IndexOptions = .init(),
-    logging: LoggingOptions = .init(),
+    index: IndexOptions? = .init(),
+    logging: LoggingOptions? = .init(),
     defaultWorkspaceType: WorkspaceType? = nil,
     generatedFilesPath: String? = nil,
     backgroundIndexing: Bool? = nil,

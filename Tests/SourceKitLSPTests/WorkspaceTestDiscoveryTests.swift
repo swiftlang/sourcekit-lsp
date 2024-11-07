@@ -19,6 +19,8 @@ import SwiftExtensions
 import ToolchainRegistry
 import XCTest
 
+import struct TSCBasic.AbsolutePath
+
 private let packageManifestWithTestTarget = """
   let package = Package(
     name: "MyLibrary",

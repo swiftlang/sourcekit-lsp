@@ -10,10 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
 import SKLogging
 import SKSupport
 import SKTestSupport
+import SemanticIndex
 import SourceKitLSP
 import SwiftExtensions
 import XCTest

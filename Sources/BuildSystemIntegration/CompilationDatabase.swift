@@ -16,6 +16,7 @@ import Foundation
 package import LanguageServerProtocol
 import SKLogging
 import SKSupport
+import SwiftExtensions
 
 package import struct TSCBasic.AbsolutePath
 package import protocol TSCBasic.FileSystem
@@ -27,6 +28,7 @@ import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SKSupport
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem

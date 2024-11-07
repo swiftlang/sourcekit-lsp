@@ -14,6 +14,8 @@ import Foundation
 import SwiftExtensions
 import ToolchainRegistry
 
+import struct TSCBasic.AbsolutePath
+
 /// Create a folder that contains all files that should be necessary to reproduce a sourcekitd crash.
 /// - Parameters:
 ///   - requestInfo: The reduced request info

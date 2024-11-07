@@ -12,6 +12,7 @@
 
 import LanguageServerProtocol
 import SKLogging
+import SwiftParser
 import SwiftSyntax
 
 // MARK: - Attribute parsing

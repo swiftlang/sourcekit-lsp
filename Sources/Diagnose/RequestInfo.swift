@@ -166,6 +166,9 @@ private func extractCompilerArguments(
   }
   let template = lines[...compilerArgsStartIndex] + ["$COMPILER_ARGS"] + lines[compilerArgsEndIndex...]
   let compilerArgsJson = "[" + lines[(compilerArgsStartIndex + 1)..<compilerArgsEndIndex].joined(separator: "\n") + "]"
-  let compilerArgs = try JSONDecoder().decode([String].self, from: compilerArgsJson)
+  guard let data = compilerArgsJson.data(using: .utf8) else {
+    throw GenericError("Failed to represent compiler argument JSON in UTF-8")
+  }
+  let compilerArgs = try JSONDecoder().decode([String].self, from: data)
   return (template.joined(separator: "\n"), compilerArgs)
 }

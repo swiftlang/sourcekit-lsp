@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
+
 /// Unique identifier for a document.
 public struct WorkspaceFolder: ResponseType, Hashable, Codable, Sendable {
 

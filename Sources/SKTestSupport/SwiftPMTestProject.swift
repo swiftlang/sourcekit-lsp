@@ -15,6 +15,7 @@ package import Foundation
 package import LanguageServerProtocol
 package import SKOptions
 package import SourceKitLSP
+import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
 import XCTest
@@ -23,6 +24,7 @@ import Foundation
 import LanguageServerProtocol
 import SKOptions
 import SourceKitLSP
+import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
 import XCTest

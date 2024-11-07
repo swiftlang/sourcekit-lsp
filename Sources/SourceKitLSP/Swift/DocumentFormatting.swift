@@ -14,6 +14,7 @@
 import Foundation
 package import LanguageServerProtocol
 import SKLogging
+import SKSupport
 import SwiftParser
 import SwiftSyntax
 
@@ -24,6 +25,7 @@ import func TSCBasic.withTemporaryFile
 import Foundation
 import LanguageServerProtocol
 import SKLogging
+import SKSupport
 import SwiftParser
 import SwiftSyntax
 

@@ -15,6 +15,7 @@ import BuildSystemIntegration
 import LanguageServerProtocol
 import SKSupport
 import SKTestSupport
+import SwiftExtensions
 import TSCBasic
 import XCTest
 

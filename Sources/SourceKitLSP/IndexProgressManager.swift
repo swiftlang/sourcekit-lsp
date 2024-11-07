@@ -12,6 +12,7 @@
 
 import LanguageServerProtocol
 import SKLogging
+import SKOptions
 import SKSupport
 import SemanticIndex
 import SwiftExtensions

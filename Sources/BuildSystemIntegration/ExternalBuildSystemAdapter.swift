@@ -16,6 +16,7 @@ import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKLogging
 import SKOptions
+import SKSupport
 import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
