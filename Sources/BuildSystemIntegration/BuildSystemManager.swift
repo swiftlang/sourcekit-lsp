@@ -987,14 +987,11 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
           logger.fault("Did not compute depth for target \(buildTarget.id)")
           depth = 0
         }
-        let targetDependents: Set<BuildTargetIdentifier>
-        if let d = dependents[buildTarget.id] {
-          targetDependents = d
-        } else {
-          logger.fault("Did not compute dependents for target \(buildTarget.id)")
-          targetDependents = []
-        }
-        result[buildTarget.id] = BuildTargetInfo(target: buildTarget, depth: depth, dependents: targetDependents)
+        result[buildTarget.id] = BuildTargetInfo(
+          target: buildTarget,
+          depth: depth,
+          dependents: dependents[buildTarget.id] ?? []
+        )
       }
       return result
     }
