@@ -25,7 +25,7 @@ package struct DummyBuildSystemManagerConnectionToClient: BuildSystemManagerConn
 
   package init() {}
 
-  func waitUntilInitialized() async {}
+  package func waitUntilInitialized() async {}
 
   package func send(_ notification: some LanguageServerProtocol.NotificationType) {}
 
