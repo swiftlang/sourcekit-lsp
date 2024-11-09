@@ -138,7 +138,26 @@ private func edits(from original: DocumentSnapshot, to edited: String) -> [TextE
 
 extension SwiftLanguageService {
   package func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]? {
-    let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
+    return try await format(
+      textDocument: req.textDocument,
+      options: req.options
+    )
+  }
+
+  package func documentRangeFormatting(_ req: DocumentRangeFormattingRequest) async throws -> [TextEdit]? {
+    return try await format(
+      textDocument: req.textDocument,
+      options: req.options,
+      range: req.range
+    )
+  }
+
+  private func format(
+    textDocument: TextDocumentIdentifier,
+    options: FormattingOptions,
+    range: Range<Position>? = nil
+  ) async throws -> [TextEdit]? {
+    let snapshot = try documentManager.latestSnapshot(textDocument.uri)
 
     guard let swiftFormat else {
       throw ResponseError.unknown(
@@ -146,12 +165,19 @@ extension SwiftLanguageService {
       )
     }
 
-    let process = TSCBasic.Process(
-      args: swiftFormat.pathString,
+    var args = try [
+      swiftFormat.pathString,
       "format",
       "--configuration",
-      try swiftFormatConfiguration(for: req.textDocument.uri, options: req.options)
-    )
+      swiftFormatConfiguration(for: textDocument.uri, options: options),
+    ]
+    if let range {
+      args += [
+        "--offsets",
+        "\(snapshot.utf8Offset(of: range.lowerBound)):\(snapshot.utf8Offset(of: range.upperBound))",
+      ]
+    }
+    let process = TSCBasic.Process(arguments: args)
     let writeStream = try process.launch()
 
     // Send the file to format to swift-format's stdin. That way we don't have to write it to a file.

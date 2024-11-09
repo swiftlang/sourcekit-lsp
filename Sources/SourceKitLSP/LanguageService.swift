@@ -209,6 +209,7 @@ package protocol LanguageService: AnyObject, Sendable {
   func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens]
   func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport
   func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]?
+  func documentRangeFormatting(_ req: DocumentRangeFormattingRequest) async throws -> [TextEdit]?
 
   // MARK: - Rename
 
