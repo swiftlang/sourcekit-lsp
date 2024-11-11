@@ -323,9 +323,14 @@ class CodeCompletionSession {
     var parser = Parser(exprToExpand)
     let expr = ExprSyntax.parse(from: &parser)
     guard let call = OutermostFunctionCallFinder.findOutermostFunctionCall(in: expr),
-      let expandedCall = ExpandEditorPlaceholdersToTrailingClosures.refactor(
+      let expandedCall = ExpandEditorPlaceholdersToLiteralClosures.refactor(
         syntax: call,
-        in: ExpandEditorPlaceholdersToTrailingClosures.Context(indentationWidth: indentationWidth)
+        in: ExpandEditorPlaceholdersToLiteralClosures.Context(
+          format: .custom(
+            ClosureCompletionFormat(indentationWidth: indentationWidth),
+            allowNestedPlaceholders: true
+          )
+        )
       )
     else {
       return nil
@@ -334,7 +339,7 @@ class CodeCompletionSession {
     let bytesToExpand = Array(exprToExpand.utf8)
 
     var expandedBytes: [UInt8] = []
-    // Add the prefix that we stripped of to allow expression parsing
+    // Add the prefix that we stripped off to allow expression parsing
     expandedBytes += strippedPrefix.utf8
     // Add any part of the expression that didn't end up being part of the function call
     expandedBytes += bytesToExpand[0..<call.position.utf8Offset]
