@@ -856,6 +856,15 @@ extension SourceKitLSPServer {
     return workspace
   }
 
+  /// Determines the build system for the given workspace folder and creates a `Workspace` that uses this inferred build
+  /// system.
+  private func createWorkspaceWithInferredBuildSystem(workspaceFolder: DocumentURI) async throws -> Workspace {
+    return try await self.createWorkspace(
+      workspaceFolder: workspaceFolder,
+      buildSystemSpec: determineBuildSystem(forWorkspaceFolder: workspaceFolder, options: self.options)
+    )
+  }
+
   func initialize(_ req: InitializeRequest) async throws -> InitializeResult {
     logger.logFullObjectInMultipleLogMessages(header: "Initialize request", AnyRequestType(request: req))
     // If the client can handle `PeekDocumentsRequest`, they can enable the
@@ -916,33 +925,24 @@ extension SourceKitLSPServer {
       if let workspaceFolders = req.workspaceFolders {
         self.workspacesAndIsImplicit += await workspaceFolders.asyncCompactMap { workspaceFolder in
           await orLog("Creating workspace from workspaceFolders") {
-            let workspace = try await self.createWorkspace(
-              workspaceFolder: workspaceFolder.uri,
-              buildSystemSpec: determineBuildSystem(forWorkspaceFolder: workspaceFolder.uri, options: self.options)
+            return (
+              workspace: try await self.createWorkspaceWithInferredBuildSystem(workspaceFolder: workspaceFolder.uri),
+              isImplicit: false
             )
-            return (workspace: workspace, isImplicit: false)
           }
         }
       } else if let uri = req.rootURI {
-        let workspace = await orLog("Creating workspace from rootURI") {
-          try await self.createWorkspace(
-            workspaceFolder: uri,
-            buildSystemSpec: determineBuildSystem(forWorkspaceFolder: uri, options: self.options)
+        await orLog("Creating workspace from rootURI") {
+          self.workspacesAndIsImplicit.append(
+            (workspace: try await self.createWorkspaceWithInferredBuildSystem(workspaceFolder: uri), isImplicit: false)
           )
-        }
-        if let workspace {
-          self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
         }
       } else if let path = req.rootPath {
         let uri = DocumentURI(URL(fileURLWithPath: path))
-        let workspace = await orLog("Creating workspace from rootPath") {
-          try await self.createWorkspace(
-            workspaceFolder: uri,
-            buildSystemSpec: determineBuildSystem(forWorkspaceFolder: uri, options: self.options)
+        await orLog("Creating workspace from rootPath") {
+          self.workspacesAndIsImplicit.append(
+            (workspace: try await self.createWorkspaceWithInferredBuildSystem(workspaceFolder: uri), isImplicit: false)
           )
-        }
-        if let workspace {
-          self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
         }
       }
 
@@ -1340,10 +1340,7 @@ extension SourceKitLSPServer {
       if let added = notification.event.added {
         let newWorkspaces = await added.asyncCompactMap { workspaceFolder in
           await orLog("Creating workspace after workspace folder change") {
-            try await self.createWorkspace(
-              workspaceFolder: workspaceFolder.uri,
-              buildSystemSpec: determineBuildSystem(forWorkspaceFolder: workspaceFolder.uri, options: self.options)
-            )
+            try await self.createWorkspaceWithInferredBuildSystem(workspaceFolder: workspaceFolder.uri)
           }
         }
         self.workspacesAndIsImplicit += newWorkspaces.map { (workspace: $0, isImplicit: false) }
