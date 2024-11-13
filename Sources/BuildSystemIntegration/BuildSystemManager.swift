@@ -647,7 +647,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     let sourcesItems = try await self.sourceFiles(in: [target])
     let sourceFiles = sourcesItems.flatMap(\.sources)
     var result: Language? = nil
-    for sourceFile in sourceFiles {
+    for sourceFile in sourceFiles where sourceFile.uri == document {
       guard let language = sourceFile.sourceKitData?.language else {
         continue
       }

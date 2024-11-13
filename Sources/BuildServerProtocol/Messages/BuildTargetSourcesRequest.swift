@@ -17,7 +17,7 @@ import LanguageServerProtocol
 #endif
 
 /// The build target sources request is sent from the client to the server to
-/// query for the list of text documents and directories that are belong to a
+/// query for the list of text documents and directories that belong to a
 /// build target. The sources response must not include sources that are
 /// external to the workspace.
 public struct BuildTargetSourcesRequest: RequestType, Hashable {
