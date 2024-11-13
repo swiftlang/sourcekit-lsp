@@ -229,16 +229,16 @@ package actor SourceKitLSPServer {
       // was added to it and thus currently doesn't know that it can handle that file. In that case, we shouldn't open
       // a new workspace for the same root. Instead, the existing workspace's build system needs to be reloaded.
       let uri = DocumentURI(url)
-      guard let buildSystemKind = determineBuildSystem(forWorkspaceFolder: uri, options: self.options) else {
+      guard let buildSystemSpec = determineBuildSystem(forWorkspaceFolder: uri, options: self.options) else {
         continue
       }
-      guard !projectRoots.contains(buildSystemKind.projectRoot) else {
+      guard !projectRoots.contains(buildSystemSpec.projectRoot) else {
         continue
       }
       guard
         let workspace = await orLog(
           "Creating workspace",
-          { try await createWorkspace(workspaceFolder: uri, buildSystemKind: buildSystemKind) }
+          { try await createWorkspace(workspaceFolder: uri, buildSystemSpec: buildSystemSpec) }
         )
       else {
         continue
@@ -809,7 +809,7 @@ extension SourceKitLSPServer {
   /// If the build system that was determined for the workspace does not satisfy `condition`, `nil` is returned.
   private func createWorkspace(
     workspaceFolder: DocumentURI,
-    buildSystemKind: BuildSystemKind?
+    buildSystemSpec: BuildSystemSpec?
   ) async throws -> Workspace {
     guard let capabilityRegistry = capabilityRegistry else {
       struct NoCapabilityRegistryError: Error {}
@@ -833,7 +833,7 @@ extension SourceKitLSPServer {
       documentManager: self.documentManager,
       rootUri: workspaceFolder,
       capabilityRegistry: capabilityRegistry,
-      buildSystemKind: buildSystemKind,
+      buildSystemSpec: buildSystemSpec,
       toolchainRegistry: self.toolchainRegistry,
       options: options,
       testHooks: testHooks,
@@ -918,7 +918,7 @@ extension SourceKitLSPServer {
           await orLog("Creating workspace from workspaceFolders") {
             let workspace = try await self.createWorkspace(
               workspaceFolder: workspaceFolder.uri,
-              buildSystemKind: determineBuildSystem(forWorkspaceFolder: workspaceFolder.uri, options: self.options)
+              buildSystemSpec: determineBuildSystem(forWorkspaceFolder: workspaceFolder.uri, options: self.options)
             )
             return (workspace: workspace, isImplicit: false)
           }
@@ -927,7 +927,7 @@ extension SourceKitLSPServer {
         let workspace = await orLog("Creating workspace from rootURI") {
           try await self.createWorkspace(
             workspaceFolder: uri,
-            buildSystemKind: determineBuildSystem(forWorkspaceFolder: uri, options: self.options)
+            buildSystemSpec: determineBuildSystem(forWorkspaceFolder: uri, options: self.options)
           )
         }
         if let workspace {
@@ -938,7 +938,7 @@ extension SourceKitLSPServer {
         let workspace = await orLog("Creating workspace from rootPath") {
           try await self.createWorkspace(
             workspaceFolder: uri,
-            buildSystemKind: determineBuildSystem(forWorkspaceFolder: uri, options: self.options)
+            buildSystemSpec: determineBuildSystem(forWorkspaceFolder: uri, options: self.options)
           )
         }
         if let workspace {
@@ -955,7 +955,7 @@ extension SourceKitLSPServer {
           documentManager: self.documentManager,
           rootUri: req.rootURI,
           capabilityRegistry: self.capabilityRegistry!,
-          buildSystemKind: nil,
+          buildSystemSpec: nil,
           toolchainRegistry: self.toolchainRegistry,
           options: options,
           testHooks: testHooks,
@@ -1342,7 +1342,7 @@ extension SourceKitLSPServer {
           await orLog("Creating workspace after workspace folder change") {
             try await self.createWorkspace(
               workspaceFolder: workspaceFolder.uri,
-              buildSystemKind: determineBuildSystem(forWorkspaceFolder: workspaceFolder.uri, options: self.options)
+              buildSystemSpec: determineBuildSystem(forWorkspaceFolder: workspaceFolder.uri, options: self.options)
             )
           }
         }

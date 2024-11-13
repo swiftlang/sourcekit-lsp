@@ -49,7 +49,7 @@ final class BuildSystemTests: XCTestCase {
     let server = testClient.server
 
     let buildSystemManager = await BuildSystemManager(
-      buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
+      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: .forTesting,
       options: .testDefault(),
       connectionToClient: DummyBuildSystemManagerConnectionToClient(),

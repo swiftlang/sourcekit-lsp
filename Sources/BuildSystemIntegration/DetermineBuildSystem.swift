@@ -35,7 +35,7 @@ import struct TSCBasic.AbsolutePath
 package func determineBuildSystem(
   forWorkspaceFolder workspaceFolder: DocumentURI,
   options: SourceKitLSPOptions
-) -> BuildSystemKind? {
+) -> BuildSystemSpec? {
   var buildSystemPreference: [WorkspaceType] = [
     .buildServer, .swiftPM, .compilationDatabase,
   ]
@@ -52,17 +52,17 @@ package func determineBuildSystem(
     switch buildSystemType {
     case .buildServer:
       if let projectRoot = ExternalBuildSystemAdapter.projectRoot(for: workspaceFolderPath, options: options) {
-        return .buildServer(projectRoot: projectRoot)
+        return BuildSystemSpec(kind: .buildServer, projectRoot: projectRoot)
       }
     case .compilationDatabase:
       if let projectRoot = CompilationDatabaseBuildSystem.projectRoot(for: workspaceFolderPath, options: options) {
-        return .compilationDatabase(projectRoot: projectRoot)
+        return BuildSystemSpec(kind: .compilationDatabase, projectRoot: projectRoot)
       }
     case .swiftPM:
       if let projectRootURL = SwiftPMBuildSystem.projectRoot(for: workspaceFolderUrl, options: options),
         let projectRoot = try? AbsolutePath(validating: projectRootURL.filePath)
       {
-        return .swiftPM(projectRoot: projectRoot)
+        return BuildSystemSpec(kind: .swiftPM, projectRoot: projectRoot)
       }
     }
   }

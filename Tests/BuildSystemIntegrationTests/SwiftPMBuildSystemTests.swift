@@ -108,7 +108,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: packageRoot),
+        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -176,7 +176,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try AbsolutePath(validating: tempDir.appending(component: "pkg").asURL.realpath.filePath)
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: packageRoot),
+        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -241,7 +241,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
 
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: packageRoot),
+        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(swiftPM: options),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -322,7 +322,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = tempDir.appending(component: "pkg")
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: packageRoot),
+        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -362,7 +362,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: packageRoot),
+        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -419,7 +419,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: packageRoot),
+        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -482,7 +482,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = tempDir.appending(component: "pkg")
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: packageRoot),
+        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -539,7 +539,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: packageRoot),
+        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -623,7 +623,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = tempDir.appending(component: "pkg")
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: packageRoot),
+        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -678,7 +678,10 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: packageRoot.asURL, options: .testDefault()))
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: try AbsolutePath(validating: projectRoot.filePath)),
+        buildSystemSpec: BuildSystemSpec(
+          kind: .swiftPM,
+          projectRoot: try AbsolutePath(validating: projectRoot.filePath)
+        ),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -766,7 +769,10 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: symlinkRoot.asURL, options: .testDefault()))
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: try AbsolutePath(validating: projectRoot.filePath)),
+        buildSystemSpec: BuildSystemSpec(
+          kind: .swiftPM,
+          projectRoot: try AbsolutePath(validating: projectRoot.filePath)
+        ),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -808,7 +814,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: packageRoot),
+        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -884,7 +890,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = tempDir.appending(component: "pkg")
       let buildSystemManager = await BuildSystemManager(
-        buildSystemKind: .swiftPM(projectRoot: packageRoot),
+        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
