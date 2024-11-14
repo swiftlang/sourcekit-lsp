@@ -49,8 +49,8 @@ extension WorkDoneProgressManager {
 actor SharedWorkDoneProgressManager {
   private weak var sourceKitLSPServer: SourceKitLSPServer?
 
-  /// The number of in-progress operations. When greater than 0 `workDoneProgress` non-nil and a work done progress is
-  /// displayed to the user.
+  /// The number of in-progress operations. When greater than 0 `workDoneProgress` is non-nil and a work done progress
+  /// is displayed to the user.
   private var inProgressOperations = 0
   private var workDoneProgress: WorkDoneProgressManager?
 

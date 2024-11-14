@@ -136,7 +136,7 @@ private enum BuildSystemAdapter {
   }
 }
 
-private extension BuildSystemKind {
+private extension BuildSystemSpec {
   private static func createBuiltInBuildSystemAdapter(
     projectRoot: AbsolutePath,
     messagesToSourceKitLSPHandler: any MessageHandler,
@@ -176,8 +176,8 @@ private extension BuildSystemKind {
     buildSystemTestHooks testHooks: BuildSystemTestHooks,
     messagesToSourceKitLSPHandler: any MessageHandler
   ) async -> BuildSystemAdapter? {
-    switch self {
-    case .buildServer(projectRoot: let projectRoot):
+    switch self.kind {
+    case .buildServer:
       let buildSystem = await orLog("Creating external build system") {
         try await ExternalBuildSystemAdapter(
           projectRoot: projectRoot,
@@ -190,7 +190,7 @@ private extension BuildSystemKind {
       }
       logger.log("Created external build server at \(projectRoot.pathString)")
       return .external(buildSystem)
-    case .compilationDatabase(projectRoot: let projectRoot):
+    case .compilationDatabase:
       return await Self.createBuiltInBuildSystemAdapter(
         projectRoot: projectRoot,
         messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
@@ -204,7 +204,7 @@ private extension BuildSystemKind {
           connectionToSourceKitLSP: connectionToSourceKitLSP
         )
       }
-    case .swiftPM(projectRoot: let projectRoot):
+    case .swiftPM:
       return await Self.createBuiltInBuildSystemAdapter(
         projectRoot: projectRoot,
         messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
@@ -218,7 +218,7 @@ private extension BuildSystemKind {
           testHooks: testHooks.swiftPMTestHooks
         )
       }
-    case .testBuildSystem(projectRoot: let projectRoot):
+    case .testBuildSystem:
       return await Self.createBuiltInBuildSystemAdapter(
         projectRoot: projectRoot,
         messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
@@ -353,7 +353,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   }
 
   package init(
-    buildSystemKind: BuildSystemKind?,
+    buildSystemSpec: BuildSystemSpec?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     connectionToClient: BuildSystemManagerConnectionToClient,
@@ -362,8 +362,8 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     self.toolchainRegistry = toolchainRegistry
     self.options = options
     self.connectionToClient = connectionToClient
-    self.projectRoot = buildSystemKind?.projectRoot
-    self.buildSystemAdapter = await buildSystemKind?.createBuildSystemAdapter(
+    self.projectRoot = buildSystemSpec?.projectRoot
+    self.buildSystemAdapter = await buildSystemSpec?.createBuildSystemAdapter(
       toolchainRegistry: toolchainRegistry,
       options: options,
       buildSystemTestHooks: buildSystemTestHooks,
@@ -392,8 +392,8 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       guard let buildSystemAdapter else {
         return nil
       }
-      guard let buildSystemKind else {
-        logger.fault("If we have a connectionToBuildSystem, we must have had a buildSystemKind")
+      guard let buildSystemSpec else {
+        logger.fault("If we have a connectionToBuildSystem, we must have had a buildSystemSpec")
         return nil
       }
       let initializeResponse = await orLog("Initializing build system") {
@@ -402,7 +402,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
             displayName: "SourceKit-LSP",
             version: "",
             bspVersion: "2.2.0",
-            rootUri: URI(buildSystemKind.projectRoot.asURL),
+            rootUri: URI(buildSystemSpec.projectRoot.asURL),
             capabilities: BuildClientCapabilities(languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift])
           )
         )
@@ -415,7 +415,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         // the build server.
         logger.log("Launched a legacy BSP server. Using push-based build settings model.")
         let legacyBuildServer = await LegacyBuildServerBuildSystem(
-          projectRoot: buildSystemKind.projectRoot,
+          projectRoot: buildSystemSpec.projectRoot,
           initializationData: initializeResponse,
           externalBuildSystemAdapter
         )
@@ -651,7 +651,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     let sourcesItems = try await self.sourceFiles(in: [target])
     let sourceFiles = sourcesItems.flatMap(\.sources)
     var result: Language? = nil
-    for sourceFile in sourceFiles {
+    for sourceFile in sourceFiles where sourceFile.uri == document {
       guard let language = sourceFile.sourceKitData?.language else {
         continue
       }

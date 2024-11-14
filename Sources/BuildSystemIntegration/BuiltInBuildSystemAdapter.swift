@@ -27,19 +27,22 @@ import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 #endif
 
-package enum BuildSystemKind {
-  case buildServer(projectRoot: AbsolutePath)
-  case compilationDatabase(projectRoot: AbsolutePath)
-  case swiftPM(projectRoot: AbsolutePath)
-  case testBuildSystem(projectRoot: AbsolutePath)
+/// The details necessary to create a `BuildSystemAdapter`.
+package struct BuildSystemSpec {
+  package enum Kind {
+    case buildServer
+    case compilationDatabase
+    case swiftPM
+    case testBuildSystem
+  }
 
-  package var projectRoot: AbsolutePath {
-    switch self {
-    case .buildServer(let projectRoot): return projectRoot
-    case .compilationDatabase(let projectRoot): return projectRoot
-    case .swiftPM(let projectRoot): return projectRoot
-    case .testBuildSystem(let projectRoot): return projectRoot
-    }
+  package var kind: Kind
+
+  package var projectRoot: AbsolutePath
+
+  package init(kind: BuildSystemSpec.Kind, projectRoot: AbsolutePath) {
+    self.kind = kind
+    self.projectRoot = projectRoot
   }
 }
 

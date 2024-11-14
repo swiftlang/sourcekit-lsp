@@ -34,7 +34,7 @@ public struct BuildTarget: Codable, Hashable, Sendable {
   /// A human readable name for this target.
   /// May be presented in the user interface.
   /// Should be unique if possible.
-  /// The id.uri is used if None.
+  /// The id.uri is used if `nil`.
   public var displayName: String?
 
   /// The directory where this target belongs to. Multiple build targets are

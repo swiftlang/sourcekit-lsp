@@ -229,16 +229,16 @@ package actor SourceKitLSPServer {
       // was added to it and thus currently doesn't know that it can handle that file. In that case, we shouldn't open
       // a new workspace for the same root. Instead, the existing workspace's build system needs to be reloaded.
       let uri = DocumentURI(url)
-      guard let buildSystemKind = determineBuildSystem(forWorkspaceFolder: uri, options: self.options) else {
+      guard let buildSystemSpec = determineBuildSystem(forWorkspaceFolder: uri, options: self.options) else {
         continue
       }
-      guard !projectRoots.contains(buildSystemKind.projectRoot) else {
+      guard !projectRoots.contains(buildSystemSpec.projectRoot) else {
         continue
       }
       guard
         let workspace = await orLog(
           "Creating workspace",
-          { try await createWorkspace(workspaceFolder: uri, buildSystemKind: buildSystemKind) }
+          { try await createWorkspace(workspaceFolder: uri, buildSystemSpec: buildSystemSpec) }
         )
       else {
         continue
@@ -811,7 +811,7 @@ extension SourceKitLSPServer {
   /// If the build system that was determined for the workspace does not satisfy `condition`, `nil` is returned.
   private func createWorkspace(
     workspaceFolder: DocumentURI,
-    buildSystemKind: BuildSystemKind?
+    buildSystemSpec: BuildSystemSpec?
   ) async throws -> Workspace {
     guard let capabilityRegistry = capabilityRegistry else {
       struct NoCapabilityRegistryError: Error {}
@@ -835,7 +835,7 @@ extension SourceKitLSPServer {
       documentManager: self.documentManager,
       rootUri: workspaceFolder,
       capabilityRegistry: capabilityRegistry,
-      buildSystemKind: buildSystemKind,
+      buildSystemSpec: buildSystemSpec,
       toolchainRegistry: self.toolchainRegistry,
       options: options,
       testHooks: testHooks,
@@ -856,6 +856,15 @@ extension SourceKitLSPServer {
       self.didSendBackgroundIndexingNotSupportedNotification = true
     }
     return workspace
+  }
+
+  /// Determines the build system for the given workspace folder and creates a `Workspace` that uses this inferred build
+  /// system.
+  private func createWorkspaceWithInferredBuildSystem(workspaceFolder: DocumentURI) async throws -> Workspace {
+    return try await self.createWorkspace(
+      workspaceFolder: workspaceFolder,
+      buildSystemSpec: determineBuildSystem(forWorkspaceFolder: workspaceFolder, options: self.options)
+    )
   }
 
   func initialize(_ req: InitializeRequest) async throws -> InitializeResult {
@@ -918,33 +927,24 @@ extension SourceKitLSPServer {
       if let workspaceFolders = req.workspaceFolders {
         self.workspacesAndIsImplicit += await workspaceFolders.asyncCompactMap { workspaceFolder in
           await orLog("Creating workspace from workspaceFolders") {
-            let workspace = try await self.createWorkspace(
-              workspaceFolder: workspaceFolder.uri,
-              buildSystemKind: determineBuildSystem(forWorkspaceFolder: workspaceFolder.uri, options: self.options)
+            return (
+              workspace: try await self.createWorkspaceWithInferredBuildSystem(workspaceFolder: workspaceFolder.uri),
+              isImplicit: false
             )
-            return (workspace: workspace, isImplicit: false)
           }
         }
       } else if let uri = req.rootURI {
-        let workspace = await orLog("Creating workspace from rootURI") {
-          try await self.createWorkspace(
-            workspaceFolder: uri,
-            buildSystemKind: determineBuildSystem(forWorkspaceFolder: uri, options: self.options)
+        await orLog("Creating workspace from rootURI") {
+          self.workspacesAndIsImplicit.append(
+            (workspace: try await self.createWorkspaceWithInferredBuildSystem(workspaceFolder: uri), isImplicit: false)
           )
-        }
-        if let workspace {
-          self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
         }
       } else if let path = req.rootPath {
         let uri = DocumentURI(URL(fileURLWithPath: path))
-        let workspace = await orLog("Creating workspace from rootPath") {
-          try await self.createWorkspace(
-            workspaceFolder: uri,
-            buildSystemKind: determineBuildSystem(forWorkspaceFolder: uri, options: self.options)
+        await orLog("Creating workspace from rootPath") {
+          self.workspacesAndIsImplicit.append(
+            (workspace: try await self.createWorkspaceWithInferredBuildSystem(workspaceFolder: uri), isImplicit: false)
           )
-        }
-        if let workspace {
-          self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
         }
       }
 
@@ -957,7 +957,7 @@ extension SourceKitLSPServer {
           documentManager: self.documentManager,
           rootUri: req.rootURI,
           capabilityRegistry: self.capabilityRegistry!,
-          buildSystemKind: nil,
+          buildSystemSpec: nil,
           toolchainRegistry: self.toolchainRegistry,
           options: options,
           testHooks: testHooks,
@@ -1343,10 +1343,7 @@ extension SourceKitLSPServer {
       if let added = notification.event.added {
         let newWorkspaces = await added.asyncCompactMap { workspaceFolder in
           await orLog("Creating workspace after workspace folder change") {
-            try await self.createWorkspace(
-              workspaceFolder: workspaceFolder.uri,
-              buildSystemKind: determineBuildSystem(forWorkspaceFolder: workspaceFolder.uri, options: self.options)
-            )
+            try await self.createWorkspaceWithInferredBuildSystem(workspaceFolder: workspaceFolder.uri)
           }
         }
         self.workspacesAndIsImplicit += newWorkspaces.map { (workspace: $0, isImplicit: false) }

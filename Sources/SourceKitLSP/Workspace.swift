@@ -174,7 +174,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     documentManager: DocumentManager,
     rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
-    buildSystemKind: BuildSystemKind?,
+    buildSystemSpec: BuildSystemSpec?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     testHooks: TestHooks,
@@ -224,7 +224,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     }
 
     let buildSystemManager = await BuildSystemManager(
-      buildSystemKind: buildSystemKind,
+      buildSystemSpec: buildSystemSpec,
       toolchainRegistry: toolchainRegistry,
       options: options,
       connectionToClient: ConnectionToClient(sourceKitLSPServer: sourceKitLSPServer),
@@ -232,7 +232,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     )
 
     logger.log(
-      "Created workspace at \(rootUri.forLogging) with project root \(buildSystemKind?.projectRoot.pathString ?? "<nil>")"
+      "Created workspace at \(rootUri.forLogging) with project root \(buildSystemSpec?.projectRoot.pathString ?? "<nil>")"
     )
 
     var index: IndexStoreDB? = nil
