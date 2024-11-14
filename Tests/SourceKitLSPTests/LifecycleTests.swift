@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKOptions
-import SKSupport
 import SKTestSupport
 import XCTest
 

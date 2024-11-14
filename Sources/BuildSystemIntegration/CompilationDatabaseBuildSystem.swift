@@ -14,10 +14,11 @@
 package import BuildServerProtocol
 import Dispatch
 package import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
 package import SKOptions
-import SKSupport
 import ToolchainRegistry
+import TSCExtensions
 
 import struct Foundation.URL
 package import struct TSCBasic.AbsolutePath
@@ -28,10 +29,11 @@ package import var TSCBasic.localFileSystem
 import BuildServerProtocol
 import Dispatch
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
 import SKOptions
-import SKSupport
 import ToolchainRegistry
+import TSCExtensions
 
 import struct Foundation.URL
 import struct TSCBasic.AbsolutePath

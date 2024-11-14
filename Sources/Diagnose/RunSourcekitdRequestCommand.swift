@@ -14,7 +14,7 @@
 package import ArgumentParser
 import Csourcekitd
 import Foundation
-import SKSupport
+import SKUtilities
 import SourceKitD
 import ToolchainRegistry
 
@@ -23,7 +23,7 @@ import struct TSCBasic.AbsolutePath
 import ArgumentParser
 import Csourcekitd
 import Foundation
-import SKSupport
+import SKUtilities
 import SourceKitD
 import ToolchainRegistry
 

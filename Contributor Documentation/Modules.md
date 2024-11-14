@@ -37,6 +37,10 @@ This should be the dedicated entry point for clients that want to run SourceKit-
 
 Swift types to represent the [Language Server Protocol (LSP) specification, version 3.17](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/). These types should also be usable when implementing an LSP client and thus this module should not have any dependencies.
 
+### LanguageServerProtocolExtensions
+
+Extensions on top of `LanguageServerProtocol` and `LanguageServerProtocolJSONRPC` that might require other modules defined in sourcekit-lsp.
+
 ### LanguageServerProtocolJSONRPC
 
 A connection to or from a SourceKit-LSP server. Since message parsing can fail, it needs to handle errors in some way and the design decision here is to use SKLogging, which hardcodes `org.swift.sourcekit-lsp` as the default logging subsystem and thus makes the module unsuitable for generic clients.
@@ -49,16 +53,13 @@ Contains the interface with which SourceKit-LSP queries the semantic index, addi
 
 Types that are API-compatible with OSLog that allow logging to OSLog when building for Apple platforms and logging to stderr or files on non-Apple platforms. This should not be dependent on any LSP specific types and be portable to other packages.
 
+### SKUtilities
+
+Types that should be sharable by the different modules that implement SourceKit-LSP but that are not generic enough to fit into `SwiftExtensions` or that need to depend on `SKLogging` and thus can’t live in `SwiftExtensions`.
+
 ### SKOptions
 
 Configuration options to change how SourceKit-LSP behaves, based on [Configuration files](../Documentation/Configuration%20File.md).
-
-### SKSupport
-
-Contains SourceKit-LSP-specific helper functions. These fall into three different categories:
--  Extensions on top of `swift-tools-support-core`
-- Functionality that can only be implemented by combining two lower-level modules that don't have a shared dependency, like `SKLogging` + `LanguageServerProtocol`
-- Types that should be sharable by the different modules that implement SourceKit-LSP but that are not generic enough to fit into `SwiftExtensions`, like `ExperimentalFeatures`.
 
 ### SKTestSupport
 
@@ -83,3 +84,7 @@ Extensions to the Swift standard library and Foundation. Should not have any oth
 #### ToolchainRegistry
 
 Discovers Swift toolchains on the system.
+
+### TSCExtensions
+
+Extensions on top of `swift-tools-support-core` that might integrate with modules from sourcekit-lsp.

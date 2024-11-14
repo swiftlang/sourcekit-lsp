@@ -12,9 +12,9 @@
 
 import BuildSystemIntegration
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
 import SKLogging
-import SKSupport
 import SKTestSupport
 import SemanticIndex
 import SourceKitLSP

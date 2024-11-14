@@ -13,9 +13,9 @@
 import BuildServerProtocol
 @_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
 import SKOptions
-import SKSupport
 import SKTestSupport
 import TSCBasic
 import ToolchainRegistry

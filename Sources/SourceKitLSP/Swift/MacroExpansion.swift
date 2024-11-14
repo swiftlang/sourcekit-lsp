@@ -16,7 +16,7 @@ import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SKOptions
-import SKSupport
+import SKUtilities
 import SourceKitD
 import SwiftExtensions
 

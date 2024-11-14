@@ -17,17 +17,18 @@ package import BuildServerProtocol
 import Dispatch
 package import Foundation
 package import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 @preconcurrency import PackageGraph
 import PackageLoading
 import PackageModel
 import SKLogging
 package import SKOptions
-import SKSupport
 @preconcurrency package import SPMBuildCore
 import SourceControl
 package import SourceKitLSPAPI
 import SwiftExtensions
 package import ToolchainRegistry
+import TSCExtensions
 @preconcurrency import Workspace
 
 package import struct Basics.AbsolutePath
@@ -45,17 +46,18 @@ import BuildServerProtocol
 import Dispatch
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 @preconcurrency import PackageGraph
 import PackageLoading
 import PackageModel
 import SKLogging
 import SKOptions
-import SKSupport
 @preconcurrency import SPMBuildCore
 import SourceControl
 import SourceKitLSPAPI
 import SwiftExtensions
 import ToolchainRegistry
+import TSCExtensions
 @preconcurrency import Workspace
 
 import struct Basics.AbsolutePath

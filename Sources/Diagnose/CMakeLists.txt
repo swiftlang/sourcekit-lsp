@@ -38,3 +38,8 @@ target_link_libraries(Diagnose PUBLIC
   SwiftSyntax::SwiftParser
   TSCBasic
 )
+
+target_link_libraries(Diagnose PRIVATE
+  SKUtilities
+  TSCExtensions
+)

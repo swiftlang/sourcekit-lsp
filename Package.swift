@@ -30,9 +30,9 @@ var targets: [Target] = [
       "BuildSystemIntegration",
       "Diagnose",
       "LanguageServerProtocol",
+      "LanguageServerProtocolExtensions",
       "LanguageServerProtocolJSONRPC",
       "SKOptions",
-      "SKSupport",
       "SourceKitLSP",
       "ToolchainRegistry",
       .product(name: "ArgumentParser", package: "swift-argument-parser"),
@@ -71,13 +71,15 @@ var targets: [Target] = [
     dependencies: [
       "BuildServerProtocol",
       "LanguageServerProtocol",
+      "LanguageServerProtocolExtensions",
       "LanguageServerProtocolJSONRPC",
       "SKLogging",
       "SKOptions",
-      "SKSupport",
+      "SKUtilities",
       "SourceKitD",
       "SwiftExtensions",
       "ToolchainRegistry",
+      "TSCExtensions",
       .product(name: "SwiftPM-auto", package: "swift-package-manager"),
       .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
@@ -128,13 +130,15 @@ var targets: [Target] = [
     dependencies: [
       "BuildSystemIntegration",
       "InProcessClient",
+      "LanguageServerProtocolExtensions",
       "SKLogging",
       "SKOptions",
-      "SKSupport",
+      "SKUtilities",
       "SourceKitD",
       "SourceKitLSP",
       "SwiftExtensions",
       "ToolchainRegistry",
+      "TSCExtensions",
       .product(name: "ArgumentParser", package: "swift-argument-parser"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ] + swiftSyntaxDependencies(["SwiftIDEUtils", "SwiftSyntax", "SwiftParser"]),
@@ -167,6 +171,7 @@ var targets: [Target] = [
       "SKOptions",
       "SourceKitLSP",
       "ToolchainRegistry",
+      "TSCExtensions",
     ],
     exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
@@ -187,6 +192,22 @@ var targets: [Target] = [
       "LanguageServerProtocol",
       "SKTestSupport",
     ],
+    swiftSettings: globalSwiftSettings
+  ),
+
+  // MARK: LanguageServerProtocolExtensions
+
+  .target(
+    name: "LanguageServerProtocolExtensions",
+    dependencies: [
+      "LanguageServerProtocol",
+      "LanguageServerProtocolJSONRPC",
+      "SKLogging",
+      "SourceKitD",
+      "SwiftExtensions",
+      .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+    ],
+    exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
   ),
 
@@ -222,6 +243,7 @@ var targets: [Target] = [
       "SKLogging",
       "SwiftExtensions",
       "ToolchainRegistry",
+      "TSCExtensions",
       .product(name: "IndexStoreDB", package: "indexstore-db"),
     ],
     exclude: ["CMakeLists.txt"],
@@ -265,37 +287,31 @@ var targets: [Target] = [
     name: "SKOptions",
     dependencies: [
       "LanguageServerProtocol",
+      "LanguageServerProtocolExtensions",
       "SKLogging",
-      "SKSupport",
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ],
     exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
   ),
 
-  // MARK: SKSupport
+  // MARK: SKUtilities
 
   .target(
-    name: "SKSupport",
+    name: "SKUtilities",
     dependencies: [
-      "LanguageServerProtocol",
-      "LanguageServerProtocolJSONRPC",
       "SKLogging",
-      "SourceKitD",
       "SwiftExtensions",
-      .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ],
     exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
   ),
 
   .testTarget(
-    name: "SKSupportTests",
+    name: "SKUtilitiesTests",
     dependencies: [
-      "SKLogging",
-      "SKSupport",
+      "SKUtilities",
       "SKTestSupport",
-      "SwiftExtensions",
     ],
     swiftSettings: globalSwiftSettings
   ),
@@ -309,13 +325,15 @@ var targets: [Target] = [
       "CSKTestSupport",
       "InProcessClient",
       "LanguageServerProtocol",
+      "LanguageServerProtocolExtensions",
       "LanguageServerProtocolJSONRPC",
       "SKLogging",
       "SKOptions",
-      "SKSupport",
+      "SKUtilities",
       "SourceKitLSP",
       "SwiftExtensions",
       "ToolchainRegistry",
+      "TSCExtensions",
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ],
     resources: [.copy("INPUTS")],
@@ -356,14 +374,16 @@ var targets: [Target] = [
       "BuildServerProtocol",
       "BuildSystemIntegration",
       "LanguageServerProtocol",
+      "LanguageServerProtocolExtensions",
       "LanguageServerProtocolJSONRPC",
       "SemanticIndex",
       "SKLogging",
       "SKOptions",
-      "SKSupport",
+      "SKUtilities",
       "SourceKitD",
       "SwiftExtensions",
       "ToolchainRegistry",
+      "TSCExtensions",
       .product(name: "IndexStoreDB", package: "indexstore-db"),
       .product(name: "Crypto", package: "swift-crypto"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
@@ -383,11 +403,12 @@ var targets: [Target] = [
       "BuildServerProtocol",
       "BuildSystemIntegration",
       "LanguageServerProtocol",
+      "LanguageServerProtocolExtensions",
       "SemanticIndex",
       "SKLogging",
       "SKOptions",
-      "SKSupport",
       "SKTestSupport",
+      "SKUtilities",
       "SourceKitD",
       "SourceKitLSP",
       "ToolchainRegistry",
@@ -408,14 +429,26 @@ var targets: [Target] = [
     swiftSettings: globalSwiftSettings
   ),
 
+  .testTarget(
+    name: "SwiftExtensionsTests",
+    dependencies: [
+      "SKLogging",
+      "SKTestSupport",
+      "SwiftExtensions",
+    ],
+    swiftSettings: globalSwiftSettings
+  ),
+
   // MARK: ToolchainRegistry
 
   .target(
     name: "ToolchainRegistry",
     dependencies: [
+      "LanguageServerProtocolExtensions",
       "SKLogging",
-      "SKSupport",
+      "SKUtilities",
       "SwiftExtensions",
+      "TSCExtensions",
       .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ],
@@ -431,6 +464,30 @@ var targets: [Target] = [
       .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ],
+    swiftSettings: globalSwiftSettings
+  ),
+
+  // MARK: TSCExtensions
+
+  .target(
+    name: "TSCExtensions",
+    dependencies: [
+      "SKLogging",
+      "SwiftExtensions",
+      .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+    ],
+    exclude: ["CMakeLists.txt"],
+    swiftSettings: globalSwiftSettings
+  ),
+
+  .testTarget(
+    name: "TSCExtensionsTests",
+    dependencies: [
+      "SKTestSupport",
+      "SwiftExtensions",
+      "TSCExtensions",
+    ],
+    exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
   ),
 ]

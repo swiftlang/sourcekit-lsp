@@ -13,15 +13,15 @@
 #if compiler(>=6)
 public import Foundation
 public import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 
 import struct TSCBasic.AbsolutePath
 #else
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 
 import struct TSCBasic.AbsolutePath
 #endif
@@ -448,7 +448,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     if let generatedFilesPath {
       return URL(fileURLWithPath: generatedFilesPath)
     }
-    return defaultDirectoryForGeneratedFiles
+
+    return URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("sourcekit-lsp")
   }
 
   public func hasExperimentalFeature(_ feature: ExperimentalFeature) -> Bool {

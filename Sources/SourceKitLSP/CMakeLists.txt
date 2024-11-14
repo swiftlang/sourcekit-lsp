@@ -74,11 +74,12 @@ target_link_libraries(SourceKitLSP PUBLIC
   BuildServerProtocol
   BuildSystemIntegration
   LanguageServerProtocol
+  LanguageServerProtocolExtensions
   LanguageServerProtocolJSONRPC
   SemanticIndex
   SKLogging
   SKOptions
-  SKSupport
+  SKUtilities
   SourceKitD
   SwiftExtensions
   ToolchainRegistry
@@ -92,5 +93,6 @@ target_link_libraries(SourceKitLSP PUBLIC
   SwiftSyntax::SwiftSyntax)
 target_link_libraries(SourceKitLSP PRIVATE
   PackageModelSyntax
+  TSCExtensions
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
 

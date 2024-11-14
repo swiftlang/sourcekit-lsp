@@ -12,7 +12,8 @@
 
 import Dispatch
 import Foundation
-import SKSupport
+import LanguageServerProtocolExtensions
+import TSCExtensions
 
 #if compiler(>=6)
 package import struct TSCBasic.AbsolutePath
@@ -178,10 +179,10 @@ package final actor ToolchainRegistry {
         } else {
           return $0.appending(component: "Toolchains")
         }
-      } + [
-        try! AbsolutePath(expandingTilde: "~/Library/Developer/Toolchains"),
-        try! AbsolutePath(validating: "/Library/Developer/Toolchains"),
-      ]
+      }
+      + FileManager.default.urls(for: .libraryDirectory, in: .allDomainsMask).compactMap {
+        AbsolutePath(validatingOrNil: $0.appendingPathComponent("Developer").appendingPathComponent("Toolchains").path)
+      }
 
     for xctoolchainSearchPath in toolchainSearchPaths {
       guard let direntries = try? fileSystem.getDirectoryContents(xctoolchainSearchPath) else {

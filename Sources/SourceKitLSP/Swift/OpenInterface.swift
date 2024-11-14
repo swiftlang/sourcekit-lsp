@@ -14,13 +14,13 @@
 import Foundation
 package import LanguageServerProtocol
 import SKLogging
-import SKSupport
+import SKUtilities
 import SourceKitD
 #else
 import Foundation
 import LanguageServerProtocol
 import SKLogging
-import SKSupport
+import SKUtilities
 import SourceKitD
 #endif
 

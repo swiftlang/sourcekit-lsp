@@ -12,7 +12,7 @@
 
 #if compiler(>=6)
 package import Foundation
-import SKSupport
+import LanguageServerProtocolExtensions
 import SwiftExtensions
 import XCTest
 
@@ -22,7 +22,7 @@ import enum TSCBasic.ProcessEnv
 import struct TSCBasic.ProcessResult
 #else
 import Foundation
-import SKSupport
+import LanguageServerProtocolExtensions
 import SwiftExtensions
 import XCTest
 

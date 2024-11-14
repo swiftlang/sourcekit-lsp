@@ -12,12 +12,14 @@
 
 #if compiler(>=6)
 package import Foundation
-import SKSupport
+import LanguageServerProtocolExtensions
+import TSCExtensions
 
 import class TSCBasic.Process
 #else
 import Foundation
-import SKSupport
+import LanguageServerProtocolExtensions
+import TSCExtensions
 
 import class TSCBasic.Process
 #endif

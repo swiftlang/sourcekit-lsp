@@ -13,11 +13,11 @@
 #if compiler(>=6)
 package import Foundation
 package import LanguageServerProtocol
-import SKSupport
+import SKUtilities
 #else
 import Foundation
 import LanguageServerProtocol
-import SKSupport
+import SKUtilities
 #endif
 
 package extension DocumentSnapshot {

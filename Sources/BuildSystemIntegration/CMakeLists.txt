@@ -29,7 +29,7 @@ target_link_libraries(BuildSystemIntegration PUBLIC
   LanguageServerProtocolJSONRPC
   SKLogging
   SKOptions
-  SKSupport
+  LanguageServerProtocolExtensions
   SourceKitD
   SwiftExtensions
   ToolchainRegistry
@@ -37,3 +37,7 @@ target_link_libraries(BuildSystemIntegration PUBLIC
   TSCBasic
   Build
   SourceKitLSPAPI)
+
+target_link_libraries(BuildSystemIntegration PRIVATE
+  SKUtilities
+  TSCExtensions)

@@ -18,10 +18,10 @@ import Diagnose
 import Dispatch
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
 import SKLogging
 import SKOptions
-import SKSupport
 import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
@@ -41,10 +41,10 @@ import Diagnose
 import Dispatch
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
 import SKLogging
 import SKOptions
-import SKSupport
 import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry

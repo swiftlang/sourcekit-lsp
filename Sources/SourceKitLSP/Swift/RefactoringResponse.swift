@@ -13,7 +13,7 @@
 import Csourcekitd
 import LanguageServerProtocol
 import SKLogging
-import SKSupport
+import SKUtilities
 import SourceKitD
 
 protocol RefactoringResponse {

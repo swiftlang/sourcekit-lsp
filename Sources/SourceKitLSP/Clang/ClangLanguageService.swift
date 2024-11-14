@@ -13,12 +13,13 @@
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
 import SKLogging
 import SKOptions
-import SKSupport
 import SwiftExtensions
 import SwiftSyntax
+import TSCExtensions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath

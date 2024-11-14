@@ -15,11 +15,13 @@ package import BuildServerProtocol
 import Dispatch
 import Foundation
 package import LanguageServerProtocol
+package import LanguageServerProtocolExtensions
 import SKLogging
 package import SKOptions
-package import SKSupport
+import SKUtilities
 package import SwiftExtensions
 package import ToolchainRegistry
+import TSCExtensions
 
 package import struct TSCBasic.AbsolutePath
 package import struct TSCBasic.RelativePath
@@ -28,11 +30,13 @@ import BuildServerProtocol
 import Dispatch
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
 import SKOptions
-import SKSupport
+import SKUtilities
 import SwiftExtensions
 import ToolchainRegistry
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath

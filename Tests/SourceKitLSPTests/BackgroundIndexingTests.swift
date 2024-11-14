@@ -12,13 +12,14 @@
 
 import BuildSystemIntegration
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKOptions
-import SKSupport
 import SKTestSupport
 import SemanticIndex
 import SourceKitLSP
 import SourceKitLSPAPI
 import SwiftExtensions
+import TSCExtensions
 import ToolchainRegistry
 import XCTest
 

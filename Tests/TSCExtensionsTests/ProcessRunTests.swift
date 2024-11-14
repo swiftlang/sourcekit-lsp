@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
 import SKTestSupport
 import SwiftExtensions
+import TSCExtensions
 import XCTest
 
 import struct TSCBasic.AbsolutePath

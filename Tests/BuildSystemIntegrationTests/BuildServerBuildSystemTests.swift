@@ -14,7 +14,7 @@ import BuildServerProtocol
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
-import SKSupport
+import LanguageServerProtocolExtensions
 import SKTestSupport
 import TSCBasic
 import XCTest

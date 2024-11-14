@@ -17,9 +17,10 @@ import Dispatch
 import Foundation
 import IndexStoreDB
 package import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
 package import SKOptions
-import SKSupport
+import SKUtilities
 import SemanticIndex
 package import SourceKitD
 import SwiftExtensions
@@ -36,9 +37,10 @@ import Dispatch
 import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
 import SKOptions
-import SKSupport
+import SKUtilities
 import SemanticIndex
 import SourceKitD
 import SwiftExtensions

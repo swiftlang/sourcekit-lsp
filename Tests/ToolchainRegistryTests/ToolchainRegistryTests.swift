@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
 import SKTestSupport
+import SKUtilities
 import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
@@ -171,7 +171,9 @@ final class ToolchainRegistryTests: XCTestCase {
     try makeXCToolchain(
       identifier: "org.fake.global.B",
       opensource: true,
-      path: try AbsolutePath(expandingTilde: "~/Library/Developer/Toolchains/B.xctoolchain"),
+      path: try AbsolutePath(
+        validating: ("~/Library/Developer/Toolchains/B.xctoolchain" as NSString).expandingTildeInPath
+      ),
       fs,
       sourcekitd: true
     )

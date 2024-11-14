@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
+import SKUtilities
 import SwiftExtensions
 import TSCBasic
 import XCTest
@@ -21,7 +21,7 @@ fileprivate extension LineTable {
   }
 }
 
-final class SupportTests: XCTestCase {
+final class LineTableTests: XCTestCase {
   func checkLines(_ string: String, _ expected: [String], file: StaticString = #filePath, line: UInt = #line) {
     let table = LineTable(string)
     XCTAssertEqual(table.lines.map(String.init), expected, file: file, line: line)
@@ -218,32 +218,5 @@ final class SupportTests: XCTestCase {
 
     t.replace(fromLine: 0, utf16Offset: 2, toLine: 0, utf16Offset: 4, with: "p\nq\n")
     XCTAssertEqual(t, LineTable("abp\nq\ngh"))
-  }
-
-  func testByteStringWithUnsafeData() {
-    ByteString(encodingAsUTF8: "").withUnsafeData { data in
-      XCTAssertEqual(data.count, 0)
-    }
-    ByteString(encodingAsUTF8: "abc").withUnsafeData { data in
-      XCTAssertEqual(data.count, 3)
-    }
-  }
-
-  func testExpandingTilde() throws {
-    XCTAssertEqual(try AbsolutePath(expandingTilde: "~/foo").basename, "foo")
-    XCTAssertNotEqual(try AbsolutePath(expandingTilde: "~/foo").parentDirectory, .root)
-    XCTAssertEqual(try AbsolutePath(expandingTilde: "/foo"), try AbsolutePath(validating: "/foo"))
-  }
-
-  func testResultProjection() {
-    enum MyError: Error, Equatable {
-      case err1, err2
-    }
-    typealias MyResult<T> = Swift.Result<T, MyError>
-
-    XCTAssertEqual(MyResult.success(1).success, 1)
-    XCTAssertNil(MyResult.failure(.err1).success)
-    XCTAssertNil(MyResult.success(1).failure)
-    XCTAssertEqual(MyResult<Int>.failure(.err1).failure, .err1)
   }
 }

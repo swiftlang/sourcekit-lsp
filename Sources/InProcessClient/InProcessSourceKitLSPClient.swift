@@ -14,22 +14,24 @@
 import BuildSystemIntegration
 public import Foundation
 public import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 package import SKOptions
-import SKSupport
 import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 #else
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKOptions
-import SKSupport
 import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 #endif

@@ -15,8 +15,8 @@ public import ArgumentParser
 import Foundation
 import InProcessClient
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKOptions
-import SKSupport
 import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
@@ -29,8 +29,8 @@ import ArgumentParser
 import Foundation
 import InProcessClient
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKOptions
-import SKSupport
 import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry

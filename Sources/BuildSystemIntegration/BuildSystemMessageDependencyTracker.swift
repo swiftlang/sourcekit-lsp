@@ -13,14 +13,14 @@
 #if compiler(>=6)
 import BuildServerProtocol
 package import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SwiftExtensions
 #else
 import BuildServerProtocol
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SwiftExtensions
 #endif
 

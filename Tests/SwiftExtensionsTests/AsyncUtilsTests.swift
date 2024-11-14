@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import SKLogging
-import SKSupport
 import SKTestSupport
 import SwiftExtensions
 import XCTest

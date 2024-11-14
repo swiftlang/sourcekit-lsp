@@ -15,7 +15,7 @@ import Dispatch
 import Foundation
 package import LanguageServerProtocol
 import SKLogging
-package import SKSupport
+package import SKUtilities
 import SemanticIndex
 package import SwiftSyntax
 #else
@@ -23,7 +23,7 @@ import Dispatch
 import Foundation
 import LanguageServerProtocol
 import SKLogging
-import SKSupport
+import SKUtilities
 import SemanticIndex
 import SwiftSyntax
 #endif

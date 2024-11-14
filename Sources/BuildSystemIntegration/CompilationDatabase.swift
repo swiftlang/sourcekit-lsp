@@ -14,9 +14,10 @@
 package import BuildServerProtocol
 import Foundation
 package import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SwiftExtensions
+import TSCExtensions
 
 package import struct TSCBasic.AbsolutePath
 package import protocol TSCBasic.FileSystem
@@ -26,9 +27,10 @@ package import var TSCBasic.localFileSystem
 import BuildServerProtocol
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SwiftExtensions
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem

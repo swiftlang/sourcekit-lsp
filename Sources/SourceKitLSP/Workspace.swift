@@ -16,12 +16,13 @@ package import BuildSystemIntegration
 import Foundation
 import IndexStoreDB
 package import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
 package import SKOptions
-import SKSupport
 package import SemanticIndex
 import SwiftExtensions
 import ToolchainRegistry
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
@@ -31,12 +32,13 @@ import BuildSystemIntegration
 import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
 import SKOptions
-import SKSupport
 import SemanticIndex
 import SwiftExtensions
 import ToolchainRegistry
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath

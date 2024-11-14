@@ -14,7 +14,7 @@
 import InProcessClient
 public import LanguageServerProtocol
 package import LanguageServerProtocolJSONRPC
-package import SKSupport
+package import LanguageServerProtocolExtensions
 import SwiftExtensions
 import XCTest
 
@@ -23,7 +23,7 @@ package import class Foundation.Pipe
 import InProcessClient
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import SKSupport
+import LanguageServerProtocolExtensions
 import SwiftExtensions
 import XCTest
 

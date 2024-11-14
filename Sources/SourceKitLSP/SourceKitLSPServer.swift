@@ -17,11 +17,11 @@ import Dispatch
 import Foundation
 import IndexStoreDB
 package import LanguageServerProtocol
+package import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
 import PackageLoading
 import SKLogging
 package import SKOptions
-package import SKSupport
 import SemanticIndex
 import SourceKitD
 package import SwiftExtensions
@@ -38,11 +38,11 @@ import Dispatch
 import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
 import PackageLoading
 import SKLogging
 import SKOptions
-import SKSupport
 import SemanticIndex
 import SourceKitD
 import SwiftExtensions

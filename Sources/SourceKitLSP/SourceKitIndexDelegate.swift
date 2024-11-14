@@ -12,8 +12,8 @@
 
 import Dispatch
 import IndexStoreDB
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SwiftExtensions
 
 /// `IndexDelegate` for the SourceKit workspace.
