@@ -8,6 +8,7 @@ add_library(SwiftExtensions STATIC
   CartesianProduct.swift
   Collection+Only.swift
   Collection+PartitionIntoBatches.swift
+  Duration+Seconds.swift
   FileManagerExtensions.swift
   NSLock+WithLock.swift
   PipeAsStringHandler.swift

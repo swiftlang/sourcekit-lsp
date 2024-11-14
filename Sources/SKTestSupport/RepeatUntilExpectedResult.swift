@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import SKLogging
+import SwiftExtensions
 import XCTest
 
 /// Runs the body repeatedly once per second until it returns `true`, giving up after `timeout`.
@@ -33,10 +34,4 @@ package func repeatUntilExpectedResult(
     try await Task.sleep(for: sleepInterval)
   }
   XCTFail("Failed to get expected result", file: file, line: line)
-}
-
-fileprivate extension Duration {
-  var seconds: Double {
-    return Double(self.components.attoseconds) / 1_000_000_000_000_000_000 + Double(self.components.seconds)
-  }
 }
