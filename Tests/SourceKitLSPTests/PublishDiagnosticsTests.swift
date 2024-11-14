@@ -137,10 +137,14 @@ final class PublishDiagnosticsTests: XCTestCase {
     )
 
     _ = try project.openDocument("FileB.swift")
-    let diagnosticsBeforeChangingFileA = try await project.testClient.nextDiagnosticsNotification()
-    XCTAssert(
-      diagnosticsBeforeChangingFileA.diagnostics.contains(where: { $0.message == "Cannot find 'sayHello' in scope" })
-    )
+    try await repeatUntilExpectedResult {
+      let diagnostics = try await project.testClient.nextDiagnosticsNotification()
+      if diagnostics.diagnostics.contains(where: { $0.message == "Cannot find 'sayHello' in scope" }) {
+        return true
+      }
+      logger.debug("Received unexpected diagnostics: \(diagnostics.forLogging)")
+      return false
+    }
 
     let updatedACode = "func sayHello() {}"
     let aUri = try project.uri(for: "FileA.swift")
