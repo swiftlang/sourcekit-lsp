@@ -50,6 +50,29 @@ fileprivate struct NotificationTimeoutError: Error, CustomStringConvertible {
   var description: String = "Failed to receive next notification within timeout"
 }
 
+/// A list of notifications that has been received by the SourceKit-LSP server but not handled from the test case yet.
+///
+/// We can't use an `AsyncStream` for this because an `AsyncStream` is cancelled if a task that calls
+/// `AsyncStream.Iterator.next` is cancelled and we want to be able to wait for new notifications even if waiting for a
+/// a previous notification timed out.
+actor PendingNotifications {
+  private var values: [any NotificationType] = []
+
+  func add(_ value: any NotificationType) {
+    values.insert(value, at: 0)
+  }
+
+  func next(timeout: Duration, pollingInterval: Duration = .milliseconds(10)) async throws -> any NotificationType {
+    for _ in 0..<Int(timeout.seconds / pollingInterval.seconds) {
+      if let value = values.popLast() {
+        return value
+      }
+      try await Task.sleep(for: pollingInterval)
+    }
+    throw NotificationTimeoutError()
+  }
+}
+
 /// A mock SourceKit-LSP client (aka. a mock editor) that behaves like an editor
 /// for testing purposes.
 ///
@@ -76,10 +99,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   private let serverToClientConnection: LocalConnection
 
   /// Stream of the notifications that the server has sent to the client.
-  private let notifications: AsyncStream<any NotificationType>
-
-  /// Continuation to add a new notification from the ``server`` to the `notifications` stream.
-  private let notificationYielder: AsyncStream<any NotificationType>.Continuation
+  private let notifications: PendingNotifications
 
   /// The request handlers that have been set by `handleNextRequest`.
   ///
@@ -134,11 +154,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
       options.sourcekitdRequestTimeout = defaultTimeout
     }
 
-    var notificationYielder: AsyncStream<any NotificationType>.Continuation!
-    self.notifications = AsyncStream { continuation in
-      notificationYielder = continuation
-    }
-    self.notificationYielder = notificationYielder
+    self.notifications = PendingNotifications()
 
     let serverToClientConnection = LocalConnection(receiverName: "client")
     self.serverToClientConnection = serverToClientConnection
@@ -248,26 +264,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   /// - Note: This also returns any notifications sent before the call to
   ///   `nextNotification`.
   package func nextNotification(timeout: Duration = .seconds(defaultTimeout)) async throws -> any NotificationType {
-    // The task that gets the next notification from `self.notifications`.
-    let notificationYielder = Task {
-      for await notification in self.notifications {
-        return notification
-      }
-      throw NotificationTimeoutError()
-    }
-    // After `timeout`, we tell `notificationYielder` that we are no longer interested in its result by cancelling it.
-    // We wait for `notificationYielder` to accept this cancellation instead of returning immediately to avoid a
-    // situation where `notificationYielder` continues running, eats the first notification but it then never gets
-    // delivered to the test because we already delivered a timeout.
-    let cancellationTask = Task {
-      try await Task.sleep(for: timeout)
-      notificationYielder.cancel()
-    }
-    defer {
-      // We have received a value and don't need the cancellationTask anymore
-      cancellationTask.cancel()
-    }
-    return try await notificationYielder.value
+    return try await notifications.next(timeout: timeout)
   }
 
   /// Await the next diagnostic notification sent to the client.
@@ -340,8 +337,10 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   // MARK: - Conformance to MessageHandler
 
   /// - Important: Implementation detail of `TestSourceKitLSPServer`. Do not call from tests.
-  package func handle(_ params: some NotificationType) {
-    notificationYielder.yield(params)
+  package func handle(_ notification: some NotificationType) {
+    Task {
+      await notifications.add(notification)
+    }
   }
 
   /// - Important: Implementation detail of `TestSourceKitLSPClient`. Do not call from tests.
