@@ -185,13 +185,6 @@ final class SwiftPMIntegrationTests: XCTestCase {
   }
 
   func testNestedPackage() async throws {
-    #if os(Windows)
-    // FIXME: Enable when https://github.com/swiftlang/swift-package-manager/issues/8038 is fixed
-    try XCTSkipIf(
-      true,
-      "SwiftPM tests fail nondeterministically due to https://github.com/swiftlang/swift-package-manager/issues/8038"
-    )
-    #endif
     let project = try await MultiFileTestProject(files: [
       "pkg/Sources/lib/lib.swift": "",
       "pkg/Package.swift": """
