@@ -20,6 +20,7 @@ package import LanguageServerProtocol
 import SKLogging
 package import SKOptions
 import SKSupport
+import SKUtilities
 import SemanticIndex
 package import SourceKitD
 import SwiftExtensions
@@ -39,6 +40,7 @@ import LanguageServerProtocol
 import SKLogging
 import SKOptions
 import SKSupport
+import SKUtilities
 import SemanticIndex
 import SourceKitD
 import SwiftExtensions

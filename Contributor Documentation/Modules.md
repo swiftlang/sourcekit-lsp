@@ -49,6 +49,10 @@ Contains the interface with which SourceKit-LSP queries the semantic index, addi
 
 Types that are API-compatible with OSLog that allow logging to OSLog when building for Apple platforms and logging to stderr or files on non-Apple platforms. This should not be dependent on any LSP specific types and be portable to other packages.
 
+### SKUtilities
+
+Types that should be sharable by the different modules that implement SourceKit-LSP but that are not generic enough to fit into `SwiftExtensions` or that need to depend on `SKLogging` and thus can’t live in `SwiftExtensions`.
+
 ### SKOptions
 
 Configuration options to change how SourceKit-LSP behaves, based on [Configuration files](../Documentation/Configuration%20File.md).
@@ -57,7 +61,6 @@ Configuration options to change how SourceKit-LSP behaves, based on [Configurati
 
 Contains SourceKit-LSP-specific helper functions. These fall into two different categories:
 - Functionality that can only be implemented by combining two lower-level modules that don't have a shared dependency, like `SKLogging` + `LanguageServerProtocol`
-- Types that should be sharable by the different modules that implement SourceKit-LSP but that are not generic enough to fit into `SwiftExtensions`, like `ExperimentalFeatures`.
 
 ### SKTestSupport
 

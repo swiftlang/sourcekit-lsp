@@ -75,6 +75,7 @@ var targets: [Target] = [
       "SKLogging",
       "SKOptions",
       "SKSupport",
+      "SKUtilities",
       "SourceKitD",
       "SwiftExtensions",
       "ToolchainRegistry",
@@ -132,6 +133,7 @@ var targets: [Target] = [
       "SKLogging",
       "SKOptions",
       "SKSupport",
+      "SKUtilities",
       "SourceKitD",
       "SourceKitLSP",
       "SwiftExtensions",
@@ -277,6 +279,30 @@ var targets: [Target] = [
     swiftSettings: globalSwiftSettings
   ),
 
+  // MARK: SKUtilities
+
+  .target(
+    name: "SKUtilities",
+    dependencies: [
+      "SKLogging",
+      "SwiftExtensions",
+    ],
+    exclude: ["CMakeLists.txt"],
+    swiftSettings: globalSwiftSettings
+  ),
+
+  .testTarget(
+    name: "SKUtilitiesTests",
+    dependencies: [
+      "SKUtilities",
+      // "SKLogging",
+      // "SKSupport",
+      "SKTestSupport",
+      // "SwiftExtensions",
+    ],
+    swiftSettings: globalSwiftSettings
+  ),
+
   // MARK: SKSupport
 
   .target(
@@ -293,17 +319,6 @@ var targets: [Target] = [
     swiftSettings: globalSwiftSettings
   ),
 
-  .testTarget(
-    name: "SKSupportTests",
-    dependencies: [
-      "SKLogging",
-      "SKSupport",
-      "SKTestSupport",
-      "SwiftExtensions",
-    ],
-    swiftSettings: globalSwiftSettings
-  ),
-
   // MARK: SKTestSupport
 
   .target(
@@ -317,6 +332,7 @@ var targets: [Target] = [
       "SKLogging",
       "SKOptions",
       "SKSupport",
+      "SKUtilities",
       "SourceKitLSP",
       "SwiftExtensions",
       "ToolchainRegistry",
@@ -366,6 +382,7 @@ var targets: [Target] = [
       "SKLogging",
       "SKOptions",
       "SKSupport",
+      "SKUtilities",
       "SourceKitD",
       "SwiftExtensions",
       "ToolchainRegistry",
@@ -394,6 +411,7 @@ var targets: [Target] = [
       "SKOptions",
       "SKSupport",
       "SKTestSupport",
+      "SKUtilities",
       "SourceKitD",
       "SourceKitLSP",
       "ToolchainRegistry",
@@ -414,6 +432,16 @@ var targets: [Target] = [
     swiftSettings: globalSwiftSettings
   ),
 
+  .testTarget(
+    name: "SwiftExtensionsTests",
+    dependencies: [
+      "SKLogging",
+      "SKTestSupport",
+      "SwiftExtensions",
+    ],
+    swiftSettings: globalSwiftSettings
+  ),
+
   // MARK: ToolchainRegistry
 
   .target(
@@ -421,6 +449,7 @@ var targets: [Target] = [
     dependencies: [
       "SKLogging",
       "SKSupport",
+      "SKUtilities",
       "SwiftExtensions",
       "TSCExtensions",
       .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),

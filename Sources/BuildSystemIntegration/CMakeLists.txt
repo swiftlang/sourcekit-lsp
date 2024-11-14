@@ -38,5 +38,6 @@ target_link_libraries(BuildSystemIntegration PUBLIC
   Build
   SourceKitLSPAPI)
 
-target_link_libraries(BuildSystemIntegration PUBLIC
+target_link_libraries(BuildSystemIntegration PRIVATE
+  SKUtilities
   TSCExtensions)

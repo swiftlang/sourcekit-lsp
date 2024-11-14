@@ -16,7 +16,7 @@ import Foundation
 import IndexStoreDB
 package import LanguageServerProtocol
 import SKLogging
-import SKSupport
+import SKUtilities
 import SemanticIndex
 import SourceKitD
 import SwiftExtensions
@@ -27,7 +27,7 @@ import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
 import SKLogging
-import SKSupport
+import SKUtilities
 import SemanticIndex
 import SourceKitD
 import SwiftExtensions

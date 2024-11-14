@@ -12,5 +12,6 @@ target_link_libraries(ToolchainRegistry PUBLIC
   PackageModel
   TSCBasic)
 
-target_link_libraries(ToolchainRegistry PUBLIC
+target_link_libraries(ToolchainRegistry PRIVATE
+  SKUtilities
   TSCExtensions)

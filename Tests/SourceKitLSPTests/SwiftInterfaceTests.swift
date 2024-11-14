@@ -13,8 +13,8 @@
 import Foundation
 import LanguageServerProtocol
 import SKLogging
-import SKSupport
 import SKTestSupport
+import SKUtilities
 import SourceKitLSP
 import SwiftExtensions
 import XCTest

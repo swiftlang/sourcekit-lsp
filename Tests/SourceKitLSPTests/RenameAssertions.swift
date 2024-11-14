@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import SKSupport
 import SKTestSupport
+import SKUtilities
 import XCTest
 
 private func apply(edits: [TextEdit], to source: String) -> String {

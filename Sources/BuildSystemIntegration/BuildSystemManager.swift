@@ -18,6 +18,7 @@ package import LanguageServerProtocol
 import SKLogging
 package import SKOptions
 package import SKSupport
+import SKUtilities
 package import SwiftExtensions
 package import ToolchainRegistry
 import TSCExtensions
@@ -32,6 +33,7 @@ import LanguageServerProtocol
 import SKLogging
 import SKOptions
 import SKSupport
+import SKUtilities
 import SwiftExtensions
 import ToolchainRegistry
 import TSCExtensions

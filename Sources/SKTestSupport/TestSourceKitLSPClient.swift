@@ -17,6 +17,7 @@ package import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 package import SKOptions
 import SKSupport
+import SKUtilities
 package import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
@@ -29,6 +30,7 @@ import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKOptions
 import SKSupport
+import SKUtilities
 import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax

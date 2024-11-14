@@ -12,8 +12,8 @@
 
 import LanguageServerProtocol
 import SKOptions
-import SKSupport
 import SKTestSupport
+import SKUtilities
 import SourceKitD
 @_spi(Testing) import SourceKitLSP
 import XCTest

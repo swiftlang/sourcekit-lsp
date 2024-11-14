@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
 import SKTestSupport
+import SKUtilities
 import XCTest
 
 /// A linear congruential generator with user-specified seed value. Useful for generating a predictable "random" number sequence.

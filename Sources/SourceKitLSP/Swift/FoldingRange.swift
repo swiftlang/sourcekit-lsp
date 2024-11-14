@@ -13,12 +13,12 @@
 #if compiler(>=6)
 package import LanguageServerProtocol
 import SKLogging
-import SKSupport
+import SKUtilities
 import SwiftSyntax
 #else
 import LanguageServerProtocol
 import SKLogging
-import SKSupport
+import SKUtilities
 import SwiftSyntax
 #endif
 

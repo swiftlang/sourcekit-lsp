@@ -448,7 +448,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     if let generatedFilesPath {
       return URL(fileURLWithPath: generatedFilesPath)
     }
-    return defaultDirectoryForGeneratedFiles
+
+    return URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("sourcekit-lsp")
   }
 
   public func hasExperimentalFeature(_ feature: ExperimentalFeature) -> Bool {

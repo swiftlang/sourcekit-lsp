@@ -40,5 +40,6 @@ target_link_libraries(Diagnose PUBLIC
 )
 
 target_link_libraries(Diagnose PRIVATE
+  SKUtilities
   TSCExtensions
 )
