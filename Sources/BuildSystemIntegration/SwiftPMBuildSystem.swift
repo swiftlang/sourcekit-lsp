@@ -207,7 +207,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
 
   package let connectionToSourceKitLSP: any Connection
 
-  /// Whether the `SwiftPMBuildSystem` is pointed at a `.index-build` directory that's independent of the
+  /// Whether the `SwiftPMBuildSystem` is pointed at a `.build/index-build` directory that's independent of the
   /// user's build.
   private var isForIndexBuild: Bool { options.backgroundIndexingOrDefault }
 
@@ -322,7 +322,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       fileSystem: localFileSystem
     )
     if options.backgroundIndexingOrDefault {
-      location.scratchDirectory = AbsolutePath(projectRoot.appending(component: ".index-build"))
+      location.scratchDirectory = AbsolutePath(projectRoot.appending(components: ".build", "index-build"))
     } else if let scratchDirectory = options.swiftPMOrDefault.scratchPath,
       let scratchDirectoryPath = try? AbsolutePath(validating: scratchDirectory)
     {
