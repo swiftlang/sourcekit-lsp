@@ -188,6 +188,8 @@ public struct WorkspaceClientCapabilities: Hashable, Codable, Sendable {
 
   public var diagnostics: RefreshRegistrationCapability? = nil
 
+  public var textDocumentContent: DynamicRegistrationCapability? = nil
+
   public init(
     applyEdit: Bool? = nil,
     workspaceEdit: WorkspaceEdit? = nil,
@@ -202,7 +204,8 @@ public struct WorkspaceClientCapabilities: Hashable, Codable, Sendable {
     fileOperations: FileOperations? = nil,
     inlineValue: RefreshRegistrationCapability? = nil,
     inlayHint: RefreshRegistrationCapability? = nil,
-    diagnostics: RefreshRegistrationCapability? = nil
+    diagnostics: RefreshRegistrationCapability? = nil,
+    textDocumentContent: DynamicRegistrationCapability? = nil
   ) {
     self.applyEdit = applyEdit
     self.workspaceEdit = workspaceEdit
@@ -218,6 +221,7 @@ public struct WorkspaceClientCapabilities: Hashable, Codable, Sendable {
     self.inlineValue = inlineValue
     self.inlayHint = inlayHint
     self.diagnostics = diagnostics
+    self.textDocumentContent = textDocumentContent
   }
 }
 

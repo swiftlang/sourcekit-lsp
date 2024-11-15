@@ -596,19 +596,18 @@ export interface PeekDocumentsResult {
 }
 ```
 
-## `workspace/getReferenceDocument`
+## `workspace/textDocumentContent`
 
-Request from the client to the server asking for contents of a URI having a custom scheme.
-For example: "sourcekit-lsp:"
+Request from the client to the server for querying the contents of a document, potentially using a custom URI scheme (such as `sourcekit-lsp:`). This closely models the proposed LSP 3.18 request of the same name, thus can be removed once LSP 3.18 has been stabilized.
 
-Enable the experimental client capability `"workspace/getReferenceDocument"` so that the server responds with reference document URLs for certain requests or commands whenever possible.
+Currently requires enabling the experimental client capability `"workspace/textDocumentContent"` to have the server respond with custom `sourcekit-lsp:` URIs (e.g. in macro expansion requests).
 
-- params: `GetReferenceDocumentParams`
+- params: `TextDocumentContentParams`
 
-- result: `GetReferenceDocumentResponse`
+- result: `TextDocumentContentResponse`
 
 ```ts
-export interface GetReferenceDocumentParams {
+export interface TextDocumentContentParams {
   /**
    * The `DocumentUri` of the custom scheme url for which content is required
    */
@@ -616,9 +615,9 @@ export interface GetReferenceDocumentParams {
 }
 
 /**
- * Response containing `content` of `GetReferenceDocumentRequest`
+ * Response containing the content of the requested document
  */
-export interface GetReferenceDocumentResult {
-  content: string;
+export interface TextDocumentContentResult {
+  text: string;
 }
 ```

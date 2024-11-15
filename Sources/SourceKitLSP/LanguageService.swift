@@ -261,7 +261,7 @@ package protocol LanguageService: AnyObject, Sendable {
 
   func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny?
 
-  func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse
+  func textDocumentContent(_ req: TextDocumentContentRequest) async throws -> TextDocumentContentResponse
 
   /// Perform a syntactic scan of the file at the given URI for test cases and test classes.
   ///

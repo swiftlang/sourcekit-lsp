@@ -186,7 +186,7 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
       } else {
         self = .freestanding
       }
-    case let request as GetReferenceDocumentRequest:
+    case let request as TextDocumentContentRequest:
       self = .documentRequest(request.uri)
     case is InitializeRequest:
       self = .globalConfigurationChange

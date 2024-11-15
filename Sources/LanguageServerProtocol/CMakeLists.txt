@@ -55,7 +55,6 @@ add_library(LanguageServerProtocol STATIC
   Requests/ExecuteCommandRequest.swift
   Requests/FoldingRangeRequest.swift
   Requests/FormattingRequests.swift
-  Requests/GetReferenceDocumentRequest.swift
   Requests/HoverRequest.swift
   Requests/ImplementationRequest.swift
   Requests/IndexedRenameRequest.swift
@@ -79,6 +78,7 @@ add_library(LanguageServerProtocol STATIC
   Requests/ShutdownRequest.swift
   Requests/SignatureHelpRequest.swift
   Requests/SymbolInfoRequest.swift
+  Requests/TextDocumentContentRequest.swift
   Requests/TriggerReindexRequest.swift
   Requests/TypeDefinitionRequest.swift
   Requests/TypeHierarchyPrepareRequest.swift

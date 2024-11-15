@@ -738,8 +738,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await request.reply { try await executeCommand(request.params) }
     case let request as RequestAndReply<FoldingRangeRequest>:
       await self.handleRequest(for: request, requestHandler: self.foldingRange)
-    case let request as RequestAndReply<GetReferenceDocumentRequest>:
-      await request.reply { try await getReferenceDocument(request.params) }
+    case let request as RequestAndReply<TextDocumentContentRequest>:
+      await request.reply { try await textDocumentContent(request.params) }
     case let request as RequestAndReply<HoverRequest>:
       await self.handleRequest(for: request, requestHandler: self.hover)
     case let request as RequestAndReply<ImplementationRequest>:
@@ -875,7 +875,7 @@ extension SourceKitLSPServer {
     // The below is a workaround for the vscode-swift extension since it cannot set client capabilities.
     // It passes "workspace/peekDocuments" through the `initializationOptions`.
     //
-    // Similarly, for "workspace/getReferenceDocument".
+    // Similarly for "workspace/textDocumentContent".
     var clientCapabilities = req.capabilities
     if case .dictionary(let initializationOptions) = req.initializationOptions {
       if let peekDocuments = initializationOptions["workspace/peekDocuments"] {
@@ -887,12 +887,12 @@ extension SourceKitLSPServer {
         }
       }
 
-      if let getReferenceDocument = initializationOptions["workspace/getReferenceDocument"] {
+      if let textDocumentContent = initializationOptions["workspace/textDocumentContent"] {
         if case .dictionary(var experimentalCapabilities) = clientCapabilities.experimental {
-          experimentalCapabilities["workspace/getReferenceDocument"] = getReferenceDocument
+          experimentalCapabilities["workspace/textDocumentContent"] = textDocumentContent
           clientCapabilities.experimental = .dictionary(experimentalCapabilities)
         } else {
-          clientCapabilities.experimental = .dictionary(["workspace/getReferenceDocument": getReferenceDocument])
+          clientCapabilities.experimental = .dictionary(["workspace/textDocumentContent": textDocumentContent])
         }
       }
 
@@ -1050,6 +1050,9 @@ extension SourceKitLSPServer {
         workspaceFolders: .init(
           supported: true,
           changeNotifications: .bool(true)
+        ),
+        textDocumentContent: .init(
+          schemes: [ReferenceDocumentURL.scheme]
         )
       ),
       callHierarchyProvider: .bool(true),
@@ -1060,7 +1063,6 @@ extension SourceKitLSPServer {
         "workspace/tests": .dictionary(["version": .int(2)]),
         "textDocument/tests": .dictionary(["version": .int(2)]),
         "workspace/triggerReindex": .dictionary(["version": .int(1)]),
-        "workspace/getReferenceDocument": .dictionary(["version": .int(1)]),
       ])
     )
   }
@@ -1566,7 +1568,7 @@ extension SourceKitLSPServer {
     return try await languageService.executeCommand(executeCommand)
   }
 
-  func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
+  func textDocumentContent(_ req: TextDocumentContentRequest) async throws -> TextDocumentContentResponse {
     let primaryFileURI = try ReferenceDocumentURL(from: req.uri).primaryFile
 
     guard let workspace = await workspaceForDocument(uri: primaryFileURI) else {
@@ -1577,7 +1579,7 @@ extension SourceKitLSPServer {
       throw ResponseError.unknown("No Language Service for URI: \(primaryFileURI)")
     }
 
-    return try await languageService.getReferenceDocument(req)
+    return try await languageService.textDocumentContent(req)
   }
 
   func codeAction(
