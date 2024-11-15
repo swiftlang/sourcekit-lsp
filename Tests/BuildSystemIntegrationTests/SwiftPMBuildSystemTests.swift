@@ -90,6 +90,43 @@ final class SwiftPMBuildSystemTests: XCTestCase {
     }
   }
 
+  func testRelativeScratchPath() async throws {
+    try await withTestScratchDir { tempDir in
+      try localFileSystem.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
+          """,
+        ]
+      )
+      let packageRoot = tempDir.appending(component: "pkg")
+      let options = SourceKitLSPOptions(
+        swiftPM: .init(
+          scratchPath: "non_default_relative_build_path"
+        ),
+        backgroundIndexing: false
+      )
+      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
+        projectRoot: packageRoot,
+        toolchainRegistry: .forTesting,
+        options: options,
+        connectionToSourceKitLSP: LocalConnection(receiverName: "dummy"),
+        testHooks: SwiftPMTestHooks()
+      )
+
+      let dataPath = await swiftpmBuildSystem.destinationBuildParameters.dataPath
+      let expectedScratchPath = packageRoot.appending(component: try XCTUnwrap(options.swiftPMOrDefault.scratchPath))
+      XCTAssertTrue(AbsolutePath(dataPath).isDescendant(of: expectedScratchPath))
+    }
+  }
+
   func testBasicSwiftArgs() async throws {
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     try await withTestScratchDir { tempDir in
