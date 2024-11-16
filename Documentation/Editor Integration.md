@@ -46,6 +46,11 @@ Image Variants
 
 The `theia-swift-docker` source is located at [theia-apps](https://github.com/theia-ide/theia-apps).
 
+## VSCode
+
+You can use SourceKit-LSP with VS Code by using the official [Swift](https://marketplace.visualstudio.com/items?itemName=sswg.swift-lang) extension.
+See [Configuring VS Code for Swift Development](https://www.swift.org/documentation/articles/getting-started-with-vscode-swift.html) for more info.
+
 ## Other Editors
 
 SourceKit-LSP should work with any editor that supports the [Language Server Protocol](https://microsoft.github.io/language-server-protocol/) (LSP). Each editor has its own mechanism for configuring an LSP server, so consult your editor's documentation for the specifics. In general, you can configure your editor to use SourceKit-LSP for Swift, C, C++, Objective-C and Objective-C++ files; the editor will need to be configured to find the `sourcekit-lsp` executable from your installed Swift toolchain, which expects to communicate with the editor over `stdin` and `stdout`.
