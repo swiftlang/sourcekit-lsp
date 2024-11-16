@@ -445,6 +445,9 @@ if buildOnlyTests {
       if case .byNameItem(name: "SKTestSupport", _) = dependency {
         return true
       }
+      if case .productItem(name: "IndexStoreDB", _, _, _) = dependency {
+        return true
+      }
       return false
     }
     return target
@@ -509,8 +512,13 @@ var buildOnlyTests: Bool { hasEnvironmentVariable("SOURCEKIT_LSP_BUILD_ONLY_TEST
 // for building the swift toolchain, such as `update-checkout`, or cross-repo PR tests.
 
 var dependencies: [Package.Dependency] {
+  let relatedDependenciesBranch = "main"
+
   if buildOnlyTests {
-    return []
+    return useLocalDependencies
+                ? [ .package(path: "../indexstore-db") ]
+                : [ .package(url: "https://github.com/swiftlang/indexstore-db.git",
+                             branch: relatedDependenciesBranch) ]
   } else if useLocalDependencies {
     return [
       .package(path: "../indexstore-db"),
@@ -521,8 +529,6 @@ var dependencies: [Package.Dependency] {
       .package(path: "../swift-crypto"),
     ]
   } else {
-    let relatedDependenciesBranch = "main"
-
     return [
       .package(url: "https://github.com/swiftlang/indexstore-db.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/swiftlang/swift-package-manager.git", branch: relatedDependenciesBranch),
