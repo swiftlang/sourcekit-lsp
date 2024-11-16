@@ -245,7 +245,11 @@ final class BackgroundIndexingTests: XCTestCase {
     )
 
     let dependencyUrl = try XCTUnwrap(
-      FileManager.default.findFiles(named: "MyDependency.swift", in: project.scratchDirectory).only
+      FileManager.default.findFiles(
+        named: "MyDependency.swift",
+        in: project.scratchDirectory.appendingPathComponent(".build").appendingPathComponent("index-build")
+          .appendingPathComponent("checkouts")
+      ).only
     )
     let dependencyUri = DocumentURI(dependencyUrl)
     let testFileUri = try project.uri(for: "Test.swift")
@@ -1256,9 +1260,11 @@ final class BackgroundIndexingTests: XCTestCase {
     try await project.testClient.send(PollIndexRequest())
     project.testClient.send(
       DidChangeWatchedFilesNotification(
-        changes: FileManager.default.findFiles(named: "Dependency.swift", in: project.scratchDirectory).map {
-          FileEvent(uri: DocumentURI($0), type: .changed)
-        }
+        changes: FileManager.default.findFiles(
+          named: "Dependency.swift",
+          in: project.scratchDirectory.appendingPathComponent(".build").appendingPathComponent("index-build")
+            .appendingPathComponent("checkouts")
+        ).map { FileEvent(uri: DocumentURI($0), type: .changed) }
       )
     )
 
