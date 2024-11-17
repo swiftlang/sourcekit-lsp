@@ -450,7 +450,10 @@ package actor SkipUnless {
           ],
           manifest: SwiftPMTestProject.macroPackageManifest
         )
-        try await SwiftPMTestProject.build(at: project.scratchDirectory)
+        try await SwiftPMTestProject.build(
+          at: project.scratchDirectory,
+          extraArguments: ["--experimental-prepare-for-indexing"]
+        )
         return .featureSupported
       } catch {
         return .featureUnsupported(

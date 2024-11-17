@@ -288,7 +288,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   public var backgroundIndexing: Bool?
 
   public var backgroundIndexingOrDefault: Bool {
-    return backgroundIndexing ?? false
+    return backgroundIndexing ?? true
   }
 
   public var backgroundPreparationMode: String?
@@ -297,7 +297,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     if let backgroundPreparationMode, let parsed = BackgroundPreparationMode(rawValue: backgroundPreparationMode) {
       return parsed
     }
-    return .build
+    return .enabled
   }
 
   /// Whether sending a `textDocument/didChange` or `textDocument/didClose` notification for a document should cancel

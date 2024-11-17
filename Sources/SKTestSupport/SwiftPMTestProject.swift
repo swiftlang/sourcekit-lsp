@@ -223,18 +223,19 @@ package class SwiftPMTestProject: MultiFileTestProject {
   }
 
   /// Build a SwiftPM package package manifest is located in the directory at `path`.
-  package static func build(at path: URL) async throws {
+  package static func build(at path: URL, extraArguments: [String] = []) async throws {
     guard let swift = await ToolchainRegistry.forTesting.default?.swift?.asURL else {
       throw Error.swiftNotFound
     }
-    var arguments = [
-      try swift.filePath,
-      "build",
-      "--package-path", try path.filePath,
-      "--build-tests",
-      "-Xswiftc", "-index-ignore-system-modules",
-      "-Xcc", "-index-ignore-system-symbols",
-    ]
+    var arguments =
+      [
+        try swift.filePath,
+        "build",
+        "--package-path", try path.filePath,
+        "--build-tests",
+        "-Xswiftc", "-index-ignore-system-modules",
+        "-Xcc", "-index-ignore-system-symbols",
+      ] + extraArguments
     if let globalModuleCache = try globalModuleCache {
       arguments += [
         "-Xswiftc", "-module-cache-path", "-Xswiftc", try globalModuleCache.filePath,
