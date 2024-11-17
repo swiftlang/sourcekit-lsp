@@ -866,10 +866,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testPluginArgs() async throws {
-    #if os(Windows)
-    // TODO: Enable this test once https://github.com/swiftlang/sourcekit-lsp/issues/1775 is fixed
-    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1775")
-    #endif
     try await withTestScratchDir { tempDir in
       try localFileSystem.createFiles(
         root: tempDir,
