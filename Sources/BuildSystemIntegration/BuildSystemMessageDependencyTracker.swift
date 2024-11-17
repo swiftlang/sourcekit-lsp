@@ -65,6 +65,12 @@ package enum BuildSystemMessageDependencyTracker: QueueBasedMessageHandlerDepend
       self = .stateChange
     case is OnWatchedFilesDidChangeNotification:
       self = .stateChange
+    case is TaskFinishNotification:
+      self = .taskProgress
+    case is TaskProgressNotification:
+      self = .taskProgress
+    case is TaskStartNotification:
+      self = .taskProgress
     default:
       logger.error(
         """
