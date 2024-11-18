@@ -13,7 +13,7 @@
 #if compiler(>=6)
 package import BuildServerProtocol
 import Dispatch
-import Foundation
+package import Foundation
 package import LanguageServerProtocol
 package import LanguageServerProtocolExtensions
 import SKLogging
@@ -23,8 +23,7 @@ package import SwiftExtensions
 package import ToolchainRegistry
 import TSCExtensions
 
-package import struct TSCBasic.AbsolutePath
-package import struct TSCBasic.RelativePath
+import struct TSCBasic.RelativePath
 #else
 import BuildServerProtocol
 import Dispatch
@@ -38,7 +37,6 @@ import SwiftExtensions
 import ToolchainRegistry
 import TSCExtensions
 
-import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 #endif
 
@@ -138,13 +136,13 @@ private enum BuildSystemAdapter {
 
 private extension BuildSystemSpec {
   private static func createBuiltInBuildSystemAdapter(
-    projectRoot: AbsolutePath,
+    projectRoot: URL,
     messagesToSourceKitLSPHandler: any MessageHandler,
     buildSystemTestHooks: BuildSystemTestHooks,
     _ createBuildSystem: @Sendable (_ connectionToSourceKitLSP: any Connection) async throws -> BuiltInBuildSystem?
   ) async -> BuildSystemAdapter? {
     let connectionToSourceKitLSP = LocalConnection(
-      receiverName: "BuildSystemManager for \(projectRoot.asURL.lastPathComponent)"
+      receiverName: "BuildSystemManager for \(projectRoot.lastPathComponent)"
     )
     connectionToSourceKitLSP.start(handler: messagesToSourceKitLSPHandler)
 
@@ -152,17 +150,17 @@ private extension BuildSystemSpec {
       try await createBuildSystem(connectionToSourceKitLSP)
     }
     guard let buildSystem else {
-      logger.log("Failed to create build system at \(projectRoot.pathString)")
+      logger.log("Failed to create build system at \(projectRoot)")
       return nil
     }
-    logger.log("Created \(type(of: buildSystem), privacy: .public) at \(projectRoot.pathString)")
+    logger.log("Created \(type(of: buildSystem), privacy: .public) at \(projectRoot)")
     let buildSystemAdapter = BuiltInBuildSystemAdapter(
       underlyingBuildSystem: buildSystem,
       connectionToSourceKitLSP: connectionToSourceKitLSP,
       buildSystemTestHooks: buildSystemTestHooks
     )
     let connectionToBuildSystem = LocalConnection(
-      receiverName: "\(type(of: buildSystem)) for \(projectRoot.asURL.lastPathComponent)"
+      receiverName: "\(type(of: buildSystem)) for \(projectRoot.lastPathComponent)"
     )
     connectionToBuildSystem.start(handler: buildSystemAdapter)
     return .builtIn(buildSystemAdapter, connectionToBuildSystem: connectionToBuildSystem)
@@ -185,10 +183,10 @@ private extension BuildSystemSpec {
         )
       }
       guard let buildSystem else {
-        logger.log("Failed to create external build system at \(projectRoot.pathString)")
+        logger.log("Failed to create external build system at \(projectRoot)")
         return nil
       }
-      logger.log("Created external build server at \(projectRoot.pathString)")
+      logger.log("Created external build server at \(projectRoot)")
       return .external(buildSystem)
     case .compilationDatabase:
       return await Self.createBuiltInBuildSystemAdapter(
@@ -245,7 +243,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// For compilation databases it is the root folder based on which the compilation database was found.
   ///
   /// `nil` if the `BuildSystemManager` does not have an underlying build system.
-  package let projectRoot: AbsolutePath?
+  package let projectRoot: URL?
 
   /// The files for which the delegate has requested change notifications, ie. the files for which the delegate wants to
   /// get `fileBuildSettingsChanged` and `filesDependenciesUpdated` callbacks.
@@ -402,7 +400,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
             displayName: "SourceKit-LSP",
             version: "",
             bspVersion: "2.2.0",
-            rootUri: URI(buildSystemSpec.projectRoot.asURL),
+            rootUri: URI(buildSystemSpec.projectRoot),
             capabilities: BuildClientCapabilities(languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift])
           )
         )
@@ -608,7 +606,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     in target: BuildTargetIdentifier?,
     language: Language
   ) async -> Toolchain? {
-    let toolchainPath = await orLog("Getting toolchain from build targets") { () -> AbsolutePath? in
+    let toolchainPath = await orLog("Getting toolchain from build targets") { () -> URL? in
       guard let target else {
         return nil
       }
@@ -624,7 +622,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         logger.error("Toolchain is not a file URL")
         return nil
       }
-      return try AbsolutePath(validating: toolchainUrl.filePath)
+      return toolchainUrl
     }
     if let toolchainPath {
       if let toolchain = await self.toolchainRegistry.toolchain(withPath: toolchainPath) {
@@ -681,11 +679,9 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       if let targets = filesAndDirectories.files[document]?.targets {
         result.formUnion(targets)
       }
-      if !filesAndDirectories.directories.isEmpty,
-        let documentPath = AbsolutePath(validatingOrNil: try? document.fileURL?.filePath)
-      {
+      if !filesAndDirectories.directories.isEmpty, let documentPath = document.fileURL {
         for (directory, info) in filesAndDirectories.directories {
-          guard let directoryPath = AbsolutePath(validatingOrNil: try? directory.fileURL?.filePath) else {
+          guard let directoryPath = directory.fileURL else {
             continue
           }
           if documentPath.isDescendant(of: directoryPath) {

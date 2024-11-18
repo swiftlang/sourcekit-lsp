@@ -1245,7 +1245,7 @@ final class BackgroundIndexingTests: XCTestCase {
     //  - We reload the package, which updates `Dependency.swift` in `.build/index-build/checkouts`, which we also watch.
     try await Process.run(
       arguments: [
-        unwrap(ToolchainRegistry.forTesting.default?.swift?.pathString),
+        unwrap(ToolchainRegistry.forTesting.default?.swift?.filePath),
         "package", "update",
         "--package-path", project.scratchDirectory.filePath,
       ],

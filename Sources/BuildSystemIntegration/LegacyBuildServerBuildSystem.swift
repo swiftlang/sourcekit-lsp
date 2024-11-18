@@ -20,13 +20,6 @@ import SKOptions
 import SwiftExtensions
 import ToolchainRegistry
 
-import struct TSCBasic.AbsolutePath
-import protocol TSCBasic.FileSystem
-import struct TSCBasic.FileSystemError
-import func TSCBasic.getEnvSearchPaths
-import var TSCBasic.localFileSystem
-import func TSCBasic.lookupExecutablePath
-
 #if compiler(>=6.3)
 #warning("We have had a one year transition period to the pull based build server. Consider removing this build server")
 #endif
@@ -53,12 +46,12 @@ actor LegacyBuildServerBuildSystem: MessageHandler, BuiltInBuildSystem {
   /// execution of tasks.
   private let bspMessageHandlingQueue = AsyncQueue<Serial>()
 
-  package let projectRoot: AbsolutePath
+  package let projectRoot: URL
 
   var fileWatchers: [FileSystemWatcher] = []
 
-  let indexDatabasePath: AbsolutePath?
-  let indexStorePath: AbsolutePath?
+  let indexDatabasePath: URL?
+  let indexStorePath: URL?
 
   package let connectionToSourceKitLSP: LocalConnection
 
@@ -69,7 +62,7 @@ actor LegacyBuildServerBuildSystem: MessageHandler, BuiltInBuildSystem {
   private var urisRegisteredForChanges: Set<URI> = []
 
   init(
-    projectRoot: AbsolutePath,
+    projectRoot: URL,
     initializationData: InitializeBuildResponse,
     _ externalBuildSystemAdapter: ExternalBuildSystemAdapter
   ) async {
@@ -163,7 +156,7 @@ actor LegacyBuildServerBuildSystem: MessageHandler, BuiltInBuildSystem {
     return BuildTargetSourcesResponse(items: [
       SourcesItem(
         target: .dummy,
-        sources: [SourceItem(uri: DocumentURI(self.projectRoot.asURL), kind: .directory, generated: false)]
+        sources: [SourceItem(uri: DocumentURI(self.projectRoot), kind: .directory, generated: false)]
       )
     ])
   }

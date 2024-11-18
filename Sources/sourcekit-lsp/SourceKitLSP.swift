@@ -29,10 +29,6 @@ import ToolchainRegistry
 #if canImport(Android)
 import Android
 #endif
-
-public import struct TSCBasic.AbsolutePath
-public import struct TSCBasic.RelativePath
-public import var TSCBasic.localFileSystem
 #else
 import ArgumentParser
 import BuildSystemIntegration
@@ -48,56 +44,6 @@ import SKOptions
 import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
-
-import struct TSCBasic.AbsolutePath
-import struct TSCBasic.RelativePath
-import var TSCBasic.localFileSystem
-#endif
-
-extension AbsolutePath {
-  public init?(argument: String) {
-    let path: AbsolutePath?
-
-    if let cwd: AbsolutePath = localFileSystem.currentWorkingDirectory {
-      path = try? AbsolutePath(validating: argument, relativeTo: cwd)
-    } else {
-      path = try? AbsolutePath(validating: argument)
-    }
-
-    guard let path = path else {
-      return nil
-    }
-
-    self = path
-  }
-
-  public static var defaultCompletionKind: CompletionKind {
-    // This type is most commonly used to select a directory, not a file.
-    // Specify '.file()' in an argument declaration when necessary.
-    .directory
-  }
-}
-#if compiler(<5.11)
-extension AbsolutePath: ExpressibleByArgument {}
-#else
-extension AbsolutePath: @retroactive ExpressibleByArgument {}
-#endif
-
-extension RelativePath {
-  public init?(argument: String) {
-    let path = try? RelativePath(validating: argument)
-
-    guard let path = path else {
-      return nil
-    }
-
-    self = path
-  }
-}
-#if compiler(<5.11)
-extension RelativePath: ExpressibleByArgument {}
-#else
-extension RelativePath: @retroactive ExpressibleByArgument {}
 #endif
 
 extension PathPrefixMapping {
@@ -333,8 +279,6 @@ struct SourceKitLSP: AsyncParsableCommand {
       outFD: realStdoutHandle
     )
 
-    let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
-
     var inputMirror: FileHandle? = nil
     if let inputMirrorDirectory = globalConfigurationOptions.loggingOrDefault.inputMirrorDirectory {
       orLog("Setting up input mirror") {
@@ -355,7 +299,7 @@ struct SourceKitLSP: AsyncParsableCommand {
 
     let server = SourceKitLSPServer(
       client: clientConnection,
-      toolchainRegistry: ToolchainRegistry(installPath: installPath, localFileSystem),
+      toolchainRegistry: ToolchainRegistry(installPath: Bundle.main.bundleURL),
       options: globalConfigurationOptions,
       testHooks: TestHooks(),
       onExit: {

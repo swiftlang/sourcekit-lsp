@@ -10,23 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
 import RegexBuilder
 import SKLogging
 import SwiftExtensions
 
-#if compiler(>=6)
 import enum PackageLoading.Platform
-package import struct TSCBasic.AbsolutePath
-package import protocol TSCBasic.FileSystem
-package import class TSCBasic.Process
-package import var TSCBasic.localFileSystem
-#else
-import enum PackageLoading.Platform
-import struct TSCBasic.AbsolutePath
-import protocol TSCBasic.FileSystem
 import class TSCBasic.Process
-import var TSCBasic.localFileSystem
+
+#if compiler(>=6)
+package import Foundation
+#else
+import Foundation
 #endif
 
 /// A Swift version consisting of the major and minor component.
@@ -84,30 +78,30 @@ public final class Toolchain: Sendable {
   /// The path to this toolchain, if applicable.
   ///
   /// For example, this may be the path to an ".xctoolchain" directory.
-  package let path: AbsolutePath?
+  package let path: URL?
 
   // MARK: Tool Paths
 
   /// The path to the Clang compiler if available.
-  package let clang: AbsolutePath?
+  package let clang: URL?
 
   /// The path to the Swift driver if available.
-  package let swift: AbsolutePath?
+  package let swift: URL?
 
   /// The path to the Swift compiler if available.
-  package let swiftc: AbsolutePath?
+  package let swiftc: URL?
 
   /// The path to the swift-format executable, if available.
-  package let swiftFormat: AbsolutePath?
+  package let swiftFormat: URL?
 
   /// The path to the clangd language server if available.
-  package let clangd: AbsolutePath?
+  package let clangd: URL?
 
   /// The path to the Swift language server if available.
-  package let sourcekitd: AbsolutePath?
+  package let sourcekitd: URL?
 
   /// The path to the indexstore library if available.
-  package let libIndexStore: AbsolutePath?
+  package let libIndexStore: URL?
 
   private let swiftVersionTask = ThreadSafeBox<Task<SwiftVersion, any Error>?>(initialValue: nil)
 
@@ -124,7 +118,7 @@ public final class Toolchain: Sendable {
             throw SwiftVersionParsingError.failedToFindSwiftc
           }
 
-          let process = Process(args: swiftc.pathString, "--version")
+          let process = Process(args: try swiftc.filePath, "--version")
           try process.launch()
           let result = try await process.waitUntilExit()
           let output = String(bytes: try result.output.get(), encoding: .utf8)
@@ -153,14 +147,14 @@ public final class Toolchain: Sendable {
   package init(
     identifier: String,
     displayName: String,
-    path: AbsolutePath? = nil,
-    clang: AbsolutePath? = nil,
-    swift: AbsolutePath? = nil,
-    swiftc: AbsolutePath? = nil,
-    swiftFormat: AbsolutePath? = nil,
-    clangd: AbsolutePath? = nil,
-    sourcekitd: AbsolutePath? = nil,
-    libIndexStore: AbsolutePath? = nil
+    path: URL? = nil,
+    clang: URL? = nil,
+    swift: URL? = nil,
+    swiftc: URL? = nil,
+    swiftFormat: URL? = nil,
+    clangd: URL? = nil,
+    sourcekitd: URL? = nil,
+    libIndexStore: URL? = nil
   ) {
     self.identifier = identifier
     self.displayName = displayName
@@ -182,7 +176,7 @@ public final class Toolchain: Sendable {
   ///   `libIndexStore`. These toolchains are not comparable.
   /// - Two toolchains that both contain `swiftc` and `clangd` are supersets of each other.
   func isSuperset(of other: Toolchain) -> Bool {
-    func isSuperset(for tool: KeyPath<Toolchain, AbsolutePath?>) -> Bool {
+    func isSuperset(for tool: KeyPath<Toolchain, URL?>) -> Bool {
       if self[keyPath: tool] == nil && other[keyPath: tool] != nil {
         // This toolchain doesn't contain the tool but the other toolchain does. It is not a superset.
         return false
@@ -221,65 +215,69 @@ extension Toolchain {
   ///
   /// If `path` contains an ".xctoolchain", we try to read an Info.plist file to provide the
   /// toolchain identifier, etc.  Otherwise this information is derived from the path.
-  convenience package init?(_ path: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) {
+  convenience package init?(_ path: URL) {
     // Properties that need to be initialized
     let identifier: String
     let displayName: String
-    let toolchainPath: AbsolutePath?
-    var clang: AbsolutePath? = nil
-    var clangd: AbsolutePath? = nil
-    var swift: AbsolutePath? = nil
-    var swiftc: AbsolutePath? = nil
-    var swiftFormat: AbsolutePath? = nil
-    var sourcekitd: AbsolutePath? = nil
-    var libIndexStore: AbsolutePath? = nil
+    let toolchainPath: URL?
+    var clang: URL? = nil
+    var clangd: URL? = nil
+    var swift: URL? = nil
+    var swiftc: URL? = nil
+    var swiftFormat: URL? = nil
+    var sourcekitd: URL? = nil
+    var libIndexStore: URL? = nil
 
-    if let (infoPlist, xctoolchainPath) = containingXCToolchain(path, fileSystem) {
+    if let (infoPlist, xctoolchainPath) = containingXCToolchain(path) {
       identifier = infoPlist.identifier
-      displayName = infoPlist.displayName ?? xctoolchainPath.basenameWithoutExt
+      displayName = infoPlist.displayName ?? xctoolchainPath.deletingPathExtension().lastPathComponent
       toolchainPath = xctoolchainPath
     } else {
-      identifier = path.pathString
-      displayName = path.basename
+      identifier = (try? path.filePath) ?? path.path
+      displayName = path.lastPathComponent
       toolchainPath = path
     }
 
     // Find tools in the toolchain
 
     var foundAny = false
-    let searchPaths = [path, path.appending(components: "bin"), path.appending(components: "usr", "bin")]
+    let searchPaths = [
+      path, path.appendingPathComponent("bin"), path.appendingPathComponent("usr").appendingPathComponent("bin"),
+    ]
     for binPath in searchPaths {
-      let libPath = binPath.parentDirectory.appending(component: "lib")
+      let libPath = binPath.deletingLastPathComponent().appendingPathComponent("lib")
 
-      guard fileSystem.isDirectory(binPath) || fileSystem.isDirectory(libPath) else { continue }
+      guard FileManager.default.isDirectory(at: binPath) || FileManager.default.isDirectory(at: libPath) else {
+        continue
+      }
 
       let execExt = Platform.current?.executableExtension ?? ""
 
-      let clangPath = binPath.appending(component: "clang\(execExt)")
-      if fileSystem.isExecutableFile(clangPath) {
+      let clangPath = binPath.appendingPathComponent("clang\(execExt)")
+      if FileManager.default.isExecutableFile(atPath: clangPath.path) {
         clang = clangPath
         foundAny = true
       }
-      let clangdPath = binPath.appending(component: "clangd\(execExt)")
-      if fileSystem.isExecutableFile(clangdPath) {
+      let clangdPath = binPath.appendingPathComponent("clangd\(execExt)")
+      if FileManager.default.isExecutableFile(atPath: clangdPath.path) {
         clangd = clangdPath
         foundAny = true
       }
 
-      let swiftPath = binPath.appending(component: "swift\(execExt)")
-      if fileSystem.isExecutableFile(swiftPath) {
+      let swiftPath = binPath.appendingPathComponent("swift\(execExt)")
+      if FileManager.default.isExecutableFile(atPath: swiftPath.path) {
         swift = swiftPath
         foundAny = true
       }
 
-      let swiftcPath = binPath.appending(component: "swiftc\(execExt)")
-      if fileSystem.isExecutableFile(swiftcPath) {
+      let swiftcPath = binPath.appendingPathComponent("swiftc\(execExt)")
+      if FileManager.default.isExecutableFile(atPath: swiftcPath.path) {
         swiftc = swiftcPath
         foundAny = true
       }
 
-      let swiftFormatPath = binPath.appending(component: "swift-format\(execExt)")
-      if fileSystem.isExecutableFile(swiftFormatPath) {
+      let swiftFormatPath = binPath.appendingPathComponent("swift-format\(execExt)")
+      if FileManager.default.isExecutableFile(atPath: swiftFormatPath.path) {
         swiftFormat = swiftFormatPath
         foundAny = true
       }
@@ -293,28 +291,28 @@ extension Toolchain {
         dylibExt = ".so"
       }
 
-      let sourcekitdPath = libPath.appending(components: "sourcekitd.framework", "sourcekitd")
-      if fileSystem.isFile(sourcekitdPath) {
+      let sourcekitdPath = libPath.appendingPathComponent("sourcekitd.framework").appendingPathComponent("sourcekitd")
+      if FileManager.default.isFile(at: sourcekitdPath) {
         sourcekitd = sourcekitdPath
         foundAny = true
       } else {
         #if os(Windows)
-        let sourcekitdPath = binPath.appending(component: "sourcekitdInProc\(dylibExt)")
+        let sourcekitdPath = binPath.appendingPathComponent("sourcekitdInProc\(dylibExt)")
         #else
-        let sourcekitdPath = libPath.appending(component: "libsourcekitdInProc\(dylibExt)")
+        let sourcekitdPath = libPath.appendingPathComponent("libsourcekitdInProc\(dylibExt)")
         #endif
-        if fileSystem.isFile(sourcekitdPath) {
+        if FileManager.default.isFile(at: sourcekitdPath) {
           sourcekitd = sourcekitdPath
           foundAny = true
         }
       }
 
       #if os(Windows)
-      let libIndexStorePath = binPath.appending(components: "libIndexStore\(dylibExt)")
+      let libIndexStorePath = binPath.appendingPathComponent("libIndexStore\(dylibExt)")
       #else
-      let libIndexStorePath = libPath.appending(components: "libIndexStore\(dylibExt)")
+      let libIndexStorePath = libPath.appendingPathComponent("libIndexStore\(dylibExt)")
       #endif
-      if fileSystem.isFile(libIndexStorePath) {
+      if FileManager.default.isFile(at: libIndexStorePath) {
         libIndexStore = libIndexStorePath
         foundAny = true
       }
@@ -344,18 +342,17 @@ extension Toolchain {
 
 /// Find a containing xctoolchain with plist, if available.
 func containingXCToolchain(
-  _ path: AbsolutePath,
-  _ fileSystem: FileSystem
-) -> (XCToolchainPlist, AbsolutePath)? {
+  _ path: URL
+) -> (XCToolchainPlist, URL)? {
   var path = path
   while !path.isRoot {
-    if path.extension == "xctoolchain" {
-      if let infoPlist = orLog("", { try XCToolchainPlist(fromDirectory: path, fileSystem) }) {
+    if path.pathExtension == "xctoolchain" {
+      if let infoPlist = orLog("", { try XCToolchainPlist(fromDirectory: path) }) {
         return (infoPlist, path)
       }
       return nil
     }
-    path = path.parentDirectory
+    path = path.deletingLastPathComponent()
   }
   return nil
 }

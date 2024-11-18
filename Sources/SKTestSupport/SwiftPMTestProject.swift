@@ -224,7 +224,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
 
   /// Build a SwiftPM package package manifest is located in the directory at `path`.
   package static func build(at path: URL, extraArguments: [String] = []) async throws {
-    guard let swift = await ToolchainRegistry.forTesting.default?.swift?.asURL else {
+    guard let swift = await ToolchainRegistry.forTesting.default?.swift else {
       throw Error.swiftNotFound
     }
     var arguments =
@@ -246,7 +246,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
 
   /// Resolve package dependencies for the package at `path`.
   package static func resolvePackageDependencies(at path: URL) async throws {
-    guard let swift = await ToolchainRegistry.forTesting.default?.swift?.asURL else {
+    guard let swift = await ToolchainRegistry.forTesting.default?.swift else {
       throw Error.swiftNotFound
     }
     let arguments = [

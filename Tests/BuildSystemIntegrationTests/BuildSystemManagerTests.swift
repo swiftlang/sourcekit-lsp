@@ -103,7 +103,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
     let bsm = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: try AbsolutePath(validating: "/")),
+      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: URL(fileURLWithPath: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -136,7 +136,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
     let bsm = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: try AbsolutePath(validating: "/")),
+      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: URL(fileURLWithPath: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -158,7 +158,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
     let bsm = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: try AbsolutePath(validating: "/")),
+      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: URL(fileURLWithPath: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -202,7 +202,7 @@ final class BuildSystemManagerTests: XCTestCase {
     )
 
     let bsm = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: try AbsolutePath(validating: "/")),
+      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: URL(fileURLWithPath: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -266,7 +266,7 @@ final class BuildSystemManagerTests: XCTestCase {
     )
 
     let bsm = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: try AbsolutePath(validating: "/")),
+      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: URL(fileURLWithPath: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       connectionToClient: DummyBuildSystemManagerConnectionToClient(),

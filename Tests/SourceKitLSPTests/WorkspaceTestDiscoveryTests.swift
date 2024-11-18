@@ -782,7 +782,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     let testsWithEmptyCompilationDatabase = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(testsWithEmptyCompilationDatabase, [])
 
-    let swiftc = try await unwrap(ToolchainRegistry.forTesting.default?.swiftc?.asURL)
+    let swiftc = try await unwrap(ToolchainRegistry.forTesting.default?.swiftc)
     let uri = try project.uri(for: "MyTests.swift")
 
     let compilationDatabase = JSONCompilationDatabase([

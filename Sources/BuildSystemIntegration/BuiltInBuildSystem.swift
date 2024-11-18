@@ -12,22 +12,18 @@
 
 #if compiler(>=6)
 package import BuildServerProtocol
+package import Foundation
 package import LanguageServerProtocol
 import SKLogging
 import SKOptions
 import ToolchainRegistry
-
-package import struct TSCBasic.AbsolutePath
-package import struct TSCBasic.RelativePath
 #else
 import BuildServerProtocol
+import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SKOptions
 import ToolchainRegistry
-
-import struct TSCBasic.AbsolutePath
-import struct TSCBasic.RelativePath
 #endif
 
 /// An error build systems can throw from `prepare` if they don't support preparation of targets.
@@ -42,16 +38,16 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
   /// was found.
-  var projectRoot: AbsolutePath { get async }
+  var projectRoot: URL { get async }
 
   /// The files to watch for changes.
   var fileWatchers: [FileSystemWatcher] { get async }
 
   /// The path to the raw index store data, if any.
-  var indexStorePath: AbsolutePath? { get async }
+  var indexStorePath: URL? { get async }
 
   /// The path to put the index database, if any.
-  var indexDatabasePath: AbsolutePath? { get async }
+  var indexDatabasePath: URL? { get async }
 
   /// Whether the build system is capable of preparing a target for indexing, ie. if the `prepare` methods has been
   /// implemented.

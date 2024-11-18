@@ -62,7 +62,7 @@ package struct IndexedSingleSwiftFileTestProject {
     let testFileURL = testWorkspaceDirectory.appendingPathComponent("test.swift")
     let indexURL = testWorkspaceDirectory.appendingPathComponent("index")
     self.indexDBURL = testWorkspaceDirectory.appendingPathComponent("index-db")
-    guard let swiftc = await ToolchainRegistry.forTesting.default?.swiftc?.asURL else {
+    guard let swiftc = await ToolchainRegistry.forTesting.default?.swiftc else {
       throw Error.swiftcNotFound
     }
 

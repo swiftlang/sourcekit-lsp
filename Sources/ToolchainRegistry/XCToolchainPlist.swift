@@ -12,15 +12,11 @@
 
 import Foundation
 import LanguageServerProtocolExtensions
+import SwiftExtensions
 import TSCExtensions
-
-import struct TSCBasic.AbsolutePath
-import protocol TSCBasic.FileSystem
-import var TSCBasic.localFileSystem
 
 #if os(macOS)
 import struct TSCBasic.RelativePath
-import struct TSCBasic.FileSystemError
 #endif
 
 /// A helper type for decoding the Info.plist or ToolchainInfo.plist file from an .xctoolchain.
@@ -39,9 +35,9 @@ package struct XCToolchainPlist {
 }
 
 extension XCToolchainPlist {
-
   enum Error: Swift.Error {
     case unsupportedPlatform
+    case notFound(missingPlistPath: URL?)
   }
 
   /// Returns the plist contents from the xctoolchain in the given directory, either Info.plist or
@@ -49,24 +45,24 @@ extension XCToolchainPlist {
   ///
   /// - parameter path: The directory to search.
   /// - throws: If there is not plist file or it cannot be read.
-  init(fromDirectory path: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
+  init(fromDirectory path: URL) throws {
     #if os(macOS)
     let plistNames = [
       try RelativePath(validating: "ToolchainInfo.plist"),  // Xcode
       try RelativePath(validating: "Info.plist"),  // Swift.org
     ]
 
-    var missingPlistPath: AbsolutePath?
+    var missingPlistPath: URL?
     for plistPath in plistNames.lazy.map({ path.appending($0) }) {
-      if fileSystem.isFile(plistPath) {
-        try self.init(path: plistPath, fileSystem)
+      if FileManager.default.isFile(at: plistPath) {
+        try self.init(path: plistPath)
         return
       }
 
       missingPlistPath = plistPath
     }
 
-    throw FileSystemError(.noEntry, missingPlistPath)
+    throw Error.notFound(missingPlistPath: missingPlistPath)
     #else
     throw Error.unsupportedPlatform
     #endif
@@ -75,14 +71,12 @@ extension XCToolchainPlist {
   /// Returns the plist contents from the xctoolchain at `path`.
   ///
   /// - parameter path: The directory to search.
-  init(path: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
+  init(path: URL) throws {
     #if os(macOS)
-    let bytes = try fileSystem.readFileContents(path)
-    self = try bytes.withUnsafeData { data in
-      let decoder = PropertyListDecoder()
-      var format = PropertyListSerialization.PropertyListFormat.binary
-      return try decoder.decode(XCToolchainPlist.self, from: data, format: &format)
-    }
+    let data = try Data(contentsOf: path)
+    let decoder = PropertyListDecoder()
+    var format = PropertyListSerialization.PropertyListFormat.binary
+    self = try decoder.decode(XCToolchainPlist.self, from: data, format: &format)
     #else
     throw Error.unsupportedPlatform
     #endif

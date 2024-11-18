@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
-import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
@@ -20,11 +19,9 @@ import SwiftExtensions
 import ToolchainRegistry
 
 #if compiler(>=6)
-package import struct TSCBasic.AbsolutePath
-package import struct TSCBasic.RelativePath
+package import Foundation
 #else
-import struct TSCBasic.AbsolutePath
-import struct TSCBasic.RelativePath
+import Foundation
 #endif
 
 /// The details necessary to create a `BuildSystemAdapter`.
@@ -38,9 +35,9 @@ package struct BuildSystemSpec {
 
   package var kind: Kind
 
-  package var projectRoot: AbsolutePath
+  package var projectRoot: URL
 
-  package init(kind: BuildSystemSpec.Kind, projectRoot: AbsolutePath) {
+  package init(kind: BuildSystemSpec.Kind, projectRoot: URL) {
     self.kind = kind
     self.projectRoot = projectRoot
   }
@@ -95,8 +92,12 @@ actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
       capabilities: BuildServerCapabilities(),
       dataKind: .sourceKit,
       data: SourceKitInitializeBuildResponseData(
-        indexDatabasePath: await underlyingBuildSystem.indexDatabasePath?.pathString,
-        indexStorePath: await underlyingBuildSystem.indexStorePath?.pathString,
+        indexDatabasePath: await orLog("getting index database file path") {
+          try await underlyingBuildSystem.indexDatabasePath?.filePath
+        },
+        indexStorePath: await orLog("getting index store file path") {
+          try await underlyingBuildSystem.indexStorePath?.filePath
+        },
         watchers: await underlyingBuildSystem.fileWatchers,
         prepareProvider: underlyingBuildSystem.supportsPreparation,
         sourceKitOptionsProvider: true
