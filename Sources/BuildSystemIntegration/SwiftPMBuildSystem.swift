@@ -315,7 +315,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
         validating: projectRoot.appendingPathComponent(".build").appendingPathComponent("index-build").filePath
       )
     } else if let scratchDirectory = options.swiftPMOrDefault.scratchPath,
-      let scratchDirectoryPath = try? AbsolutePath(validating: scratchDirectory)
+      let scratchDirectoryPath = try? AbsolutePath(validating: scratchDirectory, relativeTo: AbsolutePath(projectRoot))
     {
       location.scratchDirectory = scratchDirectoryPath
     }
