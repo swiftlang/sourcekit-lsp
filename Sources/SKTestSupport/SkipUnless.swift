@@ -26,21 +26,22 @@ import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import enum TSCBasic.ProcessEnv
 
-// MARK: - Skip checks
+// MARK: - Feature Enablement Conditionals
 
-/// Namespace for functions that are used to skip unsupported tests.
-package actor SkipUnless {
-  private enum FeatureCheckResult {
+/// Contains utility functions that return if a given feature is supported or unsupported.
+/// These functions should not rely on XCTest methods and be test framework agnostic.
+package actor TestFeature {
+  package enum FeatureCheckResult {
     case featureSupported
     case featureUnsupported(skipMessage: String)
   }
 
-  private static let shared = SkipUnless()
+  private static let shared = TestFeature()
 
   /// For any feature that has already been evaluated, the result of whether or not it should be skipped.
   private var checkCache: [String: FeatureCheckResult] = [:]
 
-  /// Throw an `XCTSkip` if any of the following conditions hold
+  /// Returns `FeatureCheckResut.featureUnsupported` if any of the following conditions hold
   ///  - The Swift version of the toolchain used for testing (`ToolchainRegistry.forTesting.default`) is older than
   ///    `swiftVersion`
   ///  - The Swift version of the toolchain used for testing is equal to `swiftVersion` and `featureCheck` returns
@@ -51,17 +52,18 @@ package actor SkipUnless {
   /// to test sourcekit-lsp is above `swiftVersion`) and it ensures that tests can’t stay in the skipped state over
   /// multiple releases.
   ///
-  /// Independently of these checks, the tests are never skipped in Swift CI (identified by the presence of the `SWIFTCI_USE_LOCAL_DEPS` environment). Swift CI is assumed to always build its own toolchain, which is thus
+  /// Independently of these checks, the tests are never skipped in Swift CI (identified by the presence of the
+  /// `SWIFTCI_USE_LOCAL_DEPS` environment). Swift CI is assumed to always build its own toolchain, which is thus
   /// guaranteed to be up-to-date.
-  private func skipUnlessSupportedByToolchain(
+  private func supportedByToolchain(
     swiftVersion: SwiftVersion,
     featureName: String = #function,
-    file: StaticString,
-    line: UInt,
     featureCheck: () async throws -> Bool
-  ) async throws {
-    return try await skipUnlessSupported(featureName: featureName, file: file, line: line) {
-      let toolchainSwiftVersion = try await unwrap(ToolchainRegistry.forTesting.default).swiftVersion
+  ) async throws -> FeatureCheckResult {
+    return try await supported(featureName: featureName) {
+      guard let toolchainSwiftVersion = try? await ToolchainRegistry.forTesting.default?.swiftVersion else {
+        return .featureUnsupported(skipMessage: "Unable to load toolchain registry")
+      }
       let requiredSwiftVersion = SwiftVersion(swiftVersion.major, swiftVersion.minor)
       if toolchainSwiftVersion < requiredSwiftVersion {
         return .featureUnsupported(
@@ -86,13 +88,11 @@ package actor SkipUnless {
     }
   }
 
-  private func skipUnlessSupported(
+  fileprivate func supported(
     allowSkippingInCI: Bool = false,
     featureName: String = #function,
-    file: StaticString,
-    line: UInt,
     featureCheck: () async throws -> FeatureCheckResult
-  ) async throws {
+  ) async throws -> FeatureCheckResult {
     let checkResult: FeatureCheckResult
     if let cachedResult = checkCache[featureName] {
       checkResult = cachedResult
@@ -103,17 +103,11 @@ package actor SkipUnless {
       checkResult = try await featureCheck()
     }
     checkCache[featureName] = checkResult
-
-    if case .featureUnsupported(let skipMessage) = checkResult {
-      throw XCTSkip(skipMessage, file: file, line: line)
-    }
+    return checkResult
   }
 
-  package static func sourcekitdHasSemanticTokensRequest(
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
-    try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
+  package static func sourcekitdHasSemanticTokensRequest() async throws -> FeatureCheckResult {
+    return try await shared.supportedByToolchain(swiftVersion: SwiftVersion(5, 11)) {
       let testClient = try await TestSourceKitLSPClient()
       let uri = DocumentURI(for: .swift)
       testClient.openDocument("0.bitPattern", uri: uri)
@@ -140,11 +134,8 @@ package actor SkipUnless {
     }
   }
 
-  package static func sourcekitdSupportsRename(
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
-    try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
+  package static func sourcekitdSupportsRename() async throws -> FeatureCheckResult {
+    return try await shared.supportedByToolchain(swiftVersion: SwiftVersion(5, 11)) {
       let testClient = try await TestSourceKitLSPClient()
       let uri = DocumentURI(for: .swift)
       let positions = testClient.openDocument("func 1️⃣test() {}", uri: uri)
@@ -161,11 +152,8 @@ package actor SkipUnless {
 
   /// Checks whether the sourcekitd contains a fix to rename labels of enum cases correctly
   /// (https://github.com/apple/swift/pull/74241).
-  package static func sourcekitdCanRenameEnumCaseLabels(
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
-    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+  package static func sourcekitdCanRenameEnumCaseLabels() async throws -> FeatureCheckResult {
+    return try await shared.supportedByToolchain(swiftVersion: SwiftVersion(6, 0)) {
       let testClient = try await TestSourceKitLSPClient()
       let uri = DocumentURI(for: .swift)
       let positions = testClient.openDocument(
@@ -185,11 +173,8 @@ package actor SkipUnless {
   }
 
   /// Whether clangd has support for the `workspace/indexedRename` request.
-  package static func clangdSupportsIndexBasedRename(
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
-    try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
+  package static func clangdSupportsIndexBasedRename() async throws -> FeatureCheckResult {
+    return try await shared.supportedByToolchain(swiftVersion: SwiftVersion(5, 11)) {
       let testClient = try await TestSourceKitLSPClient()
       let uri = DocumentURI(for: .c)
       let positions = testClient.openDocument("void 1️⃣test() {}", uri: uri)
@@ -211,11 +196,8 @@ package actor SkipUnless {
 
   /// SwiftPM moved the location where it stores Swift modules to a subdirectory in
   /// https://github.com/swiftlang/swift-package-manager/pull/7103.
-  package static func swiftpmStoresModulesInSubdirectory(
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
-    try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
+  package static func swiftpmStoresModulesInSubdirectory() async throws -> FeatureCheckResult {
+    return try await shared.supportedByToolchain(swiftVersion: SwiftVersion(5, 11)) {
       let workspace = try await SwiftPMTestProject(files: ["test.swift": ""])
       try await SwiftPMTestProject.build(at: workspace.scratchDirectory)
       let modulesDirectory = workspace.scratchDirectory
@@ -227,23 +209,17 @@ package actor SkipUnless {
     }
   }
 
-  package static func toolchainContainsSwiftFormat(
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
-    try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
+  package static func toolchainContainsSwiftFormat() async throws -> FeatureCheckResult {
+    return try await shared.supportedByToolchain(swiftVersion: SwiftVersion(5, 11)) {
       return await ToolchainRegistry.forTesting.default?.swiftFormat != nil
     }
   }
 
   /// Checks if the toolchain contains https://github.com/apple/swift/pull/74080.
-  package static func sourcekitdReportsOverridableFunctionDefinitionsAsDynamic(
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
+  package static func sourcekitdReportsOverridableFunctionDefinitionsAsDynamic() async throws -> FeatureCheckResult {
     struct ExpectedLocationsResponse: Error {}
 
-    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+    return try await shared.supportedByToolchain(swiftVersion: SwiftVersion(6, 0)) {
       let project = try await IndexedSingleSwiftFileTestProject(
         """
         protocol TestProtocol {
@@ -267,13 +243,11 @@ package actor SkipUnless {
     }
   }
 
-  package static func sourcekitdReturnsRawDocumentationResponse(
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
+  package static func sourcekitdReturnsRawDocumentationResponse() async throws -> FeatureCheckResult {
     struct ExpectedMarkdownContentsError: Error {}
+    struct ExpectedValidRepsonseError: Error {}
 
-    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+    return try await shared.supportedByToolchain(swiftVersion: SwiftVersion(6, 0)) {
       // The XML-based doc comment conversion did not preserve `Precondition`.
       let testClient = try await TestSourceKitLSPClient()
       let uri = DocumentURI(for: .swift)
@@ -287,8 +261,9 @@ package actor SkipUnless {
       let response = try await testClient.send(
         HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
       )
-      let hover = try XCTUnwrap(response, file: file, line: line)
-      XCTAssertNil(hover.range, file: file, line: line)
+      guard let hover = response, hover.range == nil else {
+        throw ExpectedValidRepsonseError()
+      }
       guard case .markupContent(let content) = hover.contents else {
         throw ExpectedMarkdownContentsError()
       }
@@ -298,11 +273,10 @@ package actor SkipUnless {
 
   /// Checks whether the index contains a fix that prevents it from adding relations to non-indexed locals
   /// (https://github.com/apple/swift/pull/72930).
-  package static func indexOnlyHasContainedByRelationsToIndexedDecls(
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
-    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+  package static func indexOnlyHasContainedByRelationsToIndexedDecls() async throws -> FeatureCheckResult {
+    struct NoCallHierarchyItemError: Error {}
+
+    return try await shared.supportedByToolchain(swiftVersion: SwiftVersion(6, 0)) {
       let project = try await IndexedSingleSwiftFileTestProject(
         """
         func foo() {}
@@ -318,19 +292,18 @@ package actor SkipUnless {
           position: project.positions["1️⃣"]
         )
       )
-      let initialItem = try XCTUnwrap(prepare?.only)
+      guard let initialItem = prepare?.only else {
+        throw NoCallHierarchyItemError()
+      }
       let calls = try await project.testClient.send(CallHierarchyOutgoingCallsRequest(item: initialItem))
       return calls != []
     }
   }
 
-  public static func swiftPMSupportsExperimentalPrepareForIndexing(
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
+  public static func swiftPMSupportsExperimentalPrepareForIndexing() async throws -> FeatureCheckResult {
     struct NoSwiftInToolchain: Error {}
 
-    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+    return try await shared.supportedByToolchain(swiftVersion: SwiftVersion(6, 0)) {
       guard let swift = await ToolchainRegistry.forTesting.default?.swift else {
         throw NoSwiftInToolchain()
       }
@@ -346,13 +319,10 @@ package actor SkipUnless {
     }
   }
 
-  package static func swiftPMStoresModulesForTargetAndHostInSeparateFolders(
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
+  package static func swiftPMStoresModulesForTargetAndHostInSeparateFolders() async throws -> FeatureCheckResult {
     struct NoSwiftInToolchain: Error {}
 
-    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+    return try await shared.supportedByToolchain(swiftVersion: SwiftVersion(6, 0)) {
       guard let swift = await ToolchainRegistry.forTesting.default?.swift else {
         throw NoSwiftInToolchain()
       }
@@ -408,33 +378,32 @@ package actor SkipUnless {
   }
 
   /// A long test is a test that takes longer than 1-2s to execute.
-  package static func longTestsEnabled() throws {
+  package static var longTestsEnabled: Bool {
     if let value = ProcessInfo.processInfo.environment["SKIP_LONG_TESTS"], value == "1" || value == "YES" {
-      throw XCTSkip("Long tests disabled using the `SKIP_LONG_TESTS` environment variable")
+      return false
     }
+    return true
   }
 
-  package static func platformIsDarwin(_ message: String) throws {
-    try XCTSkipUnless(Platform.current == .darwin, message)
+  package static var platformIsDarwin: Bool {
+    return Platform.current == .darwin
   }
 
-  package static func platformSupportsTaskPriorityElevation() throws {
+  package static var platformSupportsTaskPriorityElevation: Bool {
     #if os(macOS)
     guard #available(macOS 14.0, *) else {
       // Priority elevation was implemented by https://github.com/apple/swift/pull/63019, which is available in the
       // Swift 5.9 runtime included in macOS 14.0+
-      throw XCTSkip("Priority elevation of tasks is only supported on macOS 14 and above")
+      return false
     }
     #endif
+    return true
   }
 
   /// Check if we can use the build artifacts in the sourcekit-lsp build directory to build a macro package without
   /// re-building swift-syntax.
-  package static func canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild(
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
-    return try await shared.skipUnlessSupported(file: file, line: line) {
+  package static func canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild() async throws -> FeatureCheckResult {
+    return try await shared.supported {
       do {
         let project = try await SwiftPMTestProject(
           files: [
@@ -469,11 +438,8 @@ package actor SkipUnless {
     }
   }
 
-  package static func canCompileForWasm(
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
-    return try await shared.skipUnlessSupported(allowSkippingInCI: true, file: file, line: line) {
+  package static func canCompileForWasm() async throws -> FeatureCheckResult {
+    return try await shared.supported(allowSkippingInCI: true) {
       let swiftFrontend = try await unwrap(ToolchainRegistry.forTesting.default?.swift).parentDirectory
         .appending(component: "swift-frontend")
       return try await withTestScratchDir { scratchDirectory in
@@ -505,13 +471,10 @@ package actor SkipUnless {
   }
 
   /// Checks if sourcekitd contains https://github.com/swiftlang/swift/pull/71049
-  package static func solverBasedCursorInfoWorksForMemoryOnlyFiles(
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
+  package static func solverBasedCursorInfoWorksForMemoryOnlyFiles() async throws -> FeatureCheckResult {
     struct ExpectedLocationsResponse: Error {}
 
-    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+    return try await shared.supportedByToolchain(swiftVersion: SwiftVersion(6, 0)) {
       let testClient = try await TestSourceKitLSPClient()
       let uri = DocumentURI(for: .swift)
       let positions = testClient.openDocument(
@@ -533,6 +496,155 @@ package actor SkipUnless {
       }
       return locations.count > 0
     }
+  }
+}
+
+// MARK: - Skip checks
+
+/// Namespace for functions that are used to skip unsupported XCTests.
+package struct SkipUnless {
+
+  private static func XCTSkipIfUnsupported(_ closure: () async throws -> TestFeature.FeatureCheckResult, file: StaticString, line: UInt) async throws {
+    if case .featureUnsupported(let skipMessage) = try await closure() {
+      throw XCTSkip(skipMessage, file: file, line: line)
+    }
+  }
+
+  package static func sourcekitdHasSemanticTokensRequest(file: StaticString = #filePath, line: UInt = #line) async throws {
+    try await XCTSkipIfUnsupported(TestFeature.sourcekitdHasSemanticTokensRequest, file: file, line: line)
+  }
+
+  package static func sourcekitdSupportsRename(file: StaticString = #filePath, line: UInt = #line) async throws {
+    try await XCTSkipIfUnsupported(TestFeature.sourcekitdSupportsRename, file: file, line: line)
+  }
+
+  /// Checks whether the sourcekitd contains a fix to rename labels of enum cases correctly
+  /// (https://github.com/apple/swift/pull/74241).
+  package static func sourcekitdCanRenameEnumCaseLabels(file: StaticString = #filePath, line: UInt = #line) async throws {
+    try await XCTSkipIfUnsupported(TestFeature.sourcekitdCanRenameEnumCaseLabels, file: file, line: line)
+  }
+
+  /// Whether clangd has support for the `workspace/indexedRename` request.
+  package static func clangdSupportsIndexBasedRename(file: StaticString = #filePath, line: UInt = #line) async throws {
+    try await XCTSkipIfUnsupported(TestFeature.clangdSupportsIndexBasedRename, file: file, line: line)
+  }
+
+  /// SwiftPM moved the location where it stores Swift modules to a subdirectory in
+  /// https://github.com/swiftlang/swift-package-manager/pull/7103.
+  package static func swiftpmStoresModulesInSubdirectory(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    try await XCTSkipIfUnsupported(TestFeature.swiftpmStoresModulesInSubdirectory, file: file, line: line)
+  }
+
+  package static func toolchainContainsSwiftFormat(file: StaticString = #filePath, line: UInt = #line) async throws {
+    try await XCTSkipIfUnsupported(TestFeature.toolchainContainsSwiftFormat, file: file, line: line)
+  }
+
+  /// Checks if the toolchain contains https://github.com/apple/swift/pull/74080.
+  package static func sourcekitdReportsOverridableFunctionDefinitionsAsDynamic(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    try await XCTSkipIfUnsupported(
+      TestFeature.sourcekitdReportsOverridableFunctionDefinitionsAsDynamic,
+      file: file,
+      line: line
+    )
+  }
+
+  package static func sourcekitdReturnsRawDocumentationResponse(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    try await XCTSkipIfUnsupported(
+      TestFeature.sourcekitdReturnsRawDocumentationResponse,
+      file: file,
+      line: line
+    )
+  }
+
+  /// Checks whether the index contains a fix that prevents it from adding relations to non-indexed locals
+  /// (https://github.com/apple/swift/pull/72930).
+  package static func indexOnlyHasContainedByRelationsToIndexedDecls(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    try await XCTSkipIfUnsupported(
+      TestFeature.indexOnlyHasContainedByRelationsToIndexedDecls,
+      file: file,
+      line: line
+    )
+  }
+
+  public static func swiftPMSupportsExperimentalPrepareForIndexing(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    try await XCTSkipIfUnsupported(
+      TestFeature.swiftPMSupportsExperimentalPrepareForIndexing,
+      file: file,
+      line: line
+    )
+  }
+
+  package static func swiftPMStoresModulesForTargetAndHostInSeparateFolders(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    try await XCTSkipIfUnsupported(
+      TestFeature.swiftPMStoresModulesForTargetAndHostInSeparateFolders,
+      file: file,
+      line: line
+    )
+  }
+
+  /// A long test is a test that takes longer than 1-2s to execute.
+  package static func longTestsEnabled() throws {
+    if !TestFeature.longTestsEnabled {
+      throw XCTSkip("Long tests disabled using the `SKIP_LONG_TESTS` environment variable")
+    }
+  }
+
+  package static func platformIsDarwin(_ message: String) throws {
+    try XCTSkipUnless(TestFeature.platformIsDarwin, message)
+  }
+
+  package static func platformSupportsTaskPriorityElevation() throws {
+    if !TestFeature.platformSupportsTaskPriorityElevation {
+      // Priority elevation was implemented by https://github.com/apple/swift/pull/63019, which is available in the
+      // Swift 5.9 runtime included in macOS 14.0+
+      throw XCTSkip("Priority elevation of tasks is only supported on macOS 14 and above")
+    }
+  }
+
+  /// Check if we can use the build artifacts in the sourcekit-lsp build directory to build a macro package without
+  /// re-building swift-syntax.
+  package static func canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    try await XCTSkipIfUnsupported(
+      TestFeature.canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild,
+      file: file,
+      line: line
+    )
+  }
+
+  package static func canCompileForWasm(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    try await XCTSkipIfUnsupported(TestFeature.canCompileForWasm, file: file, line: line)
+  }
+
+  /// Checks if sourcekitd contains https://github.com/swiftlang/swift/pull/71049
+  package static func solverBasedCursorInfoWorksForMemoryOnlyFiles(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    try await XCTSkipIfUnsupported(TestFeature.solverBasedCursorInfoWorksForMemoryOnlyFiles, file: file, line: line)
   }
 }
 
