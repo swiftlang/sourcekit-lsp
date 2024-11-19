@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #if compiler(>=6)
-package import Basics
+import Basics
 @preconcurrency import Build
 package import BuildServerProtocol
 import Dispatch
@@ -31,13 +31,8 @@ package import ToolchainRegistry
 import TSCExtensions
 @preconcurrency import Workspace
 
-package import struct Basics.AbsolutePath
-package import struct Basics.IdentifiableSet
-package import struct Basics.TSCAbsolutePath
 import struct TSCBasic.AbsolutePath
-import protocol TSCBasic.FileSystem
 import class TSCBasic.Process
-import var TSCBasic.localFileSystem
 package import class ToolchainRegistry.Toolchain
 #else
 import Basics
@@ -60,14 +55,8 @@ import ToolchainRegistry
 import TSCExtensions
 @preconcurrency import Workspace
 
-import struct Basics.AbsolutePath
-import struct Basics.IdentifiableSet
-import struct Basics.TSCAbsolutePath
-import struct Foundation.URL
 import struct TSCBasic.AbsolutePath
-import protocol TSCBasic.FileSystem
 import class TSCBasic.Process
-import var TSCBasic.localFileSystem
 import class ToolchainRegistry.Toolchain
 #endif
 
@@ -214,7 +203,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   // MARK: Build system options (set once and not modified)
 
   /// The directory containing `Package.swift`.
-  package let projectRoot: TSCAbsolutePath
+  package let projectRoot: URL
 
   package let fileWatchers: [FileSystemWatcher]
 
@@ -244,7 +233,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       return nil
     }
     while true {
-      let packagePath = path.appending(component: "Package.swift")
+      let packagePath = path.appendingPathComponent("Package.swift")
       if (try? String(contentsOf: packagePath, encoding: .utf8))?.contains("PackageDescription") ?? false {
         return path
       }
@@ -265,7 +254,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   ///     manifest parsing and runtime support.
   /// - Throws: If there is an error loading the package, or no manifest is found.
   package init(
-    projectRoot: TSCAbsolutePath,
+    projectRoot: URL,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     connectionToSourceKitLSP: any Connection,
@@ -274,8 +263,8 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     self.projectRoot = projectRoot
     self.options = options
     self.fileWatchers =
-      ["Package.swift", "Package.resolved"].map {
-        FileSystemWatcher(globPattern: projectRoot.appending(component: $0).pathString, kind: [.change])
+      try ["Package.swift", "Package.resolved"].map {
+        FileSystemWatcher(globPattern: try projectRoot.appendingPathComponent($0).filePath, kind: [.change])
       }
       + FileRuleDescription.builtinRules.flatMap({ $0.fileTypes }).map { fileExtension in
         FileSystemWatcher(globPattern: "**/*.\(fileExtension)", kind: [.create, .change, .delete])
@@ -291,11 +280,11 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     self.testHooks = testHooks
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
 
-    guard let destinationToolchainBinDir = toolchain.swiftc?.parentDirectory else {
+    guard let destinationToolchainBinDir = toolchain.swiftc?.deletingLastPathComponent() else {
       throw Error.cannotDetermineHostToolchain
     }
 
-    let hostSDK = try SwiftSDK.hostSwiftSDK(AbsolutePath(destinationToolchainBinDir))
+    let hostSDK = try SwiftSDK.hostSwiftSDK(AbsolutePath(validating: destinationToolchainBinDir.filePath))
     let hostSwiftPMToolchain = try UserToolchain(swiftSDK: hostSDK)
 
     let destinationSDK = try SwiftSDK.deriveTargetSwiftSDK(
@@ -318,11 +307,13 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     let destinationSwiftPMToolchain = try UserToolchain(swiftSDK: destinationSDK)
 
     var location = try Workspace.Location(
-      forRootPackage: AbsolutePath(projectRoot),
+      forRootPackage: try AbsolutePath(validating: projectRoot.filePath),
       fileSystem: localFileSystem
     )
     if options.backgroundIndexingOrDefault {
-      location.scratchDirectory = AbsolutePath(projectRoot.appending(components: ".build", "index-build"))
+      location.scratchDirectory = try AbsolutePath(
+        validating: projectRoot.appendingPathComponent(".build").appendingPathComponent("index-build").filePath
+      )
     } else if let scratchDirectory = options.swiftPMOrDefault.scratchPath,
       let scratchDirectoryPath = try? AbsolutePath(validating: scratchDirectory)
     {
@@ -413,7 +404,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     }
 
     let modulesGraph = try await self.swiftPMWorkspace.loadPackageGraph(
-      rootInput: PackageGraphRootInput(packages: [AbsolutePath(projectRoot)]),
+      rootInput: PackageGraphRootInput(packages: [AbsolutePath(validating: projectRoot.filePath)]),
       forceResolvedVersions: !isForIndexBuild,
       observabilityScope: observabilitySystem.topScope
     )
@@ -454,17 +445,19 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
 
   package nonisolated var supportsPreparation: Bool { true }
 
-  package var buildPath: TSCAbsolutePath {
-    return TSCAbsolutePath(destinationBuildParameters.buildPath)
+  package var buildPath: URL {
+    return destinationBuildParameters.buildPath.asURL
   }
 
-  package var indexStorePath: TSCAbsolutePath? {
-    return destinationBuildParameters.indexStoreMode == .off
-      ? nil : TSCAbsolutePath(destinationBuildParameters.indexStore)
+  package var indexStorePath: URL? {
+    if destinationBuildParameters.indexStoreMode == .off {
+      return nil
+    }
+    return destinationBuildParameters.indexStore.asURL
   }
 
-  package var indexDatabasePath: TSCAbsolutePath? {
-    return buildPath.appending(components: "index", "db")
+  package var indexDatabasePath: URL? {
+    return buildPath.appendingPathComponent("index").appendingPathComponent("db")
   }
 
   /// Return the compiler arguments for the given source file within a target, making any necessary adjustments to
@@ -518,7 +511,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
         languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift],
         dependencies: self.targetDependencies[targetId, default: []].sorted { $0.uri.stringValue < $1.uri.stringValue },
         dataKind: .sourceKit,
-        data: SourceKitBuildTarget(toolchain: toolchain.path?.asURI).encodeToLSPAny()
+        data: SourceKitBuildTarget(toolchain: toolchain.path.map(URI.init)).encodeToLSPAny()
       )
     }
     targets.append(
@@ -546,7 +539,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
             target: target,
             sources: [
               SourceItem(
-                uri: projectRoot.appending(component: "Package.swift").asURI,
+                uri: DocumentURI(projectRoot.appendingPathComponent("Package.swift")),
                 kind: .file,
                 generated: false
               )
@@ -604,7 +597,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       // with the `.cpp` file.
       let buildSettings = FileBuildSettings(
         compilerArguments: try await compilerArguments(for: DocumentURI(substituteFile), in: swiftPMTarget),
-        workingDirectory: projectRoot.pathString
+        workingDirectory: try projectRoot.filePath
       ).patching(newFile: DocumentURI(try path.asURL.realpath), originalFile: DocumentURI(substituteFile))
       return TextDocumentSourceKitOptionsResponse(
         compilerArguments: buildSettings.compilerArguments,
@@ -614,7 +607,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
 
     return TextDocumentSourceKitOptionsResponse(
       compilerArguments: try await compilerArguments(for: request.textDocument.uri, in: swiftPMTarget),
-      workingDirectory: projectRoot.pathString
+      workingDirectory: try projectRoot.filePath
     )
   }
 
@@ -651,8 +644,8 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     }
     logger.debug("Preparing '\(target.forLogging)' using \(self.toolchain.identifier)")
     var arguments = [
-      swift.pathString, "build",
-      "--package-path", projectRoot.pathString,
+      try swift.filePath, "build",
+      "--package-path", try projectRoot.filePath,
       "--scratch-path", self.swiftPMWorkspace.location.scratchDirectory.pathString,
       "--disable-index-store",
       "--target", try target.targetProperties.target,

@@ -15,6 +15,7 @@ import Foundation
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
+import SwiftExtensions
 import SwiftParser
 import SwiftSyntax
 import TSCExtensions
@@ -27,6 +28,7 @@ import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
+import SwiftExtensions
 import SwiftParser
 import SwiftSyntax
 import TSCExtensions
@@ -168,7 +170,7 @@ extension SwiftLanguageService {
     }
 
     var args = try [
-      swiftFormat.pathString,
+      swiftFormat.filePath,
       "format",
       "--configuration",
       swiftFormatConfiguration(for: textDocument.uri, options: options),

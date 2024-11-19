@@ -105,15 +105,15 @@ package struct IndexCommand: AsyncParsableCommand {
     )
 
     let installPath =
-      if let toolchainOverride, let toolchain = Toolchain(try AbsolutePath(validating: toolchainOverride)) {
+      if let toolchainOverride, let toolchain = Toolchain(URL(fileURLWithPath: toolchainOverride)) {
         toolchain.path
       } else {
-        try AbsolutePath(validating: Bundle.main.bundlePath)
+        Bundle.main.bundleURL
       }
 
     let messageHandler = IndexLogMessageHandler()
     let inProcessClient = try await InProcessSourceKitLSPClient(
-      toolchainPath: installPath?.asURL,
+      toolchainPath: installPath,
       options: options,
       workspaceFolders: [WorkspaceFolder(uri: DocumentURI(URL(fileURLWithPath: project)))],
       messageHandler: messageHandler

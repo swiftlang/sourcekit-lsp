@@ -25,6 +25,7 @@ import TSCExtensions
 import ToolchainRegistry
 import XCTest
 
+import struct Basics.AbsolutePath
 import struct Basics.Triple
 import struct PackageModel.BuildFlags
 
@@ -37,9 +38,9 @@ private var hostTriple: Triple {
     let toolchain = try await unwrap(
       ToolchainRegistry.forTesting.preferredToolchain(containing: [\.clang, \.clangd, \.sourcekitd, \.swift, \.swiftc])
     )
-    let destinationToolchainBinDir = try XCTUnwrap(toolchain.swiftc?.parentDirectory)
+    let destinationToolchainBinDir = try XCTUnwrap(toolchain.swiftc?.deletingLastPathComponent())
 
-    let hostSDK = try SwiftSDK.hostSwiftSDK(.init(destinationToolchainBinDir))
+    let hostSDK = try SwiftSDK.hostSwiftSDK(Basics.AbsolutePath(validating: destinationToolchainBinDir.filePath))
     let hostSwiftPMToolchain = try UserToolchain(swiftSDK: hostSDK)
 
     return hostSwiftPMToolchain.targetTriple
@@ -48,22 +49,21 @@ private var hostTriple: Triple {
 
 final class SwiftPMBuildSystemTests: XCTestCase {
   func testNoPackage() async throws {
-    let fs = InMemoryFileSystem()
     try await withTestScratchDir { tempDir in
-      try fs.createFiles(
+      try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": ""
         ]
       )
-      let packageRoot = tempDir.appending(component: "pkg")
-      XCTAssertNil(SwiftPMBuildSystem.projectRoot(for: packageRoot.asURL, options: .testDefault()))
+      let packageRoot = tempDir.appendingPathComponent("pkg")
+      XCTAssertNil(SwiftPMBuildSystem.projectRoot(for: packageRoot, options: .testDefault()))
     }
   }
 
   func testNoToolchain() async throws {
     try await withTestScratchDir { tempDir in
-      try localFileSystem.createFiles(
+      try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -77,7 +77,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = tempDir.appending(component: "pkg")
+      let packageRoot = tempDir.appendingPathComponent("pkg")
       await assertThrowsError(
         try await SwiftPMBuildSystem(
           projectRoot: packageRoot,
@@ -93,7 +93,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   func testBasicSwiftArgs() async throws {
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     try await withTestScratchDir { tempDir in
-      try localFileSystem.createFiles(
+      try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -107,7 +107,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
+      let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
         buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
@@ -117,14 +117,18 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
-      let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
+      let aswift =
+        packageRoot
+        .appendingPathComponent("Sources")
+        .appendingPathComponent("lib")
+        .appendingPathComponent("a.swift")
       let build = try await buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       assertNotNil(await buildSystemManager.initializationData?.indexDatabasePath)
       assertNotNil(await buildSystemManager.initializationData?.indexStorePath)
       let arguments = try await unwrap(
         buildSystemManager.buildSettingsInferredFromMainFile(
-          for: aswift.asURI,
+          for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
         )
@@ -152,15 +156,15 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       assertArgumentsContain("-target", try await hostTriple.tripleString, arguments: arguments)
       #endif
 
-      assertArgumentsContain("-I", build.appending(component: "Modules").pathString, arguments: arguments)
+      assertArgumentsContain("-I", try build.appendingPathComponent("Modules").filePath, arguments: arguments)
 
-      assertArgumentsContain(aswift.pathString, arguments: arguments)
+      assertArgumentsContain(try aswift.filePath, arguments: arguments)
     }
   }
 
   func testCompilerArgumentsForFileThatContainsPlusCharacterURLEncoded() async throws {
     try await withTestScratchDir { tempDir in
-      try localFileSystem.createFiles(
+      try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -175,7 +179,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = try AbsolutePath(validating: tempDir.appending(component: "pkg").asURL.realpath.filePath)
+      let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
         buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
@@ -185,10 +189,14 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
-      let aPlusSomething = packageRoot.appending(components: "Sources", "lib", "a+something.swift")
+      let aPlusSomething =
+        packageRoot
+        .appendingPathComponent("Sources")
+        .appendingPathComponent("lib")
+        .appendingPathComponent("a+something.swift")
 
       assertNotNil(await buildSystemManager.initializationData?.indexStorePath)
-      let pathWithPlusEscaped = "\(try aPlusSomething.asURL.filePath.replacing("+", with: "%2B"))"
+      let pathWithPlusEscaped = "\(try aPlusSomething.filePath.replacing("+", with: "%2B"))"
       #if os(Windows)
       let urlWithPlusEscaped = try XCTUnwrap(URL(string: "file:///\(pathWithPlusEscaped)"))
       #else
@@ -206,11 +214,14 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       // Check that we have both source files in the compiler arguments, which means that we didn't compute the compiler
       // arguments for a+something.swift using substitute arguments from a.swift.
       XCTAssert(
-        arguments.contains(aPlusSomething.pathString),
+        try arguments.contains(aPlusSomething.filePath),
         "Compiler arguments do not contain a+something.swift: \(arguments)"
       )
       XCTAssert(
-        arguments.contains(packageRoot.appending(components: "Sources", "lib", "a.swift").pathString),
+        try arguments.contains(
+          packageRoot.appendingPathComponent("Sources").appendingPathComponent("lib").appendingPathComponent("a.swift")
+            .filePath
+        ),
         "Compiler arguments do not contain a.swift: \(arguments)"
       )
     }
@@ -218,7 +229,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
   func testBuildSetup() async throws {
     try await withTestScratchDir { tempDir in
-      try localFileSystem.createFiles(
+      try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -232,11 +243,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = tempDir.appending(component: "pkg")
+      let packageRoot = tempDir.appendingPathComponent("pkg")
 
       let options = SourceKitLSPOptions.SwiftPMOptions(
         configuration: .release,
-        scratchPath: packageRoot.appending(component: "non_default_build_path").pathString,
+        scratchPath: try packageRoot.appendingPathComponent("non_default_build_path").filePath,
         cCompilerFlags: ["-m32"],
         swiftCompilerFlags: ["-typecheck"]
       )
@@ -250,11 +261,15 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
-      let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
+      let aswift =
+        packageRoot
+        .appendingPathComponent("Sources")
+        .appendingPathComponent("lib")
+        .appendingPathComponent("a.swift")
 
       let arguments = try await unwrap(
         buildSystemManager.buildSettingsInferredFromMainFile(
-          for: aswift.asURI,
+          for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
         )
@@ -268,7 +283,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
   func testDefaultSDKs() async throws {
     try await withTestScratchDir { tempDir in
-      try localFileSystem.createFiles(
+      try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -290,7 +305,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
 
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        projectRoot: tempDir.appending(component: "pkg"),
+        projectRoot: tempDir.appendingPathComponent("pkg"),
         toolchainRegistry: tr,
         options: SourceKitLSPOptions(swiftPM: options),
         connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy"),
@@ -307,7 +322,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
   func testManifestArgs() async throws {
     try await withTestScratchDir { tempDir in
-      try localFileSystem.createFiles(
+      try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -321,7 +336,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = tempDir.appending(component: "pkg")
+      let packageRoot = tempDir.appendingPathComponent("pkg")
       let buildSystemManager = await BuildSystemManager(
         buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
@@ -331,23 +346,23 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
-      let source = try resolveSymlinks(packageRoot.appending(component: "Package.swift"))
+      let source = try packageRoot.appendingPathComponent("Package.swift").realpath
       let arguments = try await unwrap(
         buildSystemManager.buildSettingsInferredFromMainFile(
-          for: source.asURI,
+          for: DocumentURI(source),
           language: .swift,
           fallbackAfterTimeout: false
         )
       ).compilerArguments
 
       assertArgumentsContain("-swift-version", "4.2", arguments: arguments)
-      assertArgumentsContain(source.pathString, arguments: arguments)
+      assertArgumentsContain(try source.filePath, arguments: arguments)
     }
   }
 
   func testMultiFileSwift() async throws {
     try await withTestScratchDir { tempDir in
-      try localFileSystem.createFiles(
+      try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -361,7 +376,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
+      let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
         buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
@@ -371,33 +386,41 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
-      let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
+      let aswift =
+        packageRoot
+        .appendingPathComponent("Sources")
+        .appendingPathComponent("lib")
+        .appendingPathComponent("a.swift")
+      let bswift =
+        packageRoot
+        .appendingPathComponent("Sources")
+        .appendingPathComponent("lib")
+        .appendingPathComponent("b.swift")
 
       let argumentsA = try await unwrap(
         buildSystemManager.buildSettingsInferredFromMainFile(
-          for: aswift.asURI,
+          for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
         )
       ).compilerArguments
-      assertArgumentsContain(aswift.pathString, arguments: argumentsA)
-      assertArgumentsContain(bswift.pathString, arguments: argumentsA)
+      assertArgumentsContain(try aswift.filePath, arguments: argumentsA)
+      assertArgumentsContain(try bswift.filePath, arguments: argumentsA)
       let argumentsB = try await unwrap(
         buildSystemManager.buildSettingsInferredFromMainFile(
-          for: aswift.asURI,
+          for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
         )
       ).compilerArguments
-      assertArgumentsContain(aswift.pathString, arguments: argumentsB)
-      assertArgumentsContain(bswift.pathString, arguments: argumentsB)
+      assertArgumentsContain(try aswift.filePath, arguments: argumentsB)
+      assertArgumentsContain(try bswift.filePath, arguments: argumentsB)
     }
   }
 
   func testMultiTargetSwift() async throws {
     try await withTestScratchDir { tempDir in
-      try localFileSystem.createFiles(
+      try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/libA/a.swift": "",
@@ -418,7 +441,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
+      let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
         buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
@@ -428,37 +451,53 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
-      let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
-      let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
+      let aswift =
+        packageRoot
+        .appendingPathComponent("Sources")
+        .appendingPathComponent("libA")
+        .appendingPathComponent("a.swift")
+      let bswift =
+        packageRoot
+        .appendingPathComponent("Sources")
+        .appendingPathComponent("libB")
+        .appendingPathComponent("b.swift")
       let arguments = try await unwrap(
         buildSystemManager.buildSettingsInferredFromMainFile(
-          for: aswift.asURI,
+          for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
         )
       ).compilerArguments
-      assertArgumentsContain(aswift.pathString, arguments: arguments)
-      assertArgumentsDoNotContain(bswift.pathString, arguments: arguments)
+      assertArgumentsContain(try aswift.filePath, arguments: arguments)
+      assertArgumentsDoNotContain(try bswift.filePath, arguments: arguments)
       assertArgumentsContain(
         "-Xcc",
         "-I",
         "-Xcc",
-        packageRoot.appending(components: "Sources", "libC", "include").pathString,
+        try packageRoot
+          .appendingPathComponent("Sources")
+          .appendingPathComponent("libC")
+          .appendingPathComponent("include")
+          .filePath,
         arguments: arguments
       )
 
       let argumentsB = try await unwrap(
         buildSystemManager.buildSettingsInferredFromMainFile(
-          for: bswift.asURI,
+          for: DocumentURI(bswift),
           language: .swift,
           fallbackAfterTimeout: false
         )
       ).compilerArguments
-      assertArgumentsContain(bswift.pathString, arguments: argumentsB)
-      assertArgumentsDoNotContain(aswift.pathString, arguments: argumentsB)
+      assertArgumentsContain(try bswift.filePath, arguments: argumentsB)
+      assertArgumentsDoNotContain(try aswift.filePath, arguments: argumentsB)
       assertArgumentsDoNotContain(
         "-I",
-        packageRoot.appending(components: "Sources", "libC", "include").pathString,
+        try packageRoot
+          .appendingPathComponent("Sources")
+          .appendingPathComponent("libC")
+          .appendingPathComponent("include")
+          .filePath,
         arguments: argumentsB
       )
     }
@@ -466,7 +505,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
   func testUnknownFile() async throws {
     try await withTestScratchDir { tempDir in
-      try localFileSystem.createFiles(
+      try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/libA/a.swift": "",
@@ -481,7 +520,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = tempDir.appending(component: "pkg")
+      let packageRoot = tempDir.appendingPathComponent("pkg")
       let buildSystemManager = await BuildSystemManager(
         buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
@@ -491,18 +530,26 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
-      let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
-      let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
+      let aswift =
+        packageRoot
+        .appendingPathComponent("Sources")
+        .appendingPathComponent("libA")
+        .appendingPathComponent("a.swift")
+      let bswift =
+        packageRoot
+        .appendingPathComponent("Sources")
+        .appendingPathComponent("libB")
+        .appendingPathComponent("b.swift")
       assertNotNil(
         await buildSystemManager.buildSettingsInferredFromMainFile(
-          for: aswift.asURI,
+          for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
         )
       )
       assertEqual(
         await buildSystemManager.buildSettingsInferredFromMainFile(
-          for: bswift.asURI,
+          for: DocumentURI(bswift),
           language: .swift,
           fallbackAfterTimeout: false
         )?.isFallback,
@@ -521,7 +568,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
   func testBasicCXXArgs() async throws {
     try await withTestScratchDir { tempDir in
-      try localFileSystem.createFiles(
+      try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.cpp": "",
@@ -538,7 +585,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
+      let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
         buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
@@ -548,9 +595,22 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
-      let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
-      let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
-      let header = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
+      let acxx =
+        packageRoot
+        .appendingPathComponent("Sources")
+        .appendingPathComponent("lib")
+        .appendingPathComponent("a.cpp")
+      let bcxx =
+        packageRoot
+        .appendingPathComponent("Sources")
+        .appendingPathComponent("lib")
+        .appendingPathComponent("b.cpp")
+      let header =
+        packageRoot
+        .appendingPathComponent("Sources")
+        .appendingPathComponent("lib")
+        .appendingPathComponent("include")
+        .appendingPathComponent("a.h")
       let build = buildPath(root: packageRoot, platform: try await hostTriple.platformBuildPathComponent)
 
       assertNotNil(await buildSystemManager.initializationData?.indexStorePath)
@@ -558,7 +618,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       for file in [acxx, header] {
         let args = try await unwrap(
           buildSystemManager.buildSettingsInferredFromMainFile(
-            for: file.asURI,
+            for: DocumentURI(file),
             language: .cpp,
             fallbackAfterTimeout: false
           )
@@ -583,22 +643,26 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
         assertArgumentsContain(
           "-I",
-          packageRoot.appending(components: "Sources", "lib", "include").pathString,
+          try packageRoot
+            .appendingPathComponent("Sources")
+            .appendingPathComponent("lib")
+            .appendingPathComponent("include")
+            .filePath,
           arguments: args
         )
-        assertArgumentsDoNotContain("-I", build.pathString, arguments: args)
-        assertArgumentsDoNotContain(bcxx.pathString, arguments: args)
+        assertArgumentsDoNotContain("-I", try build.filePath, arguments: args)
+        assertArgumentsDoNotContain(try bcxx.filePath, arguments: args)
 
-        URL(fileURLWithPath: build.appending(components: "lib.build", "a.cpp.d").pathString)
+        URL(fileURLWithPath: try build.appendingPathComponent("lib.build").appendingPathComponent("a.cpp.d").filePath)
           .withUnsafeFileSystemRepresentation {
             assertArgumentsContain("-MD", "-MT", "dependencies", "-MF", String(cString: $0!), arguments: args)
           }
 
-        URL(fileURLWithPath: file.pathString).withUnsafeFileSystemRepresentation {
+        URL(fileURLWithPath: try file.filePath).withUnsafeFileSystemRepresentation {
           assertArgumentsContain("-c", String(cString: $0!), arguments: args)
         }
 
-        URL(fileURLWithPath: build.appending(components: "lib.build", "a.cpp.o").pathString)
+        URL(fileURLWithPath: try build.appendingPathComponent("lib.build").appendingPathComponent("a.cpp.o").filePath)
           .withUnsafeFileSystemRepresentation {
             assertArgumentsContain("-o", String(cString: $0!), arguments: args)
           }
@@ -608,8 +672,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
   func testDeploymentTargetSwift() async throws {
     try await withTestScratchDir { tempDir in
-      try localFileSystem.createFiles(
-        root: tempDir,
+      try FileManager.default.createFiles(
+        root: try tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
           "pkg/Package.swift": """
@@ -622,7 +686,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = tempDir.appending(component: "pkg")
+      let packageRoot = tempDir.appendingPathComponent("pkg")
       let buildSystemManager = await BuildSystemManager(
         buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
@@ -632,10 +696,14 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
-      let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
+      let aswift =
+        packageRoot
+        .appendingPathComponent("Sources")
+        .appendingPathComponent("lib")
+        .appendingPathComponent("a.swift")
       let arguments = try await unwrap(
         buildSystemManager.buildSettingsInferredFromMainFile(
-          for: aswift.asURI,
+          for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
         )
@@ -656,7 +724,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
   func testSymlinkInWorkspaceSwift() async throws {
     try await withTestScratchDir { tempDir in
-      try localFileSystem.createFiles(
+      try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg_real/Sources/lib/a.swift": "",
@@ -670,18 +738,18 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = tempDir.appending(component: "pkg")
+      let packageRoot = tempDir.appendingPathComponent("pkg")
 
       try FileManager.default.createSymbolicLink(
-        at: URL(fileURLWithPath: packageRoot.pathString),
-        withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").pathString)
+        at: URL(fileURLWithPath: packageRoot.filePath),
+        withDestinationURL: URL(fileURLWithPath: tempDir.appendingPathComponent("pkg_real").filePath)
       )
 
-      let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: packageRoot.asURL, options: .testDefault()))
+      let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: packageRoot, options: .testDefault()))
       let buildSystemManager = await BuildSystemManager(
         buildSystemSpec: BuildSystemSpec(
           kind: .swiftPM,
-          projectRoot: try AbsolutePath(validating: projectRoot.filePath)
+          projectRoot: projectRoot
         ),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
@@ -690,20 +758,24 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
-      let aswiftSymlink = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let aswiftReal = try resolveSymlinks(aswiftSymlink)
-      let manifest = packageRoot.appending(components: "Package.swift")
+      let aswiftSymlink =
+        packageRoot
+        .appendingPathComponent("Sources")
+        .appendingPathComponent("lib")
+        .appendingPathComponent("a.swift")
+      let aswiftReal = try aswiftSymlink.realpath
+      let manifest = packageRoot.appendingPathComponent("Package.swift")
 
       let argumentsFromSymlink = try await unwrap(
         buildSystemManager.buildSettingsInferredFromMainFile(
-          for: aswiftSymlink.asURI,
+          for: DocumentURI(aswiftSymlink),
           language: .swift,
           fallbackAfterTimeout: false
         )
       ).compilerArguments
       let argumentsFromReal = try await unwrap(
         buildSystemManager.buildSettingsInferredFromMainFile(
-          for: aswiftReal.asURI,
+          for: DocumentURI(aswiftReal),
           language: .swift,
           fallbackAfterTimeout: false
         )
@@ -713,33 +785,33 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       // contain they file the build settings were created.
       // FIXME: Or should the build settings always reference the main file?
       XCTAssertEqual(
-        argumentsFromSymlink.filter { $0 != aswiftSymlink.pathString && $0 != aswiftReal.pathString },
-        argumentsFromReal.filter { $0 != aswiftSymlink.pathString && $0 != aswiftReal.pathString }
+        try argumentsFromSymlink.filter { try $0 != aswiftSymlink.filePath && $0 != aswiftReal.filePath },
+        try argumentsFromReal.filter { try $0 != aswiftSymlink.filePath && $0 != aswiftReal.filePath }
       )
 
-      assertArgumentsContain(aswiftSymlink.pathString, arguments: argumentsFromSymlink)
-      assertArgumentsDoNotContain(aswiftReal.pathString, arguments: argumentsFromSymlink)
+      assertArgumentsContain(try aswiftSymlink.filePath, arguments: argumentsFromSymlink)
+      assertArgumentsDoNotContain(try aswiftReal.filePath, arguments: argumentsFromSymlink)
 
-      assertArgumentsContain(aswiftReal.pathString, arguments: argumentsFromReal)
-      assertArgumentsDoNotContain(aswiftSymlink.pathString, arguments: argumentsFromReal)
+      assertArgumentsContain(try aswiftReal.filePath, arguments: argumentsFromReal)
+      assertArgumentsDoNotContain(try aswiftSymlink.filePath, arguments: argumentsFromReal)
 
       let argsManifest = try await unwrap(
         buildSystemManager.buildSettingsInferredFromMainFile(
-          for: manifest.asURI,
+          for: DocumentURI(manifest),
           language: .swift,
           fallbackAfterTimeout: false
         )
       ).compilerArguments
       XCTAssertNotNil(argsManifest)
 
-      assertArgumentsContain(manifest.pathString, arguments: argsManifest)
-      assertArgumentsDoNotContain(try resolveSymlinks(manifest).pathString, arguments: argsManifest)
+      assertArgumentsContain(try manifest.filePath, arguments: argsManifest)
+      assertArgumentsDoNotContain(try manifest.realpath.filePath, arguments: argsManifest)
     }
   }
 
   func testSymlinkInWorkspaceCXX() async throws {
     try await withTestScratchDir { tempDir in
-      try localFileSystem.createFiles(
+      try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg_real/Sources/lib/a.cpp": "",
@@ -760,19 +832,19 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let acpp = ["Sources", "lib", "a.cpp"]
       let ah = ["Sources", "lib", "include", "a.h"]
 
-      let realRoot = tempDir.appending(component: "pkg_real")
-      let symlinkRoot = tempDir.appending(component: "pkg")
+      let realRoot = tempDir.appendingPathComponent("pkg_real")
+      let symlinkRoot = tempDir.appendingPathComponent("pkg")
 
       try FileManager.default.createSymbolicLink(
-        at: URL(fileURLWithPath: symlinkRoot.pathString),
-        withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").pathString)
+        at: URL(fileURLWithPath: symlinkRoot.filePath),
+        withDestinationURL: URL(fileURLWithPath: tempDir.appendingPathComponent("pkg_real").filePath)
       )
 
-      let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: symlinkRoot.asURL, options: .testDefault()))
+      let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: symlinkRoot, options: .testDefault()))
       let buildSystemManager = await BuildSystemManager(
         buildSystemSpec: BuildSystemSpec(
           kind: .swiftPM,
-          projectRoot: try AbsolutePath(validating: projectRoot.filePath)
+          projectRoot: projectRoot
         ),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
@@ -784,21 +856,21 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       for file in [acpp, ah] {
         let args = try unwrap(
           await buildSystemManager.buildSettingsInferredFromMainFile(
-            for: symlinkRoot.appending(components: file).asURI,
+            for: DocumentURI(symlinkRoot.appending(components: file)),
             language: .cpp,
             fallbackAfterTimeout: false
           )?
           .compilerArguments
         )
-        assertArgumentsDoNotContain(realRoot.appending(components: file).pathString, arguments: args)
-        assertArgumentsContain(symlinkRoot.appending(components: file).pathString, arguments: args)
+        assertArgumentsDoNotContain(try realRoot.appending(components: file).filePath, arguments: args)
+        assertArgumentsContain(try symlinkRoot.appending(components: file).filePath, arguments: args)
       }
     }
   }
 
   func testSwiftDerivedSources() async throws {
     try await withTestScratchDir { tempDir in
-      try localFileSystem.createFiles(
+      try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -813,7 +885,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
+      let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
         buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
@@ -823,16 +895,20 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
-      let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
+      let aswift =
+        packageRoot
+        .appendingPathComponent("Sources")
+        .appendingPathComponent("lib")
+        .appendingPathComponent("a.swift")
       let arguments = try await unwrap(
         buildSystemManager.buildSettingsInferredFromMainFile(
-          for: aswift.asURI,
+          for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
         )
       )
       .compilerArguments
-      assertArgumentsContain(aswift.pathString, arguments: arguments)
+      assertArgumentsContain(try aswift.filePath, arguments: arguments)
       XCTAssertNotNil(
         arguments.firstIndex(where: {
           $0.hasSuffix(".swift") && $0.contains("DerivedSources")
@@ -844,7 +920,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
   func testNestedInvalidPackageSwift() async throws {
     try await withTestScratchDir { tempDir in
-      try localFileSystem.createFiles(
+      try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/Package.swift": "// not a valid package",
@@ -858,16 +934,20 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let workspaceRoot = tempDir.appending(components: "pkg", "Sources", "lib").asURL
+      let workspaceRoot =
+        tempDir
+        .appendingPathComponent("pkg")
+        .appendingPathComponent("Sources")
+        .appendingPathComponent("lib")
       let projectRoot = SwiftPMBuildSystem.projectRoot(for: workspaceRoot, options: .testDefault())
 
-      assertEqual(projectRoot, tempDir.appending(component: "pkg").asURL)
+      assertEqual(projectRoot, tempDir.appendingPathComponent("pkg", isDirectory: true))
     }
   }
 
   func testPluginArgs() async throws {
     try await withTestScratchDir { tempDir in
-      try localFileSystem.createFiles(
+      try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg/Plugins/MyPlugin/a.swift": "",
@@ -885,7 +965,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           """,
         ]
       )
-      let packageRoot = tempDir.appending(component: "pkg")
+      let packageRoot = tempDir.appendingPathComponent("pkg")
       let buildSystemManager = await BuildSystemManager(
         buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
         toolchainRegistry: .forTesting,
@@ -895,12 +975,16 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
-      let aswift = packageRoot.appending(components: "Plugins", "MyPlugin", "a.swift")
+      let aswift =
+        packageRoot
+        .appendingPathComponent("Plugins")
+        .appendingPathComponent("MyPlugin")
+        .appendingPathComponent("a.swift")
 
       assertNotNil(await buildSystemManager.initializationData?.indexStorePath)
       let arguments = try await unwrap(
         buildSystemManager.buildSettingsInferredFromMainFile(
-          for: aswift.asURI,
+          for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
         )
@@ -908,7 +992,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       // Plugins get compiled with the same compiler arguments as the package manifest
       assertArgumentsContain("-package-description-version", "5.7.0", arguments: arguments)
-      assertArgumentsContain(aswift.pathString, arguments: arguments)
+      assertArgumentsContain(try aswift.filePath, arguments: arguments)
     }
   }
 
@@ -1022,11 +1106,25 @@ private func assertArgumentsContain(
 }
 
 private func buildPath(
-  root: AbsolutePath,
+  root: URL,
   options: SourceKitLSPOptions.SwiftPMOptions = SourceKitLSPOptions.SwiftPMOptions(),
   platform: String
-) -> AbsolutePath {
+) -> URL {
   let buildPath =
-    AbsolutePath(validatingOrNil: options.scratchPath) ?? root.appending(components: ".build", "index-build")
-  return buildPath.appending(components: platform, "\(options.configuration ?? .debug)")
+    if let scratchPath = options.scratchPath {
+      URL(fileURLWithPath: scratchPath)
+    } else {
+      root.appendingPathComponent(".build").appendingPathComponent("index-build")
+    }
+  return buildPath.appendingPathComponent(platform).appendingPathComponent("\(options.configuration ?? .debug)")
+}
+
+fileprivate extension URL {
+  func appending(components: [String]) -> URL {
+    var result = self
+    for component in components {
+      result.appendPathComponent(component)
+    }
+    return result
+  }
 }

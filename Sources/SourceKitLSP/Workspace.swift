@@ -232,7 +232,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     )
 
     logger.log(
-      "Created workspace at \(rootUri.forLogging) with project root \(buildSystemSpec?.projectRoot.pathString ?? "<nil>")"
+      "Created workspace at \(rootUri.forLogging) with project root \(buildSystemSpec?.projectRoot.description ?? "<nil>")"
     )
 
     var index: IndexStoreDB? = nil
@@ -249,7 +249,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     )
     if let indexStorePath, let indexDatabasePath, let libPath = await toolchainRegistry.default?.libIndexStore {
       do {
-        let lib = try IndexStoreLibrary(dylibPath: libPath.pathString)
+        let lib = try IndexStoreLibrary(dylibPath: libPath.filePath)
         indexDelegate = SourceKitIndexDelegate()
         let prefixMappings =
           indexOptions.indexPrefixMap?.map { PathPrefixMapping(original: $0.key, replacement: $0.value) } ?? []

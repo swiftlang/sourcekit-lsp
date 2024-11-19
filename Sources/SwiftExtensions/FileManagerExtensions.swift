@@ -24,4 +24,17 @@ extension FileManager {
     }
     return self.fileExists(atPath: filePath)
   }
+
+  /// Returns `true` if an entry exists in the file system at the given URL and that entry is a directory.
+  package func isDirectory(at url: URL) -> Bool {
+    var isDirectory: ObjCBool = false
+    return self.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue
+  }
+
+  /// Returns `true` if an entry exists in the file system at the given URL and that entry is a file, ie. not a
+  /// directory.
+  package func isFile(at url: URL) -> Bool {
+    var isDirectory: ObjCBool = false
+    return self.fileExists(atPath: url.path, isDirectory: &isDirectory) && !isDirectory.boolValue
+  }
 }

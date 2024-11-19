@@ -20,7 +20,6 @@ import SKOptions
 import SwiftExtensions
 import TSCExtensions
 
-import struct TSCBasic.AbsolutePath
 import func TSCBasic.getEnvSearchPaths
 import var TSCBasic.localFileSystem
 import func TSCBasic.lookupExecutablePath
@@ -34,7 +33,7 @@ private func executable(_ name: String) -> String {
   #endif
 }
 
-private let python3ExecutablePath: AbsolutePath? = {
+private let python3ExecutablePath: URL? = {
   let pathVariable: String
   #if os(Windows)
   pathVariable = "Path"
@@ -47,8 +46,8 @@ private let python3ExecutablePath: AbsolutePath? = {
       currentWorkingDirectory: localFileSystem.currentWorkingDirectory
     )
 
-  return lookupExecutablePath(filename: executable("python3"), searchPaths: searchPaths)
-    ?? lookupExecutablePath(filename: executable("python"), searchPaths: searchPaths)
+  return lookupExecutablePath(filename: executable("python3"), searchPaths: searchPaths)?.asURL
+    ?? lookupExecutablePath(filename: executable("python"), searchPaths: searchPaths)?.asURL
 }()
 
 struct ExecutableNotFoundError: Error {
@@ -75,16 +74,16 @@ private struct BuildServerConfig: Codable {
   /// Command arguments runnable via system processes to start a BSP server.
   let argv: [String]
 
-  static func load(from path: AbsolutePath) throws -> BuildServerConfig {
+  static func load(from path: URL) throws -> BuildServerConfig {
     let decoder = JSONDecoder()
-    let fileData = try localFileSystem.readFileContents(path).contents
-    return try decoder.decode(BuildServerConfig.self, from: Data(fileData))
+    let fileData = try Data(contentsOf: path)
+    return try decoder.decode(BuildServerConfig.self, from: fileData)
   }
 }
 
 /// Launches a subprocess that is a BSP server and manages the process's lifetime.
 actor ExternalBuildSystemAdapter {
-  private let projectRoot: AbsolutePath
+  private let projectRoot: URL
 
   /// The `BuildSystemManager` that handles messages from the BSP server to SourceKit-LSP.
   var messagesToSourceKitLSPHandler: MessageHandler
@@ -100,7 +99,7 @@ actor ExternalBuildSystemAdapter {
   /// Used to delay restarting in case of a crash loop.
   private var lastRestart: Date?
 
-  static package func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath? {
+  static package func projectRoot(for workspaceFolder: URL, options: SourceKitLSPOptions) -> URL? {
     guard getConfigPath(for: workspaceFolder) != nil else {
       return nil
     }
@@ -108,7 +107,7 @@ actor ExternalBuildSystemAdapter {
   }
 
   init(
-    projectRoot: AbsolutePath,
+    projectRoot: URL,
     messagesToSourceKitLSPHandler: MessageHandler
   ) async throws {
     self.projectRoot = projectRoot
@@ -154,11 +153,11 @@ actor ExternalBuildSystemAdapter {
     }
 
     let serverConfig = try BuildServerConfig.load(from: configPath)
-    var serverPath = try AbsolutePath(validating: serverConfig.argv[0], relativeTo: projectRoot)
+    var serverPath = URL(fileURLWithPath: serverConfig.argv[0], relativeTo: projectRoot.ensuringCorrectTrailingSlash)
     var serverArgs = Array(serverConfig.argv[1...])
 
-    if serverPath.suffix == ".py" {
-      serverArgs = [serverPath.pathString] + serverArgs
+    if serverPath.pathExtension == "py" {
+      serverArgs = [try serverPath.filePath] + serverArgs
       guard let interpreterPath = python3ExecutablePath else {
         throw ExecutableNotFoundError(executableName: "python3")
       }
@@ -167,7 +166,7 @@ actor ExternalBuildSystemAdapter {
     }
 
     return try JSONRPCConnection.start(
-      executable: serverPath.asURL,
+      executable: serverPath,
       arguments: serverArgs,
       name: "BSP-Server",
       protocol: bspRegistry,
@@ -188,10 +187,10 @@ actor ExternalBuildSystemAdapter {
     ).connection
   }
 
-  private static func getConfigPath(for workspaceFolder: AbsolutePath? = nil) -> AbsolutePath? {
+  private static func getConfigPath(for workspaceFolder: URL? = nil) -> URL? {
     var buildServerConfigLocations: [URL?] = []
     if let workspaceFolder = workspaceFolder {
-      buildServerConfigLocations.append(workspaceFolder.appending(component: ".bsp").asURL)
+      buildServerConfigLocations.append(workspaceFolder.appendingPathComponent(".bsp"))
     }
 
     #if os(Windows)
@@ -226,19 +225,17 @@ actor ExternalBuildSystemAdapter {
         try? FileManager.default.contentsOfDirectory(at: buildServerConfigLocation, includingPropertiesForKeys: nil)
         .filter { $0.pathExtension == "json" }
 
-      if let configFileURL = jsonFiles?.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }).first,
-        let configFilePath = AbsolutePath(validatingOrNil: try? configFileURL.filePath)
-      {
-        return configFilePath
+      if let configFileURL = jsonFiles?.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }).first {
+        return configFileURL
       }
     }
 
     // Pre Swift 6.1 SourceKit-LSP looked for `buildServer.json` in the project root. Maintain this search location for
     // compatibility even though it's not a standard BSP search location.
-    if let workspaceFolder = workspaceFolder,
-      localFileSystem.isFile(workspaceFolder.appending(component: "buildServer.json"))
+    if let buildServerPath = workspaceFolder?.appendingPathComponent("buildServer.json"),
+      FileManager.default.isFile(at: buildServerPath)
     {
-      return workspaceFolder.appending(component: "buildServer.json")
+      return buildServerPath
     }
 
     return nil
@@ -279,5 +276,19 @@ actor ExternalBuildSystemAdapter {
     // The build targets might have changed after the restart. Send a `buildTarget/didChange` notification to
     // SourceKit-LSP to discard cached information.
     self.messagesToSourceKitLSPHandler.handle(OnBuildTargetDidChangeNotification(changes: nil))
+  }
+}
+
+fileprivate extension URL {
+  /// If the path of this URL represents a directory, ensure that it has a trailing slash.
+  ///
+  /// This is important because if we form a file URL relative to eg. file:///tmp/a would assumes that `a` is a file
+  /// and use `/tmp` as the base, not `/tmp/a`.
+  var ensuringCorrectTrailingSlash: URL {
+    guard self.isFileURL else {
+      return self
+    }
+    // `URL(fileURLWithPath:)` checks the file system to decide whether a directory exists at the path.
+    return URL(fileURLWithPath: self.path)
   }
 }

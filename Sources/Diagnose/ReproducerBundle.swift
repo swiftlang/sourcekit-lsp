@@ -29,7 +29,7 @@ func makeReproducerBundle(for requestInfo: RequestInfo, toolchain: Toolchain, bu
     encoding: .utf8
   )
   if let toolchainPath = toolchain.path {
-    try toolchainPath.asURL.realpath.filePath
+    try toolchainPath.realpath.filePath
       .write(
         to: bundlePath.appendingPathComponent("toolchain.txt"),
         atomically: true,

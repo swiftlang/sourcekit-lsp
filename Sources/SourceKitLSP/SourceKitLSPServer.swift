@@ -30,7 +30,6 @@ package import ToolchainRegistry
 import struct PackageModel.BuildFlags
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
-import var TSCBasic.localFileSystem
 #else
 import BuildServerProtocol
 import BuildSystemIntegration
@@ -51,7 +50,6 @@ import ToolchainRegistry
 import struct PackageModel.BuildFlags
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
-import var TSCBasic.localFileSystem
 #endif
 
 /// Disambiguate LanguageServerProtocol.Language and IndexstoreDB.Language
@@ -540,7 +538,7 @@ package actor SourceKitLSPServer {
 
     logger.log(
       """
-      Using toolchain at \(toolchain.path?.pathString ?? "<nil>") (\(toolchain.identifier, privacy: .public)) \
+      Using toolchain at \(toolchain.path?.description ?? "<nil>") (\(toolchain.identifier, privacy: .public)) \
       for \(uri.forLogging)
       """
     )

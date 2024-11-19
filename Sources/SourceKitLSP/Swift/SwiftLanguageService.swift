@@ -28,8 +28,6 @@ import SwiftParser
 import SwiftParserDiagnostics
 package import SwiftSyntax
 package import ToolchainRegistry
-
-import struct TSCBasic.AbsolutePath
 #else
 import BuildSystemIntegration
 import Csourcekitd
@@ -48,8 +46,6 @@ import SwiftParser
 import SwiftParserDiagnostics
 import SwiftSyntax
 import ToolchainRegistry
-
-import struct TSCBasic.AbsolutePath
 #endif
 
 #if os(Windows)
@@ -125,7 +121,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   let sourcekitd: SourceKitD
 
   /// Path to the swift-format executable if it exists in the toolchain.
-  let swiftFormat: AbsolutePath?
+  let swiftFormat: URL?
 
   /// Queue on which notifications from sourcekitd are handled to ensure we are
   /// handling them in-order.

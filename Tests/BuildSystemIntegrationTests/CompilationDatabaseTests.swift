@@ -16,8 +16,10 @@ import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKTestSupport
 import SwiftExtensions
-import TSCBasic
+import TSCExtensions
 import XCTest
+
+import struct TSCBasic.RelativePath
 
 final class CompilationDatabaseTests: XCTestCase {
   func testEncodeCompDBCommand() throws {
@@ -176,115 +178,91 @@ final class CompilationDatabaseTests: XCTestCase {
     XCTAssertEqual(db[DocumentURI(filePath: "\(fileSystemRoot)b", isDirectory: false)], [cmd3])
   }
 
-  func testJSONCompilationDatabaseFromDirectory() throws {
-    let fs = InMemoryFileSystem()
-    try fs.createDirectory(AbsolutePath(validating: "/a"))
-    XCTAssertNil(
-      try tryLoadCompilationDatabase(
-        directory: AbsolutePath(validating: "/a"),
-        fs
-      )
-    )
+  func testJSONCompilationDatabaseFromDirectory() async throws {
+    try await withTestScratchDir { tempDir in
+      XCTAssertNil(tryLoadCompilationDatabase(directory: tempDir))
 
-    try fs.writeFileContents(
-      AbsolutePath(validating: "/a/compile_commands.json"),
-      bytes: """
-        [
-          {
-            "file": "/a/a.swift",
-            "directory": "/a",
-            "arguments": ["swiftc", "/a/a.swift"]
-          }
-        ]
-        """
-    )
-
-    XCTAssertNotNil(
-      try tryLoadCompilationDatabase(
-        directory: AbsolutePath(validating: "/a"),
-        fs
-      )
-    )
-  }
-
-  func testJSONCompilationDatabaseFromCustomDirectory() throws {
-    let fs = InMemoryFileSystem()
-    let root = try AbsolutePath(validating: "/a")
-    try fs.createDirectory(root)
-    XCTAssertNil(tryLoadCompilationDatabase(directory: root, fs))
-
-    let customDir = try RelativePath(validating: "custom/build/dir")
-    try fs.createDirectory(root.appending(customDir), recursive: true)
-
-    try fs.writeFileContents(
-      root
-        .appending(customDir)
-        .appending(component: "compile_commands.json"),
-      bytes: """
-        [
-          {
-            "file": "/a/a.swift",
-            "directory": "/a",
-            "arguments": ["swiftc", "/a/a.swift"]
-          }
-        ]
-        """
-    )
-
-    XCTAssertNotNil(
-      try tryLoadCompilationDatabase(
-        directory: AbsolutePath(validating: "/a"),
-        additionalSearchPaths: [
-          RelativePath(validating: "."),
-          customDir,
-        ],
-        fs
-      )
-    )
-  }
-
-  func testFixedCompilationDatabase() throws {
-    let fs = InMemoryFileSystem()
-    try fs.createDirectory(try AbsolutePath(validating: "/a"))
-    XCTAssertNil(
-      try tryLoadCompilationDatabase(
-        directory: AbsolutePath(validating: "/a"),
-        fs
-      )
-    )
-
-    try fs.writeFileContents(
-      try AbsolutePath(validating: "/a/compile_flags.txt"),
-      bytes: """
-        -xc++
-        -I
-        libwidget/include/
-        """
-    )
-
-    let db = try XCTUnwrap(tryLoadCompilationDatabase(directory: AbsolutePath(validating: "/a"), fs))
-
-    // Note: Use `AbsolutePath(validating:).pathString` to normalize forward slashes to backslashes on Windows
-    XCTAssertEqual(
-      db[DocumentURI(filePath: "/a/b", isDirectory: false)],
+      try """
       [
-        CompilationDatabase.Command(
-          directory: try AbsolutePath(validating: "/a").pathString,
-          filename: try AbsolutePath(validating: "/a/b").pathString,
-          commandLine: ["clang", "-xc++", "-I", "libwidget/include/", try AbsolutePath(validating: "/a/b").pathString],
-          output: nil
-        )
+        {
+          "file": "/a/a.swift",
+          "directory": "/a",
+          "arguments": ["swiftc", "/a/a.swift"]
+        }
       ]
-    )
+      """.write(to: tempDir.appendingPathComponent("compile_commands.json"), atomically: true, encoding: .utf8)
+
+      XCTAssertNotNil(tryLoadCompilationDatabase(directory: tempDir))
+    }
   }
 
-  func testInvalidCompilationDatabase() throws {
-    let fs = InMemoryFileSystem()
-    let dir = try AbsolutePath(validating: "/a")
-    try fs.createDirectory(dir)
-    try fs.writeFileContents(dir.appending(component: "compile_commands.json"), bytes: "")
+  func testJSONCompilationDatabaseFromCustomDirectory() async throws {
+    try await withTestScratchDir { tempDir in
+      XCTAssertNil(tryLoadCompilationDatabase(directory: tempDir))
 
-    XCTAssertNil(tryLoadCompilationDatabase(directory: dir, fs))
+      let customDir = try RelativePath(validating: "custom/build/dir")
+      try FileManager.default.createDirectory(at: tempDir.appending(customDir), withIntermediateDirectories: true)
+
+      try """
+      [
+        {
+          "file": "/a/a.swift",
+          "directory": "/a",
+          "arguments": ["swiftc", "/a/a.swift"]
+        }
+      ]
+      """.write(
+        to: tempDir.appending(customDir).appendingPathComponent("compile_commands.json"),
+        atomically: true,
+        encoding: .utf8
+      )
+
+      XCTAssertNotNil(
+        try tryLoadCompilationDatabase(
+          directory: tempDir,
+          additionalSearchPaths: [
+            RelativePath(validating: "."),
+            customDir,
+          ]
+        )
+      )
+    }
+  }
+
+  func testFixedCompilationDatabase() async throws {
+    try await withTestScratchDir { tempDir in
+      XCTAssertNil(tryLoadCompilationDatabase(directory: tempDir))
+
+      try """
+      -xc++
+      -I
+      libwidget/include/
+      """.write(to: tempDir.appendingPathComponent("compile_flags.txt"), atomically: true, encoding: .utf8)
+
+      let db = try XCTUnwrap(tryLoadCompilationDatabase(directory: tempDir))
+
+      let filePath = try tempDir.appendingPathComponent("a.c").filePath
+      XCTAssertEqual(
+        db[DocumentURI(filePath: filePath, isDirectory: false)],
+        [
+          CompilationDatabase.Command(
+            directory: try tempDir.filePath,
+            filename: filePath,
+            commandLine: [
+              "clang", "-xc++", "-I", "libwidget/include/", filePath,
+            ],
+            output: nil
+          )
+        ]
+      )
+    }
+  }
+
+  func testInvalidCompilationDatabase() async throws {
+    try await withTestScratchDir { tempDir in
+      try "".write(to: tempDir.appendingPathComponent("compile_commands.json"), atomically: true, encoding: .utf8)
+      XCTAssertNil(tryLoadCompilationDatabase(directory: tempDir))
+    }
   }
 
   func testCompilationDatabaseBuildSystem() async throws {
@@ -334,11 +312,11 @@ final class CompilationDatabaseTests: XCTestCase {
       """
     ) { buildSystem in
       assertEqual(
-        try URL(fileURLWithPath: await buildSystem.indexStorePath?.pathString ?? "").filePath,
+        try await buildSystem.indexStorePath?.filePath,
         "\(pathSeparator)b"
       )
       assertEqual(
-        try URL(fileURLWithPath: await buildSystem.indexDatabasePath?.pathString ?? "").filePath,
+        try await buildSystem.indexDatabasePath?.filePath,
         "\(pathSeparator)IndexDatabase"
       )
     }
@@ -366,7 +344,7 @@ final class CompilationDatabaseTests: XCTestCase {
       ]
       """
     ) { buildSystem in
-      await assertEqual(buildSystem.indexStorePath, try AbsolutePath(validating: "/b"))
+      await assertEqual(buildSystem.indexStorePath, URL(fileURLWithPath: "/b"))
     }
   }
 
@@ -382,7 +360,7 @@ final class CompilationDatabaseTests: XCTestCase {
       ]
       """
     ) { buildSystem in
-      assertEqual(await buildSystem.indexStorePath, try AbsolutePath(validating: "/b"))
+      assertEqual(await buildSystem.indexStorePath, URL(fileURLWithPath: "/b"))
     }
   }
 
@@ -425,11 +403,11 @@ final class CompilationDatabaseTests: XCTestCase {
       """
     ) { buildSystem in
       assertEqual(
-        try URL(fileURLWithPath: await buildSystem.indexStorePath?.pathString ?? "").filePath,
+        try await buildSystem.indexStorePath?.filePath,
         "\(pathSeparator)b"
       )
       assertEqual(
-        try URL(fileURLWithPath: await buildSystem.indexDatabasePath?.pathString ?? "").filePath,
+        try await buildSystem.indexDatabasePath?.filePath,
         "\(pathSeparator)IndexDatabase"
       )
     }
@@ -445,17 +423,16 @@ fileprivate var pathSeparator: String {
 }
 
 private func checkCompilationDatabaseBuildSystem(
-  _ compdb: ByteString,
-  block: (CompilationDatabaseBuildSystem) async throws -> ()
+  _ compdb: String,
+  block: @Sendable (CompilationDatabaseBuildSystem) async throws -> ()
 ) async throws {
-  let fs = InMemoryFileSystem()
-  try fs.createDirectory(AbsolutePath(validating: "/a"))
-  try fs.writeFileContents(AbsolutePath(validating: "/a/compile_commands.json"), bytes: compdb)
-  let buildSystem = CompilationDatabaseBuildSystem(
-    projectRoot: try AbsolutePath(validating: "/a"),
-    searchPaths: try [RelativePath(validating: ".")],
-    connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP"),
-    fileSystem: fs
-  )
-  try await block(XCTUnwrap(buildSystem))
+  try await withTestScratchDir { tempDir in
+    try compdb.write(to: tempDir.appendingPathComponent("compile_commands.json"), atomically: true, encoding: .utf8)
+    let buildSystem = CompilationDatabaseBuildSystem(
+      projectRoot: tempDir,
+      searchPaths: try [RelativePath(validating: ".")],
+      connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP")
+    )
+    try await block(XCTUnwrap(buildSystem))
+  }
 }
