@@ -92,7 +92,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
   func testRelativeScratchPath() async throws {
     try await withTestScratchDir { tempDir in
-      try localFileSystem.createFiles(
+      try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
@@ -122,8 +122,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
 
       let dataPath = await swiftpmBuildSystem.destinationBuildParameters.dataPath
-      let expectedScratchPath = packageRoot.appending(component: try XCTUnwrap(options.swiftPMOrDefault.scratchPath))
-      XCTAssertTrue(AbsolutePath(dataPath).isDescendant(of: expectedScratchPath))
+      let expectedScratchPath = packageRoot.appendingPathComponent(try XCTUnwrap(options.swiftPMOrDefault.scratchPath))
+      XCTAssertTrue(dataPath.asURL.isDescendant(of: expectedScratchPath))
     }
   }
 
