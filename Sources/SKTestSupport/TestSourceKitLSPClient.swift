@@ -146,6 +146,9 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
     cleanUp: @Sendable @escaping () -> Void = {}
   ) async throws {
+    if enableBackgroundIndexing {
+      try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
+    }
     var options = options
     if let globalModuleCache = try globalModuleCache {
       options.swiftPMOrDefault.swiftCompilerFlags =

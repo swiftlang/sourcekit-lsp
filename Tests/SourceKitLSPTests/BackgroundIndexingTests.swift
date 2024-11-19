@@ -542,6 +542,8 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testPrepareTargetAfterEditToDependency() async throws {
+    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
+
     var testHooks = TestHooks()
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       [
@@ -641,6 +643,8 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testDontStackTargetPreparationForEditorFunctionality() async throws {
+    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
+
     let allDocumentsOpened = WrappedSemaphore(name: "All documents opened")
     let libBStartedPreparation = WrappedSemaphore(name: "LibB started preparing")
     let libDPreparedForEditing = WrappedSemaphore(name: "LibD prepared for editing")
