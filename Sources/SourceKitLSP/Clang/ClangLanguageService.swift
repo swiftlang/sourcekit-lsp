@@ -581,6 +581,10 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
+  func documentOnTypeFormatting(_ req: DocumentOnTypeFormattingRequest) async throws -> [TextEdit]? {
+    return try await forwardRequestToClangd(req)
+  }
+
   func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
     return try await forwardRequestToClangd(req)
   }
