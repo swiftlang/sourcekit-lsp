@@ -11,19 +11,53 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SwiftExtensions
+
 package import LanguageServerProtocol
 package import SKOptions
 package import SwiftSyntax
 package import ToolchainRegistry
 
 package actor DocumentationLanguageService: LanguageService, Sendable {
+  /// The ``SourceKitLSPServer`` instance that created this `SwiftLanguageService`.
+  private(set) weak var sourceKitLSPServer: SourceKitLSPServer?
+
+  var documentManager: DocumentManager {
+    get throws {
+      guard let sourceKitLSPServer else {
+        throw ResponseError.unknown("Connection to the editor closed")
+      }
+      return sourceKitLSPServer.documentManager
+    }
+  }
+
   package init?(
     sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
     options: SourceKitLSPOptions,
     hooks: Hooks,
     workspace: Workspace
-  ) async throws {}
+  ) async throws {
+    self.sourceKitLSPServer = sourceKitLSPServer
+  }
+
+  func workspaceForDocument(uri: DocumentURI) async throws -> Workspace? {
+    guard let sourceKitLSPServer else {
+      throw ResponseError.unknown("Connection to the editor closed")
+    }
+    return await sourceKitLSPServer.workspaceForDocument(uri: uri)
+  }
+
+  func languageService(
+    for uri: DocumentURI,
+    _ language: Language,
+    in workspace: Workspace
+  ) async throws -> LanguageService? {
+    guard let sourceKitLSPServer else {
+      throw ResponseError.unknown("Connection to the editor closed")
+    }
+    return await sourceKitLSPServer.languageService(for: uri, language, in: workspace)
+  }
 
   package nonisolated func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool {
     return true
