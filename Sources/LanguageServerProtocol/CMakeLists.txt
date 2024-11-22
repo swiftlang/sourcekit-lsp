@@ -38,6 +38,7 @@ add_library(LanguageServerProtocol STATIC
   Requests/ColorPresentationRequest.swift
   Requests/CompletionItemResolveRequest.swift
   Requests/CompletionRequest.swift
+  Requests/ConvertDocumentationRequest.swift
   Requests/CreateWorkDoneProgressRequest.swift
   Requests/DeclarationRequest.swift
   Requests/DefinitionRequest.swift

@@ -169,6 +169,94 @@ interface SKCompletionOptions {
 }
 ```
 
+## `textDocument/convertDocumentation`
+
+New request that returns a RenderNode for a symbol at a given location that can then be
+rendered in an editor by `swiftlang/swift-docc-render`.
+
+This request uses Swift DocC's convert service to convert documentation for a Swift symbol
+or Markup/Tutorial file. It responds with a string containing a JSON encoded `RenderNode`
+or an error if the documentation could not be converted. This error message can be displayed
+to the user in the live preview editor.
+
+At the moment this request is only available on macOS and Linux. If SourceKit-LSP supports
+this request it will add `textDocument/convertDocumentation` to its experimental server
+capabilities.
+
+```ts
+export interface ConvertDocumentationParams {
+    /**
+     * The document to render documentation for.
+     */
+    textDocument: TextDocumentIdentifier;
+
+    /**
+     * The document location at which to lookup symbol information.
+     * 
+     * This parameter is only used in Swift files to determine which symbol to render.
+     * The position is ignored for markdown and tutorial documents.
+     */
+    position: Position;
+}
+
+export type ConvertDocumentationResponse = RenderNodeResponse | ErrorResponse;
+
+interface RenderNodeResponse {
+  /**
+   * The type of this response: either a RenderNode or error.
+   */
+  type: "renderNode";
+
+  /**
+   * The JSON encoded RenderNode that can be rendered by swift-docc-render.
+   */
+  renderNode: string;
+}
+
+interface ErrorResponse {
+  /**
+   * The type of this response: either a RenderNode or error.
+   */
+  type: "error";
+
+  /**
+   * The error that occurred.
+   */
+  error: ConvertDocumentationError;
+}
+
+export type ConvertDocumentationError = ErrorWithNoParams | SymbolNotFoundError;
+
+interface ErrorWithNoParams {
+  /**
+   * The kind of error that occurred.
+   */
+  kind: "indexNotAvailable" | "noDocumentation";
+
+  /**
+   * A human readable error message that can be shown to the user.
+   */
+  message: string;
+}
+
+interface SymbolNotFoundError {
+  /**
+   * The kind of error that occurred.
+   */
+  kind: "symbolNotFound";
+
+  /**
+   * The name of the symbol that could not be found.
+   */
+  symbolName: string;
+
+  /**
+   * A human readable error message that can be shown to the user.
+   */
+  message: string;
+}
+```
+
 ## `textDocument/symbolInfo`
 
 New request for semantic information about the symbol at a given location.
