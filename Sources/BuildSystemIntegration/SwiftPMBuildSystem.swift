@@ -537,16 +537,29 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1267)
     for target in request.targets {
       if target == .forPackageManifest {
+        let packageManifestName = #/^Package@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?.swift$/#
+        let versionSpecificManifests = try? FileManager.default.contentsOfDirectory(
+          at: projectRoot,
+          includingPropertiesForKeys: nil
+        ).compactMap { (url) -> SourceItem? in
+          guard (try? packageManifestName.wholeMatch(in: url.lastPathComponent)) != nil else {
+            return nil
+          }
+          return SourceItem(
+            uri: DocumentURI(url),
+            kind: .file,
+            generated: false
+          )
+        }
+        let packageManifest = SourceItem(
+          uri: DocumentURI(projectRoot.appendingPathComponent("Package.swift")),
+          kind: .file,
+          generated: false
+        )
         result.append(
           SourcesItem(
             target: target,
-            sources: [
-              SourceItem(
-                uri: DocumentURI(projectRoot.appendingPathComponent("Package.swift")),
-                kind: .file,
-                generated: false
-              )
-            ]
+            sources: [packageManifest] + (versionSpecificManifests ?? [])
           )
         )
       }
