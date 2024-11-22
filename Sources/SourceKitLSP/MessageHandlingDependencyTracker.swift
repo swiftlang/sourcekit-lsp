@@ -14,7 +14,7 @@
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
-import SwiftExtensions
+package import SwiftExtensions
 #else
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
@@ -88,6 +88,10 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
     case (_, .freestanding):
       return false
     }
+  }
+
+  package func dependencies(in pendingTasks: [PendingTask<Self>]) -> [PendingTask<Self>] {
+    return pendingTasks.filter { $0.metadata.isDependency(of: self) }
   }
 
   package init(_ notification: some NotificationType) {
