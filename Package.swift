@@ -486,6 +486,8 @@ var targets: [Target] = [
       "ToolchainRegistry",
       "TSCExtensions",
       .product(name: "SwiftDocC", package: "swift-docc"),
+      .product(name: "SymbolKit", package: "swift-docc-symbolkit"),
+      .product(name: "Markdown", package: "swift-markdown"),
       .product(name: "IndexStoreDB", package: "indexstore-db"),
       .product(name: "Crypto", package: "swift-crypto"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
@@ -770,6 +772,8 @@ var dependencies: [Package.Dependency] {
     return [
       .package(path: "../indexstore-db"),
       .package(path: "../swift-docc"),
+      .package(path: "../swift-docc-symbolkit"),
+      .package(path: "../swift-markdown"),
       .package(path: "../swift-tools-support-core"),
       .package(path: "../swift-argument-parser"),
       .package(path: "../swift-syntax"),
@@ -781,6 +785,8 @@ var dependencies: [Package.Dependency] {
     return [
       .package(url: "https://github.com/swiftlang/indexstore-db.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/swiftlang/swift-docc.git", branch: relatedDependenciesBranch),
+      .package(url: "https://github.com/swiftlang/swift-docc-symbolkit.git", branch: relatedDependenciesBranch),
+      .package(url: "https://github.com/swiftlang/swift-markdown.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/apple/swift-tools-support-core.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.4.0"),
       .package(url: "https://github.com/swiftlang/swift-syntax.git", branch: relatedDependenciesBranch),
