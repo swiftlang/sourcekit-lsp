@@ -833,7 +833,7 @@ final class CallHierarchyTests: XCTestCase {
       [
         CallHierarchyIncomingCall(
           from: CallHierarchyItem(
-            name: "Bar.init()",
+            name: "Outer.Bar.init()",
             kind: .constructor,
             tags: nil,
             uri: project.fileURI,
