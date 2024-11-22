@@ -720,6 +720,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.documentFormatting)
     case let request as RequestAndReply<DocumentRangeFormattingRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentRangeFormatting)
+    case let request as RequestAndReply<DocumentOnTypeFormattingRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentOnTypeFormatting)
     case let request as RequestAndReply<DocumentHighlightRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentSymbolHighlight)
     case let request as RequestAndReply<DocumentSemanticTokensDeltaRequest>:
@@ -971,7 +973,8 @@ extension SourceKitLSPServer {
     let result = InitializeResult(
       capabilities: await self.serverCapabilities(
         for: req.capabilities,
-        registry: self.capabilityRegistry!
+        registry: self.capabilityRegistry!,
+        options: options
       )
     )
     logger.logFullObjectInMultipleLogMessages(header: "Initialize response", AnyRequestType(request: req))
@@ -980,7 +983,8 @@ extension SourceKitLSPServer {
 
   func serverCapabilities(
     for client: ClientCapabilities,
-    registry: CapabilityRegistry
+    registry: CapabilityRegistry,
+    options: SourceKitLSPOptions
   ) async -> ServerCapabilities {
     let completionOptions =
       await registry.clientHasDynamicCompletionRegistration
@@ -989,6 +993,11 @@ extension SourceKitLSPServer {
         resolveProvider: false,
         triggerCharacters: [".", "("]
       )
+
+    let onTypeFormattingOptions =
+      options.hasExperimentalFeature(.onTypeFormatting)
+      ? DocumentOnTypeFormattingOptions(triggerCharacters: ["\n", "\r\n", "\r", "{", "}", ";", ".", ":", "#"])
+      : nil
 
     let foldingRangeOptions =
       await registry.clientHasDynamicFoldingRangeRegistration
@@ -1039,6 +1048,7 @@ extension SourceKitLSPServer {
       codeLensProvider: CodeLensOptions(),
       documentFormattingProvider: .value(DocumentFormattingOptions(workDoneProgress: false)),
       documentRangeFormattingProvider: .value(DocumentRangeFormattingOptions(workDoneProgress: false)),
+      documentOnTypeFormattingProvider: onTypeFormattingOptions,
       renameProvider: .value(RenameOptions(prepareProvider: true)),
       colorProvider: .bool(true),
       foldingRangeProvider: foldingRangeOptions,
@@ -1535,6 +1545,14 @@ extension SourceKitLSPServer {
     languageService: LanguageService
   ) async throws -> [TextEdit]? {
     return try await languageService.documentRangeFormatting(req)
+  }
+
+  func documentOnTypeFormatting(
+    _ req: DocumentOnTypeFormattingRequest,
+    workspace: Workspace,
+    languageService: LanguageService
+  ) async throws -> [TextEdit]? {
+    return try await languageService.documentOnTypeFormatting(req)
   }
 
   func colorPresentation(

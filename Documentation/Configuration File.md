@@ -51,5 +51,5 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping
   - `enabled`: Prepare a target without generating object files and the like
 - `cancelTextDocumentRequestsOnEditAndClose: bool`: Whether sending a `textDocument/didChange` or `textDocument/didClose` notification for a document should cancel all pending requests for that document.
-- `experimentalFeatures: string[]`: Experimental features to enable
+- `experimentalFeatures: string[]`: Experimental features to enable. Available features: on-type-formatting
 - `swiftPublishDiagnosticsDebounceDuration: double`: The time that `SwiftLanguageService` should wait after an edit before starting to compute diagnostics and sending a `PublishDiagnosticsNotification`.
