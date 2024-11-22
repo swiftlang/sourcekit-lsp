@@ -783,7 +783,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
 
   /// Retrieve settings for a package manifest (Package.swift).
   private func settings(forPackageManifest path: AbsolutePath) throws -> TextDocumentSourceKitOptionsResponse? {
-    let compilerArgs = swiftPMWorkspace.interpreterFlags(for: path.parentDirectory) + [path.pathString]
+    let compilerArgs = try swiftPMWorkspace.interpreterFlags(for: path) + [path.pathString]
     return TextDocumentSourceKitOptionsResponse(compilerArguments: compilerArgs)
   }
 }
