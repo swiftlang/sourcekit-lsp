@@ -222,6 +222,17 @@ package struct NonDarwinLogInterpolation: StringInterpolationProtocol, Sendable 
     append(description: String(reflecting: type), redactedDescription: "<private>", privacy: privacy)
   }
 
+  package mutating func appendInterpolation(
+    _ message: some Numeric & Sendable,
+    privacy: NonDarwinLogPrivacy = .public
+  ) {
+    append(description: String(describing: message), redactedDescription: "<private>", privacy: privacy)
+  }
+
+  package mutating func appendInterpolation(_ message: Bool, privacy: NonDarwinLogPrivacy = .public) {
+    append(description: message.description, redactedDescription: "<private>", privacy: privacy)
+  }
+
   /// Builds the string that represents the log message, masking all interpolation
   /// segments whose privacy level is greater that `logPrivacyLevel`.
   fileprivate func string(for logPrivacyLevel: NonDarwinLogPrivacy) -> String {
