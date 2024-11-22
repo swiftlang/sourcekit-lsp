@@ -1128,7 +1128,7 @@ extension SourceKitLSPServer {
     }
   }
 
-  func shutdown(_ request: ShutdownRequest) async throws -> VoidResponse {
+  func shutdown(_ request: ShutdownRequest) async throws -> ShutdownRequest.Response {
     await prepareForExit()
 
     await withTaskGroup(of: Void.self) { taskGroup in
@@ -1159,7 +1159,7 @@ extension SourceKitLSPServer {
     // Otherwise we might terminate sourcekit-lsp while it still has open
     // connections to the toolchain servers, which could send messages to
     // sourcekit-lsp while it is being deallocated, causing crashes.
-    return VoidResponse()
+    return ShutdownRequest.Response()
   }
 
   func exit(_ notification: ExitNotification) async {

@@ -141,7 +141,7 @@ final class IndexTests: XCTestCase {
         "Received unexpected version: \(versionContentsBefore.first?.lastPathComponent ?? "<nil>")"
       )
 
-      try await project.testClient.send(ShutdownRequest())
+      _ = try await project.testClient.send(ShutdownRequest())
       return versionedPath
     }
 
