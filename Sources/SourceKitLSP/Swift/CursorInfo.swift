@@ -140,7 +140,7 @@ extension SwiftLanguageService {
     additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil
   ) async throws -> (cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand], symbolGraph: String?) {
     let documentManager = try self.documentManager
-    let snapshot = try await self.latestSnapshot(for: uri)
+    let snapshot = try await self.latestSnapshotOrDisk(for: uri)
 
     let offsetRange = snapshot.utf8OffsetRange(of: range)
 
