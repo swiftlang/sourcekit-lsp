@@ -31,13 +31,16 @@ import struct TSCBasic.AbsolutePath
 /// See `ConfigurationFile.md` for a description of the configuration file's behavior.
 public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   public struct SwiftPMOptions: Sendable, Codable, Equatable {
-    /// Build configuration (debug|release).
+    /// The configuration to build the project for during background indexing
+    /// and the configuration whose build folder should be used for Swift
+    /// modules if background indexing is disabled.
     ///
     /// Equivalent to SwiftPM's `--configuration` option.
     public var configuration: BuildConfiguration?
 
     /// Build artifacts directory path. If nil, the build system may choose a default value.
     ///
+    /// This path can be specified as a relative path, which will be interpreted relative to the project root.
     /// Equivalent to SwiftPM's `--scratch-path` option.
     public var scratchPath: String?
 
@@ -50,19 +53,20 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     /// Equivalent to SwiftPM's `--triple` option
     public var triple: String?
 
-    /// Equivalent to SwiftPM's `-Xcc` option
+    /// Extra arguments passed to the compiler for C files. Equivalent to SwiftPM's `-Xcc` option.
     public var cCompilerFlags: [String]?
 
-    /// Equivalent to SwiftPM's `-Xcxx` option
+    /// Extra arguments passed to the compiler for C++ files. Equivalent to SwiftPM's `-Xcxx` option.
     public var cxxCompilerFlags: [String]?
 
-    /// Equivalent to SwiftPM's `-Xswiftc` option
+    /// Extra arguments passed to the compiler for Swift files. Equivalent to SwiftPM's `-Xswiftc` option.
     public var swiftCompilerFlags: [String]?
 
-    /// Equivalent to SwiftPM's `-Xlinker` option
+    /// Extra arguments passed to the linker. Equivalent to SwiftPM's `-Xlinker` option.
     public var linkerFlags: [String]?
 
-    /// Equivalent to SwiftPM's `--disable-sandbox` option
+    /// Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option
+    /// Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.
     public var disableSandbox: Bool?
 
     public init(
@@ -122,9 +126,13 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   }
 
   public struct FallbackBuildSystemOptions: Sendable, Codable, Equatable {
+    /// Extra arguments passed to the compiler for C files
     public var cCompilerFlags: [String]?
+    /// Extra arguments passed to the compiler for C++ files
     public var cxxCompilerFlags: [String]?
+    /// Extra arguments passed to the compiler for Swift files
     public var swiftCompilerFlags: [String]?
+    /// The SDK to use for fallback arguments. Default is to infer the SDK using `xcrun`.
     public var sdk: String?
 
     public init(
@@ -153,10 +161,15 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   }
 
   public struct IndexOptions: Sendable, Codable, Equatable {
+    /// Directory in which a separate compilation stores the index store. By default, inferred from the build system.
     public var indexStorePath: String?
+    /// Directory in which the indexstore-db should be stored. By default, inferred from the build system.
     public var indexDatabasePath: String?
+    /// Path remappings for remapping index data for local use.
     public var indexPrefixMap: [String: String]?
+    /// A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting
     public var maxCoresPercentageToUseForBackgroundIndexing: Double?
+    /// Number of seconds to wait for an update index store task to finish before killing it.
     public var updateIndexStoreTimeout: Int?
 
     public var maxCoresPercentageToUseForBackgroundIndexingOrDefault: Double {
@@ -202,6 +215,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     public var level: String?
 
     /// Whether potentially sensitive information should be redacted.
+    /// Default is `public`, which redacts potentially sensitive information.
     public var privacyLevel: String?
 
     /// Write all input received by SourceKit-LSP on stdin to a file in this directory.
@@ -241,18 +255,21 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     case enabled
   }
 
+  /// Options for SwiftPM workspaces
   private var swiftPM: SwiftPMOptions?
   public var swiftPMOrDefault: SwiftPMOptions {
     get { swiftPM ?? .init() }
     set { swiftPM = newValue }
   }
 
+  /// Dictionary with the following keys, defining options for workspaces with a compilation database
   private var compilationDatabase: CompilationDatabaseOptions?
   public var compilationDatabaseOrDefault: CompilationDatabaseOptions {
     get { compilationDatabase ?? .init() }
     set { compilationDatabase = newValue }
   }
 
+  /// Dictionary with the following keys, defining options for files that aren't managed by any build system
   private var fallbackBuildSystem: FallbackBuildSystemOptions?
   public var fallbackBuildSystemOrDefault: FallbackBuildSystemOptions {
     get { fallbackBuildSystem ?? .init() }
@@ -266,14 +283,20 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     get { .milliseconds(buildSettingsTimeout ?? 500) }
   }
 
+  /// Extra command line arguments passed to `clangd` when launching it
   public var clangdOptions: [String]?
 
+  /// Options related to indexing
   private var index: IndexOptions?
   public var indexOrDefault: IndexOptions {
     get { index ?? .init() }
     set { index = newValue }
   }
 
+  /// Options related to logging, changing SourceKit-LSP’s logging behavior on non-Apple platforms.
+  ///
+  /// On Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging).
+  /// These options can only be set globally and not per workspace.
   private var logging: LoggingOptions?
   public var loggingOrDefault: LoggingOptions {
     get { logging ?? .init() }
@@ -282,6 +305,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
 
   /// Default workspace type (buildserver|compdb|swiftpm). Overrides workspace type selection logic.
   public var defaultWorkspaceType: WorkspaceType?
+  /// Directory in which generated interfaces and macro expansions should be stored.
   public var generatedFilesPath: String?
 
   /// Whether background indexing is enabled.
@@ -291,6 +315,10 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     return backgroundIndexing ?? true
   }
 
+  /// Determines how background indexing should prepare a target. Possible values are:
+  ///   - `build`: Build a target to prepare it
+  ///   - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping
+  ///   - `enabled`: Prepare a target without generating object files and the like
   public var backgroundPreparationMode: String?
 
   public var backgroundPreparationModeOrDefault: BackgroundPreparationMode {
