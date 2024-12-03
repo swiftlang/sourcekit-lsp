@@ -1343,6 +1343,10 @@ final class CodingTests: XCTestCase {
         """
     )
   }
+
+  func testShutdownResponse() {
+    checkCoding(ShutdownRequest.Response(), json: "null")
+  }
 }
 
 func with<T>(_ value: T, mutate: (inout T) -> Void) -> T {
