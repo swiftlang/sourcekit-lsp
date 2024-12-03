@@ -212,4 +212,22 @@ final class LoggingTests: XCTestCase {
       $0.log("got \(LogStringConvertible().forLogging)")
     }
   }
+
+  func testIntegerNotConsideredPrivate() async {
+    await assertLogging(
+      privacyLevel: .public,
+      expected: ["got 42"]
+    ) {
+      $0.log("got \(42)")
+    }
+  }
+
+  func testBoolNotConsideredPrivate() async {
+    await assertLogging(
+      privacyLevel: .public,
+      expected: ["got true"]
+    ) {
+      $0.log("got \(true)")
+    }
+  }
 }
