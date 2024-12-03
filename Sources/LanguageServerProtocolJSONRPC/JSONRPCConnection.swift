@@ -16,6 +16,9 @@ public import Foundation
 public import LanguageServerProtocol
 import SKLogging
 import SwiftExtensions
+#if canImport(Android)
+import Android
+#endif
 #else
 import Dispatch
 import Foundation

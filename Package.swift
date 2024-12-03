@@ -487,7 +487,6 @@ var targets: [Target] = [
       "SwiftExtensions",
       "TSCExtensions",
     ],
-    exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
   ),
 ]
