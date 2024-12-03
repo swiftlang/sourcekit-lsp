@@ -56,8 +56,12 @@ public struct DocumentURI: Codable, Hashable, Sendable {
   /// fallback mode that drops semantic functionality.
   public var pseudoPath: String {
     if storage.isFileURL {
-      return storage.withUnsafeFileSystemRepresentation {
-        String(cString: $0!)
+      return storage.withUnsafeFileSystemRepresentation { filePath in
+        if let filePath {
+          String(cString: filePath)
+        } else {
+          ""
+        }
       }
     } else {
       return storage.absoluteString
