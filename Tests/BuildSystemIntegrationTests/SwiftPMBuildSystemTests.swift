@@ -1103,6 +1103,51 @@ final class SwiftPMBuildSystemTests: XCTestCase {
     XCTAssertEqual(end.token, begin.token)
     XCTAssertEqual(end.value, .end(WorkDoneProgressEnd()))
   }
+
+  func testBuildSettingsForVersionSpecificPackageManifest() async throws {
+    try await withTestScratchDir { tempDir in
+      try FileManager.default.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
+          """,
+          "pkg/Package@swift-5.8.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
+          """,
+        ]
+      )
+      let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
+      let versionSpecificManifestURL = packageRoot.appendingPathComponent("Package@swift-5.8.swift")
+      let buildSystemManager = await BuildSystemManager(
+        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        toolchainRegistry: .forTesting,
+        options: SourceKitLSPOptions(),
+        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
+        buildSystemTestHooks: BuildSystemTestHooks()
+      )
+      await buildSystemManager.waitForUpToDateBuildGraph()
+      let settings = await buildSystemManager.buildSettingsInferredFromMainFile(
+        for: DocumentURI(versionSpecificManifestURL),
+        language: .swift,
+        fallbackAfterTimeout: false
+      )
+      let compilerArgs = try XCTUnwrap(settings?.compilerArguments)
+      XCTAssert(compilerArgs.contains("-package-description-version"))
+      XCTAssert(compilerArgs.contains(try versionSpecificManifestURL.filePath))
+    }
+  }
 }
 
 private func assertArgumentsDoNotContain(
