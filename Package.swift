@@ -578,7 +578,7 @@ var dependencies: [Package.Dependency] {
       .package(path: "../swift-crypto"),
     ]
   } else {
-    let relatedDependenciesBranch = "main"
+    let relatedDependenciesBranch = "release/6.1"
 
     return [
       .package(url: "https://github.com/swiftlang/indexstore-db.git", branch: relatedDependenciesBranch),
