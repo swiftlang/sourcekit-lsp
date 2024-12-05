@@ -578,6 +578,13 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
           data: SourceKitSourceItemData(isHeader: true).encodeToLSPAny()
         )
       }
+      sources += (swiftPMTarget.resources + swiftPMTarget.ignored + swiftPMTarget.others).map {
+        SourceItem(
+          uri: DocumentURI($0),
+          kind: $0.isDirectory ? .directory : .file,
+          generated: false,
+        )
+      }
       result.append(SourcesItem(target: target, sources: sources))
     }
     return BuildTargetSourcesResponse(items: result)
@@ -771,5 +778,11 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   private func settings(forPackageManifest path: AbsolutePath) throws -> TextDocumentSourceKitOptionsResponse? {
     let compilerArgs = swiftPMWorkspace.interpreterFlags(for: path.parentDirectory) + [path.pathString]
     return TextDocumentSourceKitOptionsResponse(compilerArguments: compilerArgs)
+  }
+}
+
+fileprivate extension URL {
+  var isDirectory: Bool {
+    (try? resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
   }
 }
