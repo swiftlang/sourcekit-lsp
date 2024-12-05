@@ -154,7 +154,7 @@ public extension Language {
   static let shellScript = Language(rawValue: "shellscript")  // Shell Script (Bash)
   static let sql = Language(rawValue: "sql")
   static let swift = Language(rawValue: "swift")
-  static let tutorial = Language(rawValue: "tutorial")
+  static let tutorial = Language(rawValue: "tutorial")  // LSP Extension: Swift DocC Tutorial
   static let typeScript = Language(rawValue: "typescript")
   static let typeScriptReact = Language(rawValue: "typescriptreact")  // TypeScript React
   static let tex = Language(rawValue: "tex")
