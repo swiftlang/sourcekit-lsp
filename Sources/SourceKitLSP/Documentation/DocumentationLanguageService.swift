@@ -10,16 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildSystemIntegration
-import Csourcekitd
-import Dispatch
 import Foundation
-import IndexStoreDB
-import SKLogging
-import SemanticIndex
-import SwiftExtensions
-import SwiftParser
-import SwiftParserDiagnostics
 
 #if compiler(>=6)
 package import LanguageServerProtocol
@@ -109,16 +100,14 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
   }
 
   package func completion(_ req: CompletionRequest) async throws -> CompletionList {
-    .init(isIncomplete: false, items: [])
+    CompletionList(isIncomplete: false, items: [])
   }
 
   package func hover(_ req: HoverRequest) async throws -> HoverResponse? {
-    .none
+    nil
   }
 
-  package func symbolInfo(
-    _ request: SymbolInfoRequest
-  ) async throws -> [SymbolDetails] {
+  package func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails] {
     []
   }
 
@@ -131,39 +120,27 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     nil
   }
 
-  package func definition(
-    _ request: DefinitionRequest
-  ) async throws -> LocationsOrLocationLinksResponse? {
+  package func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
     nil
   }
 
-  package func declaration(
-    _ request: DeclarationRequest
-  ) async throws -> LocationsOrLocationLinksResponse? {
+  package func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse? {
     nil
   }
 
-  package func documentSymbolHighlight(
-    _ req: DocumentHighlightRequest
-  ) async throws -> [DocumentHighlight]? {
+  package func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
     nil
   }
 
-  package func foldingRange(
-    _ req: FoldingRangeRequest
-  ) async throws -> [FoldingRange]? {
+  package func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
     nil
   }
 
-  package func documentSymbol(
-    _ req: DocumentSymbolRequest
-  ) async throws -> DocumentSymbolResponse? {
+  package func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
     nil
   }
 
-  package func documentColor(
-    _ req: DocumentColorRequest
-  ) async throws -> [ColorInformation] {
+  package func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
     []
   }
 
@@ -185,21 +162,15 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     nil
   }
 
-  package func colorPresentation(
-    _ req: ColorPresentationRequest
-  ) async throws -> [ColorPresentation] {
+  package func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {
     []
   }
 
-  package func codeAction(
-    _ req: CodeActionRequest
-  ) async throws -> CodeActionRequestResponse? {
+  package func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
     nil
   }
 
-  package func inlayHint(
-    _ req: InlayHintRequest
-  ) async throws -> [InlayHint] {
+  package func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
     []
   }
 
@@ -207,15 +178,11 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     []
   }
 
-  package func documentDiagnostic(
-    _ req: DocumentDiagnosticsRequest
-  ) async throws -> DocumentDiagnosticReport {
-    .full(.init(items: []))
+  package func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
+    .full(RelatedFullDocumentDiagnosticReport(items: []))
   }
 
-  package func documentFormatting(
-    _ req: DocumentFormattingRequest
-  ) async throws -> [TextEdit]? {
+  package func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]? {
     nil
   }
 
@@ -229,10 +196,8 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     return nil
   }
 
-  package func rename(
-    _ request: RenameRequest
-  ) async throws -> (edits: WorkspaceEdit, usr: String?) {
-    (edits: .init(), usr: nil)
+  package func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
+    (edits: WorkspaceEdit(), usr: nil)
   }
 
   package func editsToRename(
@@ -250,9 +215,7 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     nil
   }
 
-  package func indexedRename(
-    _ request: IndexedRenameRequest
-  ) async throws -> WorkspaceEdit? {
+  package func indexedRename(_ request: IndexedRenameRequest) async throws -> WorkspaceEdit? {
     nil
   }
 
@@ -264,16 +227,12 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     []
   }
 
-  package func executeCommand(
-    _ req: ExecuteCommandRequest
-  ) async throws -> LSPAny? {
+  package func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
     nil
   }
 
-  package func getReferenceDocument(
-    _ req: GetReferenceDocumentRequest
-  ) async throws -> GetReferenceDocumentResponse {
-    .init(content: "")
+  package func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
+    GetReferenceDocumentResponse(content: "")
   }
 
   package func syntacticDocumentTests(
