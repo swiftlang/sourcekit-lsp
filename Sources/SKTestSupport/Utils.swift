@@ -26,6 +26,8 @@ extension Language {
   var fileExtension: String {
     switch self {
     case .objective_c: return "m"
+    case .markdown: return "md"
+    case .tutorial: return "tutorial"
     default: return self.rawValue
     }
   }
@@ -37,6 +39,8 @@ extension Language {
     case "m": self = .objective_c
     case "mm": self = .objective_cpp
     case "swift": self = .swift
+    case "md": self = .markdown
+    case "tutorial": self = .tutorial
     default: return nil
     }
   }

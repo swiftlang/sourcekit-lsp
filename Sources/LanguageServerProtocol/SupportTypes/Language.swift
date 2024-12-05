@@ -92,6 +92,7 @@ extension Language: CustomStringConvertible, CustomDebugStringConvertible {
     case .shellScript: return "Shell Script (Bash)"
     case .sql: return "SQL"
     case .swift: return "Swift"
+    case .tutorial: return "Tutorial"
     case .typeScript: return "TypeScript"
     case .typeScriptReact: return "TypeScript React"
     case .tex: return "TeX"
@@ -153,6 +154,7 @@ public extension Language {
   static let shellScript = Language(rawValue: "shellscript")  // Shell Script (Bash)
   static let sql = Language(rawValue: "sql")
   static let swift = Language(rawValue: "swift")
+  static let tutorial = Language(rawValue: "tutorial")
   static let typeScript = Language(rawValue: "typescript")
   static let typeScriptReact = Language(rawValue: "typescriptreact")  // TypeScript React
   static let tex = Language(rawValue: "tex")
