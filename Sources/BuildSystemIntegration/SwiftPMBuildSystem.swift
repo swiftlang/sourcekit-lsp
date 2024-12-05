@@ -565,21 +565,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
           data: SourceKitSourceItemData(isHeader: true).encodeToLSPAny()
         )
       }
-      sources += swiftPMTarget.resources.map {
-        SourceItem(
-          uri: DocumentURI($0),
-          kind: $0.isDirectory ? .directory : .file,
-          generated: false,
-        )
-      }
-      sources += swiftPMTarget.ignored.map {
-        SourceItem(
-          uri: DocumentURI($0),
-          kind: $0.isDirectory ? .directory : .file,
-          generated: false,
-        )
-      }
-      sources += swiftPMTarget.others.map {
+      sources += (swiftPMTarget.resources + swiftPMTarget.ignored + swiftPMTarget.others).map {
         SourceItem(
           uri: DocumentURI($0),
           kind: $0.isDirectory ? .directory : .file,
