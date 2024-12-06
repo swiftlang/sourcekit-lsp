@@ -622,3 +622,10 @@ export interface GetReferenceDocumentResult {
   content: string;
 }
 ```
+
+## Languages
+
+Added a new language with the identifier `tutorial` to support the `*.tutorial` files that
+Swift DocC uses to define tutorials and tutorial overviews in its documentation catalogs.
+It is expected that editors send document events for `tutorial` and `markdown` files if
+they wish to request information about these files from SourceKit-LSP.
