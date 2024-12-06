@@ -764,8 +764,10 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   }
 
   package func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) async {
-    if notification.changes.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
-      logger.log("Reloading package because of file change")
+    if let packageReloadTriggerEvent = notification.changes.first(where: {
+      self.fileEventShouldTriggerPackageReload(event: $0)
+    }) {
+      logger.log("Reloading package because \(packageReloadTriggerEvent.uri.forLogging) changed")
       await packageLoadingQueue.async {
         await orLog("Reloading package") {
           try await self.reloadPackageAssumingOnPackageLoadingQueue()
