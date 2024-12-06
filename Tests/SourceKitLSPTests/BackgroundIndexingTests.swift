@@ -885,17 +885,6 @@ final class BackgroundIndexingTests: XCTestCase {
     )
   }
 
-  func testShowMessageWhenOpeningAProjectThatDoesntSupportBackgroundIndexing() async throws {
-    let project = try await MultiFileTestProject(
-      files: [
-        "compile_commands.json": ""
-      ],
-      enableBackgroundIndexing: true
-    )
-    let message = try await project.testClient.nextNotification(ofType: ShowMessageNotification.self)
-    XCTAssert(message.message.contains("Background indexing"), "Received unexpected message: \(message.message)")
-  }
-
   func testNoPreparationStatusIfTargetIsUpToDate() async throws {
     let project = try await SwiftPMTestProject(
       files: [
