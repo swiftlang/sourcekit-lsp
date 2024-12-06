@@ -129,6 +129,8 @@ actor SyntacticTestIndex {
   }
 
   func filesDidChange(_ events: [FileEvent]) {
+    var removedFiles: Set<DocumentURI> = []
+    var filesToRescan: [DocumentURI] = []
     for fileEvent in events {
       switch fileEvent.type {
       case .created:
@@ -136,13 +138,15 @@ actor SyntacticTestIndex {
         // `listOfTestFilesDidChange`
         break
       case .changed:
-        rescanFiles([fileEvent.uri])
+        filesToRescan.append(fileEvent.uri)
       case .deleted:
-        removeFilesFromIndex([fileEvent.uri])
+        removedFiles.insert(fileEvent.uri)
       default:
         logger.error("Ignoring unknown FileEvent type \(fileEvent.type.rawValue) in SyntacticTestIndex")
       }
     }
+    removeFilesFromIndex(removedFiles)
+    rescanFiles(filesToRescan)
   }
 
   /// Called when a list of files was updated. Re-scans those files
