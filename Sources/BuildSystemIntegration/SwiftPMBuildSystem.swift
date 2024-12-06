@@ -214,9 +214,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   private let swiftPMWorkspace: Workspace
 
   /// A `ObservabilitySystem` from `SwiftPM` that logs.
-  private let observabilitySystem = ObservabilitySystem({ scope, diagnostic in
-    logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
-  })
+  private let observabilitySystem: ObservabilitySystem
 
   // MARK: Build system state (modified on package reload)
 
@@ -279,6 +277,13 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     self.toolchain = toolchain
     self.testHooks = testHooks
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
+
+    self.observabilitySystem = ObservabilitySystem({ scope, diagnostic in
+      connectionToSourceKitLSP.send(
+        OnBuildLogMessageNotification(type: .info, task: TaskId(id: "swiftpm-log"), message: diagnostic.description)
+      )
+      logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
+    })
 
     guard let destinationToolchainBinDir = toolchain.swiftc?.deletingLastPathComponent() else {
       throw Error.cannotDetermineHostToolchain
