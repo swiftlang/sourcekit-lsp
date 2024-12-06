@@ -863,20 +863,16 @@ final class SwiftCompletionTests: XCTestCase {
           deprecated: false,
           sortText: nil,
           filterText: "myMap(:)",
-          insertText: """
-            myMap { ${1:Int} in
-                ${2:Bool}
-            }
-            """,
+          insertText: #"""
+            myMap(${1:\{ ${2:Int} in ${3:Bool} \}})
+            """#,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
             TextEdit(
               range: Range(positions["1️⃣"]),
-              newText: """
-                myMap { ${1:Int} in
-                    ${2:Bool}
-                }
-                """
+              newText: #"""
+                myMap(${1:\{ ${2:Int} in ${3:Bool} \}})
+                """#
             )
           )
         )
@@ -911,20 +907,16 @@ final class SwiftCompletionTests: XCTestCase {
           deprecated: false,
           sortText: nil,
           filterText: ".myMap(:)",
-          insertText: """
-            ?.myMap { ${1:Int} in
-                ${2:Bool}
-            }
-            """,
+          insertText: #"""
+            ?.myMap(${1:\{ ${2:Int} in ${3:Bool} \}})
+            """#,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
             TextEdit(
               range: positions["1️⃣"]..<positions["2️⃣"],
-              newText: """
-                ?.myMap { ${1:Int} in
-                    ${2:Bool}
-                }
-                """
+              newText: #"""
+                ?.myMap(${1:\{ ${2:Int} in ${3:Bool} \}})
+                """#
             )
           )
         )
@@ -959,24 +951,16 @@ final class SwiftCompletionTests: XCTestCase {
           deprecated: false,
           sortText: nil,
           filterText: "myMap(::)",
-          insertText: """
-            myMap { ${1:Int} in
-                ${2:Bool}
-            } _: { ${3:Int} in
-                ${4:String}
-            }
-            """,
+          insertText: #"""
+            myMap(${1:\{ ${2:Int} in ${3:Bool} \}}, ${4:\{ ${5:Int} in ${6:String} \}})
+            """#,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
             TextEdit(
               range: Range(positions["1️⃣"]),
-              newText: """
-                myMap { ${1:Int} in
-                    ${2:Bool}
-                } _: { ${3:Int} in
-                    ${4:String}
-                }
-                """
+              newText: #"""
+                myMap(${1:\{ ${2:Int} in ${3:Bool} \}}, ${4:\{ ${5:Int} in ${6:String} \}})
+                """#
             )
           )
         )
@@ -1011,24 +995,16 @@ final class SwiftCompletionTests: XCTestCase {
           deprecated: false,
           sortText: nil,
           filterText: "myMap(:second:)",
-          insertText: """
-            myMap { ${1:Int} in
-                ${2:Bool}
-            } second: { ${3:Int} in
-                ${4:String}
-            }
-            """,
+          insertText: #"""
+            myMap(${1:\{ ${2:Int} in ${3:Bool} \}}, second: ${4:\{ ${5:Int} in ${6:String} \}})
+            """#,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
             TextEdit(
               range: Range(positions["1️⃣"]),
-              newText: """
-                myMap { ${1:Int} in
-                    ${2:Bool}
-                } second: { ${3:Int} in
-                    ${4:String}
-                }
-                """
+              newText: #"""
+                myMap(${1:\{ ${2:Int} in ${3:Bool} \}}, second: ${4:\{ ${5:Int} in ${6:String} \}})
+                """#
             )
           )
         )
@@ -1065,20 +1041,16 @@ final class SwiftCompletionTests: XCTestCase {
           deprecated: false,
           sortText: nil,
           filterText: "myMap(:)",
-          insertText: """
-            myMap { ${1:Int} in
-              ${2:Bool}
-            }
-            """,
+          insertText: #"""
+            myMap(${1:\{ ${2:Int} in ${3:Bool} \}})
+            """#,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
             TextEdit(
               range: Range(positions["1️⃣"]),
-              newText: """
-                myMap { ${1:Int} in
-                  ${2:Bool}
-                }
-                """
+              newText: #"""
+                myMap(${1:\{ ${2:Int} in ${3:Bool} \}})
+                """#
             )
           )
         )
