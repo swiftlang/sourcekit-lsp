@@ -329,7 +329,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     }
 
     var configuration = WorkspaceConfiguration.default
-    configuration.skipDependenciesUpdates = true
+    configuration.skipDependenciesUpdates = !options.backgroundIndexingOrDefault
 
     self.swiftPMWorkspace = try Workspace(
       fileSystem: localFileSystem,
