@@ -1009,19 +1009,21 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       return []
     }
 
+    let request = BuildTargetSourcesRequest(targets: targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
+
     // If we have a cached request for a superset of the targets, serve the result from that cache entry.
     let fromSuperset = await orLog("Getting source files from superset request") {
-      try await cachedTargetSources.get(isolation: self) { request in
-        targets.isSubset(of: request.targets)
-      } transform: { response in
-        return BuildTargetSourcesResponse(items: response.items.filter { targets.contains($0.target) })
-      }
+      try await cachedTargetSources.getDerived(
+        isolation: self,
+        request,
+        canReuseKey: { targets.isSubset(of: $0.targets) },
+        transform: { BuildTargetSourcesResponse(items: $0.items.filter { targets.contains($0.target) }) }
+      )
     }
     if let fromSuperset {
       return fromSuperset.items
     }
 
-    let request = BuildTargetSourcesRequest(targets: targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
     let response = try await cachedTargetSources.get(request, isolation: self) { request in
       try await buildSystemAdapter.send(request)
     }

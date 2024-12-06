@@ -33,15 +33,28 @@ package class Cache<Key: Sendable & Hashable, Result: Sendable> {
     return try await task.value
   }
 
-  package func get(
+  /// Get the value cached for `key`. If no value exists for `key`, try deriving the result from an existing cache entry
+  /// that satisfies `canReuseKey` by applying `transform` to that result.
+  package func getDerived(
     isolation: isolated any Actor,
-    whereKey keyPredicate: (Key) -> Bool,
-    transform: @Sendable @escaping (Result) -> Result
+    _ key: Key,
+    canReuseKey: @Sendable @escaping (Key) -> Bool,
+    transform: @Sendable @escaping (_ cachedResult: Result) -> Result
   ) async throws -> Result? {
-    for (key, value) in storage {
-      if keyPredicate(key) {
-        return try await transform(value.value)
+    if let cached = storage[key] {
+      // If we have a value for the requested key, prefer that
+      return try await cached.value
+    }
+
+    // See if don't have an entry for this key, see if we can derive the value from a cached entry.
+    for (cachedKey, cachedValue) in storage {
+      guard canReuseKey(cachedKey) else {
+        continue
       }
+      let transformed = Task { try await transform(cachedValue.value) }
+      // Cache the transformed result.
+      storage[key] = transformed
+      return try await transformed.value
     }
     return nil
   }
