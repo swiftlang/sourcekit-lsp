@@ -2031,6 +2031,7 @@ extension SourceKitLSPServer {
     // callOccurrences are all the places that any of the USRs in callableUsrs is called.
     // We also load the `calledBy` roles to get the method that contains the reference to this call.
     let callOccurrences = callableUsrs.flatMap { index.occurrences(ofUSR: $0, roles: .containedBy) }
+      .filter(\.shouldShowInCallHierarchy)
 
     // Maps functions that call a USR in `callableUSRs` to all the called occurrences of `callableUSRs` within the
     // function. If a function `foo` calls `bar` multiple times, `callersToCalls[foo]` will contain two call
@@ -2101,6 +2102,7 @@ extension SourceKitLSPServer {
 
     let callableUsrs = [data.usr] + index.occurrences(relatedToUSR: data.usr, roles: .accessorOf).map(\.symbol.usr)
     let callOccurrences = callableUsrs.flatMap { index.occurrences(relatedToUSR: $0, roles: .containedBy) }
+      .filter(\.shouldShowInCallHierarchy)
     let calls = callOccurrences.compactMap { occurrence -> CallHierarchyOutgoingCall? in
       guard occurrence.symbol.kind.isCallable else {
         return nil
@@ -2501,6 +2503,13 @@ extension IndexSymbolKind {
       .class, .staticProperty, .classProperty:
       return false
     }
+  }
+}
+
+fileprivate extension SymbolOccurrence {
+  /// Whether this is a call-like occurrence that should be shown in the call hierarchy.
+  var shouldShowInCallHierarchy: Bool {
+    !roles.intersection([.addressOf, .call, .read, .reference, .write]).isEmpty
   }
 }
 
