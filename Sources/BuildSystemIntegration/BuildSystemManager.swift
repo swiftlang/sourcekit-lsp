@@ -338,7 +338,10 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     let files: [DocumentURI: SourceFileInfo]
 
     /// The source directories in the workspace, ie. all `SourceItem`s that have `kind == .directory`.
-    let directories: [DocumentURI: SourceFileInfo]
+    ///
+    /// `pathComponents` is the result of `key.fileURL?.pathComponents`. We frequently need these path components to
+    /// determine if a file is descendent of the directory and computing them from the `DocumentURI` is expensive.
+    let directories: [DocumentURI: (pathComponents: [String]?, info: SourceFileInfo)]
   }
 
   private let cachedSourceFilesAndDirectories = Cache<SourceFilesAndDirectoriesKey, SourceFilesAndDirectories>()
@@ -679,12 +682,12 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       if let targets = filesAndDirectories.files[document]?.targets {
         result.formUnion(targets)
       }
-      if !filesAndDirectories.directories.isEmpty, let documentPath = document.fileURL {
-        for (directory, info) in filesAndDirectories.directories {
-          guard let directoryPath = directory.fileURL else {
+      if !filesAndDirectories.directories.isEmpty, let documentPathComponents = document.fileURL?.pathComponents {
+        for (directory, (directoryPathComponents, info)) in filesAndDirectories.directories {
+          guard let directoryPathComponents, let directoryPath = directory.fileURL else {
             continue
           }
-          if documentPath.isDescendant(of: directoryPath) {
+          if isDescendant(documentPathComponents, of: directoryPathComponents) {
             result.formUnion(info.targets)
           }
         }
@@ -1055,7 +1058,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
     return try await cachedSourceFilesAndDirectories.get(key, isolation: self) { key in
       var files: [DocumentURI: SourceFileInfo] = [:]
-      var directories: [DocumentURI: SourceFileInfo] = [:]
+      var directories: [DocumentURI: (pathComponents: [String]?, info: SourceFileInfo)] = [:]
       for sourcesItem in key.sourcesItems {
         let target = targets[sourcesItem.target]?.target
         let isPartOfRootProject = !(target?.tags.contains(.dependency) ?? false)
@@ -1077,7 +1080,9 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
           case .file:
             files[sourceItem.uri] = info.merging(files[sourceItem.uri])
           case .directory:
-            directories[sourceItem.uri] = info.merging(directories[sourceItem.uri])
+            directories[sourceItem.uri] = (
+              sourceItem.uri.fileURL?.pathComponents, info.merging(directories[sourceItem.uri]?.info)
+            )
           }
         }
       }
@@ -1225,4 +1230,13 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       await delegate.fileBuildSettingsChanged(changedMainFileAssociations)
     }
   }
+}
+
+/// Returns `true` if the path components `selfPathComponents`, retrieved from `URL.pathComponents` are a descendent
+/// of the other path components.
+///
+/// This operates directly on path components instead of `URL`s because computing the path components of a URL is
+/// expensive and this allows us to cache the path components.
+private func isDescendant(_ selfPathComponents: [String], of otherPathComponents: [String]) -> Bool {
+  return selfPathComponents.dropLast().starts(with: otherPathComponents)
 }
