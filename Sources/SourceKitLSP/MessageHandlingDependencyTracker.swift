@@ -141,7 +141,11 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
     case let notification as ReopenTextDocumentNotification:
       self = .documentUpdate(notification.textDocument.uri)
     case is SetTraceNotification:
-      self = .globalConfigurationChange
+      // `$/setTrace` changes a global configuration setting but it doesn't affect the result of any other request. To
+      // avoid blocking other requests on a `$/setTrace` notification the client might send during launch, we treat it
+      // as a freestanding message.
+      // Also, we don't do anything with this notification at the moment, so it doesn't matter.
+      self = .freestanding
     case is ShowMessageNotification:
       self = .freestanding
     case let notification as WillSaveTextDocumentNotification:
