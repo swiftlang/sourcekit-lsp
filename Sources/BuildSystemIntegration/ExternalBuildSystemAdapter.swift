@@ -223,7 +223,13 @@ actor ExternalBuildSystemAdapter {
     for case let buildServerConfigLocation? in buildServerConfigLocations {
       let jsonFiles =
         try? FileManager.default.contentsOfDirectory(at: buildServerConfigLocation, includingPropertiesForKeys: nil)
-        .filter { $0.pathExtension == "json" }
+        .filter {
+          guard let config = try? BuildServerConfig.load(from: $0) else {
+            return false
+          }
+          return !Set([Language.c, .cpp, .objective_c, .objective_cpp, .swift].map(\.rawValue))
+            .intersection(config.languages).isEmpty
+        }
 
       if let configFileURL = jsonFiles?.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }).first {
         return configFileURL
