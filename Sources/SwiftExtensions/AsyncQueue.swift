@@ -85,16 +85,6 @@ package final class AsyncQueue<TaskMetadata: DependencyTracker>: Sendable {
 
   package init() {}
 
-  package func cancelTasks(where filter: (TaskMetadata) -> Bool) {
-    pendingTasks.withLock { pendingTasks in
-      for task in pendingTasks {
-        if filter(task.metadata) {
-          task.task.cancel()
-        }
-      }
-    }
-  }
-
   /// Schedule a new closure to be executed on the queue.
   ///
   /// If this is a serial queue, all previously added tasks are guaranteed to

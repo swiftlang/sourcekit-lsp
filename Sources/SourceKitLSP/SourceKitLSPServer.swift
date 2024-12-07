@@ -144,8 +144,9 @@ package actor SourceKitLSPServer {
     }
   }
 
-  /// For all currently handled text document requests a mapping from the document to the corresponding request ID.
-  private var inProgressTextDocumentRequests: [DocumentURI: Set<RequestID>] = [:]
+  /// For all currently handled text document requests a mapping from the document to the corresponding request ID and
+  /// the method of the request (ie. the value of `TextDocumentRequest.method`).
+  private var inProgressTextDocumentRequests: [DocumentURI: [(id: RequestID, requestMethod: String)]] = [:]
 
   var onExit: () -> Void
 
@@ -544,18 +545,26 @@ package actor SourceKitLSPServer {
 // MARK: - MessageHandler
 
 extension SourceKitLSPServer: QueueBasedMessageHandler {
+  private enum ImplicitTextDocumentRequestCancellationReason {
+    case documentChanged
+    case documentClosed
+  }
+
   package nonisolated func didReceive(notification: some NotificationType) {
     let textDocumentUri: DocumentURI
+    let cancellationReason: ImplicitTextDocumentRequestCancellationReason
     switch notification {
     case let params as DidChangeTextDocumentNotification:
       textDocumentUri = params.textDocument.uri
+      cancellationReason = .documentChanged
     case let params as DidCloseTextDocumentNotification:
       textDocumentUri = params.textDocument.uri
+      cancellationReason = .documentClosed
     default:
       return
     }
     textDocumentTrackingQueue.async(priority: .high) {
-      await self.cancelTextDocumentRequests(for: textDocumentUri)
+      await self.cancelTextDocumentRequests(for: textDocumentUri, reason: cancellationReason)
     }
   }
 
@@ -576,11 +585,18 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
   ///
   /// - Important: Should be invoked on `textDocumentTrackingQueue` to ensure that new text document requests are
   ///   registered before a notification that triggers cancellation might come in.
-  private func cancelTextDocumentRequests(for uri: DocumentURI) {
+  private func cancelTextDocumentRequests(for uri: DocumentURI, reason: ImplicitTextDocumentRequestCancellationReason) {
     guard self.options.cancelTextDocumentRequestsOnEditAndCloseOrDefault else {
       return
     }
-    for requestID in self.inProgressTextDocumentRequests[uri, default: []] {
+    for (requestID, requestMethod) in self.inProgressTextDocumentRequests[uri, default: []] {
+      if reason == .documentChanged && requestMethod == CompletionRequest.method {
+        // As the user types, we filter the code completion results. Cancelling the completion request on every
+        // keystroke means that we will never build the initial list of completion results for this code
+        // completion session if building that list takes longer than the user's typing cadence (eg. for global
+        // completions) and we will thus not show any completions.
+        continue
+      }
       logger.info("Implicitly cancelling request \(requestID)")
       self.messageHandlingHelper.cancelRequest(id: requestID)
     }
@@ -627,8 +643,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
 
   /// - Important: Should be invoked on `textDocumentTrackingQueue` to ensure that new text document requests are
   ///   registered before a notification that triggers cancellation might come in.
-  private func registerInProgressTextDocumentRequest(_ request: any TextDocumentRequest, id: RequestID) {
-    self.inProgressTextDocumentRequests[request.textDocument.uri, default: []].insert(id)
+  private func registerInProgressTextDocumentRequest<T: TextDocumentRequest>(_ request: T, id: RequestID) {
+    self.inProgressTextDocumentRequests[request.textDocument.uri, default: []].append((id: id, requestMethod: T.method))
   }
 
   package func handle<Request: RequestType>(
@@ -638,7 +654,7 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
   ) async {
     defer {
       if let request = params as? any TextDocumentRequest {
-        self.inProgressTextDocumentRequests[request.textDocument.uri, default: []].remove(id)
+        self.inProgressTextDocumentRequests[request.textDocument.uri, default: []].removeAll { $0.id == id }
       }
     }
 
