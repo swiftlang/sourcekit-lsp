@@ -84,12 +84,6 @@ package actor SourceKitLSPServer {
   /// Initialization can be awaited using `waitUntilInitialized`.
   private var initialized: Bool = false
 
-  /// Set to `true` after the user has opened a project that doesn't support background indexing while having background
-  /// indexing enabled.
-  ///
-  /// This ensures that we only inform the user about background indexing not being supported for these projects once.
-  private var didSendBackgroundIndexingNotSupportedNotification = false
-
   var options: SourceKitLSPOptions
 
   let testHooks: TestHooks
@@ -841,20 +835,6 @@ extension SourceKitLSPServer {
       testHooks: testHooks,
       indexTaskScheduler: indexTaskScheduler
     )
-    if options.backgroundIndexingOrDefault, workspace.semanticIndexManager == nil,
-      !self.didSendBackgroundIndexingNotSupportedNotification
-    {
-      self.sendNotificationToClient(
-        ShowMessageNotification(
-          type: .info,
-          message: """
-            Background indexing is currently only supported for SwiftPM projects. \
-            For all other project types, please run a build to update the index.
-            """
-        )
-      )
-      self.didSendBackgroundIndexingNotSupportedNotification = true
-    }
     return workspace
   }
 
