@@ -587,7 +587,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
         SourceItem(
           uri: DocumentURI($0),
           kind: $0.isDirectory ? .directory : .file,
-          generated: false,
+          generated: false
         )
       }
       result.append(SourcesItem(target: target, sources: sources))

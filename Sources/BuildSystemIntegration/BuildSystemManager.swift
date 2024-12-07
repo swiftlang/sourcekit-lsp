@@ -674,6 +674,26 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     return languageFromBuildSystem ?? Language(inferredFromFileExtension: document)
   }
 
+  /// Returns the URIs of all source files in the project that have the same realpath as a document in `documents` but
+  /// are not in `documents`.
+  ///
+  /// This is useful in the following scenario: A project has target A containing A.swift an target B containing B.swift
+  /// B.swift is a symlink to A.swift. When A.swift is modified, both the dependencies of A and B need to be marked as
+  /// having an out-of-date preparation status, not just A.
+  package func sourceFilesWithSameRealpath(as documents: [DocumentURI]) async -> [DocumentURI] {
+    let realPaths = Set(documents.map { $0.symlinkTarget ?? $0 })
+    return await orLog("") {
+      var result: [DocumentURI] = []
+      let filesAndDirectories = try await sourceFilesAndDirectories(includeNonBuildableFiles: true)
+      for file in filesAndDirectories.files.keys {
+        if realPaths.contains(file.symlinkTarget ?? file) && !realPaths.contains(file) {
+          result.append(file)
+        }
+      }
+      return result
+    } ?? []
+  }
+
   /// Returns all the targets that the document is part of.
   package func targets(for document: DocumentURI) async -> Set<BuildTargetIdentifier> {
     return await orLog("Getting targets for source file") {
@@ -1162,10 +1182,10 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     var targetsWithUpdatedDependencies: Set<BuildTargetIdentifier> = []
     // If a Swift file within a target is updated, reload all the other files within the target since they might be
     // referring to a function in the updated file.
-    let targetsWithChangedSwiftFiles =
-      await events
-      .filter { Language(inferredFromFileExtension: $0.uri) == .swift }
-      .asyncFlatMap { await self.targets(for: $0.uri) }
+    var swiftFiles = events.filter { Language(inferredFromFileExtension: $0.uri) == .swift }.map(\.uri)
+    swiftFiles += await sourceFilesWithSameRealpath(as: swiftFiles)
+
+    let targetsWithChangedSwiftFiles = await swiftFiles.asyncFlatMap { await self.targets(for: $0) }
     targetsWithUpdatedDependencies.formUnion(targetsWithChangedSwiftFiles)
 
     // If a `.swiftmodule` file is updated, this means that we have performed a build / are
