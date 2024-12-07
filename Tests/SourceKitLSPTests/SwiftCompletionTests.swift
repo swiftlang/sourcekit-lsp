@@ -864,14 +864,14 @@ final class SwiftCompletionTests: XCTestCase {
           sortText: nil,
           filterText: "myMap(:)",
           insertText: #"""
-            myMap(${1:\{ ${2:Int} in ${3:Bool} \}})
+            myMap(${1:{ ${2:Int} in ${3:Bool} \}})
             """#,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
             TextEdit(
               range: Range(positions["1️⃣"]),
               newText: #"""
-                myMap(${1:\{ ${2:Int} in ${3:Bool} \}})
+                myMap(${1:{ ${2:Int} in ${3:Bool} \}})
                 """#
             )
           )
@@ -908,14 +908,14 @@ final class SwiftCompletionTests: XCTestCase {
           sortText: nil,
           filterText: ".myMap(:)",
           insertText: #"""
-            ?.myMap(${1:\{ ${2:Int} in ${3:Bool} \}})
+            ?.myMap(${1:{ ${2:Int} in ${3:Bool} \}})
             """#,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
             TextEdit(
               range: positions["1️⃣"]..<positions["2️⃣"],
               newText: #"""
-                ?.myMap(${1:\{ ${2:Int} in ${3:Bool} \}})
+                ?.myMap(${1:{ ${2:Int} in ${3:Bool} \}})
                 """#
             )
           )
@@ -952,14 +952,14 @@ final class SwiftCompletionTests: XCTestCase {
           sortText: nil,
           filterText: "myMap(::)",
           insertText: #"""
-            myMap(${1:\{ ${2:Int} in ${3:Bool} \}}, ${4:\{ ${5:Int} in ${6:String} \}})
+            myMap(${1:{ ${2:Int} in ${3:Bool} \}}, ${4:{ ${5:Int} in ${6:String} \}})
             """#,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
             TextEdit(
               range: Range(positions["1️⃣"]),
               newText: #"""
-                myMap(${1:\{ ${2:Int} in ${3:Bool} \}}, ${4:\{ ${5:Int} in ${6:String} \}})
+                myMap(${1:{ ${2:Int} in ${3:Bool} \}}, ${4:{ ${5:Int} in ${6:String} \}})
                 """#
             )
           )
@@ -996,14 +996,14 @@ final class SwiftCompletionTests: XCTestCase {
           sortText: nil,
           filterText: "myMap(:second:)",
           insertText: #"""
-            myMap(${1:\{ ${2:Int} in ${3:Bool} \}}, second: ${4:\{ ${5:Int} in ${6:String} \}})
+            myMap(${1:{ ${2:Int} in ${3:Bool} \}}, second: ${4:{ ${5:Int} in ${6:String} \}})
             """#,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
             TextEdit(
               range: Range(positions["1️⃣"]),
               newText: #"""
-                myMap(${1:\{ ${2:Int} in ${3:Bool} \}}, second: ${4:\{ ${5:Int} in ${6:String} \}})
+                myMap(${1:{ ${2:Int} in ${3:Bool} \}}, second: ${4:{ ${5:Int} in ${6:String} \}})
                 """#
             )
           )
@@ -1042,14 +1042,14 @@ final class SwiftCompletionTests: XCTestCase {
           sortText: nil,
           filterText: "myMap(:)",
           insertText: #"""
-            myMap(${1:\{ ${2:Int} in ${3:Bool} \}})
+            myMap(${1:{ ${2:Int} in ${3:Bool} \}})
             """#,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
             TextEdit(
               range: Range(positions["1️⃣"]),
               newText: #"""
-                myMap(${1:\{ ${2:Int} in ${3:Bool} \}})
+                myMap(${1:{ ${2:Int} in ${3:Bool} \}})
                 """#
             )
           )
