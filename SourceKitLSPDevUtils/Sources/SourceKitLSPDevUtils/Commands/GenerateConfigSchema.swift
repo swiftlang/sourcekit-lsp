@@ -14,11 +14,11 @@ import ArgumentParser
 import ConfigSchemaGen
 
 struct GenerateConfigSchema: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        abstract: "Generate a JSON schema and documentation for the SourceKit-LSP configuration file"
-    )
+  static let configuration = CommandConfiguration(
+    abstract: "Generate a JSON schema and documentation for the SourceKit-LSP configuration file"
+  )
 
-    func run() throws {
-        try ConfigSchemaGen.generate()
-    }
+  func run() throws {
+    try ConfigSchemaGen.generate()
+  }
 }
