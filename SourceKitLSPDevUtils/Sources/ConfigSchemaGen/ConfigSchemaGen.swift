@@ -118,19 +118,16 @@ public struct ConfigSchemaGen {
   static func generateDocumentation(from schema: OptionTypeSchama, context: OptionSchemaContext) throws -> Data {
     let docBuilder = OptionDocumentBuilder(context: context)
     guard let data = try docBuilder.build(from: schema).data(using: .utf8) else {
-      throw ConfigSchemaGenError.documentationEncodingFailed
+      throw ConfigSchemaGenError("Failed to encode documentation as UTF-8")
     }
     return data
   }
 }
 
-enum ConfigSchemaGenError: Error, CustomStringConvertible {
-  case documentationEncodingFailed
+struct ConfigSchemaGenError: Error, CustomStringConvertible {
+  let description: String
 
-  var description: String {
-    switch self {
-    case .documentationEncodingFailed:
-      return "Failed to encode documentation as UTF-8"
-    }
+  init(_ description: String) {
+    self.description = description
   }
 }

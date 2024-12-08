@@ -79,7 +79,7 @@ struct OptionDocumentBuilder {
       }
     }
     guard case .struct(let schema) = schema.kind else {
-      fatalError("Root schema must be a struct")
+      throw ConfigSchemaGenError("Root schema must be a struct")
     }
     for property in schema.properties {
       try appendProperty(property, indentLevel: 0)

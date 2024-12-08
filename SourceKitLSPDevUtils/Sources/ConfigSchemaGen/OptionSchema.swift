@@ -96,10 +96,10 @@ struct OptionSchemaContext {
       let structInfo = try buildStructProperties(decl)
       return OptionTypeSchama(kind: .struct(structInfo))
     case .enumDecl(let decl):
-      let enumInfo = buildEnumCases(decl)
+      let enumInfo = try buildEnumCases(decl)
       return OptionTypeSchama(kind: .enum(enumInfo))
     default:
-      fatalError("Unsupported type: \(typeDecl)")
+      throw ConfigSchemaGenError("Unsupported type declaration: \(typeDecl)")
     }
   }
 
@@ -108,7 +108,9 @@ struct OptionSchemaContext {
     switch type.as(TypeSyntaxEnum.self) {
     case .optionalType(let type):
       var wrapped = try resolveType(type.wrappedType)
-      assert(!wrapped.isOptional, "Nested optional type is not supported")
+      guard !wrapped.isOptional else {
+        throw ConfigSchemaGenError("Nested optional type is not supported")
+      }
       wrapped.isOptional = true
       return wrapped
     case .arrayType(let type):
@@ -116,7 +118,7 @@ struct OptionSchemaContext {
       return OptionTypeSchama(kind: .array(value: value))
     case .dictionaryType(let type):
       guard type.key.trimmedDescription == "String" else {
-        fatalError("Dictionary key type must be String: \(type.key)")
+        throw ConfigSchemaGenError("Dictionary key type must be String: \(type.key)")
       }
       let value = try resolveType(type.value)
       return OptionTypeSchama(kind: .dictionary(value: value))
@@ -131,7 +133,7 @@ struct OptionSchemaContext {
         return OptionTypeSchama(kind: primitiveType)
       } else if type.name.trimmedDescription == "Set" {
         guard let elementType = type.genericArgumentClause?.arguments.first?.argument else {
-          fatalError("Set type must have one generic argument: \(type)")
+          throw ConfigSchemaGenError("Set type must have one generic argument: \(type)")
         }
         return OptionTypeSchama(kind: .array(value: try resolveType(elementType)))
       } else {
@@ -139,25 +141,25 @@ struct OptionSchemaContext {
         return try buildSchema(from: type)
       }
     default:
-      fatalError("Unsupported type: \(type)")
+      throw ConfigSchemaGenError("Unsupported type syntax: \(type)")
     }
   }
 
-  private func buildEnumCases(_ node: EnumDeclSyntax) -> OptionTypeSchama.Enum {
-    let cases = node.memberBlock.members.flatMap { member -> [OptionTypeSchama.Case] in
+  private func buildEnumCases(_ node: EnumDeclSyntax) throws -> OptionTypeSchama.Enum {
+    let cases = try node.memberBlock.members.flatMap { member -> [OptionTypeSchama.Case] in
       guard let caseDecl = member.decl.as(EnumCaseDeclSyntax.self) else {
         return []
       }
-      return caseDecl.elements.map {
+      return try caseDecl.elements.map {
         guard $0.parameterClause == nil else {
-          fatalError("Associated values are not supported: \($0)")
+          throw ConfigSchemaGenError("Associated values in enum cases are not supported: \(caseDecl)")
         }
         let name: String
         if let rawValue = $0.rawValue?.value {
           if let stringLiteral = rawValue.as(StringLiteralExprSyntax.self), stringLiteral.segments.count == 1 {
             name = stringLiteral.segments.first!.description
           } else {
-            fatalError("Unsupported raw value type: \(rawValue)")
+            throw ConfigSchemaGenError("Only string literals without interpolation are supported as enum case raw values: \(caseDecl)")
           }
         } else {
           name = $0.name.text
@@ -173,19 +175,19 @@ struct OptionSchemaContext {
     var properties: [OptionTypeSchama.Property] = []
     for member in node.memberBlock.members {
       // Skip computed properties
-      if let variable = member.decl.as(VariableDeclSyntax.self),
+      guard let variable = member.decl.as(VariableDeclSyntax.self),
         let binding = variable.bindings.first,
         let type = binding.typeAnnotation,
         binding.accessorBlock == nil
-      {
-        let name = binding.pattern.trimmed.description
-        let defaultValue = binding.initializer?.value.description
-        let description = Self.extractDocComment(variable.leadingTrivia)
-        let typeInfo = try resolveType(type.type)
-        properties.append(
-          .init(name: name, type: typeInfo, description: description, defaultValue: defaultValue)
-        )
-      }
+      else { continue }
+
+      let name = binding.pattern.trimmed.description
+      let defaultValue = binding.initializer?.value.description
+      let description = Self.extractDocComment(variable.leadingTrivia)
+      let typeInfo = try resolveType(type.type)
+      properties.append(
+        .init(name: name, type: typeInfo, description: description, defaultValue: defaultValue)
+      )
     }
     let typeName = node.name.text
     return .init(name: typeName, properties: properties)
