@@ -15,6 +15,9 @@ import SwiftSyntax
 /// Resolves type declarations from Swift syntax nodes
 class TypeDeclResolver {
   typealias TypeDecl = NamedDeclSyntax & DeclGroupSyntax & DeclSyntaxProtocol
+  /// A representation of a qualified name of a type declaration
+  ///
+  /// `Outer.Inner` type declaration is represented as ["Outer", "Inner"]
   typealias QualifiedName = [String]
   private var typeDeclByQualifiedName: [QualifiedName: TypeDecl] = [:]
 
@@ -69,15 +72,15 @@ class TypeDeclResolver {
 
   /// Builds the type name scope for a given type usage
   private func buildScope(type: IdentifierTypeSyntax) -> QualifiedName {
-    var contextScope: [String] = []
+    var innerToOuter: [String] = []
     var context: SyntaxProtocol = type
     while let parent = context.parent {
       if let parent = parent.asProtocol(NamedDeclSyntax.self), parent.isProtocol(DeclGroupSyntax.self) {
-        contextScope.append(parent.name.text)
+        innerToOuter.append(parent.name.text)
       }
       context = parent
     }
-    return contextScope
+    return innerToOuter.reversed()
   }
 
   /// Looks up a qualified name of a type declaration by its unqualified type usage
