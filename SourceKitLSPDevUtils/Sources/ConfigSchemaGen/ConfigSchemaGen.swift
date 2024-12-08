@@ -64,7 +64,7 @@ public struct ConfigSchemaGen {
       }
       let sourceText = try String(contentsOf: fileURL)
       let sourceFile = Parser.parse(source: sourceText)
-      typeNameResolver.append(sourceFile)
+      typeNameResolver.collect(from: sourceFile)
     }
     let rootTypeDecl = try typeNameResolver.lookupType(fullyQualified: ["SourceKitLSPOptions"])
     let context = OptionSchemaContext(typeNameResolver: typeNameResolver)

@@ -16,13 +16,13 @@ import SwiftSyntax
 class TypeDeclResolver {
   typealias TypeDecl = NamedDeclSyntax & DeclGroupSyntax & DeclSyntaxProtocol
   typealias QualifiedName = [String]
-  var typeDeclByQualifiedName: [QualifiedName: TypeDecl] = [:]
+  private var typeDeclByQualifiedName: [QualifiedName: TypeDecl] = [:]
 
   enum Error: Swift.Error {
     case typeNotFound(QualifiedName)
   }
 
-  class TypeDeclCollector: SyntaxVisitor {
+  private class TypeDeclCollector: SyntaxVisitor {
     let resolver: TypeDeclResolver
     var scope: [TypeDecl] = []
     var rootTypeDecls: [TypeDecl] = []
@@ -34,7 +34,7 @@ class TypeDeclResolver {
 
     func visitNominalDecl(_ node: TypeDecl) -> SyntaxVisitorContinueKind {
       let name = node.name.text
-      let qualifiedName = scope.map { $0.name.text } + [name]
+      let qualifiedName = scope.map(\.name.text) + [name]
       resolver.typeDeclByQualifiedName[qualifiedName] = node
       scope.append(node)
       return .visitChildren
@@ -61,7 +61,8 @@ class TypeDeclResolver {
     }
   }
 
-  func append(_ schema: SourceFileSyntax) {
+  /// Collects type declarations from a parsed Swift source file
+  func collect(from schema: SourceFileSyntax) {
     let collector = TypeDeclCollector(resolver: self)
     collector.walk(schema)
   }
