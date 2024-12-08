@@ -45,8 +45,8 @@ struct OptionDocumentBuilder {
       let type = property.type
       let typeDescription: String?
       switch type.kind {
-      case .object:
-        // Skip object type as we describe its properties in the next level
+      case .struct:
+        // Skip struct type as we describe its properties in the next level
         typeDescription = nil
       default:
         typeDescription = Self.typeToDisplay(type)
@@ -61,7 +61,7 @@ struct OptionDocumentBuilder {
       }
       doc += "\n"
       switch type.kind {
-      case .object(let schema):
+      case .struct(let schema):
         for property in schema.properties {
           try appendProperty(property, indentLevel: indentLevel + 1)
         }
@@ -78,7 +78,7 @@ struct OptionDocumentBuilder {
       default: break
       }
     }
-    guard case .object(let schema) = schema.kind else {
+    guard case .struct(let schema) = schema.kind else {
       fatalError("Root schema must be a struct")
     }
     for property in schema.properties {
@@ -97,8 +97,8 @@ struct OptionDocumentBuilder {
       return "\(typeToDisplay(value, shouldWrap: true))[]"
     case .dictionary(let value):
       return "[string: \(typeToDisplay(value))]"
-    case .object(let objectInfo):
-      return objectInfo.name
+    case .struct(let structInfo):
+      return structInfo.name
     case .enum(let enumInfo):
       let cases = enumInfo.cases.map { "\"\($0.name)\"" }.joined(separator: "|")
       return shouldWrap ? "(\(cases))" : cases

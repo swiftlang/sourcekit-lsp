@@ -107,11 +107,11 @@ struct JSONSchemaBuilder {
     case .dictionary(value: let value):
       schema.type = "object"
       schema.additionalProperties = try buildJSONSchema(from: value)
-    case .object(let object):
+    case .struct(let structInfo):
       schema.type = "object"
       var properties: [String: JSONSchema] = [:]
       var required: [String] = []
-      for property in object.properties {
+      for property in structInfo.properties {
         let propertyType = property.type
         var propertySchema = try buildJSONSchema(from: propertyType)
         propertySchema.description = property.description

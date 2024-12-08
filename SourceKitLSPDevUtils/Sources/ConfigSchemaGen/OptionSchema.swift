@@ -22,7 +22,7 @@ struct OptionTypeSchama {
     var defaultValue: String?
   }
 
-  struct Object {
+  struct Struct {
     var name: String
     /// Properties of the object, preserving the order of declaration
     var properties: [Property]
@@ -45,7 +45,7 @@ struct OptionTypeSchama {
     case string
     indirect case array(value: OptionTypeSchama)
     indirect case dictionary(value: OptionTypeSchama)
-    case object(Object)
+    case `struct`(Struct)
     case `enum`(Enum)
   }
 
@@ -60,37 +60,41 @@ struct OptionTypeSchama {
   /// Accesses the property schema by name
   subscript(_ key: String) -> OptionTypeSchama? {
     get {
-      guard case .object(let object) = kind else {
+      guard case .struct(let structInfo) = kind else {
         return nil
       }
-      return object.properties.first { $0.name == key }?.type
+      return structInfo.properties.first { $0.name == key }?.type
     }
     set {
-      guard case .object(var object) = kind else {
+      guard case .struct(var structInfo) = kind else {
         fatalError("Cannot set property on non-object type")
       }
-      guard let index = object.properties.firstIndex(where: { $0.name == key }) else {
+      guard let index = structInfo.properties.firstIndex(where: { $0.name == key }) else {
         fatalError("Property not found: \(key)")
       }
       guard let newValue = newValue else {
         fatalError("Cannot set property to nil")
       }
-      object.properties[index].type = newValue
-      kind = .object(object)
+      structInfo.properties[index].type = newValue
+      kind = .struct(structInfo)
     }
   }
 }
 
 /// Context for resolving option schema from Swift syntax nodes
 struct OptionSchemaContext {
-  let typeNameResolver: TypeDeclResolver
+  private let typeNameResolver: TypeDeclResolver
+
+  init(typeNameResolver: TypeDeclResolver) {
+    self.typeNameResolver = typeNameResolver
+  }
 
   /// Builds a schema from a type declaration
   func buildSchema(from typeDecl: TypeDeclResolver.TypeDecl) throws -> OptionTypeSchama {
     switch DeclSyntax(typeDecl).as(DeclSyntaxEnum.self) {
     case .structDecl(let decl):
       let structInfo = try buildStructProperties(decl)
-      return OptionTypeSchama(kind: .object(structInfo))
+      return OptionTypeSchama(kind: .struct(structInfo))
     case .enumDecl(let decl):
       let enumInfo = buildEnumCases(decl)
       return OptionTypeSchama(kind: .enum(enumInfo))
@@ -165,7 +169,7 @@ struct OptionSchemaContext {
     return .init(name: typeName, cases: cases)
   }
 
-  private func buildStructProperties(_ node: StructDeclSyntax) throws -> OptionTypeSchama.Object {
+  private func buildStructProperties(_ node: StructDeclSyntax) throws -> OptionTypeSchama.Struct {
     var properties: [OptionTypeSchama.Property] = []
     for member in node.memberBlock.members {
       // Skip computed properties
