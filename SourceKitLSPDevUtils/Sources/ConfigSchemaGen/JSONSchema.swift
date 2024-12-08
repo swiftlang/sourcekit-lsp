@@ -58,7 +58,7 @@ struct JSONSchema: Encodable {
   var markdownDescription: String?
   /// VSCode extension: Markdown formatted descriptions for rich hover for enum values
   /// https://github.com/microsoft/vscode-wiki/blob/main/Setting-Descriptions.md
-  var markdownEnumDescriptions: [String: String]?
+  var markdownEnumDescriptions: [String]?
 
   func encode(to encoder: any Encoder) throws {
     // Manually implement encoding to use `encodeIfPresent` for HeapBox-ed fields
@@ -79,7 +79,7 @@ struct JSONSchema: Encodable {
     try container.encodeIfPresent(items, forKey: .items)
     try container.encodeIfPresent(additionalProperties, forKey: .additionalProperties)
     try container.encodeIfPresent(markdownDescription, forKey: .markdownDescription)
-    if let markdownEnumDescriptions, !markdownEnumDescriptions.isEmpty {
+    if let markdownEnumDescriptions {
       try container.encode(markdownEnumDescriptions, forKey: .markdownEnumDescriptions)
     }
   }
@@ -131,7 +131,9 @@ struct JSONSchemaBuilder {
       // Set `markdownEnumDescriptions` for better rendering in VSCode rich hover
       // Unlike `description`, `enumDescriptions` field is not a part of JSON Schema spec,
       // so we only set `markdownEnumDescriptions` here.
-      schema.markdownEnumDescriptions = enumInfo.cases.reduce(into: [:]) { $0[$1.name] = $1.description }
+      if enumInfo.cases.contains(where: { $0.description != nil }) {
+        schema.markdownEnumDescriptions = enumInfo.cases.map { $0.description ?? "" }
+      }
     }
     return schema
   }

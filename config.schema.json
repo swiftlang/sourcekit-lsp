@@ -15,11 +15,11 @@
         "enabled"
       ],
       "markdownDescription" : "Determines how background indexing should prepare a target.",
-      "markdownEnumDescriptions" : {
-        "build" : "Build a target to prepare it.",
-        "enabled" : "Prepare a target without generating object files.",
-        "noLazy" : "Prepare a target without generating object files but do not do lazy type checking and function body skipping. This uses SwiftPM's `--experimental-prepare-for-indexing-no-lazy` flag."
-      },
+      "markdownEnumDescriptions" : [
+        "Build a target to prepare it.",
+        "Prepare a target without generating object files but do not do lazy type checking and function body skipping. This uses SwiftPM's `--experimental-prepare-for-indexing-no-lazy` flag.",
+        "Prepare a target without generating object files."
+      ],
       "type" : "string"
     },
     "buildSettingsTimeout" : {
