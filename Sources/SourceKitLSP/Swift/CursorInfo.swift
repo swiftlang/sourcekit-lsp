@@ -141,16 +141,18 @@ extension SwiftLanguageService {
   /// - Parameters:
   ///   - url: Document URI in which to perform the request. Must be an open document.
   ///   - range: The position range within the document to lookup the symbol at.
+  ///   - enableSymbolGraph: Whether or not to ask sourcekitd for the complete symbol graph.
   ///   - fallbackSettingsAfterTimeout: Whether fallback build settings should be used for the cursor info request if no
   ///     build settings can be retrieved within a timeout.
   func cursorInfo(
     _ uri: DocumentURI,
     _ range: Range<Position>,
+    enableSymbolGraph: Bool = false,
     fallbackSettingsAfterTimeout: Bool,
     additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil
-  ) async throws -> (cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand]) {
+  ) async throws -> (cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand], symbolGraph: String?) {
     let documentManager = try self.documentManager
-    let snapshot = try await self.latestSnapshot(for: uri)
+    let snapshot = try await self.latestSnapshotOrDisk(for: uri)
 
     let offsetRange = snapshot.utf8OffsetRange(of: range)
 
@@ -163,6 +165,7 @@ extension SwiftLanguageService {
       keys.length: offsetRange.upperBound != offsetRange.lowerBound ? offsetRange.count : nil,
       keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
+      keys.retrieveSymbolGraph: enableSymbolGraph ? 1 : 0,
       keys.compilerArgs: await self.buildSettings(for: uri, fallbackAfterTimeout: fallbackSettingsAfterTimeout)?
         .compilerArgs as [SKDRequestValue]?,
     ])
@@ -186,6 +189,8 @@ extension SwiftLanguageService {
         keys,
         self.sourcekitd.api
       ) ?? []
-    return (cursorInfoResults, refactorActions)
+    let symbolGraph: String? = dict[keys.symbolGraph]
+
+    return (cursorInfoResults, refactorActions, symbolGraph)
   }
 }
