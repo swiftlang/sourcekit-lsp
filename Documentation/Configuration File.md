@@ -44,7 +44,7 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `level: "debug"|"info"|"default"|"error"|"fault"`: The level from which one onwards log messages should be written.
   - `privacyLevel: "sensitive"|"private"|"public"`: Whether potentially sensitive information should be redacted. Default is `public`, which redacts potentially sensitive information.
   - `inputMirrorDirectory: string`: Write all input received by SourceKit-LSP on stdin to a file in this directory. Useful to record and replay an entire SourceKit-LSP session.
-- `defaultWorkspaceType: "buildServer"|"compilationDatabase"|"swiftPM"`: Default workspace type (buildserver|compdb|swiftpm). Overrides workspace type selection logic.
+- `defaultWorkspaceType: "buildServer"|"compilationDatabase"|"swiftPM"`: Default workspace type. Overrides workspace type selection logic.
 - `generatedFilesPath: string`: Directory in which generated interfaces and macro expansions should be stored.
 - `backgroundIndexing: boolean`: Whether background indexing is enabled.
 - `backgroundPreparationMode: string`: Determines how background indexing should prepare a target. Possible values are: - `build`: Build a target to prepare it. - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping. - `enabled`: Prepare a target without generating object files and the like.

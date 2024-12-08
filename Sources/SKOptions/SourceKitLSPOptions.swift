@@ -303,7 +303,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     set { logging = newValue }
   }
 
-  /// Default workspace type (buildserver|compdb|swiftpm). Overrides workspace type selection logic.
+  /// Default workspace type. Overrides workspace type selection logic.
   public var defaultWorkspaceType: WorkspaceType?
   /// Directory in which generated interfaces and macro expansions should be stored.
   public var generatedFilesPath: String?
