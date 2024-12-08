@@ -115,6 +115,14 @@ swift package format-source-code
 
 If you are developing SourceKit-LSP in VS Code, you can also run the *Run swift-format* task from *Tasks: Run tasks* in the command palette.
 
+## Generate configuration schema
+
+If you modify the configuration options in [`SKOptions`](./Sources/SKOptions), you need to regenerate the configuration the JSON schema and the documentation by running the following command:
+
+```bash
+./sourcekit-lsp-dev-utils generate-config-schema
+```
+
 ## Authoring commits
 
 Prefer to squash the commits of your PR (*pull request*) and avoid adding commits like “Address review comments”. This creates a clearer git history, which doesn’t need to record the history of how the PR evolved.
