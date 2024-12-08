@@ -8,8 +8,8 @@
       "type" : "boolean"
     },
     "backgroundPreparationMode" : {
-      "description" : "Determines how background indexing should prepare a target. Possible values are:\n- `build`: Build a target to prepare it.\n- `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping.\n- `enabled`: Prepare a target without generating object files and the like.",
-      "markdownDescription" : "Determines how background indexing should prepare a target. Possible values are:\n- `build`: Build a target to prepare it.\n- `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping.\n- `enabled`: Prepare a target without generating object files and the like.",
+      "description" : "Determines how background indexing should prepare a target. Possible values are: - `build`: Build a target to prepare it. - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping. - `enabled`: Prepare a target without generating object files and the like.",
+      "markdownDescription" : "Determines how background indexing should prepare a target. Possible values are: - `build`: Build a target to prepare it. - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping. - `enabled`: Prepare a target without generating object files and the like.",
       "type" : "string"
     },
     "buildSettingsTimeout" : {
@@ -18,8 +18,8 @@
       "type" : "integer"
     },
     "cancelTextDocumentRequestsOnEditAndClose" : {
-      "description" : "Whether sending a `textDocument\/didChange` or `textDocument\/didClose` notification for a document should cancel\nall pending requests for that document.",
-      "markdownDescription" : "Whether sending a `textDocument\/didChange` or `textDocument\/didClose` notification for a document should cancel\nall pending requests for that document.",
+      "description" : "Whether sending a `textDocument\/didChange` or `textDocument\/didClose` notification for a document should cancel all pending requests for that document.",
+      "markdownDescription" : "Whether sending a `textDocument\/didChange` or `textDocument\/didClose` notification for a document should cancel all pending requests for that document.",
       "type" : "boolean"
     },
     "clangdOptions" : {
@@ -143,12 +143,12 @@
       "type" : "object"
     },
     "logging" : {
-      "description" : "Options related to logging, changing SourceKit-LSP’s logging behavior on non-Apple platforms.\n\nOn Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging).\nThese options can only be set globally and not per workspace.",
-      "markdownDescription" : "Options related to logging, changing SourceKit-LSP’s logging behavior on non-Apple platforms.\n\nOn Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging).\nThese options can only be set globally and not per workspace.",
+      "description" : "Options related to logging, changing SourceKit-LSP’s logging behavior on non-Apple platforms. On Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging). These options can only be set globally and not per workspace.",
+      "markdownDescription" : "Options related to logging, changing SourceKit-LSP’s logging behavior on non-Apple platforms. On Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging). These options can only be set globally and not per workspace.",
       "properties" : {
         "inputMirrorDirectory" : {
-          "description" : "Write all input received by SourceKit-LSP on stdin to a file in this directory.\n\nUseful to record and replay an entire SourceKit-LSP session.",
-          "markdownDescription" : "Write all input received by SourceKit-LSP on stdin to a file in this directory.\n\nUseful to record and replay an entire SourceKit-LSP session.",
+          "description" : "Write all input received by SourceKit-LSP on stdin to a file in this directory. Useful to record and replay an entire SourceKit-LSP session.",
+          "markdownDescription" : "Write all input received by SourceKit-LSP on stdin to a file in this directory. Useful to record and replay an entire SourceKit-LSP session.",
           "type" : "string"
         },
         "level" : {
@@ -164,21 +164,21 @@
           "type" : "string"
         },
         "privacyLevel" : {
-          "description" : "Whether potentially sensitive information should be redacted.\nDefault is `public`, which redacts potentially sensitive information.",
+          "description" : "Whether potentially sensitive information should be redacted. Default is `public`, which redacts potentially sensitive information.",
           "enum" : [
             "sensitive",
             "private",
             "public"
           ],
-          "markdownDescription" : "Whether potentially sensitive information should be redacted.\nDefault is `public`, which redacts potentially sensitive information.",
+          "markdownDescription" : "Whether potentially sensitive information should be redacted. Default is `public`, which redacts potentially sensitive information.",
           "type" : "string"
         }
       },
       "type" : "object"
     },
     "sourcekitdRequestTimeout" : {
-      "description" : "The maximum duration that a sourcekitd request should be allowed to execute before being declared as timed out.\n\nIn general, editors should cancel requests that they are no longer interested in, but in case editors don't cancel\nrequests, this ensures that a long-running non-cancelled request is not blocking sourcekitd and thus most semantic\nfunctionality.\n\nIn particular, VS Code does not cancel the semantic tokens request, which can cause a long-running AST build that\nblocks sourcekitd.",
-      "markdownDescription" : "The maximum duration that a sourcekitd request should be allowed to execute before being declared as timed out.\n\nIn general, editors should cancel requests that they are no longer interested in, but in case editors don't cancel\nrequests, this ensures that a long-running non-cancelled request is not blocking sourcekitd and thus most semantic\nfunctionality.\n\nIn particular, VS Code does not cancel the semantic tokens request, which can cause a long-running AST build that\nblocks sourcekitd.",
+      "description" : "The maximum duration that a sourcekitd request should be allowed to execute before being declared as timed out. In general, editors should cancel requests that they are no longer interested in, but in case editors don't cancel requests, this ensures that a long-running non-cancelled request is not blocking sourcekitd and thus most semantic functionality. In particular, VS Code does not cancel the semantic tokens request, which can cause a long-running AST build that blocks sourcekitd.",
+      "markdownDescription" : "The maximum duration that a sourcekitd request should be allowed to execute before being declared as timed out. In general, editors should cancel requests that they are no longer interested in, but in case editors don't cancel requests, this ensures that a long-running non-cancelled request is not blocking sourcekitd and thus most semantic functionality. In particular, VS Code does not cancel the semantic tokens request, which can cause a long-running AST build that blocks sourcekitd.",
       "type" : "number"
     },
     "swiftPM" : {
@@ -194,12 +194,12 @@
           "type" : "array"
         },
         "configuration" : {
-          "description" : "The configuration to build the project for during background indexing\nand the configuration whose build folder should be used for Swift\nmodules if background indexing is disabled.\n\nEquivalent to SwiftPM's `--configuration` option.",
+          "description" : "The configuration to build the project for during background indexing and the configuration whose build folder should be used for Swift modules if background indexing is disabled. Equivalent to SwiftPM's `--configuration` option.",
           "enum" : [
             "debug",
             "release"
           ],
-          "markdownDescription" : "The configuration to build the project for during background indexing\nand the configuration whose build folder should be used for Swift\nmodules if background indexing is disabled.\n\nEquivalent to SwiftPM's `--configuration` option.",
+          "markdownDescription" : "The configuration to build the project for during background indexing and the configuration whose build folder should be used for Swift modules if background indexing is disabled. Equivalent to SwiftPM's `--configuration` option.",
           "type" : "string"
         },
         "cxxCompilerFlags" : {
@@ -211,8 +211,8 @@
           "type" : "array"
         },
         "disableSandbox" : {
-          "description" : "Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option.\nUseful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.",
-          "markdownDescription" : "Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option.\nUseful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.",
+          "description" : "Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option. Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.",
+          "markdownDescription" : "Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option. Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.",
           "type" : "boolean"
         },
         "linkerFlags" : {
@@ -224,8 +224,8 @@
           "type" : "array"
         },
         "scratchPath" : {
-          "description" : "Build artifacts directory path. If nil, the build system may choose a default value.\n\nThis path can be specified as a relative path, which will be interpreted relative to the project root.\nEquivalent to SwiftPM's `--scratch-path` option.",
-          "markdownDescription" : "Build artifacts directory path. If nil, the build system may choose a default value.\n\nThis path can be specified as a relative path, which will be interpreted relative to the project root.\nEquivalent to SwiftPM's `--scratch-path` option.",
+          "description" : "Build artifacts directory path. If nil, the build system may choose a default value. This path can be specified as a relative path, which will be interpreted relative to the project root. Equivalent to SwiftPM's `--scratch-path` option.",
+          "markdownDescription" : "Build artifacts directory path. If nil, the build system may choose a default value. This path can be specified as a relative path, which will be interpreted relative to the project root. Equivalent to SwiftPM's `--scratch-path` option.",
           "type" : "string"
         },
         "swiftCompilerFlags" : {
@@ -255,13 +255,13 @@
       "type" : "object"
     },
     "swiftPublishDiagnosticsDebounceDuration" : {
-      "description" : "The time that `SwiftLanguageService` should wait after an edit before starting to compute diagnostics and\nsending a `PublishDiagnosticsNotification`.",
-      "markdownDescription" : "The time that `SwiftLanguageService` should wait after an edit before starting to compute diagnostics and\nsending a `PublishDiagnosticsNotification`.",
+      "description" : "The time that `SwiftLanguageService` should wait after an edit before starting to compute diagnostics and sending a `PublishDiagnosticsNotification`.",
+      "markdownDescription" : "The time that `SwiftLanguageService` should wait after an edit before starting to compute diagnostics and sending a `PublishDiagnosticsNotification`.",
       "type" : "number"
     },
     "workDoneProgressDebounceDuration" : {
-      "description" : "When a task is started that should be displayed to the client as a work done progress, how many milliseconds to\nwait before actually starting the work done progress. This prevents flickering of the work done progress in the\nclient for short-lived index tasks which end within this duration.",
-      "markdownDescription" : "When a task is started that should be displayed to the client as a work done progress, how many milliseconds to\nwait before actually starting the work done progress. This prevents flickering of the work done progress in the\nclient for short-lived index tasks which end within this duration.",
+      "description" : "When a task is started that should be displayed to the client as a work done progress, how many milliseconds to wait before actually starting the work done progress. This prevents flickering of the work done progress in the client for short-lived index tasks which end within this duration.",
+      "markdownDescription" : "When a task is started that should be displayed to the client as a work done progress, how many milliseconds to wait before actually starting the work done progress. This prevents flickering of the work done progress in the client for short-lived index tasks which end within this duration.",
       "type" : "number"
     }
   },

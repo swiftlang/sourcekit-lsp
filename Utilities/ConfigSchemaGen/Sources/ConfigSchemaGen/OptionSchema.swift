@@ -176,27 +176,33 @@ struct OptionSchemaContext {
   }
 
   private static func extractDocComment(_ trivia: Trivia) -> String? {
-    let docContents = trivia.compactMap { piece in
+    var docLines = trivia.flatMap { piece in
       switch piece {
       case .docBlockComment(let text):
         // Remove `/**` and `*/`
         assert(text.hasPrefix("/**") && text.hasSuffix("*/"), "Unexpected doc block comment format: \(text)")
-        return String(text.dropFirst(3).dropLast(2))
+        return text.dropFirst(3).dropLast(2).split { $0.isNewline }
       case .docLineComment(let text):
         // Remove `///` and leading space
         assert(text.hasPrefix("///"), "Unexpected doc line comment format: \(text)")
-        var text = text.dropFirst(3)
-        while text.first?.isWhitespace == true {
-          text = text.dropFirst()
-        }
-        return String(text)
+        let text = text.dropFirst(3)
+        return [text]
       default:
-        return nil
+        return []
       }
     }
-    guard !docContents.isEmpty else {
+    guard !docLines.isEmpty else {
       return nil
     }
-    return docContents.joined(separator: "\n")
+    // Trim leading spaces for each line and skip empty lines
+    docLines = docLines.compactMap {
+      guard !$0.isEmpty else { return nil }
+      var trimmed = $0
+      while trimmed.first?.isWhitespace == true {
+        trimmed = trimmed.dropFirst()
+      }
+      return trimmed
+    }
+    return docLines.joined(separator: " ")
   }
 }
