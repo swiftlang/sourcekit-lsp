@@ -48,10 +48,22 @@ struct OptionDocumentBuilder {
         doc += " " + description.split(separator: "\n").joined(separator: "\n\(indent)  ")
       }
       doc += "\n"
-      if case .object(let schema) = type.kind {
+      switch type.kind {
+      case .object(let schema):
         for property in schema.properties {
           try appendProperty(property, indentLevel: indentLevel + 1)
         }
+      case .enum(let schema):
+        for caseInfo in schema.cases {
+          // Add detailed description for each case if available
+          guard let description = caseInfo.description else {
+            continue
+          }
+          doc += "\(indent)  - `\(caseInfo.name)`"
+          doc += ": " + description.split(separator: "\n").joined(separator: "\n\(indent)    ")
+          doc += "\n"
+        }
+      default: break
       }
     }
     guard case .object(let schema) = schema.kind else {

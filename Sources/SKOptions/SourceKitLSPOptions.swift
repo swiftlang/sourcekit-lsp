@@ -242,11 +242,11 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     }
   }
 
-  public enum BackgroundPreparationMode: String {
+  public enum BackgroundPreparationMode: String, Sendable, Codable, Equatable {
     /// Build a target to prepare it.
     case build
 
-    /// Prepare a target without generating object files but do not do lazy type checking.
+    /// Prepare a target without generating object files but do not do lazy type checking and function body skipping.
     ///
     /// This uses SwiftPM's `--experimental-prepare-for-indexing-no-lazy` flag.
     case noLazy
@@ -315,17 +315,11 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     return backgroundIndexing ?? true
   }
 
-  /// Determines how background indexing should prepare a target. Possible values are:
-  ///   - `build`: Build a target to prepare it.
-  ///   - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping.
-  ///   - `enabled`: Prepare a target without generating object files and the like.
-  public var backgroundPreparationMode: String?
+  /// Determines how background indexing should prepare a target.
+  public var backgroundPreparationMode: BackgroundPreparationMode?
 
   public var backgroundPreparationModeOrDefault: BackgroundPreparationMode {
-    if let backgroundPreparationMode, let parsed = BackgroundPreparationMode(rawValue: backgroundPreparationMode) {
-      return parsed
-    }
-    return .enabled
+    return backgroundPreparationMode ?? .enabled
   }
 
   /// Whether sending a `textDocument/didChange` or `textDocument/didClose` notification for a document should cancel
@@ -389,7 +383,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     defaultWorkspaceType: WorkspaceType? = nil,
     generatedFilesPath: String? = nil,
     backgroundIndexing: Bool? = nil,
-    backgroundPreparationMode: String? = nil,
+    backgroundPreparationMode: BackgroundPreparationMode? = nil,
     cancelTextDocumentRequestsOnEditAndClose: Bool? = nil,
     experimentalFeatures: Set<ExperimentalFeature>? = nil,
     swiftPublishDiagnosticsDebounceDuration: Double? = nil,

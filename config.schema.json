@@ -8,8 +8,18 @@
       "type" : "boolean"
     },
     "backgroundPreparationMode" : {
-      "description" : "Determines how background indexing should prepare a target. Possible values are: - `build`: Build a target to prepare it. - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping. - `enabled`: Prepare a target without generating object files and the like.",
-      "markdownDescription" : "Determines how background indexing should prepare a target. Possible values are: - `build`: Build a target to prepare it. - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping. - `enabled`: Prepare a target without generating object files and the like.",
+      "description" : "Determines how background indexing should prepare a target.",
+      "enum" : [
+        "build",
+        "noLazy",
+        "enabled"
+      ],
+      "markdownDescription" : "Determines how background indexing should prepare a target.",
+      "markdownEnumDescriptions" : {
+        "build" : "Build a target to prepare it.",
+        "enabled" : "Prepare a target without generating object files.",
+        "noLazy" : "Prepare a target without generating object files but do not do lazy type checking and function body skipping. This uses SwiftPM's `--experimental-prepare-for-indexing-no-lazy` flag."
+      },
       "type" : "string"
     },
     "buildSettingsTimeout" : {
