@@ -44,13 +44,13 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     /// Equivalent to SwiftPM's `--scratch-path` option.
     public var scratchPath: String?
 
-    /// Equivalent to SwiftPM's `--swift-sdks-path` option
+    /// Equivalent to SwiftPM's `--swift-sdks-path` option.
     public var swiftSDKsDirectory: String?
 
-    /// Equivalent to SwiftPM's `--swift-sdk` option
+    /// Equivalent to SwiftPM's `--swift-sdk` option.
     public var swiftSDK: String?
 
-    /// Equivalent to SwiftPM's `--triple` option
+    /// Equivalent to SwiftPM's `--triple` option.
     public var triple: String?
 
     /// Extra arguments passed to the compiler for C files. Equivalent to SwiftPM's `-Xcc` option.
@@ -65,7 +65,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     /// Extra arguments passed to the linker. Equivalent to SwiftPM's `-Xlinker` option.
     public var linkerFlags: [String]?
 
-    /// Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option
+    /// Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option.
     /// Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.
     public var disableSandbox: Bool?
 
@@ -126,11 +126,11 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   }
 
   public struct FallbackBuildSystemOptions: Sendable, Codable, Equatable {
-    /// Extra arguments passed to the compiler for C files
+    /// Extra arguments passed to the compiler for C files.
     public var cCompilerFlags: [String]?
-    /// Extra arguments passed to the compiler for C++ files
+    /// Extra arguments passed to the compiler for C++ files.
     public var cxxCompilerFlags: [String]?
-    /// Extra arguments passed to the compiler for Swift files
+    /// Extra arguments passed to the compiler for Swift files.
     public var swiftCompilerFlags: [String]?
     /// The SDK to use for fallback arguments. Default is to infer the SDK using `xcrun`.
     public var sdk: String?
@@ -167,7 +167,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     public var indexDatabasePath: String?
     /// Path remappings for remapping index data for local use.
     public var indexPrefixMap: [String: String]?
-    /// A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting
+    /// A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting.
     public var maxCoresPercentageToUseForBackgroundIndexing: Double?
     /// Number of seconds to wait for an update index store task to finish before killing it.
     public var updateIndexStoreTimeout: Int?
@@ -243,7 +243,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   }
 
   public enum BackgroundPreparationMode: String {
-    /// Build a target to prepare it
+    /// Build a target to prepare it.
     case build
 
     /// Prepare a target without generating object files but do not do lazy type checking.
@@ -255,21 +255,21 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     case enabled
   }
 
-  /// Options for SwiftPM workspaces
+  /// Options for SwiftPM workspaces.
   private var swiftPM: SwiftPMOptions?
   public var swiftPMOrDefault: SwiftPMOptions {
     get { swiftPM ?? .init() }
     set { swiftPM = newValue }
   }
 
-  /// Dictionary with the following keys, defining options for workspaces with a compilation database
+  /// Dictionary with the following keys, defining options for workspaces with a compilation database.
   private var compilationDatabase: CompilationDatabaseOptions?
   public var compilationDatabaseOrDefault: CompilationDatabaseOptions {
     get { compilationDatabase ?? .init() }
     set { compilationDatabase = newValue }
   }
 
-  /// Dictionary with the following keys, defining options for files that aren't managed by any build system
+  /// Dictionary with the following keys, defining options for files that aren't managed by any build system.
   private var fallbackBuildSystem: FallbackBuildSystemOptions?
   public var fallbackBuildSystemOrDefault: FallbackBuildSystemOptions {
     get { fallbackBuildSystem ?? .init() }
@@ -283,10 +283,10 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     get { .milliseconds(buildSettingsTimeout ?? 500) }
   }
 
-  /// Extra command line arguments passed to `clangd` when launching it
+  /// Extra command line arguments passed to `clangd` when launching it.
   public var clangdOptions: [String]?
 
-  /// Options related to indexing
+  /// Options related to indexing.
   private var index: IndexOptions?
   public var indexOrDefault: IndexOptions {
     get { index ?? .init() }
@@ -316,9 +316,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   }
 
   /// Determines how background indexing should prepare a target. Possible values are:
-  ///   - `build`: Build a target to prepare it
-  ///   - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping
-  ///   - `enabled`: Prepare a target without generating object files and the like
+  ///   - `build`: Build a target to prepare it.
+  ///   - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping.
+  ///   - `enabled`: Prepare a target without generating object files and the like.
   public var backgroundPreparationMode: String?
 
   public var backgroundPreparationModeOrDefault: BackgroundPreparationMode {

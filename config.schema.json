@@ -8,8 +8,8 @@
       "type" : "boolean"
     },
     "backgroundPreparationMode" : {
-      "description" : "Determines how background indexing should prepare a target. Possible values are:\n- `build`: Build a target to prepare it\n- `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping\n- `enabled`: Prepare a target without generating object files and the like",
-      "markdownDescription" : "Determines how background indexing should prepare a target. Possible values are:\n- `build`: Build a target to prepare it\n- `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping\n- `enabled`: Prepare a target without generating object files and the like",
+      "description" : "Determines how background indexing should prepare a target. Possible values are:\n- `build`: Build a target to prepare it.\n- `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping.\n- `enabled`: Prepare a target without generating object files and the like.",
+      "markdownDescription" : "Determines how background indexing should prepare a target. Possible values are:\n- `build`: Build a target to prepare it.\n- `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping.\n- `enabled`: Prepare a target without generating object files and the like.",
       "type" : "string"
     },
     "buildSettingsTimeout" : {
@@ -23,16 +23,16 @@
       "type" : "boolean"
     },
     "clangdOptions" : {
-      "description" : "Extra command line arguments passed to `clangd` when launching it",
+      "description" : "Extra command line arguments passed to `clangd` when launching it.",
       "items" : {
         "type" : "string"
       },
-      "markdownDescription" : "Extra command line arguments passed to `clangd` when launching it",
+      "markdownDescription" : "Extra command line arguments passed to `clangd` when launching it.",
       "type" : "array"
     },
     "compilationDatabase" : {
-      "description" : "Dictionary with the following keys, defining options for workspaces with a compilation database",
-      "markdownDescription" : "Dictionary with the following keys, defining options for workspaces with a compilation database",
+      "description" : "Dictionary with the following keys, defining options for workspaces with a compilation database.",
+      "markdownDescription" : "Dictionary with the following keys, defining options for workspaces with a compilation database.",
       "properties" : {
         "searchPaths" : {
           "description" : "Additional paths to search for a compilation database, relative to a workspace root.",
@@ -67,23 +67,23 @@
       "type" : "array"
     },
     "fallbackBuildSystem" : {
-      "description" : "Dictionary with the following keys, defining options for files that aren't managed by any build system",
-      "markdownDescription" : "Dictionary with the following keys, defining options for files that aren't managed by any build system",
+      "description" : "Dictionary with the following keys, defining options for files that aren't managed by any build system.",
+      "markdownDescription" : "Dictionary with the following keys, defining options for files that aren't managed by any build system.",
       "properties" : {
         "cCompilerFlags" : {
-          "description" : "Extra arguments passed to the compiler for C files",
+          "description" : "Extra arguments passed to the compiler for C files.",
           "items" : {
             "type" : "string"
           },
-          "markdownDescription" : "Extra arguments passed to the compiler for C files",
+          "markdownDescription" : "Extra arguments passed to the compiler for C files.",
           "type" : "array"
         },
         "cxxCompilerFlags" : {
-          "description" : "Extra arguments passed to the compiler for C++ files",
+          "description" : "Extra arguments passed to the compiler for C++ files.",
           "items" : {
             "type" : "string"
           },
-          "markdownDescription" : "Extra arguments passed to the compiler for C++ files",
+          "markdownDescription" : "Extra arguments passed to the compiler for C++ files.",
           "type" : "array"
         },
         "sdk" : {
@@ -92,11 +92,11 @@
           "type" : "string"
         },
         "swiftCompilerFlags" : {
-          "description" : "Extra arguments passed to the compiler for Swift files",
+          "description" : "Extra arguments passed to the compiler for Swift files.",
           "items" : {
             "type" : "string"
           },
-          "markdownDescription" : "Extra arguments passed to the compiler for Swift files",
+          "markdownDescription" : "Extra arguments passed to the compiler for Swift files.",
           "type" : "array"
         }
       },
@@ -108,8 +108,8 @@
       "type" : "string"
     },
     "index" : {
-      "description" : "Options related to indexing",
-      "markdownDescription" : "Options related to indexing",
+      "description" : "Options related to indexing.",
+      "markdownDescription" : "Options related to indexing.",
       "properties" : {
         "indexDatabasePath" : {
           "description" : "Directory in which the indexstore-db should be stored. By default, inferred from the build system.",
@@ -130,8 +130,8 @@
           "type" : "string"
         },
         "maxCoresPercentageToUseForBackgroundIndexing" : {
-          "description" : "A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting",
-          "markdownDescription" : "A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting",
+          "description" : "A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting.",
+          "markdownDescription" : "A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting.",
           "type" : "number"
         },
         "updateIndexStoreTimeout" : {
@@ -182,8 +182,8 @@
       "type" : "number"
     },
     "swiftPM" : {
-      "description" : "Options for SwiftPM workspaces",
-      "markdownDescription" : "Options for SwiftPM workspaces",
+      "description" : "Options for SwiftPM workspaces.",
+      "markdownDescription" : "Options for SwiftPM workspaces.",
       "properties" : {
         "cCompilerFlags" : {
           "description" : "Extra arguments passed to the compiler for C files. Equivalent to SwiftPM's `-Xcc` option.",
@@ -211,8 +211,8 @@
           "type" : "array"
         },
         "disableSandbox" : {
-          "description" : "Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option\nUseful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.",
-          "markdownDescription" : "Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option\nUseful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.",
+          "description" : "Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option.\nUseful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.",
+          "markdownDescription" : "Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option.\nUseful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.",
           "type" : "boolean"
         },
         "linkerFlags" : {
@@ -237,18 +237,18 @@
           "type" : "array"
         },
         "swiftSDK" : {
-          "description" : "Equivalent to SwiftPM's `--swift-sdk` option",
-          "markdownDescription" : "Equivalent to SwiftPM's `--swift-sdk` option",
+          "description" : "Equivalent to SwiftPM's `--swift-sdk` option.",
+          "markdownDescription" : "Equivalent to SwiftPM's `--swift-sdk` option.",
           "type" : "string"
         },
         "swiftSDKsDirectory" : {
-          "description" : "Equivalent to SwiftPM's `--swift-sdks-path` option",
-          "markdownDescription" : "Equivalent to SwiftPM's `--swift-sdks-path` option",
+          "description" : "Equivalent to SwiftPM's `--swift-sdks-path` option.",
+          "markdownDescription" : "Equivalent to SwiftPM's `--swift-sdks-path` option.",
           "type" : "string"
         },
         "triple" : {
-          "description" : "Equivalent to SwiftPM's `--triple` option",
-          "markdownDescription" : "Equivalent to SwiftPM's `--triple` option",
+          "description" : "Equivalent to SwiftPM's `--triple` option.",
+          "markdownDescription" : "Equivalent to SwiftPM's `--triple` option.",
           "type" : "string"
         }
       },

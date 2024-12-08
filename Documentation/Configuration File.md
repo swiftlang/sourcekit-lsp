@@ -14,7 +14,7 @@ The structure of the file is currently not guaranteed to be stable. Options may 
 ## Structure
 
 `config.json` is a JSON file with the following structure. All keys are optional and unknown keys are ignored.
-- `swiftPM`: Options for SwiftPM workspaces
+- `swiftPM`: Options for SwiftPM workspaces.
   - `configuration: "debug"|"release"`: The configuration to build the project for during background indexing
     and the configuration whose build folder should be used for Swift
     modules if background indexing is disabled.
@@ -22,29 +22,29 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `scratchPath: string`: Build artifacts directory path. If nil, the build system may choose a default value.
     This path can be specified as a relative path, which will be interpreted relative to the project root.
     Equivalent to SwiftPM's `--scratch-path` option.
-  - `swiftSDKsDirectory: string`: Equivalent to SwiftPM's `--swift-sdks-path` option
-  - `swiftSDK: string`: Equivalent to SwiftPM's `--swift-sdk` option
-  - `triple: string`: Equivalent to SwiftPM's `--triple` option
+  - `swiftSDKsDirectory: string`: Equivalent to SwiftPM's `--swift-sdks-path` option.
+  - `swiftSDK: string`: Equivalent to SwiftPM's `--swift-sdk` option.
+  - `triple: string`: Equivalent to SwiftPM's `--triple` option.
   - `cCompilerFlags: string[]`: Extra arguments passed to the compiler for C files. Equivalent to SwiftPM's `-Xcc` option.
   - `cxxCompilerFlags: string[]`: Extra arguments passed to the compiler for C++ files. Equivalent to SwiftPM's `-Xcxx` option.
   - `swiftCompilerFlags: string[]`: Extra arguments passed to the compiler for Swift files. Equivalent to SwiftPM's `-Xswiftc` option.
   - `linkerFlags: string[]`: Extra arguments passed to the linker. Equivalent to SwiftPM's `-Xlinker` option.
-  - `disableSandbox: boolean`: Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option
+  - `disableSandbox: boolean`: Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option.
     Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.
-- `compilationDatabase`: Dictionary with the following keys, defining options for workspaces with a compilation database
+- `compilationDatabase`: Dictionary with the following keys, defining options for workspaces with a compilation database.
   - `searchPaths: string[]`: Additional paths to search for a compilation database, relative to a workspace root.
-- `fallbackBuildSystem`: Dictionary with the following keys, defining options for files that aren't managed by any build system
-  - `cCompilerFlags: string[]`: Extra arguments passed to the compiler for C files
-  - `cxxCompilerFlags: string[]`: Extra arguments passed to the compiler for C++ files
-  - `swiftCompilerFlags: string[]`: Extra arguments passed to the compiler for Swift files
+- `fallbackBuildSystem`: Dictionary with the following keys, defining options for files that aren't managed by any build system.
+  - `cCompilerFlags: string[]`: Extra arguments passed to the compiler for C files.
+  - `cxxCompilerFlags: string[]`: Extra arguments passed to the compiler for C++ files.
+  - `swiftCompilerFlags: string[]`: Extra arguments passed to the compiler for Swift files.
   - `sdk: string`: The SDK to use for fallback arguments. Default is to infer the SDK using `xcrun`.
 - `buildSettingsTimeout: integer`: Number of milliseconds to wait for build settings from the build system before using fallback build settings.
-- `clangdOptions: string[]`: Extra command line arguments passed to `clangd` when launching it
-- `index`: Options related to indexing
+- `clangdOptions: string[]`: Extra command line arguments passed to `clangd` when launching it.
+- `index`: Options related to indexing.
   - `indexStorePath: string`: Directory in which a separate compilation stores the index store. By default, inferred from the build system.
   - `indexDatabasePath: string`: Directory in which the indexstore-db should be stored. By default, inferred from the build system.
   - `indexPrefixMap: [string: string]`: Path remappings for remapping index data for local use.
-  - `maxCoresPercentageToUseForBackgroundIndexing: number`: A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting
+  - `maxCoresPercentageToUseForBackgroundIndexing: number`: A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting.
   - `updateIndexStoreTimeout: integer`: Number of seconds to wait for an update index store task to finish before killing it.
 - `logging`: Options related to logging, changing SourceKit-LSP’s logging behavior on non-Apple platforms.
   On Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging).
@@ -58,9 +58,9 @@ The structure of the file is currently not guaranteed to be stable. Options may 
 - `generatedFilesPath: string`: Directory in which generated interfaces and macro expansions should be stored.
 - `backgroundIndexing: boolean`: Whether background indexing is enabled.
 - `backgroundPreparationMode: string`: Determines how background indexing should prepare a target. Possible values are:
-  - `build`: Build a target to prepare it
-  - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping
-  - `enabled`: Prepare a target without generating object files and the like
+  - `build`: Build a target to prepare it.
+  - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping.
+  - `enabled`: Prepare a target without generating object files and the like.
 - `cancelTextDocumentRequestsOnEditAndClose: boolean`: Whether sending a `textDocument/didChange` or `textDocument/didClose` notification for a document should cancel
   all pending requests for that document.
 - `experimentalFeatures: ("on-type-formatting")[]`: Experimental features that are enabled.
