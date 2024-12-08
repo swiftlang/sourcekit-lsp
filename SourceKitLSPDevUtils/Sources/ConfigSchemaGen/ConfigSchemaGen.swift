@@ -91,17 +91,21 @@ public struct ConfigSchemaGen {
 
     var plans: [WritePlan] = []
 
-    plans.append(WritePlan(
-      category: "JSON Schema",
-      path: configSchemaJSONPath,
-      contents: { try generateJSONSchema(from: schema, context: context) }
-    ))
+    plans.append(
+      WritePlan(
+        category: "JSON Schema",
+        path: configSchemaJSONPath,
+        contents: { try generateJSONSchema(from: schema, context: context) }
+      )
+    )
 
-    plans.append(WritePlan(
-      category: "Schema Documentation",
-      path: configSchemaDocPath,
-      contents: { try generateDocumentation(from: schema, context: context) }
-    ))
+    plans.append(
+      WritePlan(
+        category: "Schema Documentation",
+        path: configSchemaDocPath,
+        contents: { try generateDocumentation(from: schema, context: context) }
+      )
+    )
     return plans
   }
 
