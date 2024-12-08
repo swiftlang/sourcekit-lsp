@@ -2,10 +2,12 @@ import Foundation
 import SwiftParser
 import SwiftSyntax
 
-@main
-struct ConfigSchemaGen {
+/// The main entry point for generating a JSON schema and Markdown documentation
+/// for the SourceKit-LSP configuration file format
+/// (`.sourcekit-lsp/config.json`) from the Swift type definitions in
+/// `SKOptions` Swift module.
+public struct ConfigSchemaGen {
   static let projectRoot = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent()
     .deletingLastPathComponent()
     .deletingLastPathComponent()
     .deletingLastPathComponent()
@@ -22,7 +24,7 @@ struct ConfigSchemaGen {
     .appendingPathComponent("Documentation")
     .appendingPathComponent("Configuration File.md")
 
-  static func main() throws {
+  public static func generate() throws {
     let sourceFiles = FileManager.default.enumerator(at: sourceDir, includingPropertiesForKeys: nil)!
     let typeNameResolver = TypeDeclResolver()
 
