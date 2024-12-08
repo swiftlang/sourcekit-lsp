@@ -156,10 +156,14 @@ struct OptionSchemaContext {
         }
         let name: String
         if let rawValue = $0.rawValue?.value {
-          if let stringLiteral = rawValue.as(StringLiteralExprSyntax.self), stringLiteral.segments.count == 1 {
-            name = stringLiteral.segments.first!.description
+          if let stringLiteral = rawValue.as(StringLiteralExprSyntax.self),
+            let literalValue = stringLiteral.representedLiteralValue
+          {
+            name = literalValue
           } else {
-            throw ConfigSchemaGenError("Only string literals without interpolation are supported as enum case raw values: \(caseDecl)")
+            throw ConfigSchemaGenError(
+              "Only string literals without interpolation are supported as enum case raw values: \(caseDecl)"
+            )
           }
         } else {
           name = $0.name.text
