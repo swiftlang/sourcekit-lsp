@@ -19,6 +19,7 @@ struct SourceKitLSPDevUtils: ParsableCommand {
         abstract: "Utilities for developing SourceKit-LSP",
         subcommands: [
             GenerateConfigSchema.self,
+            VerifyConfigSchema.self,
         ]
     )
 }

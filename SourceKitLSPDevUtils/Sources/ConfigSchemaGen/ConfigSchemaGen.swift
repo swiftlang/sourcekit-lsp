@@ -19,6 +19,16 @@ import SwiftSyntax
 /// (`.sourcekit-lsp/config.json`) from the Swift type definitions in
 /// `SKOptions` Swift module.
 public struct ConfigSchemaGen {
+  public struct WritePlan {
+    public let category: String
+    public let path: URL
+    public let contents: () throws -> Data
+
+    public func write() throws {
+      try contents().write(to: path)
+    }
+  }
+
   static let projectRoot = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent()
     .deletingLastPathComponent()
@@ -37,6 +47,14 @@ public struct ConfigSchemaGen {
     .appendingPathComponent("Configuration File.md")
 
   public static func generate() throws {
+    let plans = try plan()
+    for plan in plans {
+      print("Writing \(plan.category) to \"\(plan.path.path)\"")
+      try plan.write()
+    }
+  }
+
+  public static func plan() throws -> [WritePlan] {
     let sourceFiles = FileManager.default.enumerator(at: sourceDir, includingPropertiesForKeys: nil)!
     let typeNameResolver = TypeDeclResolver()
 
@@ -71,15 +89,20 @@ public struct ConfigSchemaGen {
       )
     )
 
-    print("Writing schema to \(configSchemaJSONPath.path)")
-    try generateJSONSchema(from: schema, context: context).write(to: configSchemaJSONPath)
+    var plans: [WritePlan] = []
 
-    print("Writing schema documentation to \(configSchemaDocPath.path)")
-    try generateDocumentation(from: schema, context: context).write(
-      to: configSchemaDocPath,
-      atomically: true,
-      encoding: .utf8
-    )
+    plans.append(WritePlan(
+      category: "JSON Schema",
+      path: configSchemaJSONPath,
+      contents: { try generateJSONSchema(from: schema, context: context) }
+    ))
+
+    plans.append(WritePlan(
+      category: "Schema Documentation",
+      path: configSchemaDocPath,
+      contents: { try generateDocumentation(from: schema, context: context) }
+    ))
+    return plans
   }
 
   static func generateJSONSchema(from schema: OptionTypeSchama, context: OptionSchemaContext) throws -> Data {
@@ -92,8 +115,22 @@ public struct ConfigSchemaGen {
     return try encoder.encode(jsonSchema)
   }
 
-  static func generateDocumentation(from schema: OptionTypeSchama, context: OptionSchemaContext) throws -> String {
+  static func generateDocumentation(from schema: OptionTypeSchama, context: OptionSchemaContext) throws -> Data {
     let docBuilder = OptionDocumentBuilder(context: context)
-    return try docBuilder.build(from: schema)
+    guard let data = try docBuilder.build(from: schema).data(using: .utf8) else {
+      throw ConfigSchemaGenError.documentationEncodingFailed
+    }
+    return data
+  }
+}
+
+enum ConfigSchemaGenError: Error, CustomStringConvertible {
+  case documentationEncodingFailed
+
+  var description: String {
+    switch self {
+    case .documentationEncodingFailed:
+      return "Failed to encode documentation as UTF-8"
+    }
   }
 }
