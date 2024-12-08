@@ -176,9 +176,9 @@
         "privacyLevel" : {
           "description" : "Whether potentially sensitive information should be redacted. Default is `public`, which redacts potentially sensitive information.",
           "enum" : [
-            "sensitive",
+            "public",
             "private",
-            "public"
+            "sensitive"
           ],
           "markdownDescription" : "Whether potentially sensitive information should be redacted. Default is `public`, which redacts potentially sensitive information.",
           "type" : "string"

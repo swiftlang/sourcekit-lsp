@@ -42,7 +42,7 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `updateIndexStoreTimeout: integer`: Number of seconds to wait for an update index store task to finish before killing it.
 - `logging`: Options related to logging, changing SourceKit-LSP’s logging behavior on non-Apple platforms. On Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging). These options can only be set globally and not per workspace.
   - `level: "debug"|"info"|"default"|"error"|"fault"`: The level from which one onwards log messages should be written.
-  - `privacyLevel: "sensitive"|"private"|"public"`: Whether potentially sensitive information should be redacted. Default is `public`, which redacts potentially sensitive information.
+  - `privacyLevel: "public"|"private"|"sensitive"`: Whether potentially sensitive information should be redacted. Default is `public`, which redacts potentially sensitive information.
   - `inputMirrorDirectory: string`: Write all input received by SourceKit-LSP on stdin to a file in this directory. Useful to record and replay an entire SourceKit-LSP session.
 - `defaultWorkspaceType: "buildServer"|"compilationDatabase"|"swiftPM"`: Default workspace type. Overrides workspace type selection logic.
 - `generatedFilesPath: string`: Directory in which generated interfaces and macro expansions should be stored.

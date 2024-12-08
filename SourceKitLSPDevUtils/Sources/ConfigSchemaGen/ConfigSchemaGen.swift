@@ -83,7 +83,7 @@ public struct ConfigSchemaGen {
     schema["logging"]?["privacyLevel"]?.kind = .enum(
       OptionTypeSchama.Enum(
         name: "PrivacyLevel",
-        cases: ["sensitive", "private", "public"].map {
+        cases: ["public", "private", "sensitive"].map {
           OptionTypeSchama.Case(name: $0)
         }
       )
