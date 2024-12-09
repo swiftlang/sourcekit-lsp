@@ -302,10 +302,10 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
           explicitDirectory: options.swiftPMOrDefault.swiftSDKsDirectory.map { try AbsolutePath(validating: $0) }
         ),
         fileSystem: localFileSystem,
-        observabilityScope: observabilitySystem.topScope,
+        observabilityScope: observabilitySystem.topScope.makeChildScope(description: "SwiftPM Bundle Store"),
         outputHandler: { _ in }
       ),
-      observabilityScope: observabilitySystem.topScope,
+      observabilityScope: observabilitySystem.topScope.makeChildScope(description: "Derive Target Swift SDK"),
       fileSystem: localFileSystem
     )
 
@@ -414,7 +414,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     let modulesGraph = try await self.swiftPMWorkspace.loadPackageGraph(
       rootInput: PackageGraphRootInput(packages: [AbsolutePath(validating: projectRoot.filePath)]),
       forceResolvedVersions: !isForIndexBuild,
-      observabilityScope: observabilitySystem.topScope
+      observabilityScope: observabilitySystem.topScope.makeChildScope(description: "Load package graph")
     )
 
     let plan = try await BuildPlan(
@@ -423,7 +423,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       graph: modulesGraph,
       disableSandbox: options.swiftPMOrDefault.disableSandbox ?? false,
       fileSystem: localFileSystem,
-      observabilityScope: observabilitySystem.topScope
+      observabilityScope: observabilitySystem.topScope.makeChildScope(description: "Create SwiftPM build plan")
     )
     let buildDescription = BuildDescription(buildPlan: plan)
     self.buildDescription = buildDescription
