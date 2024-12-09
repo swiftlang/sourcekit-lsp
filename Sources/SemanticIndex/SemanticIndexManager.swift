@@ -291,7 +291,8 @@ package final actor SemanticIndexManager {
             filesToIndex
           } else {
             await orLog("Getting files to index") {
-              try await self.buildSystemManager.buildableSourceFiles().keys.sorted { $0.stringValue < $1.stringValue }
+              try await self.buildSystemManager.sourceFiles(includeNonBuildableFiles: false).keys
+                .sorted { $0.stringValue < $1.stringValue }
             } ?? []
           }
         if !indexFilesWithUpToDateUnit {
@@ -408,7 +409,7 @@ package final actor SemanticIndexManager {
     toCover files: some Collection<DocumentURI> & Sendable
   ) async -> [FileToIndex] {
     let sourceFiles = await orLog("Getting source files in project") {
-      Set(try await buildSystemManager.buildableSourceFiles().keys)
+      Set(try await buildSystemManager.sourceFiles(includeNonBuildableFiles: false).keys)
     }
     guard let sourceFiles else {
       return []
