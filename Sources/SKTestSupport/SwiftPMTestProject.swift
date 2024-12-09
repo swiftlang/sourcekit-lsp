@@ -163,7 +163,9 @@ package class SwiftPMTestProject: MultiFileTestProject {
   package init(
     files: [RelativeFileLocation: String],
     manifest: String = SwiftPMTestProject.defaultPackageManifest,
-    workspaces: (URL) async throws -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
+    workspaces: (_ scratchDirectory: URL) async throws -> [WorkspaceFolder] = {
+      [WorkspaceFolder(uri: DocumentURI($0))]
+    },
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
     options: SourceKitLSPOptions = .testDefault(),

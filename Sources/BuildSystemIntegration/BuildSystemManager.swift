@@ -1033,11 +1033,11 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     return response.items
   }
 
-  /// Returns all source files in the project that can be built.
+  /// Returns all source files in the project.
   ///
   /// - SeeAlso: Comment in `sourceFilesAndDirectories` for a definition of what `buildable` means.
-  package func buildableSourceFiles() async throws -> [DocumentURI: SourceFileInfo] {
-    return try await sourceFilesAndDirectories(includeNonBuildableFiles: false).files
+  package func sourceFiles(includeNonBuildableFiles: Bool) async throws -> [DocumentURI: SourceFileInfo] {
+    return try await sourceFilesAndDirectories(includeNonBuildableFiles: includeNonBuildableFiles).files
   }
 
   /// Get all files and directories that are known to the build system, ie. that are returned by a `buildTarget/sources`
@@ -1093,7 +1093,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   }
 
   package func testFiles() async throws -> [DocumentURI] {
-    return try await buildableSourceFiles().compactMap { (uri, info) -> DocumentURI? in
+    return try await sourceFiles(includeNonBuildableFiles: false).compactMap { (uri, info) -> DocumentURI? in
       guard info.isPartOfRootProject, info.mayContainTests else {
         return nil
       }
