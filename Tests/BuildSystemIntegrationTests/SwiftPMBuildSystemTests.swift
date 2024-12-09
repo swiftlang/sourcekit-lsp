@@ -1148,6 +1148,39 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       XCTAssert(compilerArgs.contains(try versionSpecificManifestURL.filePath))
     }
   }
+
+  func testBuildSettingsForInvalidManifest() async throws {
+    try await withTestScratchDir { tempDir in
+      try FileManager.default.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version: 4.2
+          import PackageDescription
+          """,
+        ]
+      )
+      let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
+      let manifestURL = packageRoot.appendingPathComponent("Package.swift")
+      let buildSystemManager = await BuildSystemManager(
+        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        toolchainRegistry: .forTesting,
+        options: SourceKitLSPOptions(),
+        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
+        buildSystemTestHooks: BuildSystemTestHooks()
+      )
+      await buildSystemManager.waitForUpToDateBuildGraph()
+      let settings = await buildSystemManager.buildSettingsInferredFromMainFile(
+        for: DocumentURI(manifestURL),
+        language: .swift,
+        fallbackAfterTimeout: false
+      )
+      let compilerArgs = try XCTUnwrap(settings?.compilerArguments)
+      XCTAssert(compilerArgs.contains("-package-description-version"))
+      XCTAssert(compilerArgs.contains(try manifestURL.filePath))
+    }
+  }
 }
 
 private func assertArgumentsDoNotContain(
