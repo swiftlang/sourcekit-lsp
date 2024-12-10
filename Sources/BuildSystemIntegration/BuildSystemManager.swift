@@ -635,7 +635,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
 
     switch language {
-    case .swift, .markdown, .tutorial:
+    case .swift:
       return await toolchainRegistry.preferredToolchain(containing: [\.sourcekitd, \.swift, \.swiftc])
     case .c, .cpp, .objective_c, .objective_cpp:
       return await toolchainRegistry.preferredToolchain(containing: [\.clang, \.clangd])

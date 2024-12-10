@@ -17,7 +17,6 @@ import LanguageServerProtocol
 enum LanguageServerType: Hashable {
   case clangd
   case swift
-  case documentation
 
   init?(language: Language) {
     switch language {
@@ -25,8 +24,6 @@ enum LanguageServerType: Hashable {
       self = .clangd
     case .swift:
       self = .swift
-    case .markdown, .tutorial:
-      self = .documentation
     default:
       return nil
     }
@@ -47,8 +44,6 @@ enum LanguageServerType: Hashable {
       return ClangLanguageService.self
     case .swift:
       return SwiftLanguageService.self
-    case .documentation:
-      return DocumentationLanguageService.self
     }
   }
 }
