@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
+
 #if compiler(>=6)
 package import LanguageServerProtocol
 import SKLogging
@@ -43,25 +45,21 @@ package func determineBuildSystem(
     buildSystemPreference.removeAll(where: { $0 == defaultBuildSystem })
     buildSystemPreference.insert(defaultBuildSystem, at: 0)
   }
-  guard let workspaceFolderUrl = workspaceFolder.fileURL,
-    let workspaceFolderPath = try? AbsolutePath(validating: workspaceFolderUrl.filePath)
-  else {
+  guard let workspaceFolderUrl = workspaceFolder.fileURL else {
     return nil
   }
   for buildSystemType in buildSystemPreference {
     switch buildSystemType {
     case .buildServer:
-      if let projectRoot = ExternalBuildSystemAdapter.projectRoot(for: workspaceFolderPath, options: options) {
+      if let projectRoot = ExternalBuildSystemAdapter.projectRoot(for: workspaceFolderUrl, options: options) {
         return BuildSystemSpec(kind: .buildServer, projectRoot: projectRoot)
       }
     case .compilationDatabase:
-      if let projectRoot = CompilationDatabaseBuildSystem.projectRoot(for: workspaceFolderPath, options: options) {
+      if let projectRoot = CompilationDatabaseBuildSystem.projectRoot(for: workspaceFolderUrl, options: options) {
         return BuildSystemSpec(kind: .compilationDatabase, projectRoot: projectRoot)
       }
     case .swiftPM:
-      if let projectRootURL = SwiftPMBuildSystem.projectRoot(for: workspaceFolderUrl, options: options),
-        let projectRoot = try? AbsolutePath(validating: projectRootURL.filePath)
-      {
+      if let projectRoot = SwiftPMBuildSystem.projectRoot(for: workspaceFolderUrl, options: options) {
         return BuildSystemSpec(kind: .swiftPM, projectRoot: projectRoot)
       }
     }

@@ -14,7 +14,7 @@
 package import Foundation
 package import LanguageServerProtocol
 import SwiftExtensions
-package import struct TSCBasic.AbsolutePath
+import struct TSCBasic.AbsolutePath
 #else
 import Foundation
 import LanguageServerProtocol
@@ -26,6 +26,8 @@ extension Language {
   var fileExtension: String {
     switch self {
     case .objective_c: return "m"
+    case .markdown: return "md"
+    case .tutorial: return "tutorial"
     default: return self.rawValue
     }
   }
@@ -37,6 +39,8 @@ extension Language {
     case "m": self = .objective_c
     case "mm": self = .objective_cpp
     case "swift": self = .swift
+    case "md": self = .markdown
+    case "tutorial": self = .tutorial
     default: return nil
     }
   }
@@ -73,11 +77,11 @@ package func testScratchDir(testName: String = #function) throws -> URL {
   #if os(Windows)
   let url = try FileManager.default.temporaryDirectory.realpath
     .appendingPathComponent("lsp-test")
-    .appendingPathComponent("\(uuid)")
+    .appendingPathComponent("\(uuid)", isDirectory: true)
   #else
   let url = try FileManager.default.temporaryDirectory.realpath
     .appendingPathComponent("sourcekit-lsp-test-scratch")
-    .appendingPathComponent("\(testBaseName)-\(uuid)")
+    .appendingPathComponent("\(testBaseName)-\(uuid)", isDirectory: true)
   #endif
   try? FileManager.default.removeItem(at: url)
   try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
@@ -90,7 +94,7 @@ package func testScratchDir(testName: String = #function) throws -> URL {
 /// The temporary directory will be deleted at the end of `directory` unless the
 /// `SOURCEKIT_LSP_KEEP_TEST_SCRATCH_DIR` environment variable is set.
 package func withTestScratchDir<T>(
-  @_inheritActorContext _ body: @Sendable (AbsolutePath) async throws -> T,
+  @_inheritActorContext _ body: @Sendable (URL) async throws -> T,
   testName: String = #function
 ) async throws -> T {
   let scratchDirectory = try testScratchDir(testName: testName)
@@ -100,7 +104,7 @@ package func withTestScratchDir<T>(
       try? FileManager.default.removeItem(at: scratchDirectory)
     }
   }
-  return try await body(try AbsolutePath(validating: scratchDirectory.filePath))
+  return try await body(scratchDirectory)
 }
 
 var globalModuleCache: URL? {

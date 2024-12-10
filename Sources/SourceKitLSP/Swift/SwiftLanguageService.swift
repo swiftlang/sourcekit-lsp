@@ -28,8 +28,6 @@ import SwiftParser
 import SwiftParserDiagnostics
 package import SwiftSyntax
 package import ToolchainRegistry
-
-import struct TSCBasic.AbsolutePath
 #else
 import BuildSystemIntegration
 import Csourcekitd
@@ -48,8 +46,6 @@ import SwiftParser
 import SwiftParserDiagnostics
 import SwiftSyntax
 import ToolchainRegistry
-
-import struct TSCBasic.AbsolutePath
 #endif
 
 #if os(Windows)
@@ -125,7 +121,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   let sourcekitd: SourceKitD
 
   /// Path to the swift-format executable if it exists in the toolchain.
-  let swiftFormat: AbsolutePath?
+  let swiftFormat: URL?
 
   /// Queue on which notifications from sourcekitd are handled to ensure we are
   /// handling them in-order.
@@ -1228,6 +1224,12 @@ extension DocumentSnapshot {
       callerLine: callerLine
     )
     return Position(line: zeroBasedLine, utf16index: utf16Column)
+  }
+
+  /// Converts the given `String.Index` to a UTF-16-based line:column position.
+  func position(of index: String.Index, fromLine: Int = 0) -> Position {
+    let (line, utf16Column) = lineTable.lineAndUTF16ColumnOf(index, fromLine: fromLine)
+    return Position(line: line, utf16index: utf16Column)
   }
 
   // MARK: Position <-> AbsolutePosition

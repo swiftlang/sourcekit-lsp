@@ -30,7 +30,6 @@ package import ToolchainRegistry
 import struct PackageModel.BuildFlags
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
-import var TSCBasic.localFileSystem
 #else
 import BuildServerProtocol
 import BuildSystemIntegration
@@ -51,7 +50,6 @@ import ToolchainRegistry
 import struct PackageModel.BuildFlags
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
-import var TSCBasic.localFileSystem
 #endif
 
 /// Disambiguate LanguageServerProtocol.Language and IndexstoreDB.Language
@@ -85,12 +83,6 @@ package actor SourceKitLSPServer {
   ///
   /// Initialization can be awaited using `waitUntilInitialized`.
   private var initialized: Bool = false
-
-  /// Set to `true` after the user has opened a project that doesn't support background indexing while having background
-  /// indexing enabled.
-  ///
-  /// This ensures that we only inform the user about background indexing not being supported for these projects once.
-  private var didSendBackgroundIndexingNotSupportedNotification = false
 
   var options: SourceKitLSPOptions
 
@@ -152,8 +144,9 @@ package actor SourceKitLSPServer {
     }
   }
 
-  /// For all currently handled text document requests a mapping from the document to the corresponding request ID.
-  private var inProgressTextDocumentRequests: [DocumentURI: Set<RequestID>] = [:]
+  /// For all currently handled text document requests a mapping from the document to the corresponding request ID and
+  /// the method of the request (ie. the value of `TextDocumentRequest.method`).
+  private var inProgressTextDocumentRequests: [DocumentURI: [(id: RequestID, requestMethod: String)]] = [:]
 
   var onExit: () -> Void
 
@@ -540,7 +533,7 @@ package actor SourceKitLSPServer {
 
     logger.log(
       """
-      Using toolchain at \(toolchain.path?.pathString ?? "<nil>") (\(toolchain.identifier, privacy: .public)) \
+      Using toolchain at \(toolchain.path?.description ?? "<nil>") (\(toolchain.identifier, privacy: .public)) \
       for \(uri.forLogging)
       """
     )
@@ -552,18 +545,26 @@ package actor SourceKitLSPServer {
 // MARK: - MessageHandler
 
 extension SourceKitLSPServer: QueueBasedMessageHandler {
+  private enum ImplicitTextDocumentRequestCancellationReason {
+    case documentChanged
+    case documentClosed
+  }
+
   package nonisolated func didReceive(notification: some NotificationType) {
     let textDocumentUri: DocumentURI
+    let cancellationReason: ImplicitTextDocumentRequestCancellationReason
     switch notification {
     case let params as DidChangeTextDocumentNotification:
       textDocumentUri = params.textDocument.uri
+      cancellationReason = .documentChanged
     case let params as DidCloseTextDocumentNotification:
       textDocumentUri = params.textDocument.uri
+      cancellationReason = .documentClosed
     default:
       return
     }
     textDocumentTrackingQueue.async(priority: .high) {
-      await self.cancelTextDocumentRequests(for: textDocumentUri)
+      await self.cancelTextDocumentRequests(for: textDocumentUri, reason: cancellationReason)
     }
   }
 
@@ -584,11 +585,18 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
   ///
   /// - Important: Should be invoked on `textDocumentTrackingQueue` to ensure that new text document requests are
   ///   registered before a notification that triggers cancellation might come in.
-  private func cancelTextDocumentRequests(for uri: DocumentURI) {
+  private func cancelTextDocumentRequests(for uri: DocumentURI, reason: ImplicitTextDocumentRequestCancellationReason) {
     guard self.options.cancelTextDocumentRequestsOnEditAndCloseOrDefault else {
       return
     }
-    for requestID in self.inProgressTextDocumentRequests[uri, default: []] {
+    for (requestID, requestMethod) in self.inProgressTextDocumentRequests[uri, default: []] {
+      if reason == .documentChanged && requestMethod == CompletionRequest.method {
+        // As the user types, we filter the code completion results. Cancelling the completion request on every
+        // keystroke means that we will never build the initial list of completion results for this code
+        // completion session if building that list takes longer than the user's typing cadence (eg. for global
+        // completions) and we will thus not show any completions.
+        continue
+      }
       logger.info("Implicitly cancelling request \(requestID)")
       self.messageHandlingHelper.cancelRequest(id: requestID)
     }
@@ -635,8 +643,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
 
   /// - Important: Should be invoked on `textDocumentTrackingQueue` to ensure that new text document requests are
   ///   registered before a notification that triggers cancellation might come in.
-  private func registerInProgressTextDocumentRequest(_ request: any TextDocumentRequest, id: RequestID) {
-    self.inProgressTextDocumentRequests[request.textDocument.uri, default: []].insert(id)
+  private func registerInProgressTextDocumentRequest<T: TextDocumentRequest>(_ request: T, id: RequestID) {
+    self.inProgressTextDocumentRequests[request.textDocument.uri, default: []].append((id: id, requestMethod: T.method))
   }
 
   package func handle<Request: RequestType>(
@@ -646,7 +654,7 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
   ) async {
     defer {
       if let request = params as? any TextDocumentRequest {
-        self.inProgressTextDocumentRequests[request.textDocument.uri, default: []].remove(id)
+        self.inProgressTextDocumentRequests[request.textDocument.uri, default: []].removeAll { $0.id == id }
       }
     }
 
@@ -722,6 +730,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.documentFormatting)
     case let request as RequestAndReply<DocumentRangeFormattingRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentRangeFormatting)
+    case let request as RequestAndReply<DocumentOnTypeFormattingRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentOnTypeFormatting)
     case let request as RequestAndReply<DocumentHighlightRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentSymbolHighlight)
     case let request as RequestAndReply<DocumentSemanticTokensDeltaRequest>:
@@ -841,20 +851,6 @@ extension SourceKitLSPServer {
       testHooks: testHooks,
       indexTaskScheduler: indexTaskScheduler
     )
-    if options.backgroundIndexingOrDefault, workspace.semanticIndexManager == nil,
-      !self.didSendBackgroundIndexingNotSupportedNotification
-    {
-      self.sendNotificationToClient(
-        ShowMessageNotification(
-          type: .info,
-          message: """
-            Background indexing is currently only supported for SwiftPM projects. \
-            For all other project types, please run a build to update the index.
-            """
-        )
-      )
-      self.didSendBackgroundIndexingNotSupportedNotification = true
-    }
     return workspace
   }
 
@@ -973,7 +969,8 @@ extension SourceKitLSPServer {
     let result = InitializeResult(
       capabilities: await self.serverCapabilities(
         for: req.capabilities,
-        registry: self.capabilityRegistry!
+        registry: self.capabilityRegistry!,
+        options: options
       )
     )
     logger.logFullObjectInMultipleLogMessages(header: "Initialize response", AnyRequestType(request: req))
@@ -982,7 +979,8 @@ extension SourceKitLSPServer {
 
   func serverCapabilities(
     for client: ClientCapabilities,
-    registry: CapabilityRegistry
+    registry: CapabilityRegistry,
+    options: SourceKitLSPOptions
   ) async -> ServerCapabilities {
     let completionOptions =
       await registry.clientHasDynamicCompletionRegistration
@@ -991,6 +989,11 @@ extension SourceKitLSPServer {
         resolveProvider: false,
         triggerCharacters: [".", "("]
       )
+
+    let onTypeFormattingOptions =
+      options.hasExperimentalFeature(.onTypeFormatting)
+      ? DocumentOnTypeFormattingOptions(triggerCharacters: ["\n", "\r\n", "\r", "{", "}", ";", ".", ":", "#"])
+      : nil
 
     let foldingRangeOptions =
       await registry.clientHasDynamicFoldingRangeRegistration
@@ -1041,6 +1044,7 @@ extension SourceKitLSPServer {
       codeLensProvider: CodeLensOptions(),
       documentFormattingProvider: .value(DocumentFormattingOptions(workDoneProgress: false)),
       documentRangeFormattingProvider: .value(DocumentRangeFormattingOptions(workDoneProgress: false)),
+      documentOnTypeFormattingProvider: onTypeFormattingOptions,
       renameProvider: .value(RenameOptions(prepareProvider: true)),
       colorProvider: .bool(true),
       foldingRangeProvider: foldingRangeOptions,
@@ -1130,7 +1134,7 @@ extension SourceKitLSPServer {
     }
   }
 
-  func shutdown(_ request: ShutdownRequest) async throws -> VoidResponse {
+  func shutdown(_ request: ShutdownRequest) async throws -> ShutdownRequest.Response {
     await prepareForExit()
 
     await withTaskGroup(of: Void.self) { taskGroup in
@@ -1161,7 +1165,7 @@ extension SourceKitLSPServer {
     // Otherwise we might terminate sourcekit-lsp while it still has open
     // connections to the toolchain servers, which could send messages to
     // sourcekit-lsp while it is being deallocated, causing crashes.
-    return VoidResponse()
+    return ShutdownRequest.Response()
   }
 
   func exit(_ notification: ExitNotification) async {
@@ -1446,13 +1450,24 @@ extension SourceKitLSPServer {
         range: Range(symbolPosition)
       )
 
+      let containerNames = index.containerNames(of: symbolOccurrence)
+      let containerName: String?
+      if containerNames.isEmpty {
+        containerName = nil
+      } else {
+        switch symbolOccurrence.symbol.language {
+        case .cxx, .c, .objc: containerName = containerNames.joined(separator: "::")
+        case .swift: containerName = containerNames.joined(separator: ".")
+        }
+      }
+
       return WorkspaceSymbolItem.symbolInformation(
         SymbolInformation(
           name: symbolOccurrence.symbol.name,
           kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
           deprecated: nil,
           location: symbolLocation,
-          containerName: index.containerName(of: symbolOccurrence)
+          containerName: containerName
         )
       )
     }
@@ -1537,6 +1552,14 @@ extension SourceKitLSPServer {
     languageService: LanguageService
   ) async throws -> [TextEdit]? {
     return try await languageService.documentRangeFormatting(req)
+  }
+
+  func documentOnTypeFormatting(
+    _ req: DocumentOnTypeFormattingRequest,
+    workspace: Workspace,
+    languageService: LanguageService
+  ) async throws -> [TextEdit]? {
+    return try await languageService.documentOnTypeFormatting(req)
   }
 
   func colorPresentation(
@@ -1918,27 +1941,14 @@ extension SourceKitLSPServer {
   }
 
   private func indexToLSPCallHierarchyItem(
-    symbol: Symbol,
-    containerName: String?,
-    location: Location
-  ) -> CallHierarchyItem {
-    let name: String
-    if let containerName {
-      switch symbol.language {
-      case .objc where symbol.kind == .instanceMethod || symbol.kind == .instanceProperty:
-        name = "-[\(containerName) \(symbol.name)]"
-      case .objc where symbol.kind == .classMethod || symbol.kind == .classProperty:
-        name = "+[\(containerName) \(symbol.name)]"
-      case .cxx, .c, .objc:
-        // C shouldn't have container names for call hierarchy and Objective-C should be covered above.
-        // Fall back to using the C++ notation using `::`.
-        name = "\(containerName)::\(symbol.name)"
-      case .swift:
-        name = "\(containerName).\(symbol.name)"
-      }
-    } else {
-      name = symbol.name
+    definition: SymbolOccurrence,
+    index: CheckedIndex
+  ) -> CallHierarchyItem? {
+    guard let location = indexToLSPLocation(definition.location) else {
+      return nil
     }
+    let name = index.fullyQualifiedName(of: definition)
+    let symbol = definition.symbol
     return CallHierarchyItem(
       name: name,
       kind: symbol.kind.asLspSymbolKind(),
@@ -1978,14 +1988,7 @@ extension SourceKitLSPServer {
       guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
         return nil
       }
-      guard let location = indexToLSPLocation(definition.location) else {
-        return nil
-      }
-      return self.indexToLSPCallHierarchyItem(
-        symbol: definition.symbol,
-        containerName: index.containerName(of: definition),
-        location: location
-      )
+      return self.indexToLSPCallHierarchyItem(definition: definition, index: index)
     }.sorted(by: { Location(uri: $0.uri, range: $0.range) < Location(uri: $1.uri, range: $1.range) })
 
     // Ideally, we should show multiple symbols. But VS Code fails to display call hierarchies with multiple root items,
@@ -2024,6 +2027,7 @@ extension SourceKitLSPServer {
     // callOccurrences are all the places that any of the USRs in callableUsrs is called.
     // We also load the `calledBy` roles to get the method that contains the reference to this call.
     let callOccurrences = callableUsrs.flatMap { index.occurrences(ofUSR: $0, roles: .containedBy) }
+      .filter(\.shouldShowInCallHierarchy)
 
     // Maps functions that call a USR in `callableUSRs` to all the called occurrences of `callableUSRs` within the
     // function. If a function `foo` calls `bar` multiple times, `callersToCalls[foo]` will contain two call
@@ -2047,38 +2051,27 @@ extension SourceKitLSPServer {
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPCallHierarchyItem2(
-      symbol: Symbol,
-      containerName: String?,
-      location: Location
-    ) -> CallHierarchyItem {
-      return self.indexToLSPCallHierarchyItem(symbol: symbol, containerName: containerName, location: location)
+      definition: SymbolOccurrence,
+      index: CheckedIndex
+    ) -> CallHierarchyItem? {
+      return self.indexToLSPCallHierarchyItem(definition: definition, index: index)
     }
 
     let calls = callersToCalls.compactMap { (caller: Symbol, calls: [SymbolOccurrence]) -> CallHierarchyIncomingCall? in
       // Resolve the caller's definition to find its location
-      let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: caller.usr)
-      let definitionSymbolLocation = definition?.location
-      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation2)
-      let containerName: String? =
-        if let definition {
-          index.containerName(of: definition)
-        } else {
-          nil
-        }
+      guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: caller.usr) else {
+        return nil
+      }
 
       let locations = calls.compactMap { indexToLSPLocation2($0.location) }.sorted()
       guard !locations.isEmpty else {
         return nil
       }
+      guard let item = indexToLSPCallHierarchyItem2(definition: definition, index: index) else {
+        return nil
+      }
 
-      return CallHierarchyIncomingCall(
-        from: indexToLSPCallHierarchyItem2(
-          symbol: caller,
-          containerName: containerName,
-          location: definitionLocation ?? locations.first!
-        ),
-        fromRanges: locations.map(\.range)
-      )
+      return CallHierarchyIncomingCall(from: item, fromRanges: locations.map(\.range))
     }
     return calls.sorted(by: { $0.from.name < $1.from.name })
   }
@@ -2097,15 +2090,15 @@ extension SourceKitLSPServer {
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPCallHierarchyItem2(
-      symbol: Symbol,
-      containerName: String?,
-      location: Location
-    ) -> CallHierarchyItem {
-      return self.indexToLSPCallHierarchyItem(symbol: symbol, containerName: containerName, location: location)
+      definition: SymbolOccurrence,
+      index: CheckedIndex
+    ) -> CallHierarchyItem? {
+      return self.indexToLSPCallHierarchyItem(definition: definition, index: index)
     }
 
     let callableUsrs = [data.usr] + index.occurrences(relatedToUSR: data.usr, roles: .accessorOf).map(\.symbol.usr)
     let callOccurrences = callableUsrs.flatMap { index.occurrences(relatedToUSR: $0, roles: .containedBy) }
+      .filter(\.shouldShowInCallHierarchy)
     let calls = callOccurrences.compactMap { occurrence -> CallHierarchyOutgoingCall? in
       guard occurrence.symbol.kind.isCallable else {
         return nil
@@ -2115,37 +2108,32 @@ extension SourceKitLSPServer {
       }
 
       // Resolve the callee's definition to find its location
-      let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr)
-      let definitionSymbolLocation = definition?.location
-      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation2)
-      let containerName: String? =
-        if let definition {
-          index.containerName(of: definition)
-        } else {
-          nil
-        }
+      guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr) else {
+        return nil
+      }
 
-      return CallHierarchyOutgoingCall(
-        to: indexToLSPCallHierarchyItem2(
-          symbol: occurrence.symbol,
-          containerName: containerName,
-          location: definitionLocation ?? location  // Use occurrence location as fallback
-        ),
-        fromRanges: [location.range]
-      )
+      guard let item = indexToLSPCallHierarchyItem2(definition: definition, index: index) else {
+        return nil
+      }
+
+      return CallHierarchyOutgoingCall(to: item, fromRanges: [location.range])
     }
     return calls.sorted(by: { $0.to.name < $1.to.name })
   }
 
   private func indexToLSPTypeHierarchyItem(
-    symbol: Symbol,
+    definition: SymbolOccurrence,
     moduleName: String?,
-    location: Location,
     index: CheckedIndex
-  ) -> TypeHierarchyItem {
+  ) -> TypeHierarchyItem? {
     let name: String
     let detail: String?
 
+    guard let location = indexToLSPLocation(definition.location) else {
+      return nil
+    }
+
+    let symbol = definition.symbol
     switch symbol.kind {
     case .extension:
       // Query the conformance added by this extension
@@ -2166,7 +2154,7 @@ extension SourceKitLSPServer {
         detail = "Extension"
       }
     default:
-      name = symbol.name
+      name = index.fullyQualifiedName(of: definition)
       detail = moduleName
     }
 
@@ -2215,16 +2203,12 @@ extension SourceKitLSPServer {
       }
       .compactMap(\.usr)
     let typeHierarchyItems = usrs.compactMap { (usr) -> TypeHierarchyItem? in
-      guard
-        let info = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr),
-        let location = indexToLSPLocation(info.location)
-      else {
+      guard let info = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
         return nil
       }
       return self.indexToLSPTypeHierarchyItem(
-        symbol: info.symbol,
+        definition: info,
         moduleName: info.location.moduleName,
-        location: location,
         index: index
       )
     }
@@ -2289,30 +2273,28 @@ extension SourceKitLSPServer {
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPTypeHierarchyItem2(
-      symbol: Symbol,
+      definition: SymbolOccurrence,
       moduleName: String?,
-      location: Location,
       index: CheckedIndex
-    ) -> TypeHierarchyItem {
-      return self.indexToLSPTypeHierarchyItem(symbol: symbol, moduleName: moduleName, location: location, index: index)
+    ) -> TypeHierarchyItem? {
+      return self.indexToLSPTypeHierarchyItem(
+        definition: definition,
+        moduleName: moduleName,
+        index: index
+      )
     }
 
     // Convert occurrences to type hierarchy items
     let occurs = baseOccurs + retroactiveConformanceOccurs
     let types = occurs.compactMap { occurrence -> TypeHierarchyItem? in
-      guard let location = indexToLSPLocation2(occurrence.location) else {
+      // Resolve the supertype's definition to find its location
+      guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr) else {
         return nil
       }
 
-      // Resolve the supertype's definition to find its location
-      let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr)
-      let definitionSymbolLocation = definition?.location
-      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation2)
-
       return indexToLSPTypeHierarchyItem2(
-        symbol: occurrence.symbol,
-        moduleName: definitionSymbolLocation?.moduleName,
-        location: definitionLocation ?? location,  // Use occurrence location as fallback
+        definition: definition,
+        moduleName: definition.location.moduleName,
         index: index
       )
     }
@@ -2336,12 +2318,15 @@ extension SourceKitLSPServer {
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPTypeHierarchyItem2(
-      symbol: Symbol,
+      definition: SymbolOccurrence,
       moduleName: String?,
-      location: Location,
       index: CheckedIndex
-    ) -> TypeHierarchyItem {
-      return self.indexToLSPTypeHierarchyItem(symbol: symbol, moduleName: moduleName, location: location, index: index)
+    ) -> TypeHierarchyItem? {
+      return self.indexToLSPTypeHierarchyItem(
+        definition: definition,
+        moduleName: moduleName,
+        index: index
+      )
     }
 
     // Convert occurrences to type hierarchy items
@@ -2352,20 +2337,18 @@ extension SourceKitLSPServer {
         // to.
         logger.fault("Expected at most extendedBy or baseOf relation but got \(occurrence.relations.count)")
       }
-      guard let related = occurrence.relations.sorted().first, let location = indexToLSPLocation2(occurrence.location)
-      else {
+      guard let related = occurrence.relations.sorted().first else {
         return nil
       }
 
       // Resolve the subtype's definition to find its location
-      let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: related.symbol.usr)
-      let definitionSymbolLocation = definition.map(\.location)
-      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation2)
+      guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: related.symbol.usr) else {
+        return nil
+      }
 
       return indexToLSPTypeHierarchyItem2(
-        symbol: related.symbol,
-        moduleName: definitionSymbolLocation?.moduleName,
-        location: definitionLocation ?? location,  // Use occurrence location as fallback
+        definition: definition,
+        moduleName: definition.location.moduleName,
         index: index
       )
     }
@@ -2410,8 +2393,7 @@ private let maxWorkspaceSymbolResults = 4096
 package typealias Diagnostic = LanguageServerProtocol.Diagnostic
 
 fileprivate extension CheckedIndex {
-  /// Get the name of the symbol that is a parent of this symbol, if one exists
-  func containerName(of symbol: SymbolOccurrence) -> String? {
+  func containerNames(of symbol: SymbolOccurrence) -> [String] {
     // The container name of accessors is the container of the surrounding variable.
     let accessorOf = symbol.relations.filter { $0.roles.contains(.accessorOf) }
     if let primaryVariable = accessorOf.sorted().first {
@@ -2419,7 +2401,7 @@ fileprivate extension CheckedIndex {
         logger.fault("Expected an occurrence to an accessor of at most one symbol, not multiple")
       }
       if let primaryVariable = primaryDefinitionOrDeclarationOccurrence(ofUSR: primaryVariable.symbol.usr) {
-        return containerName(of: primaryVariable)
+        return containerNames(of: primaryVariable)
       }
     }
 
@@ -2427,7 +2409,7 @@ fileprivate extension CheckedIndex {
     if containers.count > 1 {
       logger.fault("Expected an occurrence to a child of at most one symbol, not multiple")
     }
-    return containers.filter {
+    let container = containers.filter {
       switch $0.symbol.kind {
       case .module, .namespace, .enum, .struct, .class, .protocol, .extension, .union:
         return true
@@ -2436,7 +2418,39 @@ fileprivate extension CheckedIndex {
         .destructor, .conversionFunction, .parameter, .using, .concept, .commentTag:
         return false
       }
-    }.sorted().first?.symbol.name
+    }.sorted().first
+
+    if let container {
+      if let containerDefinition = primaryDefinitionOrDeclarationOccurrence(ofUSR: container.symbol.usr) {
+        return self.containerNames(of: containerDefinition) + [container.symbol.name]
+      }
+      return [container.symbol.name]
+    } else {
+      return []
+    }
+  }
+
+  /// Take the name of containers into account to form a fully-qualified name for the given symbol.
+  /// This means that we will form names of nested types and type-qualify methods.
+  func fullyQualifiedName(of symbolOccurrence: SymbolOccurrence) -> String {
+    let symbol = symbolOccurrence.symbol
+    let containerNames = containerNames(of: symbolOccurrence)
+    guard let containerName = containerNames.last else {
+      // No containers, so nothing to do.
+      return symbol.name
+    }
+    switch symbol.language {
+    case .objc where symbol.kind == .instanceMethod || symbol.kind == .instanceProperty:
+      return "-[\(containerName) \(symbol.name)]"
+    case .objc where symbol.kind == .classMethod || symbol.kind == .classProperty:
+      return "+[\(containerName) \(symbol.name)]"
+    case .cxx, .c, .objc:
+      // C shouldn't have container names for call hierarchy and Objective-C should be covered above.
+      // Fall back to using the C++ notation using `::`.
+      return (containerNames + [symbol.name]).joined(separator: "::")
+    case .swift:
+      return (containerNames + [symbol.name]).joined(separator: ".")
+    }
   }
 }
 
@@ -2485,6 +2499,13 @@ extension IndexSymbolKind {
       .class, .staticProperty, .classProperty:
       return false
     }
+  }
+}
+
+fileprivate extension SymbolOccurrence {
+  /// Whether this is a call-like occurrence that should be shown in the call hierarchy.
+  var shouldShowInCallHierarchy: Bool {
+    !roles.intersection([.addressOf, .call, .read, .reference, .write]).isEmpty
   }
 }
 

@@ -164,4 +164,9 @@ final class LifecycleTests: XCTestCase {
       )
     )
   }
+
+  func testOpenFileWithoutPath() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    testClient.openDocument("", uri: DocumentURI(try XCTUnwrap(URL(string: "file://"))), language: .swift)
+  }
 }

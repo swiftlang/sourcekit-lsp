@@ -76,10 +76,9 @@ package struct ReduceFrontendCommand: AsyncParsableCommand {
   var toolchain: Toolchain? {
     get async throws {
       if let toolchainOverride {
-        return Toolchain(try AbsolutePath(validating: toolchainOverride))
+        return Toolchain(URL(fileURLWithPath: toolchainOverride))
       }
-      let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
-      return await ToolchainRegistry(installPath: installPath).default
+      return await ToolchainRegistry(installPath: Bundle.main.bundleURL).default
     }
   }
 
@@ -100,7 +99,7 @@ package struct ReduceFrontendCommand: AsyncParsableCommand {
     )
 
     let executor = OutOfProcessSourceKitRequestExecutor(
-      sourcekitd: sourcekitd.asURL,
+      sourcekitd: sourcekitd,
       swiftFrontend: swiftFrontend,
       reproducerPredicate: nsPredicate
     )

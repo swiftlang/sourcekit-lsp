@@ -13,6 +13,7 @@
 #if compiler(>=6)
 package import BuildServerProtocol
 import Dispatch
+package import Foundation
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
@@ -20,14 +21,11 @@ package import SKOptions
 import ToolchainRegistry
 import TSCExtensions
 
-import struct Foundation.URL
-package import struct TSCBasic.AbsolutePath
-package import protocol TSCBasic.FileSystem
 package import struct TSCBasic.RelativePath
-package import var TSCBasic.localFileSystem
 #else
 import BuildServerProtocol
 import Dispatch
+import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
@@ -35,11 +33,7 @@ import SKOptions
 import ToolchainRegistry
 import TSCExtensions
 
-import struct Foundation.URL
-import struct TSCBasic.AbsolutePath
-import protocol TSCBasic.FileSystem
 import struct TSCBasic.RelativePath
-import var TSCBasic.localFileSystem
 #endif
 
 fileprivate enum Cachable<Value> {
@@ -67,7 +61,7 @@ fileprivate enum Cachable<Value> {
 /// Provides build settings from a `CompilationDatabase` found by searching a project. For now, only
 /// one compilation database, located at the project root.
 package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
-  static package func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath? {
+  static package func projectRoot(for workspaceFolder: URL, options: SourceKitLSPOptions) -> URL? {
     if tryLoadCompilationDatabase(directory: workspaceFolder) != nil {
       return workspaceFolder
     }
@@ -85,17 +79,16 @@ package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
 
   private let connectionToSourceKitLSP: any Connection
   private let searchPaths: [RelativePath]
-  private let fileSystem: FileSystem
 
-  package let projectRoot: AbsolutePath
+  package let projectRoot: URL
 
   package let fileWatchers: [FileSystemWatcher] = [
     FileSystemWatcher(globPattern: "**/compile_commands.json", kind: [.create, .change, .delete]),
     FileSystemWatcher(globPattern: "**/compile_flags.txt", kind: [.create, .change, .delete]),
   ]
 
-  private var _indexStorePath: Cachable<AbsolutePath?> = .noValue
-  package var indexStorePath: AbsolutePath? {
+  private var _indexStorePath: Cachable<URL?> = .noValue
+  package var indexStorePath: URL? {
     _indexStorePath.get {
       guard let compdb else {
         return nil
@@ -106,7 +99,7 @@ package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
           let args = command.commandLine
           for i in args.indices.reversed() {
             if args[i] == "-index-store-path" && i + 1 < args.count {
-              return AbsolutePath(validatingOrNil: args[i + 1])
+              return URL(fileURLWithPath: args[i + 1])
             }
           }
         }
@@ -115,23 +108,21 @@ package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     }
   }
 
-  package var indexDatabasePath: AbsolutePath? {
-    indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
+  package var indexDatabasePath: URL? {
+    indexStorePath?.deletingLastPathComponent().appendingPathComponent("IndexDatabase")
   }
 
   package nonisolated var supportsPreparation: Bool { false }
 
   package init?(
-    projectRoot: AbsolutePath,
+    projectRoot: URL,
     searchPaths: [RelativePath],
-    connectionToSourceKitLSP: any Connection,
-    fileSystem: FileSystem = localFileSystem
+    connectionToSourceKitLSP: any Connection
   ) {
-    self.fileSystem = fileSystem
     self.projectRoot = projectRoot
     self.searchPaths = searchPaths
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
-    if let compdb = tryLoadCompilationDatabase(directory: projectRoot, additionalSearchPaths: searchPaths, fileSystem) {
+    if let compdb = tryLoadCompilationDatabase(directory: projectRoot, additionalSearchPaths: searchPaths) {
       self.compdb = compdb
     } else {
       return nil
@@ -198,11 +189,7 @@ package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
   /// The compilation database has been changed on disk.
   /// Reload it and notify the delegate about build setting changes.
   private func reloadCompilationDatabase() {
-    self.compdb = tryLoadCompilationDatabase(
-      directory: projectRoot,
-      additionalSearchPaths: searchPaths,
-      self.fileSystem
-    )
+    self.compdb = tryLoadCompilationDatabase(directory: projectRoot, additionalSearchPaths: searchPaths)
 
     connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
   }

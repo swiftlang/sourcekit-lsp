@@ -25,7 +25,11 @@ target_sources(SourceKitLSP PRIVATE
   Clang/SemanticTokenTranslator.swift
 )
 target_sources(SourceKitLSP PRIVATE
+  Documentation/DocumentationLanguageService.swift
+)
+target_sources(SourceKitLSP PRIVATE
   Swift/AdjustPositionToStartOfIdentifier.swift
+  Swift/ClosureCompletionFormat.swift
   Swift/CodeActions/AddDocumentation.swift
   Swift/CodeActions/ConvertIntegerLiteral.swift
   Swift/CodeActions/ConvertJSONToCodableStruct.swift

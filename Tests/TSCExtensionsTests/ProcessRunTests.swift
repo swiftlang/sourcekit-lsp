@@ -21,8 +21,8 @@ import class TSCBasic.Process
 final class ProcessRunTests: XCTestCase {
   func testWorkingDirectory() async throws {
     try await withTestScratchDir { tempDir in
-      let workingDir = tempDir.appending(component: "working-dir")
-      try FileManager.default.createDirectory(at: workingDir.asURL, withIntermediateDirectories: true)
+      let workingDir = tempDir.appendingPathComponent("working-dir")
+      try FileManager.default.createDirectory(at: workingDir, withIntermediateDirectories: true)
 
       #if os(Windows)
       // On Windows, Python 3 gets installed as python.exe
@@ -32,18 +32,18 @@ final class ProcessRunTests: XCTestCase {
       #endif
       let python = try await unwrap(findTool(name: pythonName))
 
-      let pythonFile = tempDir.appending(component: "show-cwd.py")
+      let pythonFile = tempDir.appendingPathComponent("show-cwd.py")
       try """
       import os
       print(os.getcwd(), end='')
-      """.write(to: pythonFile.asURL, atomically: true, encoding: .utf8)
+      """.write(to: pythonFile, atomically: true, encoding: .utf8)
 
       let result = try await Process.run(
-        arguments: [python.filePath, pythonFile.pathString],
-        workingDirectory: workingDir
+        arguments: [python.filePath, pythonFile.filePath],
+        workingDirectory: AbsolutePath(validating: workingDir.filePath)
       )
       let stdout = try unwrap(String(bytes: result.output.get(), encoding: .utf8))
-      XCTAssertEqual(stdout, workingDir.pathString)
+      XCTAssertEqual(stdout, try workingDir.filePath)
     }
   }
 }

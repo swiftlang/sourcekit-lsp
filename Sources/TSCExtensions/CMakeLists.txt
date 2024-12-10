@@ -4,6 +4,7 @@ add_library(TSCExtensions STATIC
   ByteString.swift
   Process+Run.swift
   SwitchableProcessResultExitStatus.swift
+  URL+appendingRelativePath.swift
 )
 set_target_properties(TSCExtensions PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})

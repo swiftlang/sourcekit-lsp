@@ -63,10 +63,10 @@ package class BuildServerTestProject: MultiFileTestProject {
     var files = files
     files[buildServerConfigLocation] = """
       {
-        "name": "client name",
-        "version": "10",
+        "name": "Test BSP-server",
+        "version": "1",
         "bspVersion": "2.0",
-        "languages": ["a", "b"],
+        "languages": ["swift"],
         "argv": ["server.py"]
       }
       """

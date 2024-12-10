@@ -15,7 +15,7 @@ The structure of the file is currently not guaranteed to be stable. Options may 
 
 - `swiftPM`: Dictionary with the following keys, defining options for SwiftPM workspaces
   - `configuration: "debug"|"release"`: The configuration to build the project for during background indexing and the configuration whose build folder should be used for Swift modules if background indexing is disabled. Equivalent to SwiftPM's `--configuration` option.
-  - `scratchPath: string`: Build artifacts directory path. If nil, the build system may choose a default value. Equivalent to SwiftPM's `--scratch-path` option.
+  - `scratchPath: string`: Build artifacts directory path. If nil, the build system may choose a default value. This path can be specified as a relative path, which will be interpreted relative to the project root. Equivalent to SwiftPM's `--scratch-path` option.
   - `swiftSDKsDirectory: string`: Equivalent to SwiftPM's `--swift-sdks-path` option
   - `swiftSDK: string`: Equivalent to SwiftPM's `--swift-sdk` option
   - `triple: string`: Equivalent to SwiftPM's `--triple` option
@@ -51,5 +51,5 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping
   - `enabled`: Prepare a target without generating object files and the like
 - `cancelTextDocumentRequestsOnEditAndClose: bool`: Whether sending a `textDocument/didChange` or `textDocument/didClose` notification for a document should cancel all pending requests for that document.
-- `experimentalFeatures: string[]`: Experimental features to enable
+- `experimentalFeatures: string[]`: Experimental features to enable. Available features: on-type-formatting
 - `swiftPublishDiagnosticsDebounceDuration: double`: The time that `SwiftLanguageService` should wait after an edit before starting to compute diagnostics and sending a `PublishDiagnosticsNotification`.

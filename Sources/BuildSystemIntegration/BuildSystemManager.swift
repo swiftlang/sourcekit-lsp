@@ -13,7 +13,7 @@
 #if compiler(>=6)
 package import BuildServerProtocol
 import Dispatch
-import Foundation
+package import Foundation
 package import LanguageServerProtocol
 package import LanguageServerProtocolExtensions
 import SKLogging
@@ -23,8 +23,7 @@ package import SwiftExtensions
 package import ToolchainRegistry
 import TSCExtensions
 
-package import struct TSCBasic.AbsolutePath
-package import struct TSCBasic.RelativePath
+import struct TSCBasic.RelativePath
 #else
 import BuildServerProtocol
 import Dispatch
@@ -38,7 +37,6 @@ import SwiftExtensions
 import ToolchainRegistry
 import TSCExtensions
 
-import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 #endif
 
@@ -138,13 +136,13 @@ private enum BuildSystemAdapter {
 
 private extension BuildSystemSpec {
   private static func createBuiltInBuildSystemAdapter(
-    projectRoot: AbsolutePath,
+    projectRoot: URL,
     messagesToSourceKitLSPHandler: any MessageHandler,
     buildSystemTestHooks: BuildSystemTestHooks,
     _ createBuildSystem: @Sendable (_ connectionToSourceKitLSP: any Connection) async throws -> BuiltInBuildSystem?
   ) async -> BuildSystemAdapter? {
     let connectionToSourceKitLSP = LocalConnection(
-      receiverName: "BuildSystemManager for \(projectRoot.asURL.lastPathComponent)"
+      receiverName: "BuildSystemManager for \(projectRoot.lastPathComponent)"
     )
     connectionToSourceKitLSP.start(handler: messagesToSourceKitLSPHandler)
 
@@ -152,17 +150,17 @@ private extension BuildSystemSpec {
       try await createBuildSystem(connectionToSourceKitLSP)
     }
     guard let buildSystem else {
-      logger.log("Failed to create build system at \(projectRoot.pathString)")
+      logger.log("Failed to create build system at \(projectRoot)")
       return nil
     }
-    logger.log("Created \(type(of: buildSystem), privacy: .public) at \(projectRoot.pathString)")
+    logger.log("Created \(type(of: buildSystem), privacy: .public) at \(projectRoot)")
     let buildSystemAdapter = BuiltInBuildSystemAdapter(
       underlyingBuildSystem: buildSystem,
       connectionToSourceKitLSP: connectionToSourceKitLSP,
       buildSystemTestHooks: buildSystemTestHooks
     )
     let connectionToBuildSystem = LocalConnection(
-      receiverName: "\(type(of: buildSystem)) for \(projectRoot.asURL.lastPathComponent)"
+      receiverName: "\(type(of: buildSystem)) for \(projectRoot.lastPathComponent)"
     )
     connectionToBuildSystem.start(handler: buildSystemAdapter)
     return .builtIn(buildSystemAdapter, connectionToBuildSystem: connectionToBuildSystem)
@@ -185,10 +183,10 @@ private extension BuildSystemSpec {
         )
       }
       guard let buildSystem else {
-        logger.log("Failed to create external build system at \(projectRoot.pathString)")
+        logger.log("Failed to create external build system at \(projectRoot)")
         return nil
       }
-      logger.log("Created external build server at \(projectRoot.pathString)")
+      logger.log("Created external build server at \(projectRoot)")
       return .external(buildSystem)
     case .compilationDatabase:
       return await Self.createBuiltInBuildSystemAdapter(
@@ -245,7 +243,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// For compilation databases it is the root folder based on which the compilation database was found.
   ///
   /// `nil` if the `BuildSystemManager` does not have an underlying build system.
-  package let projectRoot: AbsolutePath?
+  package let projectRoot: URL?
 
   /// The files for which the delegate has requested change notifications, ie. the files for which the delegate wants to
   /// get `fileBuildSettingsChanged` and `filesDependenciesUpdated` callbacks.
@@ -340,7 +338,10 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     let files: [DocumentURI: SourceFileInfo]
 
     /// The source directories in the workspace, ie. all `SourceItem`s that have `kind == .directory`.
-    let directories: [DocumentURI: SourceFileInfo]
+    ///
+    /// `pathComponents` is the result of `key.fileURL?.pathComponents`. We frequently need these path components to
+    /// determine if a file is descendent of the directory and computing them from the `DocumentURI` is expensive.
+    let directories: [DocumentURI: (pathComponents: [String]?, info: SourceFileInfo)]
   }
 
   private let cachedSourceFilesAndDirectories = Cache<SourceFilesAndDirectoriesKey, SourceFilesAndDirectories>()
@@ -402,7 +403,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
             displayName: "SourceKit-LSP",
             version: "",
             bspVersion: "2.2.0",
-            rootUri: URI(buildSystemSpec.projectRoot.asURL),
+            rootUri: URI(buildSystemSpec.projectRoot),
             capabilities: BuildClientCapabilities(languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift])
           )
         )
@@ -608,7 +609,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     in target: BuildTargetIdentifier?,
     language: Language
   ) async -> Toolchain? {
-    let toolchainPath = await orLog("Getting toolchain from build targets") { () -> AbsolutePath? in
+    let toolchainPath = await orLog("Getting toolchain from build targets") { () -> URL? in
       guard let target else {
         return nil
       }
@@ -624,7 +625,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         logger.error("Toolchain is not a file URL")
         return nil
       }
-      return try AbsolutePath(validating: toolchainUrl.filePath)
+      return toolchainUrl
     }
     if let toolchainPath {
       if let toolchain = await self.toolchainRegistry.toolchain(withPath: toolchainPath) {
@@ -634,7 +635,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
 
     switch language {
-    case .swift:
+    case .swift, .markdown, .tutorial:
       return await toolchainRegistry.preferredToolchain(containing: [\.sourcekitd, \.swift, \.swiftc])
     case .c, .cpp, .objective_c, .objective_cpp:
       return await toolchainRegistry.preferredToolchain(containing: [\.clang, \.clangd])
@@ -681,14 +682,12 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       if let targets = filesAndDirectories.files[document]?.targets {
         result.formUnion(targets)
       }
-      if !filesAndDirectories.directories.isEmpty,
-        let documentPath = AbsolutePath(validatingOrNil: try? document.fileURL?.filePath)
-      {
-        for (directory, info) in filesAndDirectories.directories {
-          guard let directoryPath = AbsolutePath(validatingOrNil: try? directory.fileURL?.filePath) else {
+      if !filesAndDirectories.directories.isEmpty, let documentPathComponents = document.fileURL?.pathComponents {
+        for (directory, (directoryPathComponents, info)) in filesAndDirectories.directories {
+          guard let directoryPathComponents, let directoryPath = directory.fileURL else {
             continue
           }
-          if documentPath.isDescendant(of: directoryPath) {
+          if isDescendant(documentPathComponents, of: directoryPathComponents) {
             result.formUnion(info.targets)
           }
         }
@@ -1013,19 +1012,21 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       return []
     }
 
+    let request = BuildTargetSourcesRequest(targets: targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
+
     // If we have a cached request for a superset of the targets, serve the result from that cache entry.
     let fromSuperset = await orLog("Getting source files from superset request") {
-      try await cachedTargetSources.get(isolation: self) { request in
-        targets.isSubset(of: request.targets)
-      } transform: { response in
-        return BuildTargetSourcesResponse(items: response.items.filter { targets.contains($0.target) })
-      }
+      try await cachedTargetSources.getDerived(
+        isolation: self,
+        request,
+        canReuseKey: { targets.isSubset(of: $0.targets) },
+        transform: { BuildTargetSourcesResponse(items: $0.items.filter { targets.contains($0.target) }) }
+      )
     }
     if let fromSuperset {
       return fromSuperset.items
     }
 
-    let request = BuildTargetSourcesRequest(targets: targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
     let response = try await cachedTargetSources.get(request, isolation: self) { request in
       try await buildSystemAdapter.send(request)
     }
@@ -1059,7 +1060,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
     return try await cachedSourceFilesAndDirectories.get(key, isolation: self) { key in
       var files: [DocumentURI: SourceFileInfo] = [:]
-      var directories: [DocumentURI: SourceFileInfo] = [:]
+      var directories: [DocumentURI: (pathComponents: [String]?, info: SourceFileInfo)] = [:]
       for sourcesItem in key.sourcesItems {
         let target = targets[sourcesItem.target]?.target
         let isPartOfRootProject = !(target?.tags.contains(.dependency) ?? false)
@@ -1081,7 +1082,9 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
           case .file:
             files[sourceItem.uri] = info.merging(files[sourceItem.uri])
           case .directory:
-            directories[sourceItem.uri] = info.merging(directories[sourceItem.uri])
+            directories[sourceItem.uri] = (
+              sourceItem.uri.fileURL?.pathComponents, info.merging(directories[sourceItem.uri]?.info)
+            )
           }
         }
       }
@@ -1229,4 +1232,13 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       await delegate.fileBuildSettingsChanged(changedMainFileAssociations)
     }
   }
+}
+
+/// Returns `true` if the path components `selfPathComponents`, retrieved from `URL.pathComponents` are a descendent
+/// of the other path components.
+///
+/// This operates directly on path components instead of `URL`s because computing the path components of a URL is
+/// expensive and this allows us to cache the path components.
+private func isDescendant(_ selfPathComponents: [String], of otherPathComponents: [String]) -> Bool {
+  return selfPathComponents.dropLast().starts(with: otherPathComponents)
 }

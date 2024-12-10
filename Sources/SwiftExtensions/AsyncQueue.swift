@@ -28,28 +28,31 @@ extension Task: AnyTask {
 
 /// A type that is able to track dependencies between tasks.
 package protocol DependencyTracker: Sendable {
-  /// Whether the task described by `self` needs to finish executing before
-  /// `other` can start executing.
-  func isDependency(of other: Self) -> Bool
+  /// Which tasks need to finish before a task described by `self` may start executing.
+  /// `pendingTasks` is sorted in the order in which the tasks were enqueued to `AsyncQueue`.
+  func dependencies(in pendingTasks: [PendingTask<Self>]) -> [PendingTask<Self>]
 }
 
 /// A dependency tracker where each task depends on every other, i.e. a serial
 /// queue.
 package struct Serial: DependencyTracker {
-  package func isDependency(of other: Serial) -> Bool {
-    return true
+  package func dependencies(in pendingTasks: [PendingTask<Self>]) -> [PendingTask<Self>] {
+    if let lastTask = pendingTasks.last {
+      return [lastTask]
+    }
+    return []
   }
 }
 
-private struct PendingTask<TaskMetadata: Sendable>: Sendable {
+package struct PendingTask<TaskMetadata: Sendable>: Sendable {
   /// The task that is pending.
-  let task: any AnyTask
+  fileprivate let task: any AnyTask
 
-  let metadata: TaskMetadata
+  package let metadata: TaskMetadata
 
   /// A unique value used to identify the task. This allows tasks to get
   /// removed from `pendingTasks` again after they finished executing.
-  let id: UUID
+  fileprivate let id: UUID
 }
 
 /// A list of pending tasks that can be sent across actor boundaries and is guarded by a lock.
@@ -81,16 +84,6 @@ package final class AsyncQueue<TaskMetadata: DependencyTracker>: Sendable {
   private let pendingTasks: PendingTasks<TaskMetadata> = PendingTasks()
 
   package init() {}
-
-  package func cancelTasks(where filter: (TaskMetadata) -> Bool) {
-    pendingTasks.withLock { pendingTasks in
-      for task in pendingTasks {
-        if filter(task.metadata) {
-          task.task.cancel()
-        }
-      }
-    }
-  }
 
   /// Schedule a new closure to be executed on the queue.
   ///
@@ -132,7 +125,7 @@ package final class AsyncQueue<TaskMetadata: DependencyTracker>: Sendable {
     return pendingTasks.withLock { tasks in
       // Build the list of tasks that need to finished execution before this one
       // can be executed
-      let dependencies: [PendingTask] = tasks.filter { $0.metadata.isDependency(of: metadata) }
+      let dependencies = metadata.dependencies(in: tasks)
 
       // Schedule the task.
       let task = Task(priority: priority) { [pendingTasks] in
