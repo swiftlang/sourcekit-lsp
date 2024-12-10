@@ -37,13 +37,13 @@ public func rewriteSourceKitPlaceholders(in input: String, clientSupportsSnippet
         placeholders.latest.contents += text
       }
 
-    case .escapeInsidePlaceholder(let character):
+    case let .curlyBrace(brace):
       if placeholders.isEmpty {
-        result.append(character)
+        result.append(brace)
       } else {
-        // A closing brace is only escaped _inside_ a placeholder; otherwise the client would include the backslashes
-        // literally.
-        placeholders.latest.contents += [#"\"#, character]
+        // Braces are only escaped _inside_ a placeholder; otherwise the client
+        // would include the backslashes literally.
+        placeholders.latest.contents.append(contentsOf: ["\\", brace])
       }
 
     case .placeholderOpen:
@@ -115,10 +115,10 @@ private func tokenize(_ input: String) -> [SnippetToken] {
         text.append(char)
       }
 
-    case "$", "}", "\\":
+    case "{", "}":
       tokens.append(.text(text))
       text.removeAll()
-      tokens.append(.escapeInsidePlaceholder(char))
+      tokens.append(.curlyBrace(char))
 
     case let c:
       text.append(c)
@@ -134,8 +134,8 @@ private func tokenize(_ input: String) -> [SnippetToken] {
 private enum SnippetToken {
   /// A placeholder delimiter.
   case placeholderOpen, placeholderClose
-  /// '$', '}' or '\', which need to be escaped when used inside a placeholder.
-  case escapeInsidePlaceholder(Character)
+  /// One of '{' or '}', which may need to be escaped in the output.
+  case curlyBrace(Character)
   /// Any other consecutive run of characters from the input, which needs no
   /// special treatment.
   case text(String)

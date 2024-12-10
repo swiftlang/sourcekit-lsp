@@ -47,20 +47,20 @@ final class RewriteSourceKitPlaceholdersTests: XCTestCase {
     let input = "foo(bar: <#{ <#T##Int##Int#> }#>)"
     let rewritten = rewriteSourceKitPlaceholders(in: input, clientSupportsSnippets: true)
 
-    XCTAssertEqual(rewritten, #"foo(bar: ${1:{ ${2:Int} \}})"#)
+    XCTAssertEqual(rewritten, #"foo(bar: ${1:\{ ${2:Int} \}})"#)
   }
 
   func testClosurePlaceholderArgumentType() {
     let input = "foo(bar: <#{ <#T##Int##Int#> in <#T##Void##Void#> }#>)"
     let rewritten = rewriteSourceKitPlaceholders(in: input, clientSupportsSnippets: true)
 
-    XCTAssertEqual(rewritten, #"foo(bar: ${1:{ ${2:Int} in ${3:Void} \}})"#)
+    XCTAssertEqual(rewritten, #"foo(bar: ${1:\{ ${2:Int} in ${3:Void} \}})"#)
   }
 
   func testMultipleClosurePlaceholders() {
     let input = "foo(<#{ <#T##Int##Int#> }#>, baz: <#{ <#Int#> in <#T##Bool##Bool#> }#>)"
     let rewritten = rewriteSourceKitPlaceholders(in: input, clientSupportsSnippets: true)
 
-    XCTAssertEqual(rewritten, #"foo(${1:{ ${2:Int} \}}, baz: ${3:{ ${4:Int} in ${5:Bool} \}})"#)
+    XCTAssertEqual(rewritten, #"foo(${1:\{ ${2:Int} \}}, baz: ${3:\{ ${4:Int} in ${5:Bool} \}})"#)
   }
 }
