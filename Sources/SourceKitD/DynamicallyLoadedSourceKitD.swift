@@ -12,18 +12,14 @@
 
 #if compiler(>=6)
 package import Csourcekitd
-import Foundation
+package import Foundation
 import SKLogging
 import SwiftExtensions
-
-package import struct TSCBasic.AbsolutePath
 #else
 import Csourcekitd
 import Foundation
 import SKLogging
 import SwiftExtensions
-
-import struct TSCBasic.AbsolutePath
 #endif
 
 extension sourcekitd_api_keys: @unchecked Sendable {}
@@ -37,7 +33,7 @@ extension sourcekitd_api_values: @unchecked Sendable {}
 /// `set_notification_handler`, which are global state managed internally by this class.
 package actor DynamicallyLoadedSourceKitD: SourceKitD {
   /// The path to the sourcekitd dylib.
-  package let path: AbsolutePath
+  package let path: URL
 
   /// The handle to the dylib.
   let dylib: DLHandle
@@ -59,17 +55,17 @@ package actor DynamicallyLoadedSourceKitD: SourceKitD {
   /// List of notification handlers that will be called for each notification.
   private var notificationHandlers: [WeakSKDNotificationHandler] = []
 
-  package static func getOrCreate(dylibPath: AbsolutePath) async throws -> SourceKitD {
+  package static func getOrCreate(dylibPath: URL) async throws -> SourceKitD {
     try await SourceKitDRegistry.shared
       .getOrAdd(dylibPath, create: { try DynamicallyLoadedSourceKitD(dylib: dylibPath) })
   }
 
-  init(dylib path: AbsolutePath) throws {
+  init(dylib path: URL) throws {
     self.path = path
     #if os(Windows)
-    self.dylib = try dlopen(path.pathString, mode: [])
+    self.dylib = try dlopen(path.filePath, mode: [])
     #else
-    self.dylib = try dlopen(path.pathString, mode: [.lazy, .local, .first])
+    self.dylib = try dlopen(path.filePath, mode: [.lazy, .local, .first])
     #endif
     self.api = try sourcekitd_api_functions_t(self.dylib)
     self.keys = sourcekitd_api_keys(api: self.api)

@@ -15,6 +15,8 @@ import Foundation
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
+import SKUtilities
+import SwiftExtensions
 import SwiftParser
 import SwiftSyntax
 import TSCExtensions
@@ -27,6 +29,8 @@ import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
+import SKUtilities
+import SwiftExtensions
 import SwiftParser
 import SwiftSyntax
 import TSCExtensions
@@ -141,6 +145,7 @@ private func edits(from original: DocumentSnapshot, to edited: String) -> [TextE
 extension SwiftLanguageService {
   package func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]? {
     return try await format(
+      snapshot: documentManager.latestSnapshot(req.textDocument.uri),
       textDocument: req.textDocument,
       options: req.options
     )
@@ -148,19 +153,36 @@ extension SwiftLanguageService {
 
   package func documentRangeFormatting(_ req: DocumentRangeFormattingRequest) async throws -> [TextEdit]? {
     return try await format(
+      snapshot: documentManager.latestSnapshot(req.textDocument.uri),
       textDocument: req.textDocument,
       options: req.options,
       range: req.range
     )
   }
 
+  package func documentOnTypeFormatting(_ req: DocumentOnTypeFormattingRequest) async throws -> [TextEdit]? {
+    let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
+    guard let line = snapshot.lineTable.line(at: req.position.line) else {
+      return nil
+    }
+
+    let lineStartPosition = snapshot.position(of: line.startIndex, fromLine: req.position.line)
+    let lineEndPosition = snapshot.position(of: line.endIndex, fromLine: req.position.line)
+
+    return try await format(
+      snapshot: snapshot,
+      textDocument: req.textDocument,
+      options: req.options,
+      range: lineStartPosition..<lineEndPosition
+    )
+  }
+
   private func format(
+    snapshot: DocumentSnapshot,
     textDocument: TextDocumentIdentifier,
     options: FormattingOptions,
     range: Range<Position>? = nil
   ) async throws -> [TextEdit]? {
-    let snapshot = try documentManager.latestSnapshot(textDocument.uri)
-
     guard let swiftFormat else {
       throw ResponseError.unknown(
         "Formatting not supported because the toolchain is missing the swift-format executable"
@@ -168,15 +190,19 @@ extension SwiftLanguageService {
     }
 
     var args = try [
-      swiftFormat.pathString,
+      swiftFormat.filePath,
       "format",
       "--configuration",
       swiftFormatConfiguration(for: textDocument.uri, options: options),
     ]
     if let range {
+      let utf8Range = snapshot.utf8OffsetRange(of: range)
+      // swift-format takes an inclusive range, but Swift's `Range.upperBound` is exclusive.
+      // Also make sure `upperBound` does not go less than `lowerBound`.
+      let utf8UpperBound = max(utf8Range.lowerBound, utf8Range.upperBound - 1)
       args += [
         "--offsets",
-        "\(snapshot.utf8Offset(of: range.lowerBound)):\(snapshot.utf8Offset(of: range.upperBound))",
+        "\(utf8Range.lowerBound):\(utf8UpperBound)",
       ]
     }
     let process = TSCBasic.Process(arguments: args)

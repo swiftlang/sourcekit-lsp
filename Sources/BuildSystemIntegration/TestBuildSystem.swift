@@ -12,29 +12,27 @@
 
 #if compiler(>=6)
 package import BuildServerProtocol
+package import Foundation
 package import LanguageServerProtocol
 import SKOptions
 import ToolchainRegistry
-
-package import struct TSCBasic.AbsolutePath
 #else
 import BuildServerProtocol
+import Foundation
 import LanguageServerProtocol
 import SKOptions
 import ToolchainRegistry
-
-import struct TSCBasic.AbsolutePath
 #endif
 
 /// Build system to be used for testing BuildSystem and BuildSystemDelegate functionality with SourceKitLSPServer
 /// and other components.
 package actor TestBuildSystem: BuiltInBuildSystem {
-  package let projectRoot: AbsolutePath
+  package let projectRoot: URL
 
   package let fileWatchers: [FileSystemWatcher] = []
 
-  package let indexStorePath: AbsolutePath? = nil
-  package let indexDatabasePath: AbsolutePath? = nil
+  package let indexStorePath: URL? = nil
+  package let indexDatabasePath: URL? = nil
 
   private let connectionToSourceKitLSP: any Connection
 
@@ -49,7 +47,7 @@ package actor TestBuildSystem: BuiltInBuildSystem {
   package nonisolated var supportsPreparation: Bool { false }
 
   package init(
-    projectRoot: AbsolutePath,
+    projectRoot: URL,
     connectionToSourceKitLSP: any Connection
   ) {
     self.projectRoot = projectRoot

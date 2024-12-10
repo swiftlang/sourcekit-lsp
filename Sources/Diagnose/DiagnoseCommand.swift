@@ -97,7 +97,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
 
   var toolchainRegistry: ToolchainRegistry {
     get throws {
-      let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
+      let installPath = Bundle.main.bundleURL
       return ToolchainRegistry(installPath: installPath)
     }
   }
@@ -106,7 +106,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
   var toolchain: Toolchain? {
     get async throws {
       if let toolchainOverride {
-        return Toolchain(try AbsolutePath(validating: toolchainOverride))
+        return Toolchain(URL(fileURLWithPath: toolchainOverride))
       }
       return try await toolchainRegistry.default
     }
@@ -178,14 +178,14 @@ package struct DiagnoseCommand: AsyncParsableCommand {
         .deletingLastPathComponent()
         .deletingLastPathComponent()
 
-      guard let toolchain = try Toolchain(AbsolutePath(validating: toolchainPath.filePath)),
+      guard let toolchain = Toolchain(toolchainPath),
         let sourcekitd = toolchain.sourcekitd
       else {
         continue
       }
 
       let executor = OutOfProcessSourceKitRequestExecutor(
-        sourcekitd: sourcekitd.asURL,
+        sourcekitd: sourcekitd,
         swiftFrontend: crashInfo.swiftFrontend,
         reproducerPredicate: nil
       )
@@ -335,7 +335,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
         message: "Determining Swift version of \(toolchain.identifier)"
       )
 
-      guard let swiftUrl = toolchain.swift?.asURL else {
+      guard let swiftUrl = toolchain.swift else {
         continue
       }
 
@@ -461,7 +461,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
 
     let requestInfo = requestInfo
     let executor = OutOfProcessSourceKitRequestExecutor(
-      sourcekitd: sourcekitd.asURL,
+      sourcekitd: sourcekitd,
       swiftFrontend: swiftFrontend,
       reproducerPredicate: nil
     )

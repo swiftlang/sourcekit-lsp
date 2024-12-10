@@ -378,7 +378,7 @@ final class BackgroundIndexingTests: XCTestCase {
       XCTFail("Expected begin notification")
       return
     }
-    XCTAssertEqual(beginData.message, "Generating build graph")
+    XCTAssertEqual(beginData.message, "Scheduling tasks")
     let indexingWorkDoneProgressToken = beginNotification.token
 
     _ = try await project.testClient.nextNotification(
@@ -542,6 +542,8 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testPrepareTargetAfterEditToDependency() async throws {
+    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
+
     var testHooks = TestHooks()
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       [
@@ -641,6 +643,8 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testDontStackTargetPreparationForEditorFunctionality() async throws {
+    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
+
     let allDocumentsOpened = WrappedSemaphore(name: "All documents opened")
     let libBStartedPreparation = WrappedSemaphore(name: "LibB started preparing")
     let libDPreparedForEditing = WrappedSemaphore(name: "LibD prepared for editing")
@@ -879,17 +883,6 @@ final class BackgroundIndexingTests: XCTestCase {
       FileManager.default.fileExists(at: nestedIndexBuildURL),
       "No file should exist at \(nestedIndexBuildURL)"
     )
-  }
-
-  func testShowMessageWhenOpeningAProjectThatDoesntSupportBackgroundIndexing() async throws {
-    let project = try await MultiFileTestProject(
-      files: [
-        "compile_commands.json": ""
-      ],
-      enableBackgroundIndexing: true
-    )
-    let message = try await project.testClient.nextNotification(ofType: ShowMessageNotification.self)
-    XCTAssert(message.message.contains("Background indexing"), "Received unexpected message: \(message.message)")
   }
 
   func testNoPreparationStatusIfTargetIsUpToDate() async throws {
@@ -1245,7 +1238,7 @@ final class BackgroundIndexingTests: XCTestCase {
     //  - We reload the package, which updates `Dependency.swift` in `.build/index-build/checkouts`, which we also watch.
     try await Process.run(
       arguments: [
-        unwrap(ToolchainRegistry.forTesting.default?.swift?.pathString),
+        unwrap(ToolchainRegistry.forTesting.default?.swift?.filePath),
         "package", "update",
         "--package-path", project.scratchDirectory.filePath,
       ],

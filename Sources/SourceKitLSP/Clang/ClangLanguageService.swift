@@ -22,8 +22,6 @@ import SwiftSyntax
 import TSCExtensions
 import ToolchainRegistry
 
-import struct TSCBasic.AbsolutePath
-
 #if os(Windows)
 import WinSDK
 #endif
@@ -59,10 +57,10 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   var capabilities: ServerCapabilities? = nil
 
   /// Path to the clang binary.
-  let clangPath: AbsolutePath?
+  let clangPath: URL?
 
   /// Path to the `clangd` binary.
-  let clangdPath: AbsolutePath
+  let clangdPath: URL
 
   let clangdOptions: [String]
 
@@ -178,7 +176,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     openDocuments = [:]
 
     let (connectionToClangd, process) = try JSONRPCConnection.start(
-      executable: clangdPath.asURL,
+      executable: clangdPath,
       arguments: [
         "-compile_args_from=lsp",  // Provide compiler args programmatically.
         "-background-index=false",  // Disable clangd indexing, we use the build
@@ -459,9 +457,7 @@ extension ClangLanguageService {
     let clangBuildSettings = await self.buildSettings(for: uri, fallbackAfterTimeout: false)
 
     // The compile command changed, send over the new one.
-    if let compileCommand = clangBuildSettings?.compileCommand,
-      let pathString = AbsolutePath(validatingOrNil: try? url.filePath)?.pathString
-    {
+    if let compileCommand = clangBuildSettings?.compileCommand, let pathString = try? url.filePath {
       let notification = DidChangeConfigurationNotification(
         settings: .clangd(ClangWorkspaceSettings(compilationDatabaseChanges: [pathString: compileCommand]))
       )
@@ -585,6 +581,10 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
+  func documentOnTypeFormatting(_ req: DocumentOnTypeFormattingRequest) async throws -> [TextEdit]? {
+    return try await forwardRequestToClangd(req)
+  }
+
   func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
     return try await forwardRequestToClangd(req)
   }
@@ -644,8 +644,8 @@ private struct ClangBuildSettings: Equatable {
   /// fallback arguments and represent the file state differently.
   package let isFallback: Bool
 
-  package init(_ settings: FileBuildSettings, clangPath: AbsolutePath?) {
-    var arguments = [clangPath?.pathString ?? "clang"] + settings.compilerArguments
+  package init(_ settings: FileBuildSettings, clangPath: URL?) {
+    var arguments = [(try? clangPath?.filePath) ?? "clang"] + settings.compilerArguments
     if arguments.contains("-fmodules") {
       // Clangd is not built with support for the 'obj' format.
       arguments.append(contentsOf: [

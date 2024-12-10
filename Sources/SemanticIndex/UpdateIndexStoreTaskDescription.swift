@@ -335,7 +335,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     try await runIndexingProcess(
       indexFile: uri,
       buildSettings: buildSettings,
-      processArguments: [swiftc.pathString] + indexingArguments,
+      processArguments: [swiftc.filePath] + indexingArguments,
       workingDirectory: buildSettings.workingDirectory.map(AbsolutePath.init(validating:))
     )
   }
@@ -360,7 +360,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     try await runIndexingProcess(
       indexFile: uri,
       buildSettings: buildSettings,
-      processArguments: [clang.pathString] + indexingArguments,
+      processArguments: [clang.filePath] + indexingArguments,
       workingDirectory: buildSettings.workingDirectory.map(AbsolutePath.init(validating:))
     )
   }

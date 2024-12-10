@@ -15,7 +15,7 @@ import BuildServerProtocol
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
-import SwiftExtensions
+package import SwiftExtensions
 #else
 import BuildServerProtocol
 import LanguageServerProtocol
@@ -80,6 +80,10 @@ package enum BuildSystemMessageDependencyTracker: QueueBasedMessageHandlerDepend
       )
       self = .stateRead
     }
+  }
+
+  package func dependencies(in pendingTasks: [PendingTask<Self>]) -> [PendingTask<Self>] {
+    return pendingTasks.filter { $0.metadata.isDependency(of: self) }
   }
 
   package init(_ request: some RequestType) {

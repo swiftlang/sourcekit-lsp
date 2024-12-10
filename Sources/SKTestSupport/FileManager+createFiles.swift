@@ -11,27 +11,22 @@
 //===----------------------------------------------------------------------===//
 
 #if compiler(>=6)
-package import struct TSCBasic.AbsolutePath
-package import struct TSCBasic.ByteString
-package import protocol TSCBasic.FileSystem
+package import Foundation
 #else
-import struct TSCBasic.AbsolutePath
-import struct TSCBasic.ByteString
-import protocol TSCBasic.FileSystem
+import Foundation
 #endif
 
-extension FileSystem {
-
+extension FileManager {
   /// Creates files from a dictionary of path to contents.
   ///
   /// - parameters:
   ///   - root: The root directory that the paths are relative to.
   ///   - files: Dictionary from path (relative to root) to contents.
-  package func createFiles(root: AbsolutePath = .root, files: [String: ByteString]) throws {
+  package func createFiles(root: URL, files: [String: String]) throws {
     for (path, contents) in files {
-      let path = try AbsolutePath(validating: path, relativeTo: root)
-      try createDirectory(path.parentDirectory, recursive: true)
-      try writeFileContents(path, bytes: contents)
+      let path = URL(fileURLWithPath: path, relativeTo: root)
+      try createDirectory(at: path.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try contents.write(to: path, atomically: true, encoding: .utf8)
     }
   }
 }

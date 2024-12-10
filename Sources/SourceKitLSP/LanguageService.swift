@@ -210,6 +210,7 @@ package protocol LanguageService: AnyObject, Sendable {
   func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport
   func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]?
   func documentRangeFormatting(_ req: DocumentRangeFormattingRequest) async throws -> [TextEdit]?
+  func documentOnTypeFormatting(_ req: DocumentOnTypeFormattingRequest) async throws -> [TextEdit]?
 
   // MARK: - Rename
 

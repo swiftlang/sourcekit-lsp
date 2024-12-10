@@ -688,7 +688,7 @@ final class WorkspaceTests: XCTestCase {
     let packageDir = try project.uri(for: "Package.swift").fileURL!.deletingLastPathComponent()
 
     try await TSCBasic.Process.checkNonZeroExit(arguments: [
-      ToolchainRegistry.forTesting.default!.swift!.pathString,
+      ToolchainRegistry.forTesting.default!.swift!.filePath,
       "build",
       "--package-path", packageDir.filePath,
       "-Xswiftc", "-index-ignore-system-modules",

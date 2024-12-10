@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// An experimental feature that can be enabled by passing `--experimental-feature` to `sourcekit-lsp` on the command
-/// line. The raw value of this feature is how it is named on the command line.
+/// An experimental feature that can be enabled by passing `--experimental-feature`
+/// to `sourcekit-lsp` on the command line or through the configuration file.
+/// The raw value of this feature is how it is named on the command line and in the configuration file.
 public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
-  /* This is here to silence the errors when the enum doesn't have any cases */
-  case exampleCase = "example-case"
+  case onTypeFormatting = "on-type-formatting"
 }

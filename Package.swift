@@ -97,6 +97,7 @@ var targets: [Target] = [
       "SKTestSupport",
       "SourceKitLSP",
       "ToolchainRegistry",
+      "TSCExtensions",
     ],
     swiftSettings: globalSwiftSettings
   ),
@@ -348,7 +349,6 @@ var targets: [Target] = [
       "Csourcekitd",
       "SKLogging",
       "SwiftExtensions",
-      .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ],
     exclude: ["CMakeLists.txt", "sourcekitd_uids.swift.gyb"],
     swiftSettings: globalSwiftSettings
@@ -487,7 +487,6 @@ var targets: [Target] = [
       "SwiftExtensions",
       "TSCExtensions",
     ],
-    exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
   ),
 ]

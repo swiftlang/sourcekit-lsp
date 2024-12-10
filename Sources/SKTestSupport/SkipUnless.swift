@@ -336,7 +336,7 @@ package actor SkipUnless {
       }
 
       let result = try await Process.run(
-        arguments: [swift.pathString, "build", "--help-hidden"],
+        arguments: [swift.filePath, "build", "--help-hidden"],
         workingDirectory: nil
       )
       guard let output = String(bytes: try result.output.get(), encoding: .utf8) else {
@@ -393,7 +393,7 @@ package actor SkipUnless {
         // of Lib when building Lib.
         for target in ["MyPlugin", "Lib"] {
           var arguments = [
-            swift.pathString, "build", "--package-path", try project.scratchDirectory.filePath, "--target", target,
+            try swift.filePath, "build", "--package-path", try project.scratchDirectory.filePath, "--target", target,
           ]
           if let globalModuleCache = try globalModuleCache {
             arguments += ["-Xswiftc", "-module-cache-path", "-Xswiftc", try globalModuleCache.filePath]
@@ -474,19 +474,19 @@ package actor SkipUnless {
     line: UInt = #line
   ) async throws {
     return try await shared.skipUnlessSupported(allowSkippingInCI: true, file: file, line: line) {
-      let swiftFrontend = try await unwrap(ToolchainRegistry.forTesting.default?.swift).parentDirectory
-        .appending(component: "swift-frontend")
+      let swiftFrontend = try await unwrap(ToolchainRegistry.forTesting.default?.swift).deletingLastPathComponent()
+        .appendingPathComponent("swift-frontend")
       return try await withTestScratchDir { scratchDirectory in
-        let input = scratchDirectory.appending(component: "Input.swift")
-        guard FileManager.default.createFile(atPath: input.pathString, contents: nil) else {
+        let input = scratchDirectory.appendingPathComponent("Input.swift")
+        guard FileManager.default.createFile(atPath: input.path, contents: nil) else {
           struct FailedToCrateInputFileError: Error {}
           throw FailedToCrateInputFileError()
         }
         // If we can't compile for wasm, this fails complaining that it can't find the stdlib for wasm.
         let process = Process(
-          args: swiftFrontend.pathString,
+          args: try swiftFrontend.filePath,
           "-typecheck",
-          input.pathString,
+          try input.filePath,
           "-triple",
           "wasm32-unknown-none-wasm",
           "-enable-experimental-feature",

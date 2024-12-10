@@ -104,9 +104,15 @@ package class MultiFileTestProject {
 
     var fileData: [String: FileData] = [:]
     for (fileLocation, markedText) in files {
+      // Drop trailing slashes from the test dir URL, so tests can write `$TEST_DIR_URL/someFile.swift` without ending
+      // up with double slashes.
+      var testDirUrl = scratchDirectory.absoluteString
+      while testDirUrl.hasSuffix("/") {
+        testDirUrl = String(testDirUrl.dropLast())
+      }
       let markedText =
         markedText
-        .replacingOccurrences(of: "$TEST_DIR_URL", with: scratchDirectory.absoluteString)
+        .replacingOccurrences(of: "$TEST_DIR_URL", with: testDirUrl)
         .replacingOccurrences(of: "$TEST_DIR", with: try scratchDirectory.filePath)
       let fileURL = fileLocation.url(relativeTo: scratchDirectory)
       try FileManager.default.createDirectory(

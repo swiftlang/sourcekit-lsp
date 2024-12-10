@@ -12,17 +12,14 @@
 
 #if compiler(>=6)
 package import BuildServerProtocol
-import Foundation
+package import Foundation
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
 import SwiftExtensions
 import TSCExtensions
 
-package import struct TSCBasic.AbsolutePath
-package import protocol TSCBasic.FileSystem
 package import struct TSCBasic.RelativePath
-package import var TSCBasic.localFileSystem
 #else
 import BuildServerProtocol
 import Foundation
@@ -32,10 +29,7 @@ import SKLogging
 import SwiftExtensions
 import TSCExtensions
 
-import struct TSCBasic.AbsolutePath
-import protocol TSCBasic.FileSystem
 import struct TSCBasic.RelativePath
-import var TSCBasic.localFileSystem
 #endif
 
 #if os(Windows)
@@ -124,9 +118,8 @@ package protocol CompilationDatabase {
 
 /// Loads the compilation database located in `directory`, if one can be found in `additionalSearchPaths` or in the default search paths of "." and "build".
 package func tryLoadCompilationDatabase(
-  directory: AbsolutePath,
-  additionalSearchPaths: [RelativePath] = [],
-  _ fileSystem: FileSystem = localFileSystem
+  directory: URL,
+  additionalSearchPaths: [RelativePath] = []
 ) -> CompilationDatabase? {
   let searchPaths =
     additionalSearchPaths + [
@@ -140,10 +133,10 @@ package func tryLoadCompilationDatabase(
     .map { directory.appending($0) }
     .compactMap { searchPath in
       orLog("Failed to load compilation database") { () -> CompilationDatabase? in
-        if let compDb = try JSONCompilationDatabase(directory: searchPath, fileSystem) {
+        if let compDb = try JSONCompilationDatabase(directory: searchPath) {
           return compDb
         }
-        if let compDb = try FixedCompilationDatabase(directory: searchPath, fileSystem) {
+        if let compDb = try FixedCompilationDatabase(directory: searchPath) {
           return compDb
         }
         return nil
@@ -178,30 +171,26 @@ package struct FixedCompilationDatabase: CompilationDatabase, Equatable {
 
   /// Loads the compilation database located in `directory`, if any.
   /// - Returns: `nil` if `compile_flags.txt` was not found
-  package init?(directory: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
-    let path = directory.appending(component: "compile_flags.txt")
-    try self.init(file: path, fileSystem)
+  package init?(directory: URL) throws {
+    let path = directory.appendingPathComponent("compile_flags.txt")
+    try self.init(file: path)
   }
 
   /// Loads the compilation database from `file`
   /// - Returns: `nil` if the file does not exist
-  package init?(file: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
-    self.directory = file.dirname
+  package init?(file: URL) throws {
+    self.directory = try file.deletingLastPathComponent().filePath
 
-    guard fileSystem.exists(file) else {
+    let fileContents: String
+    do {
+      fileContents = try String(contentsOf: file, encoding: .utf8)
+    } catch {
       return nil
     }
-    let bytes = try fileSystem.readFileContents(file)
 
     var fixedArgs: [String] = ["clang"]
-    try bytes.withUnsafeData { data in
-      guard let fileContents = String(data: data, encoding: .utf8) else {
-        throw CompilationDatabaseDecodingError.fixedDatabaseDecodingError
-      }
-
-      fileContents.enumerateLines { line, _ in
-        fixedArgs.append(line.trimmingCharacters(in: .whitespacesAndNewlines))
-      }
+    fileContents.enumerateLines { line, _ in
+      fixedArgs.append(line.trimmingCharacters(in: .whitespacesAndNewlines))
     }
     self.fixedArgs = fixedArgs
   }
@@ -242,21 +231,21 @@ package struct JSONCompilationDatabase: CompilationDatabase, Equatable, Codable 
   /// Loads the compilation database located in `directory`, if any.
   ///
   /// - Returns: `nil` if `compile_commands.json` was not found
-  package init?(directory: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
-    let path = directory.appending(component: "compile_commands.json")
-    try self.init(file: path, fileSystem)
+  package init?(directory: URL) throws {
+    let path = directory.appendingPathComponent("compile_commands.json")
+    try self.init(file: path)
   }
 
   /// Loads the compilation database from `file`
   /// - Returns: `nil` if the file does not exist
-  package init?(file: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
-    guard fileSystem.exists(file) else {
+  package init?(file: URL) throws {
+    let data: Data
+    do {
+      data = try Data(contentsOf: file)
+    } catch {
       return nil
     }
-    let bytes = try fileSystem.readFileContents(file)
-    try bytes.withUnsafeData { data in
-      self = try JSONDecoder().decode(JSONCompilationDatabase.self, from: data)
-    }
+    self = try JSONDecoder().decode(JSONCompilationDatabase.self, from: data)
   }
 
   package func encode(to encoder: Encoder) throws {

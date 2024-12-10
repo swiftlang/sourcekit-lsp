@@ -15,6 +15,7 @@ package import ArgumentParser
 import Csourcekitd
 import Foundation
 import SKUtilities
+import SwiftExtensions
 import SourceKitD
 import ToolchainRegistry
 
@@ -25,6 +26,7 @@ import Csourcekitd
 import Foundation
 import SKUtilities
 import SourceKitD
+import SwiftExtensions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
@@ -55,18 +57,17 @@ package struct RunSourceKitdRequestCommand: AsyncParsableCommand {
   package init() {}
 
   package func run() async throws {
-    let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
     let sourcekitdPath =
       if let sourcekitdPath {
-        sourcekitdPath
-      } else if let path = await ToolchainRegistry(installPath: installPath).default?.sourcekitd?.pathString {
+        URL(fileURLWithPath: sourcekitdPath)
+      } else if let path = await ToolchainRegistry(installPath: Bundle.main.bundleURL).default?.sourcekitd {
         path
       } else {
         print("Did not find sourcekitd in the toolchain. Specify path to sourcekitd manually by passing --sourcekitd")
         throw ExitCode(1)
       }
     let sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
-      dylibPath: try! AbsolutePath(validating: sourcekitdPath)
+      dylibPath: sourcekitdPath
     )
 
     var lastResponse: SKDResponse?
