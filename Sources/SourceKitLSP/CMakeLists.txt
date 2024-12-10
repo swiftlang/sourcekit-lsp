@@ -26,7 +26,6 @@ target_sources(SourceKitLSP PRIVATE
 )
 target_sources(SourceKitLSP PRIVATE
   Swift/AdjustPositionToStartOfIdentifier.swift
-  Swift/ClosureCompletionFormat.swift
   Swift/CodeActions/AddDocumentation.swift
   Swift/CodeActions/ConvertIntegerLiteral.swift
   Swift/CodeActions/ConvertJSONToCodableStruct.swift
