@@ -96,6 +96,11 @@ package actor SourceKitLSPServer {
 
   package let documentManager = DocumentManager()
 
+  #if !os(Windows)
+  /// The index that is used to store information about Swift DocC Catalogs
+  private let documentationManager = DocumentationManager()
+  #endif
+
   /// The `TaskScheduler` that schedules all background indexing tasks.
   ///
   /// Shared process-wide to ensure the scheduled index operations across multiple workspaces don't exceed the maximum
@@ -772,6 +777,12 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await request.reply { try await rename(request.params) }
     case let request as RequestAndReply<ShutdownRequest>:
       await request.reply { try await shutdown(request.params) }
+    #if !os(Windows)
+    case let request as RequestAndReply<ConvertDocumentationRequest>:
+      await request.reply {
+        try await documentationManager.convertDocumentation(server: self, request: request.params)
+      }
+    #endif
     case let request as RequestAndReply<SymbolInfoRequest>:
       await self.handleRequest(for: request, requestHandler: self.symbolInfo)
     case let request as RequestAndReply<TriggerReindexRequest>:
@@ -1019,6 +1030,16 @@ extension SourceKitLSPServer {
       ? nil
       : ExecuteCommandOptions(commands: builtinSwiftCommands)
 
+    var experimentalCapabilities: [String: LSPAny] = [
+      "workspace/tests": .dictionary(["version": .int(2)]),
+      "textDocument/tests": .dictionary(["version": .int(2)]),
+      "workspace/triggerReindex": .dictionary(["version": .int(1)]),
+      "workspace/getReferenceDocument": .dictionary(["version": .int(1)]),
+    ]
+    #if !os(Windows)
+    experimentalCapabilities["textDocument/convertDocumentation"] = .dictionary(["version": .int(1)])
+    #endif
+
     return ServerCapabilities(
       textDocumentSync: .options(
         TextDocumentSyncOptions(
@@ -1060,12 +1081,7 @@ extension SourceKitLSPServer {
       typeHierarchyProvider: .bool(true),
       semanticTokensProvider: semanticTokensOptions,
       inlayHintProvider: inlayHintOptions,
-      experimental: .dictionary([
-        "workspace/tests": .dictionary(["version": .int(2)]),
-        "textDocument/tests": .dictionary(["version": .int(2)]),
-        "workspace/triggerReindex": .dictionary(["version": .int(1)]),
-        "workspace/getReferenceDocument": .dictionary(["version": .int(1)]),
-      ])
+      experimental: .dictionary(experimentalCapabilities)
     )
   }
 
@@ -1364,6 +1380,9 @@ extension SourceKitLSPServer {
     for workspace in workspaces {
       await workspace.filesDidChange(notification.changes)
     }
+    #if !os(Windows)
+    await documentationManager.filesDidChange(notification.changes)
+    #endif
   }
 
   // MARK: - Language features
