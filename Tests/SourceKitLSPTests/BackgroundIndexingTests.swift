@@ -1063,7 +1063,7 @@ final class BackgroundIndexingTests: XCTestCase {
   func testCrossModuleFunctionalityEvenIfLowLevelModuleHasErrors() async throws {
     try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
     var options = SourceKitLSPOptions.testDefault()
-    options.backgroundPreparationMode = SourceKitLSPOptions.BackgroundPreparationMode.enabled.rawValue
+    options.backgroundPreparationMode = .enabled
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
@@ -1110,7 +1110,7 @@ final class BackgroundIndexingTests: XCTestCase {
   func testCrossModuleFunctionalityWithPreparationNoSkipping() async throws {
     try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
     var options = SourceKitLSPOptions.testDefault()
-    options.backgroundPreparationMode = SourceKitLSPOptions.BackgroundPreparationMode.noLazy.rawValue
+    options.backgroundPreparationMode = .noLazy
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
@@ -1395,7 +1395,7 @@ final class BackgroundIndexingTests: XCTestCase {
     try SkipUnless.longTestsEnabled()
 
     var options = SourceKitLSPOptions.testDefault()
-    options.backgroundPreparationMode = SourceKitLSPOptions.BackgroundPreparationMode.enabled.rawValue
+    options.backgroundPreparationMode = .enabled
     options.indexOrDefault.updateIndexStoreTimeout = 1 /* second */
 
     let dateStarted = Date()
@@ -1527,7 +1527,7 @@ final class BackgroundIndexingTests: XCTestCase {
         )
         """,
       options: SourceKitLSPOptions(
-        backgroundPreparationMode: SourceKitLSPOptions.BackgroundPreparationMode.enabled.rawValue
+        backgroundPreparationMode: .enabled
       ),
       enableBackgroundIndexing: true
     )
@@ -1591,7 +1591,7 @@ final class BackgroundIndexingTests: XCTestCase {
         )
         """,
       options: SourceKitLSPOptions(
-        backgroundPreparationMode: SourceKitLSPOptions.BackgroundPreparationMode.enabled.rawValue
+        backgroundPreparationMode: .enabled
       ),
       enableBackgroundIndexing: true
     )
