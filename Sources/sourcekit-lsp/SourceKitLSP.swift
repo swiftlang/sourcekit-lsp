@@ -279,6 +279,10 @@ struct SourceKitLSP: AsyncParsableCommand {
       outFD: realStdoutHandle
     )
 
+    // For reasons that are completely oblivious to me, `DispatchIO.write`, which is used to write LSP responses to
+    // stdout fails with error code 5 on Windows unless we call `AbsolutePath(validating:)` on some URL first.
+    _ = try AbsolutePath(validating: Bundle.main.bundlePath)
+
     var inputMirror: FileHandle? = nil
     if let inputMirrorDirectory = globalConfigurationOptions.loggingOrDefault.inputMirrorDirectory {
       orLog("Setting up input mirror") {
