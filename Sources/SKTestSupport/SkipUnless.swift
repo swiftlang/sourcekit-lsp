@@ -415,6 +415,10 @@ public actor SkipUnless {
     try XCTSkipUnless(Platform.current == .darwin, message)
   }
 
+  public static func platformIsWindows(_ message: String) throws {
+    try XCTSkipUnless(Platform.current == .windows, message)
+  }
+
   public static func platformSupportsTaskPriorityElevation() throws {
     #if os(macOS)
     guard #available(macOS 14.0, *) else {
