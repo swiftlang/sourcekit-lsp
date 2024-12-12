@@ -67,11 +67,21 @@ extension URL {
       guard self.isFileURL else {
         throw FilePathError.noFileURL(self)
       }
-      return try self.withUnsafeFileSystemRepresentation { buffer in
-        guard let buffer else {
+      return try self.withUnsafeFileSystemRepresentation { filePathPtr in
+        guard let filePathPtr else {
           throw FilePathError.noFileSystemRepresentation(self)
         }
-        return String(cString: buffer)
+        let filePath = String(cString: filePathPtr)
+        #if os(Windows)
+        // VS Code spells file paths with a lowercase drive letter, while the rest of Windows APIs use an uppercase
+        // drive letter. Normalize the drive letter spelling to be uppercase.
+        if filePath.first?.isASCII ?? false, filePath.first?.isLetter ?? false, filePath.first?.isLowercase ?? false,
+          filePath.count > 1, filePath[filePath.index(filePath.startIndex, offsetBy: 1)] == ":"
+        {
+          return filePath.first!.uppercased() + filePath.dropFirst()
+        }
+        #endif
+        return filePath
       }
     }
   }
