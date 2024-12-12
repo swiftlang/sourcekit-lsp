@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
-public import ArgumentParser
 import BuildSystemIntegration
 import Csourcekitd  // Not needed here, but fixes debugging...
 import Diagnose
@@ -26,24 +24,16 @@ import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
 
-#if canImport(Android)
-import Android
-#endif
+import struct TSCBasic.AbsolutePath
+
+#if compiler(>=6)
+public import ArgumentParser
 #else
 import ArgumentParser
-import BuildSystemIntegration
-import Csourcekitd  // Not needed here, but fixes debugging...
-import Diagnose
-import Dispatch
-import Foundation
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import LanguageServerProtocolJSONRPC
-import SKLogging
-import SKOptions
-import SourceKitLSP
-import SwiftExtensions
-import ToolchainRegistry
+#endif
+
+#if canImport(Android)
+import Android
 #endif
 
 extension PathPrefixMapping {
@@ -278,6 +268,10 @@ struct SourceKitLSP: AsyncParsableCommand {
       inFD: FileHandle.standardInput,
       outFD: realStdoutHandle
     )
+
+    // For reasons that are completely oblivious to me, `DispatchIO.write`, which is used to write LSP responses to
+    // stdout fails with error code 5 on Windows unless we call `AbsolutePath(validating:)` on some URL first.
+    _ = try AbsolutePath(validating: Bundle.main.bundlePath)
 
     var inputMirror: FileHandle? = nil
     if let inputMirrorDirectory = globalConfigurationOptions.loggingOrDefault.inputMirrorDirectory {
