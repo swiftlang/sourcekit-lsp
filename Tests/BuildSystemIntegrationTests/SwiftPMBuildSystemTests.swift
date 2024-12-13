@@ -1156,7 +1156,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         files: [
           "pkg/Sources/lib/a.swift": "",
           "pkg/Package.swift": """
-          // swift-tools-version: 4.2
+          // swift-tools-version:5.1
           import PackageDescription
           """,
         ]
@@ -1177,7 +1177,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         fallbackAfterTimeout: false
       )
       let compilerArgs = try XCTUnwrap(settings?.compilerArguments)
-      XCTAssert(compilerArgs.contains("-package-description-version"))
+      assertArgumentsContain("-package-description-version", "5.1.0", arguments: compilerArgs)
       XCTAssert(compilerArgs.contains(try manifestURL.filePath))
     }
   }
