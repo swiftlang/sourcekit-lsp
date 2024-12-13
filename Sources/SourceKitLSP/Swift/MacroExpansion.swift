@@ -177,6 +177,8 @@ extension SwiftLanguageService {
       switch try? ReferenceDocumentURL(from: expandMacroCommand.textDocument.uri) {
       case .macroExpansion(let data):
         data.bufferName
+      case .generatedInterface(let data):
+        data.displayName
       case nil:
         expandMacroCommand.textDocument.uri.fileURL?.lastPathComponent ?? expandMacroCommand.textDocument.uri.pseudoPath
       }
@@ -223,9 +225,7 @@ extension SwiftLanguageService {
       case .bool(true) = experimentalCapabilities["workspace/peekDocuments"],
       case .bool(true) = experimentalCapabilities["workspace/getReferenceDocument"]
     {
-      let expansionURIs = try macroExpansionReferenceDocumentURLs.map {
-        return DocumentURI(try $0.url)
-      }
+      let expansionURIs = try macroExpansionReferenceDocumentURLs.map { try $0.uri }
 
       let uri = expandMacroCommand.textDocument.uri.primaryFile ?? expandMacroCommand.textDocument.uri
 
@@ -233,7 +233,7 @@ extension SwiftLanguageService {
         switch try? ReferenceDocumentURL(from: expandMacroCommand.textDocument.uri) {
         case .macroExpansion(let data):
           data.primaryFileSelectionRange.lowerBound
-        case nil:
+        case .generatedInterface, nil:
           expandMacroCommand.positionRange.lowerBound
         }
 

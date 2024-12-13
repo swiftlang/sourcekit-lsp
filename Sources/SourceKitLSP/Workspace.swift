@@ -383,7 +383,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
   }
 
   func documentService(for uri: DocumentURI) -> LanguageService? {
-    return documentService.value[uri.primaryFile ?? uri]
+    return documentService.value[uri.buildSettingsFile]
   }
 
   /// Set a language service for a document uri and returns if none exists already.
