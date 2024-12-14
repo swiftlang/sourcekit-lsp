@@ -48,6 +48,8 @@ actor LegacyBuildServerBuildSystem: MessageHandler, BuiltInBuildSystem {
 
   package let projectRoot: URL
 
+  package let configPath: URL
+
   var fileWatchers: [FileSystemWatcher] = []
 
   let indexDatabasePath: URL?
@@ -63,10 +65,12 @@ actor LegacyBuildServerBuildSystem: MessageHandler, BuiltInBuildSystem {
 
   init(
     projectRoot: URL,
+    configPath: URL,
     initializationData: InitializeBuildResponse,
     _ externalBuildSystemAdapter: ExternalBuildSystemAdapter
   ) async {
     self.projectRoot = projectRoot
+    self.configPath = configPath
     self.indexDatabasePath = nil
     self.indexStorePath = nil
     self.connectionToSourceKitLSP = LocalConnection(receiverName: "BuildSystemManager")

@@ -31,16 +31,18 @@ import struct TSCBasic.AbsolutePath
 #endif
 
 /// Determine which build system should be started to handle the given workspace folder and at which folder that build
-/// system's project root is (see `BuiltInBuildSystem.projectRoot(for:options:)`).
+/// system's project root is (see `BuiltInBuildSystem.projectRoot(for:options:)`). `onlyConsiderRoot` controls whether
+/// paths outside the root should be considered (eg. configuration files in the user's home directory).
 ///
 /// Returns `nil` if no build system can handle this workspace folder.
 package func determineBuildSystem(
   forWorkspaceFolder workspaceFolder: DocumentURI,
+  onlyConsiderRoot: Bool,
   options: SourceKitLSPOptions,
   hooks: BuildSystemHooks
 ) -> BuildSystemSpec? {
   if let workspaceURL = workspaceFolder.fileURL, let buildSystemInjector = hooks.buildSystemInjector {
-    return BuildSystemSpec(kind: .injected(buildSystemInjector), projectRoot: workspaceURL)
+    return BuildSystemSpec(kind: .injected(buildSystemInjector), projectRoot: workspaceURL, configPath: workspaceURL)
   }
 
   var buildSystemPreference: [WorkspaceType] = [
@@ -54,23 +56,25 @@ package func determineBuildSystem(
     return nil
   }
   for buildSystemType in buildSystemPreference {
+    var spec: BuildSystemSpec? = nil
+
     switch buildSystemType {
     case .buildServer:
-      if let projectRoot = ExternalBuildSystemAdapter.projectRoot(for: workspaceFolderUrl, options: options) {
-        return BuildSystemSpec(kind: .buildServer, projectRoot: projectRoot)
-      }
+      spec = ExternalBuildSystemAdapter.searchForConfig(
+        in: workspaceFolderUrl,
+        onlyConsiderRoot: onlyConsiderRoot,
+        options: options
+      )
     case .compilationDatabase:
-      if let projectRoot = CompilationDatabaseBuildSystem.projectRoot(for: workspaceFolderUrl, options: options) {
-        return BuildSystemSpec(kind: .compilationDatabase, projectRoot: projectRoot)
-      }
+      spec = CompilationDatabaseBuildSystem.searchForConfig(in: workspaceFolderUrl, options: options)
     case .swiftPM:
       #if canImport(PackageModel)
-      if let projectRoot = SwiftPMBuildSystem.projectRoot(for: workspaceFolderUrl, options: options) {
-        return BuildSystemSpec(kind: .swiftPM, projectRoot: projectRoot)
-      }
-      #else
-      return nil
+      spec = SwiftPMBuildSystem.searchForConfig(in: workspaceFolderUrl, options: options)
       #endif
+    }
+
+    if let spec {
+      return spec
     }
   }
 

@@ -180,7 +180,9 @@ final class CompilationDatabaseTests: XCTestCase {
 
   func testJSONCompilationDatabaseFromDirectory() async throws {
     try await withTestScratchDir { tempDir in
-      XCTAssertNil(tryLoadCompilationDatabase(directory: tempDir))
+      let dbFile = tempDir.appendingPathComponent(JSONCompilationDatabase.dbName)
+
+      XCTAssertNil(tryLoadCompilationDatabase(file: dbFile))
 
       try """
       [
@@ -190,56 +192,25 @@ final class CompilationDatabaseTests: XCTestCase {
           "arguments": ["swiftc", "/a/a.swift"]
         }
       ]
-      """.write(to: tempDir.appendingPathComponent("compile_commands.json"), atomically: true, encoding: .utf8)
+      """.write(to: dbFile, atomically: true, encoding: .utf8)
 
-      XCTAssertNotNil(tryLoadCompilationDatabase(directory: tempDir))
-    }
-  }
-
-  func testJSONCompilationDatabaseFromCustomDirectory() async throws {
-    try await withTestScratchDir { tempDir in
-      XCTAssertNil(tryLoadCompilationDatabase(directory: tempDir))
-
-      let customDir = try RelativePath(validating: "custom/build/dir")
-      try FileManager.default.createDirectory(at: tempDir.appending(customDir), withIntermediateDirectories: true)
-
-      try """
-      [
-        {
-          "file": "/a/a.swift",
-          "directory": "/a",
-          "arguments": ["swiftc", "/a/a.swift"]
-        }
-      ]
-      """.write(
-        to: tempDir.appending(customDir).appendingPathComponent("compile_commands.json"),
-        atomically: true,
-        encoding: .utf8
-      )
-
-      XCTAssertNotNil(
-        try tryLoadCompilationDatabase(
-          directory: tempDir,
-          additionalSearchPaths: [
-            RelativePath(validating: "."),
-            customDir,
-          ]
-        )
-      )
+      XCTAssertNotNil(tryLoadCompilationDatabase(file: dbFile))
     }
   }
 
   func testFixedCompilationDatabase() async throws {
     try await withTestScratchDir { tempDir in
-      XCTAssertNil(tryLoadCompilationDatabase(directory: tempDir))
+      let dbFile = tempDir.appendingPathComponent(FixedCompilationDatabase.dbName)
+
+      XCTAssertNil(tryLoadCompilationDatabase(file: dbFile))
 
       try """
       -xc++
       -I
       libwidget/include/
-      """.write(to: tempDir.appendingPathComponent("compile_flags.txt"), atomically: true, encoding: .utf8)
+      """.write(to: dbFile, atomically: true, encoding: .utf8)
 
-      let db = try XCTUnwrap(tryLoadCompilationDatabase(directory: tempDir))
+      let db = try XCTUnwrap(tryLoadCompilationDatabase(file: dbFile))
 
       let filePath = try tempDir.appendingPathComponent("a.c").filePath
       XCTAssertEqual(
@@ -260,8 +231,10 @@ final class CompilationDatabaseTests: XCTestCase {
 
   func testInvalidCompilationDatabase() async throws {
     try await withTestScratchDir { tempDir in
-      try "".write(to: tempDir.appendingPathComponent("compile_commands.json"), atomically: true, encoding: .utf8)
-      XCTAssertNil(tryLoadCompilationDatabase(directory: tempDir))
+      let dbFile = tempDir.appendingPathComponent(JSONCompilationDatabase.dbName)
+
+      try "".write(to: dbFile, atomically: true, encoding: .utf8)
+      XCTAssertNil(tryLoadCompilationDatabase(file: dbFile))
     }
   }
 
@@ -446,10 +419,10 @@ private func checkCompilationDatabaseBuildSystem(
   block: @Sendable (CompilationDatabaseBuildSystem) async throws -> ()
 ) async throws {
   try await withTestScratchDir { tempDir in
-    try compdb.write(to: tempDir.appendingPathComponent("compile_commands.json"), atomically: true, encoding: .utf8)
-    let buildSystem = CompilationDatabaseBuildSystem(
-      projectRoot: tempDir,
-      searchPaths: try [RelativePath(validating: ".")],
+    let configPath = tempDir.appendingPathComponent(JSONCompilationDatabase.dbName)
+    try compdb.write(to: configPath, atomically: true, encoding: .utf8)
+    let buildSystem = try CompilationDatabaseBuildSystem(
+      configPath: configPath,
       connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP")
     )
     try await block(XCTUnwrap(buildSystem))
