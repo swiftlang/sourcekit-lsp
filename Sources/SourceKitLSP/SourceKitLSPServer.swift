@@ -205,35 +205,48 @@ package actor SourceKitLSPServer {
     guard var url = uri.fileURL?.deletingLastPathComponent() else {
       return nil
     }
-    let projectRoots = await self.workspacesAndIsImplicit.filter { !$0.isImplicit }.asyncCompactMap {
-      await $0.workspace.buildSystemManager.projectRoot
+
+    // Roots of opened workspaces - only consider explicit here (all implicit must necessarily be subdirectories of
+    // the explicit workspace roots)
+    let workspaceRoots = workspacesAndIsImplicit.filter { !$0.isImplicit }.compactMap { $0.workspace.rootUri?.fileURL }
+
+    // We want to skip creating another workspace if any existing already has the same config path. This could happen if
+    // an existing workspace hasn't realoaded after a new file was added to it (and thus that build system needs to be
+    // reloaded).
+    let configPaths = await workspacesAndIsImplicit.asyncCompactMap {
+      await $0.workspace.buildSystemManager.configPath
     }
-    let rootURLs = workspacesAndIsImplicit.filter { !$0.isImplicit }.compactMap { $0.workspace.rootUri?.fileURL }
-    while url.pathComponents.count > 1 && rootURLs.contains(where: { $0.isPrefix(of: url) }) {
+
+    while url.pathComponents.count > 1 && workspaceRoots.contains(where: { $0.isPrefix(of: url) }) {
       defer {
         url.deleteLastPathComponent()
       }
-      // Ignore workspaces that have the same project root as an existing workspace.
-      // This might happen if there is an existing SwiftPM workspace that hasn't been reloaded after a new file
-      // was added to it and thus currently doesn't know that it can handle that file. In that case, we shouldn't open
-      // a new workspace for the same root. Instead, the existing workspace's build system needs to be reloaded.
+
       let uri = DocumentURI(url)
+      let options = SourceKitLSPOptions.merging(base: self.options, workspaceFolder: uri)
+
+      // Some build systems consider paths outside of the folder (eg. BSP has settings in the home directory). If we
+      // allowed those paths, then the very first folder that the file is in would always be its own build system - so
+      // skip them in that case.
       guard
         let buildSystemSpec = determineBuildSystem(
           forWorkspaceFolder: uri,
-          options: self.options,
+          onlyConsiderRoot: true,
+          options: options,
           hooks: hooks.buildSystemHooks
         )
       else {
         continue
       }
-      guard !projectRoots.contains(buildSystemSpec.projectRoot) else {
+      if configPaths.contains(buildSystemSpec.configPath) {
         continue
       }
+
+      // No existing workspace matches this root - create one.
       guard
         let workspace = await orLog(
-          "Creating workspace",
-          { try await createWorkspace(workspaceFolder: uri, buildSystemSpec: buildSystemSpec) }
+          "Creating implicit workspace",
+          { try await createWorkspace(workspaceFolder: uri, options: options, buildSystemSpec: buildSystemSpec) }
         )
       else {
         continue
@@ -822,9 +835,11 @@ extension SourceKitLSPServer {
 
   /// Creates a workspace at the given `uri`.
   ///
-  /// If the build system that was determined for the workspace does not satisfy `condition`, `nil` is returned.
+  /// A workspace does not necessarily have any build system attached to it, in which case `buildSystemSpec` may be
+  /// `nil` - consider eg. a top level workspace folder with multiple SwiftPM projects inside it.
   private func createWorkspace(
     workspaceFolder: DocumentURI,
+    options: SourceKitLSPOptions,
     buildSystemSpec: BuildSystemSpec?
   ) async throws -> Workspace {
     guard let capabilityRegistry = capabilityRegistry else {
@@ -860,13 +875,17 @@ extension SourceKitLSPServer {
   /// Determines the build system for the given workspace folder and creates a `Workspace` that uses this inferred build
   /// system.
   private func createWorkspaceWithInferredBuildSystem(workspaceFolder: DocumentURI) async throws -> Workspace {
+    let options = SourceKitLSPOptions.merging(base: self.options, workspaceFolder: workspaceFolder)
+    let buildSystemSpec = determineBuildSystem(
+      forWorkspaceFolder: workspaceFolder,
+      onlyConsiderRoot: false,
+      options: options,
+      hooks: hooks.buildSystemHooks
+    )
     return try await self.createWorkspace(
       workspaceFolder: workspaceFolder,
-      buildSystemSpec: determineBuildSystem(
-        forWorkspaceFolder: workspaceFolder,
-        options: options,
-        hooks: hooks.buildSystemHooks
-      )
+      options: options,
+      buildSystemSpec: buildSystemSpec
     )
   }
 

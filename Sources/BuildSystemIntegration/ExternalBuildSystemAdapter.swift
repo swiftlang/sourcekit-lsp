@@ -58,6 +58,9 @@ enum BuildServerNotFoundError: Error {
   case fileNotFound
 }
 
+/// BSP configuration
+///
+/// See https://build-server-protocol.github.io/docs/overview/server-discovery#the-bsp-connection-details
 private struct BuildServerConfig: Codable {
   /// The name of the build tool.
   let name: String
@@ -83,7 +86,11 @@ private struct BuildServerConfig: Codable {
 
 /// Launches a subprocess that is a BSP server and manages the process's lifetime.
 actor ExternalBuildSystemAdapter {
+  /// The root folder of the project. Used to resolve relative server paths.
   private let projectRoot: URL
+
+  /// The file that specifies the configuration for this build server.
+  private let configPath: URL
 
   /// The `BuildSystemManager` that handles messages from the BSP server to SourceKit-LSP.
   var messagesToSourceKitLSPHandler: MessageHandler
@@ -99,18 +106,25 @@ actor ExternalBuildSystemAdapter {
   /// Used to delay restarting in case of a crash loop.
   private var lastRestart: Date?
 
-  static package func projectRoot(for workspaceFolder: URL, options: SourceKitLSPOptions) -> URL? {
-    guard getConfigPath(for: workspaceFolder) != nil else {
+  static package func searchForConfig(
+    in workspaceFolder: URL,
+    onlyConsiderRoot: Bool,
+    options: SourceKitLSPOptions
+  ) -> BuildSystemSpec? {
+    guard let configPath = getConfigPath(for: workspaceFolder, onlyConsiderRoot: onlyConsiderRoot) else {
       return nil
     }
-    return workspaceFolder
+
+    return BuildSystemSpec(kind: .buildServer, projectRoot: workspaceFolder, configPath: configPath)
   }
 
   init(
     projectRoot: URL,
+    configPath: URL,
     messagesToSourceKitLSPHandler: MessageHandler
   ) async throws {
     self.projectRoot = projectRoot
+    self.configPath = configPath
     self.messagesToSourceKitLSPHandler = messagesToSourceKitLSPHandler
     self.connectionToBuildServer = try await self.createConnectionToBspServer()
   }
@@ -148,10 +162,6 @@ actor ExternalBuildSystemAdapter {
 
   /// Create a new JSONRPCConnection to the build server.
   private func createConnectionToBspServer() async throws -> JSONRPCConnection {
-    guard let configPath = ExternalBuildSystemAdapter.getConfigPath(for: self.projectRoot) else {
-      throw BuildServerNotFoundError.fileNotFound
-    }
-
     let serverConfig = try BuildServerConfig.load(from: configPath)
     var serverPath = URL(fileURLWithPath: serverConfig.argv[0], relativeTo: projectRoot.ensuringCorrectTrailingSlash)
     var serverArgs = Array(serverConfig.argv[1...])
@@ -187,38 +197,40 @@ actor ExternalBuildSystemAdapter {
     ).connection
   }
 
-  private static func getConfigPath(for workspaceFolder: URL? = nil) -> URL? {
+  private static func getConfigPath(for workspaceFolder: URL? = nil, onlyConsiderRoot: Bool = false) -> URL? {
     var buildServerConfigLocations: [URL?] = []
     if let workspaceFolder = workspaceFolder {
       buildServerConfigLocations.append(workspaceFolder.appendingPathComponent(".bsp"))
     }
 
-    #if os(Windows)
-    if let localAppData = ProcessInfo.processInfo.environment["LOCALAPPDATA"] {
-      buildServerConfigLocations.append(URL(fileURLWithPath: localAppData).appendingPathComponent("bsp"))
-    }
-    if let programData = ProcessInfo.processInfo.environment["PROGRAMDATA"] {
-      buildServerConfigLocations.append(URL(fileURLWithPath: programData).appendingPathComponent("bsp"))
-    }
-    #else
-    if let xdgDataHome = ProcessInfo.processInfo.environment["XDG_DATA_HOME"] {
-      buildServerConfigLocations.append(URL(fileURLWithPath: xdgDataHome).appendingPathComponent("bsp"))
-    }
-
-    if let libraryUrl = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
-      buildServerConfigLocations.append(libraryUrl.appendingPathComponent("bsp"))
-    }
-
-    if let xdgDataDirs = ProcessInfo.processInfo.environment["XDG_DATA_DIRS"] {
-      buildServerConfigLocations += xdgDataDirs.split(separator: ":").map { xdgDataDir in
-        URL(fileURLWithPath: String(xdgDataDir)).appendingPathComponent("bsp")
+    if !onlyConsiderRoot {
+      #if os(Windows)
+      if let localAppData = ProcessInfo.processInfo.environment["LOCALAPPDATA"] {
+        buildServerConfigLocations.append(URL(fileURLWithPath: localAppData).appendingPathComponent("bsp"))
       }
-    }
+      if let programData = ProcessInfo.processInfo.environment["PROGRAMDATA"] {
+        buildServerConfigLocations.append(URL(fileURLWithPath: programData).appendingPathComponent("bsp"))
+      }
+      #else
+      if let xdgDataHome = ProcessInfo.processInfo.environment["XDG_DATA_HOME"] {
+        buildServerConfigLocations.append(URL(fileURLWithPath: xdgDataHome).appendingPathComponent("bsp"))
+      }
 
-    if let libraryUrl = FileManager.default.urls(for: .applicationSupportDirectory, in: .systemDomainMask).first {
-      buildServerConfigLocations.append(libraryUrl.appendingPathComponent("bsp"))
+      if let libraryUrl = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+        buildServerConfigLocations.append(libraryUrl.appendingPathComponent("bsp"))
+      }
+
+      if let xdgDataDirs = ProcessInfo.processInfo.environment["XDG_DATA_DIRS"] {
+        buildServerConfigLocations += xdgDataDirs.split(separator: ":").map { xdgDataDir in
+          URL(fileURLWithPath: String(xdgDataDir)).appendingPathComponent("bsp")
+        }
+      }
+
+      if let libraryUrl = FileManager.default.urls(for: .applicationSupportDirectory, in: .systemDomainMask).first {
+        buildServerConfigLocations.append(libraryUrl.appendingPathComponent("bsp"))
+      }
+      #endif
     }
-    #endif
 
     for case let buildServerConfigLocation? in buildServerConfigLocations {
       let jsonFiles =

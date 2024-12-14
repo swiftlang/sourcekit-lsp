@@ -35,11 +35,6 @@ package struct PrepareNotSupportedError: Error, CustomStringConvertible {
 
 /// Provider of FileBuildSettings and other build-related information.
 package protocol BuiltInBuildSystem: AnyObject, Sendable {
-  /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
-  /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
-  /// was found.
-  var projectRoot: URL { get async }
-
   /// The files to watch for changes.
   var fileWatchers: [FileSystemWatcher] { get async }
 

@@ -53,7 +53,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         ]
       )
       let packageRoot = tempDir.appendingPathComponent("pkg")
-      XCTAssertNil(SwiftPMBuildSystem.projectRoot(for: packageRoot, options: .testDefault()))
+      let buildSystemSpec = SwiftPMBuildSystem.searchForConfig(in: packageRoot, options: .testDefault())
+      XCTAssertNil(buildSystemSpec)
     }
   }
 
@@ -142,7 +143,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -214,7 +215,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -286,7 +287,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
 
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(swiftPM: options),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -337,8 +338,9 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         triple: "wasm32-unknown-wasi"
       )
 
+      let packageRoot = tempDir.appendingPathComponent("pkg")
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        projectRoot: tempDir.appendingPathComponent("pkg"),
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
         options: SourceKitLSPOptions(swiftPM: options),
         connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy"),
@@ -371,7 +373,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = tempDir.appendingPathComponent("pkg")
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -411,7 +413,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -476,7 +478,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -555,7 +557,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = tempDir.appendingPathComponent("pkg")
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -620,7 +622,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -706,7 +708,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   func testDeploymentTargetSwift() async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
-        root: try tempDir,
+        root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
           "pkg/Package.swift": """
@@ -721,7 +723,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = tempDir.appendingPathComponent("pkg")
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -778,12 +780,9 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         withDestinationURL: URL(fileURLWithPath: tempDir.appendingPathComponent("pkg_real").filePath)
       )
 
-      let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: packageRoot, options: .testDefault()))
+      let buildSystemSpec = try XCTUnwrap(SwiftPMBuildSystem.searchForConfig(in: packageRoot, options: .testDefault()))
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(
-          kind: .swiftPM,
-          projectRoot: projectRoot
-        ),
+        buildSystemSpec: buildSystemSpec,
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -866,12 +865,9 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         withDestinationURL: URL(fileURLWithPath: tempDir.appendingPathComponent("pkg_real").filePath)
       )
 
-      let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: symlinkRoot, options: .testDefault()))
+      let buildSystemSpec = try XCTUnwrap(SwiftPMBuildSystem.searchForConfig(in: symlinkRoot, options: .testDefault()))
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(
-          kind: .swiftPM,
-          projectRoot: projectRoot
-        ),
+        buildSystemSpec: buildSystemSpec,
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -913,7 +909,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -965,9 +961,9 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         .appendingPathComponent("pkg")
         .appendingPathComponent("Sources")
         .appendingPathComponent("lib")
-      let projectRoot = SwiftPMBuildSystem.projectRoot(for: workspaceRoot, options: .testDefault())
 
-      assertEqual(projectRoot, tempDir.appendingPathComponent("pkg", isDirectory: true))
+      let buildSystemSpec = SwiftPMBuildSystem.searchForConfig(in: workspaceRoot, options: .testDefault())
+      XCTAssertNil(buildSystemSpec)
     }
   }
 
@@ -993,7 +989,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = tempDir.appendingPathComponent("pkg")
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -1120,7 +1116,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let versionSpecificManifestURL = packageRoot.appendingPathComponent("Package@swift-5.8.swift")
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -1153,7 +1149,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let manifestURL = packageRoot.appendingPathComponent("Package.swift")
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
@@ -1232,4 +1228,15 @@ fileprivate extension URL {
     return result
   }
 }
+
+fileprivate extension BuildSystemSpec {
+  static func swiftpmSpec(for packageRoot: URL) -> BuildSystemSpec {
+    return BuildSystemSpec(
+      kind: .swiftPM,
+      projectRoot: packageRoot,
+      configPath: packageRoot.appendingPathComponent("Package.swift")
+    )
+  }
+}
+
 #endif

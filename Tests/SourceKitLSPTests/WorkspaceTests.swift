@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
 import SKLogging
@@ -967,4 +968,154 @@ final class WorkspaceTests: XCTestCase {
       ["Cannot convert value of type 'Int' to specified type 'String'"]
     )
   }
+
+  func testWorkspaceOptionsOverrideBuildSystem() async throws {
+    let project = try await MultiFileTestProject(files: [
+      ".sourcekit-lsp/config.json": """
+      {
+        "defaultWorkspaceType": "compilationDatabase"
+      }
+      """,
+      "src/Foo.swift": """
+      #if HAVE_SETTINGS
+      #error("Have settings")
+      #endif
+      """,
+      "Sources/MyLib/Bar.swift": "",
+      "build/compile_commands.json": """
+      [
+      {
+        "directory": "$TEST_DIR",
+        "command": "swiftc $TEST_DIR/src/Foo.swift -DHAVE_SETTINGS \(defaultSDKArgs)",
+        "file": "src/Foo.swift",
+        "output": "$TEST_DIR/build/Foo.swift.o"
+      }
+      ]
+      """,
+      "Package.swift": """
+      // swift-tools-version: 5.7
+
+      import PackageDescription
+
+      let package = Package(
+        name: "MyLib",
+        targets: [
+          .target(name: "MyLib"),
+        ]
+      )
+      """,
+    ])
+    let (uri, _) = try project.openDocument("Foo.swift")
+    let diagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(
+      diagnostics.fullReport?.items.map(\.message),
+      ["Have settings"]
+    )
+  }
+
+  func testImplicitWorkspaceOptionsOverrideBuildSystem() async throws {
+    let project = try await MultiFileTestProject(files: [
+      "projA/.sourcekit-lsp/config.json": """
+      {
+        "defaultWorkspaceType": "compilationDatabase"
+      }
+      """,
+      "projA/src/Foo.swift": """
+      #if HAVE_SETTINGS
+      #error("Have settings")
+      #endif
+      """,
+      "projA/Sources/MyLib/Bar.swift": "",
+      "projA/build/compile_commands.json": """
+      [
+      {
+        "directory": "$TEST_DIR/projA",
+        "command": "swiftc $TEST_DIR/projA/src/Foo.swift -DHAVE_SETTINGS \(defaultSDKArgs)",
+        "file": "src/Foo.swift",
+        "output": "$TEST_DIR/projA/build/Foo.swift.o"
+      }
+      ]
+      """,
+      "projA/Package.swift": """
+      // swift-tools-version: 5.7
+
+      import PackageDescription
+
+      let package = Package(
+        name: "MyLib",
+        targets: [
+          .target(name: "MyLib"),
+        ]
+      )
+      """,
+    ])
+    let (uri, _) = try project.openDocument("Foo.swift")
+    let diagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(
+      diagnostics.fullReport?.items.map(\.message),
+      ["Have settings"]
+    )
+  }
+
+  func testWorkspaceOptionsCanAddSearchPaths() async throws {
+    let project = try await MultiFileTestProject(files: [
+      ".sourcekit-lsp/config.json": """
+      {
+        "compilationDatabase": {
+          "searchPaths": ["otherbuild"]
+        }
+      }
+      """,
+      "src/Foo.swift": """
+      #if HAVE_SETTINGS
+      #error("Have settings")
+      #endif
+      """,
+      "otherbuild/compile_commands.json": """
+      [
+      {
+        "directory": "$TEST_DIR",
+        "command": "swiftc $TEST_DIR/src/Foo.swift -DHAVE_SETTINGS \(defaultSDKArgs)",
+        "file": "src/Foo.swift",
+        "output": "$TEST_DIR/otherbuild/Foo.swift.o"
+      }
+      ]
+      """,
+    ])
+    let (uri, _) = try project.openDocument("Foo.swift")
+    let diagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(
+      diagnostics.fullReport?.items.map(\.message),
+      ["Have settings"]
+    )
+  }
+
+  func testUnknownFileInProjectRootUsesWorkspaceAtRoot() async throws {
+    let project = try await MultiFileTestProject(files: [
+      "build/test.h": "",
+      "build/compile_commands.json": "[]",
+    ])
+
+    let uri = try project.uri(for: "test.h")
+    assertEqual(
+      await project.testClient.server.workspaceForDocument(uri: uri)?.rootUri?.fileURL,
+      project.scratchDirectory
+    )
+  }
 }
+
+fileprivate let defaultSDKArgs: String = {
+  if let defaultSDKPath {
+    let escapedPath = defaultSDKPath.replacing(#"\"#, with: #"\\"#)
+    return """
+      -sdk '\(escapedPath)'
+      """
+  }
+  return ""
+}()
