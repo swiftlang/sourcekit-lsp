@@ -99,8 +99,12 @@ actor ExternalBuildSystemAdapter {
   /// Used to delay restarting in case of a crash loop.
   private var lastRestart: Date?
 
-  static package func projectRoot(for workspaceFolder: URL, options: SourceKitLSPOptions) -> URL? {
-    guard getConfigPath(for: workspaceFolder) != nil else {
+  static package func projectRoot(
+    for workspaceFolder: URL,
+    onlyConsiderRoot: Bool,
+    options: SourceKitLSPOptions
+  ) -> URL? {
+    guard getConfigPath(for: workspaceFolder, onlyConsiderRoot: onlyConsiderRoot) != nil else {
       return nil
     }
     return workspaceFolder
@@ -187,38 +191,40 @@ actor ExternalBuildSystemAdapter {
     ).connection
   }
 
-  private static func getConfigPath(for workspaceFolder: URL? = nil) -> URL? {
+  private static func getConfigPath(for workspaceFolder: URL? = nil, onlyConsiderRoot: Bool = false) -> URL? {
     var buildServerConfigLocations: [URL?] = []
     if let workspaceFolder = workspaceFolder {
       buildServerConfigLocations.append(workspaceFolder.appendingPathComponent(".bsp"))
     }
 
-    #if os(Windows)
-    if let localAppData = ProcessInfo.processInfo.environment["LOCALAPPDATA"] {
-      buildServerConfigLocations.append(URL(fileURLWithPath: localAppData).appendingPathComponent("bsp"))
-    }
-    if let programData = ProcessInfo.processInfo.environment["PROGRAMDATA"] {
-      buildServerConfigLocations.append(URL(fileURLWithPath: programData).appendingPathComponent("bsp"))
-    }
-    #else
-    if let xdgDataHome = ProcessInfo.processInfo.environment["XDG_DATA_HOME"] {
-      buildServerConfigLocations.append(URL(fileURLWithPath: xdgDataHome).appendingPathComponent("bsp"))
-    }
-
-    if let libraryUrl = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
-      buildServerConfigLocations.append(libraryUrl.appendingPathComponent("bsp"))
-    }
-
-    if let xdgDataDirs = ProcessInfo.processInfo.environment["XDG_DATA_DIRS"] {
-      buildServerConfigLocations += xdgDataDirs.split(separator: ":").map { xdgDataDir in
-        URL(fileURLWithPath: String(xdgDataDir)).appendingPathComponent("bsp")
+    if !onlyConsiderRoot {
+      #if os(Windows)
+      if let localAppData = ProcessInfo.processInfo.environment["LOCALAPPDATA"] {
+        buildServerConfigLocations.append(URL(fileURLWithPath: localAppData).appendingPathComponent("bsp"))
       }
-    }
+      if let programData = ProcessInfo.processInfo.environment["PROGRAMDATA"] {
+        buildServerConfigLocations.append(URL(fileURLWithPath: programData).appendingPathComponent("bsp"))
+      }
+      #else
+      if let xdgDataHome = ProcessInfo.processInfo.environment["XDG_DATA_HOME"] {
+        buildServerConfigLocations.append(URL(fileURLWithPath: xdgDataHome).appendingPathComponent("bsp"))
+      }
 
-    if let libraryUrl = FileManager.default.urls(for: .applicationSupportDirectory, in: .systemDomainMask).first {
-      buildServerConfigLocations.append(libraryUrl.appendingPathComponent("bsp"))
+      if let libraryUrl = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+        buildServerConfigLocations.append(libraryUrl.appendingPathComponent("bsp"))
+      }
+
+      if let xdgDataDirs = ProcessInfo.processInfo.environment["XDG_DATA_DIRS"] {
+        buildServerConfigLocations += xdgDataDirs.split(separator: ":").map { xdgDataDir in
+          URL(fileURLWithPath: String(xdgDataDir)).appendingPathComponent("bsp")
+        }
+      }
+
+      if let libraryUrl = FileManager.default.urls(for: .applicationSupportDirectory, in: .systemDomainMask).first {
+        buildServerConfigLocations.append(libraryUrl.appendingPathComponent("bsp"))
+      }
+      #endif
     }
-    #endif
 
     for case let buildServerConfigLocation? in buildServerConfigLocations {
       let jsonFiles =

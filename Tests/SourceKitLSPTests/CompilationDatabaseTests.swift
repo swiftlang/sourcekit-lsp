@@ -55,7 +55,7 @@ final class CompilationDatabaseTests: XCTestCase {
 
     // Remove -DFOO from the compile commands.
 
-    let compileFlagsUri = try project.uri(for: "compile_flags.txt")
+    let compileFlagsUri = try project.uri(for: FixedCompilationDatabase.dbName)
     try "".write(to: compileFlagsUri.fileURL!, atomically: false, encoding: .utf8)
 
     project.testClient.send(
