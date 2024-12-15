@@ -48,11 +48,12 @@ target_sources(SourceKitLSP PRIVATE
   Swift/DocumentSymbols.swift
   Swift/ExpandMacroCommand.swift
   Swift/FoldingRange.swift
+  Swift/GeneratedInterfaceManager.swift
   Swift/MacroExpansion.swift
   Swift/MacroExpansionReferenceDocumentURLData.swift
   Swift/OpenInterface.swift
-  Swift/RefactoringResponse.swift
   Swift/RefactoringEdit.swift
+  Swift/RefactoringResponse.swift
   Swift/ReferenceDocumentURL.swift
   Swift/RelatedIdentifiers.swift
   Swift/RewriteSourceKitPlaceholders.swift

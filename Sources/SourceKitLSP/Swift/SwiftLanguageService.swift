@@ -168,7 +168,22 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   private let diagnosticReportManager: DiagnosticReportManager
 
   /// - Note: Implicitly unwrapped optional so we can pass a reference of `self` to `MacroExpansionManager`.
-  private(set) var macroExpansionManager: MacroExpansionManager!
+  private(set) var macroExpansionManager: MacroExpansionManager! {
+    willSet {
+      // Must only be set once.
+      precondition(macroExpansionManager == nil)
+      precondition(newValue != nil)
+    }
+  }
+
+  /// - Note: Implicitly unwrapped optional so we can pass a reference of `self` to `MacroExpansionManager`.
+  private(set) var generatedInterfaceManager: GeneratedInterfaceManager! {
+    willSet {
+      // Must only be set once.
+      precondition(generatedInterfaceManager == nil)
+      precondition(newValue != nil)
+    }
+  }
 
   var documentManager: DocumentManager {
     get throws {
@@ -235,6 +250,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     )
 
     self.macroExpansionManager = MacroExpansionManager(swiftLanguageService: self)
+    self.generatedInterfaceManager = GeneratedInterfaceManager(swiftLanguageService: self)
 
     // Create sub-directories for each type of generated file
     try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
@@ -252,23 +268,25 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     case .macroExpansion(let data):
       let content = try await self.macroExpansionManager.macroExpansion(for: data)
       return DocumentSnapshot(uri: uri, language: .swift, version: 0, lineTable: LineTable(content))
+    case .generatedInterface(let data):
+      return try await self.generatedInterfaceManager.snapshot(of: data)
     case nil:
       return try documentManager.latestSnapshot(uri)
     }
   }
 
   func buildSettings(for document: DocumentURI, fallbackAfterTimeout: Bool) async -> SwiftCompileCommand? {
-    let primaryDocument = document.primaryFile ?? document
+    let buildSettingsFile = document.buildSettingsFile
 
     guard let sourceKitLSPServer else {
       logger.fault("Cannot retrieve build settings because SourceKitLSPServer is no longer alive")
       return nil
     }
-    guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: primaryDocument) else {
+    guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: buildSettingsFile) else {
       return nil
     }
     if let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
-      for: primaryDocument,
+      for: buildSettingsFile,
       language: .swift,
       fallbackAfterTimeout: fallbackAfterTimeout
     ) {
@@ -410,8 +428,10 @@ extension SwiftLanguageService {
 
   package func reopenDocument(_ notification: ReopenTextDocumentNotification) async {
     switch try? ReferenceDocumentURL(from: notification.textDocument.uri) {
-    case .macroExpansion:
-      break
+    case .macroExpansion, .generatedInterface:
+      // Macro expansions and generated interfaces don't have document dependencies or build settings associated with
+      // their URI. We should thus not not receive any `ReopenDocument` notifications for them.
+      logger.fault("Unexpectedly received reopen document notification for reference document")
     case nil:
       let snapshot = orLog("Getting snapshot to re-open document") {
         try documentManager.latestSnapshot(notification.textDocument.uri)
@@ -511,6 +531,10 @@ extension SwiftLanguageService {
     switch try? ReferenceDocumentURL(from: notification.textDocument.uri) {
     case .macroExpansion:
       break
+    case .generatedInterface(let data):
+      await orLog("Opening generated interface") {
+        try await generatedInterfaceManager.open(document: data)
+      }
     case nil:
       cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
       await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
@@ -525,15 +549,16 @@ extension SwiftLanguageService {
   }
 
   package func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
+    cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
+    inFlightPublishDiagnosticsTasks[notification.textDocument.uri] = nil
+    await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
+    buildSettingsForOpenFiles[notification.textDocument.uri] = nil
     switch try? ReferenceDocumentURL(from: notification.textDocument.uri) {
     case .macroExpansion:
       break
+    case .generatedInterface(let data):
+      await generatedInterfaceManager.close(document: data)
     case nil:
-      cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
-      inFlightPublishDiagnosticsTasks[notification.textDocument.uri] = nil
-      await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
-      buildSettingsForOpenFiles[notification.textDocument.uri] = nil
-
       let req = closeDocumentSourcekitdRequest(uri: notification.textDocument.uri)
       _ = try? await self.sendSourcekitdRequest(req, fileContents: nil)
     }
@@ -830,6 +855,10 @@ extension SwiftLanguageService {
   }
 
   package func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
+    if (try? ReferenceDocumentURL(from: req.textDocument.uri)) != nil {
+      // Do not show code actions in reference documents
+      return nil
+    }
     let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind?)] = [
       (retrieveSyntaxCodeActions, nil),
       (retrieveRefactorCodeActions, .refactor),
@@ -1008,7 +1037,7 @@ extension SwiftLanguageService {
   package func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
     do {
       await semanticIndexManager?.prepareFileForEditorFunctionality(
-        req.textDocument.uri.primaryFile ?? req.textDocument.uri
+        req.textDocument.uri.buildSettingsFile
       )
       let snapshot = try await self.latestSnapshot(for: req.textDocument.uri)
       let buildSettings = await self.buildSettings(for: req.textDocument.uri, fallbackAfterTimeout: false)
@@ -1060,6 +1089,10 @@ extension SwiftLanguageService {
     case let .macroExpansion(data):
       return GetReferenceDocumentResponse(
         content: try await macroExpansionManager.macroExpansion(for: data)
+      )
+    case .generatedInterface(let data):
+      return GetReferenceDocumentResponse(
+        content: try await generatedInterfaceManager.snapshot(of: data).text
       )
     }
   }

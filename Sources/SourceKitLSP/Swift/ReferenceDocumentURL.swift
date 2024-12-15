@@ -13,6 +13,12 @@
 import Foundation
 import LanguageServerProtocol
 
+protocol ReferenceURLData {
+  static var documentType: String { get }
+  var displayName: String { get }
+  var queryItems: [URLQueryItem] { get }
+}
+
 /// A Reference Document is a document whose url scheme is `sourcekit-lsp:` and whose content can only be retrieved
 /// using `GetReferenceDocumentRequest`. The enum represents a specific type of reference document and its
 /// associated value represents the data necessary to generate the document's contents and its url
@@ -28,25 +34,33 @@ package enum ReferenceDocumentURL {
   package static let scheme = "sourcekit-lsp"
 
   case macroExpansion(MacroExpansionReferenceDocumentURLData)
+  case generatedInterface(GeneratedInterfaceDocumentURLData)
 
   var url: URL {
     get throws {
-      switch self {
-      case let .macroExpansion(data):
-        var components = URLComponents()
-        components.scheme = Self.scheme
-        components.host = MacroExpansionReferenceDocumentURLData.documentType
-        components.path = "/\(data.displayName)"
-        components.queryItems = data.queryItems
-
-        guard let url = components.url else {
-          throw ReferenceDocumentURLError(
-            description: "Unable to create URL for macro expansion reference document"
-          )
+      let data: ReferenceURLData =
+        switch self {
+        case .macroExpansion(let data): data
+        case .generatedInterface(let data): data
         }
 
-        return url
+      var components = URLComponents()
+      components.scheme = Self.scheme
+      components.host = type(of: data).documentType
+      components.path = "/\(data.displayName)"
+      components.queryItems = data.queryItems
+
+      guard let url = components.url else {
+        throw ReferenceDocumentURLError(description: "Unable to create URL for reference document")
       }
+
+      return url
+    }
+  }
+
+  var uri: DocumentURI {
+    get throws {
+      DocumentURI(try url)
     }
   }
 
@@ -74,6 +88,15 @@ package enum ReferenceDocumentURL {
         queryItems: queryItems
       )
       self = .macroExpansion(macroExpansionURLData)
+    case GeneratedInterfaceDocumentURLData.documentType:
+      guard let queryItems = URLComponents(string: url.absoluteString)?.queryItems else {
+        throw ReferenceDocumentURLError(
+          description: "No queryItems passed for generated interface reference document: \(url)"
+        )
+      }
+
+      let macroExpansionURLData = try GeneratedInterfaceDocumentURLData(queryItems: queryItems)
+      self = .generatedInterface(macroExpansionURLData)
     case nil:
       throw ReferenceDocumentURLError(
         description: "Bad URL for reference document: \(url)"
@@ -90,14 +113,23 @@ package enum ReferenceDocumentURL {
   /// For macro expansions, this is the buffer name that the URI references.
   var sourcekitdSourceFile: String {
     switch self {
-    case let .macroExpansion(data): data.bufferName
+    case .macroExpansion(let data): return data.bufferName
+    case .generatedInterface(let data): return data.sourcekitdDocumentName
     }
   }
 
-  var primaryFile: DocumentURI {
+  /// The file that should be used to retrieve build settings for this reference document.
+  var buildSettingsFile: DocumentURI {
     switch self {
-    case let .macroExpansion(data):
-      return data.primaryFile
+    case .macroExpansion(let data): return data.primaryFile
+    case .generatedInterface(let data): return data.buildSettingsFrom
+    }
+  }
+
+  var primaryFile: DocumentURI? {
+    switch self {
+    case .macroExpansion(let data): return data.primaryFile
+    case .generatedInterface(let data): return data.buildSettingsFrom.primaryFile
     }
   }
 }
@@ -125,6 +157,14 @@ extension DocumentURI {
       return referenceDocument.primaryFile
     }
     return nil
+  }
+
+  /// The file that should be used to retrieve build settings for this reference document.
+  var buildSettingsFile: DocumentURI {
+    if let referenceDocument = try? ReferenceDocumentURL(from: self) {
+      return referenceDocument.buildSettingsFile
+    }
+    return self
   }
 }
 
