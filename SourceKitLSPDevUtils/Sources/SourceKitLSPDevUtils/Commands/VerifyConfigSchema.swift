@@ -21,16 +21,8 @@ struct VerifyConfigSchema: ParsableCommand {
   )
 
   func run() throws {
-    let plans = try ConfigSchemaGen.plan()
-    for plan in plans {
-      print("Verifying \(plan.category) at \"\(plan.path.path)\"")
-      let expectedContents = try plan.contents()
-      let actualContents = try Data(contentsOf: plan.path)
-      guard expectedContents == actualContents else {
-        print("FATAL: \(plan.category) is out-of-date!")
-        print("Please run `./sourcekit-lsp-dev-utils generate-config-schema` to update it.")
-        throw ExitCode.failure
-      }
+    guard try ConfigSchemaGen.verify() else {
+      throw ExitCode.failure
     }
     print("All schemas are up-to-date!")
   }

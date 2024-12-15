@@ -104,5 +104,4 @@ struct OptionDocumentBuilder {
       return shouldWrap ? "(\(cases))" : cases
     }
   }
-
 }

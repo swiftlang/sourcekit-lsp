@@ -18,35 +18,36 @@ import SwiftSyntax
 /// for the SourceKit-LSP configuration file format
 /// (`.sourcekit-lsp/config.json`) from the Swift type definitions in
 /// `SKOptions` Swift module.
-public struct ConfigSchemaGen {
-  public struct WritePlan {
-    public let category: String
-    public let path: URL
-    public let contents: () throws -> Data
+package struct ConfigSchemaGen {
+  private struct WritePlan {
+    fileprivate let category: String
+    fileprivate let path: URL
+    fileprivate let contents: () throws -> Data
 
-    public func write() throws {
+    fileprivate func write() throws {
       try contents().write(to: path)
     }
   }
 
-  static let projectRoot = URL(fileURLWithPath: #filePath)
+  private static let projectRoot = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent()
     .deletingLastPathComponent()
     .deletingLastPathComponent()
     .deletingLastPathComponent()
-  static let sourceDir =
+  private static let sourceDir =
     projectRoot
     .appendingPathComponent("Sources")
     .appendingPathComponent("SKOptions")
-  static let configSchemaJSONPath =
+  private static let configSchemaJSONPath =
     projectRoot
     .appendingPathComponent("config.schema.json")
-  static let configSchemaDocPath =
+  private static let configSchemaDocPath =
     projectRoot
     .appendingPathComponent("Documentation")
     .appendingPathComponent("Configuration File.md")
 
-  public static func generate() throws {
+  /// Generates and writes the JSON schema and documentation for the SourceKit-LSP configuration file format.
+  package static func generate() throws {
     let plans = try plan()
     for plan in plans {
       print("Writing \(plan.category) to \"\(plan.path.path)\"")
@@ -54,7 +55,25 @@ public struct ConfigSchemaGen {
     }
   }
 
-  public static func plan() throws -> [WritePlan] {
+  /// Verifies that the generated JSON schema and documentation in the current source tree
+  /// are up-to-date with the Swift type definitions in `SKOptions`.
+  /// - Returns: `true` if the generated files are up-to-date, `false` otherwise.
+  package static func verify() throws -> Bool {
+    let plans = try plan()
+    for plan in plans {
+      print("Verifying \(plan.category) at \"\(plan.path.path)\"")
+      let expectedContents = try plan.contents()
+      let actualContents = try Data(contentsOf: plan.path)
+      guard expectedContents == actualContents else {
+        print("error: \(plan.category) is out-of-date!")
+        print("Please run `./sourcekit-lsp-dev-utils generate-config-schema` to update it.")
+        return false
+      }
+    }
+    return true
+  }
+
+  private static func plan() throws -> [WritePlan] {
     let sourceFiles = FileManager.default.enumerator(at: sourceDir, includingPropertiesForKeys: nil)!
     let typeNameResolver = TypeDeclResolver()
 
@@ -89,27 +108,21 @@ public struct ConfigSchemaGen {
       )
     )
 
-    var plans: [WritePlan] = []
-
-    plans.append(
+    return [
       WritePlan(
         category: "JSON Schema",
         path: configSchemaJSONPath,
         contents: { try generateJSONSchema(from: schema, context: context) }
-      )
-    )
-
-    plans.append(
+      ),
       WritePlan(
         category: "Schema Documentation",
         path: configSchemaDocPath,
         contents: { try generateDocumentation(from: schema, context: context) }
-      )
-    )
-    return plans
+      ),
+    ]
   }
 
-  static func generateJSONSchema(from schema: OptionTypeSchama, context: OptionSchemaContext) throws -> Data {
+  private static func generateJSONSchema(from schema: OptionTypeSchama, context: OptionSchemaContext) throws -> Data {
     let schemaBuilder = JSONSchemaBuilder(context: context)
     var jsonSchema = try schemaBuilder.build(from: schema)
     jsonSchema.title = "SourceKit-LSP Configuration"
@@ -119,7 +132,8 @@ public struct ConfigSchemaGen {
     return try encoder.encode(jsonSchema)
   }
 
-  static func generateDocumentation(from schema: OptionTypeSchama, context: OptionSchemaContext) throws -> Data {
+  private static func generateDocumentation(from schema: OptionTypeSchama, context: OptionSchemaContext) throws -> Data
+  {
     let docBuilder = OptionDocumentBuilder(context: context)
     guard let data = try docBuilder.build(from: schema).data(using: .utf8) else {
       throw ConfigSchemaGenError("Failed to encode documentation as UTF-8")
