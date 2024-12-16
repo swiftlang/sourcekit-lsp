@@ -37,9 +37,9 @@ final class ConvertDocumentationTests: XCTestCase {
         }3️⃣
         """,
       expectedResponses: [
-        .renderNode(.init(kind: .symbol, path: "test/function()")),
-        .renderNode(.init(kind: .symbol, path: "test/function()")),
-        .renderNode(.init(kind: .symbol, path: "test/function()")),
+        .renderNode(kind: .symbol, path: "test/function()"),
+        .renderNode(kind: .symbol, path: "test/function()"),
+        .renderNode(kind: .symbol, path: "test/function()"),
         .error(.noDocumentation),
       ]
     )
@@ -64,14 +64,14 @@ final class ConvertDocumentationTests: XCTestCase {
         }8️⃣
         """,
       expectedResponses: [
-        .renderNode(.init(kind: .symbol, path: "test/Structure")),
-        .renderNode(.init(kind: .symbol, path: "test/Structure")),
-        .renderNode(.init(kind: .symbol, path: "test/Structure/foo")),
-        .renderNode(.init(kind: .symbol, path: "test/Structure/foo")),
-        .renderNode(.init(kind: .symbol, path: "test/Structure/bar")),
-        .renderNode(.init(kind: .symbol, path: "test/Structure/bar")),
-        .renderNode(.init(kind: .symbol, path: "test/Structure/init(_:bar:)")),
-        .renderNode(.init(kind: .symbol, path: "test/Structure/init(_:bar:)")),
+        .renderNode(kind: .symbol, path: "test/Structure"),
+        .renderNode(kind: .symbol, path: "test/Structure"),
+        .renderNode(kind: .symbol, path: "test/Structure/foo"),
+        .renderNode(kind: .symbol, path: "test/Structure/foo"),
+        .renderNode(kind: .symbol, path: "test/Structure/bar"),
+        .renderNode(kind: .symbol, path: "test/Structure/bar"),
+        .renderNode(kind: .symbol, path: "test/Structure/init(_:bar:)"),
+        .renderNode(kind: .symbol, path: "test/Structure/init(_:bar:)"),
         .error(.noDocumentation),
       ]
     )
@@ -85,9 +85,9 @@ final class ConvertDocumentationTests: XCTestCase {
         }3️⃣
         """,
       expectedResponses: [
-        .renderNode(.init(kind: .symbol, path: "test/Structure")),
-        .renderNode(.init(kind: .symbol, path: "test/Structure")),
-        .renderNode(.init(kind: .symbol, path: "test/Structure")),
+        .renderNode(kind: .symbol, path: "test/Structure"),
+        .renderNode(kind: .symbol, path: "test/Structure"),
+        .renderNode(kind: .symbol, path: "test/Structure"),
         .error(.noDocumentation),
       ]
     )
@@ -112,15 +112,15 @@ final class ConvertDocumentationTests: XCTestCase {
         }9️⃣
         """,
       expectedResponses: [
-        .renderNode(.init(kind: .symbol, path: "test/Class")),
-        .renderNode(.init(kind: .symbol, path: "test/Class")),
-        .renderNode(.init(kind: .symbol, path: "test/Class/foo")),
-        .renderNode(.init(kind: .symbol, path: "test/Class/foo")),
-        .renderNode(.init(kind: .symbol, path: "test/Class/bar")),
-        .renderNode(.init(kind: .symbol, path: "test/Class/bar")),
-        .renderNode(.init(kind: .symbol, path: "test/Class/init(_:bar:)")),
-        .renderNode(.init(kind: .symbol, path: "test/Class/init(_:bar:)")),
-        .renderNode(.init(kind: .symbol, path: "test/Class")),
+        .renderNode(kind: .symbol, path: "test/Class"),
+        .renderNode(kind: .symbol, path: "test/Class"),
+        .renderNode(kind: .symbol, path: "test/Class/foo"),
+        .renderNode(kind: .symbol, path: "test/Class/foo"),
+        .renderNode(kind: .symbol, path: "test/Class/bar"),
+        .renderNode(kind: .symbol, path: "test/Class/bar"),
+        .renderNode(kind: .symbol, path: "test/Class/init(_:bar:)"),
+        .renderNode(kind: .symbol, path: "test/Class/init(_:bar:)"),
+        .renderNode(kind: .symbol, path: "test/Class"),
         .error(.noDocumentation),
       ]
     )
@@ -134,9 +134,9 @@ final class ConvertDocumentationTests: XCTestCase {
         }3️⃣
         """,
       expectedResponses: [
-        .renderNode(.init(kind: .symbol, path: "test/Class")),
-        .renderNode(.init(kind: .symbol, path: "test/Class")),
-        .renderNode(.init(kind: .symbol, path: "test/Class")),
+        .renderNode(kind: .symbol, path: "test/Class"),
+        .renderNode(kind: .symbol, path: "test/Class"),
+        .renderNode(kind: .symbol, path: "test/Class"),
         .error(.noDocumentation),
       ]
     )
@@ -161,14 +161,14 @@ final class ConvertDocumentationTests: XCTestCase {
         }8️⃣
         """,
       expectedResponses: [
-        .renderNode(.init(kind: .symbol, path: "test/Actor")),
-        .renderNode(.init(kind: .symbol, path: "test/Actor")),
-        .renderNode(.init(kind: .symbol, path: "test/Actor/foo")),
-        .renderNode(.init(kind: .symbol, path: "test/Actor/foo")),
-        .renderNode(.init(kind: .symbol, path: "test/Actor/bar")),
-        .renderNode(.init(kind: .symbol, path: "test/Actor/bar")),
-        .renderNode(.init(kind: .symbol, path: "test/Actor/init(_:bar:)")),
-        .renderNode(.init(kind: .symbol, path: "test/Actor/init(_:bar:)")),
+        .renderNode(kind: .symbol, path: "test/Actor"),
+        .renderNode(kind: .symbol, path: "test/Actor"),
+        .renderNode(kind: .symbol, path: "test/Actor/foo"),
+        .renderNode(kind: .symbol, path: "test/Actor/foo"),
+        .renderNode(kind: .symbol, path: "test/Actor/bar"),
+        .renderNode(kind: .symbol, path: "test/Actor/bar"),
+        .renderNode(kind: .symbol, path: "test/Actor/init(_:bar:)"),
+        .renderNode(kind: .symbol, path: "test/Actor/init(_:bar:)"),
         .error(.noDocumentation),
       ]
     )
@@ -182,9 +182,9 @@ final class ConvertDocumentationTests: XCTestCase {
         }3️⃣
         """,
       expectedResponses: [
-        .renderNode(.init(kind: .symbol, path: "test/Actor")),
-        .renderNode(.init(kind: .symbol, path: "test/Actor")),
-        .renderNode(.init(kind: .symbol, path: "test/Actor")),
+        .renderNode(kind: .symbol, path: "test/Actor"),
+        .renderNode(kind: .symbol, path: "test/Actor"),
+        .renderNode(kind: .symbol, path: "test/Actor"),
         .error(.noDocumentation),
       ]
     )
@@ -206,14 +206,14 @@ final class ConvertDocumentationTests: XCTestCase {
         }8️⃣
         """,
       expectedResponses: [
-        .renderNode(.init(kind: .symbol, path: "test/Enum")),
-        .renderNode(.init(kind: .symbol, path: "test/Enum")),
-        .renderNode(.init(kind: .symbol, path: "test/Enum/first")),
-        .renderNode(.init(kind: .symbol, path: "test/Enum/first")),
-        .renderNode(.init(kind: .symbol, path: "test/Enum/second")),
-        .renderNode(.init(kind: .symbol, path: "test/Enum/second")),
-        .renderNode(.init(kind: .symbol, path: "test/Enum/third(_:)")),
-        .renderNode(.init(kind: .symbol, path: "test/Enum/third(_:)")),
+        .renderNode(kind: .symbol, path: "test/Enum"),
+        .renderNode(kind: .symbol, path: "test/Enum"),
+        .renderNode(kind: .symbol, path: "test/Enum/first"),
+        .renderNode(kind: .symbol, path: "test/Enum/first"),
+        .renderNode(kind: .symbol, path: "test/Enum/second"),
+        .renderNode(kind: .symbol, path: "test/Enum/second"),
+        .renderNode(kind: .symbol, path: "test/Enum/third(_:)"),
+        .renderNode(kind: .symbol, path: "test/Enum/third(_:)"),
         .error(.noDocumentation),
       ]
     )
@@ -232,12 +232,12 @@ final class ConvertDocumentationTests: XCTestCase {
         }6️⃣
         """,
       expectedResponses: [
-        .renderNode(.init(kind: .symbol, path: "test/Protocol")),
-        .renderNode(.init(kind: .symbol, path: "test/Protocol")),
-        .renderNode(.init(kind: .symbol, path: "test/Protocol/foo")),
-        .renderNode(.init(kind: .symbol, path: "test/Protocol/foo")),
-        .renderNode(.init(kind: .symbol, path: "test/Protocol/bar")),
-        .renderNode(.init(kind: .symbol, path: "test/Protocol/bar")),
+        .renderNode(kind: .symbol, path: "test/Protocol"),
+        .renderNode(kind: .symbol, path: "test/Protocol"),
+        .renderNode(kind: .symbol, path: "test/Protocol/foo"),
+        .renderNode(kind: .symbol, path: "test/Protocol/foo"),
+        .renderNode(kind: .symbol, path: "test/Protocol/bar"),
+        .renderNode(kind: .symbol, path: "test/Protocol/bar"),
         .error(.noDocumentation),
       ]
     )
@@ -246,14 +246,15 @@ final class ConvertDocumentationTests: XCTestCase {
   func testEmptyProtocol() async throws {
     try await convertDocumentation(
       swiftFile: """
+        /// A protocol containing important information
         pub0️⃣lic struct Prot1️⃣ocol {
           2️⃣
         }3️⃣
         """,
       expectedResponses: [
-        .renderNode(.init(kind: .symbol, path: "test/Protocol")),
-        .renderNode(.init(kind: .symbol, path: "test/Protocol")),
-        .renderNode(.init(kind: .symbol, path: "test/Protocol")),
+        .renderNode(kind: .symbol, path: "test/Protocol"),
+        .renderNode(kind: .symbol, path: "test/Protocol"),
+        .renderNode(kind: .symbol, path: "test/Protocol"),
         .error(.noDocumentation),
       ]
     )
@@ -282,28 +283,100 @@ final class ConvertDocumentationTests: XCTestCase {
         """,
       expectedResponses: [
         .error(.noDocumentation),
-        .renderNode(.init(kind: .symbol, path: "test/Structure/numberPlusOne")),
-        .renderNode(.init(kind: .symbol, path: "test/Structure/Kind")),
-        .renderNode(.init(kind: .symbol, path: "test/Structure/Kind/first")),
-        .renderNode(.init(kind: .symbol, path: "test/Structure/Kind/second")),
+        .renderNode(kind: .symbol, path: "test/Structure/numberPlusOne"),
+        .renderNode(kind: .symbol, path: "test/Structure/Kind"),
+        .renderNode(kind: .symbol, path: "test/Structure/Kind/first"),
+        .renderNode(kind: .symbol, path: "test/Structure/Kind/second"),
         .error(.noDocumentation),
       ]
     )
   }
-}
 
-fileprivate struct PartialRenderNode {
-  let kind: RenderNode.Kind
-  let path: String?
+  func testEditCommentInSwiftFile() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      /// A structure containing0️⃣ important information
+      public struct Structure {
+        let number: Int
+      }
+      """,
+      uri: uri
+    )
 
-  init(kind: RenderNode.Kind, path: String? = nil) {
-    self.kind = kind
-    self.path = path
+    // Make sure that the initial documentation comment is present in the response
+    await convertDocumentation(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      expectedResponses: [.renderNode(kind: .symbol, containing: "A structure containing important information")]
+    )
+
+    // Change the content of the documentation comment
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
+        contentChanges: [
+          TextDocumentContentChangeEvent(range: positions["0️⃣"]..<positions["0️⃣"], text: " very")
+        ]
+      )
+    )
+
+    // Make sure that the new documentation comment is present in the response
+    await convertDocumentation(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      expectedResponses: [.renderNode(kind: .symbol, containing: "A structure containing very important information")]
+    )
+  }
+
+  func testEditMultiLineCommentInSwiftFile() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      /// A structure containing important information
+      ///
+      /// This is a0️⃣ description
+      public struct Structure {
+        let number: Int
+      }
+      """,
+      uri: uri
+    )
+
+    // Make sure that the initial documentation comment is present in the response
+    await convertDocumentation(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      expectedResponses: [.renderNode(kind: .symbol, containing: "This is a description")]
+    )
+
+    // Change the content of the documentation comment
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
+        contentChanges: [
+          TextDocumentContentChangeEvent(range: positions["0️⃣"]..<positions["0️⃣"], text: "n amazing")
+        ]
+      )
+    )
+
+    // Make sure that the new documentation comment is present in the response
+    await convertDocumentation(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      expectedResponses: [.renderNode(kind: .symbol, containing: "This is an amazing description")]
+    )
   }
 }
 
 fileprivate enum PartialConvertResponse {
-  case renderNode(PartialRenderNode)
+  case renderNode(kind: RenderNode.Kind, path: String? = nil, containing: String? = nil)
   case error(ConvertDocumentationError)
 }
 
@@ -368,19 +441,27 @@ fileprivate func convertDocumentation(
         return
       }
       switch expectedResponses[index] {
-      case .renderNode(let expectedRenderNode):
+      case .renderNode(let expectedKind, let expectedPath, let expectedContents):
         XCTAssertEqual(
           renderNode.kind,
-          expectedRenderNode.kind,
+          expectedKind,
           "render node kind did not match expected value at position \(marker)",
           file: file,
           line: line
         )
-        if let expectedPath = expectedRenderNode.path {
+        if let expectedPath = expectedPath {
           XCTAssertEqual(
             renderNode.identifier.path,
             "/documentation/\(expectedPath)",
             "render node path did not match expected value at position \(marker)",
+            file: file,
+            line: line
+          )
+        }
+        if let expectedContents = expectedContents {
+          XCTAssertTrue(
+            renderNodeString.contains(expectedContents),
+            "render node did not contain text \"\(expectedContents)\" at position \(marker)",
             file: file,
             line: line
           )
