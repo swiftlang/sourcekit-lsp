@@ -31,6 +31,7 @@ package struct DocCServer {
     documentationBundleDisplayName: String,
     documentationBundleIdentifier: String,
     symbolGraphs: [Data],
+    overridingDocumentationComments: [String: [String]] = [:],
     emitSymbolSourceFileURIs: Bool,
     markupFiles: [Data],
     tutorialFiles: [Data],
@@ -50,7 +51,9 @@ package struct DocCServer {
       includeRenderReferenceStore: includeRenderReferenceStore,
       bundleLocation: documentationBundleLocation,
       symbolGraphs: symbolGraphs,
-      overridingDocumentationComments: nil,
+      overridingDocumentationComments: overridingDocumentationComments.mapValues {
+        $0.map { ConvertRequest.Line(text: $0) }
+      },
       knownDisambiguatedSymbolPathComponents: nil,
       emitSymbolSourceFileURIs: emitSymbolSourceFileURIs,
       markupFiles: markupFiles,

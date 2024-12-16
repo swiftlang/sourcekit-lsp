@@ -49,6 +49,7 @@ package final actor DocumentationManager {
 
     var externalIDsToConvert: [String]?
     var symbolGraphs = [Data]()
+    var overridingDocumentationComments = [String: [String]]()
     switch snapshot.language {
     case .swift:
       guard let languageService = await sourceKitLSPServer.languageService(for: documentURI, .swift, in: workspace),
@@ -59,7 +60,7 @@ package final actor DocumentationManager {
       // Search for the nearest documentable symbol at this location
       let syntaxTree = await swiftLanguageService.syntaxTreeManager.syntaxTree(for: snapshot)
       guard
-        let absoluteSymbolPosition = DocumentableSymbolFinder.find(
+        let nearestDocumentableSymbol = DocumentableSymbolFinder.find(
           in: [Syntax(syntaxTree)],
           at: snapshot.absolutePosition(of: position)
         )
@@ -68,7 +69,7 @@ package final actor DocumentationManager {
       }
       // Retrieve the symbol graph as well as information about the symbol
       let position = await swiftLanguageService.adjustPositionToStartOfIdentifier(
-        snapshot.position(of: absoluteSymbolPosition),
+        snapshot.position(of: nearestDocumentableSymbol.position),
         in: snapshot
       )
       let (cursorInfo, _, symbolGraph) = try await swiftLanguageService.cursorInfo(
@@ -88,6 +89,7 @@ package final actor DocumentationManager {
       }
       externalIDsToConvert = [symbolUSR]
       symbolGraphs.append(rawSymbolGraph)
+      overridingDocumentationComments[symbolUSR] = nearestDocumentableSymbol.documentationComments
     default:
       return .error(.noDocumentation)
     }
@@ -101,6 +103,7 @@ package final actor DocumentationManager {
         documentationBundleDisplayName: moduleName ?? "Unknown",
         documentationBundleIdentifier: "unknown",
         symbolGraphs: symbolGraphs,
+        overridingDocumentationComments: overridingDocumentationComments,
         emitSymbolSourceFileURIs: false,
         markupFiles: [],
         tutorialFiles: [],
@@ -126,10 +129,15 @@ package final actor DocumentationManager {
 }
 
 fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
+  struct Symbol {
+    let position: AbsolutePosition
+    let documentationComments: [String]
+  }
+
   private let cursorPosition: AbsolutePosition
 
   /// Accumulating the result in here.
-  private var result: AbsolutePosition? = nil
+  private var result: Symbol? = nil
 
   private init(_ cursorPosition: AbsolutePosition) {
     self.cursorPosition = cursorPosition
@@ -140,7 +148,7 @@ fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
   static func find(
     in nodes: some Sequence<Syntax>,
     at cursorPosition: AbsolutePosition
-  ) -> AbsolutePosition? {
+  ) -> Symbol? {
     let visitor = DocumentableSymbolFinder(cursorPosition)
     for node in nodes {
       visitor.walk(node)
@@ -148,9 +156,29 @@ fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
     return visitor.result
   }
 
-  @discardableResult private func setResult(_ symbolPosition: AbsolutePosition) -> SyntaxVisitorContinueKind {
+  @discardableResult private func setResult(
+    node: some SyntaxProtocol,
+    position: AbsolutePosition
+  ) -> SyntaxVisitorContinueKind {
+    return setResult(
+      position,
+      node.leadingTrivia.compactMap { trivia in
+        switch trivia {
+        case .docLineComment(let comment):
+          return String(comment.dropFirst(3).trimmingCharacters(in: .whitespaces))
+        default:
+          return nil
+        }
+      }
+    )
+  }
+
+  @discardableResult private func setResult(
+    _ symbolPosition: AbsolutePosition,
+    _ documentationComments: [String]
+  ) -> SyntaxVisitorContinueKind {
     if result == nil {
-      result = symbolPosition
+      result = Symbol(position: symbolPosition, documentationComments: documentationComments)
     }
     return .skipChildren
   }
@@ -160,15 +188,16 @@ fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
     name: TokenSyntax,
     memberBlock: MemberBlockSyntax
   ) -> SyntaxVisitorContinueKind {
+
     if cursorPosition <= memberBlock.leftBrace.positionAfterSkippingLeadingTrivia {
-      setResult(name.positionAfterSkippingLeadingTrivia)
+      setResult(node: node, position: name.positionAfterSkippingLeadingTrivia)
     } else if let child = DocumentableSymbolFinder.find(
       in: memberBlock.children(viewMode: .sourceAccurate),
       at: cursorPosition
     ) {
-      setResult(child)
+      setResult(child.position, child.documentationComments)
     } else if node.range.contains(cursorPosition) {
-      setResult(name.positionAfterSkippingLeadingTrivia)
+      setResult(node: node, position: name.positionAfterSkippingLeadingTrivia)
     }
     return .skipChildren
   }
@@ -196,7 +225,7 @@ fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
   override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
     let symbolPosition = node.name.positionAfterSkippingLeadingTrivia
     if node.range.contains(cursorPosition) || cursorPosition < symbolPosition {
-      setResult(symbolPosition)
+      setResult(node: node, position: symbolPosition)
     }
     return .skipChildren
   }
@@ -212,7 +241,7 @@ fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
   override func visit(_ node: InitializerDeclSyntax) -> SyntaxVisitorContinueKind {
     let symbolPosition = node.initKeyword.positionAfterSkippingLeadingTrivia
     if node.range.contains(cursorPosition) || cursorPosition < symbolPosition {
-      setResult(symbolPosition)
+      setResult(node: node, position: symbolPosition)
     }
     return .skipChildren
   }
@@ -220,7 +249,7 @@ fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
   override func visit(_ node: EnumCaseElementSyntax) -> SyntaxVisitorContinueKind {
     let symbolPosition = node.name.positionAfterSkippingLeadingTrivia
     if node.range.contains(cursorPosition) || cursorPosition < symbolPosition {
-      setResult(symbolPosition)
+      setResult(node: node, position: symbolPosition)
     }
     return .skipChildren
   }
@@ -234,7 +263,7 @@ fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
     }
     let symbolPosition = identifier.positionAfterSkippingLeadingTrivia
     if node.range.contains(cursorPosition) || cursorPosition < symbolPosition {
-      setResult(symbolPosition)
+      setResult(node: node, position: symbolPosition)
     }
     return .skipChildren
   }
