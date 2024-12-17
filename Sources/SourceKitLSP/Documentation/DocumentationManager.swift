@@ -188,7 +188,6 @@ fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
     name: TokenSyntax,
     memberBlock: MemberBlockSyntax
   ) -> SyntaxVisitorContinueKind {
-
     if cursorPosition <= memberBlock.leftBrace.positionAfterSkippingLeadingTrivia {
       setResult(node: node, position: name.positionAfterSkippingLeadingTrivia)
     } else if let child = DocumentableSymbolFinder.find(
@@ -203,23 +202,23 @@ fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
   }
 
   override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
-    return visitNamedDeclWithMemberBlock(node: node, name: node.name, memberBlock: node.memberBlock)
+    visitNamedDeclWithMemberBlock(node: node, name: node.name, memberBlock: node.memberBlock)
   }
 
   override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
-    return visitNamedDeclWithMemberBlock(node: node, name: node.name, memberBlock: node.memberBlock)
+    visitNamedDeclWithMemberBlock(node: node, name: node.name, memberBlock: node.memberBlock)
   }
 
   override func visit(_ node: ActorDeclSyntax) -> SyntaxVisitorContinueKind {
-    return visitNamedDeclWithMemberBlock(node: node, name: node.name, memberBlock: node.memberBlock)
+    visitNamedDeclWithMemberBlock(node: node, name: node.name, memberBlock: node.memberBlock)
   }
 
   override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind {
-    return visitNamedDeclWithMemberBlock(node: node, name: node.name, memberBlock: node.memberBlock)
+    visitNamedDeclWithMemberBlock(node: node, name: node.name, memberBlock: node.memberBlock)
   }
 
   override func visit(_ node: ProtocolDeclSyntax) -> SyntaxVisitorContinueKind {
-    return visitNamedDeclWithMemberBlock(node: node, name: node.name, memberBlock: node.memberBlock)
+    visitNamedDeclWithMemberBlock(node: node, name: node.name, memberBlock: node.memberBlock)
   }
 
   override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
