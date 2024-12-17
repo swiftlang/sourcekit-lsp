@@ -93,16 +93,13 @@ package actor SourceKitLSPServer {
   package let documentManager = DocumentManager()
 
   #if canImport(SwiftDocC)
-  /// The documentation manager
-  private var documentationManager: DocumentationManager {
-    guard let cachedDocumentationManager = cachedDocumentationManager else {
-      let documentationManager = DocumentationManager(sourceKitLSPServer: self)
-      cachedDocumentationManager = documentationManager
-      return documentationManager
-    }
-    return cachedDocumentationManager
-  }
-  private var cachedDocumentationManager: DocumentationManager? = nil
+  /// The `DocumentationManager` that handles all documentation related requests
+  ///
+  /// Implicitly unwrapped optional so we can create an `DocumentationManager` that has a weak reference to
+  /// `SourceKitLSPServer`.
+  /// `nonisolated(unsafe)` because `documentationManager` will not be modified after it is assigned from the
+  /// initializer.
+  private(set) nonisolated(unsafe) var documentationManager: DocumentationManager!
   #endif
 
   /// The `TaskScheduler` that schedules all background indexing tasks.
@@ -184,6 +181,10 @@ package actor SourceKitLSPServer {
       (TaskPriority.low, max(Int(lowPriorityCores), 1)),
     ])
     self.indexProgressManager = nil
+    #if canImport(SwiftDocC)
+    self.documentationManager = nil
+    self.documentationManager = DocumentationManager(sourceKitLSPServer: self)
+    #endif
     self.indexProgressManager = IndexProgressManager(sourceKitLSPServer: self)
     self.sourcekitdCrashedWorkDoneProgress = SharedWorkDoneProgressManager(
       sourceKitLSPServer: self,
