@@ -292,7 +292,7 @@ final class ConvertDocumentationTests: XCTestCase {
     )
   }
 
-  func testEditCommentInSwiftFile() async throws {
+  func testEditDocLineCommentInSwiftFile() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -332,7 +332,7 @@ final class ConvertDocumentationTests: XCTestCase {
     )
   }
 
-  func testEditMultiLineCommentInSwiftFile() async throws {
+  func testEditMultipleDocLineCommentsInSwiftFile() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -340,6 +340,50 @@ final class ConvertDocumentationTests: XCTestCase {
       /// A structure containing important information
       ///
       /// This is a0️⃣ description
+      public struct Structure {
+        let number: Int
+      }
+      """,
+      uri: uri
+    )
+
+    // Make sure that the initial documentation comment is present in the response
+    await convertDocumentation(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      expectedResponses: [.renderNode(kind: .symbol, containing: "This is a description")]
+    )
+
+    // Change the content of the documentation comment
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
+        contentChanges: [
+          TextDocumentContentChangeEvent(range: positions["0️⃣"]..<positions["0️⃣"], text: "n amazing")
+        ]
+      )
+    )
+
+    // Make sure that the new documentation comment is present in the response
+    await convertDocumentation(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      expectedResponses: [.renderNode(kind: .symbol, containing: "This is an amazing description")]
+    )
+  }
+
+  func testEditDocBlockCommentInSwiftFile() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      /**
+      A structure containing important information
+
+      This is a0️⃣ description
+      */
       public struct Structure {
         let number: Int
       }
