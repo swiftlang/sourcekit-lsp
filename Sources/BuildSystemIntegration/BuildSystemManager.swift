@@ -54,6 +54,12 @@ package struct SourceFileInfo: Sendable {
   /// from non-test targets or files that don't actually contain any tests.
   package var mayContainTests: Bool
 
+  /// Source files returned here fall into two categories:
+  ///  - Buildable source files are files that can be built by the build system and that make sense to background index
+  ///  - Non-buildable source files include eg. the SwiftPM package manifest or header files. We have sufficient
+  ///    compiler arguments for these files to provide semantic editor functionality but we can't build them.
+  package var isBuildable: Bool
+
   fileprivate func merging(_ other: SourceFileInfo?) -> SourceFileInfo {
     guard let other else {
       return self
@@ -61,7 +67,8 @@ package struct SourceFileInfo: Sendable {
     return SourceFileInfo(
       targets: targets.union(other.targets),
       isPartOfRootProject: other.isPartOfRootProject || isPartOfRootProject,
-      mayContainTests: other.mayContainTests || mayContainTests
+      mayContainTests: other.mayContainTests || mayContainTests,
+      isBuildable: other.isBuildable || isBuildable
     )
   }
 }
@@ -327,11 +334,9 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
   private var cachedTargetSources = RequestCache<BuildTargetSourcesRequest>()
 
-  /// The parameters with which `SourceFilesAndDirectories` can be cached in `cachedSourceFilesAndDirectories`.
-  private struct SourceFilesAndDirectoriesKey: Hashable {
-    let includeNonBuildableFiles: Bool
-    let sourcesItems: [SourcesItem]
-  }
+  /// `SourceFilesAndDirectories` is a global property that only gets reset when the build targets change and thus
+  /// has no real key.
+  private struct SourceFilesAndDirectoriesKey: Hashable {}
 
   private struct SourceFilesAndDirectories {
     /// The source files in the workspace, ie. all `SourceItem`s that have `kind == .file`.
@@ -678,7 +683,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   package func targets(for document: DocumentURI) async -> Set<BuildTargetIdentifier> {
     return await orLog("Getting targets for source file") {
       var result: Set<BuildTargetIdentifier> = []
-      let filesAndDirectories = try await sourceFilesAndDirectories(includeNonBuildableFiles: true)
+      let filesAndDirectories = try await sourceFilesAndDirectories()
       if let targets = filesAndDirectories.files[document]?.targets {
         result.formUnion(targets)
       }
@@ -1033,50 +1038,44 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     return response.items
   }
 
-  /// Returns all source files in the project that can be built.
+  /// Returns all source files in the project.
   ///
   /// - SeeAlso: Comment in `sourceFilesAndDirectories` for a definition of what `buildable` means.
-  package func buildableSourceFiles() async throws -> [DocumentURI: SourceFileInfo] {
-    return try await sourceFilesAndDirectories(includeNonBuildableFiles: false).files
+  package func sourceFiles(includeNonBuildableFiles: Bool) async throws -> [DocumentURI: SourceFileInfo] {
+    let files = try await sourceFilesAndDirectories().files
+    if includeNonBuildableFiles {
+      return files
+    } else {
+      return files.filter(\.value.isBuildable)
+    }
   }
 
   /// Get all files and directories that are known to the build system, ie. that are returned by a `buildTarget/sources`
   /// request for any target in the project.
   ///
-  /// Source files returned here fall into two categories:
-  ///  - Buildable source files are files that can be built by the build system and that make sense to background index
-  ///  - Non-buildable source files include eg. the SwiftPM package manifest or header files. We have sufficient
-  ///    compiler arguments for these files to provide semantic editor functionality but we can't build them.
-  ///
-  /// `includeNonBuildableFiles` determines whether non-buildable files should be included.
-  private func sourceFilesAndDirectories(includeNonBuildableFiles: Bool) async throws -> SourceFilesAndDirectories {
-    let targets = try await self.buildTargets()
-    let sourcesItems = try await self.sourceFiles(in: Set(targets.keys))
+  /// - Important: This method returns both buildable and non-buildable source files. Callers need to check
+  /// `SourceFileInfo.isBuildable` if they are only interested in buildable source files.
+  private func sourceFilesAndDirectories() async throws -> SourceFilesAndDirectories {
+    return try await cachedSourceFilesAndDirectories.get(
+      SourceFilesAndDirectoriesKey(),
+      isolation: self
+    ) { key in
+      let targets = try await self.buildTargets()
+      let sourcesItems = try await self.sourceFiles(in: Set(targets.keys))
 
-    let key = SourceFilesAndDirectoriesKey(
-      includeNonBuildableFiles: includeNonBuildableFiles,
-      sourcesItems: sourcesItems
-    )
-
-    return try await cachedSourceFilesAndDirectories.get(key, isolation: self) { key in
       var files: [DocumentURI: SourceFileInfo] = [:]
       var directories: [DocumentURI: (pathComponents: [String]?, info: SourceFileInfo)] = [:]
-      for sourcesItem in key.sourcesItems {
+      for sourcesItem in sourcesItems {
         let target = targets[sourcesItem.target]?.target
         let isPartOfRootProject = !(target?.tags.contains(.dependency) ?? false)
         let mayContainTests = target?.tags.contains(.test) ?? true
-        if !key.includeNonBuildableFiles && (target?.tags.contains(.notBuildable) ?? false) {
-          continue
-        }
-
         for sourceItem in sourcesItem.sources {
-          if !key.includeNonBuildableFiles && sourceItem.sourceKitData?.isHeader ?? false {
-            continue
-          }
           let info = SourceFileInfo(
             targets: [sourcesItem.target],
             isPartOfRootProject: isPartOfRootProject,
-            mayContainTests: mayContainTests
+            mayContainTests: mayContainTests,
+            isBuildable: !(target?.tags.contains(.notBuildable) ?? false)
+              && !(sourceItem.sourceKitData?.isHeader ?? false)
           )
           switch sourceItem.kind {
           case .file:
@@ -1093,7 +1092,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   }
 
   package func testFiles() async throws -> [DocumentURI] {
-    return try await buildableSourceFiles().compactMap { (uri, info) -> DocumentURI? in
+    return try await sourceFiles(includeNonBuildableFiles: false).compactMap { (uri, info) -> DocumentURI? in
       guard info.isPartOfRootProject, info.mayContainTests else {
         return nil
       }

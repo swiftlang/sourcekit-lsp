@@ -48,6 +48,35 @@ final class PullDiagnosticsTests: XCTestCase {
     XCTAssertEqual(diagnostic.range, Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9))
   }
 
+  func testDiagnosticsIfFileIsOpenedWithLowercaseDriveLetter() async throws {
+    try SkipUnless.platformIsWindows("Drive letters only exist on Windows")
+
+    let fileContents = """
+      func foo() {
+        invalid
+      }
+      """
+
+    // We use `IndexedSingleSwiftFileTestProject` so that the test file exists on disk, which causes sourcekitd to
+    // uppercase the drive letter.
+    let project = try await IndexedSingleSwiftFileTestProject(fileContents, allowBuildFailure: true)
+    project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(project.fileURI)))
+
+    let filePath = try XCTUnwrap(project.fileURI.fileURL?.filePath)
+    XCTAssertEqual(filePath[filePath.index(filePath.startIndex, offsetBy: 1)], ":")
+    let lowercaseDriveLetterPath = filePath.first!.lowercased() + filePath.dropFirst()
+    let uri = DocumentURI(filePath: lowercaseDriveLetterPath, isDirectory: false)
+    project.testClient.openDocument(fileContents, uri: uri)
+
+    let report = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+
+    XCTAssertEqual(report.fullReport?.items.count, 1)
+    let diagnostic = try XCTUnwrap(report.fullReport?.items.first)
+    XCTAssertEqual(diagnostic.range, Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9))
+  }
+
   /// Test that we can get code actions for pulled diagnostics (https://github.com/swiftlang/sourcekit-lsp/issues/776)
   func testCodeActions() async throws {
     let testClient = try await TestSourceKitLSPClient(
@@ -375,5 +404,31 @@ final class PullDiagnosticsTests: XCTestCase {
     let diagnostic = try XCTUnwrap(diagnostics.fullReport?.items.only)
     let note = try XCTUnwrap(diagnostic.relatedInformation?.only)
     XCTAssertEqual(note.location, try project.location(from: "1️⃣", to: "1️⃣", in: "FileA.swift"))
+  }
+
+  func testDiagnosticsFromSourcekitdRequestError() async throws {
+    let project = try await MultiFileTestProject(
+      files: [
+        "test.swift": """
+        func test() {}
+        """,
+        "compile_flags.txt": "-invalid-argument",
+      ]
+    )
+    let (uri, _) = try project.openDocument("test.swift")
+    let diagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(
+      diagnostics.fullReport?.items,
+      [
+        Diagnostic(
+          range: Range(Position(line: 0, utf16index: 0)),
+          severity: .error,
+          source: "SourceKit",
+          message: "Internal SourceKit error: unknown argument: '-invalid-argument'"
+        )
+      ]
+    )
   }
 }

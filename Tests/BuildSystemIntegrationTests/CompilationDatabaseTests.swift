@@ -412,6 +412,25 @@ final class CompilationDatabaseTests: XCTestCase {
       )
     }
   }
+
+  func testIndexStorePathRelativeToWorkingDirectory() async throws {
+    try await checkCompilationDatabaseBuildSystem(
+      """
+      [
+        {
+          "file": "a.swift",
+          "directory": "/a",
+          "arguments": ["swift", "a.swift", "-index-store-path", "index-store"]
+        }
+      ]
+      """
+    ) { buildSystem in
+      assertEqual(
+        try await buildSystem.indexStorePath?.filePath,
+        "\(pathSeparator)a\(pathSeparator)index-store"
+      )
+    }
+  }
 }
 
 fileprivate var pathSeparator: String {

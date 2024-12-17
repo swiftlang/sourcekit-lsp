@@ -1620,6 +1620,63 @@ final class BackgroundIndexingTests: XCTestCase {
       return completionAfterEdit.items.map(\.label) == ["self", "test()"]
     }
   }
+
+  func testSymlinkedTargetReferringToSameSourceFile() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": """
+        public let myVar: String
+        """,
+        "Client/Client.swift": """
+        import LibASymlink
+
+        func test() {
+          print(1️⃣myVar)
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibASymlink"),
+           .target(name: "Client", dependencies: ["LibASymlink"]),
+          ]
+        )
+        """,
+      workspaces: { scratchDirectory in
+        let sources = scratchDirectory.appendingPathComponent("Sources")
+        try FileManager.default.createSymbolicLink(
+          at: sources.appendingPathComponent("LibASymlink"),
+          withDestinationURL: sources.appendingPathComponent("LibA")
+        )
+        return [WorkspaceFolder(uri: DocumentURI(scratchDirectory))]
+      },
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("Client.swift")
+    let preEditHover = try await project.testClient.send(
+      HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let preEditHoverContent = try XCTUnwrap(preEditHover?.contents.markupContent?.value)
+    XCTAssert(
+      preEditHoverContent.contains("String"),
+      "Pre edit hover content '\(preEditHoverContent)' does not contain 'String'"
+    )
+
+    let libAUri = try project.uri(for: "LibA.swift")
+    try "public let myVar: Int".write(to: try XCTUnwrap(libAUri.fileURL), atomically: true, encoding: .utf8)
+    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: libAUri, type: .changed)]))
+
+    try await repeatUntilExpectedResult {
+      let postEditHover = try await project.testClient.send(
+        HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      )
+      return try XCTUnwrap(postEditHover?.contents.markupContent?.value).contains("Int")
+    }
+  }
 }
 
 extension HoverResponseContents {

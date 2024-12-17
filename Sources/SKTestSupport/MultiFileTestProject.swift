@@ -88,7 +88,9 @@ package class MultiFileTestProject {
   /// File contents can also contain `$TEST_DIR`, which gets replaced by the temporary directory.
   package init(
     files: [RelativeFileLocation: String],
-    workspaces: (URL) async throws -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
+    workspaces: (_ scratchDirectory: URL) async throws -> [WorkspaceFolder] = {
+      [WorkspaceFolder(uri: DocumentURI($0))]
+    },
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
     options: SourceKitLSPOptions = .testDefault(),
