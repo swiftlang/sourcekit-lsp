@@ -405,30 +405,4 @@ final class PullDiagnosticsTests: XCTestCase {
     let note = try XCTUnwrap(diagnostic.relatedInformation?.only)
     XCTAssertEqual(note.location, try project.location(from: "1️⃣", to: "1️⃣", in: "FileA.swift"))
   }
-
-  func testDiagnosticsFromSourcekitdRequestError() async throws {
-    let project = try await MultiFileTestProject(
-      files: [
-        "test.swift": """
-        func test() {}
-        """,
-        "compile_flags.txt": "-invalid-argument",
-      ]
-    )
-    let (uri, _) = try project.openDocument("test.swift")
-    let diagnostics = try await project.testClient.send(
-      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
-    )
-    XCTAssertEqual(
-      diagnostics.fullReport?.items,
-      [
-        Diagnostic(
-          range: Range(Position(line: 0, utf16index: 0)),
-          severity: .error,
-          source: "SourceKit",
-          message: "Internal SourceKit error: unknown argument: '-invalid-argument'"
-        )
-      ]
-    )
-  }
 }

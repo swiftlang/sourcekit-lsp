@@ -110,27 +110,11 @@ actor DiagnosticReportManager {
       keys.compilerArgs: compilerArgs as [SKDRequestValue],
     ])
 
-    let dict: SKDResponseDictionary
-    do {
-      dict = try await self.sourcekitd.send(
-        skreq,
-        timeout: options.sourcekitdRequestTimeoutOrDefault,
-        fileContents: snapshot.text
-      )
-    } catch SKDError.requestFailed(let sourcekitdError) {
-      var errorMessage = sourcekitdError
-      if errorMessage.hasPrefix("error response (Request Failed): error: ") {
-        errorMessage = String(errorMessage.dropFirst(40))
-      }
-      return RelatedFullDocumentDiagnosticReport(items: [
-        Diagnostic(
-          range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
-          severity: .error,
-          source: "SourceKit",
-          message: "Internal SourceKit error: \(errorMessage)"
-        )
-      ])
-    }
+    let dict = try await self.sourcekitd.send(
+      skreq,
+      timeout: options.sourcekitdRequestTimeoutOrDefault,
+      fileContents: snapshot.text
+    )
 
     try Task.checkCancellation()
 
