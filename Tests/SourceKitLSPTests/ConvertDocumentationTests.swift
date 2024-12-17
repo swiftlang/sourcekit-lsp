@@ -454,7 +454,7 @@ fileprivate func convertDocumentation(
 ) async {
   guard expectedResponses.count == positions.allMarkers.count else {
     XCTFail(
-      "the number of expected render nodes did not match the number of positions in the text document",
+      "the number of expected responses did not match the number of positions in the text document",
       file: file,
       line: line
     )
