@@ -156,31 +156,31 @@ fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
     return visitor.result
   }
 
-  @discardableResult private func setResult(
-    node: some SyntaxProtocol,
-    position: AbsolutePosition
-  ) -> SyntaxVisitorContinueKind {
-    return setResult(
-      position,
-      node.leadingTrivia.compactMap { trivia in
-        switch trivia {
-        case .docLineComment(let comment):
-          return String(comment.dropFirst(3).trimmingCharacters(in: .whitespaces))
-        default:
-          return nil
+  private func setResult(node: some SyntaxProtocol, position: AbsolutePosition) {
+    setResult(
+      result: Symbol(
+        position: position,
+        documentationComments: node.leadingTrivia.flatMap { trivia -> [String] in
+          switch trivia {
+          case .docLineComment(let comment):
+            return [String(comment.dropFirst(3).trimmingCharacters(in: .whitespaces))]
+          case .docBlockComment(let comment):
+            return comment.dropFirst(3)
+              .dropLast(2)
+              .split(separator: "\n")
+              .map { String($0).trimmingCharacters(in: .whitespaces) }
+          default:
+            return []
+          }
         }
-      }
+      )
     )
   }
 
-  @discardableResult private func setResult(
-    _ symbolPosition: AbsolutePosition,
-    _ documentationComments: [String]
-  ) -> SyntaxVisitorContinueKind {
+  private func setResult(result symbol: Symbol) {
     if result == nil {
-      result = Symbol(position: symbolPosition, documentationComments: documentationComments)
+      result = symbol
     }
-    return .skipChildren
   }
 
   private func visitNamedDeclWithMemberBlock(
@@ -195,7 +195,7 @@ fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
       in: memberBlock.children(viewMode: .sourceAccurate),
       at: cursorPosition
     ) {
-      setResult(child.position, child.documentationComments)
+      setResult(result: child)
     } else if node.range.contains(cursorPosition) {
       setResult(node: node, position: name.positionAfterSkippingLeadingTrivia)
     }
