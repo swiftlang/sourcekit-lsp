@@ -1,7 +1,7 @@
 .DS_Store
 default.profraw
 Package.resolved
-/.build
+.build
 /.*-build
 /Packages
 /*.xcodeproj
