@@ -280,7 +280,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     set { logging = newValue }
   }
 
-  /// Default workspace type (buildserver|compdb|swiftpm). Overrides workspace type selection logic.
+  /// Default workspace type (swiftPM|compilationDatabase|buildServer). Overrides workspace type selection logic.
   public var defaultWorkspaceType: WorkspaceType?
   public var generatedFilesPath: String?
 
@@ -441,6 +441,17 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       workDoneProgressDebounceDuration: override?.workDoneProgressDebounceDuration
         ?? base.workDoneProgressDebounceDuration,
       sourcekitdRequestTimeout: override?.sourcekitdRequestTimeout ?? base.sourcekitdRequestTimeout
+    )
+  }
+
+  public static func merging(base: SourceKitLSPOptions, workspaceFolder: DocumentURI) -> SourceKitLSPOptions {
+    return SourceKitLSPOptions.merging(
+      base: base,
+      override: SourceKitLSPOptions(
+        path: workspaceFolder.fileURL?
+          .appendingPathComponent(".sourcekit-lsp")
+          .appendingPathComponent("config.json")
+      )
     )
   }
 

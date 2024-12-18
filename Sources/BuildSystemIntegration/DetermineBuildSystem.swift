@@ -31,11 +31,13 @@ import struct TSCBasic.AbsolutePath
 #endif
 
 /// Determine which build system should be started to handle the given workspace folder and at which folder that build
-/// system's project root is (see `BuiltInBuildSystem.projectRoot(for:options:)`).
+/// system's project root is (see `BuiltInBuildSystem.projectRoot(for:options:)`). `onlyConsiderRoot` controls whether
+/// paths outside the root should be considered (eg. configuration files in the user's home directory).
 ///
 /// Returns `nil` if no build system can handle this workspace folder.
 package func determineBuildSystem(
   forWorkspaceFolder workspaceFolder: DocumentURI,
+  onlyConsiderRoot: Bool,
   options: SourceKitLSPOptions
 ) -> BuildSystemSpec? {
   var buildSystemPreference: [WorkspaceType] = [

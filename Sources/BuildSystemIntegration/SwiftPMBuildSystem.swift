@@ -230,17 +230,12 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     guard var path = orLog("Getting realpath for project root", { try path.realpath }) else {
       return nil
     }
-    while true {
-      let packagePath = path.appendingPathComponent("Package.swift")
-      if (try? String(contentsOf: packagePath, encoding: .utf8))?.contains("PackageDescription") ?? false {
-        return path
-      }
 
-      if (try? AbsolutePath(validating: path.filePath))?.isRoot ?? true {
-        break
-      }
-      path.deleteLastPathComponent()
+    let packagePath = path.appendingPathComponent("Package.swift")
+    if (try? String(contentsOf: packagePath, encoding: .utf8))?.contains("PackageDescription") ?? false {
+      return path
     }
+
     return nil
   }
 
