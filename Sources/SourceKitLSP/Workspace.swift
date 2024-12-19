@@ -62,6 +62,51 @@ fileprivate func firstNonNil<T>(
   return try await defaultValue()
 }
 
+/// Actor that caches realpaths for `sourceFilesWithSameRealpath`.
+fileprivate actor SourceFilesWithSameRealpathInferrer {
+  private let buildSystemManager: BuildSystemManager
+  private var realpathCache: [DocumentURI: DocumentURI] = [:]
+
+  init(buildSystemManager: BuildSystemManager) {
+    self.buildSystemManager = buildSystemManager
+  }
+
+  private func realpath(of uri: DocumentURI) -> DocumentURI {
+    if let cached = realpathCache[uri] {
+      return cached
+    }
+    let value = uri.symlinkTarget ?? uri
+    realpathCache[uri] = value
+    return value
+  }
+
+  /// Returns the URIs of all source files in the project that have the same realpath as a document in `documents` but
+  /// are not in `documents`.
+  ///
+  /// This is useful in the following scenario: A project has target A containing A.swift an target B containing B.swift
+  /// B.swift is a symlink to A.swift. When A.swift is modified, both the dependencies of A and B need to be marked as
+  /// having an out-of-date preparation status, not just A.
+  package func sourceFilesWithSameRealpath(as documents: [DocumentURI]) async -> [DocumentURI] {
+    let realPaths = Set(documents.map { realpath(of: $0) })
+    return await orLog("Determining source files with same realpath") {
+      var result: [DocumentURI] = []
+      let filesAndDirectories = try await buildSystemManager.sourceFiles(includeNonBuildableFiles: true)
+      for file in filesAndDirectories.keys {
+        if realPaths.contains(realpath(of: file)) && !documents.contains(file) {
+          result.append(file)
+        }
+      }
+      return result
+    } ?? []
+  }
+
+  func filesDidChange(_ events: [FileEvent]) {
+    for event in events {
+      realpathCache[event.uri] = nil
+    }
+  }
+}
+
 /// Represents the configuration and state of a project or combination of projects being worked on
 /// together.
 ///
@@ -85,6 +130,8 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
 
   /// The build system manager to use for documents in this workspace.
   package let buildSystemManager: BuildSystemManager
+
+  private let sourceFilesWithSameRealpathInferrer: SourceFilesWithSameRealpathInferrer
 
   let options: SourceKitLSPOptions
 
@@ -126,6 +173,9 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     self.options = options
     self._uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
     self.buildSystemManager = buildSystemManager
+    self.sourceFilesWithSameRealpathInferrer = SourceFilesWithSameRealpathInferrer(
+      buildSystemManager: buildSystemManager
+    )
     if options.backgroundIndexingOrDefault, let uncheckedIndex,
       await buildSystemManager.initializationData?.prepareProvider ?? false
     {
@@ -316,6 +366,17 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
   }
 
   package func filesDidChange(_ events: [FileEvent]) async {
+    // First clear any cached realpaths in `sourceFilesWithSameRealpathInferrer`.
+    await sourceFilesWithSameRealpathInferrer.filesDidChange(events)
+
+    // Now infer any edits for source files that share the same realpath as one of the modified files.
+    var events = events
+    events +=
+      await sourceFilesWithSameRealpathInferrer
+      .sourceFilesWithSameRealpath(as: events.filter { $0.type == .changed }.map(\.uri))
+      .map { FileEvent(uri: $0, type: .changed) }
+
+    // Notify all clients about the reported and inferred edits.
     await buildSystemManager.filesDidChange(events)
     await syntacticTestIndex.filesDidChange(events)
     await semanticIndexManager?.filesDidChange(events)

@@ -99,7 +99,10 @@ package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
           let args = command.commandLine
           for i in args.indices.reversed() {
             if args[i] == "-index-store-path" && i + 1 < args.count {
-              return URL(fileURLWithPath: args[i + 1])
+              return URL(
+                fileURLWithPath: args[i + 1],
+                relativeTo: URL(fileURLWithPath: command.directory, isDirectory: true)
+              )
             }
           }
         }
