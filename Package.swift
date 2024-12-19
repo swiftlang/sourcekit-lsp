@@ -384,6 +384,7 @@ var targets: [Target] = [
       "SwiftExtensions",
       "ToolchainRegistry",
       "TSCExtensions",
+      .product(name: "SwiftDocC", package: "swift-docc"),
       .product(name: "IndexStoreDB", package: "indexstore-db"),
       .product(name: "Crypto", package: "swift-crypto"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
@@ -570,6 +571,7 @@ var dependencies: [Package.Dependency] {
   } else if useLocalDependencies {
     return [
       .package(path: "../indexstore-db"),
+      .package(path: "../swift-docc"),
       .package(name: "swift-package-manager", path: "../swiftpm"),
       .package(path: "../swift-tools-support-core"),
       .package(path: "../swift-argument-parser"),
@@ -581,6 +583,7 @@ var dependencies: [Package.Dependency] {
 
     return [
       .package(url: "https://github.com/swiftlang/indexstore-db.git", branch: relatedDependenciesBranch),
+      .package(url: "https://github.com/swiftlang/swift-docc.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/swiftlang/swift-package-manager.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/apple/swift-tools-support-core.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.4.0"),
