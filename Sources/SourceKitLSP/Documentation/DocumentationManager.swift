@@ -12,10 +12,12 @@
 
 #if canImport(SwiftDocC)
 import BuildSystemIntegration
+import BuildServerProtocol
 import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
 import SemanticIndex
+import SwiftDocC
 import SwiftExtensions
 import SwiftSyntax
 
