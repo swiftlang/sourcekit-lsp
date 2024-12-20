@@ -472,7 +472,7 @@ fileprivate func convertDocumentation(
       )
     } catch {
       XCTFail(
-        "textDocument/convertDocumentation failed at position \(marker): \(error.message)",
+        "textDocument/convertDocumentation failed at position \(marker): \(error.localizedDescription)",
         file: file,
         line: line
       )
