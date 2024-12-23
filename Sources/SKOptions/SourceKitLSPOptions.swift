@@ -354,6 +354,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   public init(
     swiftPM: SwiftPMOptions? = .init(),
     fallbackBuildSystem: FallbackBuildSystemOptions? = .init(),
+    buildSettingsTimeout: Int? = nil,
     compilationDatabase: CompilationDatabaseOptions? = .init(),
     clangdOptions: [String]? = nil,
     index: IndexOptions? = .init(),
@@ -370,6 +371,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   ) {
     self.swiftPM = swiftPM
     self.fallbackBuildSystem = fallbackBuildSystem
+    self.buildSettingsTimeout = buildSettingsTimeout
     self.compilationDatabase = compilationDatabase
     self.clangdOptions = clangdOptions
     self.index = index
@@ -422,6 +424,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
         base: base.fallbackBuildSystemOrDefault,
         override: override?.fallbackBuildSystem
       ),
+      buildSettingsTimeout: override?.buildSettingsTimeout,
       compilationDatabase: CompilationDatabaseOptions.merging(
         base: base.compilationDatabaseOrDefault,
         override: override?.compilationDatabase
