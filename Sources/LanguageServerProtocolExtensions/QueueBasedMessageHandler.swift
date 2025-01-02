@@ -10,15 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 import Foundation
-package import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
 import SKLogging
+
+#if compiler(>=6)
+package import LanguageServerProtocol
 package import SwiftExtensions
 #else
-import Foundation
 import LanguageServerProtocol
-import SKLogging
 import SwiftExtensions
 #endif
 
@@ -180,6 +180,7 @@ extension QueueBasedMessageHandler {
       // are currently handling. Ordering is not important here. We thus don't
       // need to execute it on `messageHandlingQueue`.
       if let notification = notification as? CancelRequestNotification {
+        logger.log("Received cancel request notification: \(notification.forLogging)")
         self.messageHandlingHelper.cancelRequest(id: notification.id)
         return
       }
