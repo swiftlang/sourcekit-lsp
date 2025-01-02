@@ -141,7 +141,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     else {
       return nil
     }
-    return ClangBuildSettings(settings, clangPath: clangdPath)
+    return ClangBuildSettings(settings, clangPath: clangPath)
   }
 
   nonisolated func canHandle(workspace: Workspace) -> Bool {
