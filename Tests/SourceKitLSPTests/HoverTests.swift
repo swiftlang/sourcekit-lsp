@@ -32,7 +32,9 @@ final class HoverTests: XCTestCase {
         This is a doc comment for S.
 
         Details.
-        """
+        """,
+      expectedRange:
+        .init(line: 3, utf16index: 7) ..< .init(line: 3, utf16index: 9)
     )
   }
 
@@ -81,7 +83,9 @@ final class HoverTests: XCTestCase {
         init()
         ```
 
-        """
+        """,
+      expectedRange:
+        .init(line: 3, utf16index: 4) ..< .init(line: 3, utf16index: 7)
     )
   }
 
@@ -113,7 +117,9 @@ final class HoverTests: XCTestCase {
         ```
 
         The initializer
-        """
+        """,
+      expectedRange:
+        .init(line: 5, utf16index: 4) ..< .init(line: 5, utf16index: 7)
     )
   }
 
@@ -130,7 +136,9 @@ final class HoverTests: XCTestCase {
         ```
 
         this is **bold** documentation
-        """##
+        """##,
+      expectedRange:
+        .init(line: 1, utf16index: 5) ..< .init(line: 1, utf16index: 9)
     )
   }
 
@@ -147,7 +155,9 @@ final class HoverTests: XCTestCase {
         ```
 
         this is *italic* documentation
-        """##
+        """##,
+      expectedRange:
+        .init(line: 1, utf16index: 5) ..< .init(line: 1, utf16index: 8)
     )
   }
 
@@ -168,7 +178,9 @@ final class HoverTests: XCTestCase {
         Eat an apple
 
         - Precondition: Must have an apple
-        """
+        """,
+      expectedRange:
+        .init(line: 3, utf16index: 5) ..< .init(line: 3, utf16index: 13)
     )
   }
 }
@@ -176,6 +188,7 @@ final class HoverTests: XCTestCase {
 private func assertHover(
   _ markedSource: String,
   expectedContent: String,
+  expectedRange: Range<Position>,
   file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
@@ -189,7 +202,8 @@ private func assertHover(
   )
 
   let hover = try XCTUnwrap(response, file: file, line: line)
-  XCTAssertNil(hover.range, file: file, line: line)
+  XCTAssertEqual(hover.range, expectedRange, file: file, line: line)
+
   guard case .markupContent(let content) = hover.contents else {
     XCTFail("hover.contents is not .markupContents", file: file, line: line)
     return
