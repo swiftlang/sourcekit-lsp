@@ -654,7 +654,9 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
   ) async {
     defer {
       if let request = params as? any TextDocumentRequest {
-        self.inProgressTextDocumentRequests[request.textDocument.uri, default: []].removeAll { $0.id == id }
+        textDocumentTrackingQueue.async(priority: .background) {
+          self.inProgressTextDocumentRequests[request.textDocument.uri, default: []].removeAll { $0.id == id }
+        }
       }
     }
 
