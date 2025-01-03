@@ -93,6 +93,10 @@ struct CursorInfo {
       module = nil
     }
 
+    let column: Int? = dict[keys.column]
+    let line: Int? = dict[keys.line]
+    let length: Int? = dict[keys.length]
+
     self.init(
       SymbolDetails(
         name: dict[keys.name],
@@ -103,7 +107,10 @@ struct CursorInfo {
         isDynamic: dict[keys.isDynamic] ?? false,
         isSystem: dict[keys.isSystem] ?? false,
         receiverUsrs: dict[keys.receivers]?.compactMap { $0[keys.usr] as String? } ?? [],
-        systemModule: module
+        systemModule: module,
+        line: line,
+        length: length,
+        column: column
       ),
       annotatedDeclaration: dict[keys.annotatedDecl],
       documentationXML: dict[keys.docFullAsXML],

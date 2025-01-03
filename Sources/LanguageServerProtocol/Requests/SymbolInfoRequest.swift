@@ -135,6 +135,32 @@ public struct SymbolDetails: ResponseType, Hashable {
   /// This property only applies to Swift symbols.
   public var systemModule: ModuleInfo?
 
+  /// The line number where the symbol is declared in the file.
+  ///
+  /// This value is 1-based, meaning the first line of the file is numbered 1.
+  /// For example, in the following content:
+  /// ```
+  /// func test() {}
+  /// ```
+  /// If `test()` appears on the second line, `line` would be `2`.
+  public var line: Int?
+
+  /// The length of the symbol’s declaration in characters.
+  ///
+  /// This represents how many characters the symbol’s name and syntax span.
+  /// For example, for the symbol `test()`, `length` would be `6` (including the parentheses `()`).
+  public var length: Int?
+
+  /// The column number where the symbol's declaration starts in the line.
+  ///
+  /// This value is 1-based, meaning the first character of the line is column 1.
+  /// For example, in the following line:
+  /// ```
+  /// func test() {}
+  /// ```
+  /// If `test` starts at the 6th character, the `column` would be `6`.
+  public var column: Int?
+
   public init(
     name: String?,
     containerName: String?,
@@ -144,7 +170,10 @@ public struct SymbolDetails: ResponseType, Hashable {
     isDynamic: Bool?,
     isSystem: Bool?,
     receiverUsrs: [String]?,
-    systemModule: ModuleInfo?
+    systemModule: ModuleInfo?,
+    line: Int?,
+    length: Int?,
+    column: Int?
   ) {
     self.name = name
     self.containerName = containerName
@@ -155,5 +184,8 @@ public struct SymbolDetails: ResponseType, Hashable {
     self.isSystem = isSystem
     self.receiverUsrs = receiverUsrs
     self.systemModule = systemModule
+    self.line = line
+    self.length = length
+    self.column = column
   }
 }

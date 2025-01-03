@@ -766,9 +766,19 @@ extension SwiftLanguageService {
         """
     }
 
+    var tokenRange: Range<Position>?
+
+    if let symbolUnderCursor = cursorInfoResults.first,
+      let line = symbolUnderCursor.symbolInfo.line,
+      let column = symbolUnderCursor.symbolInfo.column,
+      let length = symbolUnderCursor.symbolInfo.length
+    {
+      tokenRange = Position(line: line, utf16index: column)..<Position(line: line, utf16index: column + length)
+    }
+
     return HoverResponse(
       contents: .markupContent(MarkupContent(kind: .markdown, value: joinedDocumentation)),
-      range: nil
+      range: tokenRange
     )
   }
 
