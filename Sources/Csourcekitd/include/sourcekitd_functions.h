@@ -38,10 +38,42 @@ typedef enum {
   SOURCEKITD_API_VARIANT_TYPE_STRING = 4,
   SOURCEKITD_API_VARIANT_TYPE_UID = 5,
   SOURCEKITD_API_VARIANT_TYPE_BOOL = 6,
-  // Reserved for future addition
-  // SOURCEKITD_VARIANT_TYPE_DOUBLE = 7,
+  SOURCEKITD_API_VARIANT_TYPE_DOUBLE = 7,
   SOURCEKITD_API_VARIANT_TYPE_DATA = 8,
 } sourcekitd_api_variant_type_t;
+
+typedef void *sourcekitd_api_variant_functions_t;
+
+typedef sourcekitd_api_variant_type_t (*sourcekitd_api_variant_functions_get_type_t)(
+  sourcekitd_api_variant_t obj
+);
+
+typedef size_t (*sourcekitd_api_variant_functions_array_get_count_t)(
+  sourcekitd_api_variant_t array
+);
+
+typedef sourcekitd_api_variant_t (*sourcekitd_api_variant_functions_array_get_value_t)(
+  sourcekitd_api_variant_t array,
+  size_t index
+);
+
+typedef bool (*sourcekitd_api_variant_array_applier_f_t)(
+  size_t index,
+  sourcekitd_api_variant_t value,
+  void *_Null_unspecified context
+);
+
+typedef bool (*sourcekitd_api_variant_dictionary_applier_f_t)(
+  _Null_unspecified sourcekitd_api_uid_t key,
+  sourcekitd_api_variant_t value,
+  void *_Null_unspecified context
+);
+
+typedef bool (*sourcekitd_api_variant_functions_dictionary_apply_t)(
+  sourcekitd_api_variant_t dict,
+  _Null_unspecified sourcekitd_api_variant_dictionary_applier_f_t applier,
+  void *_Null_unspecified context
+);
 
 typedef enum {
   SOURCEKITD_API_ERROR_CONNECTION_INTERRUPTED = 1,
@@ -62,9 +94,17 @@ typedef const char *_Nullable (^sourcekitd_api_str_from_uid_handler_t)(
   sourcekitd_api_uid_t _Nullable uid
 );
 
+typedef void *sourcekitd_api_plugin_initialize_params_t;
+
 typedef struct {
   void (*_Nonnull initialize)(void);
   void (*_Nonnull shutdown)(void);
+
+  void (*_Nullable register_plugin_path)(
+    const char *_Nullable clientPlugin,
+    const char *_Nullable servicePlugin
+  );
+
   _Null_unspecified sourcekitd_api_uid_t (*_Nonnull uid_get_from_cstr)(
     const char *_Nonnull string
   );
@@ -229,6 +269,9 @@ typedef struct {
     sourcekitd_api_variant_t obj
   );
   bool (*_Nonnull variant_bool_get_value)(
+    sourcekitd_api_variant_t obj
+  );
+  double (*_Nullable variant_double_get_value)(
     sourcekitd_api_variant_t obj
   );
   size_t (*_Nonnull variant_string_get_length)(

@@ -13,6 +13,8 @@ var products: [Product] = [
   .executable(name: "sourcekit-lsp", targets: ["sourcekit-lsp"]),
   .library(name: "_SourceKitLSP", targets: ["SourceKitLSP"]),
   .library(name: "LSPBindings", targets: ["LanguageServerProtocol", "LanguageServerProtocolJSONRPC"]),
+  .library(name: "SwiftSourceKitPlugin", type: .dynamic, targets: ["SwiftSourceKitPlugin"]),
+  .library(name: "SwiftSourceKitClientPlugin", type: .dynamic, targets: ["SwiftSourceKitClientPlugin"]),
 ]
 
 var targets: [Target] = [
@@ -107,6 +109,40 @@ var targets: [Target] = [
   .target(
     name: "CAtomics",
     dependencies: []
+  ),
+
+  // MARK: CompletionScoring
+
+  .target(
+    name: "CompletionScoring",
+    dependencies: [],
+    swiftSettings: globalSwiftSettings
+  ),
+
+  .target(
+    name: "CompletionScoringForPlugin",
+    dependencies: [],
+    swiftSettings: globalSwiftSettings
+  ),
+
+  .testTarget(
+    name: "CompletionScoringTests",
+    dependencies: ["CompletionScoring", "CompletionScoringTestSupport", "SwiftExtensions"],
+    swiftSettings: globalSwiftSettings
+  ),
+
+  .testTarget(
+    name: "CompletionScoringPerfTests",
+    dependencies: ["CompletionScoring", "CompletionScoringTestSupport", "SwiftExtensions"],
+    swiftSettings: globalSwiftSettings
+  ),
+
+  // MARK: CompletionScoringTestSupport
+
+  .target(
+    name: "CompletionScoringTestSupport",
+    dependencies: ["CompletionScoring", "SwiftExtensions"],
+    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: CSKTestSupport
@@ -273,6 +309,21 @@ var targets: [Target] = [
     swiftSettings: globalSwiftSettings + lspLoggingSwiftSettings
   ),
 
+  .target(
+    name: "SKLoggingForPlugin",
+    dependencies: [
+      "SwiftExtensionsForPlugin"
+    ],
+    exclude: ["CMakeLists.txt"],
+    swiftSettings: globalSwiftSettings + lspLoggingSwiftSettings + [
+      // We can't depend on swift-crypto in the plugin because we can't module-alias it due to https://github.com/swiftlang/swift-package-manager/issues/8119
+      .define("NO_CRYPTO_DEPENDENCY"),
+      .unsafeFlags([
+        "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
+      ]),
+    ]
+  ),
+
   .testTarget(
     name: "SKLoggingTests",
     dependencies: [
@@ -306,6 +357,21 @@ var targets: [Target] = [
     ],
     exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
+  ),
+
+  .target(
+    name: "SKUtilitiesForPlugin",
+    dependencies: [
+      "SKLoggingForPlugin",
+      "SwiftExtensionsForPlugin",
+    ],
+    exclude: ["CMakeLists.txt"],
+    swiftSettings: globalSwiftSettings + [
+      .unsafeFlags([
+        "-module-alias", "SKLogging=SKLoggingForPlugin",
+        "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
+      ])
+    ]
   ),
 
   .testTarget(
@@ -352,6 +418,22 @@ var targets: [Target] = [
     ],
     exclude: ["CMakeLists.txt", "sourcekitd_uids.swift.gyb"],
     swiftSettings: globalSwiftSettings
+  ),
+
+  .target(
+    name: "SourceKitDForPlugin",
+    dependencies: [
+      "Csourcekitd",
+      "SKLoggingForPlugin",
+      "SwiftExtensionsForPlugin",
+    ],
+    exclude: ["CMakeLists.txt", "sourcekitd_uids.swift.gyb"],
+    swiftSettings: globalSwiftSettings + [
+      .unsafeFlags([
+        "-module-alias", "SKLogging=SKLoggingForPlugin",
+        "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
+      ])
+    ]
   ),
 
   .testTarget(
@@ -429,12 +511,93 @@ var targets: [Target] = [
     swiftSettings: globalSwiftSettings
   ),
 
+  .target(
+    name: "SwiftExtensionsForPlugin",
+    dependencies: ["CAtomics"],
+    exclude: ["CMakeLists.txt"],
+    swiftSettings: globalSwiftSettings
+  ),
+
   .testTarget(
     name: "SwiftExtensionsTests",
     dependencies: [
       "SKLogging",
       "SKTestSupport",
       "SwiftExtensions",
+    ],
+    swiftSettings: globalSwiftSettings
+  ),
+
+  // MARK: SwiftSourceKitClientPlugin
+
+  .target(
+    name: "SwiftSourceKitClientPlugin",
+    dependencies: [
+      "Csourcekitd",
+      "SourceKitDForPlugin",
+      "SwiftSourceKitPluginCommon",
+    ],
+    swiftSettings: globalSwiftSettings + [
+      .unsafeFlags([
+        "-module-alias", "SourceKitD=SourceKitDForPlugin",
+      ])
+    ]
+  ),
+
+  // MARK: SwiftSourceKitPluginCommon
+
+  .target(
+    name: "SwiftSourceKitPluginCommon",
+    dependencies: [
+      "Csourcekitd",
+      "SourceKitDForPlugin",
+      "SwiftExtensionsForPlugin",
+      "SKLoggingForPlugin",
+    ],
+    swiftSettings: globalSwiftSettings + [
+      .unsafeFlags([
+        "-module-alias", "SourceKitD=SourceKitDForPlugin",
+        "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
+        "-module-alias", "SKLogging=SKLoggingForPlugin",
+      ])
+    ]
+  ),
+
+  // MARK: SwiftSourceKitPlugin
+
+  .target(
+    name: "SwiftSourceKitPlugin",
+    dependencies: [
+      "Csourcekitd",
+      "CompletionScoringForPlugin",
+      "SKUtilitiesForPlugin",
+      "SKLoggingForPlugin",
+      "SourceKitDForPlugin",
+      "SwiftSourceKitPluginCommon",
+      "SwiftExtensionsForPlugin",
+    ],
+    swiftSettings: globalSwiftSettings + [
+      .unsafeFlags([
+        "-module-alias", "CompletionScoring=CompletionScoringForPlugin",
+        "-module-alias", "SKUtilities=SKUtilitiesForPlugin",
+        "-module-alias", "SourceKitD=SourceKitDForPlugin",
+        "-module-alias", "SKLogging=SKLoggingForPlugin",
+        "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
+      ])
+    ]
+  ),
+
+  .testTarget(
+    name: "SwiftSourceKitPluginTests",
+    dependencies: [
+      "BuildSystemIntegration",
+      "CompletionScoring",
+      "Csourcekitd",
+      "LanguageServerProtocol",
+      "SKTestSupport",
+      "SourceKitD",
+      "SwiftExtensions",
+      "ToolchainRegistry",
     ],
     swiftSettings: globalSwiftSettings
   ),

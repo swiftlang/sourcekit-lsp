@@ -61,6 +61,24 @@ package func assertThrowsError<T>(
   }
 }
 
+/// Asserts that executing `expression` throws an error and that the error's string representation matches `expectedMessage`.
+public func assertThrowsError<T>(
+  _ expression: @autoclosure () async throws -> T,
+  expectedMessage: Regex<Substring>,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) async {
+  await assertThrowsError(try await expression(), file: file, line: line) { error in
+    let errorString = String(reflecting: error)
+    XCTAssert(
+      try! expectedMessage.firstMatch(in: errorString) != nil,
+      "Expected error to contain '\(expectedMessage)' but received '\(errorString)'",
+      file: file,
+      line: line
+    )
+  }
+}
+
 /// Same as `XCTAssertEqual` but doesn't take autoclosures and thus `expression1`
 /// and `expression2` can contain `await`.
 package func assertEqual<T: Equatable>(

@@ -39,8 +39,12 @@ import XCTest
 #endif
 
 extension SourceKitLSPOptions {
-  package static func testDefault(experimentalFeatures: Set<ExperimentalFeature>? = nil) -> SourceKitLSPOptions {
+  package static func testDefault(
+    backgroundIndexing: Bool = true,
+    experimentalFeatures: Set<ExperimentalFeature>? = nil
+  ) -> SourceKitLSPOptions {
     return SourceKitLSPOptions(
+      backgroundIndexing: backgroundIndexing,
       experimentalFeatures: experimentalFeatures,
       swiftPublishDiagnosticsDebounceDuration: 0,
       workDoneProgressDebounceDuration: 0
@@ -426,7 +430,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
 package struct DocumentPositions {
   private let positions: [String: Position]
 
-  fileprivate init(markers: [String: Int], textWithoutMarkers: String) {
+  package init(markers: [String: Int], textWithoutMarkers: String) {
     if markers.isEmpty {
       // No need to build a line table if we don't have any markers.
       positions = [:]

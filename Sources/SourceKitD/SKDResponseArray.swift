@@ -91,6 +91,16 @@ package final class SKDResponseArray: Sendable {
     }
     return nil
   }
+
+  public var asStringArray: [String] {
+    var result: [String] = []
+    for i in 0..<count {
+      if let string = self[i] {
+        result.append(string)
+      }
+    }
+    return result
+  }
 }
 
 extension SKDResponseArray: CustomStringConvertible {
