@@ -203,9 +203,6 @@ private extension BuildSystemSpec {
       ) { connectionToSourceKitLSP in
         CompilationDatabaseBuildSystem(
           projectRoot: projectRoot,
-          searchPaths: (options.compilationDatabaseOrDefault.searchPaths ?? []).compactMap {
-            try? RelativePath(validating: $0)
-          },
           connectionToSourceKitLSP: connectionToSourceKitLSP
         )
       }

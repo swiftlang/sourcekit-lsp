@@ -116,33 +116,19 @@ package protocol CompilationDatabase {
   var sourceItems: [SourceItem] { get }
 }
 
-/// Loads the compilation database located in `directory`, if one can be found in `additionalSearchPaths` or in the default search paths of "." and "build".
+/// Loads the compilation database located in `directory`.
 package func tryLoadCompilationDatabase(
-  directory: URL,
-  additionalSearchPaths: [RelativePath] = []
+  directory: URL
 ) -> CompilationDatabase? {
-  let searchPaths =
-    additionalSearchPaths + [
-      // These default search paths match the behavior of `clangd`
-      try! RelativePath(validating: "."),
-      try! RelativePath(validating: "build"),
-    ]
-  return
-    searchPaths
-    .lazy
-    .map { directory.appending($0) }
-    .compactMap { searchPath in
-      orLog("Failed to load compilation database") { () -> CompilationDatabase? in
-        if let compDb = try JSONCompilationDatabase(directory: searchPath) {
-          return compDb
-        }
-        if let compDb = try FixedCompilationDatabase(directory: searchPath) {
-          return compDb
-        }
-        return nil
-      }
+  orLog("Failed to load compilation database") { () -> CompilationDatabase? in
+    if let jsonDb = try JSONCompilationDatabase(directory: directory) {
+      return jsonDb
     }
-    .first
+    if let fixedDb = try FixedCompilationDatabase(directory: directory) {
+      return fixedDb
+    }
+    return nil
+  }
 }
 
 /// Fixed clang-compatible compilation database (compile_flags.txt).
@@ -156,6 +142,8 @@ package func tryLoadCompilationDatabase(
 ///
 /// See https://clang.llvm.org/docs/JSONCompilationDatabase.html under Alternatives
 package struct FixedCompilationDatabase: CompilationDatabase, Equatable {
+  package static let dbName: String = "compile_flags.txt"
+
   private let fixedArgs: [String]
   private let directory: String
 
@@ -172,7 +160,7 @@ package struct FixedCompilationDatabase: CompilationDatabase, Equatable {
   /// Loads the compilation database located in `directory`, if any.
   /// - Returns: `nil` if `compile_flags.txt` was not found
   package init?(directory: URL) throws {
-    let path = directory.appendingPathComponent("compile_flags.txt")
+    let path = directory.appendingPathComponent(Self.dbName)
     try self.init(file: path)
   }
 
@@ -212,6 +200,8 @@ package struct FixedCompilationDatabase: CompilationDatabase, Equatable {
 ///
 /// See https://clang.llvm.org/docs/JSONCompilationDatabase.html
 package struct JSONCompilationDatabase: CompilationDatabase, Equatable, Codable {
+  package static let dbName: String = "compile_commands.json"
+
   private var pathToCommands: [DocumentURI: [Int]] = [:]
   private var commands: [CompilationDatabaseCompileCommand] = []
 
@@ -232,7 +222,7 @@ package struct JSONCompilationDatabase: CompilationDatabase, Equatable, Codable 
   ///
   /// - Returns: `nil` if `compile_commands.json` was not found
   package init?(directory: URL) throws {
-    let path = directory.appendingPathComponent("compile_commands.json")
+    let path = directory.appendingPathComponent(Self.dbName)
     try self.init(file: path)
   }
 

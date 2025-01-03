@@ -134,7 +134,7 @@ package struct IndexedSingleSwiftFileTestProject {
     let encoder = JSONEncoder()
     encoder.outputFormatting = .prettyPrinted
     try encoder.encode(compilationDatabase).write(
-      to: testWorkspaceDirectory.appendingPathComponent("compile_commands.json")
+      to: testWorkspaceDirectory.appendingPathComponent(JSONCompilationDatabase.dbName)
     )
 
     // Run swiftc to build the index store

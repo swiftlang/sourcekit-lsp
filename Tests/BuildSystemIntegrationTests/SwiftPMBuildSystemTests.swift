@@ -976,9 +976,9 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         .appendingPathComponent("pkg")
         .appendingPathComponent("Sources")
         .appendingPathComponent("lib")
-      let projectRoot = SwiftPMBuildSystem.projectRoot(for: workspaceRoot, options: .testDefault())
 
-      assertEqual(projectRoot, tempDir.appendingPathComponent("pkg", isDirectory: true))
+      let projectRoot = SwiftPMBuildSystem.projectRoot(for: workspaceRoot, options: .testDefault())
+      XCTAssertNil(projectRoot)
     }
   }
 

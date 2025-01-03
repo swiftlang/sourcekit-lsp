@@ -18,6 +18,7 @@ package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
 package import SKOptions
+import SwiftExtensions
 import ToolchainRegistry
 import TSCExtensions
 
@@ -30,6 +31,7 @@ import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
 import SKOptions
+import SwiftExtensions
 import ToolchainRegistry
 import TSCExtensions
 
@@ -62,10 +64,29 @@ fileprivate enum Cachable<Value> {
 /// one compilation database, located at the project root.
 package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
   static package func projectRoot(for workspaceFolder: URL, options: SourceKitLSPOptions) -> URL? {
-    if tryLoadCompilationDatabase(directory: workspaceFolder) != nil {
-      return workspaceFolder
-    }
-    return nil
+    let searchPaths =
+      (options.compilationDatabaseOrDefault.searchPaths ?? []).compactMap {
+        try? RelativePath(validating: $0)
+      } + [
+        // These default search paths match the behavior of `clangd`
+        try! RelativePath(validating: "."),
+        try! RelativePath(validating: "build"),
+      ]
+
+    return
+      searchPaths
+      .lazy
+      .compactMap { searchPath in
+        let path = workspaceFolder.appending(searchPath)
+        if FileManager.default.isFile(at: path.appendingPathComponent(JSONCompilationDatabase.dbName))
+          || FileManager.default.isFile(at: path.appendingPathComponent(FixedCompilationDatabase.dbName))
+        {
+          return path
+        }
+
+        return nil
+      }
+      .first
   }
 
   /// The compilation database.
@@ -78,7 +99,6 @@ package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
   }
 
   private let connectionToSourceKitLSP: any Connection
-  private let searchPaths: [RelativePath]
 
   package let projectRoot: URL
 
@@ -119,13 +139,11 @@ package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
 
   package init?(
     projectRoot: URL,
-    searchPaths: [RelativePath],
     connectionToSourceKitLSP: any Connection
   ) {
     self.projectRoot = projectRoot
-    self.searchPaths = searchPaths
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
-    if let compdb = tryLoadCompilationDatabase(directory: projectRoot, additionalSearchPaths: searchPaths) {
+    if let compdb = tryLoadCompilationDatabase(directory: projectRoot) {
       self.compdb = compdb
     } else {
       return nil
@@ -182,7 +200,7 @@ package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
 
   private func fileEventShouldTriggerCompilationDatabaseReload(event: FileEvent) -> Bool {
     switch event.uri.fileURL?.lastPathComponent {
-    case "compile_commands.json", "compile_flags.txt":
+    case JSONCompilationDatabase.dbName, FixedCompilationDatabase.dbName:
       return true
     default:
       return false
@@ -192,8 +210,7 @@ package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
   /// The compilation database has been changed on disk.
   /// Reload it and notify the delegate about build setting changes.
   private func reloadCompilationDatabase() {
-    self.compdb = tryLoadCompilationDatabase(directory: projectRoot, additionalSearchPaths: searchPaths)
-
+    self.compdb = tryLoadCompilationDatabase(directory: projectRoot)
     connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
   }
 }

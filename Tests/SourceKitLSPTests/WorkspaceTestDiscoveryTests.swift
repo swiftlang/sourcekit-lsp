@@ -794,11 +794,11 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     ])
 
     try JSONEncoder()
-      .encode(compilationDatabase).write(to: XCTUnwrap(project.uri(for: "compile_commands.json").fileURL))
+      .encode(compilationDatabase).write(to: XCTUnwrap(project.uri(for: JSONCompilationDatabase.dbName).fileURL))
 
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
-        FileEvent(uri: try project.uri(for: "compile_commands.json"), type: .changed)
+        FileEvent(uri: try project.uri(for: JSONCompilationDatabase.dbName), type: .changed)
       ])
     )
 
