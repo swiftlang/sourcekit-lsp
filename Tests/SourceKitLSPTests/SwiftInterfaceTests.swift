@@ -22,14 +22,13 @@ import XCTest
 final class SwiftInterfaceTests: XCTestCase {
   func testSystemModuleInterface() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
-    let uri = DocumentURI(url)
+    let uri = DocumentURI(for: .swift)
 
     testClient.openDocument("import Foundation", uri: uri)
 
     let resp = try await testClient.send(
       DefinitionRequest(
-        textDocument: TextDocumentIdentifier(url),
+        textDocument: TextDocumentIdentifier(uri),
         position: Position(line: 0, utf16index: 10)
       )
     )
@@ -40,6 +39,30 @@ final class SwiftInterfaceTests: XCTestCase {
     XCTAssert(
       fileContents.hasPrefix("import "),
       "Expected that the foundation swift interface starts with 'import ' but got '\(fileContents.prefix(100))'"
+    )
+  }
+
+  func testSystemModuleInterfaceReferenceDocument() async throws {
+    let testClient = try await TestSourceKitLSPClient(
+      capabilities: ClientCapabilities(experimental: [
+        "workspace/getReferenceDocument": .bool(true)
+      ])
+    )
+    let uri = DocumentURI(for: .swift)
+
+    testClient.openDocument("import Foundation", uri: uri)
+
+    let response = try await testClient.send(
+      DefinitionRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        position: Position(line: 0, utf16index: 10)
+      )
+    )
+    let location = try XCTUnwrap(response?.locations?.only)
+    let referenceDocument = try await testClient.send(GetReferenceDocumentRequest(uri: location.uri))
+    XCTAssert(
+      referenceDocument.content.hasPrefix("import "),
+      "Expected that the foundation swift interface starts with 'import ' but got '\(referenceDocument.content.prefix(100))'"
     )
   }
 
@@ -83,6 +106,37 @@ final class SwiftInterfaceTests: XCTestCase {
       testClient: project.testClient,
       swiftInterfaceFile: "_Concurrency.swiftinterface",
       linePrefix: "@inlinable public func withTaskGroup"
+    )
+  }
+
+  func testDefinitionInSystemModuleInterfaceWithReferenceDocument() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      public func libFunc() async {
+        let a: 1️⃣String = "test"
+      }
+      """,
+      capabilities: ClientCapabilities(experimental: [
+        "workspace/getReferenceDocument": .bool(true)
+      ]),
+      indexSystemModules: true
+    )
+
+    let definition = try await project.testClient.send(
+      DefinitionRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["1️⃣"]
+      )
+    )
+    let location = try XCTUnwrap(definition?.locations?.only)
+    let referenceDocument = try await project.testClient.send(GetReferenceDocumentRequest(uri: location.uri))
+    let contents = referenceDocument.content
+    let lineTable = LineTable(contents)
+    let destinationLine = try XCTUnwrap(lineTable.line(at: location.range.lowerBound.line))
+      .trimmingCharacters(in: .whitespaces)
+    XCTAssert(
+      destinationLine.hasPrefix("@frozen public struct String"),
+      "Full line was: '\(destinationLine)'"
     )
   }
 
@@ -133,6 +187,65 @@ final class SwiftInterfaceTests: XCTestCase {
       ),
       "Generated interface did not contain expected text.\n\(fileContents)"
     )
+  }
+
+  func testSemanticFunctionalityInGeneratedInterface() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/MyLibrary.swift": """
+        public struct Lib {
+          public func foo() -> String {}
+          public init() {}
+        }
+        """,
+        "Exec/main.swift": "import 1️⃣MyLibrary",
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "MyLibrary"),
+            .executableTarget(name: "Exec", dependencies: ["MyLibrary"])
+          ]
+        )
+        """,
+      capabilities: ClientCapabilities(experimental: [
+        "workspace/getReferenceDocument": .bool(true)
+      ]),
+      enableBackgroundIndexing: true
+    )
+
+    let (mainUri, mainPositions) = try project.openDocument("main.swift")
+    let response =
+      try await project.testClient.send(
+        DefinitionRequest(
+          textDocument: TextDocumentIdentifier(mainUri),
+          position: mainPositions["1️⃣"]
+        )
+      )
+    let referenceDocumentUri = try XCTUnwrap(response?.locations?.only).uri
+    let referenceDocument = try await project.testClient.send(GetReferenceDocumentRequest(uri: referenceDocumentUri))
+    let stringIndex = try XCTUnwrap(referenceDocument.content.firstRange(of: "-> String"))
+    let (stringLine, stringColumn) = LineTable(referenceDocument.content)
+      .lineAndUTF16ColumnOf(referenceDocument.content.index(stringIndex.lowerBound, offsetBy: 3))
+
+    project.testClient.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(
+          uri: referenceDocumentUri,
+          language: .swift,
+          version: 0,
+          text: referenceDocument.content
+        )
+      )
+    )
+    let hover = try await project.testClient.send(
+      HoverRequest(
+        textDocument: TextDocumentIdentifier(referenceDocumentUri),
+        position: Position(line: stringLine, utf16index: stringColumn)
+      )
+    )
+    XCTAssertNotNil(hover)
   }
 
   func testJumpToSynthesizedExtensionMethodInSystemModuleWithoutIndex() async throws {
