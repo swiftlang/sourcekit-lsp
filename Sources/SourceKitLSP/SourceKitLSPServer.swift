@@ -96,6 +96,16 @@ package actor SourceKitLSPServer {
 
   package let documentManager = DocumentManager()
 
+  #if canImport(SwiftDocC)
+  /// The `DocumentationManager` that handles all documentation related requests
+  ///
+  /// Implicitly unwrapped optional so we can create an `DocumentationManager` that has a weak reference to
+  /// `SourceKitLSPServer`.
+  /// `nonisolated(unsafe)` because `documentationManager` will not be modified after it is assigned from the
+  /// initializer.
+  private(set) nonisolated(unsafe) var documentationManager: DocumentationManager!
+  #endif
+
   /// The `TaskScheduler` that schedules all background indexing tasks.
   ///
   /// Shared process-wide to ensure the scheduled index operations across multiple workspaces don't exceed the maximum
@@ -175,6 +185,10 @@ package actor SourceKitLSPServer {
       (TaskPriority.low, max(Int(lowPriorityCores), 1)),
     ])
     self.indexProgressManager = nil
+    #if canImport(SwiftDocC)
+    self.documentationManager = nil
+    self.documentationManager = DocumentationManager(sourceKitLSPServer: self)
+    #endif
     self.indexProgressManager = IndexProgressManager(sourceKitLSPServer: self)
     self.sourcekitdCrashedWorkDoneProgress = SharedWorkDoneProgressManager(
       sourceKitLSPServer: self,
@@ -774,6 +788,15 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await request.reply { try await rename(request.params) }
     case let request as RequestAndReply<ShutdownRequest>:
       await request.reply { try await shutdown(request.params) }
+    #if canImport(SwiftDocC)
+    case let request as RequestAndReply<ConvertDocumentationRequest>:
+      await request.reply {
+        try await documentationManager.convertDocumentation(
+          request.params.textDocument.uri,
+          at: request.params.position
+        )
+      }
+    #endif
     case let request as RequestAndReply<SymbolInfoRequest>:
       await self.handleRequest(for: request, requestHandler: self.symbolInfo)
     case let request as RequestAndReply<TriggerReindexRequest>:
@@ -1021,6 +1044,16 @@ extension SourceKitLSPServer {
       ? nil
       : ExecuteCommandOptions(commands: builtinSwiftCommands)
 
+    var experimentalCapabilities: [String: LSPAny] = [
+      "workspace/tests": .dictionary(["version": .int(2)]),
+      "textDocument/tests": .dictionary(["version": .int(2)]),
+      "workspace/triggerReindex": .dictionary(["version": .int(1)]),
+      "workspace/getReferenceDocument": .dictionary(["version": .int(1)]),
+    ]
+    #if canImport(SwiftDocC)
+    experimentalCapabilities["textDocument/convertDocumentation"] = .dictionary(["version": .int(1)])
+    #endif
+
     return ServerCapabilities(
       textDocumentSync: .options(
         TextDocumentSyncOptions(
@@ -1062,12 +1095,7 @@ extension SourceKitLSPServer {
       typeHierarchyProvider: .bool(true),
       semanticTokensProvider: semanticTokensOptions,
       inlayHintProvider: inlayHintOptions,
-      experimental: .dictionary([
-        "workspace/tests": .dictionary(["version": .int(2)]),
-        "textDocument/tests": .dictionary(["version": .int(2)]),
-        "workspace/triggerReindex": .dictionary(["version": .int(1)]),
-        "workspace/getReferenceDocument": .dictionary(["version": .int(1)]),
-      ])
+      experimental: .dictionary(experimentalCapabilities)
     )
   }
 
