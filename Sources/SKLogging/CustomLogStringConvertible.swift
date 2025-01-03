@@ -11,11 +11,13 @@
 //===----------------------------------------------------------------------===//
 
 #if compiler(>=6)
-import Crypto
 package import Foundation
 #else
-import Crypto
 import Foundation
+#endif
+
+#if !NO_CRYPTO_DEPENDENCY
+import Crypto
 #endif
 
 /// An object that can printed for logging and also offers a redacted description
@@ -69,8 +71,12 @@ extension String {
   /// A hash value that can be logged in a redacted description without
   /// disclosing any private information about the string.
   package var hashForLogging: String {
+    #if NO_CRYPTO_DEPENDENCY
+    return "<private>"
+    #else
     let hash = SHA256.hash(data: Data(self.utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
     return "<private \(hash)>"
+    #endif
   }
 }
 

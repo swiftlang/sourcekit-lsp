@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKLogging
+
 #if compiler(>=6)
 package import Foundation
 #else
@@ -28,10 +30,10 @@ import Foundation
 package actor SourceKitDRegistry {
 
   /// Mapping from path to active SourceKitD instance.
-  private var active: [URL: SourceKitD] = [:]
+  private var active: [URL: (pluginPaths: PluginPaths?, sourcekitd: SourceKitD)] = [:]
 
   /// Instances that have been unregistered, but may be resurrected if accessed before destruction.
-  private var cemetary: [URL: WeakSourceKitD] = [:]
+  private var cemetary: [URL: (pluginPaths: PluginPaths?, sourcekitd: WeakSourceKitD)] = [:]
 
   /// Initialize an empty registry.
   package init() {}
@@ -42,18 +44,29 @@ package actor SourceKitDRegistry {
   /// Returns the existing SourceKitD for the given path, or creates it and registers it.
   package func getOrAdd(
     _ key: URL,
-    create: @Sendable () throws -> SourceKitD
-  ) rethrows -> SourceKitD {
+    pluginPaths: PluginPaths?,
+    create: () throws -> SourceKitD
+  ) async rethrows -> SourceKitD {
     if let existing = active[key] {
-      return existing
+      if existing.pluginPaths != pluginPaths {
+        logger.fault(
+          "Already created SourceKitD with plugin paths \(existing.pluginPaths?.forLogging), now requesting incompatible plugin paths \(pluginPaths.forLogging)"
+        )
+      }
+      return existing.sourcekitd
     }
-    if let resurrected = cemetary[key]?.value {
+    if let resurrected = cemetary[key], let resurrectedSourcekitD = resurrected.sourcekitd.value {
       cemetary[key] = nil
-      active[key] = resurrected
-      return resurrected
+      if resurrected.pluginPaths != pluginPaths {
+        logger.fault(
+          "Already created SourceKitD with plugin paths \(resurrected.pluginPaths?.forLogging), now requesting incompatible plugin paths \(pluginPaths.forLogging)"
+        )
+      }
+      active[key] = (resurrected.pluginPaths, resurrectedSourcekitD)
+      return resurrectedSourcekitD
     }
     let newValue = try create()
-    active[key] = newValue
+    active[key] = (pluginPaths, newValue)
     return newValue
   }
 
@@ -67,10 +80,10 @@ package actor SourceKitDRegistry {
   package func remove(_ key: URL) -> SourceKitD? {
     let existing = active.removeValue(forKey: key)
     if let existing = existing {
-      assert(self.cemetary[key]?.value == nil)
-      cemetary[key] = WeakSourceKitD(value: existing)
+      assert(self.cemetary[key]?.sourcekitd.value == nil)
+      cemetary[key] = (existing.pluginPaths, WeakSourceKitD(value: existing.sourcekitd))
     }
-    return existing
+    return existing?.sourcekitd
   }
 }
 

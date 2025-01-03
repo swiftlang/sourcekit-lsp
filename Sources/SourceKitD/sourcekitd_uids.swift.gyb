@@ -31,7 +31,6 @@
         return name
     return name[:word_index].lower() + name[word_index:]
 
-    # We should automatically generate these.
   ADDITIONAL_KEYS = [
     # Maintained from translateCodeCompletionOptions in SwiftCompletion.cpp#
     KEY('SortByName', 'key.codecomplete.sort.byname'),
@@ -56,11 +55,43 @@
     KEY('AnnotatedDescription', 'key.codecomplete.annotateddescription'),
     KEY('IncludeObjectLiterals', 'key.codecomplete.includeobjectliterals'),
 
+    # Used exclusively within the SourceKit Plugin
+    KEY('UseNewAPI', 'key.codecomplete.use_new_api'),
+    KEY('AddCallWithNoDefaultArgs', 'key.codecomplete.addcallwithnodefaultargs'),
+    KEY('IncludeSemanticComponents', 'key.codecomplete.include_semantic_components'),
+    KEY('UseXPCSerialization', 'key.codecomplete.use_xpc_serialization'),
+    KEY('MaxResults', 'key.codecomplete.maxresults'),
+    KEY('AnnotatedTypeName', 'key.annotated.typename'),
+    KEY('PriorityBucket', 'key.priority_bucket'),
+    KEY('Identifier', 'key.identifier'),
+    KEY('TextMatchScore', 'key.text_match_score'),
+    KEY('SemanticScore', 'key.semantic_score'),
+    KEY('SemanticScoreComponents', 'key.semantic_score_components'),
+    KEY('SymbolPopularity', 'key.symbol_popularity'),
+    KEY('ModulePopularity', 'key.module_popularity'),
+    KEY('PopularityKey', 'key.popularity.key'),
+    KEY('PopularityValueIntBillion', 'key.popularity.value.int.billion'),
+    KEY('RecentCompletions', 'key.recent_completions'),
+    KEY('UnfilteredResultCount', 'key.unfiltered_result_count'),
+    KEY('MemberAccessTypes', 'key.member_access_types'),
+    KEY('HasDiagnostic', 'key.has_diagnostic'),
+    KEY('GroupId', 'key.group_id'),
+    KEY('ScopedPopularityTablePath', 'key.scoped_popularity_table_path'),
+    KEY('PopularModules', 'key.popular_modules'),
+    KEY('NotoriousModules', 'key.notorious_modules'),
+    KEY('UsedScoreComponents', 'key.codecomplete.setpopularapi_used_score_components'),
+
+
     # Maintained from applyFormatOptions in SwiftEditor.cpp
     KEY('UseTabs', 'key.editor.format.usetabs'),
     KEY('IndentWidth', 'key.editor.format.indentwidth'),
     KEY('TabWidth', 'key.editor.format.tabwidth'),
     KEY('IndentSwitchCase', 'key.editor.format.indent_switch_case'),
+  ]
+
+  ADDITIONAL_REQUESTS = [
+    REQUEST('CodeCompleteDocumentation', 'source.request.codecomplete.documentation'),
+    REQUEST('CodeCompleteDiagnostic', 'source.request.codecomplete.diagnostic'),
   ]
 
   # We should automatically generate these.
@@ -79,16 +110,23 @@
     # Maintained from initializeService in Requests.cpp
     KIND('SemaEnabledNotification', 'source.notification.sema_enabled'),
     KIND('DocumentUpdateNotification', 'source.notification.editor.documentupdate'),
+
+    # Used exclusively within the SourceKit Plugin
+    KIND('DiagRemark', 'source.diagnostic.severity.remark'),
   ]
 
   TYPES_AND_KEYS = [
     ('sourcekitd_api_keys', UID_KEYS + ADDITIONAL_KEYS),
-    ('sourcekitd_api_requests', UID_REQUESTS),
+    ('sourcekitd_api_requests', UID_REQUESTS + ADDITIONAL_REQUESTS),
     ('sourcekitd_api_values', UID_KINDS + ADDITIONAL_VALUES),
   ]
 }%
 
+#if compiler(>=6)
+package import Csourcekitd
+#else
 import Csourcekitd
+#endif
 % for (struct_type, uids) in TYPES_AND_KEYS:
 
 package struct ${struct_type} {

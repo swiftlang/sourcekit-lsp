@@ -64,25 +64,35 @@ extension DocumentURI {
 package let cleanScratchDirectories =
   (ProcessInfo.processInfo.environment["SOURCEKIT_LSP_KEEP_TEST_SCRATCH_DIR"] == nil)
 
-/// An empty directory in which a test with `#function` name `testName` can store temporary data.
-package func testScratchDir(testName: String = #function) throws -> URL {
-  let testBaseName = testName.prefix(while: \.isLetter)
-
+package func testScratchName(testName: String = #function) -> String {
   var uuid = UUID().uuidString[...]
   if let firstDash = uuid.firstIndex(of: "-") {
     uuid = uuid[..<firstDash]
   }
+
   // Including the test name in the directory frequently makes path lengths of test files exceed the maximum path length
   // on Windows. Choose shorter directory names on that platform to avoid that issue.
   #if os(Windows)
-  let url = try FileManager.default.temporaryDirectory.realpath
-    .appendingPathComponent("lsp-test")
-    .appendingPathComponent("\(uuid)", isDirectory: true)
+  return String(uuid)
   #else
-  let url = try FileManager.default.temporaryDirectory.realpath
-    .appendingPathComponent("sourcekit-lsp-test-scratch")
-    .appendingPathComponent("\(testBaseName)-\(uuid)", isDirectory: true)
+  let testBaseName = testName.prefix(while: \.isLetter)
+  return "\(testBaseName)-\(uuid)"
   #endif
+}
+
+/// An empty directory in which a test with `#function` name `testName` can store temporary data.
+package func testScratchDir(testName: String = #function) throws -> URL {
+  #if os(Windows)
+  // Use a shorter test scratch dir name on Windows to not exceed MAX_PATH length
+  let testScratchDirsName = "lsp-test"
+  #else
+  let testScratchDirsName = "sourcekit-lsp-test-scratch"
+  #endif
+
+  let url = try FileManager.default.temporaryDirectory.realpath
+    .appendingPathComponent(testScratchDirsName)
+    .appendingPathComponent(testScratchName(testName: testName), isDirectory: true)
+
   try? FileManager.default.removeItem(at: url)
   try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
   return url

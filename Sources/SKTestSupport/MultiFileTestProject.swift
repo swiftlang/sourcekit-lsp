@@ -58,12 +58,12 @@ package struct RelativeFileLocation: Hashable, ExpressibleByStringLiteral {
 /// The temporary files will be deleted when the `TestSourceKitLSPClient` is destructed.
 package class MultiFileTestProject {
   /// Information necessary to open a file in the LSP server by its filename.
-  private struct FileData {
+  package struct FileData {
     /// The URI at which the file is stored on disk.
-    let uri: DocumentURI
+    package let uri: DocumentURI
 
     /// The contents of the file including location markers.
-    let markedText: String
+    package let markedText: String
   }
 
   package let testClient: TestSourceKitLSPClient
@@ -79,29 +79,10 @@ package class MultiFileTestProject {
   /// The directory in which the temporary files are being placed.
   package let scratchDirectory: URL
 
-  /// Writes the specified files to a temporary directory on disk and creates a `TestSourceKitLSPClient` for that
-  /// temporary directory.
-  ///
-  /// The file contents can contain location markers, which are returned when opening a document using
-  /// ``openDocument(_:)``.
-  ///
-  /// File contents can also contain `$TEST_DIR`, which gets replaced by the temporary directory.
-  package init(
+  package static func writeFilesToDisk(
     files: [RelativeFileLocation: String],
-    workspaces: (_ scratchDirectory: URL) async throws -> [WorkspaceFolder] = {
-      [WorkspaceFolder(uri: DocumentURI($0))]
-    },
-    initializationOptions: LSPAny? = nil,
-    capabilities: ClientCapabilities = ClientCapabilities(),
-    options: SourceKitLSPOptions = .testDefault(),
-    testHooks: TestHooks = TestHooks(),
-    enableBackgroundIndexing: Bool = false,
-    usePullDiagnostics: Bool = true,
-    preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
-    cleanUp: (@Sendable () -> Void)? = nil,
-    testName: String = #function
-  ) async throws {
-    scratchDirectory = try testScratchDir(testName: testName)
+    scratchDirectory: URL
+  ) throws -> [String: FileData] {
     try FileManager.default.createDirectory(at: scratchDirectory, withIntermediateDirectories: true)
 
     var fileData: [String: FileData] = [:]
@@ -134,7 +115,33 @@ package class MultiFileTestProject {
         )
       }
     }
-    self.fileData = fileData
+    return fileData
+  }
+
+  /// Writes the specified files to a temporary directory on disk and creates a `TestSourceKitLSPClient` for that
+  /// temporary directory.
+  ///
+  /// The file contents can contain location markers, which are returned when opening a document using
+  /// ``openDocument(_:)``.
+  ///
+  /// File contents can also contain `$TEST_DIR`, which gets replaced by the temporary directory.
+  package init(
+    files: [RelativeFileLocation: String],
+    workspaces: (_ scratchDirectory: URL) async throws -> [WorkspaceFolder] = {
+      [WorkspaceFolder(uri: DocumentURI($0))]
+    },
+    initializationOptions: LSPAny? = nil,
+    capabilities: ClientCapabilities = ClientCapabilities(),
+    options: SourceKitLSPOptions = .testDefault(),
+    testHooks: TestHooks = TestHooks(),
+    enableBackgroundIndexing: Bool = false,
+    usePullDiagnostics: Bool = true,
+    preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
+    cleanUp: (@Sendable () -> Void)? = nil,
+    testName: String = #function
+  ) async throws {
+    scratchDirectory = try testScratchDir(testName: testName)
+    self.fileData = try Self.writeFilesToDisk(files: files, scratchDirectory: scratchDirectory)
 
     self.testClient = try await TestSourceKitLSPClient(
       options: options,

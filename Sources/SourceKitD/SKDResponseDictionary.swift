@@ -42,6 +42,7 @@ package final class SKDResponseDictionary: Sendable {
   package subscript(key: sourcekitd_api_uid_t) -> String? {
     return sourcekitd.api.variant_dictionary_get_string(dict, key).map(String.init(cString:))
   }
+
   package subscript(key: sourcekitd_api_uid_t) -> Int? {
     let value = sourcekitd.api.variant_dictionary_get_value(dict, key)
     if sourcekitd.api.variant_get_type(value) == SOURCEKITD_API_VARIANT_TYPE_INT64 {
@@ -50,6 +51,7 @@ package final class SKDResponseDictionary: Sendable {
       return nil
     }
   }
+
   package subscript(key: sourcekitd_api_uid_t) -> Bool? {
     let value = sourcekitd.api.variant_dictionary_get_value(dict, key)
     if sourcekitd.api.variant_get_type(value) == SOURCEKITD_API_VARIANT_TYPE_BOOL {
@@ -58,9 +60,20 @@ package final class SKDResponseDictionary: Sendable {
       return nil
     }
   }
+
+  public subscript(key: sourcekitd_api_uid_t) -> Double? {
+    let value = sourcekitd.api.variant_dictionary_get_value(dict, key)
+    if sourcekitd.api.variant_get_type(value) == SOURCEKITD_API_VARIANT_TYPE_DOUBLE {
+      return sourcekitd.api.variant_double_get_value!(value)
+    } else {
+      return nil
+    }
+  }
+
   package subscript(key: sourcekitd_api_uid_t) -> sourcekitd_api_uid_t? {
     return sourcekitd.api.variant_dictionary_get_uid(dict, key)
   }
+
   package subscript(key: sourcekitd_api_uid_t) -> SKDResponseArray? {
     let value = sourcekitd.api.variant_dictionary_get_value(dict, key)
     if sourcekitd.api.variant_get_type(value) == SOURCEKITD_API_VARIANT_TYPE_ARRAY {

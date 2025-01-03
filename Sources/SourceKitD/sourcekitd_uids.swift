@@ -117,6 +117,10 @@ package struct sourcekitd_api_keys {
   package let numBytesToErase: sourcekitd_api_uid_t
   /// `key.not_recommended`
   package let notRecommended: sourcekitd_api_uid_t
+  /// `key.declarations`
+  package let declarations: sourcekitd_api_uid_t
+  /// `key.enabledeclarations`
+  package let enableDeclarations: sourcekitd_api_uid_t
   /// `key.annotations`
   package let annotations: sourcekitd_api_uid_t
   /// `key.semantic_tokens`
@@ -463,6 +467,54 @@ package struct sourcekitd_api_keys {
   package let annotatedDescription: sourcekitd_api_uid_t
   /// `key.codecomplete.includeobjectliterals`
   package let includeObjectLiterals: sourcekitd_api_uid_t
+  /// `key.codecomplete.use_new_api`
+  package let useNewAPI: sourcekitd_api_uid_t
+  /// `key.codecomplete.addcallwithnodefaultargs`
+  package let addCallWithNoDefaultArgs: sourcekitd_api_uid_t
+  /// `key.codecomplete.include_semantic_components`
+  package let includeSemanticComponents: sourcekitd_api_uid_t
+  /// `key.codecomplete.use_xpc_serialization`
+  package let useXPCSerialization: sourcekitd_api_uid_t
+  /// `key.codecomplete.maxresults`
+  package let maxResults: sourcekitd_api_uid_t
+  /// `key.annotated.typename`
+  package let annotatedTypeName: sourcekitd_api_uid_t
+  /// `key.priority_bucket`
+  package let priorityBucket: sourcekitd_api_uid_t
+  /// `key.identifier`
+  package let identifier: sourcekitd_api_uid_t
+  /// `key.text_match_score`
+  package let textMatchScore: sourcekitd_api_uid_t
+  /// `key.semantic_score`
+  package let semanticScore: sourcekitd_api_uid_t
+  /// `key.semantic_score_components`
+  package let semanticScoreComponents: sourcekitd_api_uid_t
+  /// `key.symbol_popularity`
+  package let symbolPopularity: sourcekitd_api_uid_t
+  /// `key.module_popularity`
+  package let modulePopularity: sourcekitd_api_uid_t
+  /// `key.popularity.key`
+  package let popularityKey: sourcekitd_api_uid_t
+  /// `key.popularity.value.int.billion`
+  package let popularityValueIntBillion: sourcekitd_api_uid_t
+  /// `key.recent_completions`
+  package let recentCompletions: sourcekitd_api_uid_t
+  /// `key.unfiltered_result_count`
+  package let unfilteredResultCount: sourcekitd_api_uid_t
+  /// `key.member_access_types`
+  package let memberAccessTypes: sourcekitd_api_uid_t
+  /// `key.has_diagnostic`
+  package let hasDiagnostic: sourcekitd_api_uid_t
+  /// `key.group_id`
+  package let groupId: sourcekitd_api_uid_t
+  /// `key.scoped_popularity_table_path`
+  package let scopedPopularityTablePath: sourcekitd_api_uid_t
+  /// `key.popular_modules`
+  package let popularModules: sourcekitd_api_uid_t
+  /// `key.notorious_modules`
+  package let notoriousModules: sourcekitd_api_uid_t
+  /// `key.codecomplete.setpopularapi_used_score_components`
+  package let usedScoreComponents: sourcekitd_api_uid_t
   /// `key.editor.format.usetabs`
   package let useTabs: sourcekitd_api_uid_t
   /// `key.editor.format.indentwidth`
@@ -522,6 +574,8 @@ package struct sourcekitd_api_keys {
     moduleImportDepth = api.uid_get_from_cstr("key.moduleimportdepth")!
     numBytesToErase = api.uid_get_from_cstr("key.num_bytes_to_erase")!
     notRecommended = api.uid_get_from_cstr("key.not_recommended")!
+    declarations = api.uid_get_from_cstr("key.declarations")!
+    enableDeclarations = api.uid_get_from_cstr("key.enabledeclarations")!
     annotations = api.uid_get_from_cstr("key.annotations")!
     semanticTokens = api.uid_get_from_cstr("key.semantic_tokens")!
     diagnosticStage = api.uid_get_from_cstr("key.diagnostic_stage")!
@@ -695,6 +749,30 @@ package struct sourcekitd_api_keys {
     popularityBonus = api.uid_get_from_cstr("key.codecomplete.sort.popularitybonus")!
     annotatedDescription = api.uid_get_from_cstr("key.codecomplete.annotateddescription")!
     includeObjectLiterals = api.uid_get_from_cstr("key.codecomplete.includeobjectliterals")!
+    useNewAPI = api.uid_get_from_cstr("key.codecomplete.use_new_api")!
+    addCallWithNoDefaultArgs = api.uid_get_from_cstr("key.codecomplete.addcallwithnodefaultargs")!
+    includeSemanticComponents = api.uid_get_from_cstr("key.codecomplete.include_semantic_components")!
+    useXPCSerialization = api.uid_get_from_cstr("key.codecomplete.use_xpc_serialization")!
+    maxResults = api.uid_get_from_cstr("key.codecomplete.maxresults")!
+    annotatedTypeName = api.uid_get_from_cstr("key.annotated.typename")!
+    priorityBucket = api.uid_get_from_cstr("key.priority_bucket")!
+    identifier = api.uid_get_from_cstr("key.identifier")!
+    textMatchScore = api.uid_get_from_cstr("key.text_match_score")!
+    semanticScore = api.uid_get_from_cstr("key.semantic_score")!
+    semanticScoreComponents = api.uid_get_from_cstr("key.semantic_score_components")!
+    symbolPopularity = api.uid_get_from_cstr("key.symbol_popularity")!
+    modulePopularity = api.uid_get_from_cstr("key.module_popularity")!
+    popularityKey = api.uid_get_from_cstr("key.popularity.key")!
+    popularityValueIntBillion = api.uid_get_from_cstr("key.popularity.value.int.billion")!
+    recentCompletions = api.uid_get_from_cstr("key.recent_completions")!
+    unfilteredResultCount = api.uid_get_from_cstr("key.unfiltered_result_count")!
+    memberAccessTypes = api.uid_get_from_cstr("key.member_access_types")!
+    hasDiagnostic = api.uid_get_from_cstr("key.has_diagnostic")!
+    groupId = api.uid_get_from_cstr("key.group_id")!
+    scopedPopularityTablePath = api.uid_get_from_cstr("key.scoped_popularity_table_path")!
+    popularModules = api.uid_get_from_cstr("key.popular_modules")!
+    notoriousModules = api.uid_get_from_cstr("key.notorious_modules")!
+    usedScoreComponents = api.uid_get_from_cstr("key.codecomplete.setpopularapi_used_score_components")!
     useTabs = api.uid_get_from_cstr("key.editor.format.usetabs")!
     indentWidth = api.uid_get_from_cstr("key.editor.format.indentwidth")!
     tabWidth = api.uid_get_from_cstr("key.editor.format.tabwidth")!
@@ -809,6 +887,10 @@ package struct sourcekitd_api_requests {
   package let syntacticMacroExpansion: sourcekitd_api_uid_t
   /// `source.request.index_to_store`
   package let indexToStore: sourcekitd_api_uid_t
+  /// `source.request.codecomplete.documentation`
+  package let codeCompleteDocumentation: sourcekitd_api_uid_t
+  /// `source.request.codecomplete.diagnostic`
+  package let codeCompleteDiagnostic: sourcekitd_api_uid_t
 
   package init(api: sourcekitd_api_functions_t) {
     protocolVersion = api.uid_get_from_cstr("source.request.protocol_version")!
@@ -864,6 +946,8 @@ package struct sourcekitd_api_requests {
     enableRequestBarriers = api.uid_get_from_cstr("source.request.enable_request_barriers")!
     syntacticMacroExpansion = api.uid_get_from_cstr("source.request.syntactic_macro_expansion")!
     indexToStore = api.uid_get_from_cstr("source.request.index_to_store")!
+    codeCompleteDocumentation = api.uid_get_from_cstr("source.request.codecomplete.documentation")!
+    codeCompleteDiagnostic = api.uid_get_from_cstr("source.request.codecomplete.diagnostic")!
   }
 }
 
@@ -1248,6 +1332,8 @@ package struct sourcekitd_api_values {
   package let semaEnabledNotification: sourcekitd_api_uid_t
   /// `source.notification.editor.documentupdate`
   package let documentUpdateNotification: sourcekitd_api_uid_t
+  /// `source.diagnostic.severity.remark`
+  package let diagRemark: sourcekitd_api_uid_t
 
   package init(api: sourcekitd_api_functions_t) {
     declFunctionFree = api.uid_get_from_cstr("source.lang.swift.decl.function.free")!
@@ -1440,5 +1526,6 @@ package struct sourcekitd_api_values {
     semaDisabledNotification = api.uid_get_from_cstr("source.notification.sema_disabled")!
     semaEnabledNotification = api.uid_get_from_cstr("source.notification.sema_enabled")!
     documentUpdateNotification = api.uid_get_from_cstr("source.notification.editor.documentupdate")!
+    diagRemark = api.uid_get_from_cstr("source.diagnostic.severity.remark")!
   }
 }

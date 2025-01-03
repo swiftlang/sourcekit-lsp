@@ -34,6 +34,10 @@ package final class DLHandle: Sendable {
     #endif
   }
 
+  #if !os(Windows)
+  package static let rtldDefault = DLHandle(rawValue: Handle(handle: UnsafeMutableRawPointer(bitPattern: -2)!))
+  #endif
+
   fileprivate let rawValue: ThreadSafeBox<Handle?>
 
   fileprivate init(rawValue: Handle) {
