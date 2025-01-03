@@ -226,6 +226,22 @@ struct SourceKitLSP: AsyncParsableCommand {
     return options
   }
 
+  /// Create a new file that can be used to use as an input or output mirror file and return a file handle that can be
+  /// used to write to that file.
+  private func createMirrorFile(in directory: URL) throws -> FileHandle {
+    let dateFormatter = ISO8601DateFormatter()
+    dateFormatter.timeZone = NSTimeZone.local
+    let date = dateFormatter.string(from: Date()).replacingOccurrences(of: ":", with: "-")
+
+    let inputMirrorURL = directory.appendingPathComponent("\(date).log")
+
+    logger.log("Mirroring input to \(inputMirrorURL)")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    FileManager.default.createFile(atPath: try inputMirrorURL.filePath, contents: nil)
+
+    return try FileHandle(forWritingTo: inputMirrorURL)
+  }
+
   func run() async throws {
     // Dup stdout and redirect the fd to stderr so that a careless print()
     // will not break our connection stream.
@@ -262,34 +278,32 @@ struct SourceKitLSP: AsyncParsableCommand {
     )
     cleanOldLogFiles(logFileDirectory: logFileDirectoryURL, maxAge: 60 * 60 /* 1h */)
 
+    let inputMirror = orLog("Setting up input mirror") {
+      if let inputMirrorDirectory = globalConfigurationOptions.loggingOrDefault.inputMirrorDirectory {
+        return try createMirrorFile(in: URL(fileURLWithPath: inputMirrorDirectory))
+      }
+      return nil
+    }
+
+    let outputMirror = orLog("Setting up output mirror") {
+      if let outputMirrorDirectory = globalConfigurationOptions.loggingOrDefault.outputMirrorDirectory {
+        return try createMirrorFile(in: URL(fileURLWithPath: outputMirrorDirectory))
+      }
+      return nil
+    }
+
     let clientConnection = JSONRPCConnection(
       name: "client",
       protocol: MessageRegistry.lspProtocol,
       inFD: FileHandle.standardInput,
-      outFD: realStdoutHandle
+      outFD: realStdoutHandle,
+      inputMirrorFile: inputMirror,
+      outputMirrorFile: outputMirror
     )
 
     // For reasons that are completely oblivious to me, `DispatchIO.write`, which is used to write LSP responses to
     // stdout fails with error code 5 on Windows unless we call `AbsolutePath(validating:)` on some URL first.
     _ = try AbsolutePath(validating: Bundle.main.bundlePath)
-
-    var inputMirror: FileHandle? = nil
-    if let inputMirrorDirectory = globalConfigurationOptions.loggingOrDefault.inputMirrorDirectory {
-      orLog("Setting up input mirror") {
-        let dateFormatter = ISO8601DateFormatter()
-        dateFormatter.timeZone = NSTimeZone.local
-        let date = dateFormatter.string(from: Date()).replacingOccurrences(of: ":", with: "-")
-
-        let inputMirrorDirectory = URL(fileURLWithPath: inputMirrorDirectory)
-        let inputMirrorURL = inputMirrorDirectory.appendingPathComponent("\(date).log")
-
-        logger.log("Mirroring input to \(inputMirrorURL)")
-        try FileManager.default.createDirectory(at: inputMirrorDirectory, withIntermediateDirectories: true)
-        FileManager.default.createFile(atPath: try inputMirrorURL.filePath, contents: nil)
-
-        inputMirror = try FileHandle(forWritingTo: inputMirrorURL)
-      }
-    }
 
     let server = SourceKitLSPServer(
       client: clientConnection,
@@ -302,7 +316,6 @@ struct SourceKitLSP: AsyncParsableCommand {
     )
     clientConnection.start(
       receiveHandler: server,
-      mirrorFile: inputMirror,
       closeHandler: {
         await server.prepareForExit()
         // Use _Exit to avoid running static destructors due to https://github.com/swiftlang/swift/issues/55112.

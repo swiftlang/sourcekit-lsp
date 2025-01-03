@@ -173,6 +173,11 @@
           "markdownDescription" : "The level from which one onwards log messages should be written.",
           "type" : "string"
         },
+        "outputMirrorDirectory" : {
+          "description" : "Write all data sent from SourceKit-LSP to the client to a file in this directory. Useful to record the raw communication between SourceKit-LSP and the client on a low level.",
+          "markdownDescription" : "Write all data sent from SourceKit-LSP to the client to a file in this directory. Useful to record the raw communication between SourceKit-LSP and the client on a low level.",
+          "type" : "string"
+        },
         "privacyLevel" : {
           "description" : "Whether potentially sensitive information should be redacted. Default is `public`, which redacts potentially sensitive information.",
           "enum" : [

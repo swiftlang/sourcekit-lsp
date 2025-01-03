@@ -223,21 +223,29 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     /// Useful to record and replay an entire SourceKit-LSP session.
     public var inputMirrorDirectory: String?
 
+    /// Write all data sent from SourceKit-LSP to the client to a file in this directory.
+    ///
+    /// Useful to record the raw communication between SourceKit-LSP and the client on a low level.
+    public var outputMirrorDirectory: String?
+
     public init(
       level: String? = nil,
       privacyLevel: String? = nil,
-      inputMirrorDirectory: String? = nil
+      inputMirrorDirectory: String? = nil,
+      outputMirrorDirectory: String? = nil
     ) {
       self.level = level
       self.privacyLevel = privacyLevel
       self.inputMirrorDirectory = inputMirrorDirectory
+      self.outputMirrorDirectory = outputMirrorDirectory
     }
 
     static func merging(base: LoggingOptions, override: LoggingOptions?) -> LoggingOptions {
       return LoggingOptions(
         level: override?.level ?? base.level,
         privacyLevel: override?.privacyLevel ?? base.privacyLevel,
-        inputMirrorDirectory: override?.inputMirrorDirectory ?? base.inputMirrorDirectory
+        inputMirrorDirectory: override?.inputMirrorDirectory ?? base.inputMirrorDirectory,
+        outputMirrorDirectory: override?.outputMirrorDirectory ?? base.outputMirrorDirectory
       )
     }
   }
