@@ -2395,48 +2395,11 @@ private let maxWorkspaceSymbolResults = 4096
 package typealias Diagnostic = LanguageServerProtocol.Diagnostic
 
 fileprivate extension CheckedIndex {
-  func containerNames(of symbol: SymbolOccurrence) -> [String] {
-    // The container name of accessors is the container of the surrounding variable.
-    let accessorOf = symbol.relations.filter { $0.roles.contains(.accessorOf) }
-    if let primaryVariable = accessorOf.sorted().first {
-      if accessorOf.count > 1 {
-        logger.fault("Expected an occurrence to an accessor of at most one symbol, not multiple")
-      }
-      if let primaryVariable = primaryDefinitionOrDeclarationOccurrence(ofUSR: primaryVariable.symbol.usr) {
-        return containerNames(of: primaryVariable)
-      }
-    }
-
-    let containers = symbol.relations.filter { $0.roles.contains(.childOf) }
-    if containers.count > 1 {
-      logger.fault("Expected an occurrence to a child of at most one symbol, not multiple")
-    }
-    let container = containers.filter {
-      switch $0.symbol.kind {
-      case .module, .namespace, .enum, .struct, .class, .protocol, .extension, .union:
-        return true
-      case .unknown, .namespaceAlias, .macro, .typealias, .function, .variable, .field, .enumConstant,
-        .instanceMethod, .classMethod, .staticMethod, .instanceProperty, .classProperty, .staticProperty, .constructor,
-        .destructor, .conversionFunction, .parameter, .using, .concept, .commentTag:
-        return false
-      }
-    }.sorted().first
-
-    if let container {
-      if let containerDefinition = primaryDefinitionOrDeclarationOccurrence(ofUSR: container.symbol.usr) {
-        return self.containerNames(of: containerDefinition) + [container.symbol.name]
-      }
-      return [container.symbol.name]
-    } else {
-      return []
-    }
-  }
-
   /// Take the name of containers into account to form a fully-qualified name for the given symbol.
   /// This means that we will form names of nested types and type-qualify methods.
   func fullyQualifiedName(of symbolOccurrence: SymbolOccurrence) -> String {
     let symbol = symbolOccurrence.symbol
-    let containerNames = containerNames(of: symbolOccurrence)
+    let containerNames = self.containerNames(of: symbolOccurrence)
     guard let containerName = containerNames.last else {
       // No containers, so nothing to do.
       return symbol.name
