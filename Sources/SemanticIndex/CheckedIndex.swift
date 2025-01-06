@@ -268,7 +268,18 @@ package final class CheckedIndex {
       containerSymbol = extendedSymbol
     }
     let result: [String]
-    if let containerDefinition = primaryDefinitionOrDeclarationOccurrence(ofUSR: containerSymbol.usr) {
+
+    // Use `forEachSymbolOccurrence` instead of `primaryDefinitionOrDeclarationOccurrence` to get a symbol occurrence
+    // for the container because it can be significantly faster: Eg. when searching for a C++ namespace (such as `llvm`),
+    // it may be declared in many files. Finding the canonical definition means that we would need to scan through all
+    // of these files. But we expect all all of these declarations to have the same parent container names and we don't
+    // care about locations here.
+    var containerDefinition: SymbolOccurrence?
+    forEachSymbolOccurrence(byUSR: containerSymbol.usr, roles: [.definition, .declaration]) { occurrence in
+      containerDefinition = occurrence
+      return false  // stop iteration
+    }
+    if let containerDefinition {
       result = self.containerNames(of: containerDefinition) + [containerSymbol.name]
     } else {
       result = [containerSymbol.name]
