@@ -60,8 +60,7 @@ package final class CheckedIndex {
   private var checker: IndexOutOfDateChecker
   private let index: IndexStoreDB
 
-  /// Maps the USR of a symbol’s container the name of that container as well as the name of all containers the
-  /// container might itself be contained in.
+  /// Maps the USR of a symbol to its name and the name of all its containers, from outermost to innermost.
   ///
   /// It is important that we cache this because we might find a lot of symbols in the same container for eg. workspace
   /// symbols (eg. consider many symbols in the same C++ namespace). If we didn't cache this value, then we would need
@@ -256,21 +255,26 @@ package final class CheckedIndex {
       }
     }.sorted().first
 
-    if let container {
-      if let cached = containerNamesCache[container.symbol.usr] {
-        return cached
-      }
-      let result: [String]
-      if let containerDefinition = primaryDefinitionOrDeclarationOccurrence(ofUSR: container.symbol.usr) {
-        result = self.containerNames(of: containerDefinition) + [container.symbol.name]
-      } else {
-        result = [container.symbol.name]
-      }
-      containerNamesCache[container.symbol.usr] = result
-      return result
-    } else {
+    guard var containerSymbol = container?.symbol else {
       return []
     }
+    if let cached = containerNamesCache[containerSymbol.usr] {
+      return cached
+    }
+
+    if containerSymbol.kind == .extension,
+      let extendedSymbol = self.occurrences(relatedToUSR: containerSymbol.usr, roles: .extendedBy).first?.symbol
+    {
+      containerSymbol = extendedSymbol
+    }
+    let result: [String]
+    if let containerDefinition = primaryDefinitionOrDeclarationOccurrence(ofUSR: containerSymbol.usr) {
+      result = self.containerNames(of: containerDefinition) + [containerSymbol.name]
+    } else {
+      result = [containerSymbol.name]
+    }
+    containerNamesCache[containerSymbol.usr] = result
+    return result
   }
 }
 
