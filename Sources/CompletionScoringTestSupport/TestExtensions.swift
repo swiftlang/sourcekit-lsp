@@ -127,14 +127,6 @@ extension XCTestCase {
     }
   }
 
-  private var testName: String? {
-    self.invocation?.selector.description.dropPrefix("test").dropSuffix("AndReturnError:")
-  }
-
-  private var testDisplayName: String {
-    return testName ?? "(Unnamed Test)"
-  }
-
   func tryOrFailTest<R>(_ expression: @autoclosure () throws -> R?, message: String) -> R? {
     do {
       return try expression()
@@ -147,7 +139,7 @@ extension XCTestCase {
   /// Run `body()` `iterations`, gathering timing stats, and print them.
   /// In between runs, coax for the machine into an arbitrary but consistent thermal state by either sleeping or doing
   /// pointless work so that results are more comparable run to run, no matter else is happening on the machine.
-  package func gaugeTiming(iterations: Int = 1, _ body: () -> ()) {
+  package func gaugeTiming(iterations: Int = 1, testName: String = #function, _ body: () -> ()) {
     let logFD = tryOrFailTest(try Self.openPerformanceLog(), message: "Failed to open performance log")
     var timings = Timings()
     for iteration in 0..<iterations {
@@ -173,7 +165,7 @@ extension XCTestCase {
         confidence:±\(confidencePercentOfAverage.format("%0.2f"))% \
         thermal: \(thermalLevel)
         """
-      let logMessage = "\(testDisplayName),\(duration.format("%0.4f")),\(thermalLevel)"
+      let logMessage = "\(testName.prefix(while: \.isLetter)),\(duration.format("%0.4f")),\(thermalLevel)"
       print(consoleMessage)
       tryOrFailTest(try logFD?.print(logMessage), message: "Failed to write to log")
     }
