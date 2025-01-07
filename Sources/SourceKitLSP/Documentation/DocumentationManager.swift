@@ -247,10 +247,12 @@ fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
     return .skipChildren
   }
 
-  override func visit(_ node: EnumCaseElementSyntax) -> SyntaxVisitorContinueKind {
-    let symbolPosition = node.name.positionAfterSkippingLeadingTrivia
-    if node.range.contains(cursorPosition) || cursorPosition < symbolPosition {
-      setResult(node: node, position: symbolPosition)
+  override func visit(_ node: EnumCaseDeclSyntax) -> SyntaxVisitorContinueKind {
+    for element in node.elements {
+      let symbolPosition = element.name.positionAfterSkippingLeadingTrivia
+      if element.range.contains(cursorPosition) || cursorPosition < symbolPosition {
+        setResult(node: node, position: symbolPosition)
+      }
     }
     return .skipChildren
   }

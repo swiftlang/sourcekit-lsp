@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #if canImport(SwiftDocC)
+import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SKTestSupport
@@ -216,6 +217,53 @@ final class ConvertDocumentationTests: XCTestCase {
         .renderNode(kind: .symbol, path: "test/Enum/third(_:)"),
         .error(.noDocumentation),
       ]
+    )
+  }
+
+  func testEditDocLineCommentAboveEnumCaseElement() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      /// An enumeration containing important information.
+      public enum Enum {
+        /// The first case.
+        case first
+
+        /// The 0️⃣second case.
+        case second
+
+        // The third case.
+        case third(Int)
+      }
+      """,
+      uri: uri
+    )
+
+    // Make sure that the initial documentation comment is present in the response
+    await convertDocumentation(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      expectedResponses: [.renderNode(kind: .symbol, containing: "The second case")]
+    )
+
+    // Change the content of the documentation comment
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
+        contentChanges: [
+          TextDocumentContentChangeEvent(range: positions["0️⃣"]..<positions["0️⃣"], text: "very ")
+        ]
+      )
+    )
+
+    // Make sure that the new documentation comment is present in the response
+    await convertDocumentation(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      expectedResponses: [.renderNode(kind: .symbol, containing: "The very second case")]
     )
   }
 
