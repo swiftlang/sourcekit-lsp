@@ -11,8 +11,19 @@
 //===----------------------------------------------------------------------===//
 
 import Csourcekitd
-import Darwin
 import SourceKitD
+
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#elseif canImport(CRT)
+import CRT
+#elseif canImport(Bionic)
+import Bionic
+#endif
 
 final class SKDResponse: CustomStringConvertible, Sendable {
   enum ErrorKind {
