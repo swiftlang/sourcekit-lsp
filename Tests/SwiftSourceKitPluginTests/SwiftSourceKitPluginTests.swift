@@ -993,6 +993,9 @@ final class SwiftSourceKitPluginTests: XCTestCase {
 
   // rdar://104381080 (NSImage(imageLiteralResourceName:) was my top completion — this seems odd)
   func testPopularityForTypeFromSubmodule() async throws {
+    #if !os(macOS)
+    try XCTSkipIf(true, "AppKit is only defined on macOS")
+    #endif
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -1507,6 +1510,9 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testCompletionDiagnostics() async throws {
+    #if !os(macOS)
+    try XCTSkipIf(true, "Soft deprecation is only defined for macOS in this test case")
+    #endif
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
