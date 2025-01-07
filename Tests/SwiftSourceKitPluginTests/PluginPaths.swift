@@ -82,8 +82,15 @@ private func pluginPaths(relativeTo base: URL) -> PluginPaths? {
 
   // When building using 'swift test'
   do {
-    let clientPlugin = base.appendingPathComponent("libSwiftSourceKitClientPlugin.dylib")
-    let servicePlugin = base.appendingPathComponent("libSwiftSourceKitPlugin.dylib")
+    #if canImport(Darwin)
+    let dylibExtension = "dylib"
+    #elseif os(Windows)
+    let dylibExtension = "dll"
+    #else
+    let dylibExtension = "so"
+    #endif
+    let clientPlugin = base.appendingPathComponent("libSwiftSourceKitClientPlugin.\(dylibExtension)")
+    let servicePlugin = base.appendingPathComponent("libSwiftSourceKitPlugin.\(dylibExtension)")
     if fileExists(at: clientPlugin) && fileExists(at: servicePlugin) {
       return PluginPaths(clientPlugin: clientPlugin, servicePlugin: servicePlugin)
     }
