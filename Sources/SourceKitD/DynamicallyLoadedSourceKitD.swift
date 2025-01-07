@@ -111,18 +111,18 @@ package actor DynamicallyLoadedSourceKitD: SourceKitD {
       )
   }
 
-  private init(dylib path: URL, pluginPaths: PluginPaths?) throws {
+  package init(dylib path: URL, pluginPaths: PluginPaths?, initialize: Bool = true) throws {
     #if os(Windows)
     let dlopenModes: DLOpenFlags = []
     #else
     let dlopenModes: DLOpenFlags = [.lazy, .local, .first]
     #endif
-    let dlhandle = try dlopen(path.filePath, mode: [])
+    let dlhandle = try dlopen(path.filePath, mode: dlopenModes)
     try self.init(
       dlhandle: dlhandle,
       path: path,
       pluginPaths: pluginPaths,
-      initialize: true
+      initialize: initialize
     )
   }
 

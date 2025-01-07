@@ -143,9 +143,42 @@ final class RequestHandler: Sendable {
   }
 }
 
+/// Legacy plugin initialization logic in which sourcekitd does not inform the plugin about the sourcekitd path it was
+/// loaded from.
 @_cdecl("sourcekitd_plugin_initialize")
 public func sourcekitd_plugin_initialize(_ params: sourcekitd_api_plugin_initialize_params_t) {
-  let sourcekitd = DynamicallyLoadedSourceKitD.relativeToPlugin
+  #if canImport(Darwin)
+  var dlInfo = Dl_info()
+  dladdr(#dsohandle, &dlInfo)
+  let path = String(cString: dlInfo.dli_fname)
+  var url = URL(fileURLWithPath: path, isDirectory: false)
+  while url.pathExtension != "framework" && url.lastPathComponent != "/" {
+    url.deleteLastPathComponent()
+  }
+  url =
+    url
+    .deletingLastPathComponent()
+    .appendingPathComponent("sourcekitd.framework")
+    .appendingPathComponent("sourcekitd")
+  try! url.filePath.withCString { sourcekitdPath in
+    sourcekitd_plugin_initialize_2(params, sourcekitdPath)
+  }
+  #else
+  fatalError("sourcekitd_plugin_initialize is not supported on non-Darwin platforms")
+  #endif
+}
+
+@_cdecl("sourcekitd_plugin_initialize_2")
+public func sourcekitd_plugin_initialize_2(
+  _ params: sourcekitd_api_plugin_initialize_params_t,
+  _ sourcekitdPath: UnsafePointer<CChar>
+) {
+  DynamicallyLoadedSourceKitD.forPlugin = try! DynamicallyLoadedSourceKitD(
+    dylib: URL(fileURLWithPath: String(cString: parentLibraryPath)),
+    pluginPaths: nil,
+    initialize: false
+  )
+  let sourcekitd = DynamicallyLoadedSourceKitD.forPlugin
 
   let completionResultsBufferKind = sourcekitd.pluginApi.plugin_initialize_custom_buffer_start(params)
   let isClientOnly = sourcekitd.pluginApi.plugin_initialize_is_client_only(params)
