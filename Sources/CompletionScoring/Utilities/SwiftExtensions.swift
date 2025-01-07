@@ -429,13 +429,17 @@ extension UnsafeBufferPointer {
 
 extension UnsafeBufferPointer<UInt8> {
   package func rangeOf(bytes needle: UnsafeBufferPointer<UInt8>, startOffset: Int = 0) -> Range<Int>? {
-    baseAddress.flatMap { baseAddress in
-      let match = memmem(baseAddress + startOffset, count - startOffset, needle.baseAddress, needle.count)
-      return match.map { match in
-        let start = baseAddress.distance(to: match.assumingMemoryBound(to: UInt8.self))
-        return start ..+ needle.count
-      }
+    guard count > 0, let baseAddress else {
+      return nil
     }
+    guard needle.count > 0, let needleBaseAddress = needle.baseAddress else {
+      return nil
+    }
+    guard let match = memmem(baseAddress + startOffset, count - startOffset, needleBaseAddress, needle.count) else {
+      return nil
+    }
+    let start = baseAddress.distance(to: match.assumingMemoryBound(to: UInt8.self))
+    return start ..+ needle.count
   }
 
   func rangeOf(bytes needle: [UInt8]) -> Range<Int>? {
