@@ -86,6 +86,9 @@ actor CompletionProvider {
 
   private let connection: Connection
 
+  /// See `Connection.cancellationFunc`
+  private nonisolated let cancel: @Sendable (RequestHandle) -> Void
+
   /// The XPC custom buffer kind for `CompletionResultsArray`
   private let completionResultsBufferKind: UInt64
 
@@ -101,17 +104,12 @@ actor CompletionProvider {
       opaqueIDEInspectionInstance: opaqueIDEInspectionInstance?.value,
       sourcekitd: sourcekitd
     )
+    self.cancel = connection.cancellationFunc
     self.completionResultsBufferKind = completionResultsBufferKind
   }
 
   nonisolated func cancel(handle: RequestHandle) {
-    Task {
-      await self.cancelImpl(handle: handle)
-    }
-  }
-
-  private func cancelImpl(handle: RequestHandle) {
-    connection.cancel(handle: handle)
+    self.cancel(handle)
   }
 
   func handleDocumentOpen(_ request: SKDRequestDictionaryReader) {

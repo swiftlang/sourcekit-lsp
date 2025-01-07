@@ -113,6 +113,18 @@ final class Connection {
     sourcekitd.ideApi.connection_dispose(impl)
   }
 
+  //// A function that can be called to cancel a request with a request.
+  ///
+  /// This is not a member function on `Connection` so that `CompletionProvider` can store
+  /// this closure in a member and call it even while the `CompletionProvider` actor is busy
+  /// fulfilling a completion request and thus can't access `connection`.
+  var cancellationFunc: @Sendable (RequestHandle) -> Void {
+    nonisolated(unsafe) let impl = self.impl
+    return { [sourcekitd] handle in
+      sourcekitd.ideApi.cancel_request(impl, handle.handle)
+    }
+  }
+
   func openDocument(path: String, contents: String, compilerArguments: [String]? = nil) {
     if documents[path] != nil {
       logger.error("Document at '\(path)' is already open")
@@ -217,10 +229,6 @@ final class Connection {
       response: result,
       options: options
     )
-  }
-
-  func cancel(handle: RequestHandle) {
-    sourcekitd.ideApi.cancel_request(impl, handle.handle)
   }
 
   func markCachedCompilerInstanceShouldBeInvalidated() {
