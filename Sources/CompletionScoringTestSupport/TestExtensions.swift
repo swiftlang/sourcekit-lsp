@@ -65,6 +65,7 @@ extension XCTestCase {
     Thread.sleep(forTimeInterval: 2.0)
   }
 
+  #if canImport(Darwin)
   func induceThermalRange(_ range: ClosedRange<Int>) {
     var temperature: Int
     repeat {
@@ -99,6 +100,7 @@ extension XCTestCase {
       return nil
     }
   }()
+  #endif
 
   private static let measurementsLogFile: String? = {
     UserDefaults.standard.string(forKey: "TestMeasurementLogPath")
@@ -149,10 +151,14 @@ extension XCTestCase {
     let logFD = tryOrFailTest(try Self.openPerformanceLog(), message: "Failed to open performance log")
     var timings = Timings()
     for iteration in 0..<iterations {
+      #if canImport(Darwin)
       if let targetThermalRange = Self.targetThermalRange {
         induceThermalRange(targetThermalRange)
       }
       let thermalLevel = ProcessInfo.processInfo.thermalLevel()
+      #else
+      let thermalLevel = "unknown"
+      #endif
       let duration = duration(of: body)
       let stats = timings.append(duration)
       let confidence = timings.confidenceOfMean_95Percent
@@ -174,6 +180,7 @@ extension XCTestCase {
   }
 }
 
+#if canImport(Darwin)
 extension ProcessInfo {
   func thermalLevel() -> Int {
     var thermalLevel: UInt64 = 0
@@ -182,6 +189,7 @@ extension ProcessInfo {
     return Int(thermalLevel)
   }
 }
+#endif
 
 extension String {
   fileprivate func dropSuffix(_ suffix: String) -> String {
