@@ -10,53 +10,41 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
+#if canImport(PackageModel)
 import Basics
 @preconcurrency import Build
-package import BuildServerProtocol
 import Dispatch
-package import Foundation
-package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 @preconcurrency import PackageGraph
 import PackageLoading
 import PackageModel
 import SKLogging
-package import SKOptions
 @preconcurrency package import SPMBuildCore
 import SourceControl
-package import SourceKitLSPAPI
 import SwiftExtensions
-package import ToolchainRegistry
 import TSCExtensions
 @preconcurrency import Workspace
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
+
+#if compiler(>=6)
+package import BuildServerProtocol
+package import BuildSystemIntegration
+package import Foundation
+package import LanguageServerProtocol
+package import SKOptions
+package import SourceKitLSPAPI
+package import ToolchainRegistry
 package import class ToolchainRegistry.Toolchain
 #else
-import Basics
-@preconcurrency import Build
 import BuildServerProtocol
-import Dispatch
+import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-@preconcurrency import PackageGraph
-import PackageLoading
-import PackageModel
-import SKLogging
 import SKOptions
-@preconcurrency import SPMBuildCore
-import SourceControl
 import SourceKitLSPAPI
-import SwiftExtensions
 import ToolchainRegistry
-import TSCExtensions
-@preconcurrency import Workspace
-
-import struct TSCBasic.AbsolutePath
-import class TSCBasic.Process
 import class ToolchainRegistry.Toolchain
 #endif
 
@@ -78,51 +66,18 @@ fileprivate extension Basics.Diagnostic.Severity {
   }
 }
 
-fileprivate extension BuildDestination {
-  /// A string that can be used to identify the build triple in a `BuildTargetIdentifier`.
-  ///
-  /// `BuildSystemManager.canonicalBuildTargetIdentifier` picks the canonical target based on alphabetical
-  /// ordering. We rely on the string "destination" being ordered before "tools" so that we prefer a
-  /// `destination` (or "target") target over a `tools` (or "host") target.
-  var id: String {
-    switch self {
-    case .host:
-      return "tools"
-    case .target:
-      return "destination"
+extension BuildDestinationIdentifier {
+  init(_ destination: BuildDestination) {
+    switch destination {
+    case .target: self = .target
+    case .host: self = .host
     }
   }
 }
 
 extension BuildTargetIdentifier {
   fileprivate init(_ buildTarget: any SwiftBuildTarget) throws {
-    try self.init(target: buildTarget.name, destination: buildTarget.destination)
-  }
-
-  /// - Important: *For testing only*
-  package init(target: String, destination: BuildDestination) throws {
-    var components = URLComponents()
-    components.scheme = "swiftpm"
-    components.host = "target"
-    components.queryItems = [
-      URLQueryItem(name: "target", value: target),
-      URLQueryItem(name: "destination", value: destination.id),
-    ]
-
-    struct FailedToConvertSwiftBuildTargetToUrlError: Swift.Error, CustomStringConvertible {
-      var target: String
-      var destination: String
-
-      var description: String {
-        return "Failed to generate URL for target: \(target), destination: \(destination)"
-      }
-    }
-
-    guard let url = components.url else {
-      throw FailedToConvertSwiftBuildTargetToUrlError(target: target, destination: destination.id)
-    }
-
-    self.init(uri: URI(url))
+    try self.init(target: buildTarget.name, destination: BuildDestinationIdentifier(buildTarget.destination))
   }
 
   fileprivate static let forPackageManifest = BuildTargetIdentifier(uri: try! URI(string: "swiftpm://package-manifest"))
@@ -158,19 +113,6 @@ fileprivate extension TSCBasic.AbsolutePath {
 }
 
 fileprivate let preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
-
-package struct SwiftPMTestHooks: Sendable {
-  package var reloadPackageDidStart: (@Sendable () async -> Void)?
-  package var reloadPackageDidFinish: (@Sendable () async -> Void)?
-
-  package init(
-    reloadPackageDidStart: (@Sendable () async -> Void)? = nil,
-    reloadPackageDidFinish: (@Sendable () async -> Void)? = nil
-  ) {
-    self.reloadPackageDidStart = reloadPackageDidStart
-    self.reloadPackageDidFinish = reloadPackageDidFinish
-  }
-}
 
 /// Swift Package Manager build system and workspace support.
 ///
@@ -793,3 +735,5 @@ fileprivate extension URL {
     (try? resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
   }
 }
+
+#endif

@@ -80,10 +80,12 @@ var targets: [Target] = [
       "SwiftExtensions",
       "ToolchainRegistry",
       "TSCExtensions",
-      .product(name: "SwiftPM-auto", package: "swift-package-manager"),
-      .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-    ],
+    ]
+      + swiftPMDependency([
+        .product(name: "SwiftPM-auto", package: "swift-package-manager"),
+        .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
+      ]),
     exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
   ),
@@ -387,8 +389,10 @@ var targets: [Target] = [
       .product(name: "IndexStoreDB", package: "indexstore-db"),
       .product(name: "Crypto", package: "swift-crypto"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-      .product(name: "SwiftPM-auto", package: "swift-package-manager"),
     ]
+      + swiftPMDependency([
+        .product(name: "SwiftPM-auto", package: "swift-package-manager")
+      ])
       + swiftSyntaxDependencies([
         "SwiftBasicFormat", "SwiftDiagnostics", "SwiftIDEUtils", "SwiftParser", "SwiftParserDiagnostics",
         "SwiftRefactor", "SwiftSyntax",
@@ -449,8 +453,6 @@ var targets: [Target] = [
       "SKUtilities",
       "SwiftExtensions",
       "TSCExtensions",
-      .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
-      .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ],
     exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
@@ -461,8 +463,6 @@ var targets: [Target] = [
     dependencies: [
       "SKTestSupport",
       "ToolchainRegistry",
-      .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
-      .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ],
     swiftSettings: globalSwiftSettings
   ),
@@ -524,6 +524,13 @@ func swiftSyntaxDependencies(_ names: [String]) -> [Target.Dependency] {
   }
 }
 
+func swiftPMDependency<T>(_ values: [T]) -> [T] {
+  if noSwiftPMDependency {
+    return []
+  }
+  return values
+}
+
 // MARK: - Parse build arguments
 
 func hasEnvironmentVariable(_ name: String) -> Bool {
@@ -558,6 +565,9 @@ var buildDynamicSwiftSyntaxLibrary: Bool { hasEnvironmentVariable("SWIFTSYNTAX_B
 /// the `swift test` invocation so that all pre-built modules can be found.
 var buildOnlyTests: Bool { hasEnvironmentVariable("SOURCEKIT_LSP_BUILD_ONLY_TESTS") }
 
+/// Build SourceKit-LSP without a dependency on SwiftPM, ie. without support for SwiftPM projects.
+var noSwiftPMDependency: Bool { hasEnvironmentVariable("SOURCEKIT_LSP_NO_SWIFTPM_DEPENDENCY") }
+
 // MARK: - Dependencies
 
 // When building with the swift build-script, use local dependencies whose contents are controlled
@@ -570,18 +580,16 @@ var dependencies: [Package.Dependency] {
   } else if useLocalDependencies {
     return [
       .package(path: "../indexstore-db"),
-      .package(name: "swift-package-manager", path: "../swiftpm"),
       .package(path: "../swift-tools-support-core"),
       .package(path: "../swift-argument-parser"),
       .package(path: "../swift-syntax"),
       .package(path: "../swift-crypto"),
-    ]
+    ] + swiftPMDependency([.package(name: "swift-package-manager", path: "../swiftpm")])
   } else {
     let relatedDependenciesBranch = "main"
 
     return [
       .package(url: "https://github.com/swiftlang/indexstore-db.git", branch: relatedDependenciesBranch),
-      .package(url: "https://github.com/swiftlang/swift-package-manager.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/apple/swift-tools-support-core.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.4.0"),
       .package(url: "https://github.com/swiftlang/swift-syntax.git", branch: relatedDependenciesBranch),
@@ -589,6 +597,9 @@ var dependencies: [Package.Dependency] {
       // Not a build dependency. Used so the "Format Source Code" command plugin can be used to format sourcekit-lsp
       .package(url: "https://github.com/swiftlang/swift-format.git", branch: relatedDependenciesBranch),
     ]
+      + swiftPMDependency([
+        .package(url: "https://github.com/swiftlang/swift-package-manager.git", branch: relatedDependenciesBranch)
+      ])
   }
 }
 

@@ -59,9 +59,13 @@ package func determineBuildSystem(
         return BuildSystemSpec(kind: .compilationDatabase, projectRoot: projectRoot)
       }
     case .swiftPM:
+      #if canImport(PackageModel)
       if let projectRoot = SwiftPMBuildSystem.projectRoot(for: workspaceFolderUrl, options: options) {
         return BuildSystemSpec(kind: .swiftPM, projectRoot: projectRoot)
       }
+      #else
+      return nil
+      #endif
     }
   }
 

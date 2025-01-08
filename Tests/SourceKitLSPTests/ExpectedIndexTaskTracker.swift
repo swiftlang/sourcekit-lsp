@@ -15,8 +15,54 @@ import BuildSystemIntegration
 import LanguageServerProtocol
 import SKLogging
 import SemanticIndex
-import SourceKitLSPAPI
 import XCTest
+
+enum BuildDestination {
+  case host
+  case target
+
+  /// A string that can be used to identify the build triple in a `BuildTargetIdentifier`.
+  ///
+  /// `BuildSystemManager.canonicalBuildTargetIdentifier` picks the canonical target based on alphabetical
+  /// ordering. We rely on the string "destination" being ordered before "tools" so that we prefer a
+  /// `destination` (or "target") target over a `tools` (or "host") target.
+  var id: String {
+    switch self {
+    case .host:
+      return "tools"
+    case .target:
+      return "destination"
+    }
+  }
+}
+
+extension BuildTargetIdentifier {
+  /// - Important: *For testing only*
+  init(target: String, destination: BuildDestination) throws {
+    var components = URLComponents()
+    components.scheme = "swiftpm"
+    components.host = "target"
+    components.queryItems = [
+      URLQueryItem(name: "target", value: target),
+      URLQueryItem(name: "destination", value: destination.id),
+    ]
+
+    struct FailedToConvertSwiftBuildTargetToUrlError: Swift.Error, CustomStringConvertible {
+      var target: String
+      var destination: String
+
+      var description: String {
+        return "Failed to generate URL for target: \(target), destination: \(destination)"
+      }
+    }
+
+    guard let url = components.url else {
+      throw FailedToConvertSwiftBuildTargetToUrlError(target: target, destination: destination.id)
+    }
+
+    self.init(uri: URI(url))
+  }
+}
 
 struct ExpectedPreparation {
   let target: BuildTargetIdentifier
