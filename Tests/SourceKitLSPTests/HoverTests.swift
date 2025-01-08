@@ -33,8 +33,7 @@ final class HoverTests: XCTestCase {
 
         Details.
         """,
-      expectedRange:
-        .init(line: 3, utf16index: 7) ..< .init(line: 3, utf16index: 9)
+      expectedRange: Position(line: 3, utf16index: 7)..<Position(line: 3, utf16index: 9)
     )
   }
 
@@ -118,8 +117,7 @@ final class HoverTests: XCTestCase {
 
         The initializer
         """,
-      expectedRange:
-        .init(line: 5, utf16index: 4) ..< .init(line: 5, utf16index: 7)
+      expectedRange: Position(line: 5, utf16index: 4)..<Position(line: 5, utf16index: 7)
     )
   }
 
@@ -137,8 +135,7 @@ final class HoverTests: XCTestCase {
 
         this is **bold** documentation
         """##,
-      expectedRange:
-        .init(line: 1, utf16index: 5) ..< .init(line: 1, utf16index: 9)
+      expectedRange: Position(line: 1, utf16index: 5)..<Position(line: 1, utf16index: 9)
     )
   }
 
@@ -156,8 +153,7 @@ final class HoverTests: XCTestCase {
 
         this is *italic* documentation
         """##,
-      expectedRange:
-        .init(line: 1, utf16index: 5) ..< .init(line: 1, utf16index: 8)
+      expectedRange: Position(line: 1, utf16index: 5)..<Position(line: 1, utf16index: 8)
     )
   }
 
@@ -179,8 +175,7 @@ final class HoverTests: XCTestCase {
 
         - Precondition: Must have an apple
         """,
-      expectedRange:
-        .init(line: 3, utf16index: 5) ..< .init(line: 3, utf16index: 13)
+      expectedRange: Position(line: 3, utf16index: 5)..<Position(line: 3, utf16index: 13)
     )
   }
 }
@@ -203,12 +198,10 @@ private func assertHover(
 
   let hover = try XCTUnwrap(response, file: file, line: line)
   XCTAssertEqual(hover.range, expectedRange, file: file, line: line)
-
-  guard case .markupContent(let content) = hover.contents else {
+  guard case let .markupContent(content) = hover.contents else {
     XCTFail("hover.contents is not .markupContents", file: file, line: line)
     return
   }
   XCTAssertEqual(content.kind, .markdown, file: file, line: line)
   XCTAssertEqual(content.value, expectedContent, file: file, line: line)
-
 }

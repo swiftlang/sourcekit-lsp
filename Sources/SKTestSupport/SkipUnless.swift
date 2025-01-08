@@ -290,7 +290,7 @@ package actor SkipUnless {
       let hover = try XCTUnwrap(response, file: file, line: line)
       XCTAssertEqual(
         hover.range,
-        .init(line: 1, utf16index: 5) ..< .init(line: 1, utf16index: 9),
+        Position(line: 1, utf16index: 5)..<Position(line: 1, utf16index: 9),
         file: file,
         line: line
       )
