@@ -528,7 +528,9 @@ fileprivate func convertDocumentation(
     }
     switch response {
     case .renderNode(let renderNodeString):
-      guard let renderNode = try? JSONDecoder().decode(RenderNode.self, from: renderNodeString) else {
+      guard let renderNodeData = renderNodeString.data(using: .utf8),
+        let renderNode = try? JSONDecoder().decode(RenderNode.self, from: renderNodeData)
+      else {
         XCTFail("failed to decode response from textDocument/convertDocumentation at position \(marker)")
         return
       }
