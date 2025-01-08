@@ -1386,6 +1386,22 @@ extension SourceKitLSPServer {
     return try await languageService.hover(req)
   }
 
+  func openGeneratedInterface(
+    document: DocumentURI,
+    moduleName: String,
+    groupName: String?,
+    symbolUSR symbol: String?,
+    workspace: Workspace,
+    languageService: LanguageService
+  ) async throws -> GeneratedInterfaceDetails? {
+    return try await languageService.openGeneratedInterface(
+      document: document,
+      moduleName: moduleName,
+      groupName: groupName,
+      symbolUSR: symbol
+    )
+  }
+
   /// Handle a workspace/symbol request, returning the SymbolInformation.
   /// - returns: An array with SymbolInformation for each matching symbol in the workspace.
   func workspaceSymbols(_ req: WorkspaceSymbolsRequest) async throws -> [WorkspaceSymbolItem]? {
