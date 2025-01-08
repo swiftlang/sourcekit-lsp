@@ -20,23 +20,6 @@ import ToolchainRegistry
 import XCTest
 
 final class SwiftSourceKitPluginTests: XCTestCase {
-  /// Returns the paths from which the SourceKit plugins should be loaded or throws an error if the plugins cannot be
-  /// found.
-  private var pluginPaths: PluginPaths {
-    get throws {
-      struct PluginLoadingError: Error, CustomStringConvertible {
-        var description: String = "Could not find SourceKit plugin"
-      }
-
-      guard let sourceKitPluginPaths else {
-        // If we couldn't find the plugins, keep `didLoadPlugin = false`, which will throw an error in each test case's
-        // `setUp` function. We can't throw an error from the class `setUp` function.
-        throw PluginLoadingError()
-      }
-      return sourceKitPluginPaths
-    }
-  }
-
   /// Returns a path to a file name that is unique to this test execution.
   ///
   /// The file does not actually exist on disk.
@@ -51,7 +34,10 @@ final class SwiftSourceKitPluginTests: XCTestCase {
       }
       throw NoSourceKitdFound()
     }
-    return try await DynamicallyLoadedSourceKitD.getOrCreate(dylibPath: sourcekitd, pluginPaths: try self.pluginPaths)
+    return try await DynamicallyLoadedSourceKitD.getOrCreate(
+      dylibPath: sourcekitd,
+      pluginPaths: try sourceKitPluginPaths
+    )
   }
 
   func testBasicCompletion() async throws {

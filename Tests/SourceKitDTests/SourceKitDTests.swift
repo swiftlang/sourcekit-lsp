@@ -26,7 +26,10 @@ import class TSCBasic.Process
 final class SourceKitDTests: XCTestCase {
   func testMultipleNotificationHandlers() async throws {
     let sourcekitdPath = await ToolchainRegistry.forTesting.default!.sourcekitd!
-    let sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(dylibPath: sourcekitdPath)
+    let sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
+      dylibPath: sourcekitdPath,
+      pluginPaths: sourceKitPluginPaths
+    )
     let keys = sourcekitd.keys
     let path = DocumentURI(for: .swift).pseudoPath
 

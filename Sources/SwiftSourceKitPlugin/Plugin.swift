@@ -168,16 +168,74 @@ public func sourcekitd_plugin_initialize(_ params: sourcekitd_api_plugin_initial
   #endif
 }
 
+#if canImport(Darwin)
+private extension DynamicallyLoadedSourceKitD {
+  /// When a plugin is initialized, it gets passed the library it was loaded from to `sourcekitd_plugin_initialize_2`.
+  ///
+  /// Since the plugin wants to interact with sourcekitd in-process, it needs to load `sourcekitdInProc`. This function
+  /// loads `sourcekitdInProc` relative to the parent library path, if it exists, or `sourcekitd` if `sourcekitdInProc`
+  /// doesn't exist (eg. on Linux where `sourcekitd` is already in-process).
+  static func inProcLibrary(relativeTo parentLibraryPath: URL) throws -> DynamicallyLoadedSourceKitD {
+    var frameworkUrl = parentLibraryPath
+
+    // Remove path components until we reach the `sourcekitd.framework` directory. The plugin might have been loaded
+    // from an XPC service, in which case `parentLibraryPath` is
+    // `sourcekitd.framework/XPCServices/SourceKitService.xpc/Contents/MacOS/SourceKitService`.
+    while frameworkUrl.pathExtension != "framework" {
+      guard frameworkUrl.pathComponents.count > 1 else {
+        struct NoFrameworkPathError: Error, CustomStringConvertible {
+          var parentLibraryPath: URL
+          var description: String { "Could not find .framework directory relative to '\(parentLibraryPath)'" }
+        }
+        throw NoFrameworkPathError(parentLibraryPath: parentLibraryPath)
+      }
+      frameworkUrl.deleteLastPathComponent()
+    }
+    frameworkUrl.deleteLastPathComponent()
+
+    let inProcUrl =
+      frameworkUrl
+      .appendingPathComponent("sourcekitdInProc.framework")
+      .appendingPathComponent("sourcekitdInProc")
+    if FileManager.default.fileExists(at: inProcUrl) {
+      return try DynamicallyLoadedSourceKitD(
+        dylib: inProcUrl,
+        pluginPaths: nil,
+        initialize: false
+      )
+    }
+
+    let sourcekitdUrl =
+      frameworkUrl
+      .appendingPathComponent("sourcekitd.framework")
+      .appendingPathComponent("sourcekitd")
+    return try DynamicallyLoadedSourceKitD(
+      dylib: sourcekitdUrl,
+      pluginPaths: nil,
+      initialize: false
+    )
+  }
+}
+#endif
+
 @_cdecl("sourcekitd_plugin_initialize_2")
 public func sourcekitd_plugin_initialize_2(
   _ params: sourcekitd_api_plugin_initialize_params_t,
-  _ sourcekitdPath: UnsafePointer<CChar>
+  _ parentLibraryPath: UnsafePointer<CChar>
 ) {
+  #if canImport(Darwin)
+  // On macOS, we need to find sourcekitdInProc relative to the library the plugin was loaded from.
+  DynamicallyLoadedSourceKitD.forPlugin = try! DynamicallyLoadedSourceKitD.inProcLibrary(
+    relativeTo: URL(fileURLWithPath: String(cString: parentLibraryPath))
+  )
+  #else
+  // On other platforms, sourcekitd is always in process, so we can load it straight away.
   DynamicallyLoadedSourceKitD.forPlugin = try! DynamicallyLoadedSourceKitD(
     dylib: URL(fileURLWithPath: String(cString: parentLibraryPath)),
     pluginPaths: nil,
     initialize: false
   )
+  #endif
   let sourcekitd = DynamicallyLoadedSourceKitD.forPlugin
 
   let completionResultsBufferKind = sourcekitd.pluginApi.plugin_initialize_custom_buffer_start(params)

@@ -242,6 +242,26 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     }
   }
 
+  public struct SourceKitDOptions: Sendable, Codable, Equatable {
+    /// When set, load the SourceKit client plugin from this path instead of locating it inside the toolchain.
+    public var clientPlugin: String?
+
+    /// When set, load the SourceKit service plugin from this path instead of locating it inside the toolchain.
+    public var servicePlugin: String?
+
+    public init(clientPlugin: String? = nil, servicePlugin: String? = nil) {
+      self.clientPlugin = clientPlugin
+      self.servicePlugin = servicePlugin
+    }
+
+    static func merging(base: SourceKitDOptions, override: SourceKitDOptions?) -> SourceKitDOptions {
+      return SourceKitDOptions(
+        clientPlugin: override?.clientPlugin ?? base.clientPlugin,
+        servicePlugin: override?.servicePlugin ?? base.servicePlugin
+      )
+    }
+  }
+
   public enum BackgroundPreparationMode: String, Sendable, Codable, Equatable {
     /// Build a target to prepare it.
     case build
@@ -301,6 +321,13 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   public var loggingOrDefault: LoggingOptions {
     get { logging ?? .init() }
     set { logging = newValue }
+  }
+
+  /// Options modifying the behavior of sourcekitd.
+  private var sourcekitd: SourceKitDOptions?
+  public var sourcekitdOrDefault: SourceKitDOptions {
+    get { sourcekitd ?? .init() }
+    set { sourcekitd = newValue }
   }
 
   /// Default workspace type. Overrides workspace type selection logic.
@@ -381,6 +408,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     clangdOptions: [String]? = nil,
     index: IndexOptions? = .init(),
     logging: LoggingOptions? = .init(),
+    sourcekitd: SourceKitDOptions? = .init(),
     defaultWorkspaceType: WorkspaceType? = nil,
     generatedFilesPath: String? = nil,
     backgroundIndexing: Bool? = nil,
@@ -398,6 +426,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     self.clangdOptions = clangdOptions
     self.index = index
     self.logging = logging
+    self.sourcekitd = sourcekitd
     self.generatedFilesPath = generatedFilesPath
     self.defaultWorkspaceType = defaultWorkspaceType
     self.backgroundIndexing = backgroundIndexing
@@ -454,6 +483,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       clangdOptions: override?.clangdOptions ?? base.clangdOptions,
       index: IndexOptions.merging(base: base.indexOrDefault, override: override?.index),
       logging: LoggingOptions.merging(base: base.loggingOrDefault, override: override?.logging),
+      sourcekitd: SourceKitDOptions.merging(base: base.sourcekitdOrDefault, override: override?.sourcekitd),
       defaultWorkspaceType: override?.defaultWorkspaceType ?? base.defaultWorkspaceType,
       generatedFilesPath: override?.generatedFilesPath ?? base.generatedFilesPath,
       backgroundIndexing: override?.backgroundIndexing ?? base.backgroundIndexing,

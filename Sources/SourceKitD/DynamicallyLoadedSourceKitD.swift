@@ -101,7 +101,7 @@ package actor DynamicallyLoadedSourceKitD: SourceKitD {
 
   package static func getOrCreate(
     dylibPath: URL,
-    pluginPaths: PluginPaths? = nil
+    pluginPaths: PluginPaths?
   ) async throws -> SourceKitD {
     try await SourceKitDRegistry.shared
       .getOrAdd(

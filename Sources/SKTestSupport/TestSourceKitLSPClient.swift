@@ -18,6 +18,7 @@ import LanguageServerProtocolJSONRPC
 import LanguageServerProtocolExtensions
 package import SKOptions
 import SKUtilities
+import SourceKitD
 package import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
@@ -31,6 +32,7 @@ import LanguageServerProtocolJSONRPC
 import LanguageServerProtocolExtensions
 import SKOptions
 import SKUtilities
+import SourceKitD
 import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
@@ -44,6 +46,10 @@ extension SourceKitLSPOptions {
     experimentalFeatures: Set<ExperimentalFeature>? = nil
   ) -> SourceKitLSPOptions {
     return SourceKitLSPOptions(
+      sourcekitd: SourceKitDOptions(
+        clientPlugin: try! sourceKitPluginPaths.clientPlugin.filePath,
+        servicePlugin: try! sourceKitPluginPaths.servicePlugin.filePath
+      ),
       backgroundIndexing: backgroundIndexing,
       experimentalFeatures: experimentalFeatures,
       swiftPublishDiagnosticsDebounceDuration: 0,

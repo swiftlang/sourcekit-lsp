@@ -30,8 +30,8 @@ fileprivate struct SourceKitDRequestHandle: Sendable {
 }
 
 package struct PluginPaths: Equatable, CustomLogStringConvertible {
-  let clientPlugin: URL
-  let servicePlugin: URL
+  package let clientPlugin: URL
+  package let servicePlugin: URL
 
   package init(clientPlugin: URL, servicePlugin: URL) {
     self.clientPlugin = clientPlugin

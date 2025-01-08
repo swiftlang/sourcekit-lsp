@@ -11,7 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+
+#if compiler(>=6)
+package import SourceKitD
+#else
 import SourceKitD
+#endif
 
 /// The path to the `SwiftSourceKitPluginTests` test bundle. This gives us a hook into the the build directory.
 private let xctestBundle: URL = {
@@ -29,7 +34,7 @@ private let xctestBundle: URL = {
 }()
 
 /// When running tests from Xcode, determine the build configuration of the package.
-var inferedXcodeBuildConfiguration: String? {
+var inferredXcodeBuildConfiguration: String? {
   if let xcodeBuildDirectory = ProcessInfo.processInfo.environment["__XCODE_BUILT_PRODUCTS_DIR_PATHS"] {
     return URL(fileURLWithPath: xcodeBuildDirectory).lastPathComponent
   } else {
@@ -47,7 +52,7 @@ private func fileExists(at url: URL) -> Bool {
 /// Implementation detail of `sourceKitPluginPaths` which walks up the directory structure, repeatedly calling this method.
 private func pluginPaths(relativeTo base: URL) -> PluginPaths? {
   // When building in Xcode
-  if let buildConfiguration = inferedXcodeBuildConfiguration {
+  if let buildConfiguration = inferredXcodeBuildConfiguration {
     let frameworksDir = base.appendingPathComponent("Products")
       .appendingPathComponent(buildConfiguration)
       .appendingPathComponent("PackageFrameworks")
@@ -99,16 +104,25 @@ private func pluginPaths(relativeTo base: URL) -> PluginPaths? {
   return nil
 }
 
-/// Returns the path the the client plugin and the server plugin within the current build directory.
-///
-/// Returns `nil` if either of the plugins can't be found in the build directory.
-let sourceKitPluginPaths: PluginPaths? = {
-  var base = xctestBundle
-  while base.pathComponents.count > 1 {
-    if let paths = pluginPaths(relativeTo: base) {
-      return paths
+/// Returns the paths from which the SourceKit plugins should be loaded or throws an error if the plugins cannot be
+/// found.
+package var sourceKitPluginPaths: PluginPaths {
+  get throws {
+    struct PluginLoadingError: Error, CustomStringConvertible {
+      var description: String =
+        "Could not find SourceKit plugin. Ensure that you build the entire SourceKit-LSP package before running tests."
     }
-    base = base.deletingLastPathComponent()
+
+    var base = xctestBundle
+    while base.pathComponents.count > 1 {
+      if let paths = pluginPaths(relativeTo: base) {
+        return paths
+      }
+      base = base.deletingLastPathComponent()
+    }
+
+    // If we couldn't find the plugins, keep `didLoadPlugin = false`, which will throw an error in each test case's
+    // `setUp` function. We can't throw an error from the class `setUp` function.
+    throw PluginLoadingError()
   }
-  return nil
-}()
+}
