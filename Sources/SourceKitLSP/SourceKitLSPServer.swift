@@ -242,7 +242,7 @@ package actor SourceKitLSPServer {
   }
 
   package func workspaceForDocument(uri: DocumentURI) async -> Workspace? {
-    let uri = uri.primaryFile ?? uri
+    let uri = uri.buildSettingsFile
     if let cachedWorkspace = self.workspaceForUri[uri]?.value {
       return cachedWorkspace
     }
@@ -654,7 +654,9 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
   ) async {
     defer {
       if let request = params as? any TextDocumentRequest {
-        self.inProgressTextDocumentRequests[request.textDocument.uri, default: []].removeAll { $0.id == id }
+        textDocumentTrackingQueue.async(priority: .background) {
+          self.inProgressTextDocumentRequests[request.textDocument.uri, default: []].removeAll { $0.id == id }
+        }
       }
     }
 
@@ -1384,22 +1386,6 @@ extension SourceKitLSPServer {
     return try await languageService.hover(req)
   }
 
-  func openGeneratedInterface(
-    document: DocumentURI,
-    moduleName: String,
-    groupName: String?,
-    symbolUSR symbol: String?,
-    workspace: Workspace,
-    languageService: LanguageService
-  ) async throws -> GeneratedInterfaceDetails? {
-    return try await languageService.openGeneratedInterface(
-      document: document,
-      moduleName: moduleName,
-      groupName: groupName,
-      symbolUSR: symbol
-    )
-  }
-
   /// Handle a workspace/symbol request, returning the SymbolInformation.
   /// - returns: An array with SymbolInformation for each matching symbol in the workspace.
   func workspaceSymbols(_ req: WorkspaceSymbolsRequest) async throws -> [WorkspaceSymbolItem]? {
@@ -1590,14 +1576,14 @@ extension SourceKitLSPServer {
   }
 
   func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
-    let primaryFileURI = try ReferenceDocumentURL(from: req.uri).primaryFile
+    let buildSettingsUri = try ReferenceDocumentURL(from: req.uri).buildSettingsFile
 
-    guard let workspace = await workspaceForDocument(uri: primaryFileURI) else {
-      throw ResponseError.workspaceNotOpen(primaryFileURI)
+    guard let workspace = await workspaceForDocument(uri: buildSettingsUri) else {
+      throw ResponseError.workspaceNotOpen(buildSettingsUri)
     }
 
-    guard let languageService = workspace.documentService(for: primaryFileURI) else {
-      throw ResponseError.unknown("No Language Service for URI: \(primaryFileURI)")
+    guard let languageService = workspace.documentService(for: buildSettingsUri) else {
+      throw ResponseError.unknown("No Language Service for URI: \(buildSettingsUri)")
     }
 
     return try await languageService.getReferenceDocument(req)
@@ -2393,48 +2379,11 @@ private let maxWorkspaceSymbolResults = 4096
 package typealias Diagnostic = LanguageServerProtocol.Diagnostic
 
 fileprivate extension CheckedIndex {
-  func containerNames(of symbol: SymbolOccurrence) -> [String] {
-    // The container name of accessors is the container of the surrounding variable.
-    let accessorOf = symbol.relations.filter { $0.roles.contains(.accessorOf) }
-    if let primaryVariable = accessorOf.sorted().first {
-      if accessorOf.count > 1 {
-        logger.fault("Expected an occurrence to an accessor of at most one symbol, not multiple")
-      }
-      if let primaryVariable = primaryDefinitionOrDeclarationOccurrence(ofUSR: primaryVariable.symbol.usr) {
-        return containerNames(of: primaryVariable)
-      }
-    }
-
-    let containers = symbol.relations.filter { $0.roles.contains(.childOf) }
-    if containers.count > 1 {
-      logger.fault("Expected an occurrence to a child of at most one symbol, not multiple")
-    }
-    let container = containers.filter {
-      switch $0.symbol.kind {
-      case .module, .namespace, .enum, .struct, .class, .protocol, .extension, .union:
-        return true
-      case .unknown, .namespaceAlias, .macro, .typealias, .function, .variable, .field, .enumConstant,
-        .instanceMethod, .classMethod, .staticMethod, .instanceProperty, .classProperty, .staticProperty, .constructor,
-        .destructor, .conversionFunction, .parameter, .using, .concept, .commentTag:
-        return false
-      }
-    }.sorted().first
-
-    if let container {
-      if let containerDefinition = primaryDefinitionOrDeclarationOccurrence(ofUSR: container.symbol.usr) {
-        return self.containerNames(of: containerDefinition) + [container.symbol.name]
-      }
-      return [container.symbol.name]
-    } else {
-      return []
-    }
-  }
-
   /// Take the name of containers into account to form a fully-qualified name for the given symbol.
   /// This means that we will form names of nested types and type-qualify methods.
   func fullyQualifiedName(of symbolOccurrence: SymbolOccurrence) -> String {
     let symbol = symbolOccurrence.symbol
-    let containerNames = containerNames(of: symbolOccurrence)
+    let containerNames = self.containerNames(of: symbolOccurrence)
     guard let containerName = containerNames.last else {
       // No containers, so nothing to do.
       return symbol.name

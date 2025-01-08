@@ -31,7 +31,7 @@ import RegexBuilder
 ///  - `bufferName` denotes the buffer name of the specific macro expansion edit
 ///  - `parent` denoting the URI of the document from which the macro was expanded. For a first-level macro expansion,
 ///    this is a file URI. For nested macro expansions, this is a `sourcekit-lsp://swift-macro-expansion` URL.
-package struct MacroExpansionReferenceDocumentURLData {
+package struct MacroExpansionReferenceDocumentURLData: ReferenceURLData {
   package static let documentType = "swift-macro-expansion"
 
   /// The document from which this macro was expanded. For first-level macro expansions, this is a file URL. For
@@ -146,7 +146,7 @@ package struct MacroExpansionReferenceDocumentURLData {
     switch try? ReferenceDocumentURL(from: parent) {
     case .macroExpansion(let data):
       data.primaryFile
-    case nil:
+    case .generatedInterface, nil:
       parent
     }
   }
@@ -155,7 +155,7 @@ package struct MacroExpansionReferenceDocumentURLData {
     switch try? ReferenceDocumentURL(from: parent) {
     case .macroExpansion(let data):
       data.primaryFileSelectionRange
-    case nil:
+    case .generatedInterface, nil:
       self.parentSelectionRange
     }
   }

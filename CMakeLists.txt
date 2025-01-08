@@ -17,6 +17,7 @@ add_compile_options("$<$<COMPILE_LANGUAGE:Swift>:SHELL:-enable-upcoming-feature 
 find_package(dispatch QUIET)
 find_package(Foundation QUIET)
 find_package(TSC QUIET)
+find_package(LMDB QUIET)
 find_package(IndexStoreDB QUIET)
 find_package(SwiftPM QUIET)
 find_package(LLBuild QUIET)
