@@ -47,7 +47,7 @@ extension XCTestCase {
     while elapsed < 1.0 {
       elapsed += duration {
         let integers = Array(count: integers) {
-          arc4random()
+          UInt64.random(in: 0...UInt64.max)
         }
         DispatchQueue.concurrentPerform(iterations: 128) { _ in
           integers.withUnsafeBytes { bytes in

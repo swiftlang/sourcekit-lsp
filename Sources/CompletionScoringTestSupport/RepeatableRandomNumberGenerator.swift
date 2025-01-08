@@ -60,8 +60,8 @@ package struct RepeatableRandomNumberGenerator: RandomNumberGenerator {
 
   static func generateSeed() {
     let numbers: [UInt64] = (0..<1024).map { _ in
-      let lo = UInt64(arc4random())
-      let hi = UInt64(arc4random())
+      let lo = UInt64.random(in: 0...UInt64.max)
+      let hi = UInt64.random(in: 0...UInt64.max)
       return (hi << 32) | lo
     }
     let header =
