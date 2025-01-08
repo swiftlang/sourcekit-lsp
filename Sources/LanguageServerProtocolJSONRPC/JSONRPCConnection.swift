@@ -61,6 +61,12 @@ public final class JSONRPCConnection: Connection {
   private let sendIO: DispatchIO
   private let messageRegistry: MessageRegistry
 
+  /// If non-nil, all input received by this `JSONRPCConnection` will be written to the file handle
+  let inputMirrorFile: FileHandle?
+
+  /// If non-nil, all output created by this `JSONRPCConnection` will be written to the file handle
+  let outputMirrorFile: FileHandle?
+
   enum State {
     case created, running, closed
   }
@@ -120,9 +126,13 @@ public final class JSONRPCConnection: Connection {
     name: String,
     protocol messageRegistry: MessageRegistry,
     inFD: FileHandle,
-    outFD: FileHandle
+    outFD: FileHandle,
+    inputMirrorFile: FileHandle? = nil,
+    outputMirrorFile: FileHandle? = nil
   ) {
     self.name = name
+    self.inputMirrorFile = inputMirrorFile
+    self.outputMirrorFile = outputMirrorFile
     self.receiveHandler = nil
     #if os(Linux) || os(Android)
     // We receive a `SIGPIPE` if we write to a pipe that points to a crashed process. This in particular happens if the
@@ -268,13 +278,10 @@ public final class JSONRPCConnection: Connection {
   /// Start processing `inFD` and send messages to `receiveHandler`.
   ///
   /// - parameter receiveHandler: The message handler to invoke for requests received on the `inFD`.
-  /// - parameter mirrorFile: If non-nil, all input received by this `JSONRPCConnection` will be written to the file
-  ///   handle
   ///
   /// - Important: `start` must be called before sending any data over the `JSONRPCConnection`.
   public func start(
     receiveHandler: MessageHandler,
-    mirrorFile: FileHandle? = nil,
     closeHandler: @escaping @Sendable () async -> Void = {}
   ) {
     queue.sync {
@@ -303,8 +310,8 @@ public final class JSONRPCConnection: Connection {
           return
         }
 
-        orLog("Writing data mirror file") {
-          try mirrorFile?.write(contentsOf: data)
+        orLog("Writing input mirror file") {
+          try self.inputMirrorFile?.write(contentsOf: data)
         }
 
         // Parse and handle any messages in `buffer + data`, leaving any remaining unparsed bytes in `buffer`.
@@ -538,6 +545,9 @@ public final class JSONRPCConnection: Connection {
     dispatchPrecondition(condition: .onQueue(queue))
     guard readyToSend() else { return }
 
+    orLog("Writing output mirror file") {
+      try outputMirrorFile?.write(contentsOf: dispatchData)
+    }
     sendIO.write(offset: 0, data: dispatchData, queue: sendQueue) { [weak self] done, _, errorCode in
       if errorCode != 0 {
         logger.fault("IO error sending message \(errorCode)")
