@@ -12,6 +12,18 @@
 
 import Foundation
 
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#elseif canImport(CRT)
+import CRT
+#elseif canImport(Bionic)
+import Bionic
+#endif
+
 extension Range where Bound: Numeric {
   init(from: Bound, length: Bound) {
     self = from..<(from + length)

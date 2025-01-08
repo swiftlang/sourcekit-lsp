@@ -216,6 +216,11 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
     print('Cleaning ' + tests)
     shutil.rmtree(tests, ignore_errors=True)
 
+    # Build the plugin so it can be used by the tests. SwiftPM is not able to express a dependency from a test target on
+    # a product.
+    build_single_product('SwiftSourceKitPlugin', swift_exec, args)
+    build_single_product('SwiftSourceKitClientPlugin', swift_exec, args)
+
     cmd = [
         swift_exec, 'test',
         '--disable-testable-imports',
@@ -265,6 +270,8 @@ def handle_invocation(swift_exec: str, args: argparse.Namespace) -> None:
 
     if args.action == 'build':
         build_single_product("sourcekit-lsp", swift_exec, args)
+        build_single_product('SwiftSourceKitPlugin', swift_exec, args)
+        build_single_product('SwiftSourceKitClientPlugin', swift_exec, args)
     elif args.action == 'test':
         run_tests(swift_exec, args)
     elif args.action == 'install':
