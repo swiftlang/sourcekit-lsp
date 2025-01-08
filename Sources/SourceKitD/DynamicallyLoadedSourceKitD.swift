@@ -118,12 +118,17 @@ package actor DynamicallyLoadedSourceKitD: SourceKitD {
     let dlopenModes: DLOpenFlags = [.lazy, .local, .first]
     #endif
     let dlhandle = try dlopen(path.filePath, mode: dlopenModes)
-    try self.init(
-      dlhandle: dlhandle,
-      path: path,
-      pluginPaths: pluginPaths,
-      initialize: initialize
-    )
+    do {
+      try self.init(
+        dlhandle: dlhandle,
+        path: path,
+        pluginPaths: pluginPaths,
+        initialize: initialize
+      )
+    } catch {
+      try? dlhandle.close()
+      throw error
+    }
   }
 
   package init(dlhandle: DLHandle, path: URL, pluginPaths: PluginPaths?, initialize: Bool) throws {
