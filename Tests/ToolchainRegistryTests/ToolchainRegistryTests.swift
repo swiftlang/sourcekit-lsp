@@ -17,8 +17,6 @@ import TSCBasic
 import ToolchainRegistry
 import XCTest
 
-import enum PackageLoading.Platform
-
 #if canImport(Android)
 import Android
 #endif

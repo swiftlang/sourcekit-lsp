@@ -19,8 +19,6 @@ import SourceKitLSP
 import TSCBasic
 import XCTest
 
-import struct PackageModel.BuildFlags
-
 final class FallbackBuildSystemTests: XCTestCase {
 
   func testSwift() throws {
