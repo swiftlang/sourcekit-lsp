@@ -10,19 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import CCompletionScoring
 import Foundation
-
-#if canImport(Darwin)
-import Darwin
-#elseif canImport(Glibc)
-import Glibc
-#elseif canImport(Musl)
-import Musl
-#elseif canImport(CRT)
-import CRT
-#elseif canImport(Bionic)
-import Bionic
-#endif
 
 extension Range where Bound: Numeric {
   init(from: Bound, length: Bound) {
@@ -447,7 +436,9 @@ extension UnsafeBufferPointer<UInt8> {
     guard needle.count > 0, let needleBaseAddress = needle.baseAddress else {
       return nil
     }
-    guard let match = memmem(baseAddress + startOffset, count - startOffset, needleBaseAddress, needle.count) else {
+    guard
+      let match = sourcekitlsp_memmem(baseAddress + startOffset, count - startOffset, needleBaseAddress, needle.count)
+    else {
       return nil
     }
     let start = baseAddress.distance(to: match.assumingMemoryBound(to: UInt8.self))

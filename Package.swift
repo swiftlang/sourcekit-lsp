@@ -111,17 +111,22 @@ var targets: [Target] = [
     dependencies: []
   ),
 
+  .target(
+    name: "CCompletionScoring",
+    dependencies: []
+  ),
+
   // MARK: CompletionScoring
 
   .target(
     name: "CompletionScoring",
-    dependencies: [],
+    dependencies: ["CCompletionScoring"],
     swiftSettings: globalSwiftSettings
   ),
 
   .target(
     name: "CompletionScoringForPlugin",
-    dependencies: [],
+    dependencies: ["CCompletionScoring"],
     swiftSettings: globalSwiftSettings
   ),
 
