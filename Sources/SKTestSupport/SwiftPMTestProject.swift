@@ -100,7 +100,6 @@ package class SwiftPMTestProject: MultiFileTestProject {
         "SwiftSyntaxBuilder",
         "SwiftSyntaxMacroExpansion",
         "SwiftSyntaxMacros",
-        "_SwiftSyntaxCShims",
       ]
 
       var objectFiles: [String] = []
