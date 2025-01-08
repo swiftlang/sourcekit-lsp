@@ -791,7 +791,7 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
     case let request as RequestAndReply<ShutdownRequest>:
       await request.reply { try await shutdown(request.params) }
     #if canImport(SwiftDocC)
-    case let request as RequestAndReply<ConvertDocumentationRequest>:
+    case let request as RequestAndReply<DoccDocumentationRequest>:
       await request.reply {
         try await documentationManager.convertDocumentation(
           request.params.textDocument.uri,
@@ -1056,7 +1056,7 @@ extension SourceKitLSPServer {
       "workspace/getReferenceDocument": .dictionary(["version": .int(1)]),
     ]
     #if canImport(SwiftDocC)
-    experimentalCapabilities["textDocument/convertDocumentation"] = .dictionary(["version": .int(1)])
+    experimentalCapabilities["textDocument/doccDocumentation"] = .dictionary(["version": .int(1)])
     #endif
 
     return ServerCapabilities(

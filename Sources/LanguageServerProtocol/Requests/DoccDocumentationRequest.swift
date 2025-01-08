@@ -10,17 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Request for converting documentation for the symbol at a given location **(LSP Extension)**.
+/// Request for generating documentation for the symbol at a given location **(LSP Extension)**.
 ///
 /// This request looks up the symbol (if any) at a given text document location and returns a
-/// ``ConvertDocumentationResponse`` for that location. This request is primarily designed for editors
+/// ``DoccDocumentationResponse`` for that location. This request is primarily designed for editors
 /// to support live preview of Swift documentation.
 ///
 /// - Parameters:
 ///   - textDocument: The document to render documentation for.
-///   - position: The document location at which to lookup symbol information.
+///   - position: The document location at which to lookup symbol information. (optional)
 ///
-/// - Returns: A ``ConvertDocumentationResponse`` for the given location, which may contain an error
+/// - Returns: A ``DoccDocumentationResponse`` for the given location, which may contain an error
 ///   message if documentation could not be converted. This error message can be displayed to the user
 ///   in the live preview editor.
 ///
@@ -28,28 +28,28 @@
 ///
 /// This request is an extension to LSP supported by SourceKit-LSP.
 /// The client is expected to display the documentation in an editor using swift-docc-render.
-public struct ConvertDocumentationRequest: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/convertDocumentation"
-  public typealias Response = ConvertDocumentationResponse
+public struct DoccDocumentationRequest: TextDocumentRequest, Hashable {
+  public static let method: String = "textDocument/doccDocumentation"
+  public typealias Response = DoccDocumentationResponse
 
   /// The document in which to lookup the symbol location.
   public var textDocument: TextDocumentIdentifier
 
   /// The document location at which to lookup symbol information.
-  public var position: Position
+  public var position: Position?
 
-  public init(textDocument: TextDocumentIdentifier, position: Position) {
+  public init(textDocument: TextDocumentIdentifier, position: Position?) {
     self.textDocument = textDocument
     self.position = position
   }
 }
 
-public enum ConvertDocumentationResponse: ResponseType {
+public enum DoccDocumentationResponse: ResponseType {
   case renderNode(String)
-  case error(ConvertDocumentationError)
+  case error(DoccDocumentationError)
 }
 
-public enum ConvertDocumentationError: ResponseType, Equatable {
+public enum DoccDocumentationError: ResponseType, Equatable {
   case indexNotAvailable
   case noDocumentation
   case symbolNotFound(String)
@@ -66,7 +66,7 @@ public enum ConvertDocumentationError: ResponseType, Equatable {
   }
 }
 
-extension ConvertDocumentationError: Codable {
+extension DoccDocumentationError: Codable {
   enum CodingKeys: String, CodingKey {
     case kind
     case message
@@ -108,7 +108,7 @@ extension ConvertDocumentationError: Codable {
   }
 }
 
-extension ConvertDocumentationResponse: Codable {
+extension DoccDocumentationResponse: Codable {
   enum CodingKeys: String, CodingKey {
     case type
     case renderNode
@@ -123,7 +123,7 @@ extension ConvertDocumentationResponse: Codable {
       let renderNode = try values.decode(String.self, forKey: .renderNode)
       self = .renderNode(renderNode)
     case "error":
-      let error = try values.decode(ConvertDocumentationError.self, forKey: .error)
+      let error = try values.decode(DoccDocumentationError.self, forKey: .error)
       self = .error(error)
     default:
       throw DecodingError.dataCorruptedError(

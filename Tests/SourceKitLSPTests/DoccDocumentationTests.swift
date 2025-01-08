@@ -19,9 +19,9 @@ import SourceKitLSP
 import SwiftDocC
 import XCTest
 
-final class ConvertDocumentationTests: XCTestCase {
+final class DoccDocumentationTests: XCTestCase {
   func testEmptySwiftFile() async throws {
-    try await convertDocumentation(
+    try await renderDocumentation(
       swiftFile: "0️⃣",
       expectedResponses: [
         .error(.noDocumentation)
@@ -30,7 +30,7 @@ final class ConvertDocumentationTests: XCTestCase {
   }
 
   func testFunction() async throws {
-    try await convertDocumentation(
+    try await renderDocumentation(
       swiftFile: """
         /// A function that do0️⃣es some important stuff.
         func func1️⃣tion() {
@@ -47,7 +47,7 @@ final class ConvertDocumentationTests: XCTestCase {
   }
 
   func testStructure() async throws {
-    try await convertDocumentation(
+    try await renderDocumentation(
       swiftFile: """
         /// A structure contain0️⃣ing important information.
         public struct Struc1️⃣ture {
@@ -79,7 +79,7 @@ final class ConvertDocumentationTests: XCTestCase {
   }
 
   func testEmptyStructure() async throws {
-    try await convertDocumentation(
+    try await renderDocumentation(
       swiftFile: """
         pub0️⃣lic struct Struc1️⃣ture {
           2️⃣
@@ -95,7 +95,7 @@ final class ConvertDocumentationTests: XCTestCase {
   }
 
   func testClass() async throws {
-    try await convertDocumentation(
+    try await renderDocumentation(
       swiftFile: """
         /// A class contain0️⃣ing important information.
         public class Cla1️⃣ss {
@@ -128,7 +128,7 @@ final class ConvertDocumentationTests: XCTestCase {
   }
 
   func testEmptyClass() async throws {
-    try await convertDocumentation(
+    try await renderDocumentation(
       swiftFile: """
         pub0️⃣lic class Cla1️⃣ss {
           2️⃣
@@ -144,7 +144,7 @@ final class ConvertDocumentationTests: XCTestCase {
   }
 
   func testActor() async throws {
-    try await convertDocumentation(
+    try await renderDocumentation(
       swiftFile: """
         /// An actor contain0️⃣ing important information.
         public actor Ac1️⃣tor {
@@ -176,7 +176,7 @@ final class ConvertDocumentationTests: XCTestCase {
   }
 
   func testEmptyActor() async throws {
-    try await convertDocumentation(
+    try await renderDocumentation(
       swiftFile: """
         pub0️⃣lic class Act1️⃣or {
           2️⃣
@@ -192,7 +192,7 @@ final class ConvertDocumentationTests: XCTestCase {
   }
 
   func testEnumeration() async throws {
-    try await convertDocumentation(
+    try await renderDocumentation(
       swiftFile: """
         /// An enumeration contain0️⃣ing important information.
         public enum En1️⃣um {
@@ -241,7 +241,7 @@ final class ConvertDocumentationTests: XCTestCase {
     )
 
     // Make sure that the initial documentation comment is present in the response
-    await convertDocumentation(
+    await renderDocumentation(
       testClient: testClient,
       uri: uri,
       positions: positions,
@@ -259,7 +259,7 @@ final class ConvertDocumentationTests: XCTestCase {
     )
 
     // Make sure that the new documentation comment is present in the response
-    await convertDocumentation(
+    await renderDocumentation(
       testClient: testClient,
       uri: uri,
       positions: positions,
@@ -268,7 +268,7 @@ final class ConvertDocumentationTests: XCTestCase {
   }
 
   func testProtocol() async throws {
-    try await convertDocumentation(
+    try await renderDocumentation(
       swiftFile: """
         /// A protocol contain0️⃣ing important information.
         public protocol Proto1️⃣col {
@@ -292,7 +292,7 @@ final class ConvertDocumentationTests: XCTestCase {
   }
 
   func testEmptyProtocol() async throws {
-    try await convertDocumentation(
+    try await renderDocumentation(
       swiftFile: """
         /// A protocol containing important information
         pub0️⃣lic struct Prot1️⃣ocol {
@@ -309,7 +309,7 @@ final class ConvertDocumentationTests: XCTestCase {
   }
 
   func testExtension() async throws {
-    try await convertDocumentation(
+    try await renderDocumentation(
       swiftFile: """
         /// A structure containing important information
         public struct Structure {
@@ -354,7 +354,7 @@ final class ConvertDocumentationTests: XCTestCase {
     )
 
     // Make sure that the initial documentation comment is present in the response
-    await convertDocumentation(
+    await renderDocumentation(
       testClient: testClient,
       uri: uri,
       positions: positions,
@@ -372,7 +372,7 @@ final class ConvertDocumentationTests: XCTestCase {
     )
 
     // Make sure that the new documentation comment is present in the response
-    await convertDocumentation(
+    await renderDocumentation(
       testClient: testClient,
       uri: uri,
       positions: positions,
@@ -396,7 +396,7 @@ final class ConvertDocumentationTests: XCTestCase {
     )
 
     // Make sure that the initial documentation comment is present in the response
-    await convertDocumentation(
+    await renderDocumentation(
       testClient: testClient,
       uri: uri,
       positions: positions,
@@ -414,7 +414,7 @@ final class ConvertDocumentationTests: XCTestCase {
     )
 
     // Make sure that the new documentation comment is present in the response
-    await convertDocumentation(
+    await renderDocumentation(
       testClient: testClient,
       uri: uri,
       positions: positions,
@@ -440,7 +440,7 @@ final class ConvertDocumentationTests: XCTestCase {
     )
 
     // Make sure that the initial documentation comment is present in the response
-    await convertDocumentation(
+    await renderDocumentation(
       testClient: testClient,
       uri: uri,
       positions: positions,
@@ -458,7 +458,7 @@ final class ConvertDocumentationTests: XCTestCase {
     )
 
     // Make sure that the new documentation comment is present in the response
-    await convertDocumentation(
+    await renderDocumentation(
       testClient: testClient,
       uri: uri,
       positions: positions,
@@ -469,10 +469,10 @@ final class ConvertDocumentationTests: XCTestCase {
 
 fileprivate enum PartialConvertResponse {
   case renderNode(kind: RenderNode.Kind, path: String? = nil, containing: String? = nil)
-  case error(ConvertDocumentationError)
+  case error(DoccDocumentationError)
 }
 
-fileprivate func convertDocumentation(
+fileprivate func renderDocumentation(
   swiftFile markedText: String,
   expectedResponses: [PartialConvertResponse],
   file: StaticString = #filePath,
@@ -482,7 +482,7 @@ fileprivate func convertDocumentation(
   let uri = DocumentURI(for: .swift)
   let positions = testClient.openDocument(markedText, uri: uri)
 
-  await convertDocumentation(
+  await renderDocumentation(
     testClient: testClient,
     uri: uri,
     positions: positions,
@@ -492,7 +492,7 @@ fileprivate func convertDocumentation(
   )
 }
 
-fileprivate func convertDocumentation(
+fileprivate func renderDocumentation(
   testClient: TestSourceKitLSPClient,
   uri: DocumentURI,
   positions: DocumentPositions,
@@ -510,17 +510,17 @@ fileprivate func convertDocumentation(
   }
 
   for (index, marker) in positions.allMarkers.enumerated() {
-    let response: ConvertDocumentationResponse
+    let response: DoccDocumentationResponse
     do {
       response = try await testClient.send(
-        ConvertDocumentationRequest(
+        DoccDocumentationRequest(
           textDocument: TextDocumentIdentifier(uri),
           position: positions[marker]
         )
       )
     } catch {
       XCTFail(
-        "textDocument/convertDocumentation failed at position \(marker): \(error.localizedDescription)",
+        "textDocument/doccDocumentation failed at position \(marker): \(error.localizedDescription)",
         file: file,
         line: line
       )
@@ -531,7 +531,7 @@ fileprivate func convertDocumentation(
       guard let renderNodeData = renderNodeString.data(using: .utf8),
         let renderNode = try? JSONDecoder().decode(RenderNode.self, from: renderNodeData)
       else {
-        XCTFail("failed to decode response from textDocument/convertDocumentation at position \(marker)")
+        XCTFail("failed to decode response from textDocument/doccDocumentation at position \(marker)")
         return
       }
       switch expectedResponses[index] {
@@ -582,7 +582,7 @@ fileprivate func convertDocumentation(
   }
 }
 
-fileprivate extension ConvertDocumentationError {
+fileprivate extension DoccDocumentationError {
   var rawValue: String {
     switch self {
     case .indexNotAvailable:

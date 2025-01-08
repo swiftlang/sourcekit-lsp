@@ -33,8 +33,9 @@ package final actor DocumentationManager {
 
   func convertDocumentation(
     _ documentURI: DocumentURI,
-    at position: Position = Position(line: 0, utf16index: 0)
-  ) async throws -> ConvertDocumentationResponse {
+    at position: Position? = nil
+  ) async throws -> DoccDocumentationResponse {
+    let position = position ?? Position(line: 0, utf16index: 0)
     guard let sourceKitLSPServer = sourceKitLSPServer else {
       throw ResponseError.internalError("SourceKit-LSP is shutting down")
     }

@@ -169,7 +169,7 @@ interface SKCompletionOptions {
 }
 ```
 
-## `textDocument/convertDocumentation`
+## `textDocument/doccDocumentation`
 
 New request that returns a RenderNode for a symbol at a given location that can then be
 rendered in an editor by `swiftlang/swift-docc-render`.
@@ -180,11 +180,11 @@ or an error if the documentation could not be converted. This error message can 
 to the user in the live preview editor.
 
 At the moment this request is only available on macOS and Linux. If SourceKit-LSP supports
-this request it will add `textDocument/convertDocumentation` to its experimental server
+this request it will add `textDocument/doccDocumentation` to its experimental server
 capabilities.
 
 ```ts
-export interface ConvertDocumentationParams {
+export interface DoccDocumentationParams {
     /**
      * The document to render documentation for.
      */
@@ -199,7 +199,7 @@ export interface ConvertDocumentationParams {
     position: Position;
 }
 
-export type ConvertDocumentationResponse = RenderNodeResponse | ErrorResponse;
+export type DoccDocumentationResponse = RenderNodeResponse | ErrorResponse;
 
 interface RenderNodeResponse {
   /**
@@ -222,10 +222,10 @@ interface ErrorResponse {
   /**
    * The error that occurred.
    */
-  error: ConvertDocumentationError;
+  error: DoccDocumentationError;
 }
 
-export type ConvertDocumentationError = ErrorWithNoParams | SymbolNotFoundError;
+export type DoccDocumentationError = ErrorWithNoParams | SymbolNotFoundError;
 
 interface ErrorWithNoParams {
   /**
