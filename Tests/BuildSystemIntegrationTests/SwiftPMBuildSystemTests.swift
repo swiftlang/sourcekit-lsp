@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Build
+#if canImport(PackageModel)
 import BuildServerProtocol
 @_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
@@ -19,6 +19,7 @@ import PackageModel
 import SKOptions
 import SKTestSupport
 import SourceKitLSP
+@preconcurrency import SPMBuildCore
 import SwiftExtensions
 import TSCBasic
 import TSCExtensions
@@ -27,11 +28,6 @@ import XCTest
 
 import struct Basics.AbsolutePath
 import struct Basics.Triple
-import struct PackageModel.BuildFlags
-
-#if canImport(SPMBuildCore)
-@preconcurrency import SPMBuildCore
-#endif
 
 private var hostTriple: Triple {
   get async throws {
@@ -1243,3 +1239,4 @@ fileprivate extension URL {
     return result
   }
 }
+#endif

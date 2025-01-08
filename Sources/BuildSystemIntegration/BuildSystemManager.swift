@@ -210,6 +210,7 @@ private extension BuildSystemSpec {
         )
       }
     case .swiftPM:
+      #if canImport(PackageModel)
       return await Self.createBuiltInBuildSystemAdapter(
         projectRoot: projectRoot,
         messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
@@ -223,6 +224,9 @@ private extension BuildSystemSpec {
           testHooks: testHooks.swiftPMTestHooks
         )
       }
+      #else
+      return nil
+      #endif
     case .testBuildSystem:
       return await Self.createBuiltInBuildSystemAdapter(
         projectRoot: projectRoot,
