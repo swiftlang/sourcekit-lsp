@@ -95,4 +95,32 @@ class WorkspaceSymbolsTests: XCTestCase {
       ]
     )
   }
+
+  func testContainerNameOfFunctionInExtension() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct Foo {
+        struct Bar {}
+      }
+
+      extension Foo.Bar {
+        func 1️⃣barMethod() {}
+      }
+      """
+    )
+    let response = try await project.testClient.send(WorkspaceSymbolsRequest(query: "barMethod"))
+    XCTAssertEqual(
+      response,
+      [
+        .symbolInformation(
+          SymbolInformation(
+            name: "barMethod()",
+            kind: .method,
+            location: Location(uri: project.fileURI, range: Range(project.positions["1️⃣"])),
+            containerName: "Foo.Bar"
+          )
+        )
+      ]
+    )
+  }
 }

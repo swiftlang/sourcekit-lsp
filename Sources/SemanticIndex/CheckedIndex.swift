@@ -60,6 +60,32 @@ package final class CheckedIndex {
   private var checker: IndexOutOfDateChecker
   private let index: IndexStoreDB
 
+  /// Maps the USR of a symbol to its name and the name of all its containers, from outermost to innermost.
+  ///
+  /// It is important that we cache this because we might find a lot of symbols in the same container for eg. workspace
+  /// symbols (eg. consider many symbols in the same C++ namespace). If we didn't cache this value, then we would need
+  /// to perform a `primaryDefinitionOrDeclarationOccurrence` lookup for all of these containers, which is expensive.
+  ///
+  /// Since we don't expect `CheckedIndex` to be outlive a single request it is acceptable to cache these results
+  /// without having any invalidation logic (similar to how we don't invalide results cached in
+  /// `IndexOutOfDateChecker`).
+  ///
+  /// ### Examples
+  /// If we have
+  /// ```swift
+  /// struct Foo {}
+  /// ``` then
+  /// `containerNamesCache[<usr of Foo>]` will be `["Foo"]`.
+  ///
+  /// If we have
+  /// ```swift
+  /// struct Bar {
+  ///   struct Foo {}
+  /// }
+  /// ```, then
+  /// `containerNamesCache[<usr of Foo>]` will be `["Bar", "Foo"]`.
+  private var containerNamesCache: [String: [String]] = [:]
+
   fileprivate init(index: IndexStoreDB, checkLevel: IndexCheckLevel) {
     self.index = index
     self.checker = IndexOutOfDateChecker(checkLevel: checkLevel)
@@ -181,6 +207,84 @@ package final class CheckedIndex {
     if result == nil {
       logger.error("Failed to find definition of \(usr) in index")
     }
+    return result
+  }
+
+  /// The names of all containers the symbol is contained in, from outermost to innermost.
+  ///
+  /// ### Examples
+  /// In the following, the container names of `test` are `["Foo"]`.
+  /// ```swift
+  /// struct Foo {
+  ///   func test() {}
+  /// }
+  /// ```
+  ///
+  /// In the following, the container names of `test` are `["Bar", "Foo"]`.
+  /// ```swift
+  /// struct Bar {
+  ///   struct Foo {
+  ///     func test() {}
+  ///   }
+  /// }
+  /// ```
+  package func containerNames(of symbol: SymbolOccurrence) -> [String] {
+    // The container name of accessors is the container of the surrounding variable.
+    let accessorOf = symbol.relations.filter { $0.roles.contains(.accessorOf) }
+    if let primaryVariable = accessorOf.sorted().first {
+      if accessorOf.count > 1 {
+        logger.fault("Expected an occurrence to an accessor of at most one symbol, not multiple")
+      }
+      if let primaryVariable = primaryDefinitionOrDeclarationOccurrence(ofUSR: primaryVariable.symbol.usr) {
+        return containerNames(of: primaryVariable)
+      }
+    }
+
+    let containers = symbol.relations.filter { $0.roles.contains(.childOf) }
+    if containers.count > 1 {
+      logger.fault("Expected an occurrence to a child of at most one symbol, not multiple")
+    }
+    let container = containers.filter {
+      switch $0.symbol.kind {
+      case .module, .namespace, .enum, .struct, .class, .protocol, .extension, .union:
+        return true
+      case .unknown, .namespaceAlias, .macro, .typealias, .function, .variable, .field, .enumConstant,
+        .instanceMethod, .classMethod, .staticMethod, .instanceProperty, .classProperty, .staticProperty, .constructor,
+        .destructor, .conversionFunction, .parameter, .using, .concept, .commentTag:
+        return false
+      }
+    }.sorted().first
+
+    guard var containerSymbol = container?.symbol else {
+      return []
+    }
+    if let cached = containerNamesCache[containerSymbol.usr] {
+      return cached
+    }
+
+    if containerSymbol.kind == .extension,
+      let extendedSymbol = self.occurrences(relatedToUSR: containerSymbol.usr, roles: .extendedBy).first?.symbol
+    {
+      containerSymbol = extendedSymbol
+    }
+    let result: [String]
+
+    // Use `forEachSymbolOccurrence` instead of `primaryDefinitionOrDeclarationOccurrence` to get a symbol occurrence
+    // for the container because it can be significantly faster: Eg. when searching for a C++ namespace (such as `llvm`),
+    // it may be declared in many files. Finding the canonical definition means that we would need to scan through all
+    // of these files. But we expect all all of these declarations to have the same parent container names and we don't
+    // care about locations here.
+    var containerDefinition: SymbolOccurrence?
+    forEachSymbolOccurrence(byUSR: containerSymbol.usr, roles: [.definition, .declaration]) { occurrence in
+      containerDefinition = occurrence
+      return false  // stop iteration
+    }
+    if let containerDefinition {
+      result = self.containerNames(of: containerDefinition) + [containerSymbol.name]
+    } else {
+      result = [containerSymbol.name]
+    }
+    containerNamesCache[containerSymbol.usr] = result
     return result
   }
 }
