@@ -145,7 +145,9 @@ package actor DynamicallyLoadedSourceKitD: SourceKitD {
     self.pluginApiResult = Result(catching: { try sourcekitd_plugin_api_functions_t(dlhandle) })
     self.servicePluginApiResult = Result(catching: { try sourcekitd_service_plugin_api_functions_t(dlhandle) })
 
-    api.register_plugin_path?(pluginPaths?.clientPlugin.path, pluginPaths?.servicePlugin.path)
+    if let pluginPaths {
+      api.register_plugin_path?(pluginPaths.clientPlugin.path, pluginPaths.servicePlugin.path)
+    }
     if initialize {
       self.api.initialize()
     }
