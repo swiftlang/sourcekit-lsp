@@ -74,9 +74,9 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
     case (.documentUpdate(let selfUri), .documentUpdate(let otherUri)):
       return selfUri == otherUri
     case (.documentUpdate(let selfUri), .documentRequest(let otherUri)):
-      return selfUri.buildSettingsFile == otherUri.buildSettingsFile
+      return selfUri == otherUri
     case (.documentRequest(let selfUri), .documentUpdate(let otherUri)):
-      return selfUri.buildSettingsFile == otherUri.buildSettingsFile
+      return selfUri == otherUri
 
     // documentRequest
     case (.documentRequest, .documentRequest):

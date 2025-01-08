@@ -242,7 +242,7 @@ package actor SourceKitLSPServer {
   }
 
   package func workspaceForDocument(uri: DocumentURI) async -> Workspace? {
-    let uri = uri.buildSettingsFile
+    let uri = uri.primaryFile ?? uri
     if let cachedWorkspace = self.workspaceForUri[uri]?.value {
       return cachedWorkspace
     }
@@ -1576,14 +1576,14 @@ extension SourceKitLSPServer {
   }
 
   func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
-    let buildSettingsUri = try ReferenceDocumentURL(from: req.uri).buildSettingsFile
+    let primaryFileURI = try ReferenceDocumentURL(from: req.uri).primaryFile
 
-    guard let workspace = await workspaceForDocument(uri: buildSettingsUri) else {
-      throw ResponseError.workspaceNotOpen(buildSettingsUri)
+    guard let workspace = await workspaceForDocument(uri: primaryFileURI) else {
+      throw ResponseError.workspaceNotOpen(primaryFileURI)
     }
 
-    guard let languageService = workspace.documentService(for: buildSettingsUri) else {
-      throw ResponseError.unknown("No Language Service for URI: \(buildSettingsUri)")
+    guard let languageService = workspace.documentService(for: primaryFileURI) else {
+      throw ResponseError.unknown("No Language Service for URI: \(primaryFileURI)")
     }
 
     return try await languageService.getReferenceDocument(req)

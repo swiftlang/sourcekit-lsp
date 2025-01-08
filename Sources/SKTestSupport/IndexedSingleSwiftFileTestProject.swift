@@ -51,7 +51,6 @@ package struct IndexedSingleSwiftFileTestProject {
   ///   - cleanUp: Whether to remove the temporary directory when the SourceKit-LSP server shuts down.
   package init(
     _ markedText: String,
-    capabilities: ClientCapabilities = ClientCapabilities(),
     indexSystemModules: Bool = false,
     allowBuildFailure: Bool = false,
     workspaceDirectory: URL? = nil,
@@ -154,7 +153,6 @@ package struct IndexedSingleSwiftFileTestProject {
     )
     self.testClient = try await TestSourceKitLSPClient(
       options: options,
-      capabilities: capabilities,
       workspaceFolders: [
         WorkspaceFolder(uri: DocumentURI(testWorkspaceDirectory))
       ],
