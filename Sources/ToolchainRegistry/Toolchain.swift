@@ -14,7 +14,6 @@ import RegexBuilder
 import SKLogging
 import SwiftExtensions
 
-import enum PackageLoading.Platform
 import class TSCBasic.Process
 
 #if compiler(>=6)

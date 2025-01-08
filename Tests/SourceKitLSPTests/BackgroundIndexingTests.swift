@@ -17,7 +17,6 @@ import SKOptions
 import SKTestSupport
 import SemanticIndex
 import SourceKitLSP
-import SourceKitLSPAPI
 import SwiftExtensions
 import TSCExtensions
 import ToolchainRegistry
