@@ -17,6 +17,7 @@ import LanguageServerProtocolExtensions
 import SKLogging
 import SourceKitD
 import SwiftDiagnostics
+import SwiftExtensions
 import SwiftSyntax
 
 extension CodeAction {
@@ -154,7 +155,6 @@ fileprivate extension String {
 }
 
 extension Diagnostic {
-
   /// Creates a diagnostic from a sourcekitd response dictionary.
   ///
   /// `snapshot` is the snapshot of the document for which the diagnostics are generated.
@@ -172,7 +172,22 @@ extension Diagnostic {
       logger.fault("Missing file path in diagnostic")
       return nil
     }
-    guard filePath == snapshot.uri.pseudoPath else {
+
+    func haveSameRealpath(_ lhs: DocumentURI, _ rhs: DocumentURI) -> Bool {
+      guard let lhsFileURL = lhs.fileURL, let rhsFileURL = rhs.fileURL else {
+        return false
+      }
+      do {
+        return try lhsFileURL.realpath == rhsFileURL.realpath
+      } catch {
+        return false
+      }
+    }
+
+    guard
+      filePath == snapshot.uri.pseudoPath
+        || haveSameRealpath(DocumentURI(filePath: filePath, isDirectory: false), snapshot.uri)
+    else {
       logger.error("Ignoring diagnostic from a different file: \(filePath)")
       return nil
     }
