@@ -38,13 +38,13 @@ public struct DoccDocumentationRequest: TextDocumentRequest, Hashable {
   /// The document location at which to lookup symbol information.
   public var position: Position?
 
-  public init(textDocument: TextDocumentIdentifier, position: Position?) {
+  public init(textDocument: TextDocumentIdentifier, position: Position? = nil) {
     self.textDocument = textDocument
     self.position = position
   }
 }
 
-public struct DoccDocumentationResponse: ResponseType {
+public struct DoccDocumentationResponse: ResponseType, Equatable {
   public var renderNode: String
 
   public init(renderNode: String) {
