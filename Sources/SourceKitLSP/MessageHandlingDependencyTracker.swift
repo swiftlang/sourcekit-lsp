@@ -165,7 +165,6 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
 
   package init(_ request: some RequestType) {
     switch request {
-    case let request as any TextDocumentRequest: self = .documentRequest(request.textDocument.uri)
     case is ApplyEditRequest:
       self = .freestanding
     case is BarrierRequest:
@@ -242,6 +241,8 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
       self = .freestanding
     case is WorkspaceTestsRequest:
       self = .workspaceRequest
+    case let request as any TextDocumentRequest:
+      self = .documentRequest(request.textDocument.uri)
     default:
       logger.error(
         """
