@@ -13,6 +13,7 @@
 import BuildSystemIntegration
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
+import SKLogging
 import SKOptions
 import SKTestSupport
 import SemanticIndex
@@ -507,11 +508,17 @@ final class BackgroundIndexingTests: XCTestCase {
         """
     )
 
-    try headerNewMarkedContents.write(
-      to: try XCTUnwrap(uri.fileURL),
-      atomically: true,
-      encoding: .utf8
-    )
+    // clangd might have Header.h open, which prevents us from updating it. Keep retrying until we get a successful
+    // write. This matches what a user would do.
+    try await repeatUntilExpectedResult {
+      do {
+        try headerNewMarkedContents.write(to: try XCTUnwrap(uri.fileURL), atomically: true, encoding: .utf8)
+        return true
+      } catch {
+        logger.error("Writing new Header.h failed, will retry: \(error.forLogging)")
+        return false
+      }
+    }
 
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: .changed)]))
     try await project.testClient.send(PollIndexRequest())
