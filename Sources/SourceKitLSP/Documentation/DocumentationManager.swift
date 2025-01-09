@@ -35,7 +35,6 @@ package final actor DocumentationManager {
     _ documentURI: DocumentURI,
     at position: Position? = nil
   ) async throws -> DoccDocumentationResponse {
-    let position = position ?? Position(line: 0, utf16index: 0)
     guard let sourceKitLSPServer = sourceKitLSPServer else {
       throw ResponseError.internalError("SourceKit-LSP is shutting down")
     }
@@ -55,6 +54,9 @@ package final actor DocumentationManager {
     var overridingDocumentationComments = [String: [String]]()
     switch snapshot.language {
     case .swift:
+      guard let position else {
+        throw ResponseError.invalidParams("A position must be provided for Swift files")
+      }
       guard let languageService = await sourceKitLSPServer.languageService(for: documentURI, .swift, in: workspace),
         let swiftLanguageService = languageService as? SwiftLanguageService
       else {
@@ -71,17 +73,17 @@ package final actor DocumentationManager {
         return .error(.noDocumentation)
       }
       // Retrieve the symbol graph as well as information about the symbol
-      let position = await swiftLanguageService.adjustPositionToStartOfIdentifier(
+      let symbolPosition = await swiftLanguageService.adjustPositionToStartOfIdentifier(
         snapshot.position(of: nearestDocumentableSymbol.position),
         in: snapshot
       )
       let (cursorInfo, _, symbolGraph) = try await swiftLanguageService.cursorInfo(
         documentURI,
-        position..<position,
+        Range(symbolPosition),
         includeSymbolGraph: true,
         fallbackSettingsAfterTimeout: false
       )
-      guard let symbolGraph = symbolGraph,
+      guard let symbolGraph,
         let cursorInfo = cursorInfo.first,
         let symbolUSR = cursorInfo.symbolInfo.usr
       else {

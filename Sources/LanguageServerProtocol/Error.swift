@@ -112,6 +112,10 @@ extension ResponseError {
     return ResponseError(code: .workspaceNotOpen, message: "No workspace containing '\(uri)' found")
   }
 
+  public static func invalidParams(_ message: String) -> ResponseError {
+    return ResponseError(code: .invalidParams, message: message)
+  }
+
   public static func methodNotFound(_ method: String) -> ResponseError {
     return ResponseError(code: .methodNotFound, message: "method not found: \(method)")
   }
