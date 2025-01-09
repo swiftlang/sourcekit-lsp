@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if canImport(PackageModel)
+
 import Foundation
 import LanguageServerProtocol
 import PackageModel
@@ -298,3 +300,5 @@ fileprivate extension FunctionCallExprSyntax {
     return memberAccess.declName.baseName.text
   }
 }
+
+#endif

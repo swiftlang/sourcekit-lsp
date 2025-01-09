@@ -19,7 +19,6 @@ import IndexStoreDB
 package import LanguageServerProtocol
 package import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
-import PackageLoading
 import SKLogging
 package import SKOptions
 import SemanticIndex
@@ -27,7 +26,6 @@ import SourceKitD
 package import SwiftExtensions
 package import ToolchainRegistry
 
-import struct PackageModel.BuildFlags
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 #else
@@ -39,7 +37,6 @@ import IndexStoreDB
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
-import PackageLoading
 import SKLogging
 import SKOptions
 import SemanticIndex
@@ -47,7 +44,6 @@ import SourceKitD
 import SwiftExtensions
 import ToolchainRegistry
 
-import struct PackageModel.BuildFlags
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 #endif

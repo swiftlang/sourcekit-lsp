@@ -16,11 +16,11 @@ import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKTestSupport
 import SourceKitD
+import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
 import XCTest
 
-import enum PackageLoading.Platform
 import class TSCBasic.Process
 
 final class SourceKitDTests: XCTestCase {

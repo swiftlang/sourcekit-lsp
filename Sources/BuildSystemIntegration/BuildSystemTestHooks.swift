@@ -16,6 +16,19 @@ package import LanguageServerProtocol
 import LanguageServerProtocol
 #endif
 
+package struct SwiftPMTestHooks: Sendable {
+  package var reloadPackageDidStart: (@Sendable () async -> Void)?
+  package var reloadPackageDidFinish: (@Sendable () async -> Void)?
+
+  package init(
+    reloadPackageDidStart: (@Sendable () async -> Void)? = nil,
+    reloadPackageDidFinish: (@Sendable () async -> Void)? = nil
+  ) {
+    self.reloadPackageDidStart = reloadPackageDidStart
+    self.reloadPackageDidFinish = reloadPackageDidFinish
+  }
+}
+
 package struct BuildSystemTestHooks: Sendable {
   package var swiftPMTestHooks: SwiftPMTestHooks
 

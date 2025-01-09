@@ -12,6 +12,7 @@ add_library(SwiftExtensions STATIC
   FileManagerExtensions.swift
   NSLock+WithLock.swift
   PipeAsStringHandler.swift
+  Platform.swift
   ResultExtensions.swift
   Sequence+AsyncMap.swift
   Sequence+ContainsAnyIn.swift
