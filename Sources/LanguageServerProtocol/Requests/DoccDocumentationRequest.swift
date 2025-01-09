@@ -44,105 +44,10 @@ public struct DoccDocumentationRequest: TextDocumentRequest, Hashable {
   }
 }
 
-public enum DoccDocumentationResponse: ResponseType {
-  case renderNode(String)
-  case error(DoccDocumentationError)
-}
+public struct DoccDocumentationResponse: ResponseType {
+  public var renderNode: String
 
-public enum DoccDocumentationError: ResponseType, Equatable {
-  case indexNotAvailable
-  case noDocumentation
-  case symbolNotFound(String)
-
-  var message: String {
-    switch self {
-    case .indexNotAvailable:
-      return "The index is not availble to complete the request"
-    case .noDocumentation:
-      return "No documentation could be rendered for the position in this document"
-    case .symbolNotFound(let symbolName):
-      return "Could not find symbol \(symbolName) in the project"
-    }
-  }
-}
-
-extension DoccDocumentationError: Codable {
-  enum CodingKeys: String, CodingKey {
-    case kind
-    case message
-    case symbolName
-  }
-
-  public init(from decoder: Decoder) throws {
-    let values = try decoder.container(keyedBy: CodingKeys.self)
-    let kind = try values.decode(String.self, forKey: .kind)
-    switch kind {
-    case "indexNotAvailable":
-      self = .indexNotAvailable
-    case "noDocumentation":
-      self = .noDocumentation
-    case "symbolNotFound":
-      let symbolName = try values.decode(String.self, forKey: .symbolName)
-      self = .symbolNotFound(symbolName)
-    default:
-      throw DecodingError.dataCorruptedError(
-        forKey: CodingKeys.kind,
-        in: values,
-        debugDescription: "Invalid error kind: \(kind)"
-      )
-    }
-  }
-
-  public func encode(to encoder: any Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    switch self {
-    case .indexNotAvailable:
-      try container.encode("indexNotAvailable", forKey: .kind)
-    case .noDocumentation:
-      try container.encode("noDocumentation", forKey: .kind)
-    case .symbolNotFound(let symbolName):
-      try container.encode("symbolNotFound", forKey: .kind)
-      try container.encode(symbolName, forKey: .symbolName)
-    }
-    try container.encode(message, forKey: .message)
-  }
-}
-
-extension DoccDocumentationResponse: Codable {
-  enum CodingKeys: String, CodingKey {
-    case type
-    case renderNode
-    case error
-  }
-
-  public init(from decoder: Decoder) throws {
-    let values = try decoder.container(keyedBy: CodingKeys.self)
-    let type = try values.decode(String.self, forKey: .type)
-    switch type {
-    case "renderNode":
-      let renderNode = try values.decode(String.self, forKey: .renderNode)
-      self = .renderNode(renderNode)
-    case "error":
-      let error = try values.decode(DoccDocumentationError.self, forKey: .error)
-      self = .error(error)
-    default:
-      throw DecodingError.dataCorruptedError(
-        forKey: CodingKeys.type,
-        in: values,
-        debugDescription: "Invalid type: \(type)"
-      )
-    }
-  }
-
-  public func encode(to encoder: any Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    switch self {
-    case .renderNode(let renderNode):
-      try container.encode("renderNode", forKey: .type)
-      try container.encode(renderNode, forKey: .renderNode)
-    case .error(let error):
-      try container.encode("error", forKey: .type)
-      try container.encode(error, forKey: .error)
-    }
+  public init(renderNode: String) {
+    self.renderNode = renderNode
   }
 }

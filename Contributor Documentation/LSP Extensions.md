@@ -185,75 +185,25 @@ capabilities.
 
 ```ts
 export interface DoccDocumentationParams {
-    /**
-     * The document to render documentation for.
-     */
-    textDocument: TextDocumentIdentifier;
+  /**
+   * The document to render documentation for.
+   */
+  textDocument: TextDocumentIdentifier;
 
-    /**
-     * The document location at which to lookup symbol information.
-     * 
-     * This parameter is only used in Swift files to determine which symbol to render.
-     * The position is ignored for markdown and tutorial documents.
-     */
-    position: Position;
+  /**
+   * The document location at which to lookup symbol information.
+   * 
+   * This parameter is only used in Swift files to determine which symbol to render.
+   * The position is ignored for markdown and tutorial documents.
+   */
+  position?: Position;
 }
 
-export type DoccDocumentationResponse = RenderNodeResponse | ErrorResponse;
-
-interface RenderNodeResponse {
-  /**
-   * The type of this response: either a RenderNode or error.
-   */
-  type: "renderNode";
-
+export interface DoccDocumentationResponse {
   /**
    * The JSON encoded RenderNode that can be rendered by swift-docc-render.
    */
   renderNode: string;
-}
-
-interface ErrorResponse {
-  /**
-   * The type of this response: either a RenderNode or error.
-   */
-  type: "error";
-
-  /**
-   * The error that occurred.
-   */
-  error: DoccDocumentationError;
-}
-
-export type DoccDocumentationError = ErrorWithNoParams | SymbolNotFoundError;
-
-interface ErrorWithNoParams {
-  /**
-   * The kind of error that occurred.
-   */
-  kind: "indexNotAvailable" | "noDocumentation";
-
-  /**
-   * A human readable error message that can be shown to the user.
-   */
-  message: string;
-}
-
-interface SymbolNotFoundError {
-  /**
-   * The kind of error that occurred.
-   */
-  kind: "symbolNotFound";
-
-  /**
-   * The name of the symbol that could not be found.
-   */
-  symbolName: string;
-
-  /**
-   * A human readable error message that can be shown to the user.
-   */
-  message: string;
 }
 ```
 

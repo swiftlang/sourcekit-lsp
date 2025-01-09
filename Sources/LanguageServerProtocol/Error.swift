@@ -124,6 +124,10 @@ extension ResponseError {
     return ResponseError(code: .unknownErrorCode, message: message)
   }
 
+  public static func requestFailed(_ message: String) -> ResponseError {
+    return ResponseError(code: .requestFailed, message: message)
+  }
+
   public static func internalError(_ message: String) -> ResponseError {
     return ResponseError(code: .internalError, message: message)
   }

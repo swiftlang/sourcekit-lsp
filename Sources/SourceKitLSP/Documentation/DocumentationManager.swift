@@ -70,7 +70,7 @@ package final actor DocumentationManager {
           at: snapshot.absolutePosition(of: position)
         )
       else {
-        return .error(.noDocumentation)
+        throw ResponseError.requestFailed(.noDocumentation)
       }
       // Retrieve the symbol graph as well as information about the symbol
       let symbolPosition = await swiftLanguageService.adjustPositionToStartOfIdentifier(
@@ -96,7 +96,7 @@ package final actor DocumentationManager {
       symbolGraphs.append(rawSymbolGraph)
       overridingDocumentationComments[symbolUSR] = nearestDocumentableSymbol.documentationComments
     default:
-      return .error(.noDocumentation)
+      throw ResponseError.requestFailed(.noDocumentation)
     }
     // Send the convert request to SwiftDocC and wait for the response
     return try await withCheckedThrowingContinuation { continuation in
@@ -124,12 +124,35 @@ package final actor DocumentationManager {
             continuation.resume(throwing: ResponseError.internalError("Failed to encode render node from SwiftDocC"))
             return
           }
-          continuation.resume(returning: .renderNode(renderNode))
+          continuation.resume(returning: DoccDocumentationResponse(renderNode: renderNode))
         case .failure(let serverError):
           continuation.resume(throwing: serverError)
         }
       }
     }
+  }
+}
+
+package enum ConvertDocumentationError {
+  case indexNotAvailable
+  case noDocumentation
+  case symbolNotFound(String)
+
+  public var message: String {
+    switch self {
+    case .indexNotAvailable:
+      return "The index is not availble to complete the request"
+    case .noDocumentation:
+      return "No documentation could be rendered for the position in this document"
+    case .symbolNotFound(let symbolName):
+      return "Could not find symbol \(symbolName) in the project"
+    }
+  }
+}
+
+fileprivate extension ResponseError {
+  static func requestFailed(_ error: ConvertDocumentationError) -> ResponseError {
+    return ResponseError(code: .requestFailed, message: error.message)
   }
 }
 

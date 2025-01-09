@@ -469,7 +469,7 @@ final class DoccDocumentationTests: XCTestCase {
 
 fileprivate enum PartialConvertResponse {
   case renderNode(kind: RenderNode.Kind, path: String? = nil, containing: String? = nil)
-  case error(DoccDocumentationError)
+  case error(ConvertDocumentationError)
 }
 
 fileprivate func renderDocumentation(
@@ -510,24 +510,15 @@ fileprivate func renderDocumentation(
   }
 
   for (index, marker) in positions.allMarkers.enumerated() {
-    let response: DoccDocumentationResponse
-    do {
-      response = try await testClient.send(
-        DoccDocumentationRequest(
-          textDocument: TextDocumentIdentifier(uri),
-          position: positions[marker]
-        )
+    let response = await testClient.sendWithRawResponse(
+      DoccDocumentationRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        position: positions[marker]
       )
-    } catch {
-      XCTFail(
-        "textDocument/doccDocumentation failed at position \(marker): \(error.localizedDescription)",
-        file: file,
-        line: line
-      )
-      return
-    }
+    )
     switch response {
-    case .renderNode(let renderNodeString):
+    case .success(let response):
+      let renderNodeString = response.renderNode
       guard let renderNodeData = renderNodeString.data(using: .utf8),
         let renderNode = try? JSONDecoder().decode(RenderNode.self, from: renderNodeData)
       else {
@@ -562,35 +553,35 @@ fileprivate func renderDocumentation(
         }
       case .error(let error):
         XCTFail(
-          "expected error \(error.rawValue), but received a render node at position \(marker)",
+          "expected error \(error.message), but received a render node at position \(marker)",
           file: file,
           line: line
         )
       }
-    case .error(let error):
+    case .failure(let error):
       switch expectedResponses[index] {
       case .renderNode:
         XCTFail(
-          "expected a render node, but received an error \(error.rawValue) at position \(marker)",
+          "textDocument/doccDocumentation failed at position \(marker): \(error.localizedDescription)",
           file: file,
           line: line
         )
       case .error(let expectedError):
-        XCTAssertEqual(error, expectedError, file: file, line: line)
+        XCTAssertEqual(
+          error.code,
+          .requestFailed,
+          "expected a responseFailed error code at position \(marker)",
+          file: file,
+          line: line
+        )
+        XCTAssertEqual(
+          error.message,
+          expectedError.message,
+          "expected an error with message \(expectedError.message) at position \(marker)",
+          file: file,
+          line: line
+        )
       }
-    }
-  }
-}
-
-fileprivate extension DoccDocumentationError {
-  var rawValue: String {
-    switch self {
-    case .indexNotAvailable:
-      return "indexNotAvailable"
-    case .noDocumentation:
-      return "noDocumentation"
-    case .symbolNotFound:
-      return "symbolNotFound"
     }
   }
 }
