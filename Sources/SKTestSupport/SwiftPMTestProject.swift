@@ -102,16 +102,18 @@ package class SwiftPMTestProject: MultiFileTestProject {
         throw LinkFileListNotFoundError(url: linkFileListURL)
       }
       let linkFileList =
-        linkFileListContents
-        .split(separator: "\n")
-        .map {
-          // Files are wrapped in single quotes if the path contains spaces. Drop the quotes.
-          if $0.hasPrefix("'") && $0.hasSuffix("'") {
-            return String($0.dropFirst().dropLast())
-          } else {
-            return String($0)
-          }
-        }
+        Set(
+          linkFileListContents
+            .split(separator: "\n")
+            .map {
+              // Files are wrapped in single quotes if the path contains spaces. Drop the quotes.
+              if $0.hasPrefix("'") && $0.hasSuffix("'") {
+                return String($0.dropFirst().dropLast())
+              } else {
+                return String($0)
+              }
+            }
+        )
 
       let swiftSyntaxModulesToLink = [
         "SwiftBasicFormat",
