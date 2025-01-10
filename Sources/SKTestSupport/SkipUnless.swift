@@ -287,7 +287,12 @@ package actor SkipUnless {
         HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
       )
       let hover = try XCTUnwrap(response, file: file, line: line)
-      XCTAssertNil(hover.range, file: file, line: line)
+      XCTAssertEqual(
+        hover.range,
+        Position(line: 1, utf16index: 5)..<Position(line: 1, utf16index: 9),
+        file: file,
+        line: line
+      )
       guard case .markupContent(let content) = hover.contents else {
         throw ExpectedMarkdownContentsError()
       }

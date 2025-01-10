@@ -766,9 +766,18 @@ extension SwiftLanguageService {
         """
     }
 
+    var tokenRange: Range<Position>?
+
+    if let snapshot = try? await latestSnapshot(for: uri) {
+      let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
+      if let token = tree.token(at: snapshot.absolutePosition(of: position)) {
+        tokenRange = snapshot.absolutePositionRange(of: token.position..<token.endPosition)
+      }
+    }
+
     return HoverResponse(
       contents: .markupContent(MarkupContent(kind: .markdown, value: joinedDocumentation)),
-      range: nil
+      range: tokenRange
     )
   }
 
