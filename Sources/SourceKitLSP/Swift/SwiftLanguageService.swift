@@ -746,8 +746,7 @@ extension SwiftLanguageService {
     if let snapshot = try? await latestSnapshot(for: uri) {
       let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
       if let token = tree.token(at: snapshot.absolutePosition(of: position)) {
-        let range: Range<Position> = snapshot.absolutePositionRange(of: token.position..<token.endPosition)
-        tokenRange = range
+        tokenRange = snapshot.absolutePositionRange(of: token.position..<token.endPosition)
       }
     }
 
