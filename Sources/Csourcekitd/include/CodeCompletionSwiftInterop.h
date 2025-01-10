@@ -24,7 +24,7 @@ typedef void *swiftide_api_connection_t;
 /// may be more expensive to compute.
 typedef void *swiftide_api_completion_item_t;
 
-typedef enum {
+enum swiftide_api_completion_kind_t: uint32_t {
   SWIFTIDE_COMPLETION_KIND_NONE = 0,
   SWIFTIDE_COMPLETION_KIND_IMPORT = 1,
   SWIFTIDE_COMPLETION_KIND_UNRESOLVEDMEMBER = 2,
@@ -69,17 +69,17 @@ typedef enum {
   SWIFTIDE_COMPLETION_KIND_TYPESIMPLEORCOMPOSITION = 41,
   SWIFTIDE_COMPLETION_KIND_TYPEPOSSIBLEFUNCTIONPARAMBEGINNING = 42,
   SWIFTIDE_COMPLETION_KIND_TYPEATTRINHERITANCEBEGINNING = 43,
-} swiftide_api_completion_kind_t;
+};
 
-typedef enum {
+enum swiftide_api_completion_item_kind_t: uint32_t {
   SWIFTIDE_COMPLETION_ITEM_KIND_DECLARATION = 0,
   SWIFTIDE_COMPLETION_ITEM_KIND_KEYWORD = 1,
   SWIFTIDE_COMPLETION_ITEM_KIND_PATTERN = 2,
   SWIFTIDE_COMPLETION_ITEM_KIND_LITERAL = 3,
   SWIFTIDE_COMPLETION_ITEM_KIND_BUILTINOPERATOR = 4,
-} swiftide_api_completion_item_kind_t;
+};
 
-typedef enum {
+enum swiftide_api_completion_item_decl_kind_t: uint32_t {
   SWIFTIDE_COMPLETION_ITEM_DECL_KIND_MODULE = 0,
   SWIFTIDE_COMPLETION_ITEM_DECL_KIND_CLASS = 1,
   SWIFTIDE_COMPLETION_ITEM_DECL_KIND_STRUCT = 2,
@@ -105,18 +105,18 @@ typedef enum {
   SWIFTIDE_COMPLETION_ITEM_DECL_KIND_PRECEDENCEGROUP = 22,
   SWIFTIDE_COMPLETION_ITEM_DECL_KIND_ACTOR = 23,
   SWIFTIDE_COMPLETION_ITEM_DECL_KIND_MACRO = 24,
-} swiftide_api_completion_item_decl_kind_t;
+};
 
-typedef enum {
+enum swiftide_api_completion_type_relation_t: uint32_t {
   SWIFTIDE_COMPLETION_TYPE_RELATION_NOTAPPLICABLE = 0,
   SWIFTIDE_COMPLETION_TYPE_RELATION_UNKNOWN = 1,
   SWIFTIDE_COMPLETION_TYPE_RELATION_UNRELATED = 2,
   SWIFTIDE_COMPLETION_TYPE_RELATION_INVALID = 3,
   SWIFTIDE_COMPLETION_TYPE_RELATION_CONVERTIBLE = 4,
   SWIFTIDE_COMPLETION_TYPE_RELATION_IDENTICAL = 5,
-} swiftide_api_completion_type_relation_t;
+};
 
-typedef enum {
+enum swiftide_api_completion_semantic_context_t: uint32_t {
   SWIFTIDE_COMPLETION_SEMANTIC_CONTEXT_NONE = 0,
   /* obsoleted */SWIFTIDE_COMPLETION_SEMANTIC_CONTEXT_EXPRESSIONSPECIFIC = 1,
   SWIFTIDE_COMPLETION_SEMANTIC_CONTEXT_LOCAL = 2,
@@ -125,9 +125,9 @@ typedef enum {
   SWIFTIDE_COMPLETION_SEMANTIC_CONTEXT_OUTSIDENOMINAL = 5,
   SWIFTIDE_COMPLETION_SEMANTIC_CONTEXT_CURRENTMODULE = 6,
   SWIFTIDE_COMPLETION_SEMANTIC_CONTEXT_OTHERMODULE = 7,
-} swiftide_api_completion_semantic_context_t;
+};
 
-typedef enum {
+enum swiftide_api_completion_flair_t: uint32_t {
   SWIFTIDE_COMPLETION_FLAIR_EXPRESSIONSPECIFIC = 1 << 0,
   SWIFTIDE_COMPLETION_FLAIR_SUPERCHAIN = 1 << 1,
   SWIFTIDE_COMPLETION_FLAIR_ARGUMENTLABELS = 1 << 2,
@@ -135,9 +135,9 @@ typedef enum {
   SWIFTIDE_COMPLETION_FLAIR_RAREKEYWORDATCURRENTPOSITION = 1 << 4,
   SWIFTIDE_COMPLETION_FLAIR_RARETYPEATCURRENTPOSITION = 1 << 5,
   SWIFTIDE_COMPLETION_FLAIR_EXPRESSIONATNONSCRIPTORMAINFILESCOPE = 1 << 6,
-} swiftide_api_completion_flair_t;
+};
 
-typedef enum {
+enum swiftide_api_completion_not_recommended_reason_t: uint32_t {
   SWIFTIDE_COMPLETION_NOT_RECOMMENDED_NONE = 0,
   SWIFTIDE_COMPLETION_NOT_RECOMMENDED_REDUNDANT_IMPORT = 1,
   SWIFTIDE_COMPLETION_NOT_RECOMMENDED_DEPRECATED = 2,
@@ -147,15 +147,15 @@ typedef enum {
   SWIFTIDE_COMPLETION_NOT_RECOMMENDED_REDUNDANT_IMPORT_INDIRECT = 6,
   SWIFTIDE_COMPLETION_NOT_RECOMMENDED_SOFTDEPRECATED = 7,
   SWIFTIDE_COMPLETION_NOT_RECOMMENDED_NON_ASYNC_ALTERNATIVE_USED_IN_ASYNC_CONTEXT = 8,
-} swiftide_api_completion_not_recommended_reason_t;
+};
 
-typedef enum {
+enum swiftide_api_completion_diagnostic_severity_t: uint32_t {
   SWIFTIDE_COMPLETION_DIAGNOSTIC_SEVERITY_NONE = 0,
   SWIFTIDE_COMPLETION_DIAGNOSTIC_SEVERITY_ERROR = 1,
   SWIFTIDE_COMPLETION_DIAGNOSTIC_SEVERITY_WARNING = 2,
   SWIFTIDE_COMPLETION_DIAGNOSTIC_SEVERITY_REMARK  = 3,
   SWIFTIDE_COMPLETION_DIAGNOSTIC_SEVERITY_NOTE  = 4,
-} swiftide_api_completion_diagnostic_severity_t;
+};
 
 typedef void *swiftide_api_completion_request_t;
 
@@ -278,7 +278,7 @@ typedef struct {
     uint64_t index
   );
 
-  swiftide_api_completion_kind_t (*_Nonnull completion_result_get_kind)(
+  enum swiftide_api_completion_kind_t (*_Nonnull completion_result_get_kind)(
     _Null_unspecified swiftide_api_completion_response_t
   );
 
@@ -361,7 +361,7 @@ typedef struct {
   void (*_Nonnull completion_item_get_diagnostic)(
     _Null_unspecified swiftide_api_completion_response_t,
     _Null_unspecified swiftide_api_completion_item_t,
-    void (^_Null_unspecified handler)(swiftide_api_completion_diagnostic_severity_t, const char *_Null_unspecified)
+    void (^_Null_unspecified handler)(enum swiftide_api_completion_diagnostic_severity_t, const char *_Null_unspecified)
   );
 
   bool (*_Nonnull completion_item_is_system)(

@@ -88,14 +88,17 @@ private func pluginPaths(relativeTo base: URL) -> PluginPaths? {
   // When building using 'swift test'
   do {
     #if canImport(Darwin)
-    let dylibExtension = "dylib"
+    let clientPluginName = "libSwiftSourceKitClientPlugin.dylib"
+    let servicePluginName = "libSwiftSourceKitPlugin.dylib"
     #elseif os(Windows)
-    let dylibExtension = "dll"
+    let clientPluginName = "SwiftSourceKitClientPlugin.dll"
+    let servicePluginName = "SwiftSourceKitPlugin.dll"
     #else
-    let dylibExtension = "so"
+    let clientPluginName = "libSwiftSourceKitClientPlugin.so"
+    let servicePluginName = "libSwiftSourceKitPlugin.so"
     #endif
-    let clientPlugin = base.appendingPathComponent("libSwiftSourceKitClientPlugin.\(dylibExtension)")
-    let servicePlugin = base.appendingPathComponent("libSwiftSourceKitPlugin.\(dylibExtension)")
+    let clientPlugin = base.appendingPathComponent(clientPluginName)
+    let servicePlugin = base.appendingPathComponent(servicePluginName)
     if fileExists(at: clientPlugin) && fileExists(at: servicePlugin) {
       return PluginPaths(clientPlugin: clientPlugin, servicePlugin: servicePlugin)
     }
@@ -113,7 +116,12 @@ package var sourceKitPluginPaths: PluginPaths {
         "Could not find SourceKit plugin. Ensure that you build the entire SourceKit-LSP package before running tests."
     }
 
-    var base = xctestBundle
+    var base =
+      if let pluginPaths = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_TEST_PLUGIN_PATHS"] {
+        URL(fileURLWithPath: pluginPaths)
+      } else {
+        xctestBundle
+      }
     while base.pathComponents.count > 1 {
       if let paths = pluginPaths(relativeTo: base) {
         return paths
@@ -121,8 +129,6 @@ package var sourceKitPluginPaths: PluginPaths {
       base = base.deletingLastPathComponent()
     }
 
-    // If we couldn't find the plugins, keep `didLoadPlugin = false`, which will throw an error in each test case's
-    // `setUp` function. We can't throw an error from the class `setUp` function.
     throw PluginLoadingError()
   }
 }

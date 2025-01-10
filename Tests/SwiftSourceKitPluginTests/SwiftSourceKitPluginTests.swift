@@ -24,7 +24,11 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   ///
   /// The file does not actually exist on disk.
   private func scratchFilePath(testName: String = #function, fileName: String = "a.swift") -> String {
+    #if os(Windows)
+    return "C:\\\(testScratchName(testName: testName))\\\(fileName)"
+    #else
     return "/\(testScratchName(testName: testName))/\(fileName)"
+    #endif
   }
 
   func getSourceKitD() async throws -> SourceKitD {

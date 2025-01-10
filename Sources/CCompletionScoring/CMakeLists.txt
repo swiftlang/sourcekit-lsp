@@ -1,0 +1,2 @@
+add_library(CCompletionScoring INTERFACE)
+target_include_directories(CCompletionScoring INTERFACE "include")

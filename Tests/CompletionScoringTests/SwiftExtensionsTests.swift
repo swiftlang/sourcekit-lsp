@@ -103,11 +103,11 @@ class SwiftExtensionsTests: XCTestCase {
   }
 
   func testRangeOfBytes() {
-    func search(for needle: String, in body: String, expecting expectedMatch: Range<Int>?) {
+    func search(for needle: String, in body: String, expecting expectedMatch: Range<Int>?, line: UInt = #line) {
       needle.withUncachedUTF8Bytes { needle in
         body.withUncachedUTF8Bytes { body in
           let actualMatch = body.rangeOf(bytes: needle)
-          XCTAssertEqual(actualMatch, expectedMatch)
+          XCTAssertEqual(actualMatch, expectedMatch, line: line)
         }
       }
     }

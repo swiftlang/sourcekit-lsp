@@ -1,0 +1,4 @@
+module CCompletionScoring {
+  header "CCompletionScoring.h"
+  export *
+}

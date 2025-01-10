@@ -540,11 +540,13 @@ var targets: [Target] = [
     dependencies: [
       "Csourcekitd",
       "SourceKitDForPlugin",
+      "SwiftExtensionsForPlugin",
       "SwiftSourceKitPluginCommon",
     ],
     swiftSettings: globalSwiftSettings + [
       .unsafeFlags([
         "-module-alias", "SourceKitD=SourceKitDForPlugin",
+        "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
       ])
     ]
   ),
@@ -662,11 +664,11 @@ var targets: [Target] = [
 if buildOnlyTests {
   products = []
   targets = targets.compactMap { target in
-    guard target.isTest || target.name == "SKTestSupport" else {
+    guard target.isTest || target.name.contains("TestSupport") else {
       return nil
     }
     target.dependencies = target.dependencies.filter { dependency in
-      if case .byNameItem(name: "SKTestSupport", _) = dependency {
+      if case .byNameItem(name: let name, _) = dependency, name.contains("TestSupport") {
         return true
       }
       return false

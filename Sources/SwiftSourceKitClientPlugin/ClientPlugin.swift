@@ -12,7 +12,7 @@
 
 import Foundation
 import SourceKitD
-import SwiftExtensionsForPlugin
+import SwiftExtensions
 import SwiftSourceKitPluginCommon
 
 #if compiler(>=6)
