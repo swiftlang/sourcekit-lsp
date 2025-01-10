@@ -30,8 +30,6 @@ import ToolchainRegistry
 import XCTest
 #endif
 
-private struct SwiftSyntaxCShimsModulemapNotFoundError: Error {}
-
 package class SwiftPMTestProject: MultiFileTestProject {
   enum Error: Swift.Error {
     /// The `swift` executable could not be found.
@@ -85,8 +83,35 @@ package class SwiftPMTestProject: MultiFileTestProject {
         .first { FileManager.default.fileExists(at: $0) }
 
       guard let swiftSyntaxCShimsModulemap else {
+        struct SwiftSyntaxCShimsModulemapNotFoundError: Swift.Error {}
         throw SwiftSyntaxCShimsModulemapNotFoundError()
       }
+
+      // Only link against object files that are listed in the `Objects.LinkFileList`. Otherwise we can get a situation
+      // where a `.swift` file is removed from swift-syntax, its `.o` file is still in the build directory because the
+      // build folder wasn't cleaned and thus we would link against the stale `.o` file.
+      let linkFileListURL =
+        productsDirectory
+        .appendingPathComponent("SourceKitLSPPackageTests.product")
+        .appendingPathComponent("Objects.LinkFileList")
+      let linkFileListContents = try? String(contentsOf: linkFileListURL, encoding: .utf8)
+      guard let linkFileListContents else {
+        struct LinkFileListNotFoundError: Swift.Error {
+          let url: URL
+        }
+        throw LinkFileListNotFoundError(url: linkFileListURL)
+      }
+      let linkFileList =
+        linkFileListContents
+        .split(separator: "\n")
+        .map {
+          // Files are wrapped in single quotes if the path contains spaces. Drop the quotes.
+          if $0.hasPrefix("'") && $0.hasSuffix("'") {
+            return String($0.dropFirst().dropLast())
+          } else {
+            return String($0)
+          }
+        }
 
       let swiftSyntaxModulesToLink = [
         "SwiftBasicFormat",
@@ -108,7 +133,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
         let dir = productsDirectory.appendingPathComponent("\(moduleName).build")
         let enumerator = FileManager.default.enumerator(at: dir, includingPropertiesForKeys: nil)
         while let file = enumerator?.nextObject() as? URL {
-          if file.pathExtension == "o" {
+          if linkFileList.contains(try file.filePath) {
             objectFiles.append(try file.filePath)
           }
         }
