@@ -431,4 +431,39 @@ final class PullDiagnosticsTests: XCTestCase {
       ]
     )
   }
+
+  func testDiagnosticsWhenOpeningProjectFromSymlink() async throws {
+    let contents = """
+      let x: String = 1
+      """
+    let project = try await SwiftPMTestProject(
+      files: ["FileA.swift": contents],
+      workspaces: { scratchDirectory in
+        let symlinkUrl = scratchDirectory.appendingPathComponent("symlink")
+        try FileManager.default.createSymbolicLink(
+          at: symlinkUrl,
+          withDestinationURL: scratchDirectory
+        )
+        return [WorkspaceFolder(uri: DocumentURI(symlinkUrl))]
+      }
+    )
+
+    let uri = DocumentURI(
+      project.scratchDirectory
+        .appendingPathComponent("symlink")
+        .appendingPathComponent("Sources")
+        .appendingPathComponent("MyLibrary")
+        .appendingPathComponent("FileA.swift")
+    )
+    project.testClient.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(uri: uri, language: .swift, version: 0, text: contents)
+      )
+    )
+    let diagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    let diagnostic = try XCTUnwrap(diagnostics.fullReport?.items.only)
+    XCTAssertEqual(diagnostic.message, "Cannot convert value of type 'Int' to specified type 'String'")
+  }
 }
