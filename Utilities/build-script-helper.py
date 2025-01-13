@@ -254,10 +254,15 @@ def install(swift_exec: str, args: argparse.Namespace) -> None:
     build_single_product('SwiftSourceKitPlugin', swift_exec, args)
     build_single_product('SwiftSourceKitClientPlugin', swift_exec, args)
 
+    if platform.system() == 'Darwin':
+        dynamic_library_extension = "dylib"
+    else:
+        dynamic_library_extension = "so"
+
     for prefix in args.install_prefixes:
         install_binary('sourcekit-lsp', bin_path, os.path.join(prefix, 'bin'), verbose=args.verbose)
-        install_binary('libSwiftSourceKitPlugin.dylib', bin_path, os.path.join(prefix, 'bin'), verbose=args.verbose)
-        install_binary('libSwiftSourceKitClientPlugin.dylib', bin_path, os.path.join(prefix, 'bin'), verbose=args.verbose)
+        install_binary(f'libSwiftSourceKitPlugin.{dynamic_library_extension}', bin_path, os.path.join(prefix, 'lib'), verbose=args.verbose)
+        install_binary(f'libSwiftSourceKitClientPlugin.{dynamic_library_extension}', bin_path, os.path.join(prefix, 'lib'), verbose=args.verbose)
 
 
 def handle_invocation(swift_exec: str, args: argparse.Namespace) -> None:
