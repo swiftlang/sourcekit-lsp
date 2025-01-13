@@ -70,22 +70,15 @@ def swiftpm_bin_path(swift_exec: str, swiftpm_args: List[str], additional_env: D
 
 def get_build_target(swift_exec: str, args: argparse.Namespace, cross_compile: bool = False) -> str:
     """Returns the target-triple of the current machine or for cross-compilation."""
-    try:
-        command = [swift_exec, '-print-target-info']
-        if cross_compile:
-            cross_compile_json = json.load(open(args.cross_compile_config))
-            command += ['-target', cross_compile_json["target"]]
-        target_info_json = subprocess.check_output(command, stderr=subprocess.PIPE, universal_newlines=True).strip()
-        args.target_info = json.loads(target_info_json)
-        if '-apple-macosx' in args.target_info["target"]["unversionedTriple"]:
-            return args.target_info["target"]["unversionedTriple"]
-        return args.target_info["target"]["triple"]
-    except Exception as e:
-        # Temporary fallback for Darwin.
-        if platform.system() == 'Darwin':
-            return 'x86_64-apple-macosx'
-        else:
-            fatal_error(str(e))
+    command = [swift_exec, '-print-target-info']
+    if cross_compile:
+        cross_compile_json = json.load(open(args.cross_compile_config))
+        command += ['-target', cross_compile_json["target"]]
+    target_info_json = subprocess.check_output(command, stderr=subprocess.PIPE, universal_newlines=True).strip()
+    args.target_info = json.loads(target_info_json)
+    if '-apple-macosx' in args.target_info["target"]["unversionedTriple"]:
+        return args.target_info["target"]["unversionedTriple"]
+    return args.target_info["target"]["triple"]
 
 # -----------------------------------------------------------------------------
 # Build SourceKit-LSP
@@ -144,7 +137,7 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace, suppress_verb
 
     if args.cross_compile_host:
         if build_os.startswith('macosx') and args.cross_compile_host.startswith('macosx-'):
-            swiftpm_args += ["--arch", "x86_64", "--arch", "arm64"]
+            swiftpm_args += ["--arch", args.cross_compile_host[7:]]
         elif args.cross_compile_host.startswith('android-'):
             print('Cross-compiling for %s' % args.cross_compile_host)
             swiftpm_args += ['--destination', args.cross_compile_config]
@@ -210,13 +203,13 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
     # 'swift test' doesn't print os_log output to the command line. Use the
     # `NonDarwinLogger` that prints to stderr so we can view the log output in CI test
     # runs.
-    additional_env['SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER'] = '1'
+    additional_env['SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER'] = '1'
 
     # CI doesn't contain any sensitive information. Log everything.
-    additional_env['SOURCEKITLSP_LOG_PRIVACY_LEVEL'] = 'sensitive'
+    additional_env['SOURCEKIT_LSP_LOG_PRIVACY_LEVEL'] = 'sensitive'
 
     # Log with the highest log level to simplify debugging of CI failures.
-    additional_env['SOURCEKITLSP_LOG_LEVEL'] = 'debug'
+    additional_env['SOURCEKIT_LSP_LOG_LEVEL'] = 'debug'
 
     bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, additional_env=additional_env)
     tests = os.path.join(bin_path, 'sk-tests')

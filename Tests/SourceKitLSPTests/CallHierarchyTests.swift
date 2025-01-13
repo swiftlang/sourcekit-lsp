@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import ISDBTestSupport
 import LanguageServerProtocol
 import SKTestSupport
+import SwiftExtensions
 import TSCBasic
 import XCTest
 
@@ -833,7 +833,7 @@ final class CallHierarchyTests: XCTestCase {
       [
         CallHierarchyIncomingCall(
           from: CallHierarchyItem(
-            name: "Bar.init()",
+            name: "Outer.Bar.init()",
             kind: .constructor,
             tags: nil,
             uri: project.fileURI,
@@ -845,6 +845,104 @@ final class CallHierarchyTests: XCTestCase {
             ])
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
+        )
+      ]
+    )
+  }
+
+  func testIncomingCallHierarchyFromComputedMember() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct Foo {
+        func 1️⃣foo() {}
+
+        var testVar: Int {
+          2️⃣get {
+            let myVar = 3️⃣foo()
+            return 2
+          }
+        }
+      }
+      """
+    )
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["1️⃣"]
+      )
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "Foo.getter:testVar",
+            kind: .method,
+            tags: nil,
+            uri: project.fileURI,
+            range: Range(project.positions["2️⃣"]),
+            selectionRange: Range(project.positions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test3FooV0A3VarSivg"),
+              "uri": .string(project.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(project.positions["3️⃣"])]
+        )
+      ]
+    )
+  }
+
+  func testOnlyConsiderCallsAsIncomingCallOccurrences() async throws {
+    try await SkipUnless.indexOnlyHasContainedByRelationsToIndexedDecls()
+
+    // extension MyTask: AnyTask {} includes an occurrence of `MyTask.cancel` to mark it as an override of
+    // `AnyTask.cancel` but we shouldn't show the extension in the call hierarchy.
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct MyTask {
+        func cancel() {}
+      }
+
+      protocol AnyTask {
+        func cancel()
+      }
+
+      extension MyTask: AnyTask {}
+
+      func 2️⃣foo(task: MyTask)3️⃣ {
+        task.1️⃣cancel()
+      }
+      """
+    )
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["1️⃣"]
+      )
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "foo(task:)",
+            kind: .function,
+            tags: nil,
+            uri: project.fileURI,
+            range: Range(project.positions["2️⃣"]),
+            selectionRange: Range(project.positions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test3foo4taskyAA6MyTaskV_tF"),
+              "uri": .string(project.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(project.positions["1️⃣"])]
         )
       ]
     )

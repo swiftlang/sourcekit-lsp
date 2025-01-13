@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKLogging
+import SwiftExtensions
 import XCTest
 
 /// Runs the body repeatedly once per second until it returns `true`, giving up after `timeout`.
@@ -17,21 +19,19 @@ import XCTest
 /// This is useful to test some request that requires global state to be updated but will eventually converge on the
 /// correct result.
 ///
-/// If `bodyHasOneSecondDelay` is true, it is assume that the body already has a one-second delay between iterations.
+/// `sleepInterval` is the duration to wait before re-executing the body.
 package func repeatUntilExpectedResult(
+  timeout: Duration = .seconds(defaultTimeout),
+  sleepInterval: Duration = .seconds(1),
   _ body: () async throws -> Bool,
-  bodyHasOneSecondDelay: Bool = false,
-  timeout: TimeInterval = defaultTimeout,
   file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
-  for _ in 0..<Int(timeout) {
+  for _ in 0..<Int(timeout.seconds / sleepInterval.seconds) {
     if try await body() {
       return
     }
-    if !bodyHasOneSecondDelay {
-      try await Task.sleep(for: .seconds(1))
-    }
+    try await Task.sleep(for: sleepInterval)
   }
   XCTFail("Failed to get expected result", file: file, line: line)
 }

@@ -10,17 +10,33 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Foundation
+import InProcessClient
+package import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
+import LanguageServerProtocolExtensions
+package import SKOptions
+import SKUtilities
+package import SourceKitLSP
+import SwiftExtensions
+import SwiftSyntax
+import ToolchainRegistry
+import XCTest
+#else
 import Foundation
 import InProcessClient
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
+import LanguageServerProtocolExtensions
 import SKOptions
-import SKSupport
+import SKUtilities
 import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
 import ToolchainRegistry
 import XCTest
+#endif
 
 extension SourceKitLSPOptions {
   package static func testDefault(experimentalFeatures: Set<ExperimentalFeature>? = nil) -> SourceKitLSPOptions {
@@ -34,6 +50,29 @@ extension SourceKitLSPOptions {
 
 fileprivate struct NotificationTimeoutError: Error, CustomStringConvertible {
   var description: String = "Failed to receive next notification within timeout"
+}
+
+/// A list of notifications that has been received by the SourceKit-LSP server but not handled from the test case yet.
+///
+/// We can't use an `AsyncStream` for this because an `AsyncStream` is cancelled if a task that calls
+/// `AsyncStream.Iterator.next` is cancelled and we want to be able to wait for new notifications even if waiting for a
+/// a previous notification timed out.
+actor PendingNotifications {
+  private var values: [any NotificationType] = []
+
+  func add(_ value: any NotificationType) {
+    values.insert(value, at: 0)
+  }
+
+  func next(timeout: Duration, pollingInterval: Duration = .milliseconds(10)) async throws -> any NotificationType {
+    for _ in 0..<Int(timeout.seconds / pollingInterval.seconds) {
+      if let value = values.popLast() {
+        return value
+      }
+      try await Task.sleep(for: pollingInterval)
+    }
+    throw NotificationTimeoutError()
+  }
 }
 
 /// A mock SourceKit-LSP client (aka. a mock editor) that behaves like an editor
@@ -62,10 +101,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   private let serverToClientConnection: LocalConnection
 
   /// Stream of the notifications that the server has sent to the client.
-  private let notifications: AsyncStream<any NotificationType>
-
-  /// Continuation to add a new notification from the ``server`` to the `notifications` stream.
-  private let notificationYielder: AsyncStream<any NotificationType>.Continuation
+  private let notifications: PendingNotifications
 
   /// The request handlers that have been set by `handleNextRequest`.
   ///
@@ -110,20 +146,22 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
     cleanUp: @Sendable @escaping () -> Void = {}
   ) async throws {
+    if enableBackgroundIndexing {
+      try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
+    }
     var options = options
-    if let globalModuleCache {
-      options.swiftPM.swiftCompilerFlags =
-        (options.swiftPM.swiftCompilerFlags ?? []) + ["-module-cache-path", globalModuleCache.path]
+    if let globalModuleCache = try globalModuleCache {
+      options.swiftPMOrDefault.swiftCompilerFlags =
+        (options.swiftPMOrDefault.swiftCompilerFlags ?? []) + ["-module-cache-path", try globalModuleCache.filePath]
     }
     options.backgroundIndexing = enableBackgroundIndexing
-
-    var notificationYielder: AsyncStream<any NotificationType>.Continuation!
-    self.notifications = AsyncStream { continuation in
-      notificationYielder = continuation
+    if options.sourcekitdRequestTimeout == nil {
+      options.sourcekitdRequestTimeout = defaultTimeout
     }
-    self.notificationYielder = notificationYielder
 
-    let serverToClientConnection = LocalConnection(name: "client")
+    self.notifications = PendingNotifications()
+
+    let serverToClientConnection = LocalConnection(receiverName: "client")
     self.serverToClientConnection = serverToClientConnection
     server = SourceKitLSPServer(
       client: serverToClientConnection,
@@ -231,21 +269,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   /// - Note: This also returns any notifications sent before the call to
   ///   `nextNotification`.
   package func nextNotification(timeout: Duration = .seconds(defaultTimeout)) async throws -> any NotificationType {
-    return try await withThrowingTaskGroup(of: (any NotificationType).self) { taskGroup in
-      taskGroup.addTask {
-        for await notification in self.notifications {
-          return notification
-        }
-        throw NotificationTimeoutError()
-      }
-      taskGroup.addTask {
-        try await Task.sleep(for: timeout)
-        throw NotificationTimeoutError()
-      }
-      let result = try await taskGroup.next()!
-      taskGroup.cancelAll()
-      return result
-    }
+    return try await notifications.next(timeout: timeout)
   }
 
   /// Await the next diagnostic notification sent to the client.
@@ -318,8 +342,10 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   // MARK: - Conformance to MessageHandler
 
   /// - Important: Implementation detail of `TestSourceKitLSPServer`. Do not call from tests.
-  package func handle(_ params: some NotificationType) {
-    notificationYielder.yield(params)
+  package func handle(_ notification: some NotificationType) {
+    Task {
+      await notifications.add(notification)
+    }
   }
 
   /// - Important: Implementation detail of `TestSourceKitLSPClient`. Do not call from tests.
@@ -337,6 +363,12 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
         return (handler, index, handlerAndIsOneShot.isOneShot)
       }.first
       guard let (requestHandler, index, isOneShot) = requestHandlerIndexAndIsOneShot else {
+        if Request.self == DiagnosticsRefreshRequest.self {
+          // Ignore diagnostic refresh requests. This keeps the log a little cleaner than if we return
+          // methodNotFound.
+          reply(.success(VoidResponse() as! Request.Response))
+          return
+        }
         reply(.failure(.methodNotFound(Request.method)))
         return
       }
@@ -417,6 +449,11 @@ package struct DocumentPositions {
     self.positions = positions
   }
 
+  package static func extract(from markedText: String) -> (positions: DocumentPositions, textWithoutMarkers: String) {
+    let (markers, textWithoutMarkers) = extractMarkers(markedText)
+    return (DocumentPositions(markers: markers, textWithoutMarkers: textWithoutMarkers), textWithoutMarkers)
+  }
+
   /// Returns the position of the given marker and traps if the document from which these `DocumentPositions` were
   /// derived didn't contain the marker.
   package subscript(_ marker: String) -> Position {
@@ -429,37 +466,5 @@ package struct DocumentPositions {
   /// Returns all position makers within these `DocumentPositions`.
   package var allMarkers: [String] {
     return positions.keys.sorted()
-  }
-}
-
-// MARK: - WeakMessageHelper
-
-/// Wrapper around a weak `MessageHandler`.
-///
-/// This allows us to set the ``TestSourceKitLSPClient`` as the message handler of
-/// `SourceKitLSPServer` without retaining it.
-private final class WeakMessageHandler: MessageHandler, Sendable {
-  // `nonisolated(unsafe)` is fine because `handler` is never modified, only if the weak reference is deallocated, which
-  // is atomic.
-  private nonisolated(unsafe) weak var handler: (any MessageHandler)?
-
-  init(_ handler: any MessageHandler) {
-    self.handler = handler
-  }
-
-  func handle(_ params: some LanguageServerProtocol.NotificationType) {
-    handler?.handle(params)
-  }
-
-  func handle<Request: RequestType>(
-    _ params: Request,
-    id: LanguageServerProtocol.RequestID,
-    reply: @Sendable @escaping (LanguageServerProtocol.LSPResult<Request.Response>) -> Void
-  ) {
-    guard let handler = handler else {
-      reply(.failure(.unknown("Handler has been deallocated")))
-      return
-    }
-    handler.handle(params, id: id, reply: reply)
   }
 }

@@ -18,10 +18,17 @@
 /// - Returns: Void.
 public struct ShutdownRequest: RequestType, Hashable {
   public static let method: String = "shutdown"
-  public typealias Response = VoidResponse
+
+  public struct Response: ResponseType, Equatable {
+    public init() {}
+
+    public init(from decoder: any Decoder) throws {}
+
+    public func encode(to encoder: any Encoder) throws {
+      var container = encoder.singleValueContainer()
+      try container.encodeNil()
+    }
+  }
 
   public init() {}
 }
-
-@available(*, deprecated, renamed: "ShutdownRequest")
-public typealias Shutdown = ShutdownRequest

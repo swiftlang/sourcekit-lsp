@@ -10,10 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Foundation
+package import LanguageServerProtocol
+import SKLogging
+import SwiftSyntax
+#else
 import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SwiftSyntax
+#endif
 
 extension SwiftLanguageService {
   package func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
@@ -240,7 +247,7 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
   override func visit(_ node: InitializerDeclSyntax) -> SyntaxVisitorContinueKind {
     return record(
       node: node,
-      name: node.initKeyword.text,
+      name: node.declName,
       symbolKind: .constructor,
       range: node.rangeWithoutTrivia,
       selection: node.initKeyword
@@ -288,6 +295,18 @@ fileprivate extension EnumCaseElementSyntax {
 fileprivate extension FunctionDeclSyntax {
   var declName: String {
     var result = self.name.text
+    result += "("
+    for parameter in self.signature.parameterClause.parameters {
+      result += "\(parameter.firstName.text):"
+    }
+    result += ")"
+    return result
+  }
+}
+
+fileprivate extension InitializerDeclSyntax {
+  var declName: String {
+    var result = self.initKeyword.text
     result += "("
     for parameter in self.signature.parameterClause.parameters {
       result += "\(parameter.firstName.text):"

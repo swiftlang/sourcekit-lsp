@@ -10,9 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import LanguageServerProtocol
+import SKLogging
+import SourceKitD
+#else
 import LanguageServerProtocol
 import SKLogging
 import SourceKitD
+#endif
 
 /// A ranged token in the document used for syntax highlighting.
 package struct SyntaxHighlightingToken: Hashable, Sendable {

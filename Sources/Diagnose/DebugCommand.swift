@@ -10,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import ArgumentParser
+#else
 import ArgumentParser
+#endif
 
 package struct DebugCommand: ParsableCommand {
   package static let configuration = CommandConfiguration(
@@ -21,6 +25,7 @@ package struct DebugCommand: ParsableCommand {
       ReduceCommand.self,
       ReduceFrontendCommand.self,
       RunSourceKitdRequestCommand.self,
+      TraceFromSignpostsCommand.self,
     ]
   )
 

@@ -10,7 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Csourcekitd
 import LanguageServerProtocol
+import SKLogging
 import SourceKitD
 
 /// Detailed information about a symbol under the cursor.
@@ -57,6 +59,7 @@ struct CursorInfo {
 
   init?(
     _ dict: SKDResponseDictionary,
+    documentManager: DocumentManager,
     sourcekitd: some SourceKitD
   ) {
     let keys = sourcekitd.keys
@@ -70,12 +73,14 @@ struct CursorInfo {
       let line: Int = dict[keys.line],
       let column: Int = dict[keys.column]
     {
-      let position = Position(
-        line: line - 1,
-        // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
-        utf16index: column - 1
-      )
-      location = Location(uri: DocumentURI(filePath: filepath, isDirectory: false), range: Range(position))
+      let uri = DocumentURI(filePath: filepath, isDirectory: false)
+      if let snapshot = documentManager.latestSnapshotOrDisk(uri, language: .swift) {
+        let position = snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: column - 1)
+        location = Location(uri: uri, range: Range(position))
+      } else {
+        logger.error("Failed to get snapshot for \(uri.forLogging) to convert position")
+        location = nil
+      }
     } else {
       location = nil
     }
@@ -136,13 +141,16 @@ extension SwiftLanguageService {
   /// - Parameters:
   ///   - url: Document URI in which to perform the request. Must be an open document.
   ///   - range: The position range within the document to lookup the symbol at.
-  ///   - completion: Completion block to asynchronously receive the CursorInfo, or error.
+  ///   - fallbackSettingsAfterTimeout: Whether fallback build settings should be used for the cursor info request if no
+  ///     build settings can be retrieved within a timeout.
   func cursorInfo(
     _ uri: DocumentURI,
     _ range: Range<Position>,
+    fallbackSettingsAfterTimeout: Bool,
     additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil
   ) async throws -> (cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand]) {
-    let snapshot = try documentManager.latestSnapshot(uri)
+    let documentManager = try self.documentManager
+    let snapshot = try await self.latestSnapshot(for: uri)
 
     let offsetRange = snapshot.utf8OffsetRange(of: range)
 
@@ -153,8 +161,10 @@ extension SwiftLanguageService {
       keys.cancelOnSubsequentRequest: 0,
       keys.offset: offsetRange.lowerBound,
       keys.length: offsetRange.upperBound != offsetRange.lowerBound ? offsetRange.count : nil,
-      keys.sourceFile: snapshot.uri.pseudoPath,
-      keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDRequestValue]?,
+      keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
+      keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
+      keys.compilerArgs: await self.buildSettings(for: uri, fallbackAfterTimeout: fallbackSettingsAfterTimeout)?
+        .compilerArgs as [SKDRequestValue]?,
     ])
 
     appendAdditionalParameters?(skreq)
@@ -162,10 +172,12 @@ extension SwiftLanguageService {
     let dict = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
 
     var cursorInfoResults: [CursorInfo] = []
-    if let cursorInfo = CursorInfo(dict, sourcekitd: sourcekitd) {
+    if let cursorInfo = CursorInfo(dict, documentManager: documentManager, sourcekitd: sourcekitd) {
       cursorInfoResults.append(cursorInfo)
     }
-    cursorInfoResults += dict[keys.secondarySymbols]?.compactMap { CursorInfo($0, sourcekitd: sourcekitd) } ?? []
+    cursorInfoResults +=
+      dict[keys.secondarySymbols]?
+      .compactMap { CursorInfo($0, documentManager: documentManager, sourcekitd: sourcekitd) } ?? []
     let refactorActions =
       [SemanticRefactorCommand](
         array: dict[keys.refactorActions],

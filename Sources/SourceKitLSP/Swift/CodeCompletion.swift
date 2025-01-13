@@ -10,11 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Foundation
+package import LanguageServerProtocol
+import SKLogging
+import SourceKitD
+import SwiftBasicFormat
+#else
 import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SourceKitD
 import SwiftBasicFormat
+#endif
 
 extension SwiftLanguageService {
   package func completion(_ req: CompletionRequest) async throws -> CompletionList {
@@ -26,7 +34,7 @@ extension SwiftLanguageService {
 
     let clientSupportsSnippets =
       capabilityRegistry.clientCapabilities.textDocument?.completion?.completionItem?.snippetSupport ?? false
-    let buildSettings = await buildSettings(for: snapshot.uri)
+    let buildSettings = await buildSettings(for: snapshot.uri, fallbackAfterTimeout: false)
 
     let inferredIndentationWidth = BasicFormat.inferIndentation(of: await syntaxTreeManager.syntaxTree(for: snapshot))
 

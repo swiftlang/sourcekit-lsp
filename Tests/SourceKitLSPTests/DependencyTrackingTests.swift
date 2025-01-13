@@ -11,7 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
+import SKLogging
 import SKTestSupport
+import SourceKitLSP
+import SwiftExtensions
 import XCTest
 
 final class DependencyTrackingTests: XCTestCase {
@@ -40,25 +44,35 @@ final class DependencyTrackingTests: XCTestCase {
       usePullDiagnostics: false
     )
 
-    let (libBUri, _) = try project.openDocument("LibB.swift")
+    _ = try project.openDocument("LibB.swift")
 
-    let initialDiags = try await project.testClient.nextDiagnosticsNotification()
-    // Semantic analysis: expect module import error.
-    XCTAssertEqual(initialDiags.diagnostics.count, 1)
-    if let diagnostic = initialDiags.diagnostics.first {
+    // Once we have build settings for the file, we should get an error about `LibA` not existing (background
+    // preparation is disabled). Before that, we might get empty syntactic diagnostics.
+    try await repeatUntilExpectedResult {
+      let initialDiags = try? await project.testClient.nextDiagnosticsNotification(timeout: .seconds(1))
       #if compiler(>=6.1)
       #warning("When we drop support for Swift 5.10 we no longer need to check for the Objective-C error message")
       #endif
-      XCTAssert(
+      if let diagnostic = initialDiags?.diagnostics.only,
         diagnostic.message.contains("Could not build Objective-C module")
-          || diagnostic.message.contains("No such module"),
-        "expected module import error but found \"\(diagnostic.message)\""
-      )
+          || diagnostic.message.contains("No such module")
+      {
+        return true
+      }
+      logger.debug("Received unexpected diagnostics: \(initialDiags?.forLogging)")
+      return false
     }
 
     try await SwiftPMTestProject.build(at: project.scratchDirectory)
 
-    await project.testClient.server.filesDependenciesUpdated([libBUri])
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(
+        changes:
+          FileManager.default.findFiles(withExtension: "swiftmodule", in: project.scratchDirectory).map {
+            FileEvent(uri: DocumentURI($0), type: .created)
+          }
+      )
+    )
 
     let updatedDiags = try await project.testClient.nextDiagnosticsNotification()
     // Semantic analysis: no more errors expected, import should resolve since we built.
@@ -102,7 +116,8 @@ final class DependencyTrackingTests: XCTestCase {
     let contents = "int libX(int value);"
     try contents.write(to: generatedHeaderURL, atomically: true, encoding: .utf8)
 
-    await project.testClient.server.filesDependenciesUpdated([mainUri])
+    let workspace = try await unwrap(project.testClient.server.workspaceForDocument(uri: mainUri))
+    await workspace.filesDependenciesUpdated([mainUri])
 
     let updatedDiags = try await project.testClient.nextDiagnosticsNotification()
     // No more errors expected, import should resolve since we the generated header file

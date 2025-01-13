@@ -19,13 +19,13 @@ package func reduceFrontendIssue(
   let requestInfo = try RequestInfo(frontendArgs: frontendArgs)
   let initialResult = try await executor.run(request: requestInfo)
   guard case .reproducesIssue = initialResult else {
-    throw ReductionError("Unable to reproduce the swift-frontend issue")
+    throw GenericError("Unable to reproduce the swift-frontend issue")
   }
   let mergedSwiftFilesRequestInfo = try await requestInfo.mergeSwiftFiles(using: executor) { progress, message in
     progressUpdate(0, message)
   }
   guard let mergedSwiftFilesRequestInfo else {
-    throw ReductionError("Merging all .swift files did not reproduce the issue. Unable to reduce it.")
+    throw GenericError("Merging all .swift files did not reproduce the issue. Unable to reduce it.")
   }
   return try await mergedSwiftFilesRequestInfo.reduce(using: executor, progressUpdate: progressUpdate)
 }

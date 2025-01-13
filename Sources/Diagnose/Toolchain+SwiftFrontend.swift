@@ -10,14 +10,23 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+import ToolchainRegistry
+
+import struct TSCBasic.AbsolutePath
+#else
 import Foundation
 import ToolchainRegistry
+
+import struct TSCBasic.AbsolutePath
+#endif
 
 extension Toolchain {
   /// The path to `swift-frontend` in the toolchain, found relative to `swift`.
   ///
   /// - Note: Not discovered as part of the toolchain because `swift-frontend` is only needed in the diagnose commands.
   package var swiftFrontend: URL? {
-    return swift?.asURL.deletingLastPathComponent().appendingPathComponent("swift-frontend")
+    return swift?.deletingLastPathComponent().appendingPathComponent("swift-frontend")
   }
 }

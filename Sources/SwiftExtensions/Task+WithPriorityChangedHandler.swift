@@ -24,7 +24,10 @@ package func withTaskPriorityChangedHandler<T: Sendable>(
 ) async throws -> T {
   let lastPriority = ThreadSafeBox(initialValue: initialPriority)
   let result: T? = try await withThrowingTaskGroup(of: Optional<T>.self) { taskGroup in
-    taskGroup.addTask {
+    // Run the task priority watcher with high priority instead of inheriting the initial priority. Otherwise a
+    // `.background` task might not get its priority elevated because the priority watching task also runs at
+    // `.background` priority and might not actually get executed in time.
+    taskGroup.addTask(priority: .high) {
       while true {
         if Task.isCancelled {
           break

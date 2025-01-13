@@ -12,13 +12,15 @@
 
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import RegexBuilder
 import SKLogging
 import SourceKitLSP
+import SwiftExtensions
+import TSCExtensions
 import ToolchainRegistry
 import XCTest
 
-import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import enum TSCBasic.ProcessEnv
@@ -84,6 +86,7 @@ package actor SkipUnless {
   }
 
   private func skipUnlessSupported(
+    allowSkippingInCI: Bool = false,
     featureName: String = #function,
     file: StaticString,
     line: UInt,
@@ -92,8 +95,8 @@ package actor SkipUnless {
     let checkResult: FeatureCheckResult
     if let cachedResult = checkCache[featureName] {
       checkResult = cachedResult
-    } else if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] != nil {
-      // Never skip tests in CI. Toolchain should be up-to-date
+    } else if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] != nil && !allowSkippingInCI {
+      // In general, don't skip tests in CI. Toolchain should be up-to-date
       checkResult = .featureSupported
     } else {
       checkResult = try await featureCheck()
@@ -219,7 +222,7 @@ package actor SkipUnless {
         .appendingPathComponent("debug")
         .appendingPathComponent("Modules")
         .appendingPathComponent("MyLibrary.swiftmodule")
-      return FileManager.default.fileExists(atPath: modulesDirectory.path)
+      return FileManager.default.fileExists(at: modulesDirectory)
     }
   }
 
@@ -284,7 +287,12 @@ package actor SkipUnless {
         HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
       )
       let hover = try XCTUnwrap(response, file: file, line: line)
-      XCTAssertNil(hover.range, file: file, line: line)
+      XCTAssertEqual(
+        hover.range,
+        Position(line: 1, utf16index: 5)..<Position(line: 1, utf16index: 9),
+        file: file,
+        line: line
+      )
       guard case .markupContent(let content) = hover.contents else {
         throw ExpectedMarkdownContentsError()
       }
@@ -332,7 +340,7 @@ package actor SkipUnless {
       }
 
       let result = try await Process.run(
-        arguments: [swift.pathString, "build", "--help-hidden"],
+        arguments: [swift.filePath, "build", "--help-hidden"],
         workingDirectory: nil
       )
       guard let output = String(bytes: try result.output.get(), encoding: .utf8) else {
@@ -389,10 +397,10 @@ package actor SkipUnless {
         // of Lib when building Lib.
         for target in ["MyPlugin", "Lib"] {
           var arguments = [
-            swift.pathString, "build", "--package-path", project.scratchDirectory.path, "--target", target,
+            try swift.filePath, "build", "--package-path", try project.scratchDirectory.filePath, "--target", target,
           ]
-          if let globalModuleCache {
-            arguments += ["-Xswiftc", "-module-cache-path", "-Xswiftc", globalModuleCache.path]
+          if let globalModuleCache = try globalModuleCache {
+            arguments += ["-Xswiftc", "-module-cache-path", "-Xswiftc", try globalModuleCache.filePath]
           }
           try await Process.run(arguments: arguments, workingDirectory: nil)
         }
@@ -412,6 +420,10 @@ package actor SkipUnless {
 
   package static func platformIsDarwin(_ message: String) throws {
     try XCTSkipUnless(Platform.current == .darwin, message)
+  }
+
+  package static func platformIsWindows(_ message: String) throws {
+    try XCTSkipUnless(Platform.current == .windows, message)
   }
 
   package static func platformSupportsTaskPriorityElevation() throws {
@@ -446,7 +458,10 @@ package actor SkipUnless {
           ],
           manifest: SwiftPMTestProject.macroPackageManifest
         )
-        try await SwiftPMTestProject.build(at: project.scratchDirectory)
+        try await SwiftPMTestProject.build(
+          at: project.scratchDirectory,
+          extraArguments: ["--experimental-prepare-for-indexing"]
+        )
         return .featureSupported
       } catch {
         return .featureUnsupported(
@@ -466,17 +481,20 @@ package actor SkipUnless {
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
-    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
-      let swiftFrontend = try await unwrap(ToolchainRegistry.forTesting.default?.swift).parentDirectory
-        .appending(component: "swift-frontend")
+    return try await shared.skipUnlessSupported(allowSkippingInCI: true, file: file, line: line) {
+      let swiftFrontend = try await unwrap(ToolchainRegistry.forTesting.default?.swift).deletingLastPathComponent()
+        .appendingPathComponent("swift-frontend")
       return try await withTestScratchDir { scratchDirectory in
-        let input = scratchDirectory.appending(component: "Input.swift")
-        FileManager.default.createFile(atPath: input.pathString, contents: nil)
+        let input = scratchDirectory.appendingPathComponent("Input.swift")
+        guard FileManager.default.createFile(atPath: input.path, contents: nil) else {
+          struct FailedToCrateInputFileError: Error {}
+          throw FailedToCrateInputFileError()
+        }
         // If we can't compile for wasm, this fails complaining that it can't find the stdlib for wasm.
         let process = Process(
-          args: swiftFrontend.pathString,
+          args: try swiftFrontend.filePath,
           "-typecheck",
-          input.pathString,
+          try input.filePath,
           "-triple",
           "wasm32-unknown-none-wasm",
           "-enable-experimental-feature",
@@ -486,8 +504,42 @@ package actor SkipUnless {
         )
         try process.launch()
         let result = try await process.waitUntilExit()
-        return result.exitStatus == .terminated(code: 0)
+        if result.exitStatus == .terminated(code: 0) {
+          return .featureSupported
+        }
+        return .featureUnsupported(skipMessage: "Skipping because toolchain can not compile for wasm")
       }
+    }
+  }
+
+  /// Checks if sourcekitd contains https://github.com/swiftlang/swift/pull/71049
+  package static func solverBasedCursorInfoWorksForMemoryOnlyFiles(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    struct ExpectedLocationsResponse: Error {}
+
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+      let testClient = try await TestSourceKitLSPClient()
+      let uri = DocumentURI(for: .swift)
+      let positions = testClient.openDocument(
+        """
+        func foo() -> Int { 1 }
+        func foo() -> String { "" }
+        func test() {
+          _ = 3️⃣foo()
+        }
+        """,
+        uri: uri
+      )
+
+      let response = try await testClient.send(
+        DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+      )
+      guard case .locations(let locations) = response else {
+        throw ExpectedLocationsResponse()
+      }
+      return locations.count > 0
     }
   }
 }

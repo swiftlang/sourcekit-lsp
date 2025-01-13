@@ -10,14 +10,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+#if compiler(>=6)
+package import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
+package import SwiftExtensions
+#else
+import LanguageServerProtocol
+import LanguageServerProtocolExtensions
+import SKLogging
 import SwiftExtensions
+#endif
 
 /// A lightweight way of describing tasks that are created from handling LSP
 /// requests or notifications for the purpose of dependency tracking.
-enum MessageHandlingDependencyTracker: DependencyTracker {
+package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependencyTracker {
   /// A task that changes the global configuration of sourcekit-lsp in any way.
   ///
   /// No other tasks must execute simultaneously with this task since they
@@ -50,7 +57,7 @@ enum MessageHandlingDependencyTracker: DependencyTracker {
   case freestanding
 
   /// Whether this request needs to finish before `other` can start executing.
-  func isDependency(of other: MessageHandlingDependencyTracker) -> Bool {
+  package func isDependency(of other: MessageHandlingDependencyTracker) -> Bool {
     switch (self, other) {
     // globalConfigurationChange
     case (.globalConfigurationChange, _): return true
@@ -67,9 +74,9 @@ enum MessageHandlingDependencyTracker: DependencyTracker {
     case (.documentUpdate(let selfUri), .documentUpdate(let otherUri)):
       return selfUri == otherUri
     case (.documentUpdate(let selfUri), .documentRequest(let otherUri)):
-      return selfUri == otherUri
+      return selfUri.buildSettingsFile == otherUri.buildSettingsFile
     case (.documentRequest(let selfUri), .documentUpdate(let otherUri)):
-      return selfUri == otherUri
+      return selfUri.buildSettingsFile == otherUri.buildSettingsFile
 
     // documentRequest
     case (.documentRequest, .documentRequest):
@@ -83,7 +90,11 @@ enum MessageHandlingDependencyTracker: DependencyTracker {
     }
   }
 
-  init(_ notification: any NotificationType) {
+  package func dependencies(in pendingTasks: [PendingTask<Self>]) -> [PendingTask<Self>] {
+    return pendingTasks.filter { $0.metadata.isDependency(of: self) }
+  }
+
+  package init(_ notification: some NotificationType) {
     switch notification {
     case is CancelRequestNotification:
       self = .freestanding
@@ -130,7 +141,11 @@ enum MessageHandlingDependencyTracker: DependencyTracker {
     case let notification as ReopenTextDocumentNotification:
       self = .documentUpdate(notification.textDocument.uri)
     case is SetTraceNotification:
-      self = .globalConfigurationChange
+      // `$/setTrace` changes a global configuration setting but it doesn't affect the result of any other request. To
+      // avoid blocking other requests on a `$/setTrace` notification the client might send during launch, we treat it
+      // as a freestanding message.
+      // Also, we don't do anything with this notification at the moment, so it doesn't matter.
+      self = .freestanding
     case is ShowMessageNotification:
       self = .freestanding
     case let notification as WillSaveTextDocumentNotification:
@@ -148,7 +163,7 @@ enum MessageHandlingDependencyTracker: DependencyTracker {
     }
   }
 
-  init(_ request: any RequestType) {
+  package init(_ request: some RequestType) {
     switch request {
     case let request as any TextDocumentRequest: self = .documentRequest(request.textDocument.uri)
     case is ApplyEditRequest:
@@ -179,6 +194,8 @@ enum MessageHandlingDependencyTracker: DependencyTracker {
       } else {
         self = .freestanding
       }
+    case let request as GetReferenceDocumentRequest:
+      self = .documentRequest(request.uri)
     case is InitializeRequest:
       self = .globalConfigurationChange
     case is InlayHintRefreshRequest:

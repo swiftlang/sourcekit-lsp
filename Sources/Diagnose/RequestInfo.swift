@@ -10,8 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+import RegexBuilder
+import SwiftExtensions
+#else
 import Foundation
 import RegexBuilder
+import SwiftExtensions
+#endif
 
 /// All the information necessary to replay a sourcektid request.
 package struct RequestInfo: Sendable {
@@ -35,7 +42,7 @@ package struct RequestInfo: Sendable {
     let encoder = JSONEncoder()
     encoder.outputFormatting = .prettyPrinted
     guard var compilerArgs = String(data: try encoder.encode(compilerArgs), encoding: .utf8) else {
-      throw ReductionError("Failed to encode compiler arguments")
+      throw GenericError("Failed to encode compiler arguments")
     }
     // Drop the opening `[` and `]`. The request template already contains them
     compilerArgs = String(compilerArgs.dropFirst().dropLast())
@@ -43,7 +50,7 @@ package struct RequestInfo: Sendable {
       requestTemplate
       .replacingOccurrences(of: "$OFFSET", with: String(offset))
       .replacingOccurrences(of: "$COMPILER_ARGS", with: compilerArgs)
-      .replacingOccurrences(of: "$FILE", with: file.path)
+      .replacingOccurrences(of: "$FILE", with: try file.filePath.replacing(#"\"#, with: #"\\"#))
   }
 
   /// A fake value that is used to indicate that we are reducing a `swift-frontend` issue instead of a sourcekitd issue.
@@ -92,7 +99,7 @@ package struct RequestInfo: Sendable {
       "\""
     }
     guard let sourceFileMatch = requestTemplate.matches(of: sourceFileRegex).only else {
-      throw ReductionError("Failed to find key.sourcefile in the request")
+      throw GenericError("Failed to find key.sourcefile in the request")
     }
     let sourceFilePath = String(sourceFileMatch.1)
     requestTemplate.replace(sourceFileMatch.1, with: "$FILE")
@@ -104,7 +111,7 @@ package struct RequestInfo: Sendable {
 
     self.requestTemplate = requestTemplate
 
-    fileContents = try String(contentsOf: URL(fileURLWithPath: sourceFilePath))
+    fileContents = try String(contentsOf: URL(fileURLWithPath: sourceFilePath), encoding: .utf8)
   }
 
   /// Create a `RequestInfo` that is used to reduce a `swift-frontend issue`
@@ -124,9 +131,9 @@ package struct RequestInfo: Sendable {
         _ = iterator.next()
       case "-filelist":
         guard let fileList = iterator.next() else {
-          throw ReductionError("Expected file path after -filelist command line argument")
+          throw GenericError("Expected file path after -filelist command line argument")
         }
-        frontendArgsWithFilelistInlined += try String(contentsOfFile: fileList)
+        frontendArgsWithFilelistInlined += try String(contentsOfFile: fileList, encoding: .utf8)
           .split(separator: "\n")
           .map { String($0) }
       default:
@@ -159,6 +166,9 @@ private func extractCompilerArguments(
   }
   let template = lines[...compilerArgsStartIndex] + ["$COMPILER_ARGS"] + lines[compilerArgsEndIndex...]
   let compilerArgsJson = "[" + lines[(compilerArgsStartIndex + 1)..<compilerArgsEndIndex].joined(separator: "\n") + "]"
-  let compilerArgs = try JSONDecoder().decode([String].self, from: compilerArgsJson)
+  guard let data = compilerArgsJson.data(using: .utf8) else {
+    throw GenericError("Failed to represent compiler argument JSON in UTF-8")
+  }
+  let compilerArgs = try JSONDecoder().decode([String].self, from: data)
   return (template.joined(separator: "\n"), compilerArgs)
 }

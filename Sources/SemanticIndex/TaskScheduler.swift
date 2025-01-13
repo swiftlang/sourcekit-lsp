@@ -10,10 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
 import Foundation
-import SKLogging
-import SKSupport
+import LanguageServerProtocolExtensions
+package import SKLogging
 import SwiftExtensions
+#else
+import Foundation
+import LanguageServerProtocolExtensions
+import SKLogging
+import SwiftExtensions
+#endif
 
 /// See comment on ``TaskDescriptionProtocol/dependencies(to:taskPriority:)``
 package enum TaskDependencyAction<TaskDescription: TaskDescriptionProtocol> {
@@ -244,9 +251,9 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
       }
       return await self.finalizeExecution()
     }
+    _isExecuting.value = true
     executionTask = task
     executionTaskCreatedContinuation.yield(task)
-    _isExecuting.value = true
     await executionStateChangedCallback?(self, .executing)
     return await task.value
   }

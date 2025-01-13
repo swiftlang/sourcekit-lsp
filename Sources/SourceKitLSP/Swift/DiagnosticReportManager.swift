@@ -11,10 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
 import SKOptions
-import SKSupport
 import SourceKitD
+import SwiftDiagnostics
 import SwiftExtensions
 import SwiftParserDiagnostics
 
@@ -104,15 +105,32 @@ actor DiagnosticReportManager {
 
     let skreq = sourcekitd.dictionary([
       keys.request: requests.diagnostics,
-      keys.sourceFile: snapshot.uri.pseudoPath,
+      keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
+      keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
       keys.compilerArgs: compilerArgs as [SKDRequestValue],
     ])
 
-    let dict = try await self.sourcekitd.send(
-      skreq,
-      timeout: options.sourcekitdRequestTimeoutOrDefault,
-      fileContents: snapshot.text
-    )
+    let dict: SKDResponseDictionary
+    do {
+      dict = try await self.sourcekitd.send(
+        skreq,
+        timeout: options.sourcekitdRequestTimeoutOrDefault,
+        fileContents: snapshot.text
+      )
+    } catch SKDError.requestFailed(let sourcekitdError) {
+      var errorMessage = sourcekitdError
+      if errorMessage.hasPrefix("error response (Request Failed): error: ") {
+        errorMessage = String(errorMessage.dropFirst(40))
+      }
+      return RelatedFullDocumentDiagnosticReport(items: [
+        Diagnostic(
+          range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
+          severity: .error,
+          source: "SourceKit",
+          message: "Internal SourceKit error: \(errorMessage)"
+        )
+      ])
+    }
 
     try Task.checkCancellation()
 

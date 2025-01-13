@@ -12,6 +12,7 @@
 
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 
 /// Build settings for a single file.
 ///
@@ -33,49 +34,32 @@ package struct FileBuildSettings: Equatable, Sendable {
     self.workingDirectory = workingDirectory
     self.isFallback = isFallback
   }
-}
 
-fileprivate let cExtensions = ["c"]
-fileprivate let cppExtensions = ["cpp", "cc"]
-fileprivate let objcExtensions = ["m"]
-fileprivate let objcppExtensions = ["mm"]
-
-private extension String {
-  var pathExtension: String {
-    return (self as NSString).pathExtension
-  }
-  var pathBasename: String {
-    return (self as NSString).lastPathComponent
-  }
-}
-
-package extension FileBuildSettings {
   /// Return arguments suitable for use by `newFile`.
   ///
   /// This patches the arguments by searching for the argument corresponding to
   /// `originalFile` and replacing it.
-  func patching(newFile: String, originalFile: String) -> FileBuildSettings {
+  func patching(newFile: DocumentURI, originalFile: DocumentURI) -> FileBuildSettings {
     var arguments = self.compilerArguments
-    let basename = originalFile.pathBasename
-    let fileExtension = originalFile.pathExtension
+    // URL.lastPathComponent is only set for file URLs but we want to also infer a file extension for non-file URLs like
+    // untitled:file.cpp
+    let basename = originalFile.fileURL?.lastPathComponent ?? (originalFile.pseudoPath as NSString).lastPathComponent
     if let index = arguments.lastIndex(where: {
       // It's possible the arguments use relative paths while the `originalFile` given
       // is an absolute/real path value. We guess based on suffixes instead of hitting
       // the file system.
-      $0.hasSuffix(basename) && originalFile.hasSuffix($0)
+      $0.hasSuffix(basename) && originalFile.pseudoPath.hasSuffix($0)
     }) {
-      arguments[index] = newFile
+      arguments[index] = newFile.pseudoPath
       // The `-x<lang>` flag needs to be before the possible `-c <header file>`
       // argument in order for Clang to respect it. If there is a pre-existing `-x`
       // flag though, Clang will honor that one instead since it comes after.
-      if cExtensions.contains(fileExtension) {
-        arguments.insert("-xc", at: 0)
-      } else if cppExtensions.contains(fileExtension) {
-        arguments.insert("-xc++", at: 0)
-      } else if objcExtensions.contains(fileExtension) {
-        arguments.insert("-xobjective-c", at: 0)
-      } else if (objcppExtensions.contains(fileExtension)) {
-        arguments.insert("-xobjective-c++", at: 0)
+      switch Language(inferredFromFileExtension: originalFile) {
+      case .c: arguments.insert("-xc", at: 0)
+      case .cpp: arguments.insert("-xc++", at: 0)
+      case .objective_c: arguments.insert("-xobjective-c", at: 0)
+      case .objective_cpp: arguments.insert("-xobjective-c++", at: 0)
+      default: break
       }
     }
     return FileBuildSettings(

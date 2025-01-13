@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Csourcekitd
 import LanguageServerProtocol
 import SKLogging
 import SourceKitD
@@ -155,6 +156,10 @@ struct SyntaxHighlightingTokenParser {
       values.refFunctionPostfixOperator,
       values.refFunctionInfixOperator:
       return (.operator, [])
+    case values.declMacro:
+      return (.macro, [.declaration])
+    case values.refMacro:
+      return (.macro, [])
     case values.declVarStatic,
       values.declVarClass,
       values.declVarInstance:

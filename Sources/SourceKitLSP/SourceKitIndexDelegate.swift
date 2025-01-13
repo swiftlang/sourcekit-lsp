@@ -12,60 +12,49 @@
 
 import Dispatch
 import IndexStoreDB
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SwiftExtensions
 
 /// `IndexDelegate` for the SourceKit workspace.
 actor SourceKitIndexDelegate: IndexDelegate {
-
-  let queue = AsyncQueue<Serial>()
-
   /// Registered `MainFilesDelegate`s to notify when main files change.
   var mainFilesChangedCallbacks: [@Sendable () async -> Void] = []
 
   /// The count of pending unit events. Whenever this transitions to 0, it represents a time where
   /// the index finished processing known events. Of course, that may have already changed by the
   /// time we are notified.
-  var pendingUnitCount: Int = 0
+  let pendingUnitCount = AtomicInt32(initialValue: 0)
 
   package init() {}
 
   nonisolated package func processingAddedPending(_ count: Int) {
-    queue.async {
-      await self.addPending(count)
-    }
-  }
-
-  private func addPending(_ count: Int) {
-    pendingUnitCount += count
+    pendingUnitCount.value += Int32(count)
   }
 
   nonisolated package func processingCompleted(_ count: Int) {
-    queue.async {
-      await self.processCompleted(count)
+    pendingUnitCount.value -= Int32(count)
+    if pendingUnitCount.value == 0 {
+      Task {
+        await indexChanged()
+      }
+    }
+
+    if pendingUnitCount.value < 0 {
+      // Technically this is not data race safe because `pendingUnitCount` might change between the check and us setting
+      // it to 0. But then, this should never happen anyway, so it's fine.
+      logger.fault("pendingUnitCount dropped below zero: \(self.pendingUnitCount.value)")
+      pendingUnitCount.value = 0
+      Task {
+        await indexChanged()
+      }
     }
   }
 
-  private func processCompleted(_ count: Int) {
-    pendingUnitCount -= count
-    if pendingUnitCount == 0 {
-      indexChanged()
-    }
-
-    if pendingUnitCount < 0 {
-      assertionFailure("pendingUnitCount = \(pendingUnitCount) < 0")
-      pendingUnitCount = 0
-      indexChanged()
-    }
-  }
-
-  private func indexChanged() {
+  private func indexChanged() async {
     logger.debug("IndexStoreDB changed")
     for callback in mainFilesChangedCallbacks {
-      queue.async {
-        await callback()
-      }
+      await callback()
     }
   }
 
@@ -73,5 +62,4 @@ actor SourceKitIndexDelegate: IndexDelegate {
   package func addMainFileChangedCallback(_ callback: @escaping @Sendable () async -> Void) {
     mainFilesChangedCallbacks.append(callback)
   }
-
 }

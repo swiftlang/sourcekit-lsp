@@ -10,14 +10,27 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
-import SKSupport
+#if compiler(>=6)
+package import Foundation
+import LanguageServerProtocolExtensions
+import SwiftExtensions
 import XCTest
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import enum TSCBasic.ProcessEnv
 import struct TSCBasic.ProcessResult
+#else
+import Foundation
+import LanguageServerProtocolExtensions
+import SwiftExtensions
+import XCTest
+
+import struct TSCBasic.AbsolutePath
+import class TSCBasic.Process
+import enum TSCBasic.ProcessEnv
+import struct TSCBasic.ProcessResult
+#endif
 
 /// A SwiftPM package that gets written to disk and for which a Git repository is initialized with a commit tagged
 /// `1.0.0`. This repository can then be used as a dependency for another package, usually a `SwiftPMTestProject`.
@@ -45,7 +58,7 @@ package class SwiftPMDependencyProject {
     // We can't use `workingDirectory` because Amazon Linux doesn't support working directories (or at least
     // TSCBasic.Process doesn't support working directories on Amazon Linux)
     let process = TSCBasic.Process(
-      arguments: [git.path, "-C", workingDirectory.path] + arguments
+      arguments: [try git.filePath, "-C", try workingDirectory.filePath] + arguments
     )
     try process.launch()
     let processResult = try await process.waitUntilExit()
@@ -91,7 +104,7 @@ package class SwiftPMDependencyProject {
 
   package func tag(changedFiles: [URL], version: String) async throws {
     try await runGitCommand(
-      ["add"] + changedFiles.map(\.path),
+      ["add"] + changedFiles.map { try $0.filePath },
       workingDirectory: packageDirectory
     )
     try await runGitCommand(

@@ -10,15 +10,62 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import BuildSystemIntegration
 import LanguageServerProtocol
 import SKLogging
 import SemanticIndex
 import XCTest
 
+enum BuildDestination {
+  case host
+  case target
+
+  /// A string that can be used to identify the build triple in a `BuildTargetIdentifier`.
+  ///
+  /// `BuildSystemManager.canonicalBuildTargetIdentifier` picks the canonical target based on alphabetical
+  /// ordering. We rely on the string "destination" being ordered before "tools" so that we prefer a
+  /// `destination` (or "target") target over a `tools` (or "host") target.
+  var id: String {
+    switch self {
+    case .host:
+      return "tools"
+    case .target:
+      return "destination"
+    }
+  }
+}
+
+extension BuildTargetIdentifier {
+  /// - Important: *For testing only*
+  init(target: String, destination: BuildDestination) throws {
+    var components = URLComponents()
+    components.scheme = "swiftpm"
+    components.host = "target"
+    components.queryItems = [
+      URLQueryItem(name: "target", value: target),
+      URLQueryItem(name: "destination", value: destination.id),
+    ]
+
+    struct FailedToConvertSwiftBuildTargetToUrlError: Swift.Error, CustomStringConvertible {
+      var target: String
+      var destination: String
+
+      var description: String {
+        return "Failed to generate URL for target: \(target), destination: \(destination)"
+      }
+    }
+
+    guard let url = components.url else {
+      throw FailedToConvertSwiftBuildTargetToUrlError(target: target, destination: destination.id)
+    }
+
+    self.init(uri: URI(url))
+  }
+}
+
 struct ExpectedPreparation {
-  let targetID: String
-  let runDestinationID: String
+  let target: BuildTargetIdentifier
 
   /// A closure that will be executed when a preparation task starts.
   /// This allows the artificial delay of a preparation task to force two preparation task to race.
@@ -29,19 +76,15 @@ struct ExpectedPreparation {
   let didFinish: (@Sendable () -> Void)?
 
   internal init(
-    targetID: String,
-    runDestinationID: String,
+    target: String,
+    destination: BuildDestination,
     didStart: (@Sendable () -> Void)? = nil,
     didFinish: (@Sendable () -> Void)? = nil
-  ) {
-    self.targetID = targetID
-    self.runDestinationID = runDestinationID
+  ) throws {
+    // This should match the format in `BuildTargetIdentifier(_: any SwiftBuildTarget)` inside SwiftPMBuildSystem.
+    self.target = try BuildTargetIdentifier(target: target, destination: destination)
     self.didStart = didStart
     self.didFinish = didFinish
-  }
-
-  var configuredTarget: ConfiguredTarget {
-    return ConfiguredTarget(targetID: targetID, runDestinationID: runDestinationID)
   }
 }
 
@@ -111,7 +154,7 @@ actor ExpectedIndexTaskTracker {
       return
     }
     for expectedPreparation in expectedTargetsToPrepare {
-      if taskDescription.targetsToPrepare.contains(expectedPreparation.configuredTarget) {
+      if taskDescription.targetsToPrepare.contains(expectedPreparation.target) {
         expectedPreparation.didStart?()
       }
     }
@@ -129,13 +172,13 @@ actor ExpectedIndexTaskTracker {
       XCTFail("Didn't expect a preparation but received \(taskDescription.targetsToPrepare)")
       return
     }
-    guard Set(taskDescription.targetsToPrepare).isSubset(of: expectedTargetsToPrepare.map(\.configuredTarget)) else {
+    guard Set(taskDescription.targetsToPrepare).isSubset(of: expectedTargetsToPrepare.map(\.target)) else {
       XCTFail("Received unexpected preparation of \(taskDescription.targetsToPrepare)")
       return
     }
     var remainingExpectedTargetsToPrepare: [ExpectedPreparation] = []
     for expectedPreparation in expectedTargetsToPrepare {
-      if taskDescription.targetsToPrepare.contains(expectedPreparation.configuredTarget) {
+      if taskDescription.targetsToPrepare.contains(expectedPreparation.target) {
         expectedPreparation.didFinish?()
       } else {
         remainingExpectedTargetsToPrepare.append(expectedPreparation)

@@ -10,13 +10,29 @@
 //
 //===----------------------------------------------------------------------===//
 
-import ArgumentParser
+#if compiler(>=6)
+package import ArgumentParser
 import Foundation
+import LanguageServerProtocolExtensions
 import ToolchainRegistry
+import SwiftExtensions
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import class TSCUtility.PercentProgressAnimation
+#else
+import ArgumentParser
+import Foundation
+import LanguageServerProtocolExtensions
+import ToolchainRegistry
+import SwiftExtensions
+import TSCExtensions
+
+import struct TSCBasic.AbsolutePath
+import class TSCBasic.Process
+import class TSCUtility.PercentProgressAnimation
+#endif
 
 /// When diagnosis is started, a progress bar displayed on the terminal that shows how far the diagnose command has
 /// progressed.
@@ -81,7 +97,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
 
   var toolchainRegistry: ToolchainRegistry {
     get throws {
-      let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
+      let installPath = Bundle.main.bundleURL
       return ToolchainRegistry(installPath: installPath)
     }
   }
@@ -90,7 +106,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
   var toolchain: Toolchain? {
     get async throws {
       if let toolchainOverride {
-        return Toolchain(try AbsolutePath(validating: toolchainOverride))
+        return Toolchain(URL(fileURLWithPath: toolchainOverride))
       }
       return try await toolchainRegistry.default
     }
@@ -101,7 +117,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     #if canImport(OSLog)
     return try OSLogScraper(searchDuration: TimeInterval(osLogScrapeDuration * 60)).getCrashedRequests()
     #else
-    throw ReductionError("Reduction of sourcekitd crashes is not supported on platforms other than macOS")
+    throw GenericError("Reduction of sourcekitd crashes is not supported on platforms other than macOS")
     #endif
   }
 
@@ -162,14 +178,14 @@ package struct DiagnoseCommand: AsyncParsableCommand {
         .deletingLastPathComponent()
         .deletingLastPathComponent()
 
-      guard let toolchain = try Toolchain(AbsolutePath(validating: toolchainPath.path)),
+      guard let toolchain = Toolchain(toolchainPath),
         let sourcekitd = toolchain.sourcekitd
       else {
         continue
       }
 
       let executor = OutOfProcessSourceKitRequestExecutor(
-        sourcekitd: sourcekitd.asURL,
+        sourcekitd: sourcekitd,
         swiftFrontend: crashInfo.swiftFrontend,
         reproducerPredicate: nil
       )
@@ -213,7 +229,9 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     #if os(macOS)
     reportProgress(.collectingLogMessages(progress: 0), message: "Collecting log messages")
     let outputFileUrl = bundlePath.appendingPathComponent("log.txt")
-    FileManager.default.createFile(atPath: outputFileUrl.path, contents: nil)
+    guard FileManager.default.createFile(atPath: try outputFileUrl.filePath, contents: nil) else {
+      throw GenericError("Failed to create log.txt")
+    }
     let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
     var bytesCollected = 0
     // 50 MB is an average log size collected by sourcekit-lsp diagnose.
@@ -254,7 +272,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     let destinationDir = bundlePath.appendingPathComponent("logs")
     try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true)
 
-    let logFileDirectoryURL = FileManager.default.sanitizedHomeDirectoryForCurrentUser
+    let logFileDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
       .appendingPathComponent(".sourcekit-lsp")
       .appendingPathComponent("logs")
     let enumerator = FileManager.default.enumerator(at: logFileDirectoryURL, includingPropertiesForKeys: nil)
@@ -304,7 +322,9 @@ package struct DiagnoseCommand: AsyncParsableCommand {
   @MainActor
   private func addSwiftVersion(toBundle bundlePath: URL) async throws {
     let outputFileUrl = bundlePath.appendingPathComponent("swift-versions.txt")
-    FileManager.default.createFile(atPath: outputFileUrl.path, contents: nil)
+    guard FileManager.default.createFile(atPath: try outputFileUrl.filePath, contents: nil) else {
+      throw GenericError("Failed to create file at \(outputFileUrl)")
+    }
     let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
 
     let toolchains = try await toolchainRegistry.toolchains
@@ -315,13 +335,13 @@ package struct DiagnoseCommand: AsyncParsableCommand {
         message: "Determining Swift version of \(toolchain.identifier)"
       )
 
-      guard let swiftUrl = toolchain.swift?.asURL else {
+      guard let swiftUrl = toolchain.swift else {
         continue
       }
 
-      try fileHandle.write(contentsOf: "\(swiftUrl.path) --version\n".data(using: .utf8)!)
+      try fileHandle.write(contentsOf: "\(swiftUrl.filePath) --version\n".data(using: .utf8)!)
       let process = Process(
-        arguments: [swiftUrl.path, "--version"],
+        arguments: [try swiftUrl.filePath, "--version"],
         outputRedirection: .stream(
           stdout: { try? fileHandle.write(contentsOf: $0) },
           stderr: { _ in }
@@ -403,7 +423,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
       Bundle created.
       When filing an issue at https://github.com/swiftlang/sourcekit-lsp/issues/new,
       please attach the bundle located at
-      \(bundlePath.path)
+      \(try bundlePath.filePath)
       """
     )
 
@@ -414,7 +434,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     // is responsible for showing the diagnose bundle location to the user
     if self.bundleOutputPath == nil {
       do {
-        _ = try await Process.run(arguments: ["open", "-R", bundlePath.path], workingDirectory: nil)
+        _ = try await Process.run(arguments: ["open", "-R", bundlePath.filePath], workingDirectory: nil)
       } catch {
         // If revealing the bundle in Finder should fail, we don't care. We still printed the bundle path to stdout.
       }
@@ -430,18 +450,18 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     progressUpdate: (_ progress: Double, _ message: String) -> Void
   ) async throws {
     guard let toolchain else {
-      throw ReductionError("Unable to find a toolchain")
+      throw GenericError("Unable to find a toolchain")
     }
     guard let sourcekitd = toolchain.sourcekitd else {
-      throw ReductionError("Unable to find sourcekitd.framework")
+      throw GenericError("Unable to find sourcekitd.framework")
     }
     guard let swiftFrontend = toolchain.swiftFrontend else {
-      throw ReductionError("Unable to find swift-frontend")
+      throw GenericError("Unable to find swift-frontend")
     }
 
     let requestInfo = requestInfo
     let executor = OutOfProcessSourceKitRequestExecutor(
-      sourcekitd: sourcekitd.asURL,
+      sourcekitd: sourcekitd,
       swiftFrontend: swiftFrontend,
       reproducerPredicate: nil
     )

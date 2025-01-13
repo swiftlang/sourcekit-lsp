@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import LanguageServerProtocol
 
 public struct JSONRPCMessageHeader: Hashable {
@@ -25,7 +26,7 @@ public struct JSONRPCMessageHeader: Hashable {
   }
 }
 
-extension RandomAccessCollection<UInt8> {
+extension RandomAccessCollection<UInt8> where Index == Int {
   /// Tries to parse a single message from this collection of bytes.
   ///
   /// If an entire message could be found, returns
@@ -85,34 +86,11 @@ extension RandomAccessCollection<UInt8> {
       throw MessageDecodingError.parseError("expected ':' in message header")
     }
     let valueStart = index(after: keyEnd)
-    guard let valueEnd = self[valueStart...].firstIndex(of: JSONRPCMessageHeader.separator) else {
+    guard let valueEnd = self[valueStart...].firstRange(of: JSONRPCMessageHeader.separator)?.startIndex else {
       return nil
     }
 
     return ((key: self[..<keyEnd], value: self[valueStart..<valueEnd]), self[index(valueEnd, offsetBy: 2)...])
-  }
-}
-
-extension RandomAccessCollection where Element: Equatable {
-  /// Returns the first index where the specified subsequence appears or nil.
-  @inlinable
-  public func firstIndex(of pattern: some RandomAccessCollection<Element>) -> Index? {
-    if pattern.isEmpty {
-      return startIndex
-    }
-    if count < pattern.count {
-      return nil
-    }
-
-    // FIXME: use a better algorithm (e.g. Boyer-Moore-Horspool).
-    var i = startIndex
-    for _ in 0..<(count - pattern.count + 1) {
-      if self[i...].starts(with: pattern) {
-        return i
-      }
-      i = self.index(after: i)
-    }
-    return nil
   }
 }
 

@@ -10,11 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Foundation
+package import LanguageServerProtocol
+package import SKOptions
+package import SwiftSyntax
+package import ToolchainRegistry
+#else
 import Foundation
 import LanguageServerProtocol
 import SKOptions
 import SwiftSyntax
 import ToolchainRegistry
+#endif
 
 /// The state of a `ToolchainLanguageServer`
 package enum LanguageServerState {
@@ -156,9 +164,9 @@ package protocol LanguageService: AnyObject, Sendable {
   /// the respective `DocumentURI` has been opened.
   func documentUpdatedBuildSettings(_ uri: DocumentURI) async
 
-  /// Sent when the `BuildSystem` has detected that dependencies of the given file have changed
+  /// Sent when the `BuildSystem` has detected that dependencies of the given files have changed
   /// (e.g. header files, swiftmodule files, other compiler input files).
-  func documentDependenciesUpdated(_ uri: DocumentURI) async
+  func documentDependenciesUpdated(_ uris: Set<DocumentURI>) async
 
   // MARK: - Text Document
 
@@ -201,6 +209,8 @@ package protocol LanguageService: AnyObject, Sendable {
   func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens]
   func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport
   func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]?
+  func documentRangeFormatting(_ req: DocumentRangeFormattingRequest) async throws -> [TextEdit]?
+  func documentOnTypeFormatting(_ req: DocumentOnTypeFormattingRequest) async throws -> [TextEdit]?
 
   // MARK: - Rename
 

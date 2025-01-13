@@ -16,6 +16,7 @@ import SKLogging
 import SKOptions
 import SKTestSupport
 import SourceKitLSP
+import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
 import XCTest
@@ -188,7 +189,7 @@ final class WorkspaceTests: XCTestCase {
     let diags = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bPackageManifestUri))
     )
-    XCTAssertEqual(diags, .full(RelatedFullDocumentDiagnosticReport(items: [])))
+    XCTAssertEqual(diags.fullReport?.items, [])
   }
 
   func testCorrectWorkspaceForPackageSwiftInMultiSwiftPMWorkspaceSetup() async throws {
@@ -549,12 +550,22 @@ final class WorkspaceTests: XCTestCase {
     let packageBManifestPath = project.scratchDirectory
       .appendingPathComponent("PackageB")
       .appendingPathComponent("Package.swift")
-    try newPackageManifest.write(
-      to: packageBManifestPath,
-      atomically: true,
-      encoding: .utf8
-    )
 
+    // Package resolving can open Package.swift in exclusive mode on Windows, which prevents us from writing the new
+    // package manifest. Keep retrying until we get a successful write. This matches what a user would do.
+    try await repeatUntilExpectedResult {
+      do {
+        try newPackageManifest.write(
+          to: packageBManifestPath,
+          atomically: true,
+          encoding: .utf8
+        )
+        return true
+      } catch {
+        logger.error("Writing new package manifest failed, will retry: \(error.forLogging)")
+        return false
+      }
+    }
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
         FileEvent(uri: DocumentURI(packageBManifestPath), type: .changed)
@@ -568,21 +579,10 @@ final class WorkspaceTests: XCTestCase {
     // thus workspace membership should switch to PackageB.
 
     // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
-    var didReceiveCorrectWorkspaceMembership = false
-
-    // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
     let packageBRootUri = DocumentURI(project.scratchDirectory.appendingPathComponent("PackageB"))
-    for _ in 0..<30 {
-      let workspace = await project.testClient.server.workspaceForDocument(uri: mainUri)
-      if workspace?.rootUri == packageBRootUri {
-        didReceiveCorrectWorkspaceMembership = true
-        break
-      }
-      logger.log("Received incorrect workspace \(workspace?.rootUri?.pseudoPath ?? "<nil>"). Trying again in 1s")
-      try await Task.sleep(nanoseconds: 1_000_000_000)
+    try await repeatUntilExpectedResult {
+      await project.testClient.server.workspaceForDocument(uri: mainUri)?.rootUri == packageBRootUri
     }
-
-    XCTAssert(didReceiveCorrectWorkspaceMembership)
   }
 
   func testMixedPackage() async throws {
@@ -688,9 +688,9 @@ final class WorkspaceTests: XCTestCase {
     let packageDir = try project.uri(for: "Package.swift").fileURL!.deletingLastPathComponent()
 
     try await TSCBasic.Process.checkNonZeroExit(arguments: [
-      ToolchainRegistry.forTesting.default!.swift!.pathString,
+      ToolchainRegistry.forTesting.default!.swift!.filePath,
       "build",
-      "--package-path", packageDir.path,
+      "--package-path", packageDir.filePath,
       "-Xswiftc", "-index-ignore-system-modules",
       "-Xcc", "-index-ignore-system-symbols",
     ])
@@ -718,6 +718,8 @@ final class WorkspaceTests: XCTestCase {
         ])
       )
     )
+
+    try await project.testClient.send(PollIndexRequest())
 
     let postChangeWorkspaceResponse = try await project.testClient.send(
       CompletionRequest(
@@ -898,11 +900,10 @@ final class WorkspaceTests: XCTestCase {
     let diagnostics = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
-    guard case .full(let diagnostics) = diagnostics else {
-      XCTFail("Expected full diagnostics")
-      return
-    }
-    XCTAssertEqual(diagnostics.items.map(\.message), ["Cannot convert value of type 'Int' to specified type 'String'"])
+    XCTAssertEqual(
+      diagnostics.fullReport?.items.map(\.message),
+      ["Cannot convert value of type 'Int' to specified type 'String'"]
+    )
   }
 
   func testOptionsInInitializeRequest() async throws {
@@ -925,11 +926,10 @@ final class WorkspaceTests: XCTestCase {
     let diagnostics = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
-    guard case .full(let diagnostics) = diagnostics else {
-      XCTFail("Expected full diagnostics")
-      return
-    }
-    XCTAssertEqual(diagnostics.items.map(\.message), ["Cannot convert value of type 'Int' to specified type 'String'"])
+    XCTAssertEqual(
+      diagnostics.fullReport?.items.map(\.message),
+      ["Cannot convert value of type 'Int' to specified type 'String'"]
+    )
   }
 
   func testWorkspaceOptionsOverrideGlobalOptions() async throws {
@@ -962,10 +962,9 @@ final class WorkspaceTests: XCTestCase {
     let diagnostics = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
-    guard case .full(let diagnostics) = diagnostics else {
-      XCTFail("Expected full diagnostics")
-      return
-    }
-    XCTAssertEqual(diagnostics.items.map(\.message), ["Cannot convert value of type 'Int' to specified type 'String'"])
+    XCTAssertEqual(
+      diagnostics.fullReport?.items.map(\.message),
+      ["Cannot convert value of type 'Int' to specified type 'String'"]
+    )
   }
 }

@@ -11,8 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// An abstract connection, allow messages to be sent to a (potentially remote) `MessageHandler`.
-public protocol Connection: AnyObject, Sendable {
-
+public protocol Connection: Sendable {
   /// Send a notification without a reply.
   func send(_ notification: some NotificationType)
 
@@ -44,4 +43,36 @@ public protocol MessageHandler: AnyObject, Sendable {
     id: RequestID,
     reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
   )
+}
+
+// MARK: - WeakMessageHelper
+
+/// Wrapper around a weak `MessageHandler`.
+///
+/// This allows us to eg. set the ``TestSourceKitLSPClient`` as the message handler of
+/// `SourceKitLSPServer` without retaining it.
+public final class WeakMessageHandler: MessageHandler, Sendable {
+  // `nonisolated(unsafe)` is fine because `handler` is never modified, only if the weak reference is deallocated, which
+  // is atomic.
+  private nonisolated(unsafe) weak var handler: (any MessageHandler)?
+
+  public init(_ handler: any MessageHandler) {
+    self.handler = handler
+  }
+
+  public func handle(_ params: some NotificationType) {
+    handler?.handle(params)
+  }
+
+  public func handle<Request: RequestType>(
+    _ params: Request,
+    id: RequestID,
+    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
+  ) {
+    guard let handler = handler else {
+      reply(.failure(.unknown("Handler has been deallocated")))
+      return
+    }
+    handler.handle(params, id: id, reply: reply)
+  }
 }

@@ -1,7 +1,7 @@
 .DS_Store
 default.profraw
 Package.resolved
-/.build
+.build
 /.*-build
 /Packages
 /*.xcodeproj
@@ -9,3 +9,4 @@ Package.resolved
 /*.sublime-workspace
 /.swiftpm
 .*.sw?
+__pycache__

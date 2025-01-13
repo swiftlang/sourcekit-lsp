@@ -70,7 +70,6 @@ public struct RefreshRegistrationCapability: Hashable, Codable, Sendable {
 }
 
 /// Capabilities of the client editor/IDE related to managing the workspace.
-// FIXME: Instead of making all of these optional, provide default values and make the deserialization handle missing values.
 public struct WorkspaceClientCapabilities: Hashable, Codable, Sendable {
 
   /// Capabilities specific to `WorkspaceEdit`.
@@ -87,16 +86,16 @@ public struct WorkspaceClientCapabilities: Hashable, Codable, Sendable {
   public struct Symbol: Hashable, Codable, Sendable {
 
     /// Capabilities specific to `SymbolKind`.
-    public struct SymbolKind: Hashable, Codable, Sendable {
+    public struct SymbolKindValueSet: Hashable, Codable, Sendable {
 
       /// The symbol kind values that the client can support.
       ///
       /// If not specified, the client support only the kinds from `File` to `Array` from LSP 1.
       ///
       /// If specified, the client *also* guarantees that it will handle unknown kinds gracefully.
-      public var valueSet: [LanguageServerProtocol.SymbolKind]? = nil
+      public var valueSet: [SymbolKind]? = nil
 
-      public init(valueSet: [LanguageServerProtocol.SymbolKind]? = nil) {
+      public init(valueSet: [SymbolKind]? = nil) {
         self.valueSet = valueSet
       }
     }
@@ -104,9 +103,9 @@ public struct WorkspaceClientCapabilities: Hashable, Codable, Sendable {
     /// Whether the client supports dynamic registration of this request.
     public var dynamicRegistration: Bool? = nil
 
-    public var symbolKind: SymbolKind? = nil
+    public var symbolKind: SymbolKindValueSet? = nil
 
-    public init(dynamicRegistration: Bool? = nil, symbolKind: SymbolKind? = nil) {
+    public init(dynamicRegistration: Bool? = nil, symbolKind: SymbolKindValueSet? = nil) {
       self.dynamicRegistration = dynamicRegistration
       self.symbolKind = symbolKind
     }
@@ -223,7 +222,6 @@ public struct WorkspaceClientCapabilities: Hashable, Codable, Sendable {
 }
 
 /// Capabilities of the client editor/IDE related to the document.
-// FIXME: Instead of making all of these optional, provide default values and make the deserialization handle missing values.
 public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
 
   /// Capabilities specific to the `textDocument/...` change notifications.
@@ -291,16 +289,16 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
     }
 
     /// Capabilities specific to `CompletionItemKind`.
-    public struct CompletionItemKind: Hashable, Codable, Sendable {
+    public struct CompletionItemKindValueSet: Hashable, Codable, Sendable {
 
       /// The completion kind values that the client can support.
       ///
       /// If not specified, the client support only the kinds from `Text` to `Reference` from LSP 1.
       ///
       /// If specified, the client *also* guarantees that it will handle unknown kinds gracefully.
-      public var valueSet: [LanguageServerProtocol.CompletionItemKind]? = nil
+      public var valueSet: [CompletionItemKind]? = nil
 
-      public init(valueSet: [LanguageServerProtocol.CompletionItemKind]? = nil) {
+      public init(valueSet: [CompletionItemKind]? = nil) {
         self.valueSet = valueSet
       }
     }
@@ -312,7 +310,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
 
     public var completionItem: CompletionItem? = nil
 
-    public var completionItemKind: CompletionItemKind? = nil
+    public var completionItemKind: CompletionItemKindValueSet? = nil
 
     /// Whether the client supports sending context information in a `textDocument/completion` request.
     public var contextSupport: Bool? = nil
@@ -320,7 +318,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
     public init(
       dynamicRegistration: Bool? = nil,
       completionItem: CompletionItem? = nil,
-      completionItemKind: CompletionItemKind? = nil,
+      completionItemKind: CompletionItemKindValueSet? = nil,
       contextSupport: Bool? = nil
     ) {
       self.dynamicRegistration = dynamicRegistration
@@ -385,16 +383,16 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
   public struct DocumentSymbol: Hashable, Codable, Sendable {
 
     /// Capabilities specific to `SymbolKind`.
-    public struct SymbolKind: Hashable, Codable, Sendable {
+    public struct SymbolKindValueSet: Hashable, Codable, Sendable {
 
       /// The symbol kind values that the client can support.
       ///
       /// If not specified, the client support only the kinds from `File` to `Array` from LSP 1.
       ///
       /// If specified, the client *also* guarantees that it will handle unknown kinds gracefully.
-      public var valueSet: [LanguageServerProtocol.SymbolKind]? = nil
+      public var valueSet: [SymbolKind]? = nil
 
-      public init(valueSet: [LanguageServerProtocol.SymbolKind]? = nil) {
+      public init(valueSet: [SymbolKind]? = nil) {
         self.valueSet = valueSet
       }
     }
@@ -402,13 +400,13 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
     /// Whether the client supports dynamic registration of this request.
     public var dynamicRegistration: Bool? = nil
 
-    public var symbolKind: SymbolKind? = nil
+    public var symbolKind: SymbolKindValueSet? = nil
 
     public var hierarchicalDocumentSymbolSupport: Bool? = nil
 
     public init(
       dynamicRegistration: Bool? = nil,
-      symbolKind: SymbolKind? = nil,
+      symbolKind: SymbolKindValueSet? = nil,
       hierarchicalDocumentSymbolSupport: Bool? = nil
     ) {
       self.dynamicRegistration = dynamicRegistration
@@ -436,21 +434,21 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
     /// Literals accepted by the client in response to a `textDocument/codeAction` request.
     public struct CodeActionLiteralSupport: Hashable, Codable, Sendable {
       /// Accepted code action kinds.
-      public struct CodeActionKind: Hashable, Codable, Sendable {
+      public struct CodeActionKindValueSet: Hashable, Codable, Sendable {
 
         /// The code action kind values that the client can support.
         ///
         /// If specified, the client *also* guarantees that it will handle unknown kinds gracefully.
-        public var valueSet: [LanguageServerProtocol.CodeActionKind]
+        public var valueSet: [CodeActionKind]
 
-        public init(valueSet: [LanguageServerProtocol.CodeActionKind]) {
+        public init(valueSet: [CodeActionKind]) {
           self.valueSet = valueSet
         }
       }
 
-      public var codeActionKind: CodeActionKind
+      public var codeActionKind: CodeActionKindValueSet
 
-      public init(codeActionKind: CodeActionKind) {
+      public init(codeActionKind: CodeActionKindValueSet) {
         self.codeActionKind = codeActionKind
       }
     }

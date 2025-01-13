@@ -10,14 +10,24 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+package import LanguageServerProtocol
+import SwiftExtensions
+import struct TSCBasic.AbsolutePath
+#else
 import Foundation
 import LanguageServerProtocol
-import TSCBasic
+import SwiftExtensions
+import struct TSCBasic.AbsolutePath
+#endif
 
 extension Language {
   var fileExtension: String {
     switch self {
     case .objective_c: return "m"
+    case .markdown: return "md"
+    case .tutorial: return "tutorial"
     default: return self.rawValue
     }
   }
@@ -29,6 +39,8 @@ extension Language {
     case "m": self = .objective_c
     case "mm": self = .objective_cpp
     case "swift": self = .swift
+    case "md": self = .markdown
+    case "tutorial": self = .tutorial
     default: return nil
     }
   }
@@ -49,7 +61,8 @@ extension DocumentURI {
   }
 }
 
-package let cleanScratchDirectories = (ProcessInfo.processInfo.environment["SOURCEKITLSP_KEEP_TEST_SCRATCH_DIR"] == nil)
+package let cleanScratchDirectories =
+  (ProcessInfo.processInfo.environment["SOURCEKIT_LSP_KEEP_TEST_SCRATCH_DIR"] == nil)
 
 /// An empty directory in which a test with `#function` name `testName` can store temporary data.
 package func testScratchDir(testName: String = #function) throws -> URL {
@@ -59,10 +72,17 @@ package func testScratchDir(testName: String = #function) throws -> URL {
   if let firstDash = uuid.firstIndex(of: "-") {
     uuid = uuid[..<firstDash]
   }
-  let url = FileManager.default.temporaryDirectory
-    .realpath
+  // Including the test name in the directory frequently makes path lengths of test files exceed the maximum path length
+  // on Windows. Choose shorter directory names on that platform to avoid that issue.
+  #if os(Windows)
+  let url = try FileManager.default.temporaryDirectory.realpath
+    .appendingPathComponent("lsp-test")
+    .appendingPathComponent("\(uuid)", isDirectory: true)
+  #else
+  let url = try FileManager.default.temporaryDirectory.realpath
     .appendingPathComponent("sourcekit-lsp-test-scratch")
-    .appendingPathComponent("\(testBaseName)-\(uuid)")
+    .appendingPathComponent("\(testBaseName)-\(uuid)", isDirectory: true)
+  #endif
   try? FileManager.default.removeItem(at: url)
   try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
   return url
@@ -72,9 +92,9 @@ package func testScratchDir(testName: String = #function) throws -> URL {
 /// test name.
 ///
 /// The temporary directory will be deleted at the end of `directory` unless the
-/// `SOURCEKITLSP_KEEP_TEST_SCRATCH_DIR` environment variable is set.
+/// `SOURCEKIT_LSP_KEEP_TEST_SCRATCH_DIR` environment variable is set.
 package func withTestScratchDir<T>(
-  @_inheritActorContext _ body: @Sendable (AbsolutePath) async throws -> T,
+  @_inheritActorContext _ body: @Sendable (URL) async throws -> T,
   testName: String = #function
 ) async throws -> T {
   let scratchDirectory = try testScratchDir(testName: testName)
@@ -84,42 +104,19 @@ package func withTestScratchDir<T>(
       try? FileManager.default.removeItem(at: scratchDirectory)
     }
   }
-  return try await body(try AbsolutePath(validating: scratchDirectory.path))
+  return try await body(scratchDirectory)
 }
 
-fileprivate extension URL {
-  /// Assuming this is a file URL, resolves all symlinks in the path.
-  ///
-  /// - Note: We need this because `URL.resolvingSymlinksInPath()` not only resolves symlinks but also standardizes the
-  ///   path by stripping away `private` prefixes. Since sourcekitd is not performing this standardization, using
-  ///   `resolvingSymlinksInPath` can lead to slightly mismatched URLs between the sourcekit-lsp response and the test
-  ///   assertion.
-  var realpath: URL {
-    #if canImport(Darwin)
-    return self.path.withCString { path in
-      guard let realpath = Darwin.realpath(path, nil) else {
-        return self
+var globalModuleCache: URL? {
+  get throws {
+    if let customModuleCache = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_TEST_MODULE_CACHE"] {
+      if customModuleCache.isEmpty {
+        return nil
       }
-      let result = URL(fileURLWithPath: String(cString: realpath))
-      free(realpath)
-      return result
+      return URL(fileURLWithPath: customModuleCache)
     }
-    #else
-    // Non-Darwin platforms don't have the `/private` stripping issue, so we can just use `self.resolvingSymlinksInPath`
-    // here.
-    return self.resolvingSymlinksInPath()
-    #endif
+    return try FileManager.default.temporaryDirectory.realpath
+      .appendingPathComponent("sourcekit-lsp-test-scratch")
+      .appendingPathComponent("shared-module-cache")
   }
 }
-
-let globalModuleCache: URL? = {
-  if let customModuleCache = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_TEST_MODULE_CACHE"] {
-    if customModuleCache.isEmpty {
-      return nil
-    }
-    return URL(fileURLWithPath: customModuleCache)
-  }
-  return FileManager.default.temporaryDirectory.realpath
-    .appendingPathComponent("sourcekit-lsp-test-scratch")
-    .appendingPathComponent("shared-module-cache")
-}()

@@ -10,10 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+package import LanguageServerProtocol
+package import SKOptions
+package import SourceKitLSP
+import SwiftExtensions
+#else
 import Foundation
 import LanguageServerProtocol
 import SKOptions
 import SourceKitLSP
+import SwiftExtensions
+#endif
 
 /// The location of a test file within test workspace.
 package struct RelativeFileLocation: Hashable, ExpressibleByStringLiteral {
@@ -79,7 +88,9 @@ package class MultiFileTestProject {
   /// File contents can also contain `$TEST_DIR`, which gets replaced by the temporary directory.
   package init(
     files: [RelativeFileLocation: String],
-    workspaces: (URL) async throws -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
+    workspaces: (_ scratchDirectory: URL) async throws -> [WorkspaceFolder] = {
+      [WorkspaceFolder(uri: DocumentURI($0))]
+    },
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
     options: SourceKitLSPOptions = .testDefault(),
@@ -95,7 +106,16 @@ package class MultiFileTestProject {
 
     var fileData: [String: FileData] = [:]
     for (fileLocation, markedText) in files {
-      let markedText = markedText.replacingOccurrences(of: "$TEST_DIR", with: scratchDirectory.path)
+      // Drop trailing slashes from the test dir URL, so tests can write `$TEST_DIR_URL/someFile.swift` without ending
+      // up with double slashes.
+      var testDirUrl = scratchDirectory.absoluteString
+      while testDirUrl.hasSuffix("/") {
+        testDirUrl = String(testDirUrl.dropLast())
+      }
+      let markedText =
+        markedText
+        .replacingOccurrences(of: "$TEST_DIR_URL", with: testDirUrl)
+        .replacingOccurrences(of: "$TEST_DIR", with: try scratchDirectory.filePath)
       let fileURL = fileLocation.url(relativeTo: scratchDirectory)
       try FileManager.default.createDirectory(
         at: fileURL.deletingLastPathComponent(),

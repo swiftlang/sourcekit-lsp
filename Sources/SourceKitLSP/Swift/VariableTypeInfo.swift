@@ -83,12 +83,14 @@ extension SwiftLanguageService {
     _ uri: DocumentURI,
     _ range: Range<Position>? = nil
   ) async throws -> [VariableTypeInfo] {
-    let snapshot = try documentManager.latestSnapshot(uri)
+    let snapshot = try await self.latestSnapshot(for: uri)
 
     let skreq = sourcekitd.dictionary([
       keys.request: requests.collectVariableType,
-      keys.sourceFile: snapshot.uri.pseudoPath,
-      keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDRequestValue]?,
+      keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
+      keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
+      keys.compilerArgs: await self.buildSettings(for: uri, fallbackAfterTimeout: false)?.compilerArgs
+        as [SKDRequestValue]?,
     ])
 
     if let range = range {

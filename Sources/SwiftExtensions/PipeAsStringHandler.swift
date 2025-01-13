@@ -10,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+#else
 import Foundation
+#endif
 
 /// Gathers data from a stdout or stderr pipe. When it has accumulated a full line, calls the handler to handle the
 /// string.

@@ -11,8 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
+import SKLogging
 import SKTestSupport
 import SourceKitLSP
+import SwiftExtensions
 import XCTest
 
 final class MainFilesProviderTests: XCTestCase {
@@ -186,7 +189,7 @@ final class MainFilesProviderTests: XCTestCase {
     XCTAssertEqual(preEditDiag.message, "Unused variable 'fromMyLibrary'")
 
     let newFancyLibraryContents = """
-      #include "\(project.scratchDirectory.path)/Sources/shared.h"
+      #include "\(try project.scratchDirectory.filePath)/Sources/shared.h"
       """
     let fancyLibraryUri = try project.uri(for: "MyFancyLibrary.c")
     try newFancyLibraryContents.write(to: try XCTUnwrap(fancyLibraryUri.fileURL), atomically: false, encoding: .utf8)
@@ -194,17 +197,18 @@ final class MainFilesProviderTests: XCTestCase {
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: fancyLibraryUri, type: .changed)])
     )
 
-    // 'MyFancyLibrary.c' now also includes 'shared.h'. Since it lexicographically preceeds MyLibrary, we should use its
+    // 'MyFancyLibrary.c' now also includes 'shared.h'. Since it lexicographically precedes MyLibrary, we should use its
     // build settings.
     // `clangd` may return diagnostics from the old build settings sometimes (I believe when it's still building the
     // preamble for shared.h when the new build settings come in). Check that it eventually returns the correct
     // diagnostics.
     try await repeatUntilExpectedResult {
-      let refreshedDiags = try await project.testClient.nextDiagnosticsNotification(timeout: .seconds(1))
-      guard let diagnostic = refreshedDiags.diagnostics.only else {
+      let refreshedDiags = try? await project.testClient.nextDiagnosticsNotification(timeout: .seconds(1))
+      guard refreshedDiags?.diagnostics.only?.message == "Unused variable 'fromMyFancyLibrary'" else {
+        logger.debug("Received unexpected diagnostics: \(refreshedDiags?.forLogging)")
         return false
       }
-      return diagnostic.message == "Unused variable 'fromMyFancyLibrary'"
+      return true
     }
   }
 }

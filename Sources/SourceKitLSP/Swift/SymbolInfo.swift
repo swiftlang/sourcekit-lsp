@@ -10,13 +10,18 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import LanguageServerProtocol
+#else
 import LanguageServerProtocol
+#endif
 
 extension SwiftLanguageService {
   package func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
     let uri = req.textDocument.uri
     let snapshot = try documentManager.latestSnapshot(uri)
     let position = await self.adjustPositionToStartOfIdentifier(req.position, in: snapshot)
-    return try await cursorInfo(uri, position..<position).cursorInfo.map { $0.symbolInfo }
+    return try await cursorInfo(uri, position..<position, fallbackSettingsAfterTimeout: false)
+      .cursorInfo.map { $0.symbolInfo }
   }
 }

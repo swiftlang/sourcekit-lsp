@@ -11,6 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
+import SKOptions
 import SKTestSupport
 import XCTest
 
@@ -39,14 +41,39 @@ final class LifecycleTests: XCTestCase {
     XCTAssertNotNil(initResult.capabilities.completionProvider)
   }
 
+  func testEmptySourceKitLSPOptionsCanBeDecoded() {
+    // Check that none of the keys in `SourceKitLSPOptions` are required.
+    XCTAssertEqual(
+      try JSONDecoder().decode(SourceKitLSPOptions.self, from: XCTUnwrap("{}".data(using: .utf8))),
+      SourceKitLSPOptions(swiftPM: nil, fallbackBuildSystem: nil, compilationDatabase: nil, index: nil, logging: nil)
+    )
+  }
+
   func testCancellation() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
+      struct A: ExpressibleByIntegerLiteral { init(integerLiteral value: Int) {} }
+      struct B: ExpressibleByIntegerLiteral { init(integerLiteral value: Int) {} }
+      struct C: ExpressibleByIntegerLiteral { init(integerLiteral value: Int) {} }
+
+      func + (lhs: A, rhs: B) -> A { fatalError() }
+      func + (lhs: B, rhs: C) -> A { fatalError() }
+      func + (lhs: C, rhs: A) -> A { fatalError() }
+
+      func + (lhs: B, rhs: A) -> B { fatalError() }
+      func + (lhs: C, rhs: B) -> B { fatalError() }
+      func + (lhs: A, rhs: C) -> B { fatalError() }
+
+      func + (lhs: C, rhs: B) -> C { fatalError() }
+      func + (lhs: B, rhs: C) -> C { fatalError() }
+      func + (lhs: A, rhs: A) -> C { fatalError() }
+
+
       class Foo {
         func slow(x: Invalid1, y: Invalid2) {
-        1️⃣  x / y / x / y / x / y / x / y . 2️⃣
+        1️⃣  let x: C = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 2️⃣
         }
 
         struct Foo {
@@ -109,5 +136,37 @@ final class LifecycleTests: XCTestCase {
       "Cursor info request wasn't fast. sourcekitd still blocked?"
     )
     XCTAssertGreaterThan(symbolInfo.count, 0)
+  }
+
+  func testEditWithOutOfRangeLine() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    testClient.openDocument("", uri: uri)
+
+    // Check that we don't crash.
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
+        contentChanges: [TextDocumentContentChangeEvent(range: Range(Position(line: 2, utf16index: 0)), text: "new")]
+      )
+    )
+  }
+
+  func testEditWithOutOfRangeColumn() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    testClient.openDocument("", uri: uri)
+
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
+        contentChanges: [TextDocumentContentChangeEvent(range: Range(Position(line: 0, utf16index: 4)), text: "new")]
+      )
+    )
+  }
+
+  func testOpenFileWithoutPath() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    testClient.openDocument("", uri: DocumentURI(try XCTUnwrap(URL(string: "file://"))), language: .swift)
   }
 }

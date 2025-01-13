@@ -89,11 +89,12 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable, Sendable {
 public struct ResponseError: Error, Codable, Hashable {
   public var code: ErrorCode
   public var message: String
-  // FIXME: data
+  public var data: LSPAny?
 
-  public init(code: ErrorCode, message: String) {
+  public init(code: ErrorCode, message: String, data: LSPAny? = nil) {
     self.code = code
     self.message = message
+    self.data = data
   }
 }
 
@@ -136,7 +137,7 @@ public struct MessageDecodingError: Error, Hashable {
   /// If it was possible to recover the request id, it is stored here. This can be used e.g. to reply with a `ResponseError` to invalid requests.
   public var id: RequestID?
 
-  public enum MessageKind: Sendable {
+  @frozen public enum MessageKind: Sendable {
     case request
     case response
     case notification

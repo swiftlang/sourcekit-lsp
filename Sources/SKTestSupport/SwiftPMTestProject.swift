@@ -10,14 +10,25 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+package import LanguageServerProtocol
+package import SKOptions
+package import SourceKitLSP
+import SwiftExtensions
+import TSCBasic
+import ToolchainRegistry
+import XCTest
+#else
 import Foundation
 import LanguageServerProtocol
 import SKOptions
 import SourceKitLSP
+import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
-
-private struct SwiftSyntaxCShimsModulemapNotFoundError: Error {}
+import XCTest
+#endif
 
 package class SwiftPMTestProject: MultiFileTestProject {
   enum Error: Swift.Error {
@@ -69,11 +80,40 @@ package class SwiftPMTestProject: MultiFileTestProject {
             .appendingPathComponent("include")
             .appendingPathComponent("module.modulemap")
         }
-        .first { FileManager.default.fileExists(atPath: $0.path) }
+        .first { FileManager.default.fileExists(at: $0) }
 
       guard let swiftSyntaxCShimsModulemap else {
+        struct SwiftSyntaxCShimsModulemapNotFoundError: Swift.Error {}
         throw SwiftSyntaxCShimsModulemapNotFoundError()
       }
+
+      // Only link against object files that are listed in the `Objects.LinkFileList`. Otherwise we can get a situation
+      // where a `.swift` file is removed from swift-syntax, its `.o` file is still in the build directory because the
+      // build folder wasn't cleaned and thus we would link against the stale `.o` file.
+      let linkFileListURL =
+        productsDirectory
+        .appendingPathComponent("SourceKitLSPPackageTests.product")
+        .appendingPathComponent("Objects.LinkFileList")
+      let linkFileListContents = try? String(contentsOf: linkFileListURL, encoding: .utf8)
+      guard let linkFileListContents else {
+        struct LinkFileListNotFoundError: Swift.Error {
+          let url: URL
+        }
+        throw LinkFileListNotFoundError(url: linkFileListURL)
+      }
+      let linkFileList =
+        Set(
+          linkFileListContents
+            .split(separator: "\n")
+            .map {
+              // Files are wrapped in single quotes if the path contains spaces. Drop the quotes.
+              if $0.hasPrefix("'") && $0.hasSuffix("'") {
+                return String($0.dropFirst().dropLast())
+              } else {
+                return String($0)
+              }
+            }
+        )
 
       let swiftSyntaxModulesToLink = [
         "SwiftBasicFormat",
@@ -87,6 +127,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
         "SwiftSyntaxBuilder",
         "SwiftSyntaxMacroExpansion",
         "SwiftSyntaxMacros",
+        "_SwiftSyntaxCShims",
       ]
 
       var objectFiles: [String] = []
@@ -94,8 +135,8 @@ package class SwiftPMTestProject: MultiFileTestProject {
         let dir = productsDirectory.appendingPathComponent("\(moduleName).build")
         let enumerator = FileManager.default.enumerator(at: dir, includingPropertiesForKeys: nil)
         while let file = enumerator?.nextObject() as? URL {
-          if file.pathExtension == "o" {
-            objectFiles.append(file.path)
+          if linkFileList.contains(try file.filePath) {
+            objectFiles.append(try file.filePath)
           }
         }
       }
@@ -110,9 +151,9 @@ package class SwiftPMTestProject: MultiFileTestProject {
       if let toolchainVersion = try await ToolchainRegistry.forTesting.default?.swiftVersion,
         toolchainVersion < SwiftVersion(6, 0)
       {
-        moduleSearchPath = productsDirectory.path
+        moduleSearchPath = try productsDirectory.filePath
       } else {
-        moduleSearchPath = "\(productsDirectory.path)/Modules"
+        moduleSearchPath = "\(try productsDirectory.filePath)/Modules"
       }
 
       return """
@@ -129,7 +170,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
               name: "MyMacros",
               swiftSettings: [.unsafeFlags([
                 "-I", "\(moduleSearchPath)",
-                "-Xcc", "-fmodule-map-file=\(swiftSyntaxCShimsModulemap.path)"
+                "-Xcc", "-fmodule-map-file=\(try swiftSyntaxCShimsModulemap.filePath)"
               ])],
               linkerSettings: [
                 .unsafeFlags([
@@ -150,7 +191,9 @@ package class SwiftPMTestProject: MultiFileTestProject {
   package init(
     files: [RelativeFileLocation: String],
     manifest: String = SwiftPMTestProject.defaultPackageManifest,
-    workspaces: (URL) async throws -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
+    workspaces: (_ scratchDirectory: URL) async throws -> [WorkspaceFolder] = {
+      [WorkspaceFolder(uri: DocumentURI($0))]
+    },
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
     options: SourceKitLSPOptions = .testDefault(),
@@ -210,40 +253,37 @@ package class SwiftPMTestProject: MultiFileTestProject {
   }
 
   /// Build a SwiftPM package package manifest is located in the directory at `path`.
-  package static func build(at path: URL) async throws {
-    guard let swift = await ToolchainRegistry.forTesting.default?.swift?.asURL else {
+  package static func build(at path: URL, extraArguments: [String] = []) async throws {
+    guard let swift = await ToolchainRegistry.forTesting.default?.swift else {
       throw Error.swiftNotFound
     }
-    var arguments = [
-      swift.path,
-      "build",
-      "--package-path", path.path,
-      "--build-tests",
-      "-Xswiftc", "-index-ignore-system-modules",
-      "-Xcc", "-index-ignore-system-symbols",
-    ]
-    if let globalModuleCache {
+    var arguments =
+      [
+        try swift.filePath,
+        "build",
+        "--package-path", try path.filePath,
+        "--build-tests",
+        "-Xswiftc", "-index-ignore-system-modules",
+        "-Xcc", "-index-ignore-system-symbols",
+      ] + extraArguments
+    if let globalModuleCache = try globalModuleCache {
       arguments += [
-        "-Xswiftc", "-module-cache-path", "-Xswiftc", globalModuleCache.path,
+        "-Xswiftc", "-module-cache-path", "-Xswiftc", try globalModuleCache.filePath,
       ]
     }
-    var environment = ProcessEnv.block
-    // FIXME: SwiftPM does not index-while-building on non-Darwin platforms for C-family files (rdar://117744039).
-    // Force-enable index-while-building with the environment variable.
-    environment["SWIFTPM_ENABLE_CLANG_INDEX_STORE"] = "1"
-    try await Process.checkNonZeroExit(arguments: arguments, environmentBlock: environment)
+    try await Process.checkNonZeroExit(arguments: arguments)
   }
 
   /// Resolve package dependencies for the package at `path`.
   package static func resolvePackageDependencies(at path: URL) async throws {
-    guard let swift = await ToolchainRegistry.forTesting.default?.swift?.asURL else {
+    guard let swift = await ToolchainRegistry.forTesting.default?.swift else {
       throw Error.swiftNotFound
     }
     let arguments = [
-      swift.path,
+      try swift.filePath,
       "package",
       "resolve",
-      "--package-path", path.path,
+      "--package-path", try path.filePath,
     ]
     try await Process.checkNonZeroExit(arguments: arguments)
   }

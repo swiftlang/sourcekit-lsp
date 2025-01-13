@@ -10,6 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import ArgumentParser
+import Foundation
+import ToolchainRegistry
+
+import struct TSCBasic.AbsolutePath
+import class TSCBasic.Process
+import class TSCUtility.PercentProgressAnimation
+#else
 import ArgumentParser
 import Foundation
 import ToolchainRegistry
@@ -17,6 +26,7 @@ import ToolchainRegistry
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import class TSCUtility.PercentProgressAnimation
+#endif
 
 package struct ReduceFrontendCommand: AsyncParsableCommand {
   package static let configuration: CommandConfiguration = CommandConfiguration(
@@ -66,10 +76,9 @@ package struct ReduceFrontendCommand: AsyncParsableCommand {
   var toolchain: Toolchain? {
     get async throws {
       if let toolchainOverride {
-        return Toolchain(try AbsolutePath(validating: toolchainOverride))
+        return Toolchain(URL(fileURLWithPath: toolchainOverride))
       }
-      let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
-      return await ToolchainRegistry(installPath: installPath).default
+      return await ToolchainRegistry(installPath: Bundle.main.bundleURL).default
     }
   }
 
@@ -78,10 +87,10 @@ package struct ReduceFrontendCommand: AsyncParsableCommand {
   @MainActor
   package func run() async throws {
     guard let sourcekitd = try await toolchain?.sourcekitd else {
-      throw ReductionError("Unable to find sourcekitd.framework")
+      throw GenericError("Unable to find sourcekitd.framework")
     }
     guard let swiftFrontend = try await toolchain?.swiftFrontend else {
-      throw ReductionError("Unable to find swift-frontend")
+      throw GenericError("Unable to find swift-frontend")
     }
 
     let progressBar = PercentProgressAnimation(
@@ -90,7 +99,7 @@ package struct ReduceFrontendCommand: AsyncParsableCommand {
     )
 
     let executor = OutOfProcessSourceKitRequestExecutor(
-      sourcekitd: sourcekitd.asURL,
+      sourcekitd: sourcekitd,
       swiftFrontend: swiftFrontend,
       reproducerPredicate: nsPredicate
     )

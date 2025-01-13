@@ -10,13 +10,29 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Csourcekitd
+import Foundation
+import IndexStoreDB
+package import LanguageServerProtocol
+import SKLogging
+import SKUtilities
+import SemanticIndex
+import SourceKitD
+import SwiftExtensions
+import SwiftSyntax
+#else
+import Csourcekitd
+import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
 import SKLogging
-import SKSupport
+import SKUtilities
 import SemanticIndex
 import SourceKitD
+import SwiftExtensions
 import SwiftSyntax
+#endif
 
 // MARK: - Helper types
 
@@ -352,7 +368,8 @@ extension SwiftLanguageService {
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.nameTranslation,
       keys.sourceFile: snapshot.uri.pseudoPath,
-      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
+      keys.compilerArgs: await self.buildSettings(for: snapshot.uri, fallbackAfterTimeout: false)?.compilerArgs
+        as [SKDRequestValue]?,
       keys.offset: snapshot.utf8Offset(of: snapshot.position(of: symbolLocation)),
       keys.nameKind: sourcekitd.values.nameSwift,
       keys.baseName: name.baseName,
@@ -403,7 +420,8 @@ extension SwiftLanguageService {
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.nameTranslation,
       keys.sourceFile: snapshot.uri.pseudoPath,
-      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
+      keys.compilerArgs: await self.buildSettings(for: snapshot.uri, fallbackAfterTimeout: false)?.compilerArgs
+        as [SKDRequestValue]?,
       keys.offset: snapshot.utf8Offset(of: snapshot.position(of: symbolLocation)),
       keys.nameKind: sourcekitd.values.nameObjc,
     ])
@@ -482,14 +500,6 @@ package struct CrossLanguageName: Sendable {
 /// The kinds of symbol occurrence roles that should be renamed.
 fileprivate let renameRoles: SymbolRole = [.declaration, .definition, .reference]
 
-extension DocumentManager {
-  /// Returns the latest open snapshot of `uri` or, if no document with that URI is open, reads the file contents of
-  /// that file from disk.
-  fileprivate func latestSnapshotOrDisk(_ uri: DocumentURI, language: Language) -> DocumentSnapshot? {
-    return (try? self.latestSnapshot(uri)) ?? (try? DocumentSnapshot(withContentsFromDisk: uri, language: language))
-  }
-}
-
 extension SourceKitLSPServer {
   /// Returns a `DocumentSnapshot`, a position and the corresponding language service that references
   /// `usr` from a Swift file. If `usr` is not referenced from Swift, returns `nil`.
@@ -564,22 +574,6 @@ extension SourceKitLSPServer {
     return nil
   }
 
-  // FIXME: (async-workaround): Needed to work around rdar://127977642
-  private func translateClangNameToSwift(
-    _ swiftLanguageService: SwiftLanguageService,
-    at symbolLocation: SymbolLocation,
-    in snapshot: DocumentSnapshot,
-    isObjectiveCSelector: Bool,
-    name: String
-  ) async throws -> String {
-    return try await swiftLanguageService.translateClangNameToSwift(
-      at: symbolLocation,
-      in: snapshot,
-      isObjectiveCSelector: isObjectiveCSelector,
-      name: name
-    )
-  }
-
   private func getCrossLanguageName(
     forDefinitionOccurrence definitionOccurrence: SymbolOccurrence,
     overrideName: String? = nil,
@@ -614,8 +608,7 @@ extension SourceKitLSPServer {
       let swiftName: String?
       if let swiftReference = await getReferenceFromSwift(usr: usr, index: index, workspace: workspace) {
         let isObjectiveCSelector = definitionLanguage == .objective_c && definitionSymbol.kind.isMethod
-        swiftName = try await self.translateClangNameToSwift(
-          swiftReference.swiftLanguageService,
+        swiftName = try await swiftReference.swiftLanguageService.translateClangNameToSwift(
           at: swiftReference.location,
           in: swiftReference.snapshot,
           isObjectiveCSelector: isObjectiveCSelector,

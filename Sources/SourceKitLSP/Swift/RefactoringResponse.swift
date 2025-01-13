@@ -10,30 +10,24 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Csourcekitd
 import LanguageServerProtocol
 import SKLogging
+import SKUtilities
 import SourceKitD
 
 protocol RefactoringResponse {
   init(title: String, uri: DocumentURI, refactoringEdits: [RefactoringEdit])
 }
 
-extension RefactoringResponse {
-  /// Create an instance of `RefactoringResponse` from a sourcekitd semantic
-  /// refactoring response dictionary, if possible.
-  ///
-  /// - Parameters:
-  ///   - title: The title of the refactoring action.
-  ///   - dict: Response dictionary to extract information from.
-  ///   - snapshot: The snapshot that triggered the `semantic_refactoring` request.
-  ///   - keys: The sourcekitd key set to use for looking up into `dict`.
-  init?(_ title: String, _ dict: SKDResponseDictionary, _ snapshot: DocumentSnapshot, _ keys: sourcekitd_api_keys) {
+extension Array<RefactoringEdit> {
+  init?(_ dict: SKDResponseDictionary, _ snapshot: DocumentSnapshot, _ keys: sourcekitd_api_keys) {
     guard let categorizedEdits: SKDResponseArray = dict[keys.categorizedEdits] else {
       logger.fault("categorizedEdits doesn't exist in response dictionary")
       return nil
     }
 
-    var refactoringEdits: [RefactoringEdit] = []
+    self = []
 
     categorizedEdits.forEach { _, categorizedEdit in
       guard let edits: SKDResponseArray = categorizedEdit[keys.edits] else {
@@ -64,7 +58,7 @@ extension RefactoringResponse {
         // Remove SourceKit placeholders in refactoring actions because they
         // can't be represented in the editor properly.
         let textWithSnippets = rewriteSourceKitPlaceholders(in: text, clientSupportsSnippets: false)
-        refactoringEdits.append(
+        self.append(
           RefactoringEdit(
             range: startPosition..<endPosition,
             newText: textWithSnippets,
@@ -76,8 +70,24 @@ extension RefactoringResponse {
       return true
     }
 
-    guard !refactoringEdits.isEmpty else {
+    guard !self.isEmpty else {
       logger.error("No refactoring edits found")
+      return nil
+    }
+  }
+}
+
+extension RefactoringResponse {
+  /// Create an instance of `RefactoringResponse` from a sourcekitd semantic
+  /// refactoring response dictionary, if possible.
+  ///
+  /// - Parameters:
+  ///   - title: The title of the refactoring action.
+  ///   - dict: Response dictionary to extract information from.
+  ///   - snapshot: The snapshot that triggered the `semantic_refactoring` request.
+  ///   - keys: The sourcekitd key set to use for looking up into `dict`.
+  init?(_ title: String, _ dict: SKDResponseDictionary, _ snapshot: DocumentSnapshot, _ keys: sourcekitd_api_keys) {
+    guard let refactoringEdits = [RefactoringEdit](dict, snapshot, keys) else {
       return nil
     }
 
@@ -95,9 +105,9 @@ extension SwiftLanguageService {
   /// - Parameters:
   ///   - refactorCommand: The semantic `RefactorCommand` that triggered this request.
   /// - Returns: The response of the refactoring
-  func refactoring<T: RefactorCommand>(
-    _ refactorCommand: T
-  ) async throws -> T.Response {
+  func refactoring(
+    _ refactorCommand: SemanticRefactorCommand
+  ) async throws -> SemanticRefactoring {
     let keys = self.keys
 
     let uri = refactorCommand.textDocument.uri
@@ -117,11 +127,12 @@ extension SwiftLanguageService {
       keys.column: utf8Column + 1,
       keys.length: snapshot.utf8OffsetRange(of: refactorCommand.positionRange).count,
       keys.actionUID: self.sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!,
-      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
+      keys.compilerArgs: await self.buildSettings(for: snapshot.uri, fallbackAfterTimeout: true)?.compilerArgs
+        as [SKDRequestValue]?,
     ])
 
     let dict = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
-    guard let refactor = T.Response(refactorCommand.title, dict, snapshot, self.keys) else {
+    guard let refactor = SemanticRefactoring(refactorCommand.title, dict, snapshot, self.keys) else {
       throw SemanticRefactoringError.noEditsNeeded(uri)
     }
     return refactor

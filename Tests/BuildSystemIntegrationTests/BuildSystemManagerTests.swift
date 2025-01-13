@@ -13,14 +13,21 @@
 import BuildServerProtocol
 @_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
+import SKLogging
 import SKOptions
 import SKTestSupport
 import TSCBasic
 import ToolchainRegistry
 import XCTest
 
-final class BuildSystemManagerTests: XCTestCase {
+fileprivate extension BuildSystemManager {
+  func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
+    handle(OnBuildTargetDidChangeNotification(changes: nil))
+  }
+}
 
+final class BuildSystemManagerTests: XCTestCase {
   func testMainFiles() async throws {
     let a = try DocumentURI(string: "bsm:a")
     let b = try DocumentURI(string: "bsm:b")
@@ -37,11 +44,13 @@ final class BuildSystemManagerTests: XCTestCase {
     )
 
     let bsm = await BuildSystemManager(
-      buildSystem: nil,
-      fallbackBuildSystem: FallbackBuildSystem(options: SourceKitLSPOptions.FallbackBuildSystemOptions()),
-      mainFilesProvider: mainFiles,
-      toolchainRegistry: ToolchainRegistry.forTesting
+      buildSystemSpec: nil,
+      toolchainRegistry: ToolchainRegistry.forTesting,
+      options: SourceKitLSPOptions(),
+      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
+    await bsm.setMainFilesProvider(mainFiles)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
 
     await assertEqual(bsm.cachedMainFile(for: a), nil)
@@ -90,160 +99,96 @@ final class BuildSystemManagerTests: XCTestCase {
     await assertEqual(bsm.cachedMainFile(for: d), nil)
   }
 
-  @MainActor
   func testSettingsMainFile() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
-    let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
-      fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles,
-      toolchainRegistry: ToolchainRegistry.forTesting
+      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: URL(fileURLWithPath: "/")),
+      toolchainRegistry: ToolchainRegistry.forTesting,
+      options: SourceKitLSPOptions(),
+      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
+    await bsm.setMainFilesProvider(mainFiles)
+    let bs = try await unwrap(bsm.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
-    bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
+    await bs.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
+    // Wait for the new build settings to settle before registering for change notifications
+    await bsm.waitForUpToDateBuildGraph()
     await bsm.registerForChangeNotifications(for: a, language: .swift)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), bs.map[a]!)
+    assertEqual(
+      await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift, fallbackAfterTimeout: false)?
+        .compilerArguments,
+      ["x"]
+    )
 
-    bs.map[a] = nil
     let changed = expectation(description: "changed settings")
-    await del.setExpected([(a, .swift, nil, changed, #file, #line)])
-    await bsm.fileBuildSettingsChanged([a])
+    await del.setExpected([
+      (a, .swift, fallbackBuildSettings(for: a, language: .swift, options: .init()), changed)
+    ])
+    await bs.setBuildSettings(for: a, to: nil)
     try await fulfillmentOfOrThrow([changed])
   }
 
-  @MainActor
   func testSettingsMainFileInitialNil() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
-    let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
-      fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles,
-      toolchainRegistry: ToolchainRegistry.forTesting
+      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: URL(fileURLWithPath: "/")),
+      toolchainRegistry: ToolchainRegistry.forTesting,
+      options: SourceKitLSPOptions(),
+      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
+    await bsm.setMainFilesProvider(mainFiles)
+    let bs = try await unwrap(bsm.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
     await bsm.registerForChangeNotifications(for: a, language: .swift)
-    assertNil(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift))
 
-    bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
     let changed = expectation(description: "changed settings")
-    await del.setExpected([(a, .swift, bs.map[a]!, changed, #file, #line)])
-    await bsm.fileBuildSettingsChanged([a])
+    await del.setExpected([(a, .swift, FileBuildSettings(compilerArguments: ["x"]), changed)])
+    await bs.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
     try await fulfillmentOfOrThrow([changed])
   }
 
-  @MainActor
   func testSettingsMainFileWithFallback() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
-    let bs = ManualBuildSystem()
-    let fallback = FallbackBuildSystem(options: SourceKitLSPOptions.FallbackBuildSystemOptions())
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
-      fallbackBuildSystem: fallback,
-      mainFilesProvider: mainFiles,
-      toolchainRegistry: ToolchainRegistry.forTesting
+      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: URL(fileURLWithPath: "/")),
+      toolchainRegistry: ToolchainRegistry.forTesting,
+      options: SourceKitLSPOptions(),
+      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
+    await bsm.setMainFilesProvider(mainFiles)
+    let bs = try await unwrap(bsm.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
-    let fallbackSettings = await fallback.buildSettings(for: a, language: .swift)
+    let fallbackSettings = fallbackBuildSettings(for: a, language: .swift, options: .init())
     await bsm.registerForChangeNotifications(for: a, language: .swift)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), fallbackSettings)
+    assertEqual(
+      await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift, fallbackAfterTimeout: false),
+      fallbackSettings
+    )
 
-    bs.map[a] = FileBuildSettings(compilerArguments: ["non-fallback", "args"])
     let changed = expectation(description: "changed settings")
-    await del.setExpected([(a, .swift, bs.map[a]!, changed, #file, #line)])
-    await bsm.fileBuildSettingsChanged([a])
+    await del.setExpected([(a, .swift, FileBuildSettings(compilerArguments: ["non-fallback", "args"]), changed)])
+    await bs.setBuildSettings(
+      for: a,
+      to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["non-fallback", "args"])
+    )
     try await fulfillmentOfOrThrow([changed])
 
-    bs.map[a] = nil
     let revert = expectation(description: "revert to fallback settings")
-    await del.setExpected([(a, .swift, fallbackSettings, revert, #file, #line)])
-    await bsm.fileBuildSettingsChanged([a])
+    await del.setExpected([(a, .swift, fallbackSettings, revert)])
+    await bs.setBuildSettings(for: a, to: nil)
     try await fulfillmentOfOrThrow([revert])
   }
 
-  @MainActor
-  func testSettingsMainFileInitialIntersect() async throws {
-    let a = try DocumentURI(string: "bsm:a.swift")
-    let b = try DocumentURI(string: "bsm:b.swift")
-    let mainFiles = ManualMainFilesProvider([a: [a], b: [b]])
-    let bs = ManualBuildSystem()
-    let bsm = await BuildSystemManager(
-      buildSystem: bs,
-      fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles,
-      toolchainRegistry: ToolchainRegistry.forTesting
-    )
-    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
-
-    bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
-    bs.map[b] = FileBuildSettings(compilerArguments: ["y"])
-    await bsm.registerForChangeNotifications(for: a, language: .swift)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), bs.map[a]!)
-    await bsm.registerForChangeNotifications(for: b, language: .swift)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: b, language: .swift), bs.map[b]!)
-
-    bs.map[a] = FileBuildSettings(compilerArguments: ["xx"])
-    bs.map[b] = FileBuildSettings(compilerArguments: ["yy"])
-    let changed = expectation(description: "changed settings")
-    await del.setExpected([(a, .swift, bs.map[a]!, changed, #file, #line)])
-    await bsm.fileBuildSettingsChanged([a])
-    try await fulfillmentOfOrThrow([changed])
-
-    // Test multiple changes.
-    bs.map[a] = FileBuildSettings(compilerArguments: ["xxx"])
-    bs.map[b] = FileBuildSettings(compilerArguments: ["yyy"])
-    let changedBothA = expectation(description: "changed setting a")
-    let changedBothB = expectation(description: "changed setting b")
-    await del.setExpected([
-      (a, .swift, bs.map[a]!, changedBothA, #file, #line),
-      (b, .swift, bs.map[b]!, changedBothB, #file, #line),
-    ])
-    await bsm.fileBuildSettingsChanged([a, b])
-    try await fulfillmentOfOrThrow([changedBothA, changedBothB])
-  }
-
-  @MainActor
-  func testSettingsMainFileUnchanged() async throws {
-    let a = try DocumentURI(string: "bsm:a.swift")
-    let b = try DocumentURI(string: "bsm:b.swift")
-    let mainFiles = ManualMainFilesProvider([a: [a], b: [b]])
-    let bs = ManualBuildSystem()
-    let bsm = await BuildSystemManager(
-      buildSystem: bs,
-      fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles,
-      toolchainRegistry: ToolchainRegistry.forTesting
-    )
-    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
-
-    bs.map[a] = FileBuildSettings(compilerArguments: ["a"])
-    bs.map[b] = FileBuildSettings(compilerArguments: ["b"])
-
-    await bsm.registerForChangeNotifications(for: a, language: .swift)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), bs.map[a]!)
-
-    await bsm.registerForChangeNotifications(for: b, language: .swift)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: b, language: .swift), bs.map[b]!)
-
-    bs.map[a] = nil
-    bs.map[b] = nil
-    let changed = expectation(description: "changed settings")
-    await del.setExpected([(b, .swift, nil, changed, #file, #line)])
-    await bsm.fileBuildSettingsChanged([b])
-    try await fulfillmentOfOrThrow([changed])
-  }
-
-  @MainActor
   func testSettingsHeaderChangeMainFile() async throws {
     let h = try DocumentURI(string: "bsm:header.h")
     let cpp1 = try DocumentURI(string: "bsm:main.cpp")
@@ -256,51 +201,59 @@ final class BuildSystemManagerTests: XCTestCase {
       ]
     )
 
-    let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
-      fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles,
-      toolchainRegistry: ToolchainRegistry.forTesting
+      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: URL(fileURLWithPath: "/")),
+      toolchainRegistry: ToolchainRegistry.forTesting,
+      options: SourceKitLSPOptions(),
+      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
+    await bsm.setMainFilesProvider(mainFiles)
+    let bs = try await unwrap(bsm.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
-    bs.map[cpp1] = FileBuildSettings(compilerArguments: ["C++ 1"])
-    bs.map[cpp2] = FileBuildSettings(compilerArguments: ["C++ 2"])
+    await bs.setBuildSettings(for: cpp1, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["C++ 1"]))
+    await bs.setBuildSettings(for: cpp2, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["C++ 2"]))
 
+    // Wait for the new build settings to settle before registering for change notifications
+    await bsm.waitForUpToDateBuildGraph()
     await bsm.registerForChangeNotifications(for: h, language: .c)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h, language: .c), bs.map[cpp1]!)
+    assertEqual(
+      await bsm.buildSettingsInferredFromMainFile(for: h, language: .c, fallbackAfterTimeout: false)?.compilerArguments,
+      ["C++ 1"]
+    )
 
     await mainFiles.updateMainFiles(for: h, to: [cpp2])
 
     let changed = expectation(description: "changed settings to cpp2")
-    await del.setExpected([(h, .c, bs.map[cpp2]!, changed, #file, #line)])
+    await del.setExpected([(h, .c, FileBuildSettings(compilerArguments: ["C++ 2"]), changed)])
     await bsm.mainFilesChanged()
     try await fulfillmentOfOrThrow([changed])
 
     let changed2 = expectation(description: "still cpp2, no update")
     changed2.isInverted = true
-    await del.setExpected([(h, .c, nil, changed2, #file, #line)])
+    await del.setExpected([(h, .c, nil, changed2)])
     await bsm.mainFilesChanged()
     try await fulfillmentOfOrThrow([changed2], timeout: 1)
 
     await mainFiles.updateMainFiles(for: h, to: [cpp1, cpp2])
 
     let changed3 = expectation(description: "added lexicographically earlier main file")
-    await del.setExpected([(h, .c, bs.map[cpp1]!, changed3, #file, #line)])
+    await del.setExpected([(h, .c, FileBuildSettings(compilerArguments: ["C++ 1"]), changed3)])
     await bsm.mainFilesChanged()
     try await fulfillmentOfOrThrow([changed3], timeout: 1)
 
     await mainFiles.updateMainFiles(for: h, to: [])
 
     let changed4 = expectation(description: "changed settings to []")
-    await del.setExpected([(h, .c, nil, changed4, #file, #line)])
+    await del.setExpected([
+      (h, .c, fallbackBuildSettings(for: h, language: .cpp, options: .init()), changed4)
+    ])
     await bsm.mainFilesChanged()
     try await fulfillmentOfOrThrow([changed4])
   }
 
-  @MainActor
   func testSettingsOneMainTwoHeader() async throws {
     let h1 = try DocumentURI(string: "bsm:header1.h")
     let h2 = try DocumentURI(string: "bsm:header2.h")
@@ -312,113 +265,55 @@ final class BuildSystemManagerTests: XCTestCase {
       ]
     )
 
-    let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
-      fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles,
-      toolchainRegistry: ToolchainRegistry.forTesting
+      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: URL(fileURLWithPath: "/")),
+      toolchainRegistry: ToolchainRegistry.forTesting,
+      options: SourceKitLSPOptions(),
+      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
+      buildSystemTestHooks: BuildSystemTestHooks()
     )
+    await bsm.setMainFilesProvider(mainFiles)
+    let bs = try await unwrap(bsm.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
     let cppArg = "C++ Main File"
-    bs.map[cpp] = FileBuildSettings(compilerArguments: [cppArg, cpp.pseudoPath])
+    await bs.setBuildSettings(
+      for: cpp,
+      to: TextDocumentSourceKitOptionsResponse(compilerArguments: [cppArg, cpp.pseudoPath])
+    )
+
+    // Wait for the new build settings to settle before registering for change notifications
+    await bsm.waitForUpToDateBuildGraph()
 
     await bsm.registerForChangeNotifications(for: h1, language: .c)
-
     await bsm.registerForChangeNotifications(for: h2, language: .c)
 
     let expectedArgsH1 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h1.pseudoPath])
     let expectedArgsH2 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h2.pseudoPath])
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h1, language: .c), expectedArgsH1)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h2, language: .c), expectedArgsH2)
+    assertEqual(
+      await bsm.buildSettingsInferredFromMainFile(for: h1, language: .c, fallbackAfterTimeout: false),
+      expectedArgsH1
+    )
+    assertEqual(
+      await bsm.buildSettingsInferredFromMainFile(for: h2, language: .c, fallbackAfterTimeout: false),
+      expectedArgsH2
+    )
 
     let newCppArg = "New C++ Main File"
-    bs.map[cpp] = FileBuildSettings(compilerArguments: [newCppArg, cpp.pseudoPath])
     let changed1 = expectation(description: "initial settings h1 via cpp")
     let changed2 = expectation(description: "initial settings h2 via cpp")
     let newArgsH1 = FileBuildSettings(compilerArguments: ["-xc++", newCppArg, h1.pseudoPath])
     let newArgsH2 = FileBuildSettings(compilerArguments: ["-xc++", newCppArg, h2.pseudoPath])
     await del.setExpected([
-      (h1, .c, newArgsH1, changed1, #file, #line),
-      (h2, .c, newArgsH2, changed2, #file, #line),
+      (h1, .c, newArgsH1, changed1),
+      (h2, .c, newArgsH2, changed2),
     ])
-    await bsm.fileBuildSettingsChanged([cpp])
-
+    await bs.setBuildSettings(
+      for: cpp,
+      to: TextDocumentSourceKitOptionsResponse(compilerArguments: [newCppArg, cpp.pseudoPath])
+    )
     try await fulfillmentOfOrThrow([changed1, changed2])
-  }
-
-  @MainActor
-  func testSettingsChangedAfterUnregister() async throws {
-    let a = try DocumentURI(string: "bsm:a.swift")
-    let b = try DocumentURI(string: "bsm:b.swift")
-    let c = try DocumentURI(string: "bsm:c.swift")
-    let mainFiles = ManualMainFilesProvider([a: [a], b: [b], c: [c]])
-    let bs = ManualBuildSystem()
-    let bsm = await BuildSystemManager(
-      buildSystem: bs,
-      fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles,
-      toolchainRegistry: ToolchainRegistry.forTesting
-    )
-    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
-
-    bs.map[a] = FileBuildSettings(compilerArguments: ["a"])
-    bs.map[b] = FileBuildSettings(compilerArguments: ["b"])
-    bs.map[c] = FileBuildSettings(compilerArguments: ["c"])
-
-    await bsm.registerForChangeNotifications(for: a, language: .swift)
-    await bsm.registerForChangeNotifications(for: b, language: .swift)
-    await bsm.registerForChangeNotifications(for: c, language: .swift)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), bs.map[a]!)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: b, language: .swift), bs.map[b]!)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: c, language: .swift), bs.map[c]!)
-
-    bs.map[a] = FileBuildSettings(compilerArguments: ["new-a"])
-    bs.map[b] = FileBuildSettings(compilerArguments: ["new-b"])
-    bs.map[c] = FileBuildSettings(compilerArguments: ["new-c"])
-
-    let changedB = expectation(description: "changed settings b")
-    await del.setExpected([
-      (b, .swift, bs.map[b]!, changedB, #file, #line)
-    ])
-
-    await bsm.unregisterForChangeNotifications(for: a)
-    await bsm.unregisterForChangeNotifications(for: c)
-    // At this point only b is registered, but that can race with notifications,
-    // so ensure nothing bad happens and we still get the notification for b.
-    await bsm.fileBuildSettingsChanged([a, b, c])
-
-    try await fulfillmentOfOrThrow([changedB])
-  }
-
-  @MainActor
-  func testDependenciesUpdated() async throws {
-    let a = try DocumentURI(string: "bsm:a.swift")
-    let mainFiles = ManualMainFilesProvider([a: [a]])
-
-    let bs = ManualBuildSystem()
-    let bsm = await BuildSystemManager(
-      buildSystem: bs,
-      fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles,
-      toolchainRegistry: ToolchainRegistry.forTesting
-    )
-    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
-
-    bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), bs.map[a]!)
-
-    await bsm.registerForChangeNotifications(for: a, language: .swift)
-
-    let depUpdate2 = expectation(description: "dependencies update 2")
-    await del.setExpectedDependenciesUpdate([(a, depUpdate2, #file, #line)])
-
-    await bsm.filesDependenciesUpdated([a])
-    try await fulfillmentOfOrThrow([depUpdate2])
   }
 }
 
@@ -444,83 +339,10 @@ private final actor ManualMainFilesProvider: MainFilesProvider {
   }
 }
 
-/// A simple `BuildSystem` that wraps a dictionary, for testing.
-@MainActor
-class ManualBuildSystem: BuildSystem {
-  var projectRoot = try! AbsolutePath(validating: "/")
-
-  var map: [DocumentURI: FileBuildSettings] = [:]
-
-  weak var delegate: BuildSystemDelegate? = nil
-
-  func setDelegate(_ delegate: BuildSystemDelegate?) async {
-    self.delegate = delegate
-  }
-
-  package nonisolated var supportsPreparation: Bool { false }
-
-  func buildSettings(for uri: DocumentURI, in buildTarget: ConfiguredTarget, language: Language) -> FileBuildSettings? {
-    return map[uri]
-  }
-
-  package func defaultLanguage(for document: DocumentURI) async -> Language? {
-    return nil
-  }
-
-  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
-    return nil
-  }
-
-  package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
-  }
-
-  package func prepare(
-    targets: [ConfiguredTarget],
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
-  ) async throws {
-    throw PrepareNotSupportedError()
-  }
-
-  package func generateBuildGraph(allowFileSystemWrites: Bool) {}
-
-  package func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
-    return nil
-  }
-
-  package func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
-    return nil
-  }
-
-  func registerForChangeNotifications(for uri: DocumentURI) async {
-  }
-
-  func unregisterForChangeNotifications(for: DocumentURI) {
-  }
-
-  var indexStorePath: AbsolutePath? { nil }
-  var indexDatabasePath: AbsolutePath? { nil }
-  var indexPrefixMappings: [PathPrefixMapping] { return [] }
-
-  func filesDidChange(_ events: [FileEvent]) {}
-
-  package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    if map[uri] != nil {
-      return .handled
-    } else {
-      return .unhandled
-    }
-  }
-
-  func sourceFiles() async -> [SourceFileInfo] {
-    return []
-  }
-
-  func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) {}
-}
-
 /// A `BuildSystemDelegate` setup for testing.
-private actor BSMDelegate: BuildSystemDelegate {
+private actor BSMDelegate: BuildSystemManagerDelegate {
+  func watchFiles(_ fileWatchers: [LanguageServerProtocol.FileSystemWatcher]) async {}
+
   fileprivate typealias ExpectedBuildSettingChangedCall = (
     uri: DocumentURI, language: Language, settings: FileBuildSettings?, expectation: XCTestExpectation,
     file: StaticString, line: UInt
@@ -533,53 +355,50 @@ private actor BSMDelegate: BuildSystemDelegate {
   var expected: [ExpectedBuildSettingChangedCall] = []
 
   /// - Note: Needed to set `expected` outside of the actor's isolation context.
-  func setExpected(_ expected: [ExpectedBuildSettingChangedCall]) {
-    self.expected = expected
-  }
-
-  var expectedDependenciesUpdate: [(uri: DocumentURI, expectation: XCTestExpectation, file: StaticString, line: UInt)] =
-    []
-
-  /// - Note: Needed to set `expected` outside of the actor's isolation context.
-  func setExpectedDependenciesUpdate(_ expectedDependenciesUpdated: [ExpectedDependenciesUpdatedCall]) {
-    self.expectedDependenciesUpdate = expectedDependenciesUpdated
+  func setExpected(
+    _ expected: [(uri: DocumentURI, language: Language, settings: FileBuildSettings?, expectation: XCTestExpectation)],
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) {
+    self.expected = expected.map { ($0.uri, $0.language, $0.settings, $0.expectation, file, line) }
   }
 
   init(_ bsm: BuildSystemManager) async {
     self.bsm = bsm
-    // Actor initializers can't directly leave their executor. Moving the call
-    // of `bsm.setDelegate` into a closure works around that limitation. rdar://116221716
-    await {
-      await bsm.setDelegate(self)
-    }()
+    await bsm.setDelegate(self)
   }
 
   func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
     for uri in changedFiles {
-      guard let expected = expected.first(where: { $0.uri == uri }) else {
+      guard let expectedIndex = expected.firstIndex(where: { $0.uri == uri }) else {
         XCTFail("unexpected settings change for \(uri)")
         continue
       }
+      let expected = expected[expectedIndex]
+      self.expected.remove(at: expectedIndex)
 
       XCTAssertEqual(uri, expected.uri, file: expected.file, line: expected.line)
-      let settings = await bsm.buildSettingsInferredFromMainFile(for: uri, language: expected.language)
+      let settings = await bsm.buildSettingsInferredFromMainFile(
+        for: uri,
+        language: expected.language,
+        fallbackAfterTimeout: false
+      )
       XCTAssertEqual(settings, expected.settings, file: expected.file, line: expected.line)
       expected.expectation.fulfill()
     }
   }
 
-  func buildTargetsChanged(_ changes: [BuildTargetEvent]) {}
-  func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
-    for uri in changedFiles {
-      guard let expected = expectedDependenciesUpdate.first(where: { $0.uri == uri }) else {
-        XCTFail("unexpected filesDependenciesUpdated for \(uri)")
-        continue
-      }
+  func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {}
 
-      XCTAssertEqual(uri, expected.uri, file: expected.file, line: expected.line)
-      expected.expectation.fulfill()
-    }
+  func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {}
+
+  var clientSupportsWorkDoneProgress: Bool { false }
+
+  nonisolated func sendNotificationToClient(_ notification: some NotificationType) {}
+
+  func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response {
+    throw ResponseError.methodNotFound(R.method)
   }
 
-  func fileHandlingCapabilityChanged() {}
+  func waitUntilInitialized() async {}
 }

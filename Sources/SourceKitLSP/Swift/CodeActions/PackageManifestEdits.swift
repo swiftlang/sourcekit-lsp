@@ -10,11 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if canImport(PackageModel)
+
+import Foundation
 import LanguageServerProtocol
 import PackageModel
 import PackageModelSyntax
+import SwiftParser
 import SwiftRefactor
 import SwiftSyntax
+
+import struct Basics.RelativePath
 
 /// Syntactic code action provider to provide refactoring actions that
 /// edit a package manifest.
@@ -294,3 +300,5 @@ fileprivate extension FunctionCallExprSyntax {
     return memberAccess.declName.baseName.text
   }
 }
+
+#endif

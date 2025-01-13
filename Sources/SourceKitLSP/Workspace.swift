@@ -10,18 +10,39 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildSystemIntegration
+#if compiler(>=6)
+package import BuildServerProtocol
+package import BuildSystemIntegration
+import Foundation
 import IndexStoreDB
-import LanguageServerProtocol
+package import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKOptions
-import SKSupport
-import SemanticIndex
+package import SKOptions
+package import SemanticIndex
 import SwiftExtensions
 import ToolchainRegistry
+import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
+#else
+import BuildServerProtocol
+import BuildSystemIntegration
+import Foundation
+import IndexStoreDB
+import LanguageServerProtocol
+import LanguageServerProtocolExtensions
+import SKLogging
+import SKOptions
+import SemanticIndex
+import SwiftExtensions
+import ToolchainRegistry
+import TSCExtensions
+
+import struct TSCBasic.AbsolutePath
+import struct TSCBasic.RelativePath
+#endif
 
 /// Same as `??` but allows the right-hand side of the operator to 'await'.
 fileprivate func firstNonNil<T>(_ optional: T?, _ defaultValue: @autoclosure () async throws -> T) async rethrows -> T {
@@ -41,6 +62,51 @@ fileprivate func firstNonNil<T>(
   return try await defaultValue()
 }
 
+/// Actor that caches realpaths for `sourceFilesWithSameRealpath`.
+fileprivate actor SourceFilesWithSameRealpathInferrer {
+  private let buildSystemManager: BuildSystemManager
+  private var realpathCache: [DocumentURI: DocumentURI] = [:]
+
+  init(buildSystemManager: BuildSystemManager) {
+    self.buildSystemManager = buildSystemManager
+  }
+
+  private func realpath(of uri: DocumentURI) -> DocumentURI {
+    if let cached = realpathCache[uri] {
+      return cached
+    }
+    let value = uri.symlinkTarget ?? uri
+    realpathCache[uri] = value
+    return value
+  }
+
+  /// Returns the URIs of all source files in the project that have the same realpath as a document in `documents` but
+  /// are not in `documents`.
+  ///
+  /// This is useful in the following scenario: A project has target A containing A.swift an target B containing B.swift
+  /// B.swift is a symlink to A.swift. When A.swift is modified, both the dependencies of A and B need to be marked as
+  /// having an out-of-date preparation status, not just A.
+  package func sourceFilesWithSameRealpath(as documents: [DocumentURI]) async -> [DocumentURI] {
+    let realPaths = Set(documents.map { realpath(of: $0) })
+    return await orLog("Determining source files with same realpath") {
+      var result: [DocumentURI] = []
+      let filesAndDirectories = try await buildSystemManager.sourceFiles(includeNonBuildableFiles: true)
+      for file in filesAndDirectories.keys {
+        if realPaths.contains(realpath(of: file)) && !documents.contains(file) {
+          result.append(file)
+        }
+      }
+      return result
+    } ?? []
+  }
+
+  func filesDidChange(_ events: [FileEvent]) {
+    for event in events {
+      realpathCache[event.uri] = nil
+    }
+  }
+}
+
 /// Represents the configuration and state of a project or combination of projects being worked on
 /// together.
 ///
@@ -48,7 +114,13 @@ fileprivate func firstNonNil<T>(
 /// "initialize" request has been made.
 ///
 /// Typically a workspace is contained in a root directory.
-package final class Workspace: Sendable {
+package final class Workspace: Sendable, BuildSystemManagerDelegate {
+  /// The ``SourceKitLSPServer`` instance that created this `Workspace`.
+  private(set) weak nonisolated(unsafe) var sourceKitLSPServer: SourceKitLSPServer? {
+    didSet {
+      preconditionFailure("sourceKitLSPServer must not be modified. It is only a var because it is weak")
+    }
+  }
 
   /// The root directory of the workspace.
   package let rootUri: DocumentURI?
@@ -58,6 +130,8 @@ package final class Workspace: Sendable {
 
   /// The build system manager to use for documents in this workspace.
   package let buildSystemManager: BuildSystemManager
+
+  private let sourceFilesWithSameRealpathInferrer: SourceFilesWithSameRealpathInferrer
 
   let options: SourceKitLSPOptions
 
@@ -73,9 +147,6 @@ package final class Workspace: Sendable {
   /// The index that syntactically scans the workspace for tests.
   let syntacticTestIndex = SyntacticTestIndex()
 
-  /// Documents open in the SourceKitLSPServer. This may include open documents from other workspaces.
-  private let documentManager: DocumentManager
-
   /// Language service for an open document, if available.
   private let documentService: ThreadSafeBox<[DocumentURI: LanguageService]> = ThreadSafeBox(initialValue: [:])
 
@@ -85,42 +156,44 @@ package final class Workspace: Sendable {
   /// `nil` if background indexing is not enabled.
   let semanticIndexManager: SemanticIndexManager?
 
-  init(
-    documentManager: DocumentManager,
+  private init(
+    sourceKitLSPServer: SourceKitLSPServer?,
     rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
-    toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     testHooks: TestHooks,
-    underlyingBuildSystem: BuildSystem?,
+    buildSystemManager: BuildSystemManager,
     index uncheckedIndex: UncheckedIndex?,
     indexDelegate: SourceKitIndexDelegate?,
-    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
-    indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
-    indexProgressStatusDidChange: @escaping @Sendable () -> Void
+    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async {
-    self.documentManager = documentManager
+    self.sourceKitLSPServer = sourceKitLSPServer
     self.rootUri = rootUri
     self.capabilityRegistry = capabilityRegistry
     self.options = options
     self._uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
-    self.buildSystemManager = await BuildSystemManager(
-      buildSystem: underlyingBuildSystem,
-      fallbackBuildSystem: FallbackBuildSystem(options: options.fallbackBuildSystem),
-      mainFilesProvider: uncheckedIndex,
-      toolchainRegistry: toolchainRegistry
+    self.buildSystemManager = buildSystemManager
+    self.sourceFilesWithSameRealpathInferrer = SourceFilesWithSameRealpathInferrer(
+      buildSystemManager: buildSystemManager
     )
-    if options.backgroundIndexingOrDefault, let uncheckedIndex, await buildSystemManager.supportsPreparation {
+    if options.backgroundIndexingOrDefault, let uncheckedIndex,
+      await buildSystemManager.initializationData?.prepareProvider ?? false
+    {
       self.semanticIndexManager = SemanticIndexManager(
         index: uncheckedIndex,
         buildSystemManager: buildSystemManager,
-        updateIndexStoreTimeout: options.index.updateIndexStoreTimeoutOrDefault,
+        updateIndexStoreTimeout: options.indexOrDefault.updateIndexStoreTimeoutOrDefault,
         testHooks: testHooks.indexTestHooks,
         indexTaskScheduler: indexTaskScheduler,
-        logMessageToIndexLog: logMessageToIndexLog,
-        indexTasksWereScheduled: indexTasksWereScheduled,
-        indexProgressStatusDidChange: indexProgressStatusDidChange
+        logMessageToIndexLog: { [weak sourceKitLSPServer] in
+          sourceKitLSPServer?.logMessageToIndexLog(taskID: $0, message: $1)
+        },
+        indexTasksWereScheduled: { [weak sourceKitLSPServer] in
+          sourceKitLSPServer?.indexProgressManager.indexTasksWereScheduled(count: $0)
+        },
+        indexProgressStatusDidChange: { [weak sourceKitLSPServer] in
+          sourceKitLSPServer?.indexProgressManager.indexProgressStatusDidChange()
+        }
       )
     } else {
       self.semanticIndexManager = nil
@@ -128,16 +201,15 @@ package final class Workspace: Sendable {
     await indexDelegate?.addMainFileChangedCallback { [weak self] in
       await self?.buildSystemManager.mainFilesChanged()
     }
-    await underlyingBuildSystem?.addSourceFilesDidChangeCallback { [weak self] in
-      guard let self else {
-        return
-      }
-      await self.syntacticTestIndex.listOfTestFilesDidChange(self.buildSystemManager.testFiles())
-    }
     // Trigger an initial population of `syntacticTestIndex`.
-    await syntacticTestIndex.listOfTestFilesDidChange(buildSystemManager.testFiles())
+    if let testFiles = await orLog("Getting initial test files", { try await self.buildSystemManager.testFiles() }) {
+      await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
+    }
     if let semanticIndexManager {
-      await semanticIndexManager.scheduleBuildGraphGenerationAndBackgroundIndexAllFiles()
+      await semanticIndexManager.scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
+        filesToIndex: nil,
+        indexFilesWithUpToDateUnit: false
+      )
     }
   }
 
@@ -148,91 +220,134 @@ package final class Workspace: Sendable {
   ///   - clientCapabilities: The client capabilities provided during server initialization.
   ///   - toolchainRegistry: The toolchain registry.
   convenience init(
+    sourceKitLSPServer: SourceKitLSPServer,
     documentManager: DocumentManager,
-    rootUri: DocumentURI,
+    rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
-    buildSystem: BuildSystem?,
+    buildSystemSpec: BuildSystemSpec?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     testHooks: TestHooks,
-    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
-    indexTasksWereScheduled: @Sendable @escaping (Int) -> Void,
-    indexProgressStatusDidChange: @Sendable @escaping () -> Void
-  ) async throws {
+    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
+  ) async {
+    struct ConnectionToClient: BuildSystemManagerConnectionToClient {
+      func waitUntilInitialized() async {
+        await sourceKitLSPServer?.waitUntilInitialized()
+      }
+
+      weak var sourceKitLSPServer: SourceKitLSPServer?
+      func send(_ notification: some NotificationType) {
+        guard let sourceKitLSPServer else {
+          // `SourceKitLSPServer` has been destructed. We are tearing down the
+          // language server. Nothing left to do.
+          logger.error(
+            "Ignoring notificaiton \(type(of: notification).method) because connection to editor has been closed"
+          )
+          return
+        }
+        sourceKitLSPServer.sendNotificationToClient(notification)
+      }
+
+      func send<Request: RequestType>(
+        _ request: Request,
+        reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
+      ) -> RequestID {
+        guard let sourceKitLSPServer else {
+          // `SourceKitLSPServer` has been destructed. We are tearing down the
+          // language server. Nothing left to do.
+          reply(.failure(ResponseError.unknown("Connection to the editor closed")))
+          return .string(UUID().uuidString)
+        }
+        return sourceKitLSPServer.client.send(request, reply: reply)
+      }
+
+      /// Whether the client can handle `WorkDoneProgress` requests.
+      var clientSupportsWorkDoneProgress: Bool {
+        get async {
+          await sourceKitLSPServer?.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false
+        }
+      }
+
+      func watchFiles(_ fileWatchers: [FileSystemWatcher]) async {
+        await sourceKitLSPServer?.watchFiles(fileWatchers)
+      }
+    }
+
+    let buildSystemManager = await BuildSystemManager(
+      buildSystemSpec: buildSystemSpec,
+      toolchainRegistry: toolchainRegistry,
+      options: options,
+      connectionToClient: ConnectionToClient(sourceKitLSPServer: sourceKitLSPServer),
+      buildSystemTestHooks: testHooks.buildSystemTestHooks
+    )
+
+    logger.log(
+      "Created workspace at \(rootUri.forLogging) with project root \(buildSystemSpec?.projectRoot.description ?? "<nil>")"
+    )
+
     var index: IndexStoreDB? = nil
     var indexDelegate: SourceKitIndexDelegate? = nil
 
-    let indexOptions = options.index
-    if let storePath = await firstNonNil(
+    let indexOptions = options.indexOrDefault
+    let indexStorePath = await firstNonNil(
       AbsolutePath(validatingOrNil: indexOptions.indexStorePath),
-      await buildSystem?.indexStorePath
-    ),
-      let dbPath = await firstNonNil(
-        AbsolutePath(validatingOrNil: indexOptions.indexDatabasePath),
-        await buildSystem?.indexDatabasePath
-      ),
-      let libPath = await toolchainRegistry.default?.libIndexStore
-    {
+      await AbsolutePath(validatingOrNil: buildSystemManager.initializationData?.indexStorePath)
+    )
+    let indexDatabasePath = await firstNonNil(
+      AbsolutePath(validatingOrNil: indexOptions.indexDatabasePath),
+      await AbsolutePath(validatingOrNil: buildSystemManager.initializationData?.indexDatabasePath)
+    )
+    if let indexStorePath, let indexDatabasePath, let libPath = await toolchainRegistry.default?.libIndexStore {
       do {
-        let lib = try IndexStoreLibrary(dylibPath: libPath.pathString)
+        let lib = try IndexStoreLibrary(dylibPath: libPath.filePath)
         indexDelegate = SourceKitIndexDelegate()
         let prefixMappings =
-          await firstNonNil(
-            indexOptions.indexPrefixMap?.map { PathPrefixMapping(original: $0.key, replacement: $0.value) },
-            await buildSystem?.indexPrefixMappings
-          ) ?? []
+          indexOptions.indexPrefixMap?.map { PathPrefixMapping(original: $0.key, replacement: $0.value) } ?? []
         index = try IndexStoreDB(
-          storePath: storePath.pathString,
-          databasePath: dbPath.pathString,
+          storePath: indexStorePath.pathString,
+          databasePath: indexDatabasePath.pathString,
           library: lib,
           delegate: indexDelegate,
           prefixMappings: prefixMappings.map { PathMapping(original: $0.original, replacement: $0.replacement) }
         )
-        logger.debug("Opened IndexStoreDB at \(dbPath) with store path \(storePath)")
+        logger.debug("Opened IndexStoreDB at \(indexDatabasePath) with store path \(indexStorePath)")
       } catch {
         logger.error("Failed to open IndexStoreDB: \(error.localizedDescription)")
       }
     }
 
+    await buildSystemManager.setMainFilesProvider(UncheckedIndex(index))
+
     await self.init(
-      documentManager: documentManager,
+      sourceKitLSPServer: sourceKitLSPServer,
       rootUri: rootUri,
       capabilityRegistry: capabilityRegistry,
-      toolchainRegistry: toolchainRegistry,
       options: options,
       testHooks: testHooks,
-      underlyingBuildSystem: buildSystem,
+      buildSystemManager: buildSystemManager,
       index: UncheckedIndex(index),
       indexDelegate: indexDelegate,
-      indexTaskScheduler: indexTaskScheduler,
-      logMessageToIndexLog: logMessageToIndexLog,
-      indexTasksWereScheduled: indexTasksWereScheduled,
-      indexProgressStatusDidChange: indexProgressStatusDidChange
+      indexTaskScheduler: indexTaskScheduler
     )
+    await buildSystemManager.setDelegate(self)
   }
 
   package static func forTesting(
-    toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     testHooks: TestHooks,
-    underlyingBuildSystem: BuildSystem,
+    buildSystemManager: BuildSystemManager,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async -> Workspace {
     return await Workspace(
-      documentManager: DocumentManager(),
+      sourceKitLSPServer: nil,
       rootUri: nil,
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
-      toolchainRegistry: toolchainRegistry,
       options: options,
       testHooks: testHooks,
-      underlyingBuildSystem: underlyingBuildSystem,
+      buildSystemManager: buildSystemManager,
       index: nil,
       indexDelegate: nil,
-      indexTaskScheduler: indexTaskScheduler,
-      logMessageToIndexLog: { _, _ in },
-      indexTasksWereScheduled: { _ in },
-      indexProgressStatusDidChange: {}
+      indexTaskScheduler: indexTaskScheduler
     )
   }
 
@@ -251,13 +366,24 @@ package final class Workspace: Sendable {
   }
 
   package func filesDidChange(_ events: [FileEvent]) async {
+    // First clear any cached realpaths in `sourceFilesWithSameRealpathInferrer`.
+    await sourceFilesWithSameRealpathInferrer.filesDidChange(events)
+
+    // Now infer any edits for source files that share the same realpath as one of the modified files.
+    var events = events
+    events +=
+      await sourceFilesWithSameRealpathInferrer
+      .sourceFilesWithSameRealpath(as: events.filter { $0.type == .changed }.map(\.uri))
+      .map { FileEvent(uri: $0, type: .changed) }
+
+    // Notify all clients about the reported and inferred edits.
     await buildSystemManager.filesDidChange(events)
     await syntacticTestIndex.filesDidChange(events)
     await semanticIndexManager?.filesDidChange(events)
   }
 
   func documentService(for uri: DocumentURI) -> LanguageService? {
-    return documentService.value[uri]
+    return documentService.value[uri.buildSettingsFile]
   }
 
   /// Set a language service for a document uri and returns if none exists already.
@@ -273,6 +399,50 @@ package final class Workspace: Sendable {
       service[uri] = newLanguageService
       return newLanguageService
     }
+  }
+
+  /// Handle a build settings change notification from the `BuildSystem`.
+  /// This has two primary cases:
+  /// - Initial settings reported for a given file, now we can fully open it
+  /// - Changed settings for an already open file
+  package func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
+    for uri in changedFiles {
+      await self.documentService(for: uri)?.documentUpdatedBuildSettings(uri)
+    }
+  }
+
+  /// Handle a dependencies updated notification from the `BuildSystem`.
+  /// We inform the respective language services as long as the given file is open
+  /// (not queued for opening).
+  package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
+    var documentsByService: [ObjectIdentifier: (Set<DocumentURI>, LanguageService)] = [:]
+    for uri in changedFiles {
+      logger.log("Dependencies updated for file \(uri.forLogging)")
+      guard let languageService = documentService(for: uri) else {
+        logger.error("No document service exists for \(uri.forLogging)")
+        continue
+      }
+      documentsByService[ObjectIdentifier(languageService), default: ([], languageService)].0.insert(uri)
+    }
+    for (documents, service) in documentsByService.values {
+      await service.documentDependenciesUpdated(documents)
+    }
+  }
+
+  package func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {
+    await sourceKitLSPServer?.fileHandlingCapabilityChanged()
+    let testFiles = await orLog("Getting test files") { try await buildSystemManager.testFiles() } ?? []
+    await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
+  }
+
+  package var clientSupportsWorkDoneProgress: Bool {
+    get async {
+      await sourceKitLSPServer?.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false
+    }
+  }
+
+  package func waitUntilInitialized() async {
+    await sourceKitLSPServer?.waitUntilInitialized()
   }
 }
 

@@ -10,13 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import SwiftExtensions
+#else
 import SwiftExtensions
+#endif
 
 #if canImport(Darwin)
 import Foundation
 #else
-// FIMXE: (async-workaround) @preconcurrency needed because DateFormatter and stderr are not marked as Sendable on Linux
-// rdar://125578486, rdar://132378589
+// TODO: @preconcurrency needed because stderr is not sendable on Linux https://github.com/swiftlang/swift/issues/75601
 @preconcurrency import Foundation
 #endif
 
@@ -24,26 +27,36 @@ import Foundation
 
 package enum LogConfig {
   /// The globally set log level
-  fileprivate static let logLevel: NonDarwinLogLevel = {
-    if let envVar = ProcessInfo.processInfo.environment["SOURCEKITLSP_LOG_LEVEL"],
-      let logLevel = NonDarwinLogLevel(envVar)
-    {
-      return logLevel
-    }
-    #if DEBUG
-    return .debug
-    #else
-    return .default
-    #endif
-  }()
+  package static let logLevel = ThreadSafeBox<NonDarwinLogLevel>(
+    initialValue: {
+      if let envVar = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_LOG_LEVEL"],
+        let logLevel = NonDarwinLogLevel(envVar)
+      {
+        return logLevel
+      }
+      #if DEBUG
+      return .debug
+      #else
+      return .default
+      #endif
+    }()
+  )
 
   /// The globally set privacy level
-  fileprivate static let privacyLevel: NonDarwinLogPrivacy = {
-    guard let envVar = ProcessInfo.processInfo.environment["SOURCEKITLSP_LOG_PRIVACY_LEVEL"] else {
+  package static let privacyLevel = ThreadSafeBox<NonDarwinLogPrivacy>(
+    initialValue: {
+      if let envVar = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_LOG_PRIVACY_LEVEL"],
+        let privacyLevel = NonDarwinLogPrivacy(envVar)
+      {
+        return privacyLevel
+      }
+      #if DEBUG
       return .private
-    }
-    return NonDarwinLogPrivacy(envVar) ?? .private
-  }()
+      #else
+      return .public
+      #endif
+    }()
+  )
 }
 
 /// A type that is API-compatible to `OSLogType` for all uses within
@@ -115,22 +128,13 @@ package enum NonDarwinLogPrivacy: Comparable, Sendable {
   case `private`
   case sensitive
 
-  init?(_ value: String) {
+  package init?(_ value: String) {
     switch value.lowercased() {
     case "sensitive": self = .sensitive
     case "private": self = .private
     case "public": self = .public
-    default: break
+    default: return nil
     }
-
-    switch Int(value) {
-    case 0: self = .public
-    case 1: self = .private
-    case 2: self = .sensitive
-    default: break
-    }
-
-    return nil
   }
 }
 
@@ -218,6 +222,17 @@ package struct NonDarwinLogInterpolation: StringInterpolationProtocol, Sendable 
     append(description: String(reflecting: type), redactedDescription: "<private>", privacy: privacy)
   }
 
+  package mutating func appendInterpolation(
+    _ message: some Numeric & Sendable,
+    privacy: NonDarwinLogPrivacy = .public
+  ) {
+    append(description: String(describing: message), redactedDescription: "<private>", privacy: privacy)
+  }
+
+  package mutating func appendInterpolation(_ message: Bool, privacy: NonDarwinLogPrivacy = .public) {
+    append(description: message.description, redactedDescription: "<private>", privacy: privacy)
+  }
+
   /// Builds the string that represents the log message, masking all interpolation
   /// segments whose privacy level is greater that `logPrivacyLevel`.
   fileprivate func string(for logPrivacyLevel: NonDarwinLogPrivacy) -> String {
@@ -295,7 +310,7 @@ package struct NonDarwinLogger: Sendable {
   private let subsystem: String
   private let category: String
   private let logLevel: NonDarwinLogLevel
-  private let privacyLevel: NonDarwinLogPrivacy
+  fileprivate let privacyLevel: NonDarwinLogPrivacy
   private let overrideLogHandler: (@Sendable (String) -> Void)?
 
   /// - Parameters:
@@ -315,8 +330,8 @@ package struct NonDarwinLogger: Sendable {
   ) {
     self.subsystem = subsystem
     self.category = category
-    self.logLevel = logLevel ?? LogConfig.logLevel
-    self.privacyLevel = privacyLevel ?? LogConfig.privacyLevel
+    self.logLevel = logLevel ?? LogConfig.logLevel.value
+    self.privacyLevel = privacyLevel ?? LogConfig.privacyLevel.value
     self.overrideLogHandler = overrideLogHandler
   }
 
@@ -385,22 +400,34 @@ package struct NonDarwinLogger: Sendable {
   }
 
   package func makeSignposter() -> NonDarwinSignposter {
-    return NonDarwinSignposter()
+    return NonDarwinSignposter(logger: self)
   }
 }
 
 // MARK: - Signposter
 
-package struct NonDarwinSignpostID: Sendable {}
+package struct NonDarwinSignpostID: Sendable {
+  fileprivate let id: UInt32
+}
 
-package struct NonDarwinSignpostIntervalState: Sendable {}
+package struct NonDarwinSignpostIntervalState: Sendable {
+  fileprivate let id: NonDarwinSignpostID
+}
+
+private let nextSignpostID = AtomicUInt32(initialValue: 0)
 
 /// A type that is API-compatible to `OSLogMessage` for all uses within sourcekit-lsp.
 ///
 /// Since non-Darwin platforms don't have signposts, the type just has no-op operations.
 package struct NonDarwinSignposter: Sendable {
+  private let logger: NonDarwinLogger
+
+  fileprivate init(logger: NonDarwinLogger) {
+    self.logger = logger
+  }
+
   package func makeSignpostID() -> NonDarwinSignpostID {
-    return NonDarwinSignpostID()
+    return NonDarwinSignpostID(id: nextSignpostID.fetchAndIncrement())
   }
 
   package func beginInterval(
@@ -408,15 +435,19 @@ package struct NonDarwinSignposter: Sendable {
     id: NonDarwinSignpostID,
     _ message: NonDarwinLogMessage
   ) -> NonDarwinSignpostIntervalState {
-    return NonDarwinSignpostIntervalState()
+    logger.log(level: .debug, "Signpost \(id.id) begin: \(name) - \(message.value.string(for: logger.privacyLevel))")
+    return NonDarwinSignpostIntervalState(id: id)
   }
 
-  package func emitEvent(_ name: StaticString, id: NonDarwinSignpostID, _ message: NonDarwinLogMessage = "") {}
+  package func emitEvent(_ name: StaticString, id: NonDarwinSignpostID, _ message: NonDarwinLogMessage = "") {
+    logger.log(level: .debug, "Signpost \(id.id) event: \(name) - \(message.value.string(for: logger.privacyLevel))")
+  }
 
   package func endInterval(
     _ name: StaticString,
     _ state: NonDarwinSignpostIntervalState,
     _ message: StaticString = ""
   ) {
+    logger.log(level: .debug, "Signpost \(state.id.id) end: \(name) - \(message)")
   }
 }

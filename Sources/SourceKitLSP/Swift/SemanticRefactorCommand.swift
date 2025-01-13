@@ -10,10 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Csourcekitd
+package import LanguageServerProtocol
+import SourceKitD
+#else
+import Csourcekitd
 import LanguageServerProtocol
 import SourceKitD
+#endif
 
-package struct SemanticRefactorCommand: RefactorCommand {
+package struct SemanticRefactorCommand: SwiftCommand {
   typealias Response = SemanticRefactoring
 
   package static let identifier: String = "semantic.refactor.command"
@@ -92,7 +99,6 @@ extension Array where Element == SemanticRefactorCommand {
       {
         let actionName = String(cString: ptr)
         guard !actionName.hasPrefix("source.refactoring.kind.rename.") else {
-          // TODO: Rename.
           return true
         }
         commands.append(

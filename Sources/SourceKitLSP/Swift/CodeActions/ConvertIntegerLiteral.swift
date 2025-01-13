@@ -13,6 +13,7 @@
 import LanguageServerProtocol
 import SwiftRefactor
 import SwiftSyntax
+import SwiftSyntaxBuilder
 
 extension IntegerLiteralExprSyntax.Radix {
   static let allCases: [Self] = [.binary, .octal, .decimal, .hex]
@@ -40,25 +41,8 @@ struct ConvertIntegerLiteral: SyntaxCodeActionProvider {
         continue
       }
 
-      //TODO: Add this to swift-syntax?
-      let prefix: String
-      switch radix {
-      case .binary:
-        prefix = "0b"
-      case .octal:
-        prefix = "0o"
-      case .hex:
-        prefix = "0x"
-      case .decimal:
-        prefix = ""
-      #if RESILIENT_LIBRARIES
-      @unknown default:
-        fatalError("Unknown case")
-      #endif
-      }
-
       let convertedValue: ExprSyntax =
-        "\(raw: prefix)\(raw: String(integerValue, radix: radix.size))"
+        "\(raw: radix.literalPrefix)\(raw: String(integerValue, radix: radix.size))"
       let edit = TextEdit(
         range: scope.snapshot.range(of: integerExpr),
         newText: convertedValue.description

@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Csourcekitd
 import LanguageServerProtocol
 import SKLogging
 import SourceKitD
@@ -69,9 +70,11 @@ extension SwiftLanguageService {
       keys.request: requests.relatedIdents,
       keys.cancelOnSubsequentRequest: 0,
       keys.offset: snapshot.utf8Offset(of: position),
-      keys.sourceFile: snapshot.uri.pseudoPath,
+      keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
+      keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
       keys.includeNonEditableBaseNames: includeNonEditableBaseNames ? 1 : 0,
-      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
+      keys.compilerArgs: await self.buildSettings(for: snapshot.uri, fallbackAfterTimeout: true)?.compilerArgs
+        as [SKDRequestValue]?,
     ])
 
     let dict = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)

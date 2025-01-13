@@ -10,48 +10,64 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
-import LanguageServerProtocol
+#if compiler(>=6)
+public import Foundation
+public import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 
 import struct TSCBasic.AbsolutePath
+#else
+import Foundation
+import LanguageServerProtocol
+import LanguageServerProtocolExtensions
+import SKLogging
+
+import struct TSCBasic.AbsolutePath
+#endif
 
 /// Options that can be used to modify SourceKit-LSP's behavior.
 ///
 /// See `ConfigurationFile.md` for a description of the configuration file's behavior.
-public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible {
-  public struct SwiftPMOptions: Sendable, Codable, CustomLogStringConvertible {
-    /// Build configuration (debug|release).
+public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
+  public struct SwiftPMOptions: Sendable, Codable, Equatable {
+    /// The configuration to build the project for during background indexing
+    /// and the configuration whose build folder should be used for Swift
+    /// modules if background indexing is disabled.
     ///
     /// Equivalent to SwiftPM's `--configuration` option.
     public var configuration: BuildConfiguration?
 
     /// Build artifacts directory path. If nil, the build system may choose a default value.
     ///
+    /// This path can be specified as a relative path, which will be interpreted relative to the project root.
     /// Equivalent to SwiftPM's `--scratch-path` option.
     public var scratchPath: String?
 
-    /// Equivalent to SwiftPM's `--swift-sdks-path` option
+    /// Equivalent to SwiftPM's `--swift-sdks-path` option.
     public var swiftSDKsDirectory: String?
 
-    /// Equivalent to SwiftPM's `--swift-sdk` option
+    /// Equivalent to SwiftPM's `--swift-sdk` option.
     public var swiftSDK: String?
 
-    /// Equivalent to SwiftPM's `--triple` option
+    /// Equivalent to SwiftPM's `--triple` option.
     public var triple: String?
 
-    /// Equivalent to SwiftPM's `-Xcc` option
+    /// Extra arguments passed to the compiler for C files. Equivalent to SwiftPM's `-Xcc` option.
     public var cCompilerFlags: [String]?
 
-    /// Equivalent to SwiftPM's `-Xcxx` option
+    /// Extra arguments passed to the compiler for C++ files. Equivalent to SwiftPM's `-Xcxx` option.
     public var cxxCompilerFlags: [String]?
 
-    /// Equivalent to SwiftPM's `-Xswiftc` option
+    /// Extra arguments passed to the compiler for Swift files. Equivalent to SwiftPM's `-Xswiftc` option.
     public var swiftCompilerFlags: [String]?
 
-    /// Equivalent to SwiftPM's `-Xlinker` option
+    /// Extra arguments passed to the linker. Equivalent to SwiftPM's `-Xlinker` option.
     public var linkerFlags: [String]?
+
+    /// Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option.
+    /// Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.
+    public var disableSandbox: Bool?
 
     public init(
       configuration: BuildConfiguration? = nil,
@@ -62,7 +78,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
       cCompilerFlags: [String]? = nil,
       cxxCompilerFlags: [String]? = nil,
       swiftCompilerFlags: [String]? = nil,
-      linkerFlags: [String]? = nil
+      linkerFlags: [String]? = nil,
+      disableSandbox: Bool? = nil
     ) {
       self.configuration = configuration
       self.scratchPath = scratchPath
@@ -73,6 +90,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
       self.cxxCompilerFlags = cxxCompilerFlags
       self.swiftCompilerFlags = swiftCompilerFlags
       self.linkerFlags = linkerFlags
+      self.disableSandbox = disableSandbox
     }
 
     static func merging(base: SwiftPMOptions, override: SwiftPMOptions?) -> SwiftPMOptions {
@@ -85,20 +103,13 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
         cCompilerFlags: override?.cCompilerFlags ?? base.cCompilerFlags,
         cxxCompilerFlags: override?.cxxCompilerFlags ?? base.cxxCompilerFlags,
         swiftCompilerFlags: override?.swiftCompilerFlags ?? base.swiftCompilerFlags,
-        linkerFlags: override?.linkerFlags ?? base.linkerFlags
+        linkerFlags: override?.linkerFlags ?? base.linkerFlags,
+        disableSandbox: override?.disableSandbox ?? base.disableSandbox
       )
-    }
-
-    public var description: String {
-      recursiveDescription(of: self)
-    }
-
-    public var redactedDescription: String {
-      recursiveRedactedDescription(of: self)
     }
   }
 
-  public struct CompilationDatabaseOptions: Sendable, Codable, CustomLogStringConvertible {
+  public struct CompilationDatabaseOptions: Sendable, Codable, Equatable {
     /// Additional paths to search for a compilation database, relative to a workspace root.
     public var searchPaths: [String]?
 
@@ -112,29 +123,28 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
     ) -> CompilationDatabaseOptions {
       return CompilationDatabaseOptions(searchPaths: override?.searchPaths ?? base.searchPaths)
     }
-
-    public var description: String {
-      recursiveDescription(of: self)
-    }
-
-    public var redactedDescription: String {
-      recursiveRedactedDescription(of: self)
-    }
   }
 
-  public struct FallbackBuildSystemOptions: Sendable, Codable, CustomLogStringConvertible {
+  public struct FallbackBuildSystemOptions: Sendable, Codable, Equatable {
+    /// Extra arguments passed to the compiler for C files.
     public var cCompilerFlags: [String]?
+    /// Extra arguments passed to the compiler for C++ files.
     public var cxxCompilerFlags: [String]?
+    /// Extra arguments passed to the compiler for Swift files.
     public var swiftCompilerFlags: [String]?
+    /// The SDK to use for fallback arguments. Default is to infer the SDK using `xcrun`.
+    public var sdk: String?
 
     public init(
       cCompilerFlags: [String]? = nil,
       cxxCompilerFlags: [String]? = nil,
-      swiftCompilerFlags: [String]? = nil
+      swiftCompilerFlags: [String]? = nil,
+      sdk: String? = nil
     ) {
       self.cCompilerFlags = cCompilerFlags
       self.cxxCompilerFlags = cxxCompilerFlags
       self.swiftCompilerFlags = swiftCompilerFlags
+      self.sdk = sdk
     }
 
     static func merging(
@@ -144,24 +154,22 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
       return FallbackBuildSystemOptions(
         cCompilerFlags: override?.cCompilerFlags ?? base.cCompilerFlags,
         cxxCompilerFlags: override?.cxxCompilerFlags ?? base.cxxCompilerFlags,
-        swiftCompilerFlags: override?.swiftCompilerFlags ?? base.swiftCompilerFlags
+        swiftCompilerFlags: override?.swiftCompilerFlags ?? base.swiftCompilerFlags,
+        sdk: override?.sdk ?? base.sdk
       )
-    }
-
-    public var description: String {
-      recursiveDescription(of: self)
-    }
-
-    public var redactedDescription: String {
-      recursiveRedactedDescription(of: self)
     }
   }
 
-  public struct IndexOptions: Sendable, Codable, CustomLogStringConvertible {
+  public struct IndexOptions: Sendable, Codable, Equatable {
+    /// Directory in which a separate compilation stores the index store. By default, inferred from the build system.
     public var indexStorePath: String?
+    /// Directory in which the indexstore-db should be stored. By default, inferred from the build system.
     public var indexDatabasePath: String?
+    /// Path remappings for remapping index data for local use.
     public var indexPrefixMap: [String: String]?
+    /// A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting.
     public var maxCoresPercentageToUseForBackgroundIndexing: Double?
+    /// Number of seconds to wait for an update index store task to finish before killing it.
     public var updateIndexStoreTimeout: Int?
 
     public var maxCoresPercentageToUseForBackgroundIndexingOrDefault: Double {
@@ -200,21 +208,53 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
         updateIndexStoreTimeout: override?.updateIndexStoreTimeout ?? base.updateIndexStoreTimeout
       )
     }
+  }
 
-    public var description: String {
-      recursiveDescription(of: self)
+  public struct LoggingOptions: Sendable, Codable, Equatable {
+    /// The level from which one onwards log messages should be written.
+    public var level: String?
+
+    /// Whether potentially sensitive information should be redacted.
+    /// Default is `public`, which redacts potentially sensitive information.
+    public var privacyLevel: String?
+
+    /// Write all input received by SourceKit-LSP on stdin to a file in this directory.
+    ///
+    /// Useful to record and replay an entire SourceKit-LSP session.
+    public var inputMirrorDirectory: String?
+
+    /// Write all data sent from SourceKit-LSP to the client to a file in this directory.
+    ///
+    /// Useful to record the raw communication between SourceKit-LSP and the client on a low level.
+    public var outputMirrorDirectory: String?
+
+    public init(
+      level: String? = nil,
+      privacyLevel: String? = nil,
+      inputMirrorDirectory: String? = nil,
+      outputMirrorDirectory: String? = nil
+    ) {
+      self.level = level
+      self.privacyLevel = privacyLevel
+      self.inputMirrorDirectory = inputMirrorDirectory
+      self.outputMirrorDirectory = outputMirrorDirectory
     }
 
-    public var redactedDescription: String {
-      recursiveRedactedDescription(of: self)
+    static func merging(base: LoggingOptions, override: LoggingOptions?) -> LoggingOptions {
+      return LoggingOptions(
+        level: override?.level ?? base.level,
+        privacyLevel: override?.privacyLevel ?? base.privacyLevel,
+        inputMirrorDirectory: override?.inputMirrorDirectory ?? base.inputMirrorDirectory,
+        outputMirrorDirectory: override?.outputMirrorDirectory ?? base.outputMirrorDirectory
+      )
     }
   }
 
-  public enum BackgroundPreparationMode: String {
-    /// Build a target to prepare it
+  public enum BackgroundPreparationMode: String, Sendable, Codable, Equatable {
+    /// Build a target to prepare it.
     case build
 
-    /// Prepare a target without generating object files but do not do lazy type checking.
+    /// Prepare a target without generating object files but do not do lazy type checking and function body skipping.
     ///
     /// This uses SwiftPM's `--experimental-prepare-for-indexing-no-lazy` flag.
     case noLazy
@@ -223,30 +263,79 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
     case enabled
   }
 
-  public var swiftPM: SwiftPMOptions
-  public var compilationDatabase: CompilationDatabaseOptions
-  public var fallbackBuildSystem: FallbackBuildSystemOptions
-  public var clangdOptions: [String]?
-  public var index: IndexOptions
+  /// Options for SwiftPM workspaces.
+  private var swiftPM: SwiftPMOptions?
+  public var swiftPMOrDefault: SwiftPMOptions {
+    get { swiftPM ?? .init() }
+    set { swiftPM = newValue }
+  }
 
-  /// Default workspace type (buildserver|compdb|swiftpm). Overrides workspace type selection logic.
+  /// Dictionary with the following keys, defining options for workspaces with a compilation database.
+  private var compilationDatabase: CompilationDatabaseOptions?
+  public var compilationDatabaseOrDefault: CompilationDatabaseOptions {
+    get { compilationDatabase ?? .init() }
+    set { compilationDatabase = newValue }
+  }
+
+  /// Dictionary with the following keys, defining options for files that aren't managed by any build system.
+  private var fallbackBuildSystem: FallbackBuildSystemOptions?
+  public var fallbackBuildSystemOrDefault: FallbackBuildSystemOptions {
+    get { fallbackBuildSystem ?? .init() }
+    set { fallbackBuildSystem = newValue }
+  }
+
+  /// Number of milliseconds to wait for build settings from the build system before using fallback build settings.
+  public var buildSettingsTimeout: Int?
+  public var buildSettingsTimeoutOrDefault: Duration {
+    // The default timeout of 500ms was chosen arbitrarily without any measurements.
+    get { .milliseconds(buildSettingsTimeout ?? 500) }
+  }
+
+  /// Extra command line arguments passed to `clangd` when launching it.
+  public var clangdOptions: [String]?
+
+  /// Options related to indexing.
+  private var index: IndexOptions?
+  public var indexOrDefault: IndexOptions {
+    get { index ?? .init() }
+    set { index = newValue }
+  }
+
+  /// Options related to logging, changing SourceKit-LSP’s logging behavior on non-Apple platforms.
+  ///
+  /// On Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging).
+  /// These options can only be set globally and not per workspace.
+  private var logging: LoggingOptions?
+  public var loggingOrDefault: LoggingOptions {
+    get { logging ?? .init() }
+    set { logging = newValue }
+  }
+
+  /// Default workspace type. Overrides workspace type selection logic.
   public var defaultWorkspaceType: WorkspaceType?
+  /// Directory in which generated interfaces and macro expansions should be stored.
   public var generatedFilesPath: String?
 
   /// Whether background indexing is enabled.
   public var backgroundIndexing: Bool?
 
   public var backgroundIndexingOrDefault: Bool {
-    return backgroundIndexing ?? false
+    return backgroundIndexing ?? true
   }
 
-  public var backgroundPreparationMode: String?
+  /// Determines how background indexing should prepare a target.
+  public var backgroundPreparationMode: BackgroundPreparationMode?
 
   public var backgroundPreparationModeOrDefault: BackgroundPreparationMode {
-    if let backgroundPreparationMode, let parsed = BackgroundPreparationMode(rawValue: backgroundPreparationMode) {
-      return parsed
-    }
-    return .build
+    return backgroundPreparationMode ?? .enabled
+  }
+
+  /// Whether sending a `textDocument/didChange` or `textDocument/didClose` notification for a document should cancel
+  /// all pending requests for that document.
+  public var cancelTextDocumentRequestsOnEditAndClose: Bool? = nil
+
+  public var cancelTextDocumentRequestsOnEditAndCloseOrDefault: Bool {
+    return cancelTextDocumentRequestsOnEditAndClose ?? true
   }
 
   /// Experimental features that are enabled.
@@ -254,16 +343,13 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
 
   /// The time that `SwiftLanguageService` should wait after an edit before starting to compute diagnostics and
   /// sending a `PublishDiagnosticsNotification`.
-  ///
-  /// This is mostly intended for testing purposes so we don't need to wait the debouncing time to get a diagnostics
-  /// notification when running unit tests.
   public var swiftPublishDiagnosticsDebounceDuration: Double? = nil
 
   public var swiftPublishDiagnosticsDebounceDurationOrDefault: Duration {
     if let swiftPublishDiagnosticsDebounceDuration {
       return .seconds(swiftPublishDiagnosticsDebounceDuration)
     }
-    return .seconds(2)
+    return .seconds(1)
   }
 
   /// When a task is started that should be displayed to the client as a work done progress, how many milliseconds to
@@ -296,15 +382,18 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
   }
 
   public init(
-    swiftPM: SwiftPMOptions = .init(),
-    fallbackBuildSystem: FallbackBuildSystemOptions = .init(),
-    compilationDatabase: CompilationDatabaseOptions = .init(),
+    swiftPM: SwiftPMOptions? = .init(),
+    fallbackBuildSystem: FallbackBuildSystemOptions? = .init(),
+    buildSettingsTimeout: Int? = nil,
+    compilationDatabase: CompilationDatabaseOptions? = .init(),
     clangdOptions: [String]? = nil,
-    index: IndexOptions = .init(),
+    index: IndexOptions? = .init(),
+    logging: LoggingOptions? = .init(),
     defaultWorkspaceType: WorkspaceType? = nil,
     generatedFilesPath: String? = nil,
     backgroundIndexing: Bool? = nil,
-    backgroundPreparationMode: String? = nil,
+    backgroundPreparationMode: BackgroundPreparationMode? = nil,
+    cancelTextDocumentRequestsOnEditAndClose: Bool? = nil,
     experimentalFeatures: Set<ExperimentalFeature>? = nil,
     swiftPublishDiagnosticsDebounceDuration: Double? = nil,
     workDoneProgressDebounceDuration: Double? = nil,
@@ -312,13 +401,16 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
   ) {
     self.swiftPM = swiftPM
     self.fallbackBuildSystem = fallbackBuildSystem
+    self.buildSettingsTimeout = buildSettingsTimeout
     self.compilationDatabase = compilationDatabase
     self.clangdOptions = clangdOptions
     self.index = index
+    self.logging = logging
     self.generatedFilesPath = generatedFilesPath
     self.defaultWorkspaceType = defaultWorkspaceType
     self.backgroundIndexing = backgroundIndexing
     self.backgroundPreparationMode = backgroundPreparationMode
+    self.cancelTextDocumentRequestsOnEditAndClose = cancelTextDocumentRequestsOnEditAndClose
     self.experimentalFeatures = experimentalFeatures
     self.swiftPublishDiagnosticsDebounceDuration = swiftPublishDiagnosticsDebounceDuration
     self.workDoneProgressDebounceDuration = workDoneProgressDebounceDuration
@@ -357,21 +449,25 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
 
   public static func merging(base: SourceKitLSPOptions, override: SourceKitLSPOptions?) -> SourceKitLSPOptions {
     return SourceKitLSPOptions(
-      swiftPM: SwiftPMOptions.merging(base: base.swiftPM, override: override?.swiftPM),
+      swiftPM: SwiftPMOptions.merging(base: base.swiftPMOrDefault, override: override?.swiftPM),
       fallbackBuildSystem: FallbackBuildSystemOptions.merging(
-        base: base.fallbackBuildSystem,
+        base: base.fallbackBuildSystemOrDefault,
         override: override?.fallbackBuildSystem
       ),
+      buildSettingsTimeout: override?.buildSettingsTimeout,
       compilationDatabase: CompilationDatabaseOptions.merging(
-        base: base.compilationDatabase,
+        base: base.compilationDatabaseOrDefault,
         override: override?.compilationDatabase
       ),
       clangdOptions: override?.clangdOptions ?? base.clangdOptions,
-      index: IndexOptions.merging(base: base.index, override: override?.index),
+      index: IndexOptions.merging(base: base.indexOrDefault, override: override?.index),
+      logging: LoggingOptions.merging(base: base.loggingOrDefault, override: override?.logging),
       defaultWorkspaceType: override?.defaultWorkspaceType ?? base.defaultWorkspaceType,
       generatedFilesPath: override?.generatedFilesPath ?? base.generatedFilesPath,
       backgroundIndexing: override?.backgroundIndexing ?? base.backgroundIndexing,
       backgroundPreparationMode: override?.backgroundPreparationMode ?? base.backgroundPreparationMode,
+      cancelTextDocumentRequestsOnEditAndClose: override?.cancelTextDocumentRequestsOnEditAndClose
+        ?? base.cancelTextDocumentRequestsOnEditAndClose,
       experimentalFeatures: override?.experimentalFeatures ?? base.experimentalFeatures,
       swiftPublishDiagnosticsDebounceDuration: override?.swiftPublishDiagnosticsDebounceDuration
         ?? base.swiftPublishDiagnosticsDebounceDuration,
@@ -381,11 +477,12 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
     )
   }
 
-  public var generatedFilesAbsolutePath: AbsolutePath {
-    if let absolutePath = AbsolutePath(validatingOrNil: generatedFilesPath) {
-      return absolutePath
+  public var generatedFilesAbsolutePath: URL {
+    if let generatedFilesPath {
+      return URL(fileURLWithPath: generatedFilesPath)
     }
-    return defaultDirectoryForGeneratedFiles
+
+    return URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("sourcekit-lsp")
   }
 
   public func hasExperimentalFeature(_ feature: ExperimentalFeature) -> Bool {
@@ -393,43 +490,5 @@ public struct SourceKitLSPOptions: Sendable, Codable, CustomLogStringConvertible
       return false
     }
     return experimentalFeatures.contains(feature)
-  }
-
-  public init(from decoder: any Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-
-    self.swiftPM = try container.decodeIfPresent(SwiftPMOptions.self, forKey: CodingKeys.swiftPM) ?? .init()
-    self.compilationDatabase =
-      try container.decodeIfPresent(CompilationDatabaseOptions.self, forKey: CodingKeys.compilationDatabase) ?? .init()
-    self.fallbackBuildSystem =
-      try container.decodeIfPresent(FallbackBuildSystemOptions.self, forKey: CodingKeys.fallbackBuildSystem) ?? .init()
-    self.clangdOptions = try container.decodeIfPresent([String].self, forKey: CodingKeys.clangdOptions)
-    self.index = try container.decodeIfPresent(IndexOptions.self, forKey: CodingKeys.index) ?? .init()
-    self.defaultWorkspaceType = try container.decodeIfPresent(
-      WorkspaceType.self,
-      forKey: CodingKeys.defaultWorkspaceType
-    )
-    self.generatedFilesPath = try container.decodeIfPresent(String.self, forKey: CodingKeys.generatedFilesPath)
-    self.backgroundIndexing = try container.decodeIfPresent(Bool.self, forKey: CodingKeys.backgroundIndexing)
-    self.experimentalFeatures = try container.decodeIfPresent(
-      Set<ExperimentalFeature>.self,
-      forKey: CodingKeys.experimentalFeatures
-    )
-    self.swiftPublishDiagnosticsDebounceDuration = try container.decodeIfPresent(
-      Double.self,
-      forKey: CodingKeys.swiftPublishDiagnosticsDebounceDuration
-    )
-    self.workDoneProgressDebounceDuration = try container.decodeIfPresent(
-      Double.self,
-      forKey: CodingKeys.workDoneProgressDebounceDuration
-    )
-  }
-
-  public var description: String {
-    recursiveDescription(of: self)
-  }
-
-  public var redactedDescription: String {
-    recursiveRedactedDescription(of: self)
   }
 }

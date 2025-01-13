@@ -10,9 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
+#if compiler(>=6)
+package import Foundation
+import LanguageServerProtocolExtensions
+import TSCExtensions
 
 import class TSCBasic.Process
+#else
+import Foundation
+import LanguageServerProtocolExtensions
+import TSCExtensions
+
+import class TSCBasic.Process
+#endif
 
 #if os(Windows)
 import WinSDK
@@ -25,7 +35,7 @@ package func findTool(name: String) async -> URL? {
   #elseif os(Windows)
   var buf = [WCHAR](repeating: 0, count: Int(MAX_PATH))
   GetWindowsDirectoryW(&buf, DWORD(MAX_PATH))
-  var wherePath = String(decodingCString: &buf, as: UTF16.self)
+  let wherePath = String(decodingCString: &buf, as: UTF16.self)
     .appendingPathComponent("system32")
     .appendingPathComponent("where.exe")
   let cmd = [wherePath, name]
@@ -42,8 +52,14 @@ package func findTool(name: String) async -> URL? {
     return nil
   }
   #if os(Windows)
-  path = String((path.split { $0.isNewline })[0])
+  // where.exe returns all files that match the name. We only care about the first one.
+  if let newlineIndex = path.firstIndex(where: \.isNewline) {
+    path = String(path[..<newlineIndex])
+  }
   #endif
   path = path.trimmingCharacters(in: .whitespacesAndNewlines)
+  if path.isEmpty {
+    return nil
+  }
   return URL(fileURLWithPath: path, isDirectory: false)
 }

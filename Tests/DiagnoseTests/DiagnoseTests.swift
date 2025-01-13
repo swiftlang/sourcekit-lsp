@@ -15,6 +15,7 @@ import Foundation
 import SKLogging
 import SKTestSupport
 import SourceKitD
+import SwiftExtensions
 import ToolchainRegistry
 import XCTest
 
@@ -25,7 +26,7 @@ import struct TSCBasic.AbsolutePath
 private let sdkArg: String = {
   if let sdk = defaultSDKPath {
     return """
-      "-sdk", "\(sdk)",
+      "-sdk", "\(sdk.replacing(#"\"#, with: #"\\"#))"
       """
   } else {
     return ""
@@ -36,7 +37,7 @@ private let sdkArg: String = {
 /// YAML. Otherwise, return an empty string.
 private let sdkArgs: [String] = {
   if let sdk = defaultSDKPath {
-    return ["-sdk", "\(sdk)"]
+    return ["-sdk", sdk]
   } else {
     return []
   }
@@ -160,8 +161,8 @@ final class DiagnoseTests: XCTestCase {
         func unrelatedB() {}
         """
 
-      let fileAPath = scratchDir.appending(component: "a.swift").pathString
-      let fileBPath = scratchDir.appending(component: "b.swift").pathString
+      let fileAPath = try scratchDir.appendingPathComponent("a.swift").filePath
+      let fileBPath = try scratchDir.appendingPathComponent("b.swift").filePath
 
       try fileAContents.write(toFile: fileAPath, atomically: true, encoding: .utf8)
       try fileBContents.write(toFile: fileBPath, atomically: true, encoding: .utf8)
@@ -238,7 +239,7 @@ private func assertReduceSourceKitD(
   let (markers, fileContents) = extractMarkers(markedFileContents)
 
   let toolchain = try await unwrap(ToolchainRegistry.forTesting.default)
-  logger.debug("Using \(toolchain.path?.pathString ?? "<nil>") to reduce source file")
+  logger.debug("Using \(toolchain.path?.description ?? "<nil>") to reduce source file")
 
   let markerOffset = try XCTUnwrap(markers["1️⃣"], "Failed to find position marker 1️⃣ in file contents")
 
@@ -249,12 +250,12 @@ private func assertReduceSourceKitD(
         reproducerPredicate(requestResponse as! String)
       })
     )
-    let testFilePath = scratchDir.appending(component: "test.swift").pathString
+    let testFilePath = try scratchDir.appendingPathComponent("test.swift").filePath
     try fileContents.write(toFile: testFilePath, atomically: false, encoding: .utf8)
 
     let request =
       request
-      .replacingOccurrences(of: "$FILE", with: testFilePath)
+      .replacingOccurrences(of: "$FILE", with: testFilePath.replacing(#"\"#, with: #"\\"#))
       .replacingOccurrences(of: "$OFFSET", with: String(markerOffset))
 
     let requestInfo = try RequestInfo(request: request)
@@ -291,7 +292,7 @@ private class InProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
   private let reproducerPredicate: NSPredicate
 
   init(toolchain: Toolchain, reproducerPredicate: NSPredicate) throws {
-    self.sourcekitd = try XCTUnwrap(toolchain.sourcekitd?.asURL)
+    self.sourcekitd = try XCTUnwrap(toolchain.sourcekitd)
     self.swiftFrontend = try XCTUnwrap(toolchain.swiftFrontend)
     self.reproducerPredicate = reproducerPredicate
     temporaryRequestFile = FileManager.default.temporaryDirectory.appendingPathComponent("request-\(UUID()).yml")
@@ -316,9 +317,7 @@ private class InProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
     let requestString = try request.request(for: temporarySourceFile)
     logger.info("Sending request: \(requestString)")
 
-    let sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
-      dylibPath: try! AbsolutePath(validating: sourcekitd.path)
-    )
+    let sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(dylibPath: sourcekitd)
     let response = try await sourcekitd.run(requestYaml: requestString)
 
     logger.info("Received response: \(response.description)")

@@ -16,70 +16,26 @@ import BuildSystemIntegration
 import Csourcekitd  // Not needed here, but fixes debugging...
 import Diagnose
 import Dispatch
+import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
 import SKLogging
 import SKOptions
-import SKSupport
 import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
-import struct TSCBasic.RelativePath
-import var TSCBasic.localFileSystem
 
-#if canImport(Darwin)
-import Foundation
+#if compiler(>=6)
+public import ArgumentParser
 #else
-// FIMXE: (async-workaround) @preconcurrency needed because FileHandle is not marked as Sendable on Linux rdar://132378985
-@preconcurrency import Foundation
+import ArgumentParser
 #endif
 
-extension AbsolutePath {
-  public init?(argument: String) {
-    let path: AbsolutePath?
-
-    if let cwd: AbsolutePath = localFileSystem.currentWorkingDirectory {
-      path = try? AbsolutePath(validating: argument, relativeTo: cwd)
-    } else {
-      path = try? AbsolutePath(validating: argument)
-    }
-
-    guard let path = path else {
-      return nil
-    }
-
-    self = path
-  }
-
-  public static var defaultCompletionKind: CompletionKind {
-    // This type is most commonly used to select a directory, not a file.
-    // Specify '.file()' in an argument declaration when necessary.
-    .directory
-  }
-}
-#if compiler(<5.11)
-extension AbsolutePath: ExpressibleByArgument {}
-#else
-extension AbsolutePath: @retroactive ExpressibleByArgument {}
-#endif
-
-extension RelativePath {
-  public init?(argument: String) {
-    let path = try? RelativePath(validating: argument)
-
-    guard let path = path else {
-      return nil
-    }
-
-    self = path
-  }
-}
-#if compiler(<5.11)
-extension RelativePath: ExpressibleByArgument {}
-#else
-extension RelativePath: @retroactive ExpressibleByArgument {}
+#if canImport(Android)
+import Android
 #endif
 
 extension PathPrefixMapping {
@@ -91,11 +47,11 @@ extension PathPrefixMapping {
     )
   }
 }
-extension PathPrefixMapping: ExpressibleByArgument {}
+extension PathPrefixMapping: ArgumentParser.ExpressibleByArgument {}
 
-extension SKOptions.BuildConfiguration: ExpressibleByArgument {}
+extension SKOptions.BuildConfiguration: ArgumentParser.ExpressibleByArgument {}
 
-extension SKOptions.WorkspaceType: ExpressibleByArgument {}
+extension SKOptions.WorkspaceType: ArgumentParser.ExpressibleByArgument {}
 
 @main
 struct SourceKitLSP: AsyncParsableCommand {
@@ -191,7 +147,7 @@ struct SourceKitLSP: AsyncParsableCommand {
   @Option(
     help: "Specify the directory where generated files will be stored"
   )
-  var generatedFilesPath: String = defaultDirectoryForGeneratedFiles.pathString
+  var generatedFilesPath: String? = nil
 
   @Option(
     name: .customLong("experimental-feature"),
@@ -241,7 +197,7 @@ struct SourceKitLSP: AsyncParsableCommand {
     var options = SourceKitLSPOptions.merging(
       base: commandLineOptions(),
       override: SourceKitLSPOptions(
-        path: FileManager.default.sanitizedHomeDirectoryForCurrentUser
+        path: FileManager.default.homeDirectoryForCurrentUser
           .appendingPathComponent(".sourcekit-lsp")
           .appendingPathComponent("config.json")
       )
@@ -273,6 +229,22 @@ struct SourceKitLSP: AsyncParsableCommand {
     return options
   }
 
+  /// Create a new file that can be used to use as an input or output mirror file and return a file handle that can be
+  /// used to write to that file.
+  private func createMirrorFile(in directory: URL) throws -> FileHandle {
+    let dateFormatter = ISO8601DateFormatter()
+    dateFormatter.timeZone = NSTimeZone.local
+    let date = dateFormatter.string(from: Date()).replacingOccurrences(of: ":", with: "-")
+
+    let inputMirrorURL = directory.appendingPathComponent("\(date).log")
+
+    logger.log("Mirroring input to \(inputMirrorURL)")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    FileManager.default.createFile(atPath: try inputMirrorURL.filePath, contents: nil)
+
+    return try FileHandle(forWritingTo: inputMirrorURL)
+  }
+
   func run() async throws {
     // Dup stdout and redirect the fd to stderr so that a careless print()
     // will not break our connection stream.
@@ -284,10 +256,22 @@ struct SourceKitLSP: AsyncParsableCommand {
       fatalError("failed to redirect stdout -> stderr: \(strerror(errno)!)")
     }
 
+    let globalConfigurationOptions = globalConfigurationOptions
+    if let logLevelStr = globalConfigurationOptions.loggingOrDefault.level,
+      let logLevel = NonDarwinLogLevel(logLevelStr)
+    {
+      LogConfig.logLevel.value = logLevel
+    }
+    if let privacyLevelStr = globalConfigurationOptions.loggingOrDefault.privacyLevel,
+      let privacyLevel = NonDarwinLogPrivacy(privacyLevelStr)
+    {
+      LogConfig.privacyLevel.value = privacyLevel
+    }
+
     let realStdoutHandle = FileHandle(fileDescriptor: realStdout, closeOnDealloc: false)
 
     // Directory should match the directory we are searching for logs in `DiagnoseCommand.addNonDarwinLogs`.
-    let logFileDirectoryURL = FileManager.default.sanitizedHomeDirectoryForCurrentUser
+    let logFileDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
       .appendingPathComponent(".sourcekit-lsp")
       .appendingPathComponent("logs")
     await setUpGlobalLogFileHandler(
@@ -297,18 +281,36 @@ struct SourceKitLSP: AsyncParsableCommand {
     )
     cleanOldLogFiles(logFileDirectory: logFileDirectoryURL, maxAge: 60 * 60 /* 1h */)
 
+    let inputMirror = orLog("Setting up input mirror") {
+      if let inputMirrorDirectory = globalConfigurationOptions.loggingOrDefault.inputMirrorDirectory {
+        return try createMirrorFile(in: URL(fileURLWithPath: inputMirrorDirectory))
+      }
+      return nil
+    }
+
+    let outputMirror = orLog("Setting up output mirror") {
+      if let outputMirrorDirectory = globalConfigurationOptions.loggingOrDefault.outputMirrorDirectory {
+        return try createMirrorFile(in: URL(fileURLWithPath: outputMirrorDirectory))
+      }
+      return nil
+    }
+
     let clientConnection = JSONRPCConnection(
       name: "client",
       protocol: MessageRegistry.lspProtocol,
       inFD: FileHandle.standardInput,
-      outFD: realStdoutHandle
+      outFD: realStdoutHandle,
+      inputMirrorFile: inputMirror,
+      outputMirrorFile: outputMirror
     )
 
-    let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
+    // For reasons that are completely oblivious to me, `DispatchIO.write`, which is used to write LSP responses to
+    // stdout fails with error code 5 on Windows unless we call `AbsolutePath(validating:)` on some URL first.
+    _ = try AbsolutePath(validating: Bundle.main.bundlePath)
 
     let server = SourceKitLSPServer(
       client: clientConnection,
-      toolchainRegistry: ToolchainRegistry(installPath: installPath, localFileSystem),
+      toolchainRegistry: ToolchainRegistry(installPath: Bundle.main.bundleURL),
       options: globalConfigurationOptions,
       testHooks: TestHooks(),
       onExit: {
@@ -319,10 +321,7 @@ struct SourceKitLSP: AsyncParsableCommand {
       receiveHandler: server,
       closeHandler: {
         await server.prepareForExit()
-        // FIXME: keep the FileHandle alive until we close the connection to
-        // workaround SR-13822.
-        withExtendedLifetime(realStdoutHandle) {}
-        // Use _Exit to avoid running static destructors due to SR-12668.
+        // Use _Exit to avoid running static destructors due to https://github.com/swiftlang/swift/issues/55112.
         _Exit(0)
       }
     )

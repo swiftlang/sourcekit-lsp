@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-import ArgumentParser
+#if compiler(>=6)
+public import ArgumentParser
 import Foundation
 import InProcessClient
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKOptions
-import SKSupport
 import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
@@ -23,6 +24,21 @@ import ToolchainRegistry
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import class TSCUtility.PercentProgressAnimation
+#else
+import ArgumentParser
+import Foundation
+import InProcessClient
+import LanguageServerProtocol
+import LanguageServerProtocolExtensions
+import SKOptions
+import SourceKitLSP
+import SwiftExtensions
+import ToolchainRegistry
+
+import struct TSCBasic.AbsolutePath
+import class TSCBasic.Process
+import class TSCUtility.PercentProgressAnimation
+#endif
 
 private actor IndexLogMessageHandler: MessageHandler {
   var hasSeenError: Bool = false
@@ -89,15 +105,15 @@ package struct IndexCommand: AsyncParsableCommand {
     )
 
     let installPath =
-      if let toolchainOverride, let toolchain = Toolchain(try AbsolutePath(validating: toolchainOverride)) {
+      if let toolchainOverride, let toolchain = Toolchain(URL(fileURLWithPath: toolchainOverride)) {
         toolchain.path
       } else {
-        try AbsolutePath(validating: Bundle.main.bundlePath)
+        Bundle.main.bundleURL
       }
 
     let messageHandler = IndexLogMessageHandler()
     let inProcessClient = try await InProcessSourceKitLSPClient(
-      toolchainRegistry: ToolchainRegistry(installPath: installPath),
+      toolchainPath: installPath,
       options: options,
       workspaceFolders: [WorkspaceFolder(uri: DocumentURI(URL(fileURLWithPath: project)))],
       messageHandler: messageHandler
@@ -121,4 +137,4 @@ fileprivate extension SourceKitLSPServer {
   }
 }
 
-extension ExperimentalFeature: ExpressibleByArgument {}
+extension ExperimentalFeature: ArgumentParser.ExpressibleByArgument {}

@@ -2,6 +2,7 @@ add_library(Diagnose STATIC
   CommandLineArgumentsReducer.swift
   DebugCommand.swift
   DiagnoseCommand.swift
+  GenericError.swift
   IndexCommand.swift
   MergeSwiftFiles.swift
   OSLogScraper.swift
@@ -9,7 +10,6 @@ add_library(Diagnose STATIC
   ReduceFrontendCommand.swift
   ReduceSourceKitDRequest.swift
   ReduceSwiftFrontend.swift
-  ReductionError.swift
   ReproducerBundle.swift
   RequestInfo.swift
   RunSourcekitdRequestCommand.swift
@@ -18,7 +18,8 @@ add_library(Diagnose STATIC
   SourceReducer.swift
   StderrStreamConcurrencySafe.swift
   SwiftFrontendCrashScraper.swift
-  Toolchain+SwiftFrontend.swift)
+  Toolchain+SwiftFrontend.swift
+  TraceFromSignpostsCommand.swift)
 
 set_target_properties(Diagnose PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
@@ -36,4 +37,9 @@ target_link_libraries(Diagnose PUBLIC
   SwiftSyntax::SwiftSyntax
   SwiftSyntax::SwiftParser
   TSCBasic
+)
+
+target_link_libraries(Diagnose PRIVATE
+  SKUtilities
+  TSCExtensions
 )

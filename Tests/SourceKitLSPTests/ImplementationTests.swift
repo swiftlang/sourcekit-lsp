@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import ISDBTestSupport
 import LanguageServerProtocol
 import SKTestSupport
 import TSCBasic
@@ -32,14 +31,10 @@ final class ImplementationTests: XCTestCase {
         position: project.positions["1️⃣"]
       )
     )
-    guard case .locations(let implementations) = response else {
-      XCTFail("Response was not locations", line: line)
-      return
-    }
     let expectedLocations = expectedLocationMarkers.map {
       Location(uri: project.fileURI, range: Range(project.positions[$0]))
     }
-    XCTAssertEqual(implementations, expectedLocations, line: line)
+    XCTAssertEqual(response?.locations, expectedLocations, line: line)
   }
 
   // MARK: - Tests
@@ -253,8 +248,8 @@ final class ImplementationTests: XCTestCase {
   }
 
   func testOverrideProtocolFunc() async throws {
-    // FIXME: We should not be reporting locations 4, 5 and 7 because they don't actually contain myFunc.
-    // We should, however, be reporting location 6
+    // TODO: We should not be reporting locations 4, 5 and 7 because they don't actually contain myFunc.
+    // We should, however, be reporting location 6. (https://github.com/swiftlang/sourcekit-lsp/issues/1600)
 
     try await testImplementation(
       """
@@ -306,12 +301,8 @@ final class ImplementationTests: XCTestCase {
         position: aPositions["1️⃣"]
       )
     )
-    guard case .locations(let implementations) = response else {
-      XCTFail("Response was not locations")
-      return
-    }
     XCTAssertEqual(
-      implementations,
+      response?.locations,
       [Location(uri: try project.uri(for: "b.swift"), range: Range(try project.position(of: "2️⃣", in: "b.swift")))]
     )
   }

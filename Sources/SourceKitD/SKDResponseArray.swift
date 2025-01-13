@@ -10,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Csourcekitd
+#else
 import Csourcekitd
+#endif
 
 #if canImport(Darwin)
 import Darwin

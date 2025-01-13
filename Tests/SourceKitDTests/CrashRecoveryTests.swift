@@ -10,17 +10,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-import ISDBTestSupport
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SKTestSupport
 import SourceKitD
 @_spi(Testing) import SourceKitLSP
 import SwiftExtensions
 import XCTest
-
-import enum PackageLoading.Platform
 
 fileprivate extension HoverResponse {
   func contains(string: String) -> Bool {

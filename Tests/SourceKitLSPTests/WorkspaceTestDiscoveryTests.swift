@@ -15,8 +15,11 @@ import Foundation
 import LanguageServerProtocol
 import SKTestSupport
 @_spi(Testing) import SourceKitLSP
+import SwiftExtensions
 import ToolchainRegistry
 import XCTest
+
+import struct TSCBasic.AbsolutePath
 
 private let packageManifestWithTestTarget = """
   let package = Package(
@@ -158,17 +161,17 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     // Now update the file on disk and recompute tests. This should give use tests using the syntactic index, which will
     // include the tests in here even though `NotQuiteTests` doesn't inherit from XCTest
 
-    let newMarkedFileContents = """
-      import XCTest
+    let (newFilePositions, newFileContents) = DocumentPositions.extract(
+      from: """
+        import XCTest
 
-      class ClassThatMayInheritFromXCTest {}
+        class ClassThatMayInheritFromXCTest {}
 
-      3️⃣class NotQuiteTests: ClassThatMayInheritFromXCTest {
-        4️⃣func testSomething() {}5️⃣
-      }6️⃣
-      """
-    let newFileContents = extractMarkers(newMarkedFileContents).textWithoutMarkers
-    let newFilePositions = DocumentPositions(markedText: newMarkedFileContents)
+        3️⃣class NotQuiteTests: ClassThatMayInheritFromXCTest {
+          4️⃣func testSomething() {}5️⃣
+        }6️⃣
+        """
+    )
     try newFileContents.write(to: try XCTUnwrap(myTestsUri.fileURL), atomically: true, encoding: .utf8)
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: myTestsUri, type: .changed)]))
 
@@ -241,6 +244,49 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
             )
           ]
         )
+      ]
+    )
+  }
+
+  func testSwiftTestingTestsWithDuplicateFunctionIdentifiersAcrossDocuments() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/MyLibraryTests/MyTests1.swift": """
+        import Testing
+
+        1️⃣@Test(arguments: [1, 2, 3])
+        private func foo(_ x: Int) {}2️⃣
+        """,
+        "Tests/MyLibraryTests/MyTests2.swift": """
+        import Testing
+
+        3️⃣@Test(arguments: [1, 2, 3])
+        private func foo(_ x: Int) {}4️⃣
+        """,
+      ],
+      manifest: packageManifestWithTestTarget
+    )
+
+    let test1Position = try project.position(of: "1️⃣", in: "MyTests1.swift")
+    let test2Position = try project.position(of: "3️⃣", in: "MyTests2.swift")
+
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
+
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyLibraryTests.foo(_:)/MyTests1.swift:\(test1Position.line + 1):\(test1Position.utf16index + 2)",
+          label: "foo(_:)",
+          style: TestStyle.swiftTesting,
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "MyTests1.swift")
+        ),
+        TestItem(
+          id: "MyLibraryTests.foo(_:)/MyTests2.swift:\(test2Position.line + 1):\(test2Position.utf16index + 2)",
+          label: "foo(_:)",
+          style: TestStyle.swiftTesting,
+          location: try project.location(from: "3️⃣", to: "4️⃣", in: "MyTests2.swift")
+        ),
       ]
     )
   }
@@ -612,24 +658,24 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       manifest: packageManifestWithTestTarget
     )
 
-    let markedFileContents = """
-      import XCTest
+    let (positions, fileContents) = DocumentPositions.extract(
+      from: """
+        import XCTest
 
-      1️⃣class 2️⃣MyTests: XCTestCase {
-        3️⃣func 4️⃣testSomething() {}5️⃣
-      }6️⃣
-      """
+        1️⃣class 2️⃣MyTests: XCTestCase {
+          3️⃣func 4️⃣testSomething() {}5️⃣
+        }6️⃣
+        """
+    )
 
     let url = try XCTUnwrap(project.uri(for: "MyTests.swift").fileURL)
       .deletingLastPathComponent()
       .appendingPathComponent("MyNewTests.swift")
     let uri = DocumentURI(url)
-    try extractMarkers(markedFileContents).textWithoutMarkers.write(to: url, atomically: true, encoding: .utf8)
+    try fileContents.write(to: url, atomically: true, encoding: .utf8)
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: .created)])
     )
-
-    let positions = DocumentPositions(markedText: markedFileContents)
 
     let tests = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(
@@ -736,14 +782,14 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     let testsWithEmptyCompilationDatabase = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(testsWithEmptyCompilationDatabase, [])
 
-    let swiftc = try await unwrap(ToolchainRegistry.forTesting.default?.swiftc?.asURL)
+    let swiftc = try await unwrap(ToolchainRegistry.forTesting.default?.swiftc)
     let uri = try project.uri(for: "MyTests.swift")
 
     let compilationDatabase = JSONCompilationDatabase([
       JSONCompilationDatabase.Command(
-        directory: project.scratchDirectory.path,
+        directory: try project.scratchDirectory.filePath,
         filename: uri.pseudoPath,
-        commandLine: [swiftc.path, uri.pseudoPath]
+        commandLine: [try swiftc.filePath, uri.pseudoPath]
       )
     ])
 
@@ -1062,6 +1108,21 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         )
       ]
     )
+  }
+
+  func testSwiftTestingTestsAreNotDiscoveredInNonTestTargets() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "FileA.swift": """
+          @Suite struct MyTests {
+          @Test func inStruct() {}
+        }
+        """
+      ]
+    )
+
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
+    XCTAssertEqual(tests, [])
   }
 }
 

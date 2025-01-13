@@ -11,36 +11,147 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
+import Csourcekitd
 import Foundation
 import LanguageServerProtocol
 import SKLogging
+import SKOptions
+import SKUtilities
 import SourceKitD
+import SwiftExtensions
 
-/// Detailed information about the result of a macro expansion operation.
-///
-/// Wraps the information returned by sourcekitd's `semantic_refactoring`
-/// request, such as the necessary macro expansion edits.
-struct MacroExpansion: RefactoringResponse {
-  /// The title of the refactoring action.
-  var title: String
+/// Caches the contents of macro expansions that were recently requested by the user.
+actor MacroExpansionManager {
+  private struct CacheEntry {
+    // Key
+    let snapshotID: DocumentSnapshot.ID
+    let range: Range<Position>
+    let buildSettings: SwiftCompileCommand?
 
-  /// The URI of the file where the macro is used
-  var uri: DocumentURI
+    // Value
+    let value: [RefactoringEdit]
 
-  /// The resulting array of `RefactoringEdit` of a semantic refactoring request
-  var edits: [RefactoringEdit]
-
-  init(title: String, uri: DocumentURI, refactoringEdits: [RefactoringEdit]) {
-    self.title = title
-    self.uri = uri
-    self.edits = refactoringEdits.compactMap { refactoringEdit in
-      if refactoringEdit.bufferName == nil && !refactoringEdit.newText.isEmpty {
-        logger.fault("Unable to retrieve some parts of the expansion")
-        return nil
-      }
-
-      return refactoringEdit
+    fileprivate init(
+      snapshot: DocumentSnapshot,
+      range: Range<Position>,
+      buildSettings: SwiftCompileCommand?,
+      value: [RefactoringEdit]
+    ) {
+      self.snapshotID = snapshot.id
+      self.range = range
+      self.buildSettings = buildSettings
+      self.value = value
     }
+  }
+
+  init(swiftLanguageService: SwiftLanguageService?) {
+    self.swiftLanguageService = swiftLanguageService
+  }
+
+  private weak var swiftLanguageService: SwiftLanguageService?
+
+  /// The number of macro expansions to cache.
+  ///
+  /// - Note: This should be bigger than the maximum expansion depth of macros a user might do to avoid re-generating
+  ///   all parent macros to a nested macro expansion's buffer. 10 seems to be big enough for that because it's
+  ///   unlikely that a macro will expand to more than 10 levels.
+  private let cacheSize = 10
+
+  /// The cache that stores reportTasks for a combination of uri, range and build settings.
+  ///
+  /// Conceptually, this is a dictionary. To prevent excessive memory usage we
+  /// only keep `cacheSize` entries within the array. Older entries are at the
+  /// end of the list, newer entries at the front.
+  private var cache: [CacheEntry] = []
+
+  /// Return the text of the macro expansion referenced by `macroExpansionURLData`.
+  func macroExpansion(
+    for macroExpansionURLData: MacroExpansionReferenceDocumentURLData
+  ) async throws -> String {
+    let expansions = try await macroExpansions(
+      in: macroExpansionURLData.parent,
+      at: macroExpansionURLData.parentSelectionRange
+    )
+    guard let expansion = expansions.filter({ $0.bufferName == macroExpansionURLData.bufferName }).only else {
+      throw ResponseError.unknown("Failed to find macro expansion for \(macroExpansionURLData.bufferName).")
+    }
+    return expansion.newText
+  }
+
+  func macroExpansions(
+    in uri: DocumentURI,
+    at range: Range<Position>
+  ) async throws -> [RefactoringEdit] {
+    guard let swiftLanguageService else {
+      // `SwiftLanguageService` has been destructed. We are tearing down the language server. Nothing left to do.
+      throw ResponseError.unknown("Connection to the editor closed")
+    }
+
+    let snapshot = try await swiftLanguageService.latestSnapshot(for: uri)
+    let buildSettings = await swiftLanguageService.buildSettings(for: uri, fallbackAfterTimeout: false)
+
+    if let cacheEntry = cache.first(where: {
+      $0.snapshotID == snapshot.id && $0.range == range && $0.buildSettings == buildSettings
+    }) {
+      return cacheEntry.value
+    }
+    let macroExpansions = try await macroExpansionsImpl(in: snapshot, at: range, buildSettings: buildSettings)
+    cache.insert(
+      CacheEntry(snapshot: snapshot, range: range, buildSettings: buildSettings, value: macroExpansions),
+      at: 0
+    )
+
+    while cache.count > cacheSize {
+      cache.removeLast()
+    }
+
+    return macroExpansions
+  }
+
+  private func macroExpansionsImpl(
+    in snapshot: DocumentSnapshot,
+    at range: Range<Position>,
+    buildSettings: SwiftCompileCommand?
+  ) async throws -> [RefactoringEdit] {
+    guard let swiftLanguageService else {
+      // `SwiftLanguageService` has been destructed. We are tearing down the language server. Nothing left to do.
+      throw ResponseError.unknown("Connection to the editor closed")
+    }
+    let keys = swiftLanguageService.keys
+
+    let line = range.lowerBound.line
+    let utf16Column = range.lowerBound.utf16index
+    let utf8Column = snapshot.lineTable.utf8ColumnAt(line: line, utf16Column: utf16Column)
+    let length = snapshot.utf8OffsetRange(of: range).count
+
+    let skreq = swiftLanguageService.sourcekitd.dictionary([
+      keys.request: swiftLanguageService.requests.semanticRefactoring,
+      // Preferred name for e.g. an extracted variable.
+      // Empty string means sourcekitd chooses a name automatically.
+      keys.name: "",
+      keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
+      keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
+      // LSP is zero based, but this request is 1 based.
+      keys.line: line + 1,
+      keys.column: utf8Column + 1,
+      keys.length: length,
+      keys.actionUID: swiftLanguageService.sourcekitd.api.uid_get_from_cstr("source.refactoring.kind.expand.macro")!,
+      keys.compilerArgs: buildSettings?.compilerArgs as [SKDRequestValue]?,
+    ])
+
+    let dict = try await swiftLanguageService.sendSourcekitdRequest(
+      skreq,
+      fileContents: snapshot.text
+    )
+    guard let expansions = [RefactoringEdit](dict, snapshot, keys) else {
+      throw SemanticRefactoringError.noEditsNeeded(snapshot.uri)
+    }
+    return expansions
+  }
+
+  /// Remove all cached macro expansions for the given primary file, eg. because the macro's plugin might have changed.
+  func purge(primaryFile: DocumentURI) {
+    cache.removeAll { $0.snapshotID.uri.primaryFile ?? $0.snapshotID.uri == primaryFile }
   }
 }
 
@@ -62,24 +173,33 @@ extension SwiftLanguageService {
       throw ResponseError.unknown("Connection to the editor closed")
     }
 
-    guard let primaryFileURL = expandMacroCommand.textDocument.uri.fileURL else {
-      throw ResponseError.unknown("Given URI is not a file URL")
-    }
+    let parentFileDisplayName =
+      switch try? ReferenceDocumentURL(from: expandMacroCommand.textDocument.uri) {
+      case .macroExpansion(let data):
+        data.bufferName
+      case .generatedInterface(let data):
+        data.displayName
+      case nil:
+        expandMacroCommand.textDocument.uri.fileURL?.lastPathComponent ?? expandMacroCommand.textDocument.uri.pseudoPath
+      }
 
-    let expansion = try await self.refactoring(expandMacroCommand)
+    let expansions = try await macroExpansionManager.macroExpansions(
+      in: expandMacroCommand.textDocument.uri,
+      at: expandMacroCommand.positionRange
+    )
 
     var completeExpansionFileContent = ""
     var completeExpansionDirectoryName = ""
 
     var macroExpansionReferenceDocumentURLs: [ReferenceDocumentURL] = []
-    for macroEdit in expansion.edits {
+    for macroEdit in expansions {
       if let bufferName = macroEdit.bufferName {
         let macroExpansionReferenceDocumentURLData =
           ReferenceDocumentURL.macroExpansion(
             MacroExpansionReferenceDocumentURLData(
               macroExpansionEditRange: macroEdit.range,
-              primaryFileURL: primaryFileURL,
-              selectionRange: expandMacroCommand.positionRange,
+              parent: expandMacroCommand.textDocument.uri,
+              parentSelectionRange: expandMacroCommand.positionRange,
               bufferName: bufferName
             )
           )
@@ -90,7 +210,7 @@ extension SwiftLanguageService {
 
         let editContent =
           """
-          // \(primaryFileURL.lastPathComponent) @ \(macroEdit.range.lowerBound.line + 1):\(macroEdit.range.lowerBound.utf16index + 1) - \(macroEdit.range.upperBound.line + 1):\(macroEdit.range.upperBound.utf16index + 1)
+          // \(parentFileDisplayName) @ \(macroEdit.range.lowerBound.line + 1):\(macroEdit.range.lowerBound.utf16index + 1) - \(macroEdit.range.upperBound.line + 1):\(macroEdit.range.upperBound.utf16index + 1)
           \(macroEdit.newText)
 
 
@@ -105,13 +225,22 @@ extension SwiftLanguageService {
       case .bool(true) = experimentalCapabilities["workspace/peekDocuments"],
       case .bool(true) = experimentalCapabilities["workspace/getReferenceDocument"]
     {
-      let expansionURIs = try macroExpansionReferenceDocumentURLs.map {
-        return DocumentURI(try $0.url)
-      }
+      let expansionURIs = try macroExpansionReferenceDocumentURLs.map { try $0.uri }
+
+      let uri = expandMacroCommand.textDocument.uri.primaryFile ?? expandMacroCommand.textDocument.uri
+
+      let position =
+        switch try? ReferenceDocumentURL(from: expandMacroCommand.textDocument.uri) {
+        case .macroExpansion(let data):
+          data.primaryFileSelectionRange.lowerBound
+        case .generatedInterface, nil:
+          expandMacroCommand.positionRange.lowerBound
+        }
+
       Task {
         let req = PeekDocumentsRequest(
-          uri: expandMacroCommand.textDocument.uri,
-          position: expandMacroCommand.positionRange.lowerBound,
+          uri: uri,
+          position: position,
           locations: expansionURIs
         )
 
@@ -149,17 +278,17 @@ extension SwiftLanguageService {
         )
       } catch {
         throw ResponseError.unknown(
-          "Failed to create directory for complete macro expansion at path: \(completeExpansionFilePath.path)"
+          "Failed to create directory for complete macro expansion at \(completeExpansionFilePath.description)"
         )
       }
 
       completeExpansionFilePath =
-        completeExpansionFilePath.appendingPathComponent(primaryFileURL.lastPathComponent)
+        completeExpansionFilePath.appendingPathComponent(parentFileDisplayName)
       do {
         try completeExpansionFileContent.write(to: completeExpansionFilePath, atomically: true, encoding: .utf8)
       } catch {
         throw ResponseError.unknown(
-          "Unable to write complete macro expansion to file path: \"\(completeExpansionFilePath.path)\""
+          "Unable to write complete macro expansion to \"\(completeExpansionFilePath.description)\""
         )
       }
 
@@ -177,30 +306,5 @@ extension SwiftLanguageService {
         }
       }
     }
-  }
-
-  func expandMacro(macroExpansionURLData: MacroExpansionReferenceDocumentURLData) async throws -> String {
-    guard let sourceKitLSPServer = self.sourceKitLSPServer else {
-      // `SourceKitLSPServer` has been destructed. We are tearing down the
-      // language server. Nothing left to do.
-      throw ResponseError.unknown("Connection to the editor closed")
-    }
-
-    let expandMacroCommand = ExpandMacroCommand(
-      positionRange: macroExpansionURLData.selectionRange,
-      textDocument: TextDocumentIdentifier(macroExpansionURLData.primaryFile)
-    )
-
-    let expansion = try await self.refactoring(expandMacroCommand)
-
-    guard
-      let macroExpansionEdit = expansion.edits.filter({
-        $0.bufferName == macroExpansionURLData.bufferName
-      }).only
-    else {
-      throw ResponseError.unknown("Macro expansion edit doesn't exist")
-    }
-
-    return macroExpansionEdit.newText
   }
 }

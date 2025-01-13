@@ -10,8 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+package import LanguageServerProtocol
+import SKUtilities
+#else
+import Foundation
 import LanguageServerProtocol
-import SKSupport
+import SKUtilities
+#endif
 
 package extension DocumentSnapshot {
   /// Creates a `DocumentSnapshot` with the file contents from disk.
@@ -29,7 +36,7 @@ package extension DocumentSnapshot {
   ///
   /// Throws an error if the file could not be read.
   init(withContentsFromDisk url: URL, language: Language) throws {
-    let contents = try String(contentsOf: url)
+    let contents = try String(contentsOf: url, encoding: .utf8)
     self.init(uri: DocumentURI(url), language: language, version: 0, lineTable: LineTable(contents))
   }
 }

@@ -11,7 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SwiftExtensions
 import ToolchainRegistry
+
+import struct TSCBasic.AbsolutePath
 
 /// Create a folder that contains all files that should be necessary to reproduce a sourcekitd crash.
 /// - Parameters:
@@ -26,7 +29,7 @@ func makeReproducerBundle(for requestInfo: RequestInfo, toolchain: Toolchain, bu
     encoding: .utf8
   )
   if let toolchainPath = toolchain.path {
-    try toolchainPath.asURL.resolvingSymlinksInPath().path
+    try toolchainPath.realpath.filePath
       .write(
         to: bundlePath.appendingPathComponent("toolchain.txt"),
         atomically: true,
@@ -59,7 +62,7 @@ func makeReproducerBundle(for requestInfo: RequestInfo, toolchain: Toolchain, bu
       // aren't user specific and would bloat the reproducer bundle.
       continue
     }
-    let dest = URL(fileURLWithPath: bundlePath.path + path)
+    let dest = URL(fileURLWithPath: try bundlePath.filePath + path)
     try? FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
     try? FileManager.default.copyItem(at: URL(fileURLWithPath: String(path)), to: dest)
   }

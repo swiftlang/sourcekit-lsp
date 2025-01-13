@@ -10,11 +10,23 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
 import Foundation
 import LanguageServerProtocol
 import SwiftBasicFormat
+import SwiftParser
+import SwiftRefactor
+package import SwiftSyntax
+import SwiftSyntaxBuilder
+#else
+import Foundation
+import LanguageServerProtocol
+import SwiftBasicFormat
+import SwiftParser
 import SwiftRefactor
 import SwiftSyntax
+import SwiftSyntaxBuilder
+#endif
 
 /// Convert JSON literals into corresponding Swift structs that conform to the
 /// `Codable` protocol.

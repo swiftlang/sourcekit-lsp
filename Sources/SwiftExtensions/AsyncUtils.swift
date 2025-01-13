@@ -169,6 +169,8 @@ extension Collection where Element: Sendable {
 
 package struct TimeoutError: Error, CustomStringConvertible {
   package var description: String { "Timed out" }
+
+  package init() {}
 }
 
 /// Executes `body`. If it doesn't finish after `duration`, throws a `TimeoutError`.
@@ -176,18 +178,95 @@ package func withTimeout<T: Sendable>(
   _ duration: Duration,
   _ body: @escaping @Sendable () async throws -> T
 ) async throws -> T {
-  try await withThrowingTaskGroup(of: T.self) { taskGroup in
-    taskGroup.addTask {
+  // Get the priority with which to launch the body task here so that we can pass the same priority as the initial
+  // priority to `withTaskPriorityChangedHandler`. Otherwise, we can get into a race condition where bodyTask gets
+  // launched with a low priority, then the priority gets elevated before we call with `withTaskPriorityChangedHandler`,
+  // we thus don't receive a `taskPriorityChanged` and hence never increase the priority of `bodyTask`.
+  let priority = Task.currentPriority
+  var mutableTasks: [Task<Void, Error>] = []
+  let stream = AsyncThrowingStream<T, Error> { continuation in
+    let bodyTask = Task<Void, Error>(priority: priority) {
+      do {
+        let result = try await body()
+        continuation.yield(result)
+      } catch {
+        continuation.yield(with: .failure(error))
+      }
+    }
+
+    let timeoutTask = Task(priority: priority) {
       try await Task.sleep(for: duration)
-      throw TimeoutError()
+      continuation.yield(with: .failure(TimeoutError()))
+      bodyTask.cancel()
     }
-    taskGroup.addTask {
-      return try await body()
-    }
-    for try await value in taskGroup {
-      taskGroup.cancelAll()
+    mutableTasks = [bodyTask, timeoutTask]
+  }
+
+  let tasks = mutableTasks
+
+  return try await withTaskPriorityChangedHandler(initialPriority: priority) {
+    for try await value in stream {
       return value
     }
+    // The only reason for the loop above to terminate is if the Task got cancelled or if the continuation finishes
+    // (which it never does).
+    if Task.isCancelled {
+      for task in tasks {
+        task.cancel()
+      }
+      throw CancellationError()
+    } else {
+      preconditionFailure("Continuation never finishes")
+    }
+  } taskPriorityChanged: {
+    for task in tasks {
+      Task(priority: Task.currentPriority) {
+        _ = try? await task.value
+      }
+    }
+  }
+}
+
+/// Executes `body`. If it doesn't finish after `duration`, return `nil` and continue running body. When `body` returns
+/// a value after the timeout, `resultReceivedAfterTimeout` is called.
+///
+/// - Important: `body` will not be cancelled when the timeout is received. Use the other overload of `withTimeout` if
+///   `body` should be cancelled after `timeout`.
+package func withTimeout<T: Sendable>(
+  _ timeout: Duration,
+  body: @escaping @Sendable () async throws -> T?,
+  resultReceivedAfterTimeout: @escaping @Sendable () async -> Void
+) async throws -> T? {
+  let didHitTimeout = AtomicBool(initialValue: false)
+
+  let stream = AsyncThrowingStream<T?, Error> { continuation in
+    Task {
+      try await Task.sleep(for: timeout)
+      didHitTimeout.value = true
+      continuation.yield(nil)
+    }
+
+    Task {
+      do {
+        let result = try await body()
+        if didHitTimeout.value {
+          await resultReceivedAfterTimeout()
+        }
+        continuation.yield(result)
+      } catch {
+        continuation.yield(with: .failure(error))
+      }
+    }
+  }
+
+  for try await value in stream {
+    return value
+  }
+  // The only reason for the loop above to terminate is if the Task got cancelled or if the continuation finishes
+  // (which it never does).
+  if Task.isCancelled {
     throw CancellationError()
+  } else {
+    preconditionFailure("Continuation never finishes")
   }
 }

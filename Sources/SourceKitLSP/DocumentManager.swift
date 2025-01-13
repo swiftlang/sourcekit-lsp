@@ -10,12 +10,23 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
 import Dispatch
+import Foundation
+package import LanguageServerProtocol
+import SKLogging
+package import SKUtilities
+import SemanticIndex
+package import SwiftSyntax
+#else
+import Dispatch
+import Foundation
 import LanguageServerProtocol
 import SKLogging
-import SKSupport
+import SKUtilities
 import SemanticIndex
 import SwiftSyntax
+#endif
 
 /// An immutable snapshot of a document at a given time.
 ///
@@ -91,11 +102,11 @@ package final class DocumentManager: InMemoryDocumentManager, Sendable {
     case missingDocument(DocumentURI)
   }
 
-  // FIXME: (async) Migrate this to be an AsyncQueue
+  // TODO: Migrate this to be an AsyncQueue (https://github.com/swiftlang/sourcekit-lsp/issues/1597)
   private let queue: DispatchQueue = DispatchQueue(label: "document-manager-queue")
 
   // `nonisolated(unsafe)` is fine because `documents` is guarded by queue.
-  nonisolated(unsafe) var documents: [DocumentURI: Document] = [:]
+  private nonisolated(unsafe) var documents: [DocumentURI: Document] = [:]
 
   package init() {}
 
@@ -189,6 +200,15 @@ package final class DocumentManager: InMemoryDocumentManager, Sendable {
       }
       return document.latestSnapshot
     }
+  }
+
+  /// Returns the latest open snapshot of `uri` or, if no document with that URI is open, reads the file contents of
+  /// that file from disk.
+  package func latestSnapshotOrDisk(_ uri: DocumentURI, language: Language) -> DocumentSnapshot? {
+    if let snapshot = try? self.latestSnapshot(uri) {
+      return snapshot
+    }
+    return try? DocumentSnapshot(withContentsFromDisk: uri, language: language)
   }
 
   package func fileHasInMemoryModifications(_ uri: DocumentURI) -> Bool {

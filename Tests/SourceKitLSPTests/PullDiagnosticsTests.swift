@@ -10,11 +10,22 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import LanguageServerProtocol
-import SKSupport
+import LanguageServerProtocolExtensions
+import LanguageServerProtocolJSONRPC
+import SKLogging
 import SKTestSupport
+import SemanticIndex
 import SourceKitLSP
+import SwiftExtensions
 import XCTest
+
+#if os(Windows)
+import WinSDK
+#elseif canImport(Android)
+import Android
+#endif
 
 final class PullDiagnosticsTests: XCTestCase {
   func testUnknownIdentifierDiagnostic() async throws {
@@ -31,13 +42,38 @@ final class PullDiagnosticsTests: XCTestCase {
     )
 
     let report = try await testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri)))
-    guard case .full(let fullReport) = report else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
 
-    XCTAssertEqual(fullReport.items.count, 1)
-    let diagnostic = try XCTUnwrap(fullReport.items.first)
+    XCTAssertEqual(report.fullReport?.items.count, 1)
+    let diagnostic = try XCTUnwrap(report.fullReport?.items.first)
+    XCTAssertEqual(diagnostic.range, Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9))
+  }
+
+  func testDiagnosticsIfFileIsOpenedWithLowercaseDriveLetter() async throws {
+    try SkipUnless.platformIsWindows("Drive letters only exist on Windows")
+
+    let fileContents = """
+      func foo() {
+        invalid
+      }
+      """
+
+    // We use `IndexedSingleSwiftFileTestProject` so that the test file exists on disk, which causes sourcekitd to
+    // uppercase the drive letter.
+    let project = try await IndexedSingleSwiftFileTestProject(fileContents, allowBuildFailure: true)
+    project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(project.fileURI)))
+
+    let filePath = try XCTUnwrap(project.fileURI.fileURL?.filePath)
+    XCTAssertEqual(filePath[filePath.index(filePath.startIndex, offsetBy: 1)], ":")
+    let lowercaseDriveLetterPath = filePath.first!.lowercased() + filePath.dropFirst()
+    let uri = DocumentURI(filePath: lowercaseDriveLetterPath, isDirectory: false)
+    project.testClient.openDocument(fileContents, uri: uri)
+
+    let report = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+
+    XCTAssertEqual(report.fullReport?.items.count, 1)
+    let diagnostic = try XCTUnwrap(report.fullReport?.items.first)
     XCTAssertEqual(diagnostic.range, Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9))
   }
 
@@ -64,14 +100,9 @@ final class PullDiagnosticsTests: XCTestCase {
       uri: uri
     )
     let report = try await testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri)))
-    guard case .full(let fullReport) = report else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
-    let diagnostics = fullReport.items
+    let diagnostics = try XCTUnwrap(report.fullReport?.items)
 
-    XCTAssertEqual(diagnostics.count, 1)
-    let diagnostic = try XCTUnwrap(diagnostics.first)
+    let diagnostic = try XCTUnwrap(diagnostics.only)
     XCTAssert(
       diagnostic.range == Range(positions["1️⃣"]) || diagnostic.range == Range(positions["2️⃣"]),
       "Unexpected range: \(diagnostic.range)"
@@ -128,17 +159,11 @@ final class PullDiagnosticsTests: XCTestCase {
     let report = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
-    guard case .full(let fullReport) = report else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
-    XCTAssertEqual(fullReport.items.count, 1)
-    let diagnostic = try XCTUnwrap(fullReport.items.first)
+    let diagnostic = try XCTUnwrap(report.fullReport?.items.only)
     XCTAssertEqual(diagnostic.message, "expected '}' to end function")
     XCTAssertEqual(diagnostic.range, Range(positions["2️⃣"]))
 
-    XCTAssertEqual(diagnostic.relatedInformation?.count, 1)
-    let note = try XCTUnwrap(diagnostic.relatedInformation?.first)
+    let note = try XCTUnwrap(diagnostic.relatedInformation?.only)
     XCTAssertEqual(note.message, "to match this opening '{'")
     XCTAssertEqual(note.location.range, positions["1️⃣"]..<positions["2️⃣"])
   }
@@ -161,11 +186,9 @@ final class PullDiagnosticsTests: XCTestCase {
     let beforeChangingFileA = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
     )
-    guard case .full(let fullReportBeforeChangingFileA) = beforeChangingFileA else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
-    XCTAssert(fullReportBeforeChangingFileA.items.contains(where: { $0.message == "Cannot find 'sayHello' in scope" }))
+    XCTAssert(
+      (beforeChangingFileA.fullReport?.items ?? []).contains(where: { $0.message == "Cannot find 'sayHello' in scope" })
+    )
 
     let diagnosticsRefreshRequestReceived = self.expectation(description: "DiagnosticsRefreshRequest received")
     project.testClient.handleSingleRequest { (request: DiagnosticsRefreshRequest) in
@@ -185,7 +208,7 @@ final class PullDiagnosticsTests: XCTestCase {
     let afterChangingFileA = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
     )
-    XCTAssertEqual(afterChangingFileA, .full(RelatedFullDocumentDiagnosticReport(items: [])))
+    XCTAssertEqual(afterChangingFileA.fullReport?.items, [])
   }
 
   func testDiagnosticUpdatedAfterDependentModuleIsBuilt() async throws {
@@ -216,21 +239,24 @@ final class PullDiagnosticsTests: XCTestCase {
     )
 
     let (bUri, _) = try project.openDocument("LibB.swift")
-    let beforeBuilding = try await project.testClient.send(
-      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
-    )
-    guard case .full(let fullReportBeforeBuilding) = beforeBuilding else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
-    XCTAssert(
-      fullReportBeforeBuilding.items.contains(where: {
-        #if compiler(>=6.1)
-        #warning("When we drop support for Swift 5.10 we no longer need to check for the Objective-C error message")
-        #endif
+
+    // We might receive empty syntactic diagnostics before getting build settings. Wait until we get the diagnostic
+    // about the missing module.
+    try await repeatUntilExpectedResult {
+      let beforeBuilding = try? await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
+      )
+      #if compiler(>=6.1)
+      #warning("When we drop support for Swift 5.10 we no longer need to check for the Objective-C error message")
+      #endif
+      if (beforeBuilding?.fullReport?.items ?? []).contains(where: {
         return $0.message == "No such module 'LibA'" || $0.message == "Could not build Objective-C module 'LibA'"
-      })
-    )
+      }) {
+        return true
+      }
+      logger.debug("Received unexpected diagnostics: \(beforeBuilding?.forLogging)")
+      return false
+    }
 
     let diagnosticsRefreshRequestReceived = self.expectation(description: "DiagnosticsRefreshRequest received")
     project.testClient.handleSingleRequest { (request: DiagnosticsRefreshRequest) in
@@ -254,7 +280,7 @@ final class PullDiagnosticsTests: XCTestCase {
     let afterChangingFileA = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
     )
-    XCTAssertEqual(afterChangingFileA, .full(RelatedFullDocumentDiagnosticReport(items: [])))
+    XCTAssertEqual(afterChangingFileA.fullReport?.items, [])
   }
 
   func testDiagnosticsWaitForDocumentToBePrepared() async throws {
@@ -307,7 +333,7 @@ final class PullDiagnosticsTests: XCTestCase {
     // but before receiving a reply. The async variant doesn't allow this distinction.
     let receivedDiagnostics = self.expectation(description: "Received diagnostics")
     project.testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))) { diagnostics in
-      XCTAssertEqual(diagnostics.success, .full(RelatedFullDocumentDiagnosticReport(items: [])))
+      XCTAssertEqual(diagnostics.success?.fullReport?.items, [])
       receivedDiagnostics.fulfill()
     }
     diagnosticRequestSent.value = true
@@ -316,7 +342,11 @@ final class PullDiagnosticsTests: XCTestCase {
 
   func testDontReturnEmptyDiagnosticsIfDiagnosticRequestIsCancelled() async throws {
     let diagnosticRequestCancelled = self.expectation(description: "diagnostic request cancelled")
+    let packageLoadingDidFinish = self.expectation(description: "Package loading did finish")
     var testHooks = TestHooks()
+    testHooks.buildSystemTestHooks.swiftPMTestHooks.reloadPackageDidFinish = {
+      packageLoadingDidFinish.fulfill()
+    }
     testHooks.indexTestHooks.preparationTaskDidStart = { _ in
       _ = await XCTWaiter.fulfillment(of: [diagnosticRequestCancelled], timeout: defaultTimeout)
       // Poll until the `CancelRequestNotification` has been propagated to the request handling.
@@ -324,7 +354,11 @@ final class PullDiagnosticsTests: XCTestCase {
         if Task.isCancelled {
           break
         }
-        usleep(10_000)
+        #if os(Windows)
+        Sleep(10 /*ms*/)
+        #else
+        usleep(10_000 /*µs*/)
+        #endif
       }
     }
     let project = try await SwiftPMTestProject(
@@ -335,6 +369,7 @@ final class PullDiagnosticsTests: XCTestCase {
       enableBackgroundIndexing: true,
       pollIndex: false
     )
+    try await fulfillmentOfOrThrow([packageLoadingDidFinish])
     let (uri, _) = try project.openDocument("Lib.swift")
 
     let diagnosticResponseReceived = self.expectation(description: "Received diagnostic response")
@@ -366,12 +401,34 @@ final class PullDiagnosticsTests: XCTestCase {
     let diagnostics = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
-    guard case .full(let diagnostics) = diagnostics else {
-      XCTFail("Expected full diagnostics report")
-      return
-    }
-    let diagnostic = try XCTUnwrap(diagnostics.items.only)
+    let diagnostic = try XCTUnwrap(diagnostics.fullReport?.items.only)
     let note = try XCTUnwrap(diagnostic.relatedInformation?.only)
     XCTAssertEqual(note.location, try project.location(from: "1️⃣", to: "1️⃣", in: "FileA.swift"))
+  }
+
+  func testDiagnosticsFromSourcekitdRequestError() async throws {
+    let project = try await MultiFileTestProject(
+      files: [
+        "test.swift": """
+        func test() {}
+        """,
+        "compile_flags.txt": "-invalid-argument",
+      ]
+    )
+    let (uri, _) = try project.openDocument("test.swift")
+    let diagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(
+      diagnostics.fullReport?.items,
+      [
+        Diagnostic(
+          range: Range(Position(line: 0, utf16index: 0)),
+          severity: .error,
+          source: "SourceKit",
+          message: "Internal SourceKit error: unknown argument: '-invalid-argument'"
+        )
+      ]
+    )
   }
 }

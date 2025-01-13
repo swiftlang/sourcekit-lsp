@@ -10,10 +10,22 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+public import Dispatch
+public import Foundation
+public import LanguageServerProtocol
+import SKLogging
+import SwiftExtensions
+#if canImport(Android)
+import Android
+#endif
+#else
 import Dispatch
 import Foundation
 import LanguageServerProtocol
 import SKLogging
+import SwiftExtensions
+#endif
 
 #if canImport(CDispatch)
 import struct CDispatch.dispatch_fd_t
@@ -48,6 +60,12 @@ public final class JSONRPCConnection: Connection {
   private let receiveIO: DispatchIO
   private let sendIO: DispatchIO
   private let messageRegistry: MessageRegistry
+
+  /// If non-nil, all input received by this `JSONRPCConnection` will be written to the file handle
+  let inputMirrorFile: FileHandle?
+
+  /// If non-nil, all output created by this `JSONRPCConnection` will be written to the file handle
+  let outputMirrorFile: FileHandle?
 
   enum State {
     case created, running, closed
@@ -108,9 +126,13 @@ public final class JSONRPCConnection: Connection {
     name: String,
     protocol messageRegistry: MessageRegistry,
     inFD: FileHandle,
-    outFD: FileHandle
+    outFD: FileHandle,
+    inputMirrorFile: FileHandle? = nil,
+    outputMirrorFile: FileHandle? = nil
   ) {
     self.name = name
+    self.inputMirrorFile = inputMirrorFile
+    self.outputMirrorFile = outputMirrorFile
     self.receiveHandler = nil
     #if os(Linux) || os(Android)
     // We receive a `SIGPIPE` if we write to a pipe that points to a crashed process. This in particular happens if the
@@ -163,10 +185,14 @@ public final class JSONRPCConnection: Connection {
     )
 
     ioGroup.notify(queue: queue) { [weak self] in
-      guard let self = self else { return }
+      guard let self else { return }
+      for outstandingRequest in self.outstandingRequests.values {
+        outstandingRequest.replyHandler(LSPResult.failure(ResponseError.internalError("JSON-RPC Connection closed")))
+      }
+      self.outstandingRequests = [:]
+      self.receiveHandler = nil  // break retain cycle
       Task {
         await self.closeHandler?()
-        self.receiveHandler = nil  // break retain cycle
       }
     }
 
@@ -178,8 +204,75 @@ public final class JSONRPCConnection: Connection {
     sendIO.setLimit(highWater: Int.max)
   }
 
+  /// Creates and starts a `JSONRPCConnection` that connects to a subprocess launched with the specified arguments.
+  ///
+  /// `client` is the message handler that handles the messages sent from the subprocess to SourceKit-LSP.
+  public static func start(
+    executable: URL,
+    arguments: [String],
+    name: StaticString,
+    protocol messageRegistry: MessageRegistry,
+    stderrLoggingCategory: String,
+    client: MessageHandler,
+    terminationHandler: @Sendable @escaping (_ terminationStatus: Int32) -> Void
+  ) throws -> (connection: JSONRPCConnection, process: Process) {
+    let clientToServer = Pipe()
+    let serverToClient = Pipe()
+
+    let connection = JSONRPCConnection(
+      name: "\(name)",
+      protocol: messageRegistry,
+      inFD: serverToClient.fileHandleForReading,
+      outFD: clientToServer.fileHandleForWriting
+    )
+
+    connection.start(receiveHandler: client) {
+      // Keep the pipes alive until we close the connection.
+      withExtendedLifetime((clientToServer, serverToClient)) {}
+    }
+    let process = Foundation.Process()
+    logger.log(
+      "Launching JSON-RPC connection to \(executable.description) with options [\(arguments.joined(separator: " "))]"
+    )
+    process.executableURL = executable
+    process.arguments = arguments
+    process.standardOutput = serverToClient
+    process.standardInput = clientToServer
+    let logForwarder = PipeAsStringHandler {
+      Logger(subsystem: LoggingScope.subsystem, category: stderrLoggingCategory).info("\($0)")
+    }
+    let stderrHandler = Pipe()
+    stderrHandler.fileHandleForReading.readabilityHandler = { fileHandle in
+      let newData = fileHandle.availableData
+      if newData.count == 0 {
+        stderrHandler.fileHandleForReading.readabilityHandler = nil
+      } else {
+        logForwarder.handleDataFromPipe(newData)
+      }
+    }
+    process.standardError = stderrHandler
+    process.terminationHandler = { process in
+      logger.log(
+        level: process.terminationReason == .exit ? .default : .error,
+        "\(name) exited: \(String(reflecting: process.terminationReason)) \(process.terminationStatus)"
+      )
+      connection.close()
+      terminationHandler(process.terminationStatus)
+    }
+    try process.run()
+
+    return (connection, process)
+  }
+
   deinit {
     assert(state == .closed)
+  }
+
+  /// Change the handler that handles messages from the JSON-RPC connection to a new handler.
+  public func changeReceiveHandler(_ receiveHandler: MessageHandler) {
+    queue.sync {
+      self.receiveHandler = receiveHandler
+    }
   }
 
   /// Start processing `inFD` and send messages to `receiveHandler`.
@@ -187,7 +280,10 @@ public final class JSONRPCConnection: Connection {
   /// - parameter receiveHandler: The message handler to invoke for requests received on the `inFD`.
   ///
   /// - Important: `start` must be called before sending any data over the `JSONRPCConnection`.
-  public func start(receiveHandler: MessageHandler, closeHandler: @escaping @Sendable () async -> Void = {}) {
+  public func start(
+    receiveHandler: MessageHandler,
+    closeHandler: @escaping @Sendable () async -> Void = {}
+  ) {
     queue.sync {
       precondition(state == .created)
       state = .running
@@ -212,6 +308,10 @@ public final class JSONRPCConnection: Connection {
 
         guard let data = data, !data.isEmpty else {
           return
+        }
+
+        orLog("Writing input mirror file") {
+          try self.inputMirrorFile?.write(contentsOf: data)
         }
 
         // Parse and handle any messages in `buffer + data`, leaving any remaining unparsed bytes in `buffer`.
@@ -445,6 +545,9 @@ public final class JSONRPCConnection: Connection {
     dispatchPrecondition(condition: .onQueue(queue))
     guard readyToSend() else { return }
 
+    orLog("Writing output mirror file") {
+      try outputMirrorFile?.write(contentsOf: dispatchData)
+    }
     sendIO.write(offset: 0, data: dispatchData, queue: sendQueue) { [weak self] done, _, errorCode in
       if errorCode != 0 {
         logger.fault("IO error sending message \(errorCode)")

@@ -11,30 +11,19 @@
 //===----------------------------------------------------------------------===//
 
 import BuildSystemIntegration
+import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
 import SKLogging
 import SKOptions
-import SKSupport
 import SwiftExtensions
 import SwiftSyntax
+import TSCExtensions
 import ToolchainRegistry
-
-import struct TSCBasic.AbsolutePath
-
-#if canImport(Darwin)
-import Foundation
-#else
-// FIMXE: (async-workaround) @preconcurrency needed because Pipe is not marked as Sendable on Linux
-@preconcurrency import Foundation
-#endif
 
 #if os(Windows)
 import WinSDK
-#endif
-
-#if !canImport(Darwin)
-extension Process: @unchecked Sendable {}
 #endif
 
 /// A thin wrapper over a connection to a clangd server providing build setting handling.
@@ -68,10 +57,10 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   var capabilities: ServerCapabilities? = nil
 
   /// Path to the clang binary.
-  let clangPath: AbsolutePath?
+  let clangPath: URL?
 
   /// Path to the `clangd` binary.
-  let clangdPath: AbsolutePath
+  let clangdPath: URL
 
   let clangdOptions: [String]
 
@@ -139,19 +128,20 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     try startClangdProcess()
   }
 
-  private func buildSettings(for document: DocumentURI) async -> ClangBuildSettings? {
+  private func buildSettings(for document: DocumentURI, fallbackAfterTimeout: Bool) async -> ClangBuildSettings? {
     guard let workspace = workspace.value, let language = openDocuments[document] else {
       return nil
     }
     guard
       let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
         for: document,
-        language: language
+        language: language,
+        fallbackAfterTimeout: fallbackAfterTimeout
       )
     else {
       return nil
     }
-    return ClangBuildSettings(settings, clangPath: clangdPath)
+    return ClangBuildSettings(settings, clangPath: clangPath)
   }
 
   nonisolated func canHandle(workspace: Workspace) -> Bool {
@@ -185,59 +175,27 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     // Since we are starting a new clangd process, reset the list of open document
     openDocuments = [:]
 
-    let usToClangd: Pipe = Pipe()
-    let clangdToUs: Pipe = Pipe()
-
-    let connectionToClangd = JSONRPCConnection(
-      name: "clangd",
-      protocol: MessageRegistry.lspProtocol,
-      inFD: clangdToUs.fileHandleForReading,
-      outFD: usToClangd.fileHandleForWriting
-    )
-    self.clangd = connectionToClangd
-
-    connectionToClangd.start(receiveHandler: self) {
-      // FIXME: keep the pipes alive until we close the connection. This
-      // should be fixed systemically.
-      withExtendedLifetime((usToClangd, clangdToUs)) {}
-    }
-
-    let process = Foundation.Process()
-    process.executableURL = clangdPath.asURL
-    process.arguments =
-      [
+    let (connectionToClangd, process) = try JSONRPCConnection.start(
+      executable: clangdPath,
+      arguments: [
         "-compile_args_from=lsp",  // Provide compiler args programmatically.
         "-background-index=false",  // Disable clangd indexing, we use the build
         "-index=false",  // system index store instead.
-      ] + clangdOptions
+      ] + clangdOptions,
+      name: "clangd",
+      protocol: MessageRegistry.lspProtocol,
+      stderrLoggingCategory: "clangd-stderr",
+      client: self,
+      terminationHandler: { [weak self] terminationStatus in
+        guard let self = self else { return }
+        Task {
+          await self.handleClangdTermination(terminationStatus: terminationStatus)
+        }
 
-    process.standardOutput = clangdToUs
-    process.standardInput = usToClangd
-    let logForwarder = PipeAsStringHandler {
-      Logger(subsystem: LoggingScope.subsystem, category: "clangd-stderr").info("\($0)")
-    }
-    let stderrHandler = Pipe()
-    stderrHandler.fileHandleForReading.readabilityHandler = { fileHandle in
-      let newData = fileHandle.availableData
-      if newData.count == 0 {
-        stderrHandler.fileHandleForReading.readabilityHandler = nil
-      } else {
-        logForwarder.handleDataFromPipe(newData)
       }
-    }
-    process.standardError = stderrHandler
-    process.terminationHandler = { [weak self] process in
-      logger.log(
-        level: process.terminationReason == .exit ? .default : .error,
-        "clangd exited: \(String(reflecting: process.terminationReason)) \(process.terminationStatus)"
-      )
-      connectionToClangd.close()
-      guard let self = self else { return }
-      Task {
-        await self.handleClangdTermination(terminationStatus: process.terminationStatus)
-      }
-    }
-    try process.run()
+    )
+    self.clangd = connectionToClangd
+
     #if os(Windows)
     self.hClangd = process.processHandle
     #else
@@ -258,21 +216,21 @@ actor ClangLanguageService: LanguageService, MessageHandler {
       return
     }
 
-    let restartDelay: Int
+    let restartDelay: Duration
     if let lastClangdRestart = self.lastClangdRestart, Date().timeIntervalSince(lastClangdRestart) < 30 {
       logger.log("clangd has already been restarted in the last 30 seconds. Delaying another restart by 10 seconds.")
-      restartDelay = 10
+      restartDelay = .seconds(10)
     } else {
-      restartDelay = 0
+      restartDelay = .zero
     }
     self.lastClangdRestart = Date()
 
     Task {
-      try await Task.sleep(nanoseconds: UInt64(restartDelay) * 1_000_000_000)
+      try await Task.sleep(for: restartDelay)
       self.clangRestartScheduled = false
       do {
         try self.startClangdProcess()
-        // FIXME: We assume that clangd will return the same capabilities after restarting.
+        // We assume that clangd will return the same capabilities after restarting.
         // Theoretically they could have changed and we would need to inform SourceKitLSPServer about them.
         // But since SourceKitLSPServer more or less ignores them right now anyway, this should be fine for now.
         _ = try await self.initialize(initializeRequest)
@@ -363,14 +321,12 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     // Since `clangd` doesn't have a method to crash it, kill it.
     #if os(Windows)
     if self.hClangd != INVALID_HANDLE_VALUE {
-      // FIXME(compnerd) this is a bad idea - we can potentially deadlock the
-      // process if a kobject is a pending state.  Unfortunately, the
-      // `OpenProcess(PROCESS_TERMINATE, ...)`, `CreateRemoteThread`,
-      // `ExitProcess` dance, while safer, can also indefinitely hang as
-      // `CreateRemoteThread` may not be serviced depending on the state of
-      // the process.  This just attempts to terminate the process, risking a
-      // deadlock and resource leaks.
-      _ = TerminateProcess(self.hClangd, 0)
+      // We can potentially deadlock the process if a kobject is a pending state.
+      // Unfortunately, the `OpenProcess(PROCESS_TERMINATE, ...)`, `CreateRemoteThread`, `ExitProcess` dance, while
+      // safer, can also indefinitely hang as `CreateRemoteThread` may not be serviced depending on the state of
+      // the process. This just attempts to terminate the process, risking a deadlock and resource leaks, which is fine
+      // since we only use `crash` from tests.
+      _ = TerminateProcess(self.hClangd, 255)
     }
     #else
     if let pid = self.clangdPid {
@@ -384,7 +340,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
 
 extension ClangLanguageService {
 
-  /// Intercept clangd's `PublishDiagnosticsNotification` to withold it if we're using fallback
+  /// Intercept clangd's `PublishDiagnosticsNotification` to withhold it if we're using fallback
   /// build settings.
   func publishDiagnostics(_ notification: PublishDiagnosticsNotification) async {
     // Technically, the publish diagnostics notification could still originate
@@ -398,7 +354,9 @@ extension ClangLanguageService {
     // short and we expect clangd to send us new diagnostics with the updated
     // non-fallback settings very shortly after, which will override the
     // incorrect result, making it very temporary.
-    let buildSettings = await self.buildSettings(for: notification.uri)
+    // TODO: We want to know the build settings that are currently transmitted to clangd, not whichever ones we would
+    // get next. (https://github.com/swiftlang/sourcekit-lsp/issues/1761)
+    let buildSettings = await self.buildSettings(for: notification.uri, fallbackAfterTimeout: true)
     guard let sourceKitLSPServer else {
       logger.fault("Cannot publish diagnostics because SourceKitLSPServer has been destroyed")
       return
@@ -493,37 +451,34 @@ extension ClangLanguageService {
 
   package func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
     guard let url = uri.fileURL else {
-      // FIXME: The clang workspace can probably be reworked to support non-file URIs.
       logger.error("Received updated build settings for non-file URI '\(uri.forLogging)'. Ignoring the update.")
       return
     }
-    let clangBuildSettings = await self.buildSettings(for: uri)
+    let clangBuildSettings = await self.buildSettings(for: uri, fallbackAfterTimeout: false)
 
     // The compile command changed, send over the new one.
-    // FIXME: what should we do if we no longer have valid build settings?
-    if let compileCommand = clangBuildSettings?.compileCommand,
-      let pathString = (try? AbsolutePath(validating: url.path))?.pathString
-    {
+    if let compileCommand = clangBuildSettings?.compileCommand, let pathString = try? url.filePath {
       let notification = DidChangeConfigurationNotification(
-        settings: .clangd(
-          ClangWorkspaceSettings(
-            compilationDatabaseChanges: [pathString: compileCommand])
-        )
+        settings: .clangd(ClangWorkspaceSettings(compilationDatabaseChanges: [pathString: compileCommand]))
       )
       clangd.send(notification)
+    } else {
+      logger.error("No longer have build settings for \(url.description) but can't send null build settings to clangd")
     }
   }
 
-  package func documentDependenciesUpdated(_ uri: DocumentURI) {
-    // In order to tell clangd to reload an AST, we send it an empty `didChangeTextDocument`
-    // with `forceRebuild` set in case any missing header files have been added.
-    // This works well for us as the moment since clangd ignores the document version.
-    let notification = DidChangeTextDocumentNotification(
-      textDocument: VersionedTextDocumentIdentifier(uri, version: 0),
-      contentChanges: [],
-      forceRebuild: true
-    )
-    clangd.send(notification)
+  package func documentDependenciesUpdated(_ uris: Set<DocumentURI>) {
+    for uri in uris {
+      // In order to tell clangd to reload an AST, we send it an empty `didChangeTextDocument`
+      // with `forceRebuild` set in case any missing header files have been added.
+      // This works well for us as the moment since clangd ignores the document version.
+      let notification = DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 0),
+        contentChanges: [],
+        forceRebuild: true
+      )
+      clangd.send(notification)
+    }
   }
 
   // MARK: - Text Document
@@ -622,6 +577,14 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
+  func documentRangeFormatting(_ req: DocumentRangeFormattingRequest) async throws -> [TextEdit]? {
+    return try await forwardRequestToClangd(req)
+  }
+
+  func documentOnTypeFormatting(_ req: DocumentOnTypeFormattingRequest) async throws -> [TextEdit]? {
+    return try await forwardRequestToClangd(req)
+  }
+
   func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
     return try await forwardRequestToClangd(req)
   }
@@ -681,8 +644,8 @@ private struct ClangBuildSettings: Equatable {
   /// fallback arguments and represent the file state differently.
   package let isFallback: Bool
 
-  package init(_ settings: FileBuildSettings, clangPath: AbsolutePath?) {
-    var arguments = [clangPath?.pathString ?? "clang"] + settings.compilerArguments
+  package init(_ settings: FileBuildSettings, clangPath: URL?) {
+    var arguments = [(try? clangPath?.filePath) ?? "clang"] + settings.compilerArguments
     if arguments.contains("-fmodules") {
       // Clangd is not built with support for the 'obj' format.
       arguments.append(contentsOf: [
@@ -690,9 +653,9 @@ private struct ClangBuildSettings: Equatable {
       ])
     }
     if let workingDirectory = settings.workingDirectory {
-      // FIXME: this is a workaround for clangd not respecting the compilation
+      // TODO: This is a workaround for clangd not respecting the compilation
       // database's "directory" field for relative -fmodules-cache-path.
-      // rdar://63984913
+      // Remove once rdar://63984913 is fixed
       arguments.append(contentsOf: [
         "-working-directory", workingDirectory,
       ])

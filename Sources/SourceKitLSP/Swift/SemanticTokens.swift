@@ -10,23 +10,35 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import LanguageServerProtocol
+import SKLogging
+import SourceKitD
+import SwiftIDEUtils
+import SwiftParser
+import SwiftSyntax
+#else
 import LanguageServerProtocol
 import SKLogging
 import SourceKitD
 import SwiftIDEUtils
 import SwiftParser
 import SwiftSyntax
+#endif
 
 extension SwiftLanguageService {
   /// Requests the semantic highlighting tokens for the given snapshot from sourcekitd.
   private func semanticHighlightingTokens(for snapshot: DocumentSnapshot) async throws -> SyntaxHighlightingTokens? {
-    guard let buildSettings = await self.buildSettings(for: snapshot.uri), !buildSettings.isFallback else {
+    guard let buildSettings = await self.buildSettings(for: snapshot.uri, fallbackAfterTimeout: false),
+      !buildSettings.isFallback
+    else {
       return nil
     }
 
     let skreq = sourcekitd.dictionary([
       keys.request: requests.semanticTokens,
-      keys.sourceFile: snapshot.uri.pseudoPath,
+      keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
+      keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
       keys.compilerArgs: buildSettings.compilerArgs as [SKDRequestValue],
     ])
 
@@ -35,6 +47,8 @@ extension SwiftLanguageService {
     guard let skTokens: SKDResponseArray = dict[keys.semanticTokens] else {
       return nil
     }
+
+    try Task.checkCancellation()
 
     return SyntaxHighlightingTokenParser(sourcekitd: sourcekitd).parseTokens(skTokens, in: snapshot)
   }
@@ -51,6 +65,8 @@ extension SwiftLanguageService {
     for snapshot: DocumentSnapshot,
     in range: Range<Position>? = nil
   ) async throws -> SyntaxHighlightingTokens {
+    try Task.checkCancellation()
+
     async let tree = syntaxTreeManager.syntaxTree(for: snapshot)
     let semanticTokens = await orLog("Loading semantic tokens") { try await semanticHighlightingTokens(for: snapshot) }
 
@@ -61,11 +77,15 @@ extension SwiftLanguageService {
         await tree.range
       }
 
+    try Task.checkCancellation()
+
     let tokens =
       await tree
       .classifications(in: range)
       .map { $0.highlightingTokens(in: snapshot) }
       .reduce(into: SyntaxHighlightingTokens(tokens: [])) { $0.tokens += $1.tokens }
+
+    try Task.checkCancellation()
 
     return
       tokens
@@ -76,7 +96,7 @@ extension SwiftLanguageService {
   package func documentSemanticTokens(
     _ req: DocumentSemanticTokensRequest
   ) async throws -> DocumentSemanticTokensResponse? {
-    let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
+    let snapshot = try await self.latestSnapshot(for: req.textDocument.uri)
 
     let tokens = try await mergedAndSortedTokens(for: snapshot)
     let encodedTokens = tokens.lspEncoded

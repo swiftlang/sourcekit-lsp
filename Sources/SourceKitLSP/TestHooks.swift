@@ -10,30 +10,48 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import BuildSystemIntegration
+import Foundation
+package import LanguageServerProtocol
+import LanguageServerProtocolExtensions
+package import SemanticIndex
+
+import struct TSCBasic.AbsolutePath
+import struct TSCBasic.RelativePath
+#else
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
-import SKSupport
+import LanguageServerProtocolExtensions
 import SemanticIndex
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
+#endif
 
 /// Closures can be used to inspect or modify internal behavior in SourceKit-LSP.
 public struct TestHooks: Sendable {
   package var indexTestHooks: IndexTestHooks
 
-  package var swiftpmTestHooks: SwiftPMTestHooks
+  package var buildSystemTestHooks: BuildSystemTestHooks
+
+  /// A hook that will be executed before a request is handled.
+  ///
+  /// This allows requests to be artificially delayed.
+  package var handleRequest: (@Sendable (any RequestType) async -> Void)?
 
   public init() {
-    self.init(indexTestHooks: IndexTestHooks(), swiftpmTestHooks: SwiftPMTestHooks())
+    self.init(indexTestHooks: IndexTestHooks(), buildSystemTestHooks: BuildSystemTestHooks(), handleRequest: nil)
   }
 
   package init(
     indexTestHooks: IndexTestHooks = IndexTestHooks(),
-    swiftpmTestHooks: SwiftPMTestHooks = SwiftPMTestHooks()
+    buildSystemTestHooks: BuildSystemTestHooks = BuildSystemTestHooks(),
+    handleRequest: (@Sendable (any RequestType) async -> Void)? = nil
   ) {
     self.indexTestHooks = indexTestHooks
-    self.swiftpmTestHooks = swiftpmTestHooks
+    self.buildSystemTestHooks = buildSystemTestHooks
+    self.handleRequest = handleRequest
   }
 }

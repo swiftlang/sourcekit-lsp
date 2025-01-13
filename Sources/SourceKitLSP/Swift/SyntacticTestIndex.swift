@@ -12,8 +12,8 @@
 
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
 import SwiftExtensions
 
 /// Task metadata for `SyntacticTestIndexer.indexingQueue`
@@ -37,7 +37,6 @@ fileprivate enum TaskMetadata: DependencyTracker, Equatable {
     case (.index(_), .read):
       // We require all index tasks scheduled before the read to be finished.
       // This ensures that the index has been updated at least to the state of file at which the read was scheduled.
-      // Adding the dependency also elevates the index task's priorities.
       return true
     case (.index(let lhsUris), .index(let rhsUris)):
       // Technically, we should be able to allow simultaneous indexing of the same file. But conceptually the code
@@ -46,6 +45,10 @@ fileprivate enum TaskMetadata: DependencyTracker, Equatable {
       // file will realize that the index is already up-to-date based on the file's mtime and early exit.
       return !lhsUris.intersection(rhsUris).isEmpty
     }
+  }
+
+  package func dependencies(in pendingTasks: [PendingTask<Self>]) -> [PendingTask<Self>] {
+    return pendingTasks.filter { $0.metadata.isDependency(of: self) }
   }
 }
 
@@ -126,6 +129,8 @@ actor SyntacticTestIndex {
   }
 
   func filesDidChange(_ events: [FileEvent]) {
+    var removedFiles: Set<DocumentURI> = []
+    var filesToRescan: [DocumentURI] = []
     for fileEvent in events {
       switch fileEvent.type {
       case .created:
@@ -133,13 +138,15 @@ actor SyntacticTestIndex {
         // `listOfTestFilesDidChange`
         break
       case .changed:
-        rescanFiles([fileEvent.uri])
+        filesToRescan.append(fileEvent.uri)
       case .deleted:
-        removeFilesFromIndex([fileEvent.uri])
+        removedFiles.insert(fileEvent.uri)
       default:
         logger.error("Ignoring unknown FileEvent type \(fileEvent.type.rawValue) in SyntacticTestIndex")
       }
     }
+    removeFilesFromIndex(removedFiles)
+    rescanFiles(filesToRescan)
   }
 
   /// Called when a list of files was updated. Re-scans those files
@@ -179,13 +186,13 @@ actor SyntacticTestIndex {
     guard !removedFiles.contains(uri) else {
       return
     }
-    guard FileManager.default.fileExists(atPath: url.path) else {
+    guard FileManager.default.fileExists(at: url) else {
       // File no longer exists. Probably deleted since we scheduled it for indexing. Nothing to worry about.
       logger.info("Not indexing \(uri.forLogging) for tests because it does not exist")
       return
     }
     guard
-      let fileModificationDate = try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate]
+      let fileModificationDate = try? FileManager.default.attributesOfItem(atPath: url.filePath)[.modificationDate]
         as? Date
     else {
       logger.fault("Not indexing \(uri.forLogging) for tests because the modification date could not be determined")

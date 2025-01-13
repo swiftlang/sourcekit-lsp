@@ -53,6 +53,26 @@ private struct WrapFragment<T>: Equatable, Codable where T: Equatable & Codable 
   var value: T
 }
 
+/// Checks that encoding the given string is equal to the expected value.
+///
+/// - parameter value: The value to encode/decode.
+/// - parameter json: The expected json encoding.
+package func checkEncoding<T: Encodable & Equatable>(
+  _ value: T,
+  json: String,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) {
+  let encoder = JSONEncoder()
+  encoder.outputFormatting.insert(.prettyPrinted)
+  encoder.outputFormatting.insert(.sortedKeys)
+  let data = try! encoder.encode(value)
+  let str = String(data: data, encoding: .utf8)!
+    // Remove trailing whitespace to normalize between corelibs and Apple Foundation.
+    .trimmingTrailingWhitespace()
+  XCTAssertEqual(json, str, file: file, line: line)
+}
+
 /// Checks that decoding the given string is equal to the expected value.
 ///
 /// - parameter value: The value to encode/decode.
@@ -72,14 +92,14 @@ package func checkDecoding<T: Codable & Equatable>(
   XCTAssertEqual(value, decodedValue, file: file, line: line)
 }
 
-package func checkCoding<T>(
+package func checkCoding<T: Codable>(
   _ value: T,
   json: String,
   userInfo: [CodingUserInfoKey: Any] = [:],
   file: StaticString = #filePath,
   line: UInt = #line,
   body: (T) -> Void
-) where T: Codable {
+) {
   let encoder = JSONEncoder()
   encoder.outputFormatting.insert(.prettyPrinted)
   encoder.outputFormatting.insert(.sortedKeys)

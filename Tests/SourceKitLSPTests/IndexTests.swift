@@ -12,6 +12,7 @@
 
 import LanguageServerProtocol
 import SKTestSupport
+import SwiftExtensions
 import XCTest
 
 final class IndexTests: XCTestCase {
@@ -63,10 +64,7 @@ final class IndexTests: XCTestCase {
         position: libCPositions["3️⃣"]
       )
     )
-    guard case .locations(let jump) = response else {
-      XCTFail("Response is not locations")
-      return
-    }
+    let jump = try XCTUnwrap(response?.locations)
 
     XCTAssertEqual(jump.count, 1)
     XCTAssertEqual(jump.first?.uri, libAUri)
@@ -102,7 +100,6 @@ final class IndexTests: XCTestCase {
   }
 
   func testIndexShutdown() async throws {
-
     func listdir(_ url: URL) throws -> [URL] {
       try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
     }
@@ -126,25 +123,25 @@ final class IndexTests: XCTestCase {
           position: project.positions["2️⃣"]
         )
       )
-      guard case .locations(let jump) = response else {
-        XCTFail("Response is not locations")
-        return nil
-      }
+      let jump = try XCTUnwrap(response?.locations)
       XCTAssertEqual(jump.count, 1)
       XCTAssertEqual(jump.first?.uri, project.fileURI)
       XCTAssertEqual(jump.first?.range.lowerBound, project.positions["1️⃣"])
 
       let tmpContents = try listdir(project.indexDBURL)
-      guard let versionedPath = tmpContents.filter({ $0.lastPathComponent.starts(with: "v") }).spm_only else {
+      guard let versionedPath = tmpContents.filter({ $0.lastPathComponent.starts(with: "v") }).only else {
         XCTFail("expected one version path 'v[0-9]*', found \(tmpContents)")
         return nil
       }
 
       let versionContentsBefore = try listdir(versionedPath)
-      XCTAssertEqual(versionContentsBefore.count, 1)
-      XCTAssert(versionContentsBefore.first?.lastPathComponent.starts(with: "p") ?? false)
+      XCTAssertEqual(versionContentsBefore.count, 1, "Received multiple versions: \(versionContentsBefore)")
+      XCTAssert(
+        versionContentsBefore.first?.lastPathComponent.starts(with: "p") ?? false,
+        "Received unexpected version: \(versionContentsBefore.first?.lastPathComponent ?? "<nil>")"
+      )
 
-      try await project.testClient.send(ShutdownRequest())
+      _ = try await project.testClient.send(ShutdownRequest())
       return versionedPath
     }
 

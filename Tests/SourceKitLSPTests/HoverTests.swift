@@ -32,7 +32,8 @@ final class HoverTests: XCTestCase {
         This is a doc comment for S.
 
         Details.
-        """
+        """,
+      expectedRange: Position(line: 3, utf16index: 7)..<Position(line: 3, utf16index: 9)
     )
   }
 
@@ -81,7 +82,9 @@ final class HoverTests: XCTestCase {
         init()
         ```
 
-        """
+        """,
+      expectedRange:
+        .init(line: 3, utf16index: 4) ..< .init(line: 3, utf16index: 7)
     )
   }
 
@@ -113,7 +116,8 @@ final class HoverTests: XCTestCase {
         ```
 
         The initializer
-        """
+        """,
+      expectedRange: Position(line: 5, utf16index: 4)..<Position(line: 5, utf16index: 7)
     )
   }
 
@@ -130,7 +134,8 @@ final class HoverTests: XCTestCase {
         ```
 
         this is **bold** documentation
-        """##
+        """##,
+      expectedRange: Position(line: 1, utf16index: 5)..<Position(line: 1, utf16index: 9)
     )
   }
 
@@ -147,7 +152,8 @@ final class HoverTests: XCTestCase {
         ```
 
         this is *italic* documentation
-        """##
+        """##,
+      expectedRange: Position(line: 1, utf16index: 5)..<Position(line: 1, utf16index: 8)
     )
   }
 
@@ -168,7 +174,8 @@ final class HoverTests: XCTestCase {
         Eat an apple
 
         - Precondition: Must have an apple
-        """
+        """,
+      expectedRange: Position(line: 3, utf16index: 5)..<Position(line: 3, utf16index: 13)
     )
   }
 }
@@ -176,6 +183,7 @@ final class HoverTests: XCTestCase {
 private func assertHover(
   _ markedSource: String,
   expectedContent: String,
+  expectedRange: Range<Position>,
   file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
@@ -189,12 +197,11 @@ private func assertHover(
   )
 
   let hover = try XCTUnwrap(response, file: file, line: line)
-  XCTAssertNil(hover.range, file: file, line: line)
-  guard case .markupContent(let content) = hover.contents else {
+  XCTAssertEqual(hover.range, expectedRange, file: file, line: line)
+  guard case let .markupContent(content) = hover.contents else {
     XCTFail("hover.contents is not .markupContents", file: file, line: line)
     return
   }
   XCTAssertEqual(content.kind, .markdown, file: file, line: line)
   XCTAssertEqual(content.value, expectedContent, file: file, line: line)
-
 }

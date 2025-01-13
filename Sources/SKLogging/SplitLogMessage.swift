@@ -17,7 +17,8 @@
 ///
 ///  - Note: This will only split along newline boundary. If a single line is longer than `maxChunkSize`, it won't be
 ///    split. This is fine for compiler argument splitting since a single argument is rarely longer than 800 characters.
-package func splitLongMultilineMessage(message: String, maxChunkSize: Int = 800) -> [String] {
+package func splitLongMultilineMessage(message: String) -> [String] {
+  let maxChunkSize = 800
   var chunks: [String] = []
   for line in message.split(separator: "\n", omittingEmptySubsequences: false) {
     if let lastChunk = chunks.last, lastChunk.utf8.count + line.utf8.count < maxChunkSize {
@@ -33,4 +34,35 @@ package func splitLongMultilineMessage(message: String, maxChunkSize: Int = 800)
     }
   }
   return chunks
+}
+
+extension Logger {
+  /// Implementation detail of `logFullObjectInMultipleLogMessages`
+  private struct LoggableChunk: CustomLogStringConvertible {
+    var description: String
+    var redactedDescription: String
+  }
+
+  package func logFullObjectInMultipleLogMessages(
+    level: LogLevel = .default,
+    header: StaticString,
+    _ subject: some CustomLogStringConvertible
+  ) {
+    let chunks = splitLongMultilineMessage(message: subject.description)
+    let redactedChunks = splitLongMultilineMessage(message: subject.redactedDescription)
+    let maxChunkCount = max(chunks.count, redactedChunks.count)
+    for i in 0..<maxChunkCount {
+      let loggableChunk = LoggableChunk(
+        description: i < chunks.count ? chunks[i] : "",
+        redactedDescription: i < redactedChunks.count ? redactedChunks[i] : ""
+      )
+      self.log(
+        level: level,
+        """
+        \(header, privacy: .public) (\(i + 1)/\(maxChunkCount))
+        \(loggableChunk.forLogging)
+        """
+      )
+    }
+  }
 }

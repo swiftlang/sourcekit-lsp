@@ -10,18 +10,24 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
 import InProcessClient
-import LanguageServerProtocol
-import LanguageServerProtocolJSONRPC
-import SKSupport
+public import LanguageServerProtocol
+package import LanguageServerProtocolJSONRPC
+package import LanguageServerProtocolExtensions
 import SwiftExtensions
 import XCTest
 
-#if canImport(Darwin)
-import class Foundation.Pipe
+package import class Foundation.Pipe
 #else
-// FIMXE: (async-workaround) @preconcurrency needed because Pipe is not marked as Sendable on Linux rdar://132378792
-@preconcurrency import class Foundation.Pipe
+import InProcessClient
+import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
+import LanguageServerProtocolExtensions
+import SwiftExtensions
+import XCTest
+
+import class Foundation.Pipe
 #endif
 
 package final class TestJSONRPCConnection: Sendable {
@@ -64,13 +70,11 @@ package final class TestJSONRPCConnection: Sendable {
     server = TestServer(client: serverToClientConnection)
 
     clientToServerConnection.start(receiveHandler: client) {
-      // FIXME: keep the pipes alive until we close the connection. This
-      // should be fixed systemically.
+      // Keep the pipes alive until we close the connection.
       withExtendedLifetime(self) {}
     }
     serverToClientConnection.start(receiveHandler: server) {
-      // FIXME: keep the pipes alive until we close the connection. This
-      // should be fixed systemically.
+      // Keep the pipes alive until we close the connection.
       withExtendedLifetime(self) {}
     }
   }
@@ -83,9 +87,9 @@ package final class TestJSONRPCConnection: Sendable {
 
 package struct TestLocalConnection {
   package let client: TestClient
-  package let clientConnection: LocalConnection = LocalConnection(name: "Test")
+  package let clientConnection: LocalConnection = LocalConnection(receiverName: "Test")
   package let server: TestServer
-  package let serverConnection: LocalConnection = LocalConnection(name: "Test")
+  package let serverConnection: LocalConnection = LocalConnection(receiverName: "Test")
 
   package init(allowUnexpectedNotification: Bool = true) {
     client = TestClient(connectionToServer: serverConnection, allowUnexpectedNotification: allowUnexpectedNotification)
@@ -207,7 +211,7 @@ private let testMessageRegistry = MessageRegistry(
   notifications: [EchoNotification.self, ShowMessageNotification.self]
 )
 
-extension String: ResponseType {}
+extension String: LanguageServerProtocol.ResponseType {}
 
 package struct EchoRequest: RequestType {
   package static let method: String = "test_server/echo"

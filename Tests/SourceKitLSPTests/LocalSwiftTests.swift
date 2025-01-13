@@ -1426,17 +1426,37 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testSourceKitdTimeout() async throws {
-    var options = SourceKitLSPOptions.testDefault()
-    options.sourcekitdRequestTimeout = 1 /* second */
+    try SkipUnless.longTestsEnabled()
 
+    var options = SourceKitLSPOptions.testDefault()
+    // This is how long we wait until implicitly cancelling the first diagnostics request.
+    // It needs to be long enough so we can compute diagnostics for the second requests.
+    // 1s is not sufficient on Windows for that.
+    options.sourcekitdRequestTimeout = 3 /* seconds */
     let testClient = try await TestSourceKitLSPClient(options: options)
     let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
+      struct A: ExpressibleByIntegerLiteral { init(integerLiteral value: Int) {} }
+      struct B: ExpressibleByIntegerLiteral { init(integerLiteral value: Int) {} }
+      struct C: ExpressibleByIntegerLiteral { init(integerLiteral value: Int) {} }
+
+      func + (lhs: A, rhs: B) -> A { fatalError() }
+      func + (lhs: B, rhs: C) -> A { fatalError() }
+      func + (lhs: C, rhs: A) -> A { fatalError() }
+
+      func + (lhs: B, rhs: A) -> B { fatalError() }
+      func + (lhs: C, rhs: B) -> B { fatalError() }
+      func + (lhs: A, rhs: C) -> B { fatalError() }
+
+      func + (lhs: C, rhs: B) -> C { fatalError() }
+      func + (lhs: B, rhs: C) -> C { fatalError() }
+      func + (lhs: A, rhs: A) -> C { fatalError() }
+
       1️⃣class Foo {
         func slow(x: Invalid1, y: Invalid2) {
-          x / y / x / y / x / y / x / y.
+          let x: C = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10
         }
       }2️⃣
       """,
@@ -1447,7 +1467,7 @@ final class LocalSwiftTests: XCTestCase {
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
     /// The diagnostic request times out, which causes us to return empty diagnostics.
-    XCTAssertEqual(responseBeforeEdit, .full(RelatedFullDocumentDiagnosticReport(items: [])))
+    XCTAssertEqual(responseBeforeEdit.fullReport?.items, [])
 
     // Now check that sourcekitd is not blocked.
     // Replacing the file and sending another diagnostic request should return proper diagnostics.
@@ -1462,12 +1482,8 @@ final class LocalSwiftTests: XCTestCase {
     let responseAfterEdit = try await testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
-    guard case .full(let responseAfterEdit) = responseAfterEdit else {
-      XCTFail("Expected full diagnostics")
-      return
-    }
     XCTAssertEqual(
-      responseAfterEdit.items.map(\.message),
+      responseAfterEdit.fullReport?.items.map(\.message),
       ["Cannot convert value of type 'Int' to specified type 'String'"]
     )
   }

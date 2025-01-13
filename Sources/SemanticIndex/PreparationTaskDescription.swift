@@ -10,14 +10,29 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import BuildServerProtocol
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
+import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
+#else
+import BuildServerProtocol
+import BuildSystemIntegration
+import Foundation
+import LanguageServerProtocol
+import LanguageServerProtocolExtensions
+import SKLogging
+import SwiftExtensions
+
+import struct TSCBasic.AbsolutePath
+import class TSCBasic.Process
+#endif
 
 private let preparationIDForLogging = AtomicUInt32(initialValue: 1)
 
@@ -30,15 +45,15 @@ package struct PreparationTaskDescription: IndexTaskDescription {
   package let id = preparationIDForLogging.fetchAndIncrement()
 
   /// The targets that should be prepared.
-  package let targetsToPrepare: [ConfiguredTarget]
+  package let targetsToPrepare: [BuildTargetIdentifier]
 
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
 
-  private let preparationUpToDateTracker: UpToDateTracker<ConfiguredTarget>
+  private let preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier>
 
   /// See `SemanticIndexManager.logMessageToIndexLog`.
-  private let logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
+  private let logMessageToIndexLog: @Sendable (_ taskID: String, _ message: String) -> Void
 
   /// Test hooks that should be called when the preparation task finishes.
   private let testHooks: IndexTestHooks
@@ -57,10 +72,10 @@ package struct PreparationTaskDescription: IndexTaskDescription {
   }
 
   init(
-    targetsToPrepare: [ConfiguredTarget],
+    targetsToPrepare: [BuildTargetIdentifier],
     buildSystemManager: BuildSystemManager,
-    preparationUpToDateTracker: UpToDateTracker<ConfiguredTarget>,
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
+    preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier>,
+    logMessageToIndexLog: @escaping @Sendable (_ taskID: String, _ message: String) -> Void,
     testHooks: IndexTestHooks
   ) {
     self.targetsToPrepare = targetsToPrepare
@@ -75,20 +90,15 @@ package struct PreparationTaskDescription: IndexTaskDescription {
     // See comment in `withLoggingScope`.
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running preparation operations
     await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "preparation-\(id % 100)") {
-      let targetsToPrepare = await targetsToPrepare.asyncFilter {
-        await !preparationUpToDateTracker.isUpToDate($0)
-      }.sorted(by: {
-        ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID)
-      })
+      let targetsToPrepare = await targetsToPrepare.asyncFilter { await !preparationUpToDateTracker.isUpToDate($0) }
+        // Sort targets to get deterministic ordering. The actual order does not matter.
+        .sorted { $0.uri.stringValue < $1.uri.stringValue }
       if targetsToPrepare.isEmpty {
         return
       }
       await testHooks.preparationTaskDidStart?(self)
 
-      let targetsToPrepareDescription =
-        targetsToPrepare
-        .map { "\($0.targetID)-\($0.runDestinationID)" }
-        .joined(separator: ", ")
+      let targetsToPrepareDescription = targetsToPrepare.map(\.uri.stringValue).joined(separator: ", ")
       logger.log(
         "Starting preparation with priority \(Task.currentPriority.rawValue, privacy: .public): \(targetsToPrepareDescription)"
       )
@@ -103,10 +113,7 @@ package struct PreparationTaskDescription: IndexTaskDescription {
         signposter.endInterval("Preparing", state)
       }
       do {
-        try await buildSystemManager.prepare(
-          targets: targetsToPrepare,
-          logMessageToIndexLog: logMessageToIndexLog
-        )
+        try await buildSystemManager.prepare(targets: Set(targetsToPrepare))
       } catch {
         logger.error(
           "Preparation failed: \(error.forLogging)"

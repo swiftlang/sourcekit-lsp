@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import ISDBTestSupport
 import LanguageServerProtocol
 import SKTestSupport
 import TSCBasic
@@ -206,6 +205,48 @@ final class TypeHierarchyTests: XCTestCase {
       TypeHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
     XCTAssertNil(response)
+  }
+
+  func testNestedTypeNameInSubtypes() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      protocol 1️⃣MyProto {}
+      struct Outer {
+        struct 2️⃣Mid: MyProto {
+          struct 3️⃣Inner: MyProto {}
+        }
+      }
+      """
+    )
+    let item = try await project.prepareTypeHierarchy(at: "1️⃣")
+    let subtypes = try await project.testClient.send(TypeHierarchySubtypesRequest(item: item))
+    assertEqualIgnoringData(
+      subtypes,
+      [
+        TypeHierarchyItem(name: "Outer.Mid", kind: .struct, location: "2️⃣", in: project),
+        TypeHierarchyItem(name: "Outer.Mid.Inner", kind: .struct, location: "3️⃣", in: project),
+      ]
+    )
+  }
+
+  func testNestedTypeNameInSupertypes() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      class Outer {
+        class 1️⃣Mid {
+          class 2️⃣Inner: Mid {}
+        }
+      }
+      """
+    )
+    let item = try await project.prepareTypeHierarchy(at: "2️⃣")
+    let supertypes = try await project.testClient.send(TypeHierarchySupertypesRequest(item: item))
+    assertEqualIgnoringData(
+      supertypes,
+      [
+        TypeHierarchyItem(name: "Outer.Mid", kind: .class, location: "1️⃣", in: project)
+      ]
+    )
   }
 }
 

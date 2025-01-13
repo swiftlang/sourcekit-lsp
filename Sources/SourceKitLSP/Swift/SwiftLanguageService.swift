@@ -10,14 +10,35 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import BuildSystemIntegration
+import Csourcekitd
+import Dispatch
+import Foundation
+import IndexStoreDB
+package import LanguageServerProtocol
+import LanguageServerProtocolExtensions
+import SKLogging
+package import SKOptions
+import SKUtilities
+import SemanticIndex
+package import SourceKitD
+import SwiftExtensions
+import SwiftParser
+import SwiftParserDiagnostics
+package import SwiftSyntax
+package import ToolchainRegistry
+#else
 import BuildSystemIntegration
+import Csourcekitd
 import Dispatch
 import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
 import SKOptions
-import SKSupport
+import SKUtilities
 import SemanticIndex
 import SourceKitD
 import SwiftExtensions
@@ -25,8 +46,7 @@ import SwiftParser
 import SwiftParserDiagnostics
 import SwiftSyntax
 import ToolchainRegistry
-
-import struct TSCBasic.AbsolutePath
+#endif
 
 #if os(Windows)
 import WinSDK
@@ -96,12 +116,12 @@ package struct SwiftCompileCommand: Sendable, Equatable {
 
 package actor SwiftLanguageService: LanguageService, Sendable {
   /// The ``SourceKitLSPServer`` instance that created this `SwiftLanguageService`.
-  weak var sourceKitLSPServer: SourceKitLSPServer?
+  private(set) weak var sourceKitLSPServer: SourceKitLSPServer?
 
   let sourcekitd: SourceKitD
 
   /// Path to the swift-format executable if it exists in the toolchain.
-  let swiftFormat: AbsolutePath?
+  let swiftFormat: URL?
 
   /// Queue on which notifications from sourcekitd are handled to ensure we are
   /// handling them in-order.
@@ -115,12 +135,12 @@ package actor SwiftLanguageService: LanguageService, Sendable {
 
   /// Directory where generated Swift interfaces will be stored.
   var generatedInterfacesPath: URL {
-    options.generatedFilesAbsolutePath.asURL.appendingPathComponent("GeneratedInterfaces")
+    options.generatedFilesAbsolutePath.appendingPathComponent("GeneratedInterfaces")
   }
 
   /// Directory where generated Macro expansions  will be stored.
   var generatedMacroExpansionsPath: URL {
-    options.generatedFilesAbsolutePath.asURL.appendingPathComponent("GeneratedMacroExpansions")
+    options.generatedFilesAbsolutePath.appendingPathComponent("GeneratedMacroExpansions")
   }
 
   /// For each edited document, the last task that was triggered to send a `PublishDiagnosticsNotification`.
@@ -145,16 +165,40 @@ package actor SwiftLanguageService: LanguageService, Sendable {
 
   private var stateChangeHandlers: [(_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void] = []
 
-  private var diagnosticReportManager: DiagnosticReportManager!
+  private let diagnosticReportManager: DiagnosticReportManager
+
+  /// - Note: Implicitly unwrapped optional so we can pass a reference of `self` to `MacroExpansionManager`.
+  private(set) var macroExpansionManager: MacroExpansionManager! {
+    willSet {
+      // Must only be set once.
+      precondition(macroExpansionManager == nil)
+      precondition(newValue != nil)
+    }
+  }
+
+  /// - Note: Implicitly unwrapped optional so we can pass a reference of `self` to `MacroExpansionManager`.
+  private(set) var generatedInterfaceManager: GeneratedInterfaceManager! {
+    willSet {
+      // Must only be set once.
+      precondition(generatedInterfaceManager == nil)
+      precondition(newValue != nil)
+    }
+  }
 
   var documentManager: DocumentManager {
     get throws {
-      guard let sourceKitLSPServer = self.sourceKitLSPServer else {
+      guard let sourceKitLSPServer else {
         throw ResponseError.unknown("Connection to the editor closed")
       }
       return sourceKitLSPServer.documentManager
     }
   }
+
+  /// The build settings that were used to open the given files.
+  ///
+  ///  - Note: Not all documents open in `SwiftLanguageService` are necessarily in this dictionary because files where
+  ///    `buildSettings(for:)` returns `nil` are not included.
+  private var buildSettingsForOpenFiles: [DocumentURI: SwiftCompileCommand] = [:]
 
   /// Calling `scheduleCall` on `refreshDiagnosticsDebouncer` schedules a `DiagnosticsRefreshRequest` to be sent to
   /// to the client.
@@ -164,14 +208,6 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   /// B, we don't want to send two `DiagnosticsRefreshRequest`s. Instead, the two should be unified into a single
   /// request.
   private let refreshDiagnosticsDebouncer: Debouncer<Void>
-
-  /// Only exists to work around rdar://116221716.
-  /// Once that is fixed, remove the property and make `diagnosticReportManager` non-optional.
-  private var clientHasDiagnosticsCodeDescriptionSupport: Bool {
-    get async {
-      return await capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
-    }
-  }
 
   /// Creates a language server for the given client using the sourcekitd dylib specified in `toolchain`.
   /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the `SwiftLanguageService` asks its
@@ -192,7 +228,6 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     self.semanticIndexManager = workspace.semanticIndexManager
     self.testHooks = testHooks
     self.state = .connected
-    self.diagnosticReportManager = nil  // Needed to work around rdar://116221716
     self.options = options
 
     // The debounce duration of 500ms was chosen arbitrarily without scientific research.
@@ -210,9 +245,12 @@ package actor SwiftLanguageService: LanguageService, Sendable {
       sourcekitd: self.sourcekitd,
       options: options,
       syntaxTreeManager: syntaxTreeManager,
-      documentManager: try documentManager,
-      clientHasDiagnosticsCodeDescriptionSupport: await self.clientHasDiagnosticsCodeDescriptionSupport
+      documentManager: sourceKitLSPServer.documentManager,
+      clientHasDiagnosticsCodeDescriptionSupport: await capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
     )
+
+    self.macroExpansionManager = MacroExpansionManager(swiftLanguageService: self)
+    self.generatedInterfaceManager = GeneratedInterfaceManager(swiftLanguageService: self)
 
     // Create sub-directories for each type of generated file
     try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
@@ -224,17 +262,33 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     await self.syntaxTreeManager.setReusedNodeCallback(callback)
   }
 
-  func buildSettings(for document: DocumentURI) async -> SwiftCompileCommand? {
+  /// Returns the latest snapshot of the given URI, generating the snapshot in case the URI is a reference document.
+  func latestSnapshot(for uri: DocumentURI) async throws -> DocumentSnapshot {
+    switch try? ReferenceDocumentURL(from: uri) {
+    case .macroExpansion(let data):
+      let content = try await self.macroExpansionManager.macroExpansion(for: data)
+      return DocumentSnapshot(uri: uri, language: .swift, version: 0, lineTable: LineTable(content))
+    case .generatedInterface(let data):
+      return try await self.generatedInterfaceManager.snapshot(of: data)
+    case nil:
+      return try documentManager.latestSnapshot(uri)
+    }
+  }
+
+  func buildSettings(for document: DocumentURI, fallbackAfterTimeout: Bool) async -> SwiftCompileCommand? {
+    let buildSettingsFile = document.buildSettingsFile
+
     guard let sourceKitLSPServer else {
       logger.fault("Cannot retrieve build settings because SourceKitLSPServer is no longer alive")
       return nil
     }
-    guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: document) else {
+    guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: buildSettingsFile) else {
       return nil
     }
     if let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
-      for: document,
-      language: .swift
+      for: buildSettingsFile,
+      language: .swift,
+      fallbackAfterTimeout: fallbackAfterTimeout
     ) {
       return SwiftCompileCommand(settings)
     } else {
@@ -373,52 +427,78 @@ extension SwiftLanguageService {
   // MARK: - Build System Integration
 
   package func reopenDocument(_ notification: ReopenTextDocumentNotification) async {
-    let snapshot = orLog("Getting snapshot to re-open document") {
-      try documentManager.latestSnapshot(notification.textDocument.uri)
-    }
-    guard let snapshot else {
-      return
-    }
-    cancelInFlightPublishDiagnosticsTask(for: snapshot.uri)
-    await diagnosticReportManager.removeItemsFromCache(with: snapshot.uri)
+    switch try? ReferenceDocumentURL(from: notification.textDocument.uri) {
+    case .macroExpansion, .generatedInterface:
+      // Macro expansions and generated interfaces don't have document dependencies or build settings associated with
+      // their URI. We should thus not not receive any `ReopenDocument` notifications for them.
+      logger.fault("Unexpectedly received reopen document notification for reference document")
+    case nil:
+      let snapshot = orLog("Getting snapshot to re-open document") {
+        try documentManager.latestSnapshot(notification.textDocument.uri)
+      }
+      guard let snapshot else {
+        return
+      }
+      cancelInFlightPublishDiagnosticsTask(for: snapshot.uri)
+      await diagnosticReportManager.removeItemsFromCache(with: snapshot.uri)
 
-    let closeReq = closeDocumentSourcekitdRequest(uri: snapshot.uri)
-    _ = await orLog("Closing document to re-open it") {
-      try await self.sendSourcekitdRequest(closeReq, fileContents: nil)
-    }
+      let closeReq = closeDocumentSourcekitdRequest(uri: snapshot.uri)
+      _ = await orLog("Closing document to re-open it") {
+        try await self.sendSourcekitdRequest(closeReq, fileContents: nil)
+      }
 
-    let openReq = openDocumentSourcekitdRequest(
-      snapshot: snapshot,
-      compileCommand: await buildSettings(for: snapshot.uri)
-    )
-    _ = await orLog("Re-opening document") {
-      try await self.sendSourcekitdRequest(openReq, fileContents: snapshot.text)
-    }
+      let buildSettings = await buildSettings(for: snapshot.uri, fallbackAfterTimeout: true)
+      let openReq = openDocumentSourcekitdRequest(
+        snapshot: snapshot,
+        compileCommand: buildSettings
+      )
+      self.buildSettingsForOpenFiles[snapshot.uri] = buildSettings
+      _ = await orLog("Re-opening document") {
+        try await self.sendSourcekitdRequest(openReq, fileContents: snapshot.text)
+      }
 
-    if await capabilityRegistry.clientSupportsPullDiagnostics(for: .swift) {
-      await self.refreshDiagnosticsDebouncer.scheduleCall()
-    } else {
-      await publishDiagnosticsIfNeeded(for: snapshot.uri)
+      if await capabilityRegistry.clientSupportsPullDiagnostics(for: .swift) {
+        await self.refreshDiagnosticsDebouncer.scheduleCall()
+      } else {
+        await publishDiagnosticsIfNeeded(for: snapshot.uri)
+      }
     }
   }
 
   package func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
-    // Close and re-open the document internally to inform sourcekitd to update the compile command. At the moment
-    // there's no better way to do this.
-    // Schedule the document re-open in the SourceKit-LSP server. This ensures that the re-open happens exclusively with
-    // no other request running at the same time.
-    sourceKitLSPServer?.handle(ReopenTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
+    guard (try? documentManager.openDocuments.contains(uri)) ?? false else {
+      return
+    }
+    let newBuildSettings = await self.buildSettings(for: uri, fallbackAfterTimeout: false)
+    if newBuildSettings != buildSettingsForOpenFiles[uri] {
+      // Close and re-open the document internally to inform sourcekitd to update the compile command. At the moment
+      // there's no better way to do this.
+      // Schedule the document re-open in the SourceKit-LSP server. This ensures that the re-open happens exclusively with
+      // no other request running at the same time.
+      sourceKitLSPServer?.handle(ReopenTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
+    }
   }
 
-  package func documentDependenciesUpdated(_ uri: DocumentURI) async {
+  package func documentDependenciesUpdated(_ uris: Set<DocumentURI>) async {
+    let uris = uris.filter { (try? documentManager.openDocuments.contains($0)) ?? false }
+    guard !uris.isEmpty else {
+      return
+    }
+
     await orLog("Sending dependencyUpdated request to sourcekitd") {
       let req = sourcekitd.dictionary([
         keys.request: requests.dependencyUpdated
       ])
       _ = try await self.sendSourcekitdRequest(req, fileContents: nil)
     }
-    // `documentUpdatedBuildSettings` already handles reopening the document, so we do that here as well.
-    await self.documentUpdatedBuildSettings(uri)
+    // Even after sending the `dependencyUpdated` request to sourcekitd, the code completion session has state from
+    // before the AST update. Close it and open a new code completion session on the next completion request.
+    CodeCompletionSession.close(sourcekitd: sourcekitd, uris: uris)
+
+    for uri in uris {
+      await macroExpansionManager.purge(primaryFile: uri)
+      sourceKitLSPServer?.handle(ReopenTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
+    }
   }
 
   // MARK: - Text synchronization
@@ -448,23 +528,40 @@ extension SwiftLanguageService {
   }
 
   package func openDocument(_ notification: DidOpenTextDocumentNotification, snapshot: DocumentSnapshot) async {
-    cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
-    await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
+    switch try? ReferenceDocumentURL(from: notification.textDocument.uri) {
+    case .macroExpansion:
+      break
+    case .generatedInterface(let data):
+      await orLog("Opening generated interface") {
+        try await generatedInterfaceManager.open(document: data)
+      }
+    case nil:
+      cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
+      await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
 
-    let buildSettings = await self.buildSettings(for: snapshot.uri)
+      let buildSettings = await self.buildSettings(for: snapshot.uri, fallbackAfterTimeout: true)
+      buildSettingsForOpenFiles[snapshot.uri] = buildSettings
 
-    let req = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: buildSettings)
-    _ = try? await self.sendSourcekitdRequest(req, fileContents: snapshot.text)
-    await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
+      let req = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: buildSettings)
+      _ = try? await self.sendSourcekitdRequest(req, fileContents: snapshot.text)
+      await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
+    }
   }
 
   package func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
     cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
     inFlightPublishDiagnosticsTasks[notification.textDocument.uri] = nil
     await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
-
-    let req = closeDocumentSourcekitdRequest(uri: notification.textDocument.uri)
-    _ = try? await self.sendSourcekitdRequest(req, fileContents: nil)
+    buildSettingsForOpenFiles[notification.textDocument.uri] = nil
+    switch try? ReferenceDocumentURL(from: notification.textDocument.uri) {
+    case .macroExpansion:
+      break
+    case .generatedInterface(let data):
+      await generatedInterfaceManager.close(document: data)
+    case nil:
+      let req = closeDocumentSourcekitdRequest(uri: notification.textDocument.uri)
+      _ = try? await self.sendSourcekitdRequest(req, fileContents: nil)
+    }
   }
 
   /// Cancels any in-flight tasks to send a `PublishedDiagnosticsNotification` after edits.
@@ -504,13 +601,13 @@ extension SwiftLanguageService {
         return
       }
       do {
-        let snapshot = try await documentManager.latestSnapshot(document)
-        let buildSettings = await self.buildSettings(for: document)
+        let snapshot = try await self.latestSnapshot(for: document)
+        let buildSettings = await self.buildSettings(for: document, fallbackAfterTimeout: false)
         let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
           for: snapshot,
           buildSettings: buildSettings
         )
-        let latestSnapshotID = try? await documentManager.latestSnapshot(snapshot.uri).id
+        let latestSnapshotID = try? await self.latestSnapshot(for: snapshot.uri).id
         if latestSnapshotID != snapshot.id {
           // Check that the document wasn't modified while we were getting diagnostics. This could happen because we are
           // calling `publishDiagnosticsIfNeeded` outside of `messageHandlingQueue` and thus a concurrent edit is
@@ -615,7 +712,8 @@ extension SwiftLanguageService {
   package func hover(_ req: HoverRequest) async throws -> HoverResponse? {
     let uri = req.textDocument.uri
     let position = req.position
-    let cursorInfoResults = try await cursorInfo(uri, position..<position).cursorInfo
+    let cursorInfoResults = try await cursorInfo(uri, position..<position, fallbackSettingsAfterTimeout: false)
+      .cursorInfo
 
     let symbolDocumentations = cursorInfoResults.compactMap { (cursorInfo) -> String? in
       if let documentation = cursorInfo.documentation {
@@ -668,9 +766,18 @@ extension SwiftLanguageService {
         """
     }
 
+    var tokenRange: Range<Position>?
+
+    if let snapshot = try? await latestSnapshot(for: uri) {
+      let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
+      if let token = tree.token(at: snapshot.absolutePosition(of: position)) {
+        tokenRange = snapshot.absolutePositionRange(of: token.position..<token.endPosition)
+      }
+    }
+
     return HoverResponse(
       contents: .markupContent(MarkupContent(kind: .markdown, value: joinedDocumentation)),
-      range: nil
+      range: tokenRange
     )
   }
 
@@ -741,7 +848,7 @@ extension SwiftLanguageService {
   }
 
   package func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
-    let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
+    let snapshot = try await self.latestSnapshot(for: req.textDocument.uri)
 
     let relatedIdentifiers = try await self.relatedIdentifiers(
       at: req.position,
@@ -757,6 +864,10 @@ extension SwiftLanguageService {
   }
 
   package func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
+    if (try? ReferenceDocumentURL(from: req.textDocument.uri)) != nil {
+      // Do not show code actions in reference documents
+      return nil
+    }
     let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind?)] = [
       (retrieveSyntaxCodeActions, nil),
       (retrieveRefactorCodeActions, .refactor),
@@ -793,7 +904,8 @@ extension SwiftLanguageService {
         // Ignore any providers that failed to provide refactoring actions.
         return []
       }
-    }.flatMap { $0 }.sorted { $0.title < $1.title }
+    }
+    .flatMap { $0 }
   }
 
   func retrieveSyntaxCodeActions(_ request: CodeActionRequest) async throws -> [CodeAction] {
@@ -817,17 +929,15 @@ extension SwiftLanguageService {
     let cursorInfoResponse = try await cursorInfo(
       params.textDocument.uri,
       params.range,
+      fallbackSettingsAfterTimeout: true,
       additionalParameters: additionalCursorInfoParameters
     )
 
     var canInlineMacro = false
 
-    let showMacroExpansionsIsEnabled =
-      await self.sourceKitLSPServer?.options.hasExperimentalFeature(.showMacroExpansions) ?? false
-
     var refactorActions = cursorInfoResponse.refactorActions.compactMap {
       let lspCommand = $0.asCommand()
-      if !canInlineMacro, showMacroExpansionsIsEnabled {
+      if !canInlineMacro {
         canInlineMacro = $0.actionString == "source.refactoring.kind.inline.macro"
       }
 
@@ -845,8 +955,8 @@ extension SwiftLanguageService {
   }
 
   func retrieveQuickFixCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
-    let snapshot = try documentManager.latestSnapshot(params.textDocument.uri)
-    let buildSettings = await self.buildSettings(for: params.textDocument.uri)
+    let snapshot = try await self.latestSnapshot(for: params.textDocument.uri)
+    let buildSettings = await self.buildSettings(for: params.textDocument.uri, fallbackAfterTimeout: true)
     let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
       for: snapshot,
       buildSettings: buildSettings
@@ -935,9 +1045,12 @@ extension SwiftLanguageService {
 
   package func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
     do {
-      await semanticIndexManager?.prepareFileForEditorFunctionality(req.textDocument.uri)
-      let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
-      let buildSettings = await self.buildSettings(for: req.textDocument.uri)
+      await semanticIndexManager?.prepareFileForEditorFunctionality(
+        req.textDocument.uri.buildSettingsFile
+      )
+      let snapshot = try await self.latestSnapshot(for: req.textDocument.uri)
+      let buildSettings = await self.buildSettings(for: req.textDocument.uri, fallbackAfterTimeout: false)
+      try Task.checkCancellation()
       let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
         for: snapshot,
         buildSettings: buildSettings
@@ -969,10 +1082,7 @@ extension SwiftLanguageService {
   package func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
     if let command = req.swiftCommand(ofType: SemanticRefactorCommand.self) {
       try await semanticRefactoring(command)
-    } else if let command = req.swiftCommand(ofType: ExpandMacroCommand.self),
-      let experimentalFeatures = await self.sourceKitLSPServer?.options.experimentalFeatures,
-      experimentalFeatures.contains(.showMacroExpansions)
-    {
+    } else if let command = req.swiftCommand(ofType: ExpandMacroCommand.self) {
       try await expandMacro(command)
     } else {
       throw ResponseError.unknown("unknown command \(req.command)")
@@ -987,7 +1097,11 @@ extension SwiftLanguageService {
     switch referenceDocumentURL {
     case let .macroExpansion(data):
       return GetReferenceDocumentResponse(
-        content: try await expandMacro(macroExpansionURLData: data)
+        content: try await macroExpansionManager.macroExpansion(for: data)
+      )
+    case .generatedInterface(let data):
+      return GetReferenceDocumentResponse(
+        content: try await generatedInterfaceManager.snapshot(of: data).text
       )
     }
   }
@@ -1152,6 +1266,12 @@ extension DocumentSnapshot {
       callerLine: callerLine
     )
     return Position(line: zeroBasedLine, utf16index: utf16Column)
+  }
+
+  /// Converts the given `String.Index` to a UTF-16-based line:column position.
+  func position(of index: String.Index, fromLine: Int = 0) -> Position {
+    let (line, utf16Column) = lineTable.lineAndUTF16ColumnOf(index, fromLine: fromLine)
+    return Position(line: line, utf16index: utf16Column)
   }
 
   // MARK: Position <-> AbsolutePosition
@@ -1319,15 +1439,15 @@ extension sourcekitd_api_uid_t {
     case vals.declAssociatedType:
       return .typeParameter
     case vals.declTypeAlias:
-      return .typeParameter  // FIXME: is there a better choice?
+      return .typeParameter
     case vals.declGenericTypeParam:
       return .typeParameter
     case vals.declConstructor:
       return .constructor
     case vals.declDestructor:
-      return .value  // FIXME: is there a better choice?
+      return .value
     case vals.declSubscript:
-      return .method  // FIXME: is there a better choice?
+      return .method
     case vals.declMethodStatic:
       return .method
     case vals.declMethodInstance:

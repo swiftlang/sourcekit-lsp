@@ -10,12 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import LanguageServerProtocol
+import SourceKitD
+#else
 import LanguageServerProtocol
 import SourceKitD
+#endif
 
-package struct ExpandMacroCommand: RefactorCommand {
-  typealias Response = MacroExpansion
-
+package struct ExpandMacroCommand: SwiftCommand {
   package static let identifier: String = "expand.macro.command"
 
   /// The name of this refactoring action.

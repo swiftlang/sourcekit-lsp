@@ -26,18 +26,17 @@ import Android
 #endif
 
 package final class DLHandle: Sendable {
-  #if os(Windows)
-  struct Handle: @unchecked Sendable {
+  fileprivate struct Handle: @unchecked Sendable {
+    #if os(Windows)
     let handle: HMODULE
-  }
-  #else
-  struct Handle: @unchecked Sendable {
+    #else
     let handle: UnsafeMutableRawPointer
+    #endif
   }
-  #endif
-  let rawValue: ThreadSafeBox<Handle?>
 
-  init(rawValue: Handle) {
+  fileprivate let rawValue: ThreadSafeBox<Handle?>
+
+  fileprivate init(rawValue: Handle) {
     self.rawValue = .init(initialValue: rawValue)
   }
 

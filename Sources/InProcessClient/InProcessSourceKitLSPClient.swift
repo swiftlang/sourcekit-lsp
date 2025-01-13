@@ -10,12 +10,31 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
 import BuildSystemIntegration
-import LanguageServerProtocol
-import SKOptions
-import SKSupport
+public import Foundation
+public import LanguageServerProtocol
+import LanguageServerProtocolExtensions
+package import SKOptions
 import SourceKitLSP
+import SwiftExtensions
 import ToolchainRegistry
+import TSCExtensions
+
+import struct TSCBasic.AbsolutePath
+#else
+import BuildSystemIntegration
+import Foundation
+import LanguageServerProtocol
+import LanguageServerProtocolExtensions
+import SKOptions
+import SourceKitLSP
+import SwiftExtensions
+import ToolchainRegistry
+import TSCExtensions
+
+import struct TSCBasic.AbsolutePath
+#endif
 
 /// Launches a `SourceKitLSPServer` in-process and allows sending messages to it.
 public final class InProcessSourceKitLSPClient: Sendable {
@@ -23,23 +42,37 @@ public final class InProcessSourceKitLSPClient: Sendable {
 
   private let nextRequestID = AtomicUInt32(initialValue: 0)
 
-  /// Create a new `SourceKitLSPServer`. An `InitializeRequest` is automatically sent to the server.
-  ///
-  /// `messageHandler` handles notifications and requests sent from the SourceKit-LSP server to the client.
-  public init(
-    toolchainRegistry: ToolchainRegistry,
-    options: SourceKitLSPOptions = SourceKitLSPOptions(),
-    testHooks: TestHooks = TestHooks(),
+  public convenience init(
+    toolchainPath: URL?,
     capabilities: ClientCapabilities = ClientCapabilities(),
     workspaceFolders: [WorkspaceFolder],
     messageHandler: any MessageHandler
   ) async throws {
-    let serverToClientConnection = LocalConnection(name: "client")
+    try await self.init(
+      toolchainPath: toolchainPath,
+      options: SourceKitLSPOptions(),
+      capabilities: capabilities,
+      workspaceFolders: workspaceFolders,
+      messageHandler: messageHandler
+    )
+  }
+
+  /// Create a new `SourceKitLSPServer`. An `InitializeRequest` is automatically sent to the server.
+  ///
+  /// `messageHandler` handles notifications and requests sent from the SourceKit-LSP server to the client.
+  package init(
+    toolchainPath: URL?,
+    options: SourceKitLSPOptions = SourceKitLSPOptions(),
+    capabilities: ClientCapabilities = ClientCapabilities(),
+    workspaceFolders: [WorkspaceFolder],
+    messageHandler: any MessageHandler
+  ) async throws {
+    let serverToClientConnection = LocalConnection(receiverName: "client")
     self.server = SourceKitLSPServer(
       client: serverToClientConnection,
-      toolchainRegistry: toolchainRegistry,
+      toolchainRegistry: ToolchainRegistry(installPath: toolchainPath),
       options: options,
-      testHooks: testHooks,
+      testHooks: TestHooks(),
       onExit: {
         serverToClientConnection.close()
       }

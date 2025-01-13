@@ -5,12 +5,11 @@ target_link_libraries(sourcekit-lsp PRIVATE
   BuildSystemIntegration
   Diagnose
   LanguageServerProtocol
+  LanguageServerProtocolExtensions
   LanguageServerProtocolJSONRPC
   SemanticIndex
   SKOptions
-  SKSupport
   SourceKitLSP
-  SwiftExtensions
   ToolchainRegistry
   ArgumentParser
   TSCBasic)

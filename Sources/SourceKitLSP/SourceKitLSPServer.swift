@@ -10,59 +10,46 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import BuildServerProtocol
+import BuildSystemIntegration
+import Dispatch
+import Foundation
+import IndexStoreDB
+package import LanguageServerProtocol
+package import LanguageServerProtocolExtensions
+import LanguageServerProtocolJSONRPC
+import SKLogging
+package import SKOptions
+import SemanticIndex
+import SourceKitD
+package import SwiftExtensions
+package import ToolchainRegistry
+
+import struct TSCBasic.AbsolutePath
+import protocol TSCBasic.FileSystem
+#else
 import BuildServerProtocol
 import BuildSystemIntegration
 import Dispatch
 import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
-import PackageLoading
+import LanguageServerProtocolExtensions
+import LanguageServerProtocolJSONRPC
 import SKLogging
 import SKOptions
-import SKSupport
 import SemanticIndex
 import SourceKitD
 import SwiftExtensions
 import ToolchainRegistry
 
-import struct PackageModel.BuildFlags
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
-import var TSCBasic.localFileSystem
-
-package typealias URL = Foundation.URL
+#endif
 
 /// Disambiguate LanguageServerProtocol.Language and IndexstoreDB.Language
 package typealias Language = LanguageServerProtocol.Language
-
-/// A request and a callback that returns the request's reply
-fileprivate final class RequestAndReply<Params: RequestType>: Sendable {
-  let params: Params
-  private let replyBlock: @Sendable (LSPResult<Params.Response>) -> Void
-
-  /// Whether a reply has been made. Every request must reply exactly once.
-  private let replied: AtomicBool = AtomicBool(initialValue: false)
-
-  package init(_ request: Params, reply: @escaping @Sendable (LSPResult<Params.Response>) -> Void) {
-    self.params = request
-    self.replyBlock = reply
-  }
-
-  deinit {
-    precondition(replied.value, "request never received a reply")
-  }
-
-  /// Call the `replyBlock` with the result produced by the given closure.
-  func reply(_ body: @Sendable () async throws -> Params.Response) async {
-    precondition(!replied.value, "replied to request more than once")
-    replied.value = true
-    do {
-      replyBlock(.success(try await body()))
-    } catch {
-      replyBlock(.failure(ResponseError(error)))
-    }
-  }
-}
 
 /// The SourceKit-LSP server.
 ///
@@ -70,25 +57,19 @@ fileprivate final class RequestAndReply<Params: RequestType>: Sendable {
 /// and cross-language support. Requests may be dispatched to language-specific services or handled
 /// centrally, but this is transparent to the client.
 package actor SourceKitLSPServer {
-  /// The queue on which all messages (notifications, requests, responses) are
-  /// handled.
-  ///
-  /// The queue is blocked until the message has been sufficiently handled to
-  /// avoid out-of-order handling of messages. For sourcekitd, this means that
-  /// a request has been sent to sourcekitd and for clangd, this means that we
-  /// have forwarded the request to clangd.
-  ///
-  /// The actual semantic handling of the message happens off this queue.
-  private let messageHandlingQueue = AsyncQueue<MessageHandlingDependencyTracker>()
+  package let messageHandlingHelper = QueueBasedMessageHandlerHelper(
+    signpostLoggingCategory: "message-handling",
+    createLoggingScope: true
+  )
 
-  /// The queue on which we start and stop keeping track of cancellation.
-  ///
-  /// Having a queue for this ensures that we started keeping track of a
-  /// request's task before handling any cancellation request for it.
-  private let cancellationMessageHandlingQueue = AsyncQueue<Serial>()
+  package let messageHandlingQueue = AsyncQueue<MessageHandlingDependencyTracker>()
 
-  /// The queue on which all modifications of `uriToWorkspaceCache` happen. This means that the value of
-  /// `workspacesAndIsImplicit` and `uriToWorkspaceCache` can't change while executing a closure on `workspaceQueue`.
+  /// The queue on which we keep track of `inProgressTextDocumentRequests` to ensure updates to
+  /// `inProgressTextDocumentRequests` are handled in order.
+  package let textDocumentTrackingQueue = AsyncQueue<Serial>()
+
+  /// The queue on which all modifications of `workspaceForUri` happen. This means that the value of
+  /// `workspacesAndIsImplicit` and `workspaceForUri` can't change while executing a closure on `workspaceQueue`.
   private let workspaceQueue = AsyncQueue<Serial>()
 
   /// The connection to the editor.
@@ -98,12 +79,6 @@ package actor SourceKitLSPServer {
   ///
   /// Initialization can be awaited using `waitUntilInitialized`.
   private var initialized: Bool = false
-
-  /// Set to `true` after the user has opened a project that doesn't support background indexing while having background
-  /// indexing enabled.
-  ///
-  /// This ensures that we only inform the user about background indexing not being supported for these projects once.
-  private var didSendBackgroundIndexingNotSupportedNotification = false
 
   var options: SourceKitLSPOptions
 
@@ -127,13 +102,7 @@ package actor SourceKitLSPServer {
   /// `SourceKitLSPServer`.
   /// `nonisolated(unsafe)` because `indexProgressManager` will not be modified after it is assigned from the
   /// initializer.
-  private nonisolated(unsafe) var indexProgressManager: IndexProgressManager!
-
-  /// Implicitly unwrapped optional so we can create an `SharedWorkDoneProgressManager` that has a weak reference to
-  /// `SourceKitLSPServer`.
-  /// `nonisolated(unsafe)` because `packageLoadingWorkDoneProgress` will not be modified after it is assigned from the
-  /// initializer.
-  private nonisolated(unsafe) var packageLoadingWorkDoneProgress: SharedWorkDoneProgressManager!
+  private(set) nonisolated(unsafe) var indexProgressManager: IndexProgressManager!
 
   /// Implicitly unwrapped optional so we can create an `SharedWorkDoneProgressManager` that has a weak reference to
   /// `SourceKitLSPServer`.
@@ -141,11 +110,11 @@ package actor SourceKitLSPServer {
   /// the initializer.
   nonisolated(unsafe) var sourcekitdCrashedWorkDoneProgress: SharedWorkDoneProgressManager!
 
-  /// Caches which workspace a document with the given URI should be opened in.
+  /// Stores which workspace the given URI has been opened in.
   ///
-  /// - Important: Must only be modified from `workspaceQueue`. This means that the value of `uriToWorkspaceCache`
+  /// - Important: Must only be modified from `workspaceQueue`. This means that the value of `workspaceForUri`
   ///   can't change while executing an operation on `workspaceQueue`.
-  private var uriToWorkspaceCache: [DocumentURI: WeakWorkspace] = [:]
+  private var workspaceForUri: [DocumentURI: WeakWorkspace] = [:]
 
   /// The open workspaces.
   ///
@@ -157,10 +126,7 @@ package actor SourceKitLSPServer {
   ///   can't change while executing an operation on `workspaceQueue`.
   private var workspacesAndIsImplicit: [(workspace: Workspace, isImplicit: Bool)] = [] {
     didSet {
-      uriToWorkspaceCache = [:]
-      // `indexProgressManager` iterates over all workspaces in the SourceKitLSPServer. Modifying workspaces might thus
-      // update the index progress status.
-      indexProgressManager.indexProgressStatusDidChange()
+      self.scheduleUpdateOfUriToWorkspace()
     }
   }
 
@@ -174,30 +140,14 @@ package actor SourceKitLSPServer {
     }
   }
 
-  /// The requests that we are currently handling.
-  ///
-  /// Used to cancel the tasks if the client requests cancellation.
-  private var inProgressRequests: [RequestID: Task<(), Never>] = [:]
-
-  /// Up to 10 request IDs that have recently finished.
-  ///
-  /// This is only used so we don't log an error when receiving a `CancelRequestNotification` for a request that has
-  /// just returned a response.
-  private var recentlyFinishedRequests: [RequestID] = []
-
-  /// - Note: Needed so we can set an in-progress request from a different
-  ///   isolation context.
-  private func setInProgressRequest(for id: RequestID, task: Task<(), Never>?) {
-    self.inProgressRequests[id] = task
-    if task == nil {
-      recentlyFinishedRequests.append(id)
-      while recentlyFinishedRequests.count > 10 {
-        recentlyFinishedRequests.removeFirst()
-      }
-    }
-  }
+  /// For all currently handled text document requests a mapping from the document to the corresponding request ID and
+  /// the method of the request (ie. the value of `TextDocumentRequest.method`).
+  private var inProgressTextDocumentRequests: [DocumentURI: [(id: RequestID, requestMethod: String)]] = [:]
 
   var onExit: () -> Void
+
+  /// The files that we asked the client to watch.
+  private var watchers: Set<FileSystemWatcher> = []
 
   /// Creates a language server for the given client.
   package init(
@@ -214,18 +164,14 @@ package actor SourceKitLSPServer {
 
     self.client = client
     let processorCount = ProcessInfo.processInfo.processorCount
-    let lowPriorityCores = options.index.maxCoresPercentageToUseForBackgroundIndexingOrDefault * Double(processorCount)
+    let lowPriorityCores =
+      options.indexOrDefault.maxCoresPercentageToUseForBackgroundIndexingOrDefault * Double(processorCount)
     self.indexTaskScheduler = TaskScheduler(maxConcurrentTasksByPriority: [
       (TaskPriority.medium, processorCount),
       (TaskPriority.low, max(Int(lowPriorityCores), 1)),
     ])
     self.indexProgressManager = nil
     self.indexProgressManager = IndexProgressManager(sourceKitLSPServer: self)
-    self.packageLoadingWorkDoneProgress = SharedWorkDoneProgressManager(
-      sourceKitLSPServer: self,
-      tokenPrefix: "package-reloading",
-      title: "SourceKit-LSP: Reloading Package"
-    )
     self.sourcekitdCrashedWorkDoneProgress = SharedWorkDoneProgressManager(
       sourceKitLSPServer: self,
       tokenPrefix: "sourcekitd-crashed",
@@ -235,7 +181,7 @@ package actor SourceKitLSPServer {
   }
 
   /// Await until the server has send the reply to the initialize request.
-  func waitUntilInitialized() async {
+  package func waitUntilInitialized() async {
     // The polling of `initialized` is not perfect but it should be OK, because
     //  - In almost all cases the server should already be initialized.
     //  - If it's not initialized, we expect initialization to finish fairly quickly. Even if initialization takes 5s
@@ -250,12 +196,12 @@ package actor SourceKitLSPServer {
     }
   }
 
-  /// Search through all the parent directories of `uri` and check if any of these directories contain a workspace
-  /// capable of handling `uri`.
+  /// Search through all the parent directories of `uri` and check if any of these directories contain a workspace with
+  /// a build system.
   ///
   /// The search will not consider any directory that is not a child of any of the directories in `rootUris`. This
   /// prevents us from picking up a workspace that is outside of the folders that the user opened.
-  private func findWorkspaceCapableOfHandlingDocument(at uri: DocumentURI) async -> Workspace? {
+  private func findImplicitWorkspace(for uri: DocumentURI) async -> Workspace? {
     guard var url = uri.fileURL?.deletingLastPathComponent() else {
       return nil
     }
@@ -264,84 +210,130 @@ package actor SourceKitLSPServer {
     }
     let rootURLs = workspacesAndIsImplicit.filter { !$0.isImplicit }.compactMap { $0.workspace.rootUri?.fileURL }
     while url.pathComponents.count > 1 && rootURLs.contains(where: { $0.isPrefix(of: url) }) {
-      // Ignore workspaces that can't handle this file or that have the same project root as an existing workspace.
-      // The latter might happen if there is an existing SwiftPM workspace that hasn't been reloaded after a new file
+      defer {
+        url.deleteLastPathComponent()
+      }
+      // Ignore workspaces that have the same project root as an existing workspace.
+      // This might happen if there is an existing SwiftPM workspace that hasn't been reloaded after a new file
       // was added to it and thus currently doesn't know that it can handle that file. In that case, we shouldn't open
       // a new workspace for the same root. Instead, the existing workspace's build system needs to be reloaded.
-      let workspace = await self.createWorkspace(WorkspaceFolder(uri: DocumentURI(url))) { buildSystem in
-        guard let buildSystem, !projectRoots.contains(await buildSystem.projectRoot) else {
-          // If we didn't create a build system, `url` is not capable of handling the document.
-          // If we already have a workspace at the same project root, don't create another one.
-          return false
-        }
-        do {
-          try await buildSystem.generateBuildGraph(allowFileSystemWrites: false)
-        } catch {
-          return false
-        }
-        return await buildSystem.fileHandlingCapability(for: uri) == .handled
+      let uri = DocumentURI(url)
+      guard let buildSystemSpec = determineBuildSystem(forWorkspaceFolder: uri, options: self.options) else {
+        continue
       }
-      if let workspace {
-        return workspace
+      guard !projectRoots.contains(buildSystemSpec.projectRoot) else {
+        continue
       }
-      url.deleteLastPathComponent()
+      guard
+        let workspace = await orLog(
+          "Creating workspace",
+          { try await createWorkspace(workspaceFolder: uri, buildSystemSpec: buildSystemSpec) }
+        )
+      else {
+        continue
+      }
+      return workspace
     }
     return nil
   }
 
   package func workspaceForDocument(uri: DocumentURI) async -> Workspace? {
-    if let cachedWorkspace = self.uriToWorkspaceCache[uri]?.value {
+    let uri = uri.buildSettingsFile
+    if let cachedWorkspace = self.workspaceForUri[uri]?.value {
       return cachedWorkspace
     }
 
-    // Execute the computation of the workspace on `workspaceQueue` to ensure that the file handling capabilities of the
-    // workspaces don't change during the computation. Otherwise, we could run into a race condition like the following:
-    //  1. We don't have an entry for file `a.swift` in `uriToWorkspaceCache` and start the computation
-    //  2. We find that the first workspace in `self.workspaces` can handle this file.
-    //  3. During the `await ... .fileHandlingCapability` for a second workspace the file handling capabilities for the
-    //    first workspace change, meaning it can no longer handle the document. This resets `uriToWorkspaceCache`
-    //    assuming that the URI to workspace relation will get re-computed.
-    //  4. But we then set `uriToWorkspaceCache[uri]` to the workspace found in step (2), caching an out-of-date result.
-    //
-    // Furthermore, the computation of the workspace for a URI can create a new implicit workspace, which modifies
-    // `workspacesAndIsImplicit` and which must only be modified on `workspaceQueue`.
     return await self.workspaceQueue.async {
-      // Pick the workspace with the best FileHandlingCapability for this file.
-      // If there is a tie, use the workspace that occurred first in the list.
-      var bestWorkspace: (workspace: Workspace?, fileHandlingCapability: FileHandlingCapability) = (nil, .unhandled)
-      for workspace in self.workspaces {
-        let fileHandlingCapability = await workspace.buildSystemManager.fileHandlingCapability(for: uri)
-        if fileHandlingCapability > bestWorkspace.fileHandlingCapability {
-          bestWorkspace = (workspace, fileHandlingCapability)
-        }
-      }
-      if bestWorkspace.fileHandlingCapability < .handled {
-        // We weren't able to handle the document with any of the known workspaces. See if any of the document's parent
-        // directories contain a workspace that can handle the document.
-        if let workspace = await self.findWorkspaceCapableOfHandlingDocument(at: uri) {
-          // Appending a workspace is fine and doesn't require checking if we need to re-open any documents because:
-          //  - Any currently open documents that have FileHandlingCapability `.handled` will continue to be opened in
-          //    their current workspace because it occurs further in front inside the workspace list
-          //  - Any currently open documents that have FileHandlingCapability < `.handled` also went through this check
-          //    and didn't find any parent workspace that was able to handle them. We assume that a workspace can only
-          //    properly handle files within its root directory, so those files now also can't be handled by the new
-          //    workspace.
-          logger.log("Opening implicit workspace at \(workspace.rootUri.forLogging) to handle \(uri.forLogging)")
-          self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: true))
-          bestWorkspace = (workspace, .handled)
-        }
-      }
-      self.uriToWorkspaceCache[uri] = WeakWorkspace(bestWorkspace.workspace)
-      if let workspace = bestWorkspace.workspace {
-        return workspace
-      }
-      if let workspace = self.workspaces.only {
-        // Special handling: If there is only one workspace, open all files in it, even it it cannot handle the document.
-        // This retains the behavior of SourceKit-LSP before it supported multiple workspaces.
-        return workspace
-      }
-      return nil
+      await self.computeWorkspaceForDocument(uri: uri)
     }.valuePropagatingCancellation
+  }
+
+  /// This method must be executed on `workspaceQueue` to ensure that the file handling capabilities of the
+  /// workspaces don't change during the computation. Otherwise, we could run into a race condition like the following:
+  ///  1. We don't have an entry for file `a.swift` in `workspaceForUri` and start the computation
+  ///  2. We find that the first workspace in `self.workspaces` can handle this file.
+  ///  3. During the `await ... .fileHandlingCapability` for a second workspace the file handling capabilities for the
+  ///    first workspace change, meaning it can no longer handle the document. This resets `workspaceForUri`
+  ///    assuming that the URI to workspace relation will get re-computed.
+  ///  4. But we then set `workspaceForUri[uri]` to the workspace found in step (2), caching an out-of-date result.
+  ///
+  /// Furthermore, the computation of the workspace for a URI can create a new implicit workspace, which modifies
+  /// `workspacesAndIsImplicit` and which must only be modified on `workspaceQueue`.
+  ///
+  /// - Important: Must only be invoked from `workspaceQueue`.
+  private func computeWorkspaceForDocument(uri: DocumentURI) async -> Workspace? {
+    // Pick the workspace with the best FileHandlingCapability for this file.
+    // If there is a tie, use the workspace that occurred first in the list.
+    var bestWorkspace = await self.workspaces.asyncFirst {
+      await !$0.buildSystemManager.targets(for: uri).isEmpty
+    }
+    if bestWorkspace == nil {
+      // We weren't able to handle the document with any of the known workspaces. See if any of the document's parent
+      // directories contain a workspace that might be able to handle the document
+      if let workspace = await self.findImplicitWorkspace(for: uri) {
+        logger.log("Opening implicit workspace at \(workspace.rootUri.forLogging) to handle \(uri.forLogging)")
+        self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: true))
+        bestWorkspace = workspace
+      }
+    }
+    let workspace = bestWorkspace ?? self.workspaces.first
+    self.workspaceForUri[uri] = WeakWorkspace(workspace)
+    return workspace
+  }
+
+  /// Check that the entries in `workspaceForUri` are still up-to-date after workspaces might have changed.
+  ///
+  /// For any entries that are not up-to-date, close the document in the old workspace and open it in the new document.
+  ///
+  /// This method returns immediately and schedules the check in the background as a global configuration change.
+  /// Requests may still be served by their old workspace until this configuration change is executed by
+  /// `SourceKitLSPServer`.
+  private func scheduleUpdateOfUriToWorkspace() {
+    messageHandlingQueue.async(priority: .low, metadata: .globalConfigurationChange) {
+      logger.info("Updating URI to workspace")
+      // For each document that has moved to a different workspace, close it in
+      // the old workspace and open it in the new workspace.
+      for docUri in self.documentManager.openDocuments {
+        await self.workspaceQueue.async {
+          let oldWorkspace = self.workspaceForUri[docUri]?.value
+          let newWorkspace = await self.computeWorkspaceForDocument(uri: docUri)
+          guard newWorkspace !== oldWorkspace else {
+            return  // Nothing to do, workspace didn't change for this document
+          }
+          guard let snapshot = try? self.documentManager.latestSnapshot(docUri) else {
+            return
+          }
+          if let oldWorkspace = oldWorkspace {
+            await self.closeDocument(
+              DidCloseTextDocumentNotification(
+                textDocument: TextDocumentIdentifier(docUri)
+              ),
+              workspace: oldWorkspace
+            )
+          }
+          logger.info(
+            "Changing workspace of \(docUri.forLogging) from \(oldWorkspace?.rootUri?.forLogging) to \(newWorkspace?.rootUri?.forLogging)"
+          )
+          self.workspaceForUri[docUri] = WeakWorkspace(newWorkspace)
+          if let newWorkspace = newWorkspace {
+            await self.openDocument(
+              DidOpenTextDocumentNotification(
+                textDocument: TextDocumentItem(
+                  uri: docUri,
+                  language: snapshot.language,
+                  version: snapshot.version,
+                  text: snapshot.text
+                )
+              ),
+              workspace: newWorkspace
+            )
+          }
+        }.valuePropagatingCancellation
+      }
+      // `indexProgressManager` iterates over all workspaces in the SourceKitLSPServer. Modifying workspaces might thus
+      // update the index progress status.
+      self.indexProgressManager.indexProgressStatusDidChange()
+    }
   }
 
   /// Execute `notificationHandler` with the request as well as the workspace
@@ -482,7 +474,6 @@ package actor SourceKitLSPServer {
         registry: workspace.capabilityRegistry
       )
 
-      // FIXME: store the server capabilities.
       var syncKind: TextDocumentSyncKind
       switch resp.capabilities.textDocumentSync {
       case .options(let options):
@@ -522,16 +513,23 @@ package actor SourceKitLSPServer {
       return service
     }
 
-    guard let toolchain = await workspace.buildSystemManager.toolchain(for: uri, language),
-      let service = await languageService(for: toolchain, language, in: workspace)
-    else {
+    let toolchain = await workspace.buildSystemManager.toolchain(
+      for: uri,
+      in: workspace.buildSystemManager.canonicalTarget(for: uri),
+      language: language
+    )
+    guard let toolchain else {
+      logger.error("Failed to determine toolchain for \(uri)")
+      return nil
+    }
+    guard let service = await languageService(for: toolchain, language, in: workspace) else {
       logger.error("Failed to create language service for \(uri)")
       return nil
     }
 
     logger.log(
       """
-      Using toolchain at \(toolchain.path?.pathString ?? "<nil>") (\(toolchain.identifier, privacy: .public)) \
+      Using toolchain at \(toolchain.path?.description ?? "<nil>") (\(toolchain.identifier, privacy: .public)) \
       for \(uri.forLogging)
       """
     )
@@ -542,37 +540,65 @@ package actor SourceKitLSPServer {
 
 // MARK: - MessageHandler
 
-private let notificationIDForLogging = AtomicUInt32(initialValue: 1)
+extension SourceKitLSPServer: QueueBasedMessageHandler {
+  private enum ImplicitTextDocumentRequestCancellationReason {
+    case documentChanged
+    case documentClosed
+  }
 
-extension SourceKitLSPServer: MessageHandler {
-  package nonisolated func handle(_ params: some NotificationType) {
-    let notificationID = notificationIDForLogging.fetchAndIncrement()
-    withLoggingScope("notification-\(notificationID % 100)") {
-      if let params = params as? CancelRequestNotification {
-        // Request cancellation needs to be able to overtake any other message we
-        // are currently handling. Ordering is not important here. We thus don't
-        // need to execute it on `messageHandlingQueue`.
-        self.cancelRequest(params)
-        return
-      }
-
-      let signposter = Logger(subsystem: LoggingScope.subsystem, category: "message-handling")
-        .makeSignposter()
-      let signpostID = signposter.makeSignpostID()
-      let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: params))")
-      messageHandlingQueue.async(metadata: MessageHandlingDependencyTracker(params)) {
-        signposter.emitEvent("Start handling", id: signpostID)
-
-        // Only use the last two digits of the notification ID for the logging scope to avoid creating too many scopes.
-        // See comment in `withLoggingScope`.
-        // The last 2 digits should be sufficient to differentiate between multiple concurrently running notifications.
-        await self.handleImpl(params)
-        signposter.endInterval("Notification", state, "Done")
-      }
+  package nonisolated func didReceive(notification: some NotificationType) {
+    let textDocumentUri: DocumentURI
+    let cancellationReason: ImplicitTextDocumentRequestCancellationReason
+    switch notification {
+    case let params as DidChangeTextDocumentNotification:
+      textDocumentUri = params.textDocument.uri
+      cancellationReason = .documentChanged
+    case let params as DidCloseTextDocumentNotification:
+      textDocumentUri = params.textDocument.uri
+      cancellationReason = .documentClosed
+    default:
+      return
+    }
+    textDocumentTrackingQueue.async(priority: .high) {
+      await self.cancelTextDocumentRequests(for: textDocumentUri, reason: cancellationReason)
     }
   }
 
-  private func handleImpl(_ notification: some NotificationType) async {
+  /// Cancel all in-progress text document requests for the given document.
+  ///
+  /// As a user makes an edit to a file, these requests are most likely no longer relevant. It also makes sure that a
+  /// long-running sourcekitd request can't block the entire language server if the client does not cancel all requests.
+  /// For example, consider the following sequence of requests:
+  ///  - `textDocument/semanticTokens/full` for document A
+  ///  - `textDocument/didChange` for document A
+  ///  - `textDocument/formatting` for document A
+  ///
+  /// If the editor is not cancelling the semantic tokens request on edit (like VS Code does), then the `didChange`
+  /// notification is blocked on the semantic tokens request finishing. Hence, we also can't run the
+  /// `textDocument/formatting` request. Cancelling the semantic tokens on the edit fixes the issue.
+  ///
+  /// This method is a no-op if `cancelTextDocumentRequestsOnEditAndClose` is disabled.
+  ///
+  /// - Important: Should be invoked on `textDocumentTrackingQueue` to ensure that new text document requests are
+  ///   registered before a notification that triggers cancellation might come in.
+  private func cancelTextDocumentRequests(for uri: DocumentURI, reason: ImplicitTextDocumentRequestCancellationReason) {
+    guard self.options.cancelTextDocumentRequestsOnEditAndCloseOrDefault else {
+      return
+    }
+    for (requestID, requestMethod) in self.inProgressTextDocumentRequests[uri, default: []] {
+      if reason == .documentChanged && requestMethod == CompletionRequest.method {
+        // As the user types, we filter the code completion results. Cancelling the completion request on every
+        // keystroke means that we will never build the initial list of completion results for this code
+        // completion session if building that list takes longer than the user's typing cadence (eg. for global
+        // completions) and we will thus not show any completions.
+        continue
+      }
+      logger.info("Implicitly cancelling request \(requestID)")
+      self.messageHandlingHelper.cancelRequest(id: requestID)
+    }
+  }
+
+  package func handle(notification: some NotificationType) async {
     logger.log("Received notification: \(notification.forLogging)")
 
     switch notification {
@@ -602,43 +628,36 @@ extension SourceKitLSPServer: MessageHandler {
     }
   }
 
-  package nonisolated func handle<R: RequestType>(
-    _ params: R,
-    id: RequestID,
-    reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
-  ) {
-    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "message-handling").makeSignposter()
-    let signpostID = signposter.makeSignpostID()
-    let state = signposter.beginInterval("Request", id: signpostID, "\(R.self)")
-
-    let task = messageHandlingQueue.async(metadata: MessageHandlingDependencyTracker(params)) {
-      signposter.emitEvent("Start handling", id: signpostID)
-      // Only use the last two digits of the request ID for the logging scope to avoid creating too many scopes.
-      // See comment in `withLoggingScope`.
-      // The last 2 digits should be sufficient to differentiate between multiple concurrently running requests.
-      await withLoggingScope("request-\(id.numericValue % 100)") {
-        await self.handleImpl(params, id: id, reply: reply)
-        signposter.endInterval("Request", state, "Done")
-      }
-      // We have handled the request and can't cancel it anymore.
-      // Stop keeping track of it to free the memory.
-      self.cancellationMessageHandlingQueue.async(priority: .background) {
-        await self.setInProgressRequest(for: id, task: nil)
-      }
+  package nonisolated func didReceive(request: some RequestType, id: RequestID) {
+    guard let request = request as? any TextDocumentRequest else {
+      return
     }
-    // Keep track of the ID -> Task management with low priority. Once we cancel
-    // a request, the cancellation task runs with a high priority and depends on
-    // this task, which will elevate this task's priority.
-    cancellationMessageHandlingQueue.async(priority: .background) {
-      await self.setInProgressRequest(for: id, task: task)
+    textDocumentTrackingQueue.async(priority: .background) {
+      await self.registerInProgressTextDocumentRequest(request, id: id)
     }
   }
 
-  private func handleImpl<R: RequestType>(
-    _ params: R,
+  /// - Important: Should be invoked on `textDocumentTrackingQueue` to ensure that new text document requests are
+  ///   registered before a notification that triggers cancellation might come in.
+  private func registerInProgressTextDocumentRequest<T: TextDocumentRequest>(_ request: T, id: RequestID) {
+    self.inProgressTextDocumentRequests[request.textDocument.uri, default: []].append((id: id, requestMethod: T.method))
+  }
+
+  package func handle<Request: RequestType>(
+    request params: Request,
     id: RequestID,
-    reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
+    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
   ) async {
+    defer {
+      if let request = params as? any TextDocumentRequest {
+        textDocumentTrackingQueue.async(priority: .background) {
+          self.inProgressTextDocumentRequests[request.textDocument.uri, default: []].removeAll { $0.id == id }
+        }
+      }
+    }
+
+    await self.testHooks.handleRequest?(params)
+
     let startDate = Date()
 
     let request = RequestAndReply(params) { result in
@@ -650,7 +669,7 @@ extension SourceKitLSPServer: MessageHandler {
           logger.log(
             """
             Succeeded (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
-            \(R.method, privacy: .public)
+            \(Request.method, privacy: .public)
             \(response.forLogging)
             """
           )
@@ -658,7 +677,7 @@ extension SourceKitLSPServer: MessageHandler {
           logger.log(
             """
             Failed (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
-            \(R.method, privacy: .public)(\(id, privacy: .public))
+            \(Request.method, privacy: .public)(\(id, privacy: .public))
             \(error.forLogging, privacy: .private)
             """
           )
@@ -707,6 +726,10 @@ extension SourceKitLSPServer: MessageHandler {
       await self.handleRequest(for: request, requestHandler: self.documentDiagnostic)
     case let request as RequestAndReply<DocumentFormattingRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentFormatting)
+    case let request as RequestAndReply<DocumentRangeFormattingRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentRangeFormatting)
+    case let request as RequestAndReply<DocumentOnTypeFormattingRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentOnTypeFormatting)
     case let request as RequestAndReply<DocumentHighlightRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentSymbolHighlight)
     case let request as RequestAndReply<DocumentSemanticTokensDeltaRequest>:
@@ -763,94 +786,25 @@ extension SourceKitLSPServer: MessageHandler {
       await request.reply { try await workspaceTests(request.params) }
     // IMPORTANT: When adding a new entry to this switch, also add it to the `MessageHandlingDependencyTracker` initializer.
     default:
-      await request.reply { throw ResponseError.methodNotFound(R.method) }
-    }
-  }
-}
-
-// MARK: - Build System Delegate
-
-extension SourceKitLSPServer: BuildSystemDelegate {
-  package func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
-    // TODO: do something with these changes once build target support is in place
-  }
-
-  private func affectedOpenDocumentsForChangeSet(
-    _ changes: Set<DocumentURI>,
-    _ documentManager: DocumentManager
-  ) -> Set<DocumentURI> {
-    // An empty change set is treated as if all open files have been modified.
-    guard !changes.isEmpty else {
-      return documentManager.openDocuments
-    }
-    return documentManager.openDocuments.intersection(changes)
-  }
-
-  /// Handle a build settings change notification from the `BuildSystem`.
-  /// This has two primary cases:
-  /// - Initial settings reported for a given file, now we can fully open it
-  /// - Changed settings for an already open file
-  package func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
-    for uri in changedFiles {
-      guard self.documentManager.openDocuments.contains(uri) else {
-        continue
-      }
-
-      guard let service = await self.workspaceForDocument(uri: uri)?.documentService(for: uri) else {
-        continue
-      }
-
-      await service.documentUpdatedBuildSettings(uri)
-    }
-  }
-
-  /// Handle a dependencies updated notification from the `BuildSystem`.
-  /// We inform the respective language services as long as the given file is open
-  /// (not queued for opening).
-  package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
-    // Split the changedFiles into the workspaces they belong to.
-    // Then invoke affectedOpenDocumentsForChangeSet for each workspace with its affected files.
-    let changedFilesAndWorkspace = await changedFiles.asyncMap {
-      return (uri: $0, workspace: await self.workspaceForDocument(uri: $0))
-    }
-    for workspace in self.workspaces {
-      let changedFilesForWorkspace = Set(changedFilesAndWorkspace.filter({ $0.workspace === workspace }).map(\.uri))
-      if changedFilesForWorkspace.isEmpty {
-        continue
-      }
-      for uri in self.affectedOpenDocumentsForChangeSet(changedFilesForWorkspace, self.documentManager) {
-        logger.log("Dependencies updated for opened file \(uri.forLogging)")
-        if let service = workspace.documentService(for: uri) {
-          await service.documentDependenciesUpdated(uri)
-        }
-      }
-    }
-  }
-
-  package func fileHandlingCapabilityChanged() {
-    workspaceQueue.async {
-      logger.log("Resetting URI to workspace cache because file handling capability of a workspace changed")
-      self.uriToWorkspaceCache = [:]
+      await request.reply { throw ResponseError.methodNotFound(Request.method) }
     }
   }
 }
 
 extension SourceKitLSPServer {
-  nonisolated func logMessageToIndexLog(taskID: IndexTaskID, message: String) {
-    var message: Substring = message[...]
-    while message.last?.isNewline ?? false {
-      message = message.dropLast(1)
-    }
-    let messageWithEmojiLinePrefixes = message.split(separator: "\n", omittingEmptySubsequences: false).map {
-      "\(taskID.emojiRepresentation) \($0)"
-    }.joined(separator: "\n")
+  nonisolated package func logMessageToIndexLog(taskID: String, message: String) {
     self.sendNotificationToClient(
       LogMessageNotification(
         type: .info,
-        message: messageWithEmojiLinePrefixes,
+        message: prefixMessageWithTaskEmoji(taskID: taskID, message: message),
         logName: "SourceKit-LSP: Indexing"
       )
     )
+  }
+
+  func fileHandlingCapabilityChanged() {
+    logger.log("Scheduling update of URI to workspace because file handling capability of a workspace changed")
+    self.scheduleUpdateOfUriToWorkspace()
   }
 }
 
@@ -860,97 +814,55 @@ extension SourceKitLSPServer {
 
   // MARK: - General
 
-  private func reloadPackageStatusCallback(_ status: ReloadPackageStatus) async {
-    switch status {
-    case .start:
-      await packageLoadingWorkDoneProgress.start()
-    case .end:
-      await packageLoadingWorkDoneProgress.end()
-    }
-  }
-
   /// Creates a workspace at the given `uri`.
   ///
   /// If the build system that was determined for the workspace does not satisfy `condition`, `nil` is returned.
   private func createWorkspace(
-    _ workspaceFolder: WorkspaceFolder,
-    condition: (BuildSystem?) async -> Bool = { _ in true }
-  ) async -> Workspace? {
+    workspaceFolder: DocumentURI,
+    buildSystemSpec: BuildSystemSpec?
+  ) async throws -> Workspace {
     guard let capabilityRegistry = capabilityRegistry else {
+      struct NoCapabilityRegistryError: Error {}
       logger.log("Cannot open workspace before server is initialized")
-      return nil
+      throw NoCapabilityRegistryError()
     }
     let testHooks = self.testHooks
     let options = SourceKitLSPOptions.merging(
       base: self.options,
       override: SourceKitLSPOptions(
-        path: workspaceFolder.uri.fileURL?
+        path: workspaceFolder.fileURL?
           .appendingPathComponent(".sourcekit-lsp")
           .appendingPathComponent("config.json")
       )
     )
-    logger.log("Creating workspace at \(workspaceFolder.uri.forLogging) with options: \(options.forLogging)")
-    let buildSystem = await createBuildSystem(
-      rootUri: workspaceFolder.uri,
-      options: options,
-      testHooks: testHooks,
-      toolchainRegistry: toolchainRegistry,
-      reloadPackageStatusCallback: { [weak self] status in
-        await self?.reloadPackageStatusCallback(status)
-      }
-    )
-    guard await condition(buildSystem) else {
-      return nil
-    }
-    do {
-      try await buildSystem?.generateBuildGraph(allowFileSystemWrites: true)
-    } catch {
-      logger.error("Failed to generate build graph at \(workspaceFolder.uri.forLogging): \(error.forLogging)")
-      return nil
-    }
+    logger.log("Creating workspace at \(workspaceFolder.forLogging) with options: \(options.forLogging)")
+    logger.logFullObjectInMultipleLogMessages(header: "Options for workspace", options.loggingProxy)
 
-    let projectRoot = await buildSystem?.projectRoot.pathString
-    logger.log(
-      "Created workspace at \(workspaceFolder.uri.forLogging) as \(type(of: buildSystem)) with project root \(projectRoot ?? "<nil>")"
-    )
-
-    let workspace = try? await Workspace(
+    let workspace = await Workspace(
+      sourceKitLSPServer: self,
       documentManager: self.documentManager,
-      rootUri: workspaceFolder.uri,
+      rootUri: workspaceFolder,
       capabilityRegistry: capabilityRegistry,
-      buildSystem: buildSystem,
+      buildSystemSpec: buildSystemSpec,
       toolchainRegistry: self.toolchainRegistry,
       options: options,
       testHooks: testHooks,
-      indexTaskScheduler: indexTaskScheduler,
-      logMessageToIndexLog: { [weak self] taskID, message in
-        self?.logMessageToIndexLog(taskID: taskID, message: message)
-      },
-      indexTasksWereScheduled: { [weak self] count in
-        self?.indexProgressManager.indexTasksWereScheduled(count: count)
-      },
-      indexProgressStatusDidChange: { [weak self] in
-        self?.indexProgressManager.indexProgressStatusDidChange()
-      }
+      indexTaskScheduler: indexTaskScheduler
     )
-    if let workspace, options.backgroundIndexingOrDefault, workspace.semanticIndexManager == nil,
-      !self.didSendBackgroundIndexingNotSupportedNotification
-    {
-      self.sendNotificationToClient(
-        ShowMessageNotification(
-          type: .info,
-          message: """
-            Background indexing is currently only supported for SwiftPM projects. \
-            For all other project types, please run a build to update the index.
-            """
-        )
-      )
-      self.didSendBackgroundIndexingNotSupportedNotification = true
-    }
     return workspace
   }
 
+  /// Determines the build system for the given workspace folder and creates a `Workspace` that uses this inferred build
+  /// system.
+  private func createWorkspaceWithInferredBuildSystem(workspaceFolder: DocumentURI) async throws -> Workspace {
+    return try await self.createWorkspace(
+      workspaceFolder: workspaceFolder,
+      buildSystemSpec: determineBuildSystem(forWorkspaceFolder: workspaceFolder, options: self.options)
+    )
+  }
+
   func initialize(_ req: InitializeRequest) async throws -> InitializeResult {
+    logger.logFullObjectInMultipleLogMessages(header: "Initialize request", AnyRequestType(request: req))
     // If the client can handle `PeekDocumentsRequest`, they can enable the
     // experimental client capability `"workspace/peekDocuments"` through the `req.capabilities.experimental`.
     //
@@ -1002,25 +914,31 @@ extension SourceKitLSPServer {
       override: orLog("Parsing SourceKitLSPOptions", { try SourceKitLSPOptions(fromLSPAny: req.initializationOptions) })
     )
 
-    logger.log("Initialized SourceKit-LSP with options: \(self.options.forLogging)")
+    logger.log("Initialized SourceKit-LSP")
+    logger.logFullObjectInMultipleLogMessages(header: "SourceKit-LSP Options", options.loggingProxy)
 
     await workspaceQueue.async { [testHooks] in
       if let workspaceFolders = req.workspaceFolders {
-        self.workspacesAndIsImplicit += await workspaceFolders.asyncCompactMap {
-          guard let workspace = await self.createWorkspace($0) else {
-            return nil
+        self.workspacesAndIsImplicit += await workspaceFolders.asyncCompactMap { workspaceFolder in
+          await orLog("Creating workspace from workspaceFolders") {
+            return (
+              workspace: try await self.createWorkspaceWithInferredBuildSystem(workspaceFolder: workspaceFolder.uri),
+              isImplicit: false
+            )
           }
-          return (workspace: workspace, isImplicit: false)
         }
       } else if let uri = req.rootURI {
-        let workspaceFolder = WorkspaceFolder(uri: uri)
-        if let workspace = await self.createWorkspace(workspaceFolder) {
-          self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
+        await orLog("Creating workspace from rootURI") {
+          self.workspacesAndIsImplicit.append(
+            (workspace: try await self.createWorkspaceWithInferredBuildSystem(workspaceFolder: uri), isImplicit: false)
+          )
         }
       } else if let path = req.rootPath {
-        let workspaceFolder = WorkspaceFolder(uri: DocumentURI(URL(fileURLWithPath: path)))
-        if let workspace = await self.createWorkspace(workspaceFolder) {
-          self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
+        let uri = DocumentURI(URL(fileURLWithPath: path))
+        await orLog("Creating workspace from rootPath") {
+          self.workspacesAndIsImplicit.append(
+            (workspace: try await self.createWorkspaceWithInferredBuildSystem(workspaceFolder: uri), isImplicit: false)
+          )
         }
       }
 
@@ -1029,25 +947,15 @@ extension SourceKitLSPServer {
 
         let options = self.options
         let workspace = await Workspace(
+          sourceKitLSPServer: self,
           documentManager: self.documentManager,
           rootUri: req.rootURI,
           capabilityRegistry: self.capabilityRegistry!,
+          buildSystemSpec: nil,
           toolchainRegistry: self.toolchainRegistry,
           options: options,
           testHooks: testHooks,
-          underlyingBuildSystem: nil,
-          index: nil,
-          indexDelegate: nil,
-          indexTaskScheduler: self.indexTaskScheduler,
-          logMessageToIndexLog: { [weak self] taskID, message in
-            self?.logMessageToIndexLog(taskID: taskID, message: message)
-          },
-          indexTasksWereScheduled: { [weak self] count in
-            self?.indexProgressManager.indexTasksWereScheduled(count: count)
-          },
-          indexProgressStatusDidChange: { [weak self] in
-            self?.indexProgressManager.indexProgressStatusDidChange()
-          }
+          indexTaskScheduler: self.indexTaskScheduler
         )
 
         self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
@@ -1055,21 +963,22 @@ extension SourceKitLSPServer {
     }.value
 
     assert(!self.workspaces.isEmpty)
-    for workspace in self.workspaces {
-      await workspace.buildSystemManager.setDelegate(self)
-    }
 
-    return InitializeResult(
+    let result = InitializeResult(
       capabilities: await self.serverCapabilities(
         for: req.capabilities,
-        registry: self.capabilityRegistry!
+        registry: self.capabilityRegistry!,
+        options: options
       )
     )
+    logger.logFullObjectInMultipleLogMessages(header: "Initialize response", AnyRequestType(request: req))
+    return result
   }
 
   func serverCapabilities(
     for client: ClientCapabilities,
-    registry: CapabilityRegistry
+    registry: CapabilityRegistry,
+    options: SourceKitLSPOptions
   ) async -> ServerCapabilities {
     let completionOptions =
       await registry.clientHasDynamicCompletionRegistration
@@ -1078,6 +987,11 @@ extension SourceKitLSPServer {
         resolveProvider: false,
         triggerCharacters: [".", "("]
       )
+
+    let onTypeFormattingOptions =
+      options.hasExperimentalFeature(.onTypeFormatting)
+      ? DocumentOnTypeFormattingOptions(triggerCharacters: ["\n", "\r\n", "\r", "{", "}", ";", ".", ":", "#"])
+      : nil
 
     let foldingRangeOptions =
       await registry.clientHasDynamicFoldingRangeRegistration
@@ -1127,6 +1041,8 @@ extension SourceKitLSPServer {
       ),
       codeLensProvider: CodeLensOptions(),
       documentFormattingProvider: .value(DocumentFormattingOptions(workDoneProgress: false)),
+      documentRangeFormattingProvider: .value(DocumentRangeFormattingOptions(workDoneProgress: false)),
+      documentOnTypeFormattingProvider: onTypeFormattingOptions,
       renameProvider: .value(RenameOptions(prepareProvider: true)),
       colorProvider: .bool(true),
       foldingRangeProvider: foldingRangeOptions,
@@ -1191,41 +1107,10 @@ extension SourceKitLSPServer {
     if let commandOptions = server.executeCommandProvider {
       await registry.registerExecuteCommandIfNeeded(commands: commandOptions.commands, server: self)
     }
-
-    // From our side, we could specify the watch patterns as part of the initial server capabilities but LSP only allows
-    // dynamic registration of watch patterns.
-    // This must be a superset of the files that return true for SwiftPM's `Workspace.fileAffectsSwiftOrClangBuildSettings`.
-    var watchers = FileRuleDescription.builtinRules.flatMap({ $0.fileTypes }).map { fileExtension in
-      return FileSystemWatcher(globPattern: "**/*.\(fileExtension)", kind: [.create, .change, .delete])
-    }
-    watchers.append(FileSystemWatcher(globPattern: "**/Package.swift", kind: [.change]))
-    watchers.append(FileSystemWatcher(globPattern: "**/Package.resolved", kind: [.change]))
-    watchers.append(FileSystemWatcher(globPattern: "**/compile_commands.json", kind: [.create, .change, .delete]))
-    watchers.append(FileSystemWatcher(globPattern: "**/compile_flags.txt", kind: [.create, .change, .delete]))
-    // Watch for changes to `.swiftmodule` files to detect updated modules during a build.
-    // See comments in `SwiftPMBuildSystem.filesDidChange``
-    watchers.append(FileSystemWatcher(globPattern: "**/*.swiftmodule", kind: [.create, .change, .delete]))
-    await registry.registerDidChangeWatchedFiles(watchers: watchers, server: self)
   }
 
   func clientInitialized(_: InitializedNotification) {
     // Nothing to do.
-  }
-
-  nonisolated func cancelRequest(_ notification: CancelRequestNotification) {
-    // Since the request is very cheap to execute and stops other requests
-    // from performing more work, we execute it with a high priority.
-    cancellationMessageHandlingQueue.async(priority: .high) {
-      if let task = await self.inProgressRequests[notification.id] {
-        task.cancel()
-        return
-      }
-      if await !self.recentlyFinishedRequests.contains(notification.id) {
-        logger.error(
-          "Cannot cancel request \(notification.id, privacy: .public) because it hasn't been scheduled for execution yet"
-        )
-      }
-    }
   }
 
   /// The server is about to exit, and the server should flush any buffered state.
@@ -1244,19 +1129,26 @@ extension SourceKitLSPServer {
     for workspace in self.workspaces {
       await workspace.buildSystemManager.setMainFilesProvider(nil)
       workspace.closeIndex()
-
-      // Break retain cycle with the BSM.
-      await workspace.buildSystemManager.setDelegate(nil)
     }
   }
 
-  func shutdown(_ request: ShutdownRequest) async throws -> VoidResponse {
+  func shutdown(_ request: ShutdownRequest) async throws -> ShutdownRequest.Response {
     await prepareForExit()
 
     await withTaskGroup(of: Void.self) { taskGroup in
       for service in languageServices.values.flatMap({ $0 }) {
         taskGroup.addTask {
           await service.shutdown()
+        }
+      }
+      for workspace in workspaces {
+        taskGroup.addTask {
+          await orLog("Shutting down build server") {
+            // If the build server doesn't shut down in 1 second, don't delay SourceKit-LSP's shutdown because of it.
+            try await withTimeout(.seconds(2)) {
+              await workspace.buildSystemManager.shutdown()
+            }
+          }
         }
       }
     }
@@ -1271,7 +1163,7 @@ extension SourceKitLSPServer {
     // Otherwise we might terminate sourcekit-lsp while it still has open
     // connections to the toolchain servers, which could send messages to
     // sourcekit-lsp while it is being deallocated, causing crashes.
-    return VoidResponse()
+    return ShutdownRequest.Response()
   }
 
   func exit(_ notification: ExitNotification) async {
@@ -1280,6 +1172,20 @@ extension SourceKitLSPServer {
 
     // Call onExit only once, and hop off queue to allow the handler to call us back.
     self.onExit()
+  }
+
+  /// Start watching for changes with the given patterns.
+  func watchFiles(_ fileWatchers: [FileSystemWatcher]) async {
+    await self.waitUntilInitialized()
+    if fileWatchers.allSatisfy({ self.watchers.contains($0) }) {
+      // All watchers already registered. Nothing to do.
+      return
+    }
+    self.watchers.formUnion(fileWatchers)
+    await self.capabilityRegistry?.registerDidChangeWatchedFiles(
+      watchers: self.watchers.sorted { $0.globPattern < $1.globPattern },
+      server: self
+    )
   }
 
   // MARK: - Text synchronization
@@ -1361,6 +1267,10 @@ extension SourceKitLSPServer {
     await workspace.buildSystemManager.unregisterForChangeNotifications(for: uri)
 
     await workspace.documentService(for: uri)?.closeDocument(notification)
+
+    workspaceQueue.async {
+      self.workspaceForUri[notification.textDocument.uri] = nil
+    }
   }
 
   func changeDocument(_ notification: DidChangeTextDocumentNotification) async {
@@ -1433,46 +1343,14 @@ extension SourceKitLSPServer {
         }
       }
       if let added = notification.event.added {
-        let newWorkspaces = await added.asyncCompactMap { await self.createWorkspace($0) }
-        for workspace in newWorkspaces {
-          await workspace.buildSystemManager.setDelegate(self)
+        let newWorkspaces = await added.asyncCompactMap { workspaceFolder in
+          await orLog("Creating workspace after workspace folder change") {
+            try await self.createWorkspaceWithInferredBuildSystem(workspaceFolder: workspaceFolder.uri)
+          }
         }
         self.workspacesAndIsImplicit += newWorkspaces.map { (workspace: $0, isImplicit: false) }
       }
     }.value
-
-    // For each document that has moved to a different workspace, close it in
-    // the old workspace and open it in the new workspace.
-    for docUri in self.documentManager.openDocuments {
-      let oldWorkspace = preChangeWorkspaces[docUri]
-      let newWorkspace = await self.workspaceForDocument(uri: docUri)
-      if newWorkspace !== oldWorkspace {
-        guard let snapshot = try? documentManager.latestSnapshot(docUri) else {
-          continue
-        }
-        if let oldWorkspace = oldWorkspace {
-          await self.closeDocument(
-            DidCloseTextDocumentNotification(
-              textDocument: TextDocumentIdentifier(docUri)
-            ),
-            workspace: oldWorkspace
-          )
-        }
-        if let newWorkspace = newWorkspace {
-          await self.openDocument(
-            DidOpenTextDocumentNotification(
-              textDocument: TextDocumentItem(
-                uri: docUri,
-                language: snapshot.language,
-                version: snapshot.version,
-                text: snapshot.text
-              )
-            ),
-            workspace: newWorkspace
-          )
-        }
-      }
-    }
   }
 
   func didChangeWatchedFiles(_ notification: DidChangeWatchedFilesNotification) async {
@@ -1504,36 +1382,24 @@ extension SourceKitLSPServer {
     return try await languageService.hover(req)
   }
 
-  func openGeneratedInterface(
-    document: DocumentURI,
-    moduleName: String,
-    groupName: String?,
-    symbolUSR symbol: String?,
-    workspace: Workspace,
-    languageService: LanguageService
-  ) async throws -> GeneratedInterfaceDetails? {
-    return try await languageService.openGeneratedInterface(
-      document: document,
-      moduleName: moduleName,
-      groupName: groupName,
-      symbolUSR: symbol
-    )
-  }
-
-  /// Find all symbols in the workspace that include a string in their name.
-  /// - returns: An array of SymbolOccurrences that match the string.
-  func findWorkspaceSymbols(matching: String) throws -> [SymbolOccurrence] {
+  /// Handle a workspace/symbol request, returning the SymbolInformation.
+  /// - returns: An array with SymbolInformation for each matching symbol in the workspace.
+  func workspaceSymbols(_ req: WorkspaceSymbolsRequest) async throws -> [WorkspaceSymbolItem]? {
     // Ignore short queries since they are:
     // - noisy and slow, since they can match many symbols
     // - normally unintentional, triggered when the user types slowly or if the editor doesn't
     //   debounce events while the user is typing
-    guard matching.count >= minWorkspaceSymbolPatternLength else {
+    guard req.query.count >= minWorkspaceSymbolPatternLength else {
       return []
     }
-    var symbolOccurrenceResults: [SymbolOccurrence] = []
+    var symbolsAndIndex: [(symbol: SymbolOccurrence, index: CheckedIndex)] = []
     for workspace in workspaces {
-      workspace.index(checkedFor: .deletedFiles)?.forEachCanonicalSymbolOccurrence(
-        containing: matching,
+      guard let index = workspace.index(checkedFor: .deletedFiles) else {
+        continue
+      }
+      var symbolOccurrences: [SymbolOccurrence] = []
+      index.forEachCanonicalSymbolOccurrence(
+        containing: req.query,
         anchorStart: false,
         anchorEnd: false,
         subsequence: true,
@@ -1545,19 +1411,48 @@ extension SourceKitLSPServer {
         guard !symbol.location.isSystem && !symbol.roles.contains(.accessorOf) else {
           return true
         }
-        symbolOccurrenceResults.append(symbol)
+        symbolOccurrences.append(symbol)
         return true
       }
       try Task.checkCancellation()
+      symbolsAndIndex += symbolOccurrences.map {
+        return ($0, index)
+      }
     }
-    return symbolOccurrenceResults.sorted()
-  }
+    return symbolsAndIndex.sorted(by: { $0.symbol < $1.symbol }).map { symbolOccurrence, index in
+      let symbolPosition = Position(
+        line: symbolOccurrence.location.line - 1,  // 1-based -> 0-based
+        // Technically we would need to convert the UTF-8 column to a UTF-16 column. This would require reading the
+        // file. In practice they almost always coincide, so we accept the incorrectness here to avoid the file read.
+        utf16index: symbolOccurrence.location.utf8Column - 1
+      )
 
-  /// Handle a workspace/symbol request, returning the SymbolInformation.
-  /// - returns: An array with SymbolInformation for each matching symbol in the workspace.
-  func workspaceSymbols(_ req: WorkspaceSymbolsRequest) async throws -> [WorkspaceSymbolItem]? {
-    let symbols = try findWorkspaceSymbols(matching: req.query).map(WorkspaceSymbolItem.init)
-    return symbols
+      let symbolLocation = Location(
+        uri: symbolOccurrence.location.documentUri,
+        range: Range(symbolPosition)
+      )
+
+      let containerNames = index.containerNames(of: symbolOccurrence)
+      let containerName: String?
+      if containerNames.isEmpty {
+        containerName = nil
+      } else {
+        switch symbolOccurrence.symbol.language {
+        case .cxx, .c, .objc: containerName = containerNames.joined(separator: "::")
+        case .swift: containerName = containerNames.joined(separator: ".")
+        }
+      }
+
+      return WorkspaceSymbolItem.symbolInformation(
+        SymbolInformation(
+          name: symbolOccurrence.symbol.name,
+          kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
+          deprecated: nil,
+          location: symbolLocation,
+          containerName: containerName
+        )
+      )
+    }
   }
 
   /// Forwards a SymbolInfoRequest to the appropriate toolchain service for this document.
@@ -1633,6 +1528,22 @@ extension SourceKitLSPServer {
     return try await languageService.documentFormatting(req)
   }
 
+  func documentRangeFormatting(
+    _ req: DocumentRangeFormattingRequest,
+    workspace: Workspace,
+    languageService: LanguageService
+  ) async throws -> [TextEdit]? {
+    return try await languageService.documentRangeFormatting(req)
+  }
+
+  func documentOnTypeFormatting(
+    _ req: DocumentOnTypeFormattingRequest,
+    workspace: Workspace,
+    languageService: LanguageService
+  ) async throws -> [TextEdit]? {
+    return try await languageService.documentOnTypeFormatting(req)
+  }
+
   func colorPresentation(
     _ req: ColorPresentationRequest,
     workspace: Workspace,
@@ -1661,15 +1572,14 @@ extension SourceKitLSPServer {
   }
 
   func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
-    let referenceDocumentURL = try ReferenceDocumentURL(from: req.uri)
-    let primaryFileURI = referenceDocumentURL.primaryFile
+    let buildSettingsUri = try ReferenceDocumentURL(from: req.uri).buildSettingsFile
 
-    guard let workspace = await workspaceForDocument(uri: primaryFileURI) else {
-      throw ResponseError.workspaceNotOpen(primaryFileURI)
+    guard let workspace = await workspaceForDocument(uri: buildSettingsUri) else {
+      throw ResponseError.workspaceNotOpen(buildSettingsUri)
     }
 
-    guard let languageService = workspace.documentService(for: primaryFileURI) else {
-      throw ResponseError.unknown("No Language Service for URI: \(primaryFileURI)")
+    guard let languageService = workspace.documentService(for: buildSettingsUri) else {
+      throw ResponseError.unknown("No Language Service for URI: \(buildSettingsUri)")
     }
 
     return try await languageService.getReferenceDocument(req)
@@ -1721,7 +1631,8 @@ extension SourceKitLSPServer {
           // 1-based -> 0-based
           // Note that we still use max(0, ...) as a fallback if the location is zero.
           line: max(0, location.line - 1),
-          // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
+          // Technically we would need to convert the UTF-8 column to a UTF-16 column. This would require reading the
+          // file. In practice they almost always coincide, so we accept the incorrectness here to avoid the file read.
           utf16index: max(0, location.utf8Column - 1)
         )
       )
@@ -1844,7 +1755,7 @@ extension SourceKitLSPServer {
         == canonicalOriginatorLocation
     }
 
-    var locations = try await symbols.asyncMap { (symbol) -> [Location] in
+    var locations = try await symbols.asyncFlatMap { (symbol) -> [Location] in
       var locations: [Location]
       if let bestLocalDeclaration = symbol.bestLocalDeclaration,
         !(symbol.isDynamic ?? true),
@@ -1882,7 +1793,7 @@ extension SourceKitLSPServer {
       }
 
       return locations
-    }.flatMap { $0 }
+    }
 
     // Remove any duplicate locations. We might end up with duplicate locations when performing a definition request
     // on eg. `MyStruct()` when no explicit initializer is declared. In this case we get two symbol infos, one for the
@@ -2012,27 +1923,14 @@ extension SourceKitLSPServer {
   }
 
   private func indexToLSPCallHierarchyItem(
-    symbol: Symbol,
-    containerName: String?,
-    location: Location
-  ) -> CallHierarchyItem {
-    let name: String
-    if let containerName {
-      switch symbol.language {
-      case .objc where symbol.kind == .instanceMethod || symbol.kind == .instanceProperty:
-        name = "-[\(containerName) \(symbol.name)]"
-      case .objc where symbol.kind == .classMethod || symbol.kind == .classProperty:
-        name = "+[\(containerName) \(symbol.name)]"
-      case .cxx, .c, .objc:
-        // C shouldn't have container names for call hierarchy and Objective-C should be covered above.
-        // Fall back to using the C++ notation using `::`.
-        name = "\(containerName)::\(symbol.name)"
-      case .swift:
-        name = "\(containerName).\(symbol.name)"
-      }
-    } else {
-      name = symbol.name
+    definition: SymbolOccurrence,
+    index: CheckedIndex
+  ) -> CallHierarchyItem? {
+    guard let location = indexToLSPLocation(definition.location) else {
+      return nil
     }
+    let name = index.fullyQualifiedName(of: definition)
+    let symbol = definition.symbol
     return CallHierarchyItem(
       name: name,
       kind: symbol.kind.asLspSymbolKind(),
@@ -2072,14 +1970,7 @@ extension SourceKitLSPServer {
       guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
         return nil
       }
-      guard let location = indexToLSPLocation(definition.location) else {
-        return nil
-      }
-      return self.indexToLSPCallHierarchyItem(
-        symbol: definition.symbol,
-        containerName: definition.containerName,
-        location: location
-      )
+      return self.indexToLSPCallHierarchyItem(definition: definition, index: index)
     }.sorted(by: { Location(uri: $0.uri, range: $0.range) < Location(uri: $1.uri, range: $1.range) })
 
     // Ideally, we should show multiple symbols. But VS Code fails to display call hierarchies with multiple root items,
@@ -2118,6 +2009,7 @@ extension SourceKitLSPServer {
     // callOccurrences are all the places that any of the USRs in callableUsrs is called.
     // We also load the `calledBy` roles to get the method that contains the reference to this call.
     let callOccurrences = callableUsrs.flatMap { index.occurrences(ofUSR: $0, roles: .containedBy) }
+      .filter(\.shouldShowInCallHierarchy)
 
     // Maps functions that call a USR in `callableUSRs` to all the called occurrences of `callableUSRs` within the
     // function. If a function `foo` calls `bar` multiple times, `callersToCalls[foo]` will contain two call
@@ -2134,39 +2026,34 @@ extension SourceKitLSPServer {
       }
     }
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
       return self.indexToLSPLocation(location)
     }
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPCallHierarchyItem2(
-      symbol: Symbol,
-      containerName: String?,
-      location: Location
-    ) -> CallHierarchyItem {
-      return self.indexToLSPCallHierarchyItem(symbol: symbol, containerName: containerName, location: location)
+      definition: SymbolOccurrence,
+      index: CheckedIndex
+    ) -> CallHierarchyItem? {
+      return self.indexToLSPCallHierarchyItem(definition: definition, index: index)
     }
 
     let calls = callersToCalls.compactMap { (caller: Symbol, calls: [SymbolOccurrence]) -> CallHierarchyIncomingCall? in
       // Resolve the caller's definition to find its location
-      let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: caller.usr)
-      let definitionSymbolLocation = definition?.location
-      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation2)
+      guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: caller.usr) else {
+        return nil
+      }
 
       let locations = calls.compactMap { indexToLSPLocation2($0.location) }.sorted()
       guard !locations.isEmpty else {
         return nil
       }
+      guard let item = indexToLSPCallHierarchyItem2(definition: definition, index: index) else {
+        return nil
+      }
 
-      return CallHierarchyIncomingCall(
-        from: indexToLSPCallHierarchyItem2(
-          symbol: caller,
-          containerName: definition?.containerName,
-          location: definitionLocation ?? locations.first!
-        ),
-        fromRanges: locations.map(\.range)
-      )
+      return CallHierarchyIncomingCall(from: item, fromRanges: locations.map(\.range))
     }
     return calls.sorted(by: { $0.from.name < $1.from.name })
   }
@@ -2178,22 +2065,22 @@ extension SourceKitLSPServer {
       return []
     }
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
       return self.indexToLSPLocation(location)
     }
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPCallHierarchyItem2(
-      symbol: Symbol,
-      containerName: String?,
-      location: Location
-    ) -> CallHierarchyItem {
-      return self.indexToLSPCallHierarchyItem(symbol: symbol, containerName: containerName, location: location)
+      definition: SymbolOccurrence,
+      index: CheckedIndex
+    ) -> CallHierarchyItem? {
+      return self.indexToLSPCallHierarchyItem(definition: definition, index: index)
     }
 
     let callableUsrs = [data.usr] + index.occurrences(relatedToUSR: data.usr, roles: .accessorOf).map(\.symbol.usr)
     let callOccurrences = callableUsrs.flatMap { index.occurrences(relatedToUSR: $0, roles: .containedBy) }
+      .filter(\.shouldShowInCallHierarchy)
     let calls = callOccurrences.compactMap { occurrence -> CallHierarchyOutgoingCall? in
       guard occurrence.symbol.kind.isCallable else {
         return nil
@@ -2203,31 +2090,32 @@ extension SourceKitLSPServer {
       }
 
       // Resolve the callee's definition to find its location
-      let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr)
-      let definitionSymbolLocation = definition?.location
-      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation2)
+      guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr) else {
+        return nil
+      }
 
-      return CallHierarchyOutgoingCall(
-        to: indexToLSPCallHierarchyItem2(
-          symbol: occurrence.symbol,
-          containerName: definition?.containerName,
-          location: definitionLocation ?? location  // Use occurrence location as fallback
-        ),
-        fromRanges: [location.range]
-      )
+      guard let item = indexToLSPCallHierarchyItem2(definition: definition, index: index) else {
+        return nil
+      }
+
+      return CallHierarchyOutgoingCall(to: item, fromRanges: [location.range])
     }
     return calls.sorted(by: { $0.to.name < $1.to.name })
   }
 
   private func indexToLSPTypeHierarchyItem(
-    symbol: Symbol,
+    definition: SymbolOccurrence,
     moduleName: String?,
-    location: Location,
     index: CheckedIndex
-  ) -> TypeHierarchyItem {
+  ) -> TypeHierarchyItem? {
     let name: String
     let detail: String?
 
+    guard let location = indexToLSPLocation(definition.location) else {
+      return nil
+    }
+
+    let symbol = definition.symbol
     switch symbol.kind {
     case .extension:
       // Query the conformance added by this extension
@@ -2239,7 +2127,7 @@ extension SourceKitLSPServer {
       }
       // Add the file name and line to the detail string
       if let url = location.uri.fileURL,
-        let basename = (try? AbsolutePath(validating: url.path))?.basename
+        let basename = (try? AbsolutePath(validating: url.filePath))?.basename
       {
         detail = "Extension at \(basename):\(location.range.lowerBound.line + 1)"
       } else if let moduleName = moduleName {
@@ -2248,7 +2136,7 @@ extension SourceKitLSPServer {
         detail = "Extension"
       }
     default:
-      name = symbol.name
+      name = index.fullyQualifiedName(of: definition)
       detail = moduleName
     }
 
@@ -2297,16 +2185,12 @@ extension SourceKitLSPServer {
       }
       .compactMap(\.usr)
     let typeHierarchyItems = usrs.compactMap { (usr) -> TypeHierarchyItem? in
-      guard
-        let info = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr),
-        let location = indexToLSPLocation(info.location)
-      else {
+      guard let info = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
         return nil
       }
       return self.indexToLSPTypeHierarchyItem(
-        symbol: info.symbol,
+        definition: info,
         moduleName: info.location.moduleName,
-        location: location,
         index: index
       )
     }
@@ -2364,37 +2248,35 @@ extension SourceKitLSPServer {
       return index.occurrences(relatedToUSR: related.symbol.usr, roles: .baseOf)
     }
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
       return self.indexToLSPLocation(location)
     }
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPTypeHierarchyItem2(
-      symbol: Symbol,
+      definition: SymbolOccurrence,
       moduleName: String?,
-      location: Location,
       index: CheckedIndex
-    ) -> TypeHierarchyItem {
-      return self.indexToLSPTypeHierarchyItem(symbol: symbol, moduleName: moduleName, location: location, index: index)
+    ) -> TypeHierarchyItem? {
+      return self.indexToLSPTypeHierarchyItem(
+        definition: definition,
+        moduleName: moduleName,
+        index: index
+      )
     }
 
     // Convert occurrences to type hierarchy items
     let occurs = baseOccurs + retroactiveConformanceOccurs
     let types = occurs.compactMap { occurrence -> TypeHierarchyItem? in
-      guard let location = indexToLSPLocation2(occurrence.location) else {
+      // Resolve the supertype's definition to find its location
+      guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr) else {
         return nil
       }
 
-      // Resolve the supertype's definition to find its location
-      let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr)
-      let definitionSymbolLocation = definition?.location
-      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation2)
-
       return indexToLSPTypeHierarchyItem2(
-        symbol: occurrence.symbol,
-        moduleName: definitionSymbolLocation?.moduleName,
-        location: definitionLocation ?? location,  // Use occurrence location as fallback
+        definition: definition,
+        moduleName: definition.location.moduleName,
         index: index
       )
     }
@@ -2411,19 +2293,22 @@ extension SourceKitLSPServer {
     // Resolve child types and extensions
     let occurs = index.occurrences(ofUSR: data.usr, roles: [.baseOf, .extendedBy])
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
       return self.indexToLSPLocation(location)
     }
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPTypeHierarchyItem2(
-      symbol: Symbol,
+      definition: SymbolOccurrence,
       moduleName: String?,
-      location: Location,
       index: CheckedIndex
-    ) -> TypeHierarchyItem {
-      return self.indexToLSPTypeHierarchyItem(symbol: symbol, moduleName: moduleName, location: location, index: index)
+    ) -> TypeHierarchyItem? {
+      return self.indexToLSPTypeHierarchyItem(
+        definition: definition,
+        moduleName: moduleName,
+        index: index
+      )
     }
 
     // Convert occurrences to type hierarchy items
@@ -2434,20 +2319,18 @@ extension SourceKitLSPServer {
         // to.
         logger.fault("Expected at most extendedBy or baseOf relation but got \(occurrence.relations.count)")
       }
-      guard let related = occurrence.relations.sorted().first, let location = indexToLSPLocation2(occurrence.location)
-      else {
+      guard let related = occurrence.relations.sorted().first else {
         return nil
       }
 
       // Resolve the subtype's definition to find its location
-      let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: related.symbol.usr)
-      let definitionSymbolLocation = definition.map(\.location)
-      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation2)
+      guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: related.symbol.usr) else {
+        return nil
+      }
 
       return indexToLSPTypeHierarchyItem2(
-        symbol: related.symbol,
-        moduleName: definitionSymbolLocation?.moduleName,
-        location: definitionLocation ?? location,  // Use occurrence location as fallback
+        definition: definition,
+        moduleName: definition.location.moduleName,
         index: index
       )
     }
@@ -2456,6 +2339,7 @@ extension SourceKitLSPServer {
 
   func pollIndex(_ req: PollIndexRequest) async throws -> VoidResponse {
     for workspace in workspaces {
+      await workspace.buildSystemManager.waitForUpToDateBuildGraph()
       await workspace.semanticIndexManager?.waitForUpToDateIndex()
       workspace.uncheckedIndex?.pollForUnitChangesAndWait()
     }
@@ -2491,26 +2375,27 @@ private let maxWorkspaceSymbolResults = 4096
 package typealias Diagnostic = LanguageServerProtocol.Diagnostic
 
 fileprivate extension CheckedIndex {
-  /// If there are any definition occurrences of the given USR, return these.
-  /// Otherwise return declaration occurrences.
-  func definitionOrDeclarationOccurrences(ofUSR usr: String) -> [SymbolOccurrence] {
-    let definitions = occurrences(ofUSR: usr, roles: [.definition])
-    if !definitions.isEmpty {
-      return definitions
+  /// Take the name of containers into account to form a fully-qualified name for the given symbol.
+  /// This means that we will form names of nested types and type-qualify methods.
+  func fullyQualifiedName(of symbolOccurrence: SymbolOccurrence) -> String {
+    let symbol = symbolOccurrence.symbol
+    let containerNames = self.containerNames(of: symbolOccurrence)
+    guard let containerName = containerNames.last else {
+      // No containers, so nothing to do.
+      return symbol.name
     }
-    return occurrences(ofUSR: usr, roles: [.declaration])
-  }
-
-  /// Find a `SymbolOccurrence` that is considered the primary definition of the symbol with the given USR.
-  ///
-  /// If the USR has an ambiguous definition, the most important role of this function is to deterministically return
-  /// the same result every time.
-  func primaryDefinitionOrDeclarationOccurrence(ofUSR usr: String) -> SymbolOccurrence? {
-    let result = definitionOrDeclarationOccurrences(ofUSR: usr).sorted().first
-    if result == nil {
-      logger.error("Failed to find definition of \(usr) in index")
+    switch symbol.language {
+    case .objc where symbol.kind == .instanceMethod || symbol.kind == .instanceProperty:
+      return "-[\(containerName) \(symbol.name)]"
+    case .objc where symbol.kind == .classMethod || symbol.kind == .classProperty:
+      return "+[\(containerName) \(symbol.name)]"
+    case .cxx, .c, .objc:
+      // C shouldn't have container names for call hierarchy and Objective-C should be covered above.
+      // Fall back to using the C++ notation using `::`.
+      return (containerNames + [symbol.name]).joined(separator: "::")
+    case .swift:
+      return (containerNames + [symbol.name]).joined(separator: ".")
     }
-    return result
   }
 }
 
@@ -2562,23 +2447,10 @@ extension IndexSymbolKind {
   }
 }
 
-extension SymbolOccurrence {
-  /// Get the name of the symbol that is a parent of this symbol, if one exists
-  var containerName: String? {
-    let containers = relations.filter { $0.roles.contains(.childOf) }
-    if containers.count > 1 {
-      logger.fault("Expected an occurrence to a child of at most one symbol, not multiple")
-    }
-    return containers.filter {
-      switch $0.symbol.kind {
-      case .module, .namespace, .enum, .struct, .class, .protocol, .extension, .union:
-        return true
-      case .unknown, .namespaceAlias, .macro, .typealias, .function, .variable, .field, .enumConstant,
-        .instanceMethod, .classMethod, .staticMethod, .instanceProperty, .classProperty, .staticProperty, .constructor,
-        .destructor, .conversionFunction, .parameter, .using, .concept, .commentTag:
-        return false
-      }
-    }.sorted().first?.symbol.name
+fileprivate extension SymbolOccurrence {
+  /// Whether this is a call-like occurrence that should be shown in the call hierarchy.
+  var shouldShowInCallHierarchy: Bool {
+    !roles.intersection([.addressOf, .call, .read, .reference, .write]).isEmpty
   }
 }
 
@@ -2627,44 +2499,6 @@ fileprivate func transitiveSubtypeClosure(ofUsrs usrs: [String], index: CheckedI
   return result
 }
 
-extension WorkspaceSymbolItem {
-  init(_ symbolOccurrence: SymbolOccurrence) {
-    let symbolPosition = Position(
-      line: symbolOccurrence.location.line - 1,  // 1-based -> 0-based
-      // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
-      utf16index: symbolOccurrence.location.utf8Column - 1
-    )
-
-    let symbolLocation = Location(
-      uri: symbolOccurrence.location.documentUri,
-      range: Range(symbolPosition)
-    )
-
-    self = .symbolInformation(
-      SymbolInformation(
-        name: symbolOccurrence.symbol.name,
-        kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
-        deprecated: nil,
-        location: symbolLocation,
-        containerName: symbolOccurrence.containerName
-      )
-    )
-  }
-}
-
-fileprivate extension RequestID {
-  /// Returns a numeric value for this request ID.
-  ///
-  /// For request IDs that are numbers, this is straightforward. For string-based request IDs, this uses a hash to
-  /// convert the string into a number.
-  var numericValue: Int {
-    switch self {
-    case .number(let number): return number
-    case .string(let string): return Int(string) ?? abs(string.hashValue)
-    }
-  }
-}
-
 fileprivate extension Sequence where Element: Hashable {
   /// Removes all duplicate elements from the sequence, maintaining order.
   var unique: [Element] {
@@ -2679,5 +2513,29 @@ fileprivate extension URL {
       return false
     }
     return other.pathComponents[0..<self.pathComponents.count] == self.pathComponents[...]
+  }
+}
+
+extension SourceKitLSPOptions {
+  /// We can't conform `SourceKitLSPOptions` to `CustomLogStringConvertible` because that would require a public import
+  /// of `SKLogging`. Instead, define an internal type that performs the logging of `SourceKitLSPOptions`.
+  struct LoggingProxy: CustomLogStringConvertible {
+    let options: SourceKitLSPOptions
+
+    var description: String {
+      options.prettyPrintedJSON
+    }
+
+    var redactedDescription: String {
+      options.prettyPrintedRedactedJSON
+    }
+  }
+
+  var loggingProxy: LoggingProxy {
+    LoggingProxy(options: self)
+  }
+
+  var forLogging: CustomLogStringConvertibleWrapper {
+    return self.loggingProxy.forLogging
   }
 }

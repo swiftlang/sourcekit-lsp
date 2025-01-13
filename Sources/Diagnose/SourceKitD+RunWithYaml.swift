@@ -10,7 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Csourcekitd
+import Foundation
+package import SourceKitD
+#else
+import Csourcekitd
+import Foundation
 import SourceKitD
+#endif
 
 extension SourceKitD {
   /// Parse the request from YAML and execute it.
@@ -19,7 +27,7 @@ extension SourceKitD {
       var error: UnsafeMutablePointer<CChar>?
       let req = api.request_create_from_yaml(buffer.baseAddress!, &error)
       if let error {
-        throw ReductionError("Failed to parse sourcekitd request from YAML: \(String(cString: error))")
+        throw GenericError("Failed to parse sourcekitd request from YAML: \(String(cString: error))")
       }
       return req
     }

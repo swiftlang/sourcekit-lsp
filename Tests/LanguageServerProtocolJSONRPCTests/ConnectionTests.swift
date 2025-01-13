@@ -15,15 +15,12 @@ import LanguageServerProtocol
 import SKTestSupport
 import XCTest
 
-#if canImport(Darwin)
 import class Foundation.Pipe
-#else
-// FIMXE: (async-workaround) @preconcurrency needed because Pipe is not marked as Sendable on Linux rdar://132378792
-@preconcurrency import class Foundation.Pipe
-#endif
 
 #if os(Windows)
 import WinSDK
+#elseif canImport(Android)
+import Android
 #endif
 
 class ConnectionTests: XCTestCase {
@@ -267,8 +264,7 @@ class ConnectionTests: XCTestCase {
           // We get an error from XCTest if this is fulfilled more than once.
           expectation.fulfill()
 
-          // FIXME: keep the pipes alive until we close the connection. This
-          // should be fixed systemically.
+          // Keep the pipes alive until we close the connection.
           withExtendedLifetime((to, from)) {}
         }
       )

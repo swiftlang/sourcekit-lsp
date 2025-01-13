@@ -37,11 +37,9 @@ public struct CodeActionKind: RawRepresentable, Codable, Hashable, Sendable {
   public static let refactorInline: CodeActionKind = CodeActionKind(rawValue: "refactor.inline")
 
   /// Refactoring rewrite action.
-  // FIXME: what is this?
   public static let refactorRewrite: CodeActionKind = CodeActionKind(rawValue: "refactor.rewrite")
 
   /// Source action that applies to the entire file.
-  // FIXME: what is this?
   public static let source: CodeActionKind = CodeActionKind(rawValue: "source")
 
   /// Organize imports action.

@@ -10,9 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+#else
 import Foundation
-
-import struct TSCBasic.AbsolutePath
+#endif
 
 /// The set of known SourceKitD instances, uniqued by path.
 ///
@@ -26,10 +28,10 @@ import struct TSCBasic.AbsolutePath
 package actor SourceKitDRegistry {
 
   /// Mapping from path to active SourceKitD instance.
-  private var active: [AbsolutePath: SourceKitD] = [:]
+  private var active: [URL: SourceKitD] = [:]
 
   /// Instances that have been unregistered, but may be resurrected if accessed before destruction.
-  private var cemetary: [AbsolutePath: WeakSourceKitD] = [:]
+  private var cemetary: [URL: WeakSourceKitD] = [:]
 
   /// Initialize an empty registry.
   package init() {}
@@ -39,7 +41,7 @@ package actor SourceKitDRegistry {
 
   /// Returns the existing SourceKitD for the given path, or creates it and registers it.
   package func getOrAdd(
-    _ key: AbsolutePath,
+    _ key: URL,
     create: @Sendable () throws -> SourceKitD
   ) rethrows -> SourceKitD {
     if let existing = active[key] {
@@ -62,7 +64,7 @@ package actor SourceKitDRegistry {
   /// is converted to a weak reference until it is no longer referenced anywhere by the program. If
   /// the same path is looked up again before the original service is deinitialized, the original
   /// service is resurrected rather than creating a new instance.
-  package func remove(_ key: AbsolutePath) -> SourceKitD? {
+  package func remove(_ key: URL) -> SourceKitD? {
     let existing = active.removeValue(forKey: key)
     if let existing = existing {
       assert(self.cemetary[key]?.value == nil)

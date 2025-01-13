@@ -1,7 +1,6 @@
 
 add_library(SourceKitLSP STATIC
   CapabilityRegistry.swift
-  CreateBuildSystem.swift
   DocumentManager.swift
   DocumentSnapshot+FromFileContents.swift
   IndexProgressManager.swift
@@ -10,8 +9,8 @@ add_library(SourceKitLSP STATIC
   LanguageService.swift
   MessageHandlingDependencyTracker.swift
   Rename.swift
-  ResponseError+Init.swift
   SemanticTokensLegend+SourceKitLSPLegend.swift
+  SharedWorkDoneProgressManager.swift
   SourceKitIndexDelegate.swift
   SourceKitLSPCommandMetadata.swift
   SourceKitLSPServer.swift
@@ -19,7 +18,6 @@ add_library(SourceKitLSP STATIC
   TestDiscovery.swift
   TestHooks.swift
   TextEdit+IsNoop.swift
-  WorkDoneProgressManager.swift
   Workspace.swift
 )
 target_sources(SourceKitLSP PRIVATE
@@ -27,7 +25,11 @@ target_sources(SourceKitLSP PRIVATE
   Clang/SemanticTokenTranslator.swift
 )
 target_sources(SourceKitLSP PRIVATE
+  Documentation/DocumentationLanguageService.swift
+)
+target_sources(SourceKitLSP PRIVATE
   Swift/AdjustPositionToStartOfIdentifier.swift
+  Swift/ClosureCompletionFormat.swift
   Swift/CodeActions/AddDocumentation.swift
   Swift/CodeActions/ConvertIntegerLiteral.swift
   Swift/CodeActions/ConvertJSONToCodableStruct.swift
@@ -46,19 +48,20 @@ target_sources(SourceKitLSP PRIVATE
   Swift/DocumentSymbols.swift
   Swift/ExpandMacroCommand.swift
   Swift/FoldingRange.swift
+  Swift/GeneratedInterfaceDocumentURLData.swift
+  Swift/GeneratedInterfaceManager.swift
+  Swift/GeneratedInterfaceManager.swift
   Swift/MacroExpansion.swift
   Swift/MacroExpansionReferenceDocumentURLData.swift
   Swift/OpenInterface.swift
-  Swift/RefactoringResponse.swift
   Swift/RefactoringEdit.swift
-  Swift/RefactorCommand.swift
+  Swift/RefactoringResponse.swift
   Swift/ReferenceDocumentURL.swift
   Swift/RelatedIdentifiers.swift
   Swift/RewriteSourceKitPlaceholders.swift
   Swift/SemanticRefactorCommand.swift
   Swift/SemanticRefactoring.swift
   Swift/SemanticTokens.swift
-  Swift/SourceKitD+ResponseError.swift
   Swift/SwiftCodeLensScanner.swift
   Swift/SwiftCommand.swift
   Swift/SwiftLanguageService.swift
@@ -74,16 +77,16 @@ target_sources(SourceKitLSP PRIVATE
 )
 set_target_properties(SourceKitLSP PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
-# TODO(compnerd) reduce the exposure here, why is everything PUBLIC-ly linked?
 target_link_libraries(SourceKitLSP PUBLIC
   BuildServerProtocol
   BuildSystemIntegration
   LanguageServerProtocol
+  LanguageServerProtocolExtensions
   LanguageServerProtocolJSONRPC
   SemanticIndex
   SKLogging
   SKOptions
-  SKSupport
+  SKUtilities
   SourceKitD
   SwiftExtensions
   ToolchainRegistry
@@ -97,5 +100,6 @@ target_link_libraries(SourceKitLSP PUBLIC
   SwiftSyntax::SwiftSyntax)
 target_link_libraries(SourceKitLSP PRIVATE
   PackageModelSyntax
+  TSCExtensions
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
 

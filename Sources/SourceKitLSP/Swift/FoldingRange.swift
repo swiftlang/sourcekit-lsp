@@ -10,10 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import LanguageServerProtocol
+import SKLogging
+import SKUtilities
+import SwiftSyntax
+#else
 import LanguageServerProtocol
 import SKLogging
-import SKSupport
+import SKUtilities
 import SwiftSyntax
+#endif
 
 fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
   private let snapshot: DocumentSnapshot
@@ -280,11 +287,12 @@ extension SwiftLanguageService {
 
 fileprivate extension LineTable {
   func isAtEndOfLine(_ position: Position) -> Bool {
-    guard position.line >= 0, position.line < self.count else {
+    guard let line = self.line(at: position.line) else {
       return false
     }
-    let line = self[position.line]
-    let suffixAfterPositionColumn = line[line.utf16.index(line.startIndex, offsetBy: position.utf16index)...]
-    return suffixAfterPositionColumn.allSatisfy(\.isNewline)
+    guard let index = line.utf16.index(line.startIndex, offsetBy: position.utf16index, limitedBy: line.endIndex) else {
+      return false
+    }
+    return line[index...].allSatisfy(\.isNewline)
   }
 }

@@ -10,11 +10,27 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import BuildServerProtocol
+import BuildSystemIntegration
+import Foundation
+import IndexStoreDB
+package import LanguageServerProtocol
+import SKLogging
+import SemanticIndex
+import SwiftExtensions
+import SwiftSyntax
+#else
+import BuildServerProtocol
+import BuildSystemIntegration
+import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
 import SKLogging
 import SemanticIndex
+import SwiftExtensions
 import SwiftSyntax
+#endif
 
 package enum TestStyle {
   package static let xcTest = "XCTest"
@@ -94,19 +110,34 @@ extension SourceKitLSPServer {
   /// provide ranges for the test cases in source code instead of only the test's location that we get from the index.
   private func testItems(
     for testSymbolOccurrences: [SymbolOccurrence],
+    index: CheckedIndex?,
     resolveLocation: (DocumentURI, Position) -> Location
   ) -> [AnnotatedTestItem] {
     // Arrange tests by the USR they are contained in. This allows us to emit test methods as children of test classes.
     // `occurrencesByParent[nil]` are the root test symbols that aren't a child of another test symbol.
     var occurrencesByParent: [String?: [SymbolOccurrence]] = [:]
 
-    let testSymbolUsrs = Set(testSymbolOccurrences.map(\.symbol.usr))
+    var testSymbolUsrs = Set(testSymbolOccurrences.map(\.symbol.usr))
+
+    // Gather any extension declarations that contains tests and add them to `occurrencesByParent` so we can properly
+    // arrange their test items as the extension's children.
+    for testSymbolOccurrence in testSymbolOccurrences {
+      for parentSymbol in testSymbolOccurrence.relations.filter({ $0.roles.contains(.childOf) }).map(\.symbol) {
+        guard parentSymbol.kind == .extension else {
+          continue
+        }
+        guard let definition = index?.primaryDefinitionOrDeclarationOccurrence(ofUSR: parentSymbol.usr) else {
+          logger.fault("Unable to find primary definition of extension '\(parentSymbol.usr)' containing tests")
+          continue
+        }
+        testSymbolUsrs.insert(parentSymbol.usr)
+        occurrencesByParent[nil, default: []].append(definition)
+      }
+    }
 
     for testSymbolOccurrence in testSymbolOccurrences {
       let childOfUsrs = testSymbolOccurrence.relations
-        .filter { $0.roles.contains(.childOf) }
-        .map(\.symbol.usr)
-        .filter { testSymbolUsrs.contains($0) }
+        .filter { $0.roles.contains(.childOf) }.map(\.symbol.usr).filter { testSymbolUsrs.contains($0) }
       if childOfUsrs.count > 1 {
         logger.fault(
           "Test symbol \(testSymbolOccurrence.symbol.usr) is child or multiple symbols: \(childOfUsrs.joined(separator: ", "))"
@@ -160,7 +191,7 @@ extension SourceKitLSPServer {
           children: children.map(\.testItem),
           tags: []
         ),
-        isExtension: false
+        isExtension: testSymbolOccurrence.symbol.kind == .extension
       )
     }
 
@@ -176,6 +207,11 @@ extension SourceKitLSPServer {
   ///
   /// The returned list of tests is not sorted. It should be sorted before being returned to the editor.
   private func tests(in workspace: Workspace) async -> [AnnotatedTestItem] {
+    // If files have recently been added to the workspace (which is communicated by a `workspace/didChangeWatchedFiles`
+    // notification, wait these changes to be reflected in the build system so we can include the updated files in the
+    // tests.
+    await workspace.buildSystemManager.waitForUpToDateBuildGraph()
+
     // Gather all tests classes and test methods. We include test from different sources:
     //  - For all files that have been not been modified since they were last indexed in the semantic index, include
     //    XCTests from the semantic index.
@@ -187,12 +223,12 @@ extension SourceKitLSPServer {
     //  - All files that have in-memory modifications are syntactically scanned for tests here.
     let index = workspace.index(checkedFor: .inMemoryModifiedFiles(documentManager))
 
-    // FIXME: (async-workaround) Needed to work around rdar://130112205
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func documentManagerHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
       return documentManager.fileHasInMemoryModifications(uri)
     }
 
-    let filesWithInMemoryState = documentManager.documents.keys.filter { uri in
+    let filesWithInMemoryState = documentManager.openDocuments.filter { uri in
       // Use the index to check for in-memory modifications so we can re-use its cache. If no index exits, ask the
       // document manager directly.
       if let index {
@@ -220,6 +256,7 @@ extension SourceKitLSPServer {
     let testsFromSyntacticIndex = await workspace.syntacticTestIndex.tests()
     let testsFromSemanticIndex = testItems(
       for: semanticTestSymbolOccurrences,
+      index: index,
       resolveLocation: { uri, position in Location(uri: uri, range: Range(position)) }
     )
     let filesWithTestsFromSemanticIndex = Set(testsFromSemanticIndex.map(\.testItem.location.uri))
@@ -273,6 +310,7 @@ extension SourceKitLSPServer {
       .flatMap { $0 }
       .sorted { $0.testItem.location < $1.testItem.location }
       .mergingTestsInExtensions()
+      .deduplicatingIds()
   }
 
   func documentTests(
@@ -283,6 +321,7 @@ extension SourceKitLSPServer {
     return try await documentTestsWithoutMergingExtensions(req, workspace: workspace, languageService: languageService)
       .prefixTestsWithModuleName(workspace: workspace)
       .mergingTestsInExtensions()
+      .deduplicatingIds()
   }
 
   private func documentTestsWithoutMergingExtensions(
@@ -322,6 +361,7 @@ extension SourceKitLSPServer {
         // swift-testing tests, which aren't part of the semantic index.
         return testItems(
           for: testSymbols,
+          index: index,
           resolveLocation: { uri, position in
             if uri == snapshot.uri, let documentSymbols,
               let range = findInnermostSymbolRange(containing: position, documentSymbolsResponse: documentSymbols)
@@ -447,7 +487,14 @@ fileprivate extension Array<AnnotatedTestItem> {
           rootItem.testItem.children += item.testItem.children
         }
 
-        itemDict[id] = rootItem
+        // If this item shares an ID with a sibling and both are leaf
+        // test items, store it by its disambiguated id to ensure we
+        // don't overwrite the existing element.
+        if rootItem.testItem.children.isEmpty && item.testItem.children.isEmpty {
+          itemDict[item.testItem.ambiguousTestDifferentiator] = item
+        } else {
+          itemDict[id] = rootItem
+        }
       } else {
         itemDict[id] = item
       }
@@ -497,10 +544,58 @@ fileprivate extension Array<AnnotatedTestItem> {
   }
 }
 
+fileprivate extension Array<TestItem> {
+  /// If multiple testItems share the same ID we add more context to make it unique.
+  /// Two tests can share the same ID when two swift testing tests accept
+  /// arguments of different types, i.e:
+  /// ```
+  /// @Test(arguments: [1,2,3]) func foo(_ x: Int) {}
+  /// @Test(arguments: ["a", "b", "c"]) func foo(_ x: String) {}
+  /// ```
+  ///
+  /// or when tests are in separate files but don't conflict because they are marked
+  /// private, i.e:
+  /// ```
+  /// File1.swift: @Test private func foo() {}
+  /// File2.swift: @Test private func foo() {}
+  /// ```
+  ///
+  /// If we encounter one of these cases, we need to deduplicate the ID
+  /// by appending `/filename:filename:lineNumber`.
+  func deduplicatingIds() -> [TestItem] {
+    var idCounts: [String: Int] = [:]
+    for element in self where element.children.isEmpty {
+      idCounts[element.id, default: 0] += 1
+    }
+
+    return self.map {
+      var newItem = $0
+      newItem.children = newItem.children.deduplicatingIds()
+      if idCounts[newItem.id, default: 0] > 1 {
+        newItem.id = newItem.ambiguousTestDifferentiator
+      }
+      return newItem
+    }
+  }
+}
+
 extension TestItem {
+  /// A fully qualified name to disambiguate identical TestItem IDs.
+  /// This matches the IDs produced by `swift test list` when there are
+  /// tests that cannot be disambiguated by their simple ID.
+  fileprivate var ambiguousTestDifferentiator: String {
+    let filename = self.location.uri.arbitrarySchemeURL.lastPathComponent
+    let position = location.range.lowerBound
+    // Lines and columns start at 1.
+    // swift-testing tests start from _after_ the @ symbol in @Test, so we need to add an extra column.
+    // see https://github.com/swiftlang/swift-testing/blob/cca6de2be617aded98ecdecb0b3b3a81eec013f3/Sources/TestingMacros/Support/AttributeDiscovery.swift#L153
+    let columnOffset = self.style == TestStyle.swiftTesting ? 2 : 1
+    return "\(self.id)/\(filename):\(position.line + 1):\(position.utf16index + columnOffset)"
+  }
+
   fileprivate func prefixIDWithModuleName(workspace: Workspace) async -> TestItem {
-    guard let configuredTarget = await workspace.buildSystemManager.canonicalConfiguredTarget(for: self.location.uri),
-      let moduleName = await workspace.buildSystemManager.moduleName(for: self.location.uri, in: configuredTarget)
+    guard let canonicalTarget = await workspace.buildSystemManager.canonicalTarget(for: self.location.uri),
+      let moduleName = await workspace.buildSystemManager.moduleName(for: self.location.uri, in: canonicalTarget)
     else {
       return self
     }
@@ -517,6 +612,14 @@ extension SwiftLanguageService {
     for uri: DocumentURI,
     in workspace: Workspace
   ) async throws -> [AnnotatedTestItem]? {
+    let targetIdentifiers = await workspace.buildSystemManager.targets(for: uri)
+    let isInTestTarget = await targetIdentifiers.asyncContains(where: {
+      await workspace.buildSystemManager.buildTarget(named: $0)?.tags.contains(.test) ?? true
+    })
+    if !targetIdentifiers.isEmpty && !isInTestTarget {
+      // If we know the targets for the file and the file is not part of any test target, don't scan it for tests.
+      return nil
+    }
     let snapshot = try documentManager.latestSnapshot(uri)
     let semanticSymbols = workspace.index(checkedFor: .deletedFiles)?.symbols(inFilePath: snapshot.uri.pseudoPath)
     let xctestSymbols = await SyntacticSwiftXCTestScanner.findTestSymbols(

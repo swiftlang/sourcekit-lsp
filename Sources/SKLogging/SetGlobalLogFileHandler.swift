@@ -11,20 +11,28 @@
 //===----------------------------------------------------------------------===//
 
 import RegexBuilder
+import SwiftExtensions
 
 #if canImport(Darwin)
-import Foundation
+#if compiler(>=6)
+package import Foundation
 #else
-// FIMXE: (async-workaround) @preconcurrency needed because DateFormatter and stderr are not marked as Sendable on Linux
-// rdar://125578486, rdar://132378589
+import Foundation
+#endif
+#else
+// TODO: @preconcurrency needed because stderr is not sendable on Linux https://github.com/swiftlang/swift/issues/75601
+#if compiler(>=6)
+@preconcurrency package import Foundation
+#else
 @preconcurrency import Foundation
+#endif
 #endif
 
 #if os(Windows)
 import WinSDK
 #endif
 
-#if !canImport(os) || SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER
+#if !canImport(os) || SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER
 fileprivate struct FailedToCreateFileError: Error, CustomStringConvertible {
   let logFile: URL
 
@@ -58,8 +66,8 @@ func getOrCreateLogFileHandle(logDirectory: URL, logRotateCount: Int) -> FileHan
 
   do {
     try FileManager.default.createDirectory(at: logDirectory, withIntermediateDirectories: true)
-    if !FileManager.default.fileExists(atPath: logFileUrl.path) {
-      guard FileManager.default.createFile(atPath: logFileUrl.path, contents: nil) else {
+    if !FileManager.default.fileExists(at: logFileUrl) {
+      guard FileManager.default.createFile(atPath: try logFileUrl.filePath, contents: nil) else {
         throw FailedToCreateFileError(logFile: logFileUrl)
       }
     }
@@ -72,7 +80,7 @@ func getOrCreateLogFileHandle(logDirectory: URL, logRotateCount: Int) -> FileHan
     // We will try creating a log file again once this section of the log reaches `maxLogFileSize` but that means that
     // we'll only log this error every `maxLogFileSize` bytes, which is a lot less spammy than logging it on every log
     // call.
-    fputs("Failed to open file handle for log file at \(logFileUrl.path): \(error)", stderr)
+    fputs("Failed to open file handle for log file at \(logFileUrl): \(error)", stderr)
     logFileHandle = FileHandle.standardError
     return FileHandle.standardError
   }
@@ -169,7 +177,7 @@ private func cleanOldLogFilesImpl(logFileDirectory: URL, maxAge: TimeInterval) {
     guard
       let modificationDate = orLog(
         "Getting mtime of old log file",
-        { try FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] }
+        { try FileManager.default.attributesOfItem(atPath: url.filePath)[.modificationDate] }
       ) as? Date,
       Date().timeIntervalSince(modificationDate) > maxAge
     else {
@@ -189,7 +197,7 @@ private func cleanOldLogFilesImpl(logFileDirectory: URL, maxAge: TimeInterval) {
 ///
 /// No-op when using OSLog.
 package func setUpGlobalLogFileHandler(logFileDirectory: URL, logFileMaxBytes: Int, logRotateCount: Int) async {
-  #if !canImport(os) || SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER
+  #if !canImport(os) || SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER
   await setUpGlobalLogFileHandlerImpl(
     logFileDirectory: logFileDirectory,
     logFileMaxBytes: logFileMaxBytes,
@@ -203,7 +211,7 @@ package func setUpGlobalLogFileHandler(logFileDirectory: URL, logFileMaxBytes: I
 ///
 /// No-op when using OSLog.
 package func cleanOldLogFiles(logFileDirectory: URL, maxAge: TimeInterval) {
-  #if !canImport(os) || SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER
+  #if !canImport(os) || SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER
   cleanOldLogFilesImpl(logFileDirectory: logFileDirectory, maxAge: maxAge)
   #endif
 }

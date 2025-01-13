@@ -10,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import Foundation
+#else
 import Foundation
+#endif
 
 /// The bundle of the currently executing test.
 package let testBundle: Bundle = {

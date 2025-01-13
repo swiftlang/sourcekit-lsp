@@ -11,8 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
-import SKSupport
+import SKOptions
 import SemanticIndex
 import SwiftExtensions
 
@@ -92,8 +93,8 @@ actor IndexProgressManager {
     case .preparingFileForEditorFunctionality:
       message = "Preparing current file"
       percentage = 0
-    case .generatingBuildGraph:
-      message = "Generating build graph"
+    case .schedulingIndexing:
+      message = "Scheduling tasks"
       percentage = 0
     case .indexing(preparationTasks: let preparationTasks, indexTasks: let indexTasks):
       // We can get into a situation where queuedIndexTasks < indexTasks.count if we haven't processed all
@@ -126,6 +127,7 @@ actor IndexProgressManager {
     } else {
       workDoneProgress = await WorkDoneProgressManager(
         server: sourceKitLSPServer,
+        capabilityRegistry: await sourceKitLSPServer.capabilityRegistry,
         tokenPrefix: "indexing",
         initialDebounce: sourceKitLSPServer.options.workDoneProgressDebounceDurationOrDefault,
         title: "Indexing",

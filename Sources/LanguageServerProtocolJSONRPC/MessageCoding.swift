@@ -10,7 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+import Foundation
+public import LanguageServerProtocol
+#else
+import Foundation
 import LanguageServerProtocol
+#endif
 
 @_spi(Testing) public enum JSONRPCMessage {
   case notification(NotificationType)

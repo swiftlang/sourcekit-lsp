@@ -12,140 +12,361 @@
 
 import BuildServerProtocol
 import BuildSystemIntegration
-import ISDBTestSupport
+import Foundation
 import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKTestSupport
 import TSCBasic
 import XCTest
 
-#if canImport(Darwin)
-import Foundation
-#else
-// FIMXE: (async-workaround) @preconcurrency needed because Pipe is not marked as Sendable on Linux rdar://132378792
-@preconcurrency import Foundation
-#endif
-
-/// The path to the INPUTS directory of shared test projects.
-private let skTestSupportInputsDirectory: URL = {
-  #if os(macOS)
-  // FIXME: Use Bundle.module.resourceURL once the fix for SR-12912 is released.
-
-  var resources =
-    productsDirectory
-    .appendingPathComponent("SourceKitLSP_SKTestSupport.bundle")
-    .appendingPathComponent("Contents")
-    .appendingPathComponent("Resources")
-  if !FileManager.default.fileExists(atPath: resources.path) {
-    // Xcode and command-line swiftpm differ about the path.
-    resources.deleteLastPathComponent()
-    resources.deleteLastPathComponent()
-  }
-  #else
-  let resources = XCTestCase.productsDirectory
-    .appendingPathComponent("SourceKitLSP_SKTestSupport.resources")
-  #endif
-  guard FileManager.default.fileExists(atPath: resources.path) else {
-    fatalError("missing resources \(resources.path)")
-  }
-  return resources.appendingPathComponent("INPUTS", isDirectory: true).standardizedFileURL
-}()
-
 final class BuildServerBuildSystemTests: XCTestCase {
-  private var root: AbsolutePath {
-    try! AbsolutePath(
-      validating:
-        skTestSupportInputsDirectory
-        .appendingPathComponent(testDirectoryName, isDirectory: true).path
+  func testBuildSettingsFromBuildServer() async throws {
+    let project = try await BuildServerTestProject(
+      files: [
+        "Test.swift": """
+        #if DEBUG
+        #error("DEBUG SET")
+        #else
+        #error("DEBUG NOT SET")
+        #endif
+        """
+      ],
+      buildServer: """
+        class BuildServer(AbstractBuildServer):
+          def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "targets": [
+                {
+                  "id": {"uri": "bsp://dummy"},
+                  "tags": [],
+                  "languageIds": [],
+                  "dependencies": [],
+                  "capabilities": {},
+                }
+              ]
+            }
+
+          def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "items": [
+                {
+                  "target": {"uri": "bsp://dummy"},
+                  "sources": [
+                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False}
+                  ],
+                }
+              ]
+            }
+
+          def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "compilerArguments": [r"$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
+            }
+        """
     )
-  }
-  let buildFolder = try! AbsolutePath(validating: NSTemporaryDirectory())
 
-  func testServerInitialize() async throws {
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root)
+    let (uri, _) = try project.openDocument("Test.swift")
 
-    assertEqual(
-      await buildSystem.indexDatabasePath,
-      try AbsolutePath(validating: "some/index/db/path", relativeTo: root)
-    )
-    assertEqual(
-      await buildSystem.indexStorePath,
-      try AbsolutePath(validating: "some/index/store/path", relativeTo: root)
-    )
-  }
-
-  func testFileRegistration() async throws {
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root)
-
-    let fileUrl = URL(fileURLWithPath: "/some/file/path")
-    let expectation = XCTestExpectation(description: "\(fileUrl) settings updated")
-    let buildSystemDelegate = TestDelegate(settingsExpectations: [DocumentURI(fileUrl): expectation])
-    defer {
-      // BuildSystemManager has a weak reference to delegate. Keep it alive.
-      _fixLifetime(buildSystemDelegate)
+    try await repeatUntilExpectedResult {
+      let diags = try await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+      )
+      return diags.fullReport?.items.map(\.message) == ["DEBUG SET"]
     }
-    await buildSystem.setDelegate(buildSystemDelegate)
-    await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
-
-    XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: defaultTimeout), .completed)
   }
 
   func testBuildTargetsChanged() async throws {
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root)
+    try SkipUnless.longTestsEnabled()
 
-    let fileUrl = URL(fileURLWithPath: "/some/file/path")
-    let expectation = XCTestExpectation(description: "target changed")
-    let targetIdentifier = BuildTargetIdentifier(uri: try DocumentURI(string: "build://target/a"))
-    let buildSystemDelegate = TestDelegate(targetExpectations: [
-      BuildTargetEvent(
-        target: targetIdentifier,
-        kind: .created,
-        data: .dictionary(["key": "value"])
-      ): expectation
-    ])
-    defer {
-      // BuildSystemManager has a weak reference to delegate. Keep it alive.
-      _fixLifetime(buildSystemDelegate)
+    let project = try await BuildServerTestProject(
+      files: [
+        "Test.swift": """
+        #if DEBUG
+        #error("DEBUG SET")
+        #else
+        #error("DEBUG NOT SET")
+        #endif
+        """
+      ],
+      buildServer: """
+        class BuildServer(AbstractBuildServer):
+          has_changed_targets: bool = False
+
+          def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
+            if self.has_changed_targets:
+              return {
+                "targets": [
+                  {
+                    "id": {"uri": "bsp://dummy"},
+                    "tags": [],
+                    "languageIds": [],
+                    "dependencies": [],
+                    "capabilities": {},
+                  }
+                ]
+              }
+            else:
+              return {"targets": []}
+
+          def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
+            assert self.has_changed_targets
+            return {
+              "items": [
+                {
+                  "target": {"uri": "bsp://dummy"},
+                  "sources": [
+                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False}
+                  ],
+                }
+              ]
+            }
+
+          def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
+            assert self.has_changed_targets
+            return {
+              "compilerArguments": [r"$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
+            }
+
+          def workspace_did_change_watched_files(self, notification: Dict[str, object]) -> None:
+            self.has_changed_targets = True
+            self.send_notification("buildTarget/didChange", {})
+        """
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+
+    // Initially, we shouldn't have any diagnostics because Test.swift is not part of any target
+    let initialDiagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(initialDiagnostics.fullReport?.items, [])
+
+    // We use an arbitrary file change to signal to the BSP server that it should send the targets changed notification
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: try DocumentURI(string: "file:///dummy"), type: .created)
+      ])
+    )
+
+    // But then the 1s timer in the build server should fire, we get a `buildTarget/didChange` notification and we have
+    // build settings for Test.swift
+    try await repeatUntilExpectedResult {
+      let diags = try await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+      )
+      return diags.fullReport?.items.map(\.message) == ["DEBUG SET"]
     }
-    await buildSystem.setDelegate(buildSystemDelegate)
-    await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
-
-    try await fulfillmentOfOrThrow([expectation])
-  }
-}
-
-final class TestDelegate: BuildSystemDelegate {
-
-  let settingsExpectations: [DocumentURI: XCTestExpectation]
-  let targetExpectations: [BuildTargetEvent: XCTestExpectation]
-  let dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation]
-
-  package init(
-    settingsExpectations: [DocumentURI: XCTestExpectation] = [:],
-    targetExpectations: [BuildTargetEvent: XCTestExpectation] = [:],
-    dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation] = [:]
-  ) {
-    self.settingsExpectations = settingsExpectations
-    self.targetExpectations = targetExpectations
-    self.dependenciesUpdatedExpectations = dependenciesUpdatedExpectations
   }
 
-  func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
-    for event in changes {
-      targetExpectations[event]?.fulfill()
+  func testSettingsOfSingleFileChanged() async throws {
+    try SkipUnless.longTestsEnabled()
+
+    let project = try await BuildServerTestProject(
+      files: [
+        "Test.swift": """
+        #if DEBUG
+        #error("DEBUG SET")
+        #else
+        #error("DEBUG NOT SET")
+        #endif
+        """
+      ],
+      buildServer: """
+        class BuildServer(AbstractBuildServer):
+          has_changed_settings: bool = False
+
+          def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "targets": [
+                {
+                  "id": {"uri": "bsp://dummy"},
+                  "tags": [],
+                  "languageIds": [],
+                  "dependencies": [],
+                  "capabilities": {},
+                }
+              ]
+            }
+
+          def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "items": [
+                {
+                  "target": {"uri": "bsp://dummy"},
+                  "sources": [
+                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False}
+                  ],
+                }
+              ]
+            }
+
+          def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
+            if self.has_changed_settings:
+              return {
+                "compilerArguments": [r"$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
+              }
+            else:
+              return {
+                "compilerArguments": [r"$TEST_DIR/Test.swift", $SDK_ARGS]
+              }
+
+          def workspace_did_change_watched_files(self, notification: Dict[str, object]) -> None:
+            self.has_changed_settings = True
+            self.send_notification("buildTarget/didChange", {})
+        """
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+
+    // Initially, we don't have -DDEBUG set, so we should get `DEBUG NOT SET`
+    let initialDiagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(initialDiagnostics.fullReport?.items.map(\.message), ["DEBUG NOT SET"])
+
+    // We use an arbitrary file change to signal to the BSP server that it should send the targets changed notification
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: try DocumentURI(string: "file:///dummy"), type: .created)
+      ])
+    )
+
+    // But then the 1s timer in the build server should fire, we get a `buildTarget/didChange` notification and we get
+    // build settings for Test.swift that include -DDEBUG
+    try await repeatUntilExpectedResult {
+      let diags = try await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+      )
+      return diags.fullReport?.items.map(\.message) == ["DEBUG SET"]
     }
   }
 
-  func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
-    for uri in changedFiles {
-      settingsExpectations[uri]?.fulfill()
+  func testCrashRecovery() async throws {
+    try SkipUnless.longTestsEnabled()
+
+    let project = try await BuildServerTestProject(
+      files: [
+        "Crash.swift": "",
+        "Test.swift": """
+        #if DEBUG
+        #error("DEBUG SET")
+        #else
+        #error("DEBUG NOT SET")
+        #endif
+        """,
+        "should_crash": "dummy file to indicate that BSP server should crash",
+      ],
+      buildServer: """
+        import threading
+        import os
+
+        class BuildServer(AbstractBuildServer):
+          def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "targets": [
+                {
+                  "id": {"uri": "bsp://dummy"},
+                  "tags": [],
+                  "languageIds": [],
+                  "dependencies": [],
+                  "capabilities": {},
+                }
+              ]
+            }
+
+          def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "items": [
+                {
+                  "target": {"uri": "bsp://dummy"},
+                  "sources": [
+                    {"uri": "$TEST_DIR_URL/Crash.swift", "kind": 1, "generated": False},
+                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False},
+                  ],
+                }
+              ]
+            }
+
+          def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
+            if os.path.exists(r"$TEST_DIR/should_crash"):
+              assert False
+            return {
+              "compilerArguments": [r"$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
+            }
+        """
+    )
+
+    // Check that we still get results for Test.swift (after relaunching the BSP server)
+    let (uri, _) = try project.openDocument("Test.swift")
+
+    // While the BSP server is crashing, we shouldn't get any build settings and thus get empty diagnostics.
+    let diagnosticsBeforeCrash = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(diagnosticsBeforeCrash.fullReport?.items, [])
+    try FileManager.default.removeItem(at: project.scratchDirectory.appendingPathComponent("should_crash"))
+
+    try await repeatUntilExpectedResult(timeout: .seconds(20)) {
+      let diagnostics = try await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+      )
+      return diagnostics.fullReport?.items.map(\.message) == ["DEBUG SET"]
     }
   }
 
-  package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
-    for uri in changedFiles {
-      dependenciesUpdatedExpectations[uri]?.fulfill()
+  func testBuildServerConfigAtLegacyLocation() async throws {
+    let project = try await BuildServerTestProject(
+      files: [
+        "Test.swift": """
+        #if DEBUG
+        #error("DEBUG SET")
+        #else
+        #error("DEBUG NOT SET")
+        #endif
+        """
+      ],
+      buildServerConfigLocation: "buildServer.json",
+      buildServer: """
+        class BuildServer(AbstractBuildServer):
+          def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "targets": [
+                {
+                  "id": {"uri": "bsp://dummy"},
+                  "tags": [],
+                  "languageIds": [],
+                  "dependencies": [],
+                  "capabilities": {},
+                }
+              ]
+            }
+
+          def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "items": [
+                {
+                  "target": {"uri": "bsp://dummy"},
+                  "sources": [
+                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False}
+                  ],
+                }
+              ]
+            }
+
+          def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "compilerArguments": [r"$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS]
+            }
+        """
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+
+    try await repeatUntilExpectedResult {
+      let diags = try await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+      )
+      return diags.fullReport?.items.map(\.message) == ["DEBUG SET"]
     }
   }
-
-  func fileHandlingCapabilityChanged() {}
 }
