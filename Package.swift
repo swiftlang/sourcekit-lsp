@@ -548,7 +548,8 @@ var targets: [Target] = [
         "-module-alias", "SourceKitD=SourceKitDForPlugin",
         "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
       ])
-    ]
+    ],
+    linkerSettings: sourcekitLSPLinkSettings
   ),
 
   // MARK: SwiftSourceKitPluginCommon
@@ -591,7 +592,8 @@ var targets: [Target] = [
         "-module-alias", "SKLogging=SKLoggingForPlugin",
         "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
       ])
-    ]
+    ],
+    linkerSettings: sourcekitLSPLinkSettings
   ),
 
   .testTarget(
