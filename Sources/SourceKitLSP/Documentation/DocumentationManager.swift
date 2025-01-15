@@ -99,37 +99,27 @@ package final actor DocumentationManager {
       throw ResponseError.requestFailed(.noDocumentation)
     }
     // Send the convert request to SwiftDocC and wait for the response
-    return try await withCheckedThrowingContinuation { continuation in
-      doccServer.convert(
-        externalIDsToConvert: externalIDsToConvert,
-        documentPathsToConvert: nil,
-        includeRenderReferenceStore: false,
-        documentationBundleLocation: nil,
-        documentationBundleDisplayName: moduleName ?? "Unknown",
-        documentationBundleIdentifier: "unknown",
-        symbolGraphs: symbolGraphs,
-        overridingDocumentationComments: overridingDocumentationComments,
-        emitSymbolSourceFileURIs: false,
-        markupFiles: [],
-        tutorialFiles: [],
-        convertRequestIdentifier: UUID().uuidString
-      ) { convertResponse in
-        switch convertResponse {
-        case .success(let convertResponse):
-          guard let renderNodeData = convertResponse.renderNodes.first else {
-            continuation.resume(throwing: ResponseError.internalError("SwiftDocC did not return any render nodes"))
-            return
-          }
-          guard let renderNode = String(data: renderNodeData, encoding: .utf8) else {
-            continuation.resume(throwing: ResponseError.internalError("Failed to encode render node from SwiftDocC"))
-            return
-          }
-          continuation.resume(returning: DoccDocumentationResponse(renderNode: renderNode))
-        case .failure(let serverError):
-          continuation.resume(throwing: serverError)
-        }
-      }
+    let convertResponse = try await doccServer.convert(
+      externalIDsToConvert: externalIDsToConvert,
+      documentPathsToConvert: nil,
+      includeRenderReferenceStore: false,
+      documentationBundleLocation: nil,
+      documentationBundleDisplayName: moduleName ?? "Unknown",
+      documentationBundleIdentifier: "unknown",
+      symbolGraphs: symbolGraphs,
+      overridingDocumentationComments: overridingDocumentationComments,
+      emitSymbolSourceFileURIs: false,
+      markupFiles: [],
+      tutorialFiles: [],
+      convertRequestIdentifier: UUID().uuidString
+    )
+    guard let renderNodeData = convertResponse.renderNodes.first else {
+      throw ResponseError.internalError("SwiftDocC did not return any render nodes")
     }
+    guard let renderNode = String(data: renderNodeData, encoding: .utf8) else {
+      throw ResponseError.internalError("Failed to encode render node from SwiftDocC")
+    }
+    return DoccDocumentationResponse(renderNode: renderNode)
   }
 }
 

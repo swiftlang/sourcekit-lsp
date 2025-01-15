@@ -16,8 +16,6 @@ import Foundation
 
 package struct DocCServer {
   private let server: DocumentationServer
-  private let jsonEncoder = JSONEncoder()
-  private let jsonDecoder = JSONDecoder()
 
   init(peer peerServer: DocumentationServer? = nil, qualityOfService: DispatchQoS) {
     server = DocumentationServer.createDefaultServer(qualityOfService: qualityOfService, peer: peerServer)
@@ -35,9 +33,8 @@ package struct DocCServer {
     emitSymbolSourceFileURIs: Bool,
     markupFiles: [Data],
     tutorialFiles: [Data],
-    convertRequestIdentifier: String,
-    completion: @escaping (_: Result<ConvertResponse, DocCServerError>) -> Void
-  ) {
+    convertRequestIdentifier: String
+  ) async throws(DocCServerError) -> ConvertResponse {
     let request = ConvertRequest(
       bundleInfo: DocumentationBundle.Info(
         displayName: documentationBundleDisplayName,
@@ -61,90 +58,97 @@ package struct DocCServer {
       miscResourceURLs: [],
       symbolIdentifiersWithExpandedDocumentation: nil
     )
-
-    makeRequest(
+    let response = try await makeRequest(
       messageType: ConvertService.convertMessageType,
       messageIdentifier: convertRequestIdentifier,
       request: request
-    ) { response in
-      completion(
-        response.flatMap {
-          message -> Result<Data, DocCServerError> in
-          guard let messagePayload = message.payload else {
-            return .failure(.unexpectedlyNilPayload(message.type.rawValue))
-          }
-
-          guard message.type != ConvertService.convertResponseErrorMessageType else {
-            return Result {
-              try self.jsonDecoder.decode(ConvertServiceError.self, from: messagePayload)
-            }
-            .flatMapError {
-              .failure(
-                DocCServerError.messagePayloadDecodingFailure(
-                  messageType: message.type.rawValue,
-                  decodingError: $0
-                )
-              )
-            }
-            .flatMap { .failure(.internalError($0)) }
-          }
-
-          guard message.type == ConvertService.convertResponseMessageType else {
-            return .failure(.unknownMessageType(message.type.rawValue))
-          }
-
-          return .success(messagePayload)
-        }
-        .flatMap { convertMessagePayload -> Result<ConvertResponse, DocCServerError> in
-          return Result {
-            try self.jsonDecoder.decode(ConvertResponse.self, from: convertMessagePayload)
-          }
-          .flatMapError { decodingError -> Result<ConvertResponse, DocCServerError> in
-            return .failure(
-              DocCServerError.messagePayloadDecodingFailure(
-                messageType: ConvertService.convertResponseMessageType.rawValue,
-                decodingError: decodingError
-              )
-            )
-          }
-        }
-      )
+    );
+    guard let responsePayload = response.payload else {
+      throw .unexpectedlyNilPayload(response.type.rawValue)
     }
+    // Check for an error response from SwiftDocC
+    guard response.type != ConvertService.convertResponseErrorMessageType else {
+      let convertServiceError: ConvertServiceError
+      do {
+        convertServiceError = try JSONDecoder().decode(ConvertServiceError.self, from: responsePayload)
+      } catch {
+        throw .messagePayloadDecodingFailure(messageType: response.type.rawValue, decodingError: error)
+      }
+      throw .internalError(convertServiceError)
+    }
+    guard response.type == ConvertService.convertResponseMessageType else {
+      throw .unknownMessageType(response.type.rawValue)
+    }
+    // Decode the SwiftDocC.ConvertResponse and wrap it in our own Sendable type
+    let doccConvertResponse: SwiftDocC.ConvertResponse
+    do {
+      doccConvertResponse = try JSONDecoder().decode(SwiftDocC.ConvertResponse.self, from: responsePayload)
+    } catch {
+      throw .decodingFailure(error)
+    }
+    return ConvertResponse(doccConvertResponse: doccConvertResponse)
   }
 
   private func makeRequest<Request: Encodable & Sendable>(
     messageType: DocumentationServer.MessageType,
     messageIdentifier: String,
-    request: Request,
-    completion: @escaping (_: Result<DocumentationServer.Message, DocCServerError>) -> Void
-  ) {
-    let encodedMessageResult: Result<Data, DocCServerError> = Result { try jsonEncoder.encode(request) }
-      .mapError { .encodingFailure($0) }
-      .flatMap { encodedPayload in
-        Result {
-          let message = DocumentationServer.Message(
-            type: messageType,
-            identifier: messageIdentifier,
-            payload: encodedPayload
-          )
-          return try jsonEncoder.encode(message)
-        }.mapError { encodingError -> DocCServerError in
-          return .encodingFailure(encodingError)
-        }
+    request: Request
+  ) async throws(DocCServerError) -> DocumentationServer.Message {
+    let result: Result<DocumentationServer.Message, DocCServerError> = await withCheckedContinuation { continuation in
+      // Encode the request in JSON format
+      let encodedPayload: Data
+      do {
+        encodedPayload = try JSONEncoder().encode(request)
+      } catch {
+        return continuation.resume(returning: .failure(.encodingFailure(error)))
       }
-
-    switch encodedMessageResult {
-    case .success(let encodedMessage):
+      // Encode the full message in JSON format
+      let message = DocumentationServer.Message(
+        type: messageType,
+        identifier: messageIdentifier,
+        payload: encodedPayload
+      )
+      let encodedMessage: Data
+      do {
+        encodedMessage = try JSONEncoder().encode(message)
+      } catch {
+        return continuation.resume(returning: .failure(.encodingFailure(error)))
+      }
+      // Send the request to the server and decode the response
       server.process(encodedMessage) { response in
         let decodeMessageResult: Result<DocumentationServer.Message, DocCServerError> = Result {
-          try self.jsonDecoder.decode(DocumentationServer.Message.self, from: response)
+          try JSONDecoder().decode(DocumentationServer.Message.self, from: response)
         }
         .flatMapError { .failure(.decodingFailure($0)) }
-        completion(decodeMessageResult)
+        continuation.resume(returning: decodeMessageResult)
       }
-    case .failure(let encodingError):
-      completion(.failure(encodingError))
     }
+    return try result.get()
+  }
+}
+
+/// A Sendable wrapper around ``SwiftDocC.ConvertResponse``
+struct ConvertResponse: Sendable, Codable {
+  /// The render nodes that were created as part of the conversion, encoded as JSON.
+  let renderNodes: [Data]
+
+  /// The render reference store that was created as part of the bundle's conversion, encoded as JSON.
+  ///
+  /// The ``RenderReferenceStore`` contains compiled information for documentation nodes that were registered as part of
+  /// the conversion. This information can be used as a lightweight index of the available documentation content in the bundle that's
+  /// been converted.
+  let renderReferenceStore: Data?
+
+  /// Creates a conversion response given the render nodes that were created as part of the conversion.
+  init(renderNodes: [Data], renderReferenceStore: Data? = nil) {
+    self.renderNodes = renderNodes
+    self.renderReferenceStore = renderReferenceStore
+  }
+
+  /// Creates a conversion response given a SwiftDocC conversion response
+  init(doccConvertResponse: SwiftDocC.ConvertResponse) {
+    self.renderNodes = doccConvertResponse.renderNodes
+    self.renderReferenceStore = doccConvertResponse.renderReferenceStore
   }
 }
 
