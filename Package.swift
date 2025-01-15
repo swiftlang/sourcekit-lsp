@@ -444,7 +444,6 @@ var targets: [Target] = [
   .target(
     name: "ToolchainRegistry",
     dependencies: [
-      "LanguageServerProtocolExtensions",
       "SKLogging",
       "SKUtilities",
       "SwiftExtensions",
