@@ -740,6 +740,10 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.declaration)
     case let request as RequestAndReply<DefinitionRequest>:
       await self.handleRequest(for: request, requestHandler: self.definition)
+    #if canImport(SwiftDocC)
+    case let request as RequestAndReply<DoccDocumentationRequest>:
+      await request.reply { try await doccDocumentation(request.params) }
+    #endif
     case let request as RequestAndReply<DocumentColorRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentColor)
     case let request as RequestAndReply<DocumentDiagnosticsRequest>:
@@ -790,15 +794,6 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await request.reply { try await rename(request.params) }
     case let request as RequestAndReply<ShutdownRequest>:
       await request.reply { try await shutdown(request.params) }
-    #if canImport(SwiftDocC)
-    case let request as RequestAndReply<DoccDocumentationRequest>:
-      await request.reply {
-        try await documentationManager.convertDocumentation(
-          request.params.textDocument.uri,
-          at: request.params.position
-        )
-      }
-    #endif
     case let request as RequestAndReply<SymbolInfoRequest>:
       await self.handleRequest(for: request, requestHandler: self.symbolInfo)
     case let request as RequestAndReply<TriggerReindexRequest>:
@@ -1409,6 +1404,13 @@ extension SourceKitLSPServer {
     languageService: LanguageService
   ) async throws -> CompletionList {
     return try await languageService.completion(req)
+  }
+
+  func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
+    return try await documentationManager.convertDocumentation(
+      req.textDocument.uri,
+      at: req.position
+    )
   }
 
   func hover(
