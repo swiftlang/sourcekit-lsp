@@ -806,27 +806,20 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           fallbackAfterTimeout: false
         )
       ).compilerArguments
-      let argumentsFromReal = try await unwrap(
-        buildSystemManager.buildSettingsInferredFromMainFile(
-          for: DocumentURI(aswiftReal),
-          language: .swift,
-          fallbackAfterTimeout: false
-        )
-      ).compilerArguments
 
-      // The arguments retrieved from the symlink and the real document should be the same, except that both should
-      // contain they file the build settings were created.
-      // FIXME: Or should the build settings always reference the main file?
-      XCTAssertEqual(
-        try argumentsFromSymlink.filter { try $0 != aswiftSymlink.filePath && $0 != aswiftReal.filePath },
-        try argumentsFromReal.filter { try $0 != aswiftSymlink.filePath && $0 != aswiftReal.filePath }
+      // We opened the project from a symlink. The realpath isn't part of the project and we should thus not receive
+      // build settings for it.
+      assertTrue(
+        try await unwrap(
+          buildSystemManager.buildSettingsInferredFromMainFile(
+            for: DocumentURI(aswiftReal),
+            language: .swift,
+            fallbackAfterTimeout: false
+          )
+        ).isFallback
       )
-
       assertArgumentsContain(try aswiftSymlink.filePath, arguments: argumentsFromSymlink)
       assertArgumentsDoNotContain(try aswiftReal.filePath, arguments: argumentsFromSymlink)
-
-      assertArgumentsContain(try aswiftReal.filePath, arguments: argumentsFromReal)
-      assertArgumentsDoNotContain(try aswiftSymlink.filePath, arguments: argumentsFromReal)
 
       let argsManifest = try await unwrap(
         buildSystemManager.buildSettingsInferredFromMainFile(
