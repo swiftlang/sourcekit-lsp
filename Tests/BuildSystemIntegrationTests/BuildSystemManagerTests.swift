@@ -27,6 +27,17 @@ fileprivate extension BuildSystemManager {
   }
 }
 
+private actor TestBuildSystemInjector: BuildSystemInjector {
+  var testBuildSystem: TestBuildSystem? = nil
+
+  func createBuildSystem(projectRoot: URL, connectionToSourceKitLSP: any Connection) -> any BuiltInBuildSystem {
+    assert(testBuildSystem == nil, "TestBuildSystemInjector can only create a single TestBuildSystem")
+    let buildSystem = TestBuildSystem(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
+    testBuildSystem = buildSystem
+    return buildSystem
+  }
+}
+
 final class BuildSystemManagerTests: XCTestCase {
   func testMainFiles() async throws {
     let a = try DocumentURI(string: "bsm:a")
@@ -48,7 +59,7 @@ final class BuildSystemManagerTests: XCTestCase {
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-      buildSystemTestHooks: BuildSystemTestHooks()
+      buildSystemHooks: BuildSystemHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
@@ -102,15 +113,16 @@ final class BuildSystemManagerTests: XCTestCase {
   func testSettingsMainFile() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
+    let buildSystemInjector = TestBuildSystemInjector()
     let bsm = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: URL(fileURLWithPath: "/")),
+      buildSystemSpec: BuildSystemSpec(kind: .injected(buildSystemInjector), projectRoot: URL(fileURLWithPath: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-      buildSystemTestHooks: BuildSystemTestHooks()
+      buildSystemHooks: BuildSystemHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.testBuildSystem)
+    let bs = try await unwrap(buildSystemInjector.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
@@ -135,15 +147,16 @@ final class BuildSystemManagerTests: XCTestCase {
   func testSettingsMainFileInitialNil() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
+    let buildSystemInjector = TestBuildSystemInjector()
     let bsm = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: URL(fileURLWithPath: "/")),
+      buildSystemSpec: BuildSystemSpec(kind: .injected(buildSystemInjector), projectRoot: URL(fileURLWithPath: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-      buildSystemTestHooks: BuildSystemTestHooks()
+      buildSystemHooks: BuildSystemHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.testBuildSystem)
+    let bs = try await unwrap(buildSystemInjector.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
     await bsm.registerForChangeNotifications(for: a, language: .swift)
@@ -157,15 +170,16 @@ final class BuildSystemManagerTests: XCTestCase {
   func testSettingsMainFileWithFallback() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
+    let buildSystemInjector = TestBuildSystemInjector()
     let bsm = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: URL(fileURLWithPath: "/")),
+      buildSystemSpec: BuildSystemSpec(kind: .injected(buildSystemInjector), projectRoot: URL(fileURLWithPath: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-      buildSystemTestHooks: BuildSystemTestHooks()
+      buildSystemHooks: BuildSystemHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.testBuildSystem)
+    let bs = try await unwrap(buildSystemInjector.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
     let fallbackSettings = fallbackBuildSettings(for: a, language: .swift, options: .init())
@@ -201,15 +215,16 @@ final class BuildSystemManagerTests: XCTestCase {
       ]
     )
 
+    let buildSystemInjector = TestBuildSystemInjector()
     let bsm = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: URL(fileURLWithPath: "/")),
+      buildSystemSpec: BuildSystemSpec(kind: .injected(buildSystemInjector), projectRoot: URL(fileURLWithPath: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-      buildSystemTestHooks: BuildSystemTestHooks()
+      buildSystemHooks: BuildSystemHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.testBuildSystem)
+    let bs = try await unwrap(buildSystemInjector.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
@@ -265,15 +280,16 @@ final class BuildSystemManagerTests: XCTestCase {
       ]
     )
 
+    let buildSystemInjector = TestBuildSystemInjector()
     let bsm = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: URL(fileURLWithPath: "/")),
+      buildSystemSpec: BuildSystemSpec(kind: .injected(buildSystemInjector), projectRoot: URL(fileURLWithPath: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-      buildSystemTestHooks: BuildSystemTestHooks()
+      buildSystemHooks: BuildSystemHooks()
     )
     await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(bsm.testBuildSystem)
+    let bs = try await unwrap(buildSystemInjector.testBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 

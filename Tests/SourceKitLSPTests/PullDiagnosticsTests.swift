@@ -285,7 +285,7 @@ final class PullDiagnosticsTests: XCTestCase {
 
   func testDiagnosticsWaitForDocumentToBePrepared() async throws {
     let diagnosticRequestSent = AtomicBool(initialValue: false)
-    var testHooks = TestHooks()
+    var testHooks = Hooks()
     testHooks.indexTestHooks.preparationTaskDidStart = { @Sendable taskDescription in
       // Only start preparation after we sent the diagnostic request. In almost all cases, this should not give
       // preparation enough time to finish before the diagnostic request is handled unless we wait for preparation in
@@ -322,7 +322,7 @@ final class PullDiagnosticsTests: XCTestCase {
           ]
         )
         """,
-      testHooks: testHooks,
+      hooks: testHooks,
       enableBackgroundIndexing: true,
       pollIndex: false
     )
@@ -343,8 +343,8 @@ final class PullDiagnosticsTests: XCTestCase {
   func testDontReturnEmptyDiagnosticsIfDiagnosticRequestIsCancelled() async throws {
     let diagnosticRequestCancelled = self.expectation(description: "diagnostic request cancelled")
     let packageLoadingDidFinish = self.expectation(description: "Package loading did finish")
-    var testHooks = TestHooks()
-    testHooks.buildSystemTestHooks.swiftPMTestHooks.reloadPackageDidFinish = {
+    var testHooks = Hooks()
+    testHooks.buildSystemHooks.swiftPMTestHooks.reloadPackageDidFinish = {
       packageLoadingDidFinish.fulfill()
     }
     testHooks.indexTestHooks.preparationTaskDidStart = { _ in
@@ -365,7 +365,7 @@ final class PullDiagnosticsTests: XCTestCase {
       files: [
         "Lib.swift": "let x: String = 1"
       ],
-      testHooks: testHooks,
+      hooks: testHooks,
       enableBackgroundIndexing: true,
       pollIndex: false
     )

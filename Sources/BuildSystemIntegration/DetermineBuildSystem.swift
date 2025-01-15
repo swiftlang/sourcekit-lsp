@@ -36,8 +36,13 @@ import struct TSCBasic.AbsolutePath
 /// Returns `nil` if no build system can handle this workspace folder.
 package func determineBuildSystem(
   forWorkspaceFolder workspaceFolder: DocumentURI,
-  options: SourceKitLSPOptions
+  options: SourceKitLSPOptions,
+  hooks: BuildSystemHooks
 ) -> BuildSystemSpec? {
+  if let workspaceURL = workspaceFolder.fileURL, let buildSystemInjector = hooks.buildSystemInjector {
+    return BuildSystemSpec(kind: .injected(buildSystemInjector), projectRoot: workspaceURL)
+  }
+
   var buildSystemPreference: [WorkspaceType] = [
     .buildServer, .swiftPM, .compilationDatabase,
   ]

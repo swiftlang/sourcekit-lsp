@@ -164,7 +164,7 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testBackgroundIndexingHappensWithLowPriority() async throws {
-    var testHooks = TestHooks()
+    var testHooks = Hooks()
     testHooks.indexTestHooks.preparationTaskDidFinish = { taskDescription in
       XCTAssert(Task.currentPriority == .low, "\(taskDescription) ran with priority \(Task.currentPriority)")
     }
@@ -192,7 +192,7 @@ final class BackgroundIndexingTests: XCTestCase {
           ]
         )
         """,
-      testHooks: testHooks,
+      hooks: testHooks,
       enableBackgroundIndexing: true,
       pollIndex: false
     )
@@ -335,7 +335,7 @@ final class BackgroundIndexingTests: XCTestCase {
     let receivedReportProgressNotification = WrappedSemaphore(
       name: "Received work done progress saying indexing"
     )
-    var testHooks = TestHooks()
+    var testHooks = Hooks()
     testHooks.indexTestHooks = IndexTestHooks(
       buildGraphGenerationDidFinish: {
         receivedBeginProgressNotification.waitOrXCTFail()
@@ -354,7 +354,7 @@ final class BackgroundIndexingTests: XCTestCase {
         """
       ],
       capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
-      testHooks: testHooks,
+      hooks: testHooks,
       enableBackgroundIndexing: true,
       pollIndex: false,
       preInitialization: { testClient in
@@ -550,7 +550,7 @@ final class BackgroundIndexingTests: XCTestCase {
   func testPrepareTargetAfterEditToDependency() async throws {
     try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
 
-    var testHooks = TestHooks()
+    var testHooks = Hooks()
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       [
         try ExpectedPreparation(target: "LibA", destination: .target),
@@ -582,7 +582,7 @@ final class BackgroundIndexingTests: XCTestCase {
         )
         """,
       capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
-      testHooks: testHooks,
+      hooks: testHooks,
       enableBackgroundIndexing: true,
       cleanUp: { expectedPreparationTracker.keepAlive() }
     )
@@ -655,7 +655,7 @@ final class BackgroundIndexingTests: XCTestCase {
     let libBStartedPreparation = WrappedSemaphore(name: "LibB started preparing")
     let libDPreparedForEditing = WrappedSemaphore(name: "LibD prepared for editing")
 
-    var testHooks = TestHooks()
+    var testHooks = Hooks()
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       // Preparation of targets during the initial of the target
       [
@@ -702,7 +702,7 @@ final class BackgroundIndexingTests: XCTestCase {
           ]
         )
         """,
-      testHooks: testHooks,
+      hooks: testHooks,
       enableBackgroundIndexing: true,
       cleanUp: { expectedPreparationTracker.keepAlive() }
     )
@@ -747,7 +747,7 @@ final class BackgroundIndexingTests: XCTestCase {
 
     // Block the index tasks until we have received a log notification to make sure we stream out results as they come
     // in and not only when the indexing task has finished
-    var testHooks = TestHooks()
+    var testHooks = Hooks()
     testHooks.indexTestHooks.preparationTaskDidFinish = { _ in
       didReceivePreparationIndexLogMessage.waitOrXCTFail()
     }
@@ -760,7 +760,7 @@ final class BackgroundIndexingTests: XCTestCase {
       files: [
         "MyFile.swift": ""
       ],
-      testHooks: testHooks,
+      hooks: testHooks,
       enableBackgroundIndexing: true,
       pollIndex: false
     )
@@ -785,7 +785,7 @@ final class BackgroundIndexingTests: XCTestCase {
     let fileAIndexingStarted = WrappedSemaphore(name: "FileA indexing started")
     let fileBIndexingStarted = WrappedSemaphore(name: "FileB indexing started")
 
-    var testHooks = TestHooks()
+    var testHooks = Hooks()
     let expectedIndexTaskTracker = ExpectedIndexTaskTracker(
       expectedIndexStoreUpdates: [
         [
@@ -817,7 +817,7 @@ final class BackgroundIndexingTests: XCTestCase {
         "FileA.swift": "",
         "FileB.swift": "",
       ],
-      testHooks: testHooks,
+      hooks: testHooks,
       enableBackgroundIndexing: true,
       cleanUp: { expectedIndexTaskTracker.keepAlive() }
     )
@@ -848,7 +848,7 @@ final class BackgroundIndexingTests: XCTestCase {
       enableBackgroundIndexing: true
     )
 
-    var otherClientOptions = TestHooks()
+    var otherClientOptions = Hooks()
     otherClientOptions.indexTestHooks = IndexTestHooks(
       preparationTaskDidStart: { taskDescription in
         XCTFail("Did not expect any target preparation, got \(taskDescription.targetsToPrepare)")
@@ -858,7 +858,7 @@ final class BackgroundIndexingTests: XCTestCase {
       }
     )
     let otherClient = try await TestSourceKitLSPClient(
-      testHooks: otherClientOptions,
+      hooks: otherClientOptions,
       enableBackgroundIndexing: true,
       workspaceFolders: [
         WorkspaceFolder(uri: DocumentURI(project.scratchDirectory))
@@ -1278,15 +1278,15 @@ final class BackgroundIndexingTests: XCTestCase {
   func testAddingRandomSwiftFileDoesNotTriggerPackageReload() async throws {
     let packageInitialized = AtomicBool(initialValue: false)
 
-    var testHooks = TestHooks()
-    testHooks.buildSystemTestHooks.swiftPMTestHooks.reloadPackageDidStart = {
+    var testHooks = Hooks()
+    testHooks.buildSystemHooks.swiftPMTestHooks.reloadPackageDidStart = {
       if packageInitialized.value {
         XCTFail("Build graph should not get reloaded when random file gets added")
       }
     }
     let project = try await SwiftPMTestProject(
       files: ["Test.swift": ""],
-      testHooks: testHooks,
+      hooks: testHooks,
       enableBackgroundIndexing: true
     )
     packageInitialized.value = true

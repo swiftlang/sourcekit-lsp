@@ -146,7 +146,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   ///     needed.
   package init(
     options: SourceKitLSPOptions = .testDefault(),
-    testHooks: TestHooks = TestHooks(),
+    hooks: Hooks = Hooks(),
     initialize: Bool = true,
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
@@ -177,7 +177,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
       client: serverToClientConnection,
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: options,
-      testHooks: testHooks,
+      hooks: hooks,
       onExit: {
         serverToClientConnection.close()
       }
