@@ -150,6 +150,7 @@ fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
   struct Symbol {
     let position: AbsolutePosition
     let documentationComments: [String]
+    let depth: Int
   }
 
   private let cursorPosition: AbsolutePosition
@@ -157,12 +158,14 @@ fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
   /// Accumulating the result in here.
   private var result: Symbol? = nil
 
+  private var depth: Int = 0
+
   private init(_ cursorPosition: AbsolutePosition) {
     self.cursorPosition = cursorPosition
     super.init(viewMode: .sourceAccurate)
   }
 
-  /// Designated entry point for `DocumentableSymbolFinder`.
+  /// Designated entry point for ``DocumentableSymbolFinder``.
   static func find(
     in nodes: some Sequence<Syntax>,
     at cursorPosition: AbsolutePosition
@@ -176,7 +179,7 @@ fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
 
   private func setResult(node: some SyntaxProtocol, position: AbsolutePosition) {
     setResult(
-      result: Symbol(
+      symbol: Symbol(
         position: position,
         documentationComments: node.leadingTrivia.flatMap { trivia -> [String] in
           switch trivia {
@@ -190,69 +193,72 @@ fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
           default:
             return []
           }
-        }
+        },
+        depth: depth
       )
     )
   }
 
-  private func setResult(result symbol: Symbol) {
-    if result == nil {
-      result = symbol
+  private func setResult(symbol: Symbol) {
+    guard symbol.depth > result?.depth ?? -1 else {
+      return
     }
+    result = symbol
   }
 
-  private func visitNamedDeclWithMemberBlock(
-    node: some SyntaxProtocol,
-    name: TokenSyntax,
-    memberBlock: MemberBlockSyntax
-  ) -> SyntaxVisitorContinueKind {
-    if cursorPosition <= memberBlock.leftBrace.positionAfterSkippingLeadingTrivia {
-      setResult(node: node, position: name.positionAfterSkippingLeadingTrivia)
-    } else if let child = DocumentableSymbolFinder.find(
-      in: memberBlock.children(viewMode: .sourceAccurate),
-      at: cursorPosition
-    ) {
-      setResult(result: child)
-    } else if node.range.contains(cursorPosition) {
-      setResult(node: node, position: name.positionAfterSkippingLeadingTrivia)
+  override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
+    guard depth > result?.depth ?? -1 else {
+      return .skipChildren
     }
-    return .skipChildren
+    return .visitChildren
+  }
+
+  private func visitNamedDecl(node: some NamedDeclSyntax) -> SyntaxVisitorContinueKind {
+    if cursorPosition < node.range.upperBound {
+      setResult(node: node, position: node.name.positionAfterSkippingLeadingTrivia)
+    }
+    return .visitChildren
   }
 
   override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
-    visitNamedDeclWithMemberBlock(node: node, name: node.name, memberBlock: node.memberBlock)
+    visitNamedDecl(node: node)
   }
 
   override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
-    visitNamedDeclWithMemberBlock(node: node, name: node.name, memberBlock: node.memberBlock)
+    visitNamedDecl(node: node)
   }
 
   override func visit(_ node: ActorDeclSyntax) -> SyntaxVisitorContinueKind {
-    visitNamedDeclWithMemberBlock(node: node, name: node.name, memberBlock: node.memberBlock)
+    visitNamedDecl(node: node)
   }
 
   override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind {
-    visitNamedDeclWithMemberBlock(node: node, name: node.name, memberBlock: node.memberBlock)
+    visitNamedDecl(node: node)
   }
 
   override func visit(_ node: ProtocolDeclSyntax) -> SyntaxVisitorContinueKind {
-    visitNamedDeclWithMemberBlock(node: node, name: node.name, memberBlock: node.memberBlock)
-  }
-
-  override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
-    let symbolPosition = node.name.positionAfterSkippingLeadingTrivia
-    if node.range.contains(cursorPosition) || cursorPosition < symbolPosition {
-      setResult(node: node, position: symbolPosition)
-    }
-    return .skipChildren
+    visitNamedDecl(node: node)
   }
 
   override func visit(_ node: MemberBlockSyntax) -> SyntaxVisitorContinueKind {
+    depth += 1
     let range = node.leftBrace.endPositionBeforeTrailingTrivia..<node.rightBrace.positionAfterSkippingLeadingTrivia
     guard range.contains(cursorPosition) else {
       return .skipChildren
     }
     return .visitChildren
+  }
+
+  override func visitPost(_ node: MemberBlockSyntax) {
+    depth -= 1;
+  }
+
+  override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
+    let symbolPosition = node.name.positionAfterSkippingLeadingTrivia
+    if cursorPosition < node.range.upperBound {
+      setResult(node: node, position: symbolPosition)
+    }
+    return .skipChildren
   }
 
   override func visit(_ node: InitializerDeclSyntax) -> SyntaxVisitorContinueKind {
@@ -275,9 +281,7 @@ fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
 
   override func visit(_ node: VariableDeclSyntax) -> SyntaxVisitorContinueKind {
     // A variable declaration is only documentable if there is only one pattern binding
-    guard node.bindings.count == 1,
-      let identifier = node.bindings.first!.pattern.as(IdentifierPatternSyntax.self)
-    else {
+    guard let identifier = node.bindings.only?.pattern.as(IdentifierPatternSyntax.self) else {
       return .skipChildren
     }
     let symbolPosition = identifier.positionAfterSkippingLeadingTrivia
