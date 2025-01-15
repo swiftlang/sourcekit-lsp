@@ -145,7 +145,7 @@ private extension BuildSystemSpec {
   private static func createBuiltInBuildSystemAdapter(
     projectRoot: URL,
     messagesToSourceKitLSPHandler: any MessageHandler,
-    buildSystemTestHooks: BuildSystemTestHooks,
+    buildSystemHooks: BuildSystemHooks,
     _ createBuildSystem: @Sendable (_ connectionToSourceKitLSP: any Connection) async throws -> BuiltInBuildSystem?
   ) async -> BuildSystemAdapter? {
     let connectionToSourceKitLSP = LocalConnection(
@@ -164,7 +164,7 @@ private extension BuildSystemSpec {
     let buildSystemAdapter = BuiltInBuildSystemAdapter(
       underlyingBuildSystem: buildSystem,
       connectionToSourceKitLSP: connectionToSourceKitLSP,
-      buildSystemTestHooks: buildSystemTestHooks
+      buildSystemHooks: buildSystemHooks
     )
     let connectionToBuildSystem = LocalConnection(
       receiverName: "\(type(of: buildSystem)) for \(projectRoot.lastPathComponent)"
@@ -178,7 +178,7 @@ private extension BuildSystemSpec {
   func createBuildSystemAdapter(
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
-    buildSystemTestHooks testHooks: BuildSystemTestHooks,
+    buildSystemHooks: BuildSystemHooks,
     messagesToSourceKitLSPHandler: any MessageHandler
   ) async -> BuildSystemAdapter? {
     switch self.kind {
@@ -199,7 +199,7 @@ private extension BuildSystemSpec {
       return await Self.createBuiltInBuildSystemAdapter(
         projectRoot: projectRoot,
         messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
-        buildSystemTestHooks: testHooks
+        buildSystemHooks: buildSystemHooks
       ) { connectionToSourceKitLSP in
         CompilationDatabaseBuildSystem(
           projectRoot: projectRoot,
@@ -214,26 +214,26 @@ private extension BuildSystemSpec {
       return await Self.createBuiltInBuildSystemAdapter(
         projectRoot: projectRoot,
         messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
-        buildSystemTestHooks: testHooks
+        buildSystemHooks: buildSystemHooks
       ) { connectionToSourceKitLSP in
         try await SwiftPMBuildSystem(
           projectRoot: projectRoot,
           toolchainRegistry: toolchainRegistry,
           options: options,
           connectionToSourceKitLSP: connectionToSourceKitLSP,
-          testHooks: testHooks.swiftPMTestHooks
+          testHooks: buildSystemHooks.swiftPMTestHooks
         )
       }
       #else
       return nil
       #endif
-    case .testBuildSystem:
+    case .injected(let injector):
       return await Self.createBuiltInBuildSystemAdapter(
         projectRoot: projectRoot,
         messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
-        buildSystemTestHooks: testHooks
+        buildSystemHooks: buildSystemHooks
       ) { connectionToSourceKitLSP in
-        TestBuildSystem(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
+        await injector.createBuildSystem(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
       }
     }
   }
@@ -272,19 +272,6 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     get async {
       _ = await initializeResult.value
       return buildSystemAdapter
-    }
-  }
-
-  /// If the underlying build system is a `TestBuildSystem`, return it. Otherwise, `nil`
-  ///
-  /// - Important: For testing purposes only.
-  package var testBuildSystem: TestBuildSystem? {
-    get async {
-      switch buildSystemAdapter {
-      case .builtIn(let builtInBuildSystemAdapter, _): return await builtInBuildSystemAdapter.testBuildSystem
-      case .external: return nil
-      case nil: return nil
-      }
     }
   }
 
@@ -367,7 +354,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     connectionToClient: BuildSystemManagerConnectionToClient,
-    buildSystemTestHooks: BuildSystemTestHooks
+    buildSystemHooks: BuildSystemHooks
   ) async {
     self.toolchainRegistry = toolchainRegistry
     self.options = options
@@ -376,7 +363,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     self.buildSystemAdapter = await buildSystemSpec?.createBuildSystemAdapter(
       toolchainRegistry: toolchainRegistry,
       options: options,
-      buildSystemTestHooks: buildSystemTestHooks,
+      buildSystemHooks: buildSystemHooks,
       messagesToSourceKitLSPHandler: WeakMessageHandler(self)
     )
 
@@ -432,7 +419,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         let adapter = BuiltInBuildSystemAdapter(
           underlyingBuildSystem: legacyBuildServer,
           connectionToSourceKitLSP: legacyBuildServer.connectionToSourceKitLSP,
-          buildSystemTestHooks: buildSystemTestHooks
+          buildSystemHooks: buildSystemHooks
         )
         let connectionToBuildSystem = LocalConnection(receiverName: "Legacy BSP server")
         connectionToBuildSystem.start(handler: adapter)

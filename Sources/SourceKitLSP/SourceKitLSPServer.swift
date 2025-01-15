@@ -82,7 +82,7 @@ package actor SourceKitLSPServer {
 
   var options: SourceKitLSPOptions
 
-  let testHooks: TestHooks
+  let hooks: Hooks
 
   let toolchainRegistry: ToolchainRegistry
 
@@ -154,12 +154,12 @@ package actor SourceKitLSPServer {
     client: Connection,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
-    testHooks: TestHooks,
+    hooks: Hooks,
     onExit: @escaping () -> Void = {}
   ) {
     self.toolchainRegistry = toolchainRegistry
     self.options = options
-    self.testHooks = testHooks
+    self.hooks = hooks
     self.onExit = onExit
 
     self.client = client
@@ -218,7 +218,13 @@ package actor SourceKitLSPServer {
       // was added to it and thus currently doesn't know that it can handle that file. In that case, we shouldn't open
       // a new workspace for the same root. Instead, the existing workspace's build system needs to be reloaded.
       let uri = DocumentURI(url)
-      guard let buildSystemSpec = determineBuildSystem(forWorkspaceFolder: uri, options: self.options) else {
+      guard
+        let buildSystemSpec = determineBuildSystem(
+          forWorkspaceFolder: uri,
+          options: self.options,
+          hooks: hooks.buildSystemHooks
+        )
+      else {
         continue
       }
       guard !projectRoots.contains(buildSystemSpec.projectRoot) else {
@@ -442,12 +448,12 @@ package actor SourceKitLSPServer {
     }
 
     // Start a new service.
-    return await orLog("failed to start language service", level: .error) { [options = workspace.options, testHooks] in
+    return await orLog("failed to start language service", level: .error) { [options = workspace.options, hooks] in
       let service = try await serverType.serverType.init(
         sourceKitLSPServer: self,
         toolchain: toolchain,
         options: options,
-        testHooks: testHooks,
+        hooks: hooks,
         workspace: workspace
       )
 
@@ -656,7 +662,7 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       }
     }
 
-    await self.testHooks.handleRequest?(params)
+    await self.hooks.preHandleRequest?(params)
 
     let startDate = Date()
 
@@ -826,7 +832,6 @@ extension SourceKitLSPServer {
       logger.log("Cannot open workspace before server is initialized")
       throw NoCapabilityRegistryError()
     }
-    let testHooks = self.testHooks
     let options = SourceKitLSPOptions.merging(
       base: self.options,
       override: SourceKitLSPOptions(
@@ -846,7 +851,7 @@ extension SourceKitLSPServer {
       buildSystemSpec: buildSystemSpec,
       toolchainRegistry: self.toolchainRegistry,
       options: options,
-      testHooks: testHooks,
+      hooks: hooks,
       indexTaskScheduler: indexTaskScheduler
     )
     return workspace
@@ -857,7 +862,11 @@ extension SourceKitLSPServer {
   private func createWorkspaceWithInferredBuildSystem(workspaceFolder: DocumentURI) async throws -> Workspace {
     return try await self.createWorkspace(
       workspaceFolder: workspaceFolder,
-      buildSystemSpec: determineBuildSystem(forWorkspaceFolder: workspaceFolder, options: self.options)
+      buildSystemSpec: determineBuildSystem(
+        forWorkspaceFolder: workspaceFolder,
+        options: options,
+        hooks: hooks.buildSystemHooks
+      )
     )
   }
 
@@ -917,7 +926,7 @@ extension SourceKitLSPServer {
     logger.log("Initialized SourceKit-LSP")
     logger.logFullObjectInMultipleLogMessages(header: "SourceKit-LSP Options", options.loggingProxy)
 
-    await workspaceQueue.async { [testHooks] in
+    await workspaceQueue.async { [hooks] in
       if let workspaceFolders = req.workspaceFolders {
         self.workspacesAndIsImplicit += await workspaceFolders.asyncCompactMap { workspaceFolder in
           await orLog("Creating workspace from workspaceFolders") {
@@ -954,7 +963,7 @@ extension SourceKitLSPServer {
           buildSystemSpec: nil,
           toolchainRegistry: self.toolchainRegistry,
           options: options,
-          testHooks: testHooks,
+          hooks: hooks,
           indexTaskScheduler: self.indexTaskScheduler
         )
 

@@ -309,7 +309,7 @@ struct SourceKitLSP: AsyncParsableCommand {
       client: clientConnection,
       toolchainRegistry: ToolchainRegistry(installPath: Bundle.main.bundleURL),
       options: globalConfigurationOptions,
-      testHooks: TestHooks(),
+      hooks: Hooks(),
       onExit: {
         clientConnection.close()
       }

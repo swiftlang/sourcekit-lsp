@@ -129,7 +129,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
 
   let capabilityRegistry: CapabilityRegistry
 
-  let testHooks: TestHooks
+  let hooks: Hooks
 
   let options: SourceKitLSPOptions
 
@@ -202,7 +202,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
     options: SourceKitLSPOptions,
-    testHooks: TestHooks,
+    hooks: Hooks,
     workspace: Workspace
   ) async throws {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
@@ -211,7 +211,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     self.sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(dylibPath: sourcekitd)
     self.capabilityRegistry = workspace.capabilityRegistry
     self.semanticIndexManager = workspace.semanticIndexManager
-    self.testHooks = testHooks
+    self.hooks = hooks
     self.state = .connected
     self.options = options
 

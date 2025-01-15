@@ -30,7 +30,7 @@ package struct BuildSystemSpec {
     case buildServer
     case compilationDatabase
     case swiftPM
-    case testBuildSystem
+    case injected(BuildSystemInjector)
   }
 
   package var kind: Kind
@@ -59,25 +59,18 @@ actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
   /// The connection with which messages are sent to `BuildSystemManager`.
   private let connectionToSourceKitLSP: LocalConnection
 
-  private let buildSystemTestHooks: BuildSystemTestHooks
-
-  /// If the underlying build system is a `TestBuildSystem`, return it. Otherwise, `nil`
-  ///
-  /// - Important: For testing purposes only.
-  var testBuildSystem: TestBuildSystem? {
-    return underlyingBuildSystem as? TestBuildSystem
-  }
+  private let buildSystemHooks: BuildSystemHooks
 
   /// Create a `BuiltInBuildSystemAdapter` form an existing `BuiltInBuildSystem` and connection to communicate messages
   /// from the build system to SourceKit-LSP.
   init(
     underlyingBuildSystem: BuiltInBuildSystem,
     connectionToSourceKitLSP: LocalConnection,
-    buildSystemTestHooks: BuildSystemTestHooks
+    buildSystemHooks: BuildSystemHooks
   ) {
     self.underlyingBuildSystem = underlyingBuildSystem
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
-    self.buildSystemTestHooks = buildSystemTestHooks
+    self.buildSystemHooks = buildSystemHooks
   }
 
   deinit {
@@ -124,7 +117,7 @@ actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
     reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
   ) async {
     let request = RequestAndReply(request, reply: reply)
-    await buildSystemTestHooks.handleRequest?(request.params)
+    await buildSystemHooks.preHandleRequest?(request.params)
     switch request {
     case let request as RequestAndReply<BuildShutdownRequest>:
       await request.reply { VoidResponse() }

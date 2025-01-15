@@ -169,9 +169,9 @@ final class FallbackBuildSystemTests: XCTestCase {
         let x: 1️⃣String2️⃣ = 1
         """
       ],
-      testHooks: TestHooks(
-        buildSystemTestHooks: BuildSystemTestHooks(
-          handleRequest: { request in
+      hooks: Hooks(
+        buildSystemHooks: BuildSystemHooks(
+          preHandleRequest: { request in
             if request is TextDocumentSourceKitOptionsRequest {
               fallbackResultsReceived.waitOrXCTFail()
             }

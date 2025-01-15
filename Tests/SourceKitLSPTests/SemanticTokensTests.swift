@@ -947,7 +947,7 @@ final class SemanticTokensTests: XCTestCase {
 
   func testImplicitCancellationOnEdit() async throws {
     let testClient = try await TestSourceKitLSPClient(
-      testHooks: TestHooks(handleRequest: { request in
+      hooks: Hooks(preHandleRequest: { request in
         if request is DocumentSemanticTokensRequest {
           // Sleep long enough for the edit to be handled
           try? await Task.sleep(for: .seconds(10))
@@ -976,7 +976,7 @@ final class SemanticTokensTests: XCTestCase {
 
     let testClient = try await TestSourceKitLSPClient(
       options: SourceKitLSPOptions(cancelTextDocumentRequestsOnEditAndClose: false),
-      testHooks: TestHooks(handleRequest: { request in
+      hooks: Hooks(preHandleRequest: { request in
         if request is DocumentSemanticTokensRequest {
           // Sleep long enough for the edit to be handled
           try? await Task.sleep(for: .seconds(2))
