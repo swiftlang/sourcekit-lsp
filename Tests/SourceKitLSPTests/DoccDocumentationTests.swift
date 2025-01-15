@@ -22,9 +22,9 @@ import XCTest
 final class DoccDocumentationTests: XCTestCase {
   func testEmptySwiftFile() async throws {
     try await renderDocumentation(
-      swiftFile: "0️⃣",
+      swiftFile: "1️⃣",
       expectedResponses: [
-        "0️⃣": .error(.noDocumentation)
+        "1️⃣": .error(.noDocumentation)
       ]
     )
   }
@@ -32,16 +32,16 @@ final class DoccDocumentationTests: XCTestCase {
   func testFunction() async throws {
     try await renderDocumentation(
       swiftFile: """
-        /// A function that do0️⃣es some important stuff.
-        func func1️⃣tion() {
-          // Some import2️⃣ant function contents.
-        }3️⃣
+        /// A function that do1️⃣es some important stuff.
+        func func2️⃣tion() {
+          // Some import3️⃣ant function contents.
+        }4️⃣
         """,
       expectedResponses: [
-        "0️⃣": .renderNode(kind: .symbol, path: "test/function()"),
         "1️⃣": .renderNode(kind: .symbol, path: "test/function()"),
         "2️⃣": .renderNode(kind: .symbol, path: "test/function()"),
-        "3️⃣": .error(.noDocumentation),
+        "3️⃣": .renderNode(kind: .symbol, path: "test/function()"),
+        "4️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -49,31 +49,31 @@ final class DoccDocumentationTests: XCTestCase {
   func testStructure() async throws {
     try await renderDocumentation(
       swiftFile: """
-        /// A structure contain0️⃣ing important information.
-        public struct Struc1️⃣ture {
-          /// The inte2️⃣ger `foo`
-          var foo: I3️⃣nt
+        /// A structure contain1️⃣ing important information.
+        public struct Struc2️⃣ture {
+          /// The inte3️⃣ger `foo`
+          var foo: I4️⃣nt
 
-          /// The other integer `bar`4️⃣
-          v5️⃣ar bar: Int
+          /// The other integer `bar`5️⃣
+          v6️⃣ar bar: Int
 
-          /// Initiali6️⃣ze the structure.
-          init(_ foo: Int,7️⃣ bar: Int) {
+          /// Initiali7️⃣ze the structure.
+          init(_ foo: Int,8️⃣ bar: Int) {
             self.foo = foo
             self.bar = bar
           }
-        }8️⃣
+        }9️⃣
         """,
       expectedResponses: [
-        "0️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
         "1️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
-        "2️⃣": .renderNode(kind: .symbol, path: "test/Structure/foo"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
         "3️⃣": .renderNode(kind: .symbol, path: "test/Structure/foo"),
-        "4️⃣": .renderNode(kind: .symbol, path: "test/Structure/bar"),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Structure/foo"),
         "5️⃣": .renderNode(kind: .symbol, path: "test/Structure/bar"),
-        "6️⃣": .renderNode(kind: .symbol, path: "test/Structure/init(_:bar:)"),
+        "6️⃣": .renderNode(kind: .symbol, path: "test/Structure/bar"),
         "7️⃣": .renderNode(kind: .symbol, path: "test/Structure/init(_:bar:)"),
-        "8️⃣": .error(.noDocumentation),
+        "8️⃣": .renderNode(kind: .symbol, path: "test/Structure/init(_:bar:)"),
+        "9️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -81,15 +81,15 @@ final class DoccDocumentationTests: XCTestCase {
   func testEmptyStructure() async throws {
     try await renderDocumentation(
       swiftFile: """
-        pub0️⃣lic struct Struc1️⃣ture {
-          2️⃣
-        }3️⃣
+        pub1️⃣lic struct Struc2️⃣ture {
+          3️⃣
+        }4️⃣
         """,
       expectedResponses: [
-        "0️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
         "1️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
         "2️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
-        "3️⃣": .error(.noDocumentation),
+        "3️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
+        "4️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -97,32 +97,32 @@ final class DoccDocumentationTests: XCTestCase {
   func testClass() async throws {
     try await renderDocumentation(
       swiftFile: """
-        /// A class contain0️⃣ing important information.
-        public class Cla1️⃣ss {
-          /// The inte2️⃣ger `foo`
-          var foo: I3️⃣nt
+        /// A class contain1️⃣ing important information.
+        public class Cla2️⃣ss {
+          /// The inte3️⃣ger `foo`
+          var foo: I4️⃣nt
 
-          /// The other integer `bar`4️⃣
-          v5️⃣ar bar: Int
+          /// The other integer `bar`5️⃣
+          v6️⃣ar bar: Int
 
-          /// Initiali6️⃣ze the class.
-          init(_ foo: Int,7️⃣ bar: Int) {
+          /// Initiali7️⃣ze the class.
+          init(_ foo: Int,8️⃣ bar: Int) {
             self.foo = foo
             self.bar = bar
-          }8️⃣
-        }9️⃣
+          }9️⃣
+        }0️⃣
         """,
       expectedResponses: [
-        "0️⃣": .renderNode(kind: .symbol, path: "test/Class"),
         "1️⃣": .renderNode(kind: .symbol, path: "test/Class"),
-        "2️⃣": .renderNode(kind: .symbol, path: "test/Class/foo"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Class"),
         "3️⃣": .renderNode(kind: .symbol, path: "test/Class/foo"),
-        "4️⃣": .renderNode(kind: .symbol, path: "test/Class/bar"),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Class/foo"),
         "5️⃣": .renderNode(kind: .symbol, path: "test/Class/bar"),
-        "6️⃣": .renderNode(kind: .symbol, path: "test/Class/init(_:bar:)"),
+        "6️⃣": .renderNode(kind: .symbol, path: "test/Class/bar"),
         "7️⃣": .renderNode(kind: .symbol, path: "test/Class/init(_:bar:)"),
-        "8️⃣": .renderNode(kind: .symbol, path: "test/Class"),
-        "9️⃣": .error(.noDocumentation),
+        "8️⃣": .renderNode(kind: .symbol, path: "test/Class/init(_:bar:)"),
+        "9️⃣": .renderNode(kind: .symbol, path: "test/Class"),
+        "0️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -130,15 +130,15 @@ final class DoccDocumentationTests: XCTestCase {
   func testEmptyClass() async throws {
     try await renderDocumentation(
       swiftFile: """
-        pub0️⃣lic class Cla1️⃣ss {
-          2️⃣
-        }3️⃣
+        pub1️⃣lic class Cla2️⃣ss {
+          3️⃣
+        }4️⃣
         """,
       expectedResponses: [
-        "0️⃣": .renderNode(kind: .symbol, path: "test/Class"),
         "1️⃣": .renderNode(kind: .symbol, path: "test/Class"),
         "2️⃣": .renderNode(kind: .symbol, path: "test/Class"),
-        "3️⃣": .error(.noDocumentation),
+        "3️⃣": .renderNode(kind: .symbol, path: "test/Class"),
+        "4️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -146,31 +146,31 @@ final class DoccDocumentationTests: XCTestCase {
   func testActor() async throws {
     try await renderDocumentation(
       swiftFile: """
-        /// An actor contain0️⃣ing important information.
-        public actor Ac1️⃣tor {
-          /// The inte2️⃣ger `foo`
-          var foo: I3️⃣nt
+        /// An actor contain1️⃣ing important information.
+        public actor Ac2️⃣tor {
+          /// The inte3️⃣ger `foo`
+          var foo: I4️⃣nt
 
-          /// The other integer `bar`4️⃣
-          v5️⃣ar bar: Int
+          /// The other integer `bar`5️⃣
+          v6️⃣ar bar: Int
 
-          /// Initiali6️⃣ze the actor.
-          init(_ foo: Int,7️⃣ bar: Int) {
+          /// Initiali7️⃣ze the actor.
+          init(_ foo: Int,8️⃣ bar: Int) {
             self.foo = foo
             self.bar = bar
           }
-        }8️⃣
+        }9️⃣
         """,
       expectedResponses: [
-        "0️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
         "1️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
-        "2️⃣": .renderNode(kind: .symbol, path: "test/Actor/foo"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
         "3️⃣": .renderNode(kind: .symbol, path: "test/Actor/foo"),
-        "4️⃣": .renderNode(kind: .symbol, path: "test/Actor/bar"),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Actor/foo"),
         "5️⃣": .renderNode(kind: .symbol, path: "test/Actor/bar"),
-        "6️⃣": .renderNode(kind: .symbol, path: "test/Actor/init(_:bar:)"),
+        "6️⃣": .renderNode(kind: .symbol, path: "test/Actor/bar"),
         "7️⃣": .renderNode(kind: .symbol, path: "test/Actor/init(_:bar:)"),
-        "8️⃣": .error(.noDocumentation),
+        "8️⃣": .renderNode(kind: .symbol, path: "test/Actor/init(_:bar:)"),
+        "9️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -178,15 +178,15 @@ final class DoccDocumentationTests: XCTestCase {
   func testEmptyActor() async throws {
     try await renderDocumentation(
       swiftFile: """
-        pub0️⃣lic class Act1️⃣or {
-          2️⃣
-        }3️⃣
+        pub1️⃣lic class Act2️⃣or {
+          3️⃣
+        }4️⃣
         """,
       expectedResponses: [
-        "0️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
         "1️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
         "2️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
-        "3️⃣": .error(.noDocumentation),
+        "3️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
+        "4️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -194,28 +194,28 @@ final class DoccDocumentationTests: XCTestCase {
   func testEnumeration() async throws {
     try await renderDocumentation(
       swiftFile: """
-        /// An enumeration contain0️⃣ing important information.
-        public enum En1️⃣um {
-          /// The 2️⃣first case.
-          case fi3️⃣rst
+        /// An enumeration contain1️⃣ing important information.
+        public enum En2️⃣um {
+          /// The 3️⃣first case.
+          case fi4️⃣rst
 
-          //4️⃣/ The second case.
-          ca5️⃣se second
+          //5️⃣/ The second case.
+          ca6️⃣se second
 
-          // The third case.6️⃣
-          case third(In7️⃣t)
-        }8️⃣
+          // The third case.7️⃣
+          case third(In8️⃣t)
+        }9️⃣
         """,
       expectedResponses: [
-        "0️⃣": .renderNode(kind: .symbol, path: "test/Enum"),
         "1️⃣": .renderNode(kind: .symbol, path: "test/Enum"),
-        "2️⃣": .renderNode(kind: .symbol, path: "test/Enum/first"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Enum"),
         "3️⃣": .renderNode(kind: .symbol, path: "test/Enum/first"),
-        "4️⃣": .renderNode(kind: .symbol, path: "test/Enum/second"),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Enum/first"),
         "5️⃣": .renderNode(kind: .symbol, path: "test/Enum/second"),
-        "6️⃣": .renderNode(kind: .symbol, path: "test/Enum/third(_:)"),
+        "6️⃣": .renderNode(kind: .symbol, path: "test/Enum/second"),
         "7️⃣": .renderNode(kind: .symbol, path: "test/Enum/third(_:)"),
-        "8️⃣": .error(.noDocumentation),
+        "8️⃣": .renderNode(kind: .symbol, path: "test/Enum/third(_:)"),
+        "9️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -230,7 +230,7 @@ final class DoccDocumentationTests: XCTestCase {
         /// The first case.
         case first
 
-        /// The 0️⃣second case.
+        /// The 1️⃣second case.
         case second
 
         // The third case.
@@ -245,7 +245,7 @@ final class DoccDocumentationTests: XCTestCase {
       testClient: testClient,
       uri: uri,
       positions: positions,
-      expectedResponses: ["0️⃣": .renderNode(kind: .symbol, containing: "The second case")]
+      expectedResponses: ["1️⃣": .renderNode(kind: .symbol, containing: "The second case")]
     )
 
     // Change the content of the documentation comment
@@ -253,7 +253,7 @@ final class DoccDocumentationTests: XCTestCase {
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
         contentChanges: [
-          TextDocumentContentChangeEvent(range: positions["0️⃣"]..<positions["0️⃣"], text: "very ")
+          TextDocumentContentChangeEvent(range: positions["1️⃣"]..<positions["1️⃣"], text: "very ")
         ]
       )
     )
@@ -263,30 +263,30 @@ final class DoccDocumentationTests: XCTestCase {
       testClient: testClient,
       uri: uri,
       positions: positions,
-      expectedResponses: ["0️⃣": .renderNode(kind: .symbol, containing: "The very second case")]
+      expectedResponses: ["1️⃣": .renderNode(kind: .symbol, containing: "The very second case")]
     )
   }
 
   func testProtocol() async throws {
     try await renderDocumentation(
       swiftFile: """
-        /// A protocol contain0️⃣ing important information.
-        public protocol Proto1️⃣col {
-          /// The inte2️⃣ger `foo`
-          var foo: I3️⃣nt
+        /// A protocol contain1️⃣ing important information.
+        public protocol Proto2️⃣col {
+          /// The inte3️⃣ger `foo`
+          var foo: I4️⃣nt
 
-          /// The other integer `bar`4️⃣
-          v5️⃣ar bar: Int
-        }6️⃣
+          /// The other integer `bar`5️⃣
+          v6️⃣ar bar: Int
+        }7️⃣
         """,
       expectedResponses: [
-        "0️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
         "1️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
-        "2️⃣": .renderNode(kind: .symbol, path: "test/Protocol/foo"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
         "3️⃣": .renderNode(kind: .symbol, path: "test/Protocol/foo"),
-        "4️⃣": .renderNode(kind: .symbol, path: "test/Protocol/bar"),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Protocol/foo"),
         "5️⃣": .renderNode(kind: .symbol, path: "test/Protocol/bar"),
-        "6️⃣": .error(.noDocumentation),
+        "6️⃣": .renderNode(kind: .symbol, path: "test/Protocol/bar"),
+        "7️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -295,15 +295,15 @@ final class DoccDocumentationTests: XCTestCase {
     try await renderDocumentation(
       swiftFile: """
         /// A protocol containing important information
-        pub0️⃣lic struct Prot1️⃣ocol {
-          2️⃣
-        }3️⃣
+        pub1️⃣lic struct Prot2️⃣ocol {
+          3️⃣
+        }4️⃣
         """,
       expectedResponses: [
-        "0️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
         "1️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
         "2️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
-        "3️⃣": .error(.noDocumentation),
+        "3️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
+        "4️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -316,26 +316,26 @@ final class DoccDocumentationTests: XCTestCase {
           let number: Int
         }
 
-        extension Stru0️⃣cture {
+        extension Stru1️⃣cture {
           /// One more than the number
-          var numberPlusOne: Int {1️⃣ number + 1 }
+          var numberPlusOne: Int {2️⃣ number + 1 }
 
-          /// The kind of2️⃣ this structure
+          /// The kind of3️⃣ this structure
           enum Kind {
-            /// The fi3️⃣rst kind
+            /// The fi4️⃣rst kind
             case first
-            /// The se4️⃣cond kind
+            /// The se5️⃣cond kind
             case second
           }
-        }5️⃣
+        }6️⃣
         """,
       expectedResponses: [
-        "0️⃣": .error(.noDocumentation),
-        "1️⃣": .renderNode(kind: .symbol, path: "test/Structure/numberPlusOne"),
-        "2️⃣": .renderNode(kind: .symbol, path: "test/Structure/Kind"),
-        "3️⃣": .renderNode(kind: .symbol, path: "test/Structure/Kind/first"),
-        "4️⃣": .renderNode(kind: .symbol, path: "test/Structure/Kind/second"),
-        "5️⃣": .error(.noDocumentation),
+        "1️⃣": .error(.noDocumentation),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Structure/numberPlusOne"),
+        "3️⃣": .renderNode(kind: .symbol, path: "test/Structure/Kind"),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Structure/Kind/first"),
+        "5️⃣": .renderNode(kind: .symbol, path: "test/Structure/Kind/second"),
+        "6️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -345,7 +345,7 @@ final class DoccDocumentationTests: XCTestCase {
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
-      /// A structure containing0️⃣ important information
+      /// A structure containing1️⃣ important information
       public struct Structure {
         let number: Int
       }
@@ -358,7 +358,7 @@ final class DoccDocumentationTests: XCTestCase {
       testClient: testClient,
       uri: uri,
       positions: positions,
-      expectedResponses: ["0️⃣": .renderNode(kind: .symbol, containing: "A structure containing important information")]
+      expectedResponses: ["1️⃣": .renderNode(kind: .symbol, containing: "A structure containing important information")]
     )
 
     // Change the content of the documentation comment
@@ -366,7 +366,7 @@ final class DoccDocumentationTests: XCTestCase {
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
         contentChanges: [
-          TextDocumentContentChangeEvent(range: positions["0️⃣"]..<positions["0️⃣"], text: " very")
+          TextDocumentContentChangeEvent(range: positions["1️⃣"]..<positions["1️⃣"], text: " very")
         ]
       )
     )
@@ -377,7 +377,7 @@ final class DoccDocumentationTests: XCTestCase {
       uri: uri,
       positions: positions,
       expectedResponses: [
-        "0️⃣": .renderNode(kind: .symbol, containing: "A structure containing very important information")
+        "1️⃣": .renderNode(kind: .symbol, containing: "A structure containing very important information")
       ]
     )
   }
@@ -389,7 +389,7 @@ final class DoccDocumentationTests: XCTestCase {
       """
       /// A structure containing important information
       ///
-      /// This is a0️⃣ description
+      /// This is a1️⃣ description
       public struct Structure {
         let number: Int
       }
@@ -402,7 +402,7 @@ final class DoccDocumentationTests: XCTestCase {
       testClient: testClient,
       uri: uri,
       positions: positions,
-      expectedResponses: ["0️⃣": .renderNode(kind: .symbol, containing: "This is a description")]
+      expectedResponses: ["1️⃣": .renderNode(kind: .symbol, containing: "This is a description")]
     )
 
     // Change the content of the documentation comment
@@ -410,7 +410,7 @@ final class DoccDocumentationTests: XCTestCase {
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
         contentChanges: [
-          TextDocumentContentChangeEvent(range: positions["0️⃣"]..<positions["0️⃣"], text: "n amazing")
+          TextDocumentContentChangeEvent(range: positions["1️⃣"]..<positions["1️⃣"], text: "n amazing")
         ]
       )
     )
@@ -420,7 +420,7 @@ final class DoccDocumentationTests: XCTestCase {
       testClient: testClient,
       uri: uri,
       positions: positions,
-      expectedResponses: ["0️⃣": .renderNode(kind: .symbol, containing: "This is an amazing description")]
+      expectedResponses: ["1️⃣": .renderNode(kind: .symbol, containing: "This is an amazing description")]
     )
   }
 
@@ -432,7 +432,7 @@ final class DoccDocumentationTests: XCTestCase {
       /**
       A structure containing important information
 
-      This is a0️⃣ description
+      This is a1️⃣ description
       */
       public struct Structure {
         let number: Int
@@ -446,7 +446,7 @@ final class DoccDocumentationTests: XCTestCase {
       testClient: testClient,
       uri: uri,
       positions: positions,
-      expectedResponses: ["0️⃣": .renderNode(kind: .symbol, containing: "This is a description")]
+      expectedResponses: ["1️⃣": .renderNode(kind: .symbol, containing: "This is a description")]
     )
 
     // Change the content of the documentation comment
@@ -454,7 +454,7 @@ final class DoccDocumentationTests: XCTestCase {
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
         contentChanges: [
-          TextDocumentContentChangeEvent(range: positions["0️⃣"]..<positions["0️⃣"], text: "n amazing")
+          TextDocumentContentChangeEvent(range: positions["1️⃣"]..<positions["1️⃣"], text: "n amazing")
         ]
       )
     )
@@ -464,7 +464,7 @@ final class DoccDocumentationTests: XCTestCase {
       testClient: testClient,
       uri: uri,
       positions: positions,
-      expectedResponses: ["0️⃣": .renderNode(kind: .symbol, containing: "This is an amazing description")]
+      expectedResponses: ["1️⃣": .renderNode(kind: .symbol, containing: "This is an amazing description")]
     )
   }
 }
