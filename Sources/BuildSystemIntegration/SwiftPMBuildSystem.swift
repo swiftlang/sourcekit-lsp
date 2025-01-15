@@ -169,9 +169,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   private var targetDependencies: [BuildTargetIdentifier: Set<BuildTargetIdentifier>] = [:]
 
   static package func projectRoot(for path: URL, options: SourceKitLSPOptions) -> URL? {
-    guard var path = orLog("Getting realpath for project root", { try path.realpath }) else {
-      return nil
-    }
+    var path = path
     while true {
       let packagePath = path.appendingPathComponent("Package.swift")
       if (try? String(contentsOf: packagePath, encoding: .utf8))?.contains("PackageDescription") ?? false {
