@@ -28,7 +28,7 @@ package final actor DocumentationManager {
 
   init(sourceKitLSPServer: SourceKitLSPServer) {
     self.sourceKitLSPServer = sourceKitLSPServer
-    self.doccServer = DocCServer(peer: nil, qualityOfService: .background)
+    self.doccServer = DocCServer(peer: nil, qualityOfService: .default)
   }
 
   func convertDocumentation(
