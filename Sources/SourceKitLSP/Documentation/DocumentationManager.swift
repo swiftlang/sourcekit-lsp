@@ -46,7 +46,7 @@ package final actor DocumentationManager {
     let targetId = await workspace.buildSystemManager.canonicalTarget(for: documentURI)
     var moduleName: String? = nil
     if let targetId = targetId {
-      moduleName = await workspace.buildSystemManager.buildTarget(named: targetId)?.displayName
+      moduleName = await workspace.buildSystemManager.moduleName(for: documentURI, in: targetId)
     }
 
     var externalIDsToConvert: [String]?
