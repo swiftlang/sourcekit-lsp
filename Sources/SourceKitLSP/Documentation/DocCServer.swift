@@ -21,6 +21,26 @@ package struct DocCServer {
     server = DocumentationServer.createDefaultServer(qualityOfService: qualityOfService, peer: peerServer)
   }
 
+  /// Sends a request to SwiftDocC that will convert in-memory documentation.
+  ///
+  /// - Parameters:
+  ///   - externalIDsToConvert: The external IDs of the symbols to convert.
+  ///   - documentPathsToConvert: The paths of the documentation nodes to convert.
+  ///   - includeRenderReferenceStore: Whether the conversion's render reference store should be included in
+  ///     the response.
+  ///   - documentationBundleLocation: The file location of the documentation bundle to convert, if any.
+  ///   - documentationBundleDisplayName: The name of the documentation bundle to convert.
+  ///   - documentationBundleIdentifier: The identifier of the documentation bundle to convert.
+  ///   - symbolGraphs: The symbol graph data included in the documentation bundle to convert.
+  ///   - overridingDocumentationComments: The mapping of external symbol identifiers to lines of a documentation
+  ///     comment that overrides the value in the symbol graph.
+  ///   - emitSymbolSourceFileURIs: Whether the conversion's rendered documentation should include source file
+  ///     location metadata.
+  ///   - markupFiles: The article and documentation extension file data included in the documentation bundle to convert.
+  ///   - tutorialFiles: The tutorial file data included in the documentation bundle to convert.
+  ///   - convertRequestIdentifier: A unique identifier for the request. Can be used to map additional data alongside
+  ///     a request for use later on.
+  /// - Throws: A ``DocCServerError`` representing the type of error that occurred.
   func convert(
     externalIDsToConvert: [String]?,
     documentPathsToConvert: [String]?,
