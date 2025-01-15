@@ -233,7 +233,8 @@ package struct DiagnoseCommand: AsyncParsableCommand {
       throw GenericError("Failed to create log.txt")
     }
     let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
-    var bytesCollected = 0
+    let bytesCollected = AtomicInt32(initialValue: 0)
+    let processExited = AtomicBool(initialValue: false)
     // 50 MB is an average log size collected by sourcekit-lsp diagnose.
     // It's a good proxy to show some progress indication for the majority of the time.
     let expectedLogSize = 50_000_000
@@ -247,21 +248,28 @@ package struct DiagnoseCommand: AsyncParsableCommand {
         "--signpost",
       ],
       outputRedirection: .stream(
-        stdout: { bytes in
+        stdout: { @Sendable bytes in
           try? fileHandle.write(contentsOf: bytes)
-          bytesCollected += bytes.count
-          var progress = Double(bytesCollected) / Double(expectedLogSize)
+          bytesCollected.value += Int32(bytes.count)
+          var progress = Double(bytesCollected.value) / Double(expectedLogSize)
           if progress > 1 {
             // The log is larger than we expected. Halt at 100%
             progress = 1
           }
-          reportProgress(.collectingLogMessages(progress: progress), message: "Collecting log messages")
+          Task(priority: .high) {
+            // We have launched an async task to call `reportProgress`, which means that the process might have exited
+            // before we execute this task. To avoid overriding a more recent progress, add a guard.
+            if !processExited.value {
+              await reportProgress(.collectingLogMessages(progress: progress), message: "Collecting log messages")
+            }
+          }
         },
-        stderr: { _ in }
+        stderr: { @Sendable _ in }
       )
     )
     try process.launch()
     try await process.waitUntilExit()
+    processExited.value = true
     #endif
   }
 
@@ -343,8 +351,8 @@ package struct DiagnoseCommand: AsyncParsableCommand {
       let process = Process(
         arguments: [try swiftUrl.filePath, "--version"],
         outputRedirection: .stream(
-          stdout: { try? fileHandle.write(contentsOf: $0) },
-          stderr: { _ in }
+          stdout: { @Sendable bytes in try? fileHandle.write(contentsOf: bytes) },
+          stderr: { @Sendable _ in }
         )
       )
       try process.launch()
