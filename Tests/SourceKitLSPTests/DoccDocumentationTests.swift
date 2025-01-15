@@ -24,7 +24,7 @@ final class DoccDocumentationTests: XCTestCase {
     try await renderDocumentation(
       swiftFile: "0️⃣",
       expectedResponses: [
-        .error(.noDocumentation)
+        "0️⃣": .error(.noDocumentation)
       ]
     )
   }
@@ -38,10 +38,10 @@ final class DoccDocumentationTests: XCTestCase {
         }3️⃣
         """,
       expectedResponses: [
-        .renderNode(kind: .symbol, path: "test/function()"),
-        .renderNode(kind: .symbol, path: "test/function()"),
-        .renderNode(kind: .symbol, path: "test/function()"),
-        .error(.noDocumentation),
+        "0️⃣": .renderNode(kind: .symbol, path: "test/function()"),
+        "1️⃣": .renderNode(kind: .symbol, path: "test/function()"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/function()"),
+        "3️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -65,15 +65,15 @@ final class DoccDocumentationTests: XCTestCase {
         }8️⃣
         """,
       expectedResponses: [
-        .renderNode(kind: .symbol, path: "test/Structure"),
-        .renderNode(kind: .symbol, path: "test/Structure"),
-        .renderNode(kind: .symbol, path: "test/Structure/foo"),
-        .renderNode(kind: .symbol, path: "test/Structure/foo"),
-        .renderNode(kind: .symbol, path: "test/Structure/bar"),
-        .renderNode(kind: .symbol, path: "test/Structure/bar"),
-        .renderNode(kind: .symbol, path: "test/Structure/init(_:bar:)"),
-        .renderNode(kind: .symbol, path: "test/Structure/init(_:bar:)"),
-        .error(.noDocumentation),
+        "0️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
+        "1️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Structure/foo"),
+        "3️⃣": .renderNode(kind: .symbol, path: "test/Structure/foo"),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Structure/bar"),
+        "5️⃣": .renderNode(kind: .symbol, path: "test/Structure/bar"),
+        "6️⃣": .renderNode(kind: .symbol, path: "test/Structure/init(_:bar:)"),
+        "7️⃣": .renderNode(kind: .symbol, path: "test/Structure/init(_:bar:)"),
+        "8️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -86,10 +86,10 @@ final class DoccDocumentationTests: XCTestCase {
         }3️⃣
         """,
       expectedResponses: [
-        .renderNode(kind: .symbol, path: "test/Structure"),
-        .renderNode(kind: .symbol, path: "test/Structure"),
-        .renderNode(kind: .symbol, path: "test/Structure"),
-        .error(.noDocumentation),
+        "0️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
+        "1️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
+        "3️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -113,16 +113,16 @@ final class DoccDocumentationTests: XCTestCase {
         }9️⃣
         """,
       expectedResponses: [
-        .renderNode(kind: .symbol, path: "test/Class"),
-        .renderNode(kind: .symbol, path: "test/Class"),
-        .renderNode(kind: .symbol, path: "test/Class/foo"),
-        .renderNode(kind: .symbol, path: "test/Class/foo"),
-        .renderNode(kind: .symbol, path: "test/Class/bar"),
-        .renderNode(kind: .symbol, path: "test/Class/bar"),
-        .renderNode(kind: .symbol, path: "test/Class/init(_:bar:)"),
-        .renderNode(kind: .symbol, path: "test/Class/init(_:bar:)"),
-        .renderNode(kind: .symbol, path: "test/Class"),
-        .error(.noDocumentation),
+        "0️⃣": .renderNode(kind: .symbol, path: "test/Class"),
+        "1️⃣": .renderNode(kind: .symbol, path: "test/Class"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Class/foo"),
+        "3️⃣": .renderNode(kind: .symbol, path: "test/Class/foo"),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Class/bar"),
+        "5️⃣": .renderNode(kind: .symbol, path: "test/Class/bar"),
+        "6️⃣": .renderNode(kind: .symbol, path: "test/Class/init(_:bar:)"),
+        "7️⃣": .renderNode(kind: .symbol, path: "test/Class/init(_:bar:)"),
+        "8️⃣": .renderNode(kind: .symbol, path: "test/Class"),
+        "9️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -135,10 +135,10 @@ final class DoccDocumentationTests: XCTestCase {
         }3️⃣
         """,
       expectedResponses: [
-        .renderNode(kind: .symbol, path: "test/Class"),
-        .renderNode(kind: .symbol, path: "test/Class"),
-        .renderNode(kind: .symbol, path: "test/Class"),
-        .error(.noDocumentation),
+        "0️⃣": .renderNode(kind: .symbol, path: "test/Class"),
+        "1️⃣": .renderNode(kind: .symbol, path: "test/Class"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Class"),
+        "3️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -162,15 +162,15 @@ final class DoccDocumentationTests: XCTestCase {
         }8️⃣
         """,
       expectedResponses: [
-        .renderNode(kind: .symbol, path: "test/Actor"),
-        .renderNode(kind: .symbol, path: "test/Actor"),
-        .renderNode(kind: .symbol, path: "test/Actor/foo"),
-        .renderNode(kind: .symbol, path: "test/Actor/foo"),
-        .renderNode(kind: .symbol, path: "test/Actor/bar"),
-        .renderNode(kind: .symbol, path: "test/Actor/bar"),
-        .renderNode(kind: .symbol, path: "test/Actor/init(_:bar:)"),
-        .renderNode(kind: .symbol, path: "test/Actor/init(_:bar:)"),
-        .error(.noDocumentation),
+        "0️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
+        "1️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Actor/foo"),
+        "3️⃣": .renderNode(kind: .symbol, path: "test/Actor/foo"),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Actor/bar"),
+        "5️⃣": .renderNode(kind: .symbol, path: "test/Actor/bar"),
+        "6️⃣": .renderNode(kind: .symbol, path: "test/Actor/init(_:bar:)"),
+        "7️⃣": .renderNode(kind: .symbol, path: "test/Actor/init(_:bar:)"),
+        "8️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -183,10 +183,10 @@ final class DoccDocumentationTests: XCTestCase {
         }3️⃣
         """,
       expectedResponses: [
-        .renderNode(kind: .symbol, path: "test/Actor"),
-        .renderNode(kind: .symbol, path: "test/Actor"),
-        .renderNode(kind: .symbol, path: "test/Actor"),
-        .error(.noDocumentation),
+        "0️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
+        "1️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
+        "3️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -207,15 +207,15 @@ final class DoccDocumentationTests: XCTestCase {
         }8️⃣
         """,
       expectedResponses: [
-        .renderNode(kind: .symbol, path: "test/Enum"),
-        .renderNode(kind: .symbol, path: "test/Enum"),
-        .renderNode(kind: .symbol, path: "test/Enum/first"),
-        .renderNode(kind: .symbol, path: "test/Enum/first"),
-        .renderNode(kind: .symbol, path: "test/Enum/second"),
-        .renderNode(kind: .symbol, path: "test/Enum/second"),
-        .renderNode(kind: .symbol, path: "test/Enum/third(_:)"),
-        .renderNode(kind: .symbol, path: "test/Enum/third(_:)"),
-        .error(.noDocumentation),
+        "0️⃣": .renderNode(kind: .symbol, path: "test/Enum"),
+        "1️⃣": .renderNode(kind: .symbol, path: "test/Enum"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Enum/first"),
+        "3️⃣": .renderNode(kind: .symbol, path: "test/Enum/first"),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Enum/second"),
+        "5️⃣": .renderNode(kind: .symbol, path: "test/Enum/second"),
+        "6️⃣": .renderNode(kind: .symbol, path: "test/Enum/third(_:)"),
+        "7️⃣": .renderNode(kind: .symbol, path: "test/Enum/third(_:)"),
+        "8️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -245,7 +245,7 @@ final class DoccDocumentationTests: XCTestCase {
       testClient: testClient,
       uri: uri,
       positions: positions,
-      expectedResponses: [.renderNode(kind: .symbol, containing: "The second case")]
+      expectedResponses: ["0️⃣": .renderNode(kind: .symbol, containing: "The second case")]
     )
 
     // Change the content of the documentation comment
@@ -263,7 +263,7 @@ final class DoccDocumentationTests: XCTestCase {
       testClient: testClient,
       uri: uri,
       positions: positions,
-      expectedResponses: [.renderNode(kind: .symbol, containing: "The very second case")]
+      expectedResponses: ["0️⃣": .renderNode(kind: .symbol, containing: "The very second case")]
     )
   }
 
@@ -280,13 +280,13 @@ final class DoccDocumentationTests: XCTestCase {
         }6️⃣
         """,
       expectedResponses: [
-        .renderNode(kind: .symbol, path: "test/Protocol"),
-        .renderNode(kind: .symbol, path: "test/Protocol"),
-        .renderNode(kind: .symbol, path: "test/Protocol/foo"),
-        .renderNode(kind: .symbol, path: "test/Protocol/foo"),
-        .renderNode(kind: .symbol, path: "test/Protocol/bar"),
-        .renderNode(kind: .symbol, path: "test/Protocol/bar"),
-        .error(.noDocumentation),
+        "0️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
+        "1️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Protocol/foo"),
+        "3️⃣": .renderNode(kind: .symbol, path: "test/Protocol/foo"),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Protocol/bar"),
+        "5️⃣": .renderNode(kind: .symbol, path: "test/Protocol/bar"),
+        "6️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -300,10 +300,10 @@ final class DoccDocumentationTests: XCTestCase {
         }3️⃣
         """,
       expectedResponses: [
-        .renderNode(kind: .symbol, path: "test/Protocol"),
-        .renderNode(kind: .symbol, path: "test/Protocol"),
-        .renderNode(kind: .symbol, path: "test/Protocol"),
-        .error(.noDocumentation),
+        "0️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
+        "1️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
+        "3️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -330,12 +330,12 @@ final class DoccDocumentationTests: XCTestCase {
         }5️⃣
         """,
       expectedResponses: [
-        .error(.noDocumentation),
-        .renderNode(kind: .symbol, path: "test/Structure/numberPlusOne"),
-        .renderNode(kind: .symbol, path: "test/Structure/Kind"),
-        .renderNode(kind: .symbol, path: "test/Structure/Kind/first"),
-        .renderNode(kind: .symbol, path: "test/Structure/Kind/second"),
-        .error(.noDocumentation),
+        "0️⃣": .error(.noDocumentation),
+        "1️⃣": .renderNode(kind: .symbol, path: "test/Structure/numberPlusOne"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Structure/Kind"),
+        "3️⃣": .renderNode(kind: .symbol, path: "test/Structure/Kind/first"),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Structure/Kind/second"),
+        "5️⃣": .error(.noDocumentation),
       ]
     )
   }
@@ -358,7 +358,7 @@ final class DoccDocumentationTests: XCTestCase {
       testClient: testClient,
       uri: uri,
       positions: positions,
-      expectedResponses: [.renderNode(kind: .symbol, containing: "A structure containing important information")]
+      expectedResponses: ["0️⃣": .renderNode(kind: .symbol, containing: "A structure containing important information")]
     )
 
     // Change the content of the documentation comment
@@ -376,7 +376,9 @@ final class DoccDocumentationTests: XCTestCase {
       testClient: testClient,
       uri: uri,
       positions: positions,
-      expectedResponses: [.renderNode(kind: .symbol, containing: "A structure containing very important information")]
+      expectedResponses: [
+        "0️⃣": .renderNode(kind: .symbol, containing: "A structure containing very important information")
+      ]
     )
   }
 
@@ -400,7 +402,7 @@ final class DoccDocumentationTests: XCTestCase {
       testClient: testClient,
       uri: uri,
       positions: positions,
-      expectedResponses: [.renderNode(kind: .symbol, containing: "This is a description")]
+      expectedResponses: ["0️⃣": .renderNode(kind: .symbol, containing: "This is a description")]
     )
 
     // Change the content of the documentation comment
@@ -418,7 +420,7 @@ final class DoccDocumentationTests: XCTestCase {
       testClient: testClient,
       uri: uri,
       positions: positions,
-      expectedResponses: [.renderNode(kind: .symbol, containing: "This is an amazing description")]
+      expectedResponses: ["0️⃣": .renderNode(kind: .symbol, containing: "This is an amazing description")]
     )
   }
 
@@ -444,7 +446,7 @@ final class DoccDocumentationTests: XCTestCase {
       testClient: testClient,
       uri: uri,
       positions: positions,
-      expectedResponses: [.renderNode(kind: .symbol, containing: "This is a description")]
+      expectedResponses: ["0️⃣": .renderNode(kind: .symbol, containing: "This is a description")]
     )
 
     // Change the content of the documentation comment
@@ -462,7 +464,7 @@ final class DoccDocumentationTests: XCTestCase {
       testClient: testClient,
       uri: uri,
       positions: positions,
-      expectedResponses: [.renderNode(kind: .symbol, containing: "This is an amazing description")]
+      expectedResponses: ["0️⃣": .renderNode(kind: .symbol, containing: "This is an amazing description")]
     )
   }
 }
@@ -474,7 +476,7 @@ fileprivate enum PartialConvertResponse {
 
 fileprivate func renderDocumentation(
   swiftFile markedText: String,
-  expectedResponses: [PartialConvertResponse],
+  expectedResponses: [String: PartialConvertResponse],
   file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
@@ -496,27 +498,22 @@ fileprivate func renderDocumentation(
   testClient: TestSourceKitLSPClient,
   uri: DocumentURI,
   positions: DocumentPositions,
-  expectedResponses: [PartialConvertResponse],
+  expectedResponses: [String: PartialConvertResponse],
   file: StaticString = #filePath,
   line: UInt = #line
 ) async {
-  guard expectedResponses.count == positions.allMarkers.count else {
-    XCTFail(
-      "the number of expected responses did not match the number of positions in the text document",
-      file: file,
-      line: line
-    )
-    return
-  }
-
-  for (index, marker) in positions.allMarkers.enumerated() {
-    let response = await testClient.sendWithRawResponse(
+  for marker in positions.allMarkers {
+    guard let expectedResponse = expectedResponses[marker] else {
+      XCTFail("No expected response was given for marker \(marker)", file: file, line: line)
+      return
+    }
+    let actualResponse = await testClient.sendWithRawResponse(
       DoccDocumentationRequest(
         textDocument: TextDocumentIdentifier(uri),
         position: positions[marker]
       )
     )
-    switch response {
+    switch actualResponse {
     case .success(let response):
       let renderNodeString = response.renderNode
       guard let renderNodeData = renderNodeString.data(using: .utf8),
@@ -525,7 +522,7 @@ fileprivate func renderDocumentation(
         XCTFail("failed to decode response from textDocument/doccDocumentation at position \(marker)")
         return
       }
-      switch expectedResponses[index] {
+      switch expectedResponse {
       case .renderNode(let expectedKind, let expectedPath, let expectedContents):
         XCTAssertEqual(
           renderNode.kind,
@@ -559,7 +556,7 @@ fileprivate func renderDocumentation(
         )
       }
     case .failure(let error):
-      switch expectedResponses[index] {
+      switch expectedResponse {
       case .renderNode:
         XCTFail(
           "textDocument/doccDocumentation failed at position \(marker): \(error.localizedDescription)",
