@@ -835,7 +835,7 @@ extension SourceKitLSPServer {
           .appendingPathComponent("config.json")
       )
     )
-    logger.log("Creating workspace at \(workspaceFolder.forLogging) with options: \(options.forLogging)")
+    logger.log("Creating workspace at \(workspaceFolder.forLogging)")
     logger.logFullObjectInMultipleLogMessages(header: "Options for workspace", options.loggingProxy)
 
     let workspace = await Workspace(
