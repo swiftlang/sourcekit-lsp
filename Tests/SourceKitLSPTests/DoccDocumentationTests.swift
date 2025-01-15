@@ -253,7 +253,7 @@ final class DoccDocumentationTests: XCTestCase {
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
         contentChanges: [
-          TextDocumentContentChangeEvent(range: positions["1️⃣"]..<positions["1️⃣"], text: "very ")
+          TextDocumentContentChangeEvent(range: Range(positions["1️⃣"]), text: "very ")
         ]
       )
     )
@@ -366,7 +366,7 @@ final class DoccDocumentationTests: XCTestCase {
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
         contentChanges: [
-          TextDocumentContentChangeEvent(range: positions["1️⃣"]..<positions["1️⃣"], text: " very")
+          TextDocumentContentChangeEvent(range: Range(positions["1️⃣"]), text: " very")
         ]
       )
     )
@@ -410,7 +410,7 @@ final class DoccDocumentationTests: XCTestCase {
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
         contentChanges: [
-          TextDocumentContentChangeEvent(range: positions["1️⃣"]..<positions["1️⃣"], text: "n amazing")
+          TextDocumentContentChangeEvent(range: Range(positions["1️⃣"]), text: "n amazing")
         ]
       )
     )
@@ -454,7 +454,7 @@ final class DoccDocumentationTests: XCTestCase {
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
         contentChanges: [
-          TextDocumentContentChangeEvent(range: positions["1️⃣"]..<positions["1️⃣"], text: "n amazing")
+          TextDocumentContentChangeEvent(range: Range(positions["1️⃣"]), text: "n amazing")
         ]
       )
     )
@@ -531,7 +531,7 @@ fileprivate func renderDocumentation(
           file: file,
           line: line
         )
-        if let expectedPath = expectedPath {
+        if let expectedPath {
           XCTAssertEqual(
             renderNode.identifier.path,
             "/documentation/\(expectedPath)",
@@ -540,7 +540,7 @@ fileprivate func renderDocumentation(
             line: line
           )
         }
-        if let expectedContents = expectedContents {
+        if let expectedContents {
           XCTAssertTrue(
             renderNodeString.contains(expectedContents),
             "render node did not contain text \"\(expectedContents)\" at position \(marker)",
