@@ -45,7 +45,14 @@ final class LifecycleTests: XCTestCase {
     // Check that none of the keys in `SourceKitLSPOptions` are required.
     XCTAssertEqual(
       try JSONDecoder().decode(SourceKitLSPOptions.self, from: XCTUnwrap("{}".data(using: .utf8))),
-      SourceKitLSPOptions(swiftPM: nil, fallbackBuildSystem: nil, compilationDatabase: nil, index: nil, logging: nil)
+      SourceKitLSPOptions(
+        swiftPM: nil,
+        fallbackBuildSystem: nil,
+        compilationDatabase: nil,
+        index: nil,
+        logging: nil,
+        sourcekitd: nil
+      )
     )
   }
 

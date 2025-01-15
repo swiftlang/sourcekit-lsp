@@ -346,7 +346,7 @@ func containingXCToolchain(
   var path = path
   while !path.isRoot {
     if path.pathExtension == "xctoolchain" {
-      if let infoPlist = orLog("", { try XCToolchainPlist(fromDirectory: path) }) {
+      if let infoPlist = orLog("Loading information from xctoolchain", { try XCToolchainPlist(fromDirectory: path) }) {
         return (infoPlist, path)
       }
       return nil

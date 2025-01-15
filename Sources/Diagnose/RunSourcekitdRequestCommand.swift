@@ -67,7 +67,8 @@ package struct RunSourceKitdRequestCommand: AsyncParsableCommand {
         throw ExitCode(1)
       }
     let sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
-      dylibPath: sourcekitdPath
+      dylibPath: sourcekitdPath,
+      pluginPaths: nil
     )
 
     var lastResponse: SKDResponse?

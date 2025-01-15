@@ -15,7 +15,7 @@ from typing import Dict, List
 # General utilities
 
 
-def fatal_error(message):
+def fatal_error(message: str):
     print(message, file=sys.stderr)
     raise SystemExit(1)
 
@@ -85,7 +85,7 @@ def get_build_target(swift_exec: str, args: argparse.Namespace, cross_compile: b
 
 
 def get_swiftpm_options(swift_exec: str, args: argparse.Namespace, suppress_verbose: bool = False) -> List[str]:
-    swiftpm_args = [
+    swiftpm_args: List[str] = [
         '--package-path', args.package_path,
         '--scratch-path', args.build_path,
         '--configuration', args.configuration,
@@ -153,7 +153,7 @@ def get_swiftpm_environment_variables(swift_exec: str, args: argparse.Namespace)
     'swift test' invocation.
     """
 
-    env = {
+    env: Dict[str, str] = {
         # Set the toolchain used in tests at runtime
         'SOURCEKIT_TOOLCHAIN_PATH': args.toolchain,
         'INDEXSTOREDB_TOOLCHAIN_BIN_PATH': args.toolchain,
@@ -216,6 +216,11 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
     print('Cleaning ' + tests)
     shutil.rmtree(tests, ignore_errors=True)
 
+    # Build the plugin so it can be used by the tests. SwiftPM is not able to express a dependency from a test target on
+    # a product.
+    build_single_product('SwiftSourceKitPlugin', swift_exec, args)
+    build_single_product('SwiftSourceKitClientPlugin', swift_exec, args)
+
     cmd = [
         swift_exec, 'test',
         '--disable-testable-imports',
@@ -241,14 +246,23 @@ def install_binary(exe: str, source_dir: str, install_dir: str, verbose: bool) -
 
 
 def install(swift_exec: str, args: argparse.Namespace) -> None:
-    build_single_product('sourcekit-lsp', swift_exec, args)
-
     swiftpm_args = get_swiftpm_options(swift_exec, args)
     additional_env = get_swiftpm_environment_variables(swift_exec, args)
     bin_path = swiftpm_bin_path(swift_exec, swiftpm_args=swiftpm_args, additional_env=additional_env)
 
+    build_single_product('sourcekit-lsp', swift_exec, args)
+    build_single_product('SwiftSourceKitPlugin', swift_exec, args)
+    build_single_product('SwiftSourceKitClientPlugin', swift_exec, args)
+
+    if platform.system() == 'Darwin':
+        dynamic_library_extension = "dylib"
+    else:
+        dynamic_library_extension = "so"
+
     for prefix in args.install_prefixes:
         install_binary('sourcekit-lsp', bin_path, os.path.join(prefix, 'bin'), verbose=args.verbose)
+        install_binary(f'libSwiftSourceKitPlugin.{dynamic_library_extension}', bin_path, os.path.join(prefix, 'lib'), verbose=args.verbose)
+        install_binary(f'libSwiftSourceKitClientPlugin.{dynamic_library_extension}', bin_path, os.path.join(prefix, 'lib'), verbose=args.verbose)
 
 
 def handle_invocation(swift_exec: str, args: argparse.Namespace) -> None:
@@ -261,6 +275,8 @@ def handle_invocation(swift_exec: str, args: argparse.Namespace) -> None:
 
     if args.action == 'build':
         build_single_product("sourcekit-lsp", swift_exec, args)
+        build_single_product('SwiftSourceKitPlugin', swift_exec, args)
+        build_single_product('SwiftSourceKitClientPlugin', swift_exec, args)
     elif args.action == 'test':
         run_tests(swift_exec, args)
     elif args.action == 'install':

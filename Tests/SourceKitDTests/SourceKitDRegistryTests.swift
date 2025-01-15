@@ -66,6 +66,9 @@ private let nextToken = AtomicUInt32(initialValue: 0)
 final class FakeSourceKitD: SourceKitD {
   let token: UInt32
   var api: sourcekitd_api_functions_t { fatalError() }
+  var ideApi: sourcekitd_ide_api_functions_t { fatalError() }
+  var pluginApi: sourcekitd_plugin_api_functions_t { fatalError() }
+  var servicePluginApi: sourcekitd_service_plugin_api_functions_t { fatalError() }
   var keys: sourcekitd_api_keys { fatalError() }
   var requests: sourcekitd_api_requests { fatalError() }
   var values: sourcekitd_api_values { fatalError() }
@@ -76,7 +79,7 @@ final class FakeSourceKitD: SourceKitD {
   }
 
   static func getOrCreate(_ url: URL, in registry: SourceKitDRegistry) async -> SourceKitD {
-    return await registry.getOrAdd(url, create: { Self.init() })
+    return await registry.getOrAdd(url, pluginPaths: nil, create: { Self.init() })
   }
 
   package func log(request: SKDRequestDictionary) {}

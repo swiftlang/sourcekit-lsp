@@ -10,10 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKLogging
+
 #if compiler(>=6)
 package import Csourcekitd
 import Dispatch
-import Foundation
+package import Foundation
 import SwiftExtensions
 #else
 import Csourcekitd
@@ -27,6 +29,24 @@ fileprivate struct SourceKitDRequestHandle: Sendable {
   nonisolated(unsafe) let handle: sourcekitd_api_request_handle_t
 }
 
+package struct PluginPaths: Equatable, CustomLogStringConvertible {
+  package let clientPlugin: URL
+  package let servicePlugin: URL
+
+  package init(clientPlugin: URL, servicePlugin: URL) {
+    self.clientPlugin = clientPlugin
+    self.servicePlugin = servicePlugin
+  }
+
+  package var description: String {
+    "(client: \(clientPlugin), service: \(servicePlugin))"
+  }
+
+  var redactedDescription: String {
+    "(client: \(clientPlugin.description.hashForLogging), service: \(servicePlugin.description.hashForLogging))"
+  }
+}
+
 /// Access to sourcekitd API, taking care of initialization, shutdown, and notification handler
 /// multiplexing.
 ///
@@ -38,6 +58,23 @@ fileprivate struct SourceKitDRequestHandle: Sendable {
 package protocol SourceKitD: AnyObject, Sendable {
   /// The sourcekitd API functions.
   var api: sourcekitd_api_functions_t { get }
+
+  /// General API for the SourceKit service and client framework, eg. for plugin initialization and to set up custom
+  /// variant functions.
+  ///
+  /// This must not be referenced outside of `SwiftSourceKitPlugin`, `SwiftSourceKitPluginCommon`, or
+  /// `SwiftSourceKitClientPlugin`.
+  var pluginApi: sourcekitd_plugin_api_functions_t { get }
+
+  /// The API with which the SourceKit plugin handles requests.
+  ///
+  /// This must not be referenced outside of `SwiftSourceKitPlugin`.
+  var servicePluginApi: sourcekitd_service_plugin_api_functions_t { get }
+
+  /// The API with which the SourceKit plugin communicates with the type-checker in-process.
+  ///
+  /// This must not be referenced outside of `SwiftSourceKitPlugin`.
+  var ideApi: sourcekitd_ide_api_functions_t { get }
 
   /// Convenience for accessing known keys.
   var keys: sourcekitd_api_keys { get }

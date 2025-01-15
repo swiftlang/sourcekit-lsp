@@ -223,7 +223,21 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
     self.sourceKitLSPServer = sourceKitLSPServer
     self.swiftFormat = toolchain.swiftFormat
-    self.sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(dylibPath: sourcekitd)
+    let pluginPaths: PluginPaths?
+    if let clientPlugin = options.sourcekitdOrDefault.clientPlugin,
+      let servicePlugin = options.sourcekitdOrDefault.servicePlugin
+    {
+      pluginPaths = PluginPaths(
+        clientPlugin: URL(fileURLWithPath: clientPlugin),
+        servicePlugin: URL(fileURLWithPath: servicePlugin)
+      )
+    } else {
+      pluginPaths = nil
+    }
+    self.sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
+      dylibPath: sourcekitd,
+      pluginPaths: pluginPaths
+    )
     self.capabilityRegistry = workspace.capabilityRegistry
     self.semanticIndexManager = workspace.semanticIndexManager
     self.testHooks = testHooks

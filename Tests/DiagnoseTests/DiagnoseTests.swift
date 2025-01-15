@@ -317,7 +317,10 @@ private class InProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
     let requestString = try request.request(for: temporarySourceFile)
     logger.info("Sending request: \(requestString)")
 
-    let sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(dylibPath: sourcekitd)
+    let sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
+      dylibPath: sourcekitd,
+      pluginPaths: sourceKitPluginPaths
+    )
     let response = try await sourcekitd.run(requestYaml: requestString)
 
     logger.info("Received response: \(response.description)")
