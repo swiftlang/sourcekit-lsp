@@ -1,5 +1,6 @@
 // swift-tools-version: 6.0
 
+import Foundation
 import PackageDescription
 
 let package = Package(
@@ -7,10 +8,6 @@ let package = Package(
   platforms: [.macOS(.v10_15)],
   products: [
     .executable(name: "sourcekit-lsp-dev-utils", targets: ["SourceKitLSPDevUtils"])
-  ],
-  dependencies: [
-    .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.1"),
-    .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.0"),
   ],
   targets: [
     .executableTarget(
@@ -29,3 +26,14 @@ let package = Package(
     ),
   ]
 )
+
+let dependencies: [(url: String, path: String, fromVersion: Version)] = [
+  ("https://github.com/swiftlang/swift-syntax.git", "../../swift-syntax", "600.0.1"),
+  ("https://github.com/apple/swift-argument-parser.git", "../../swift-argument-parser", "1.5.0"),
+]
+
+if ProcessInfo.processInfo.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
+  package.dependencies += dependencies.map { .package(url: $0.url, from: $0.fromVersion) }
+} else {
+  package.dependencies += dependencies.map { .package(url: $0.path, from: $0.fromVersion) }
+}
