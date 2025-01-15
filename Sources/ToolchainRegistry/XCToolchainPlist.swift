@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LanguageServerProtocolExtensions
 import SwiftExtensions
 import TSCExtensions
 

@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+public import LanguageServerProtocol
+
 public struct TextDocumentIdentifier: Codable, Sendable, Hashable {
   /// The text document's URI.
   public var uri: URI

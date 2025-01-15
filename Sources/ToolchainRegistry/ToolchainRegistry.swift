@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import Dispatch
-import LanguageServerProtocolExtensions
 import SwiftExtensions
 import TSCExtensions
 
