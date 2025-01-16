@@ -473,6 +473,34 @@ package actor SkipUnless {
     }
   }
 
+  package static func canSwiftPMCompileForIOS(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    return try await shared.skipUnlessSupported(allowSkippingInCI: true, file: file, line: line) {
+      #if os(macOS)
+      let project = try await SwiftPMTestProject(files: [
+        "MyFile.swift": """
+        public func foo() {}
+        """
+      ])
+      do {
+        try await SwiftPMTestProject.build(
+          at: project.scratchDirectory,
+          extraArguments: [
+            "--swift-sdk", "arm64-apple-ios",
+          ]
+        )
+        return .featureSupported
+      } catch {
+        return .featureUnsupported(skipMessage: "Cannot build for iOS: \(error)")
+      }
+      #else
+      return .featureUnsupported(skipMessage: "Cannot build for iOS outside macOS by default")
+      #endif
+    }
+  }
+
   package static func canCompileForWasm(
     file: StaticString = #filePath,
     line: UInt = #line
