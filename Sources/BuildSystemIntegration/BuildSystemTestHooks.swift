@@ -12,8 +12,10 @@
 
 #if compiler(>=6)
 package import LanguageServerProtocol
+package import Foundation
 #else
 import LanguageServerProtocol
+import Foundation
 #endif
 
 package struct SwiftPMTestHooks: Sendable {
@@ -29,19 +31,29 @@ package struct SwiftPMTestHooks: Sendable {
   }
 }
 
-package struct BuildSystemTestHooks: Sendable {
+/// When running SourceKit-LSP in-process, allows the creator of `SourceKitLSPServer` to create the build system instead
+/// of SourceKit-LSP creating build systems as needed.
+package protocol BuildSystemInjector: Sendable {
+  func createBuildSystem(projectRoot: URL, connectionToSourceKitLSP: any Connection) async -> BuiltInBuildSystem
+}
+
+package struct BuildSystemHooks: Sendable {
   package var swiftPMTestHooks: SwiftPMTestHooks
 
   /// A hook that will be executed before a request is handled by a `BuiltInBuildSystem`.
   ///
   /// This allows requests to be artificially delayed.
-  package var handleRequest: (@Sendable (any RequestType) async -> Void)?
+  package var preHandleRequest: (@Sendable (any RequestType) async -> Void)?
+
+  package var buildSystemInjector: BuildSystemInjector?
 
   package init(
     swiftPMTestHooks: SwiftPMTestHooks = SwiftPMTestHooks(),
-    handleRequest: (@Sendable (any RequestType) async -> Void)? = nil
+    preHandleRequest: (@Sendable (any RequestType) async -> Void)? = nil,
+    buildSystemInjector: BuildSystemInjector? = nil
   ) {
     self.swiftPMTestHooks = swiftPMTestHooks
-    self.handleRequest = handleRequest
+    self.preHandleRequest = preHandleRequest
+    self.buildSystemInjector = buildSystemInjector
   }
 }

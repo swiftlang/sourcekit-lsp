@@ -109,7 +109,7 @@ package protocol LanguageService: AnyObject, Sendable {
     sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
     options: SourceKitLSPOptions,
-    testHooks: TestHooks,
+    hooks: Hooks,
     workspace: Workspace
   ) async throws
 

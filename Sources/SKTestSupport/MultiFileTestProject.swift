@@ -133,7 +133,7 @@ package class MultiFileTestProject {
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
     options: SourceKitLSPOptions = .testDefault(),
-    testHooks: TestHooks = TestHooks(),
+    hooks: Hooks = Hooks(),
     enableBackgroundIndexing: Bool = false,
     usePullDiagnostics: Bool = true,
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
@@ -145,7 +145,7 @@ package class MultiFileTestProject {
 
     self.testClient = try await TestSourceKitLSPClient(
       options: options,
-      testHooks: testHooks,
+      hooks: hooks,
       initializationOptions: initializationOptions,
       capabilities: capabilities,
       usePullDiagnostics: usePullDiagnostics,

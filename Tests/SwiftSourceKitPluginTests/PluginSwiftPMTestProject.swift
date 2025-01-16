@@ -37,7 +37,7 @@ final class PluginSwiftPMTestProject {
         toolchainRegistry: .forTesting,
         options: .testDefault(backgroundIndexing: false),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemTestHooks: BuildSystemTestHooks()
+        buildSystemHooks: BuildSystemHooks()
       )
       _buildSystemManager = buildSystemManager
       return buildSystemManager

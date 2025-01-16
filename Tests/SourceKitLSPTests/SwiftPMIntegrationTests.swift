@@ -299,8 +299,8 @@ final class SwiftPMIntegrationTests: XCTestCase {
       files: [
         "Test.swift": ""
       ],
-      testHooks: TestHooks(
-        buildSystemTestHooks: BuildSystemTestHooks(
+      hooks: Hooks(
+        buildSystemHooks: BuildSystemHooks(
           swiftPMTestHooks: SwiftPMTestHooks(reloadPackageDidStart: {
             receivedDocumentSymbolsReply.waitOrXCTFail()
           })
@@ -321,8 +321,8 @@ final class SwiftPMIntegrationTests: XCTestCase {
         let x: String = 1
         """
       ],
-      testHooks: TestHooks(
-        buildSystemTestHooks: BuildSystemTestHooks(
+      hooks: Hooks(
+        buildSystemHooks: BuildSystemHooks(
           swiftPMTestHooks: SwiftPMTestHooks(reloadPackageDidStart: {
             receivedInitialDiagnosticsReply.waitOrXCTFail()
           })

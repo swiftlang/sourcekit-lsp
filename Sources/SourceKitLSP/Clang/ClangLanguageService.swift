@@ -113,7 +113,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
     options: SourceKitLSPOptions,
-    testHooks: TestHooks,
+    hooks: Hooks,
     workspace: Workspace
   ) async throws {
     guard let clangdPath = toolchain.clangd else {
