@@ -15,6 +15,7 @@ import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import RegexBuilder
 import SKLogging
+import SourceKitD
 import SourceKitLSP
 import SwiftExtensions
 import TSCExtensions
@@ -540,6 +541,39 @@ package actor SkipUnless {
         throw ExpectedLocationsResponse()
       }
       return locations.count > 0
+    }
+  }
+
+  package static func sourcekitdSupportsPlugin(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 2), file: file, line: line) {
+      guard let sourcekitdPath = await ToolchainRegistry.forTesting.default?.sourcekitd else {
+        struct NoSourceKitdFound: Error, CustomStringConvertible {
+          var description: String = "Could not find SourceKitD"
+        }
+        throw NoSourceKitdFound()
+      }
+      let sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
+        dylibPath: sourcekitdPath,
+        pluginPaths: try sourceKitPluginPaths
+      )
+      do {
+        let response = try await sourcekitd.send(
+          sourcekitd.dictionary([
+            sourcekitd.keys.request: sourcekitd.requests.codeCompleteSetPopularAPI,
+            sourcekitd.keys.codeCompleteOptions: [
+              sourcekitd.keys.useNewAPI: 1
+            ],
+          ]),
+          timeout: .seconds(defaultTimeout),
+          fileContents: nil
+        )
+        return response[sourcekitd.keys.useNewAPI] == 1
+      } catch {
+        return false
+      }
     }
   }
 }
