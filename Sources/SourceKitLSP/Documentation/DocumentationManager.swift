@@ -45,7 +45,7 @@ package final actor DocumentationManager {
     let snapshot = try sourceKitLSPServer.documentManager.latestSnapshot(documentURI)
     let targetId = await workspace.buildSystemManager.canonicalTarget(for: documentURI)
     var moduleName: String? = nil
-    if let targetId = targetId {
+    if let targetId {
       moduleName = await workspace.buildSystemManager.moduleName(for: documentURI, in: targetId)
     }
 
@@ -70,7 +70,7 @@ package final actor DocumentationManager {
           at: snapshot.absolutePosition(of: position)
         )
       else {
-        throw ResponseError.requestFailed(.noDocumentation)
+        throw ResponseError.requestFailed(convertError: .noDocumentation)
       }
       // Retrieve the symbol graph as well as information about the symbol
       let symbolPosition = await swiftLanguageService.adjustPositionToStartOfIdentifier(
@@ -96,7 +96,7 @@ package final actor DocumentationManager {
       symbolGraphs.append(rawSymbolGraph)
       overridingDocumentationComments[symbolUSR] = nearestDocumentableSymbol.documentationComments
     default:
-      throw ResponseError.requestFailed(.noDocumentation)
+      throw ResponseError.requestFailed(convertError: .noDocumentation)
     }
     // Send the convert request to SwiftDocC and wait for the response
     let convertResponse = try await doccServer.convert(
@@ -124,25 +124,19 @@ package final actor DocumentationManager {
 }
 
 package enum ConvertDocumentationError {
-  case indexNotAvailable
   case noDocumentation
-  case symbolNotFound(String)
 
   public var message: String {
     switch self {
-    case .indexNotAvailable:
-      return "The index is not availble to complete the request"
     case .noDocumentation:
       return "No documentation could be rendered for the position in this document"
-    case .symbolNotFound(let symbolName):
-      return "Could not find symbol \(symbolName) in the project"
     }
   }
 }
 
 fileprivate extension ResponseError {
-  static func requestFailed(_ error: ConvertDocumentationError) -> ResponseError {
-    return ResponseError(code: .requestFailed, message: error.message)
+  static func requestFailed(convertError: ConvertDocumentationError) -> ResponseError {
+    return ResponseError.requestFailed(convertError.message)
   }
 }
 

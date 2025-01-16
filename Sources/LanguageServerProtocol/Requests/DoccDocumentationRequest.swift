@@ -10,17 +10,32 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Request for generating documentation for the symbol at a given location **(LSP Extension)**.
+/// Request that generates documentation for a symbol at a given cursor location **(LSP Extension)**.
 ///
-/// This request looks up the symbol (if any) at a given text document location and returns a
-/// ``DoccDocumentationResponse`` for that location. This request is primarily designed for editors
-/// to support live preview of Swift documentation.
+/// Primarily designed to support live preview of Swift documentation in editors.
+///
+/// This request looks up the nearest documentable symbol (if any) at a given cursor location within
+/// a text document and returns a `DoccDocumentationResponse`. The response contains a string
+/// representing single JSON encoded DocC RenderNode. This RenderNode can then be rendered in an
+/// editor via https://github.com/swiftlang/swift-docc-render.
+///
+/// The position may be ommitted for documentation within DocC markdown and tutorial files as they
+/// represent a single documentation page. It is only required for generating documentation within
+/// Swift files as they usually contain multiple documentable symbols.
+///
+/// Documentation can fail to be generated for a number of reasons. The most common of which being
+/// that no documentable symbol could be found. In such cases the request will fail with a request
+/// failed LSP error code (-32803) that contains a human-readable error message. This error message can
+/// be displayed within the live preview editor to indicate that something has gone wrong.
+///
+/// At the moment this request is only available on macOS and Linux. SourceKit-LSP will advertise
+/// `textDocument/doccDocumentation` in its experimental server capabilities if it supports it.
 ///
 /// - Parameters:
-///   - textDocument: The document to render documentation for.
-///   - position: The document location at which to lookup symbol information. (optional)
+///   - textDocument: The document to generate documentation for.
+///   - position: The cursor position within the document. (optional)
 ///
-/// - Returns: A ``DoccDocumentationResponse`` for the given location, which may contain an error
+/// - Returns: A `DoccDocumentationResponse` for the given location, which may contain an error
 ///   message if documentation could not be converted. This error message can be displayed to the user
 ///   in the live preview editor.
 ///

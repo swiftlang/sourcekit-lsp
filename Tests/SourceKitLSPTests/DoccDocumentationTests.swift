@@ -507,14 +507,13 @@ fileprivate func renderDocumentation(
       XCTFail("No expected response was given for marker \(marker)", file: file, line: line)
       return
     }
-    let actualResponse = await testClient.sendWithRawResponse(
-      DoccDocumentationRequest(
-        textDocument: TextDocumentIdentifier(uri),
-        position: positions[marker]
+    do {
+      let response = try await testClient.send(
+        DoccDocumentationRequest(
+          textDocument: TextDocumentIdentifier(uri),
+          position: positions[marker]
+        )
       )
-    )
-    switch actualResponse {
-    case .success(let response):
       let renderNodeString = response.renderNode
       guard let renderNodeData = renderNodeString.data(using: .utf8),
         let renderNode = try? JSONDecoder().decode(RenderNode.self, from: renderNodeData)
@@ -555,7 +554,7 @@ fileprivate func renderDocumentation(
           line: line
         )
       }
-    case .failure(let error):
+    } catch {
       switch expectedResponse {
       case .renderNode:
         XCTFail(

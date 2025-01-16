@@ -82,7 +82,7 @@ package struct DocCServer {
       messageType: ConvertService.convertMessageType,
       messageIdentifier: convertRequestIdentifier,
       request: request
-    );
+    )
     guard let responsePayload = response.payload else {
       throw .unexpectedlyNilPayload(response.type.rawValue)
     }
@@ -136,11 +136,12 @@ package struct DocCServer {
       }
       // Send the request to the server and decode the response
       server.process(encodedMessage) { response in
-        let decodeMessageResult: Result<DocumentationServer.Message, DocCServerError> = Result {
-          try JSONDecoder().decode(DocumentationServer.Message.self, from: response)
+        do {
+          let decodedMessage = try JSONDecoder().decode(DocumentationServer.Message.self, from: response)
+          continuation.resume(returning: .success(decodedMessage))
+        } catch {
+          continuation.resume(returning: .failure(.decodingFailure(error)))
         }
-        .flatMapError { .failure(.decodingFailure($0)) }
-        continuation.resume(returning: decodeMessageResult)
       }
     }
     return try result.get()

@@ -237,17 +237,14 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
 
   // MARK: - Sending messages
 
-  package func sendWithRawResponse<R: RequestType>(_ request: R) async -> Result<R.Response, ResponseError> {
-    await withCheckedContinuation { continuation in
+  /// Send the request to `server` and return the request result.
+  package func send<R: RequestType>(_ request: R) async throws(ResponseError) -> R.Response {
+    let response = await withCheckedContinuation { continuation in
       self.send(request) { result in
         continuation.resume(returning: result)
       }
     }
-  }
-
-  /// Send the request to `server` and return the request result.
-  package func send<R: RequestType>(_ request: R) async throws(ResponseError) -> R.Response {
-    return try await sendWithRawResponse(request).get()
+    return try response.get()
   }
 
   /// Variant of `send` above that allows the response to be discarded if it is a `VoidResponse`.
