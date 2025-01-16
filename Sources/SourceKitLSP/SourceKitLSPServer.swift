@@ -1406,12 +1406,14 @@ extension SourceKitLSPServer {
     return try await languageService.completion(req)
   }
 
+  #if canImport(SwiftDocC)
   func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
     return try await documentationManager.convertDocumentation(
       req.textDocument.uri,
       at: req.position
     )
   }
+  #endif
 
   func hover(
     _ req: HoverRequest,
