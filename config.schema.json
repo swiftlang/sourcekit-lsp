@@ -191,6 +191,23 @@
       },
       "type" : "object"
     },
+    "sourcekitd" : {
+      "description" : "Options modifying the behavior of sourcekitd.",
+      "markdownDescription" : "Options modifying the behavior of sourcekitd.",
+      "properties" : {
+        "clientPlugin" : {
+          "description" : "When set, load the SourceKit client plugin from this path instead of locating it inside the toolchain.",
+          "markdownDescription" : "When set, load the SourceKit client plugin from this path instead of locating it inside the toolchain.",
+          "type" : "string"
+        },
+        "servicePlugin" : {
+          "description" : "When set, load the SourceKit service plugin from this path instead of locating it inside the toolchain.",
+          "markdownDescription" : "When set, load the SourceKit service plugin from this path instead of locating it inside the toolchain.",
+          "type" : "string"
+        }
+      },
+      "type" : "object"
+    },
     "sourcekitdRequestTimeout" : {
       "description" : "The maximum duration that a sourcekitd request should be allowed to execute before being declared as timed out. In general, editors should cancel requests that they are no longer interested in, but in case editors don't cancel requests, this ensures that a long-running non-cancelled request is not blocking sourcekitd and thus most semantic functionality. In particular, VS Code does not cancel the semantic tokens request, which can cause a long-running AST build that blocks sourcekitd.",
       "markdownDescription" : "The maximum duration that a sourcekitd request should be allowed to execute before being declared as timed out. In general, editors should cancel requests that they are no longer interested in, but in case editors don't cancel requests, this ensures that a long-running non-cancelled request is not blocking sourcekitd and thus most semantic functionality. In particular, VS Code does not cancel the semantic tokens request, which can cause a long-running AST build that blocks sourcekitd.",
