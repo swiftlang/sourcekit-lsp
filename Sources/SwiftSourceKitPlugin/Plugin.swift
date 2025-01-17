@@ -143,6 +143,10 @@ final class RequestHandler: Sendable {
   }
 }
 
+#if compiler(>=6.3)
+#warning("Remove sourcekitd_plugin_initialize when we no longer support toolchains that call it")
+#endif
+
 /// Legacy plugin initialization logic in which sourcekitd does not inform the plugin about the sourcekitd path it was
 /// loaded from.
 @_cdecl("sourcekitd_plugin_initialize")
@@ -160,8 +164,16 @@ public func sourcekitd_plugin_initialize(_ params: sourcekitd_api_plugin_initial
     .deletingLastPathComponent()
     .appendingPathComponent("sourcekitd.framework")
     .appendingPathComponent("sourcekitd")
-  try! url.filePath.withCString { sourcekitdPath in
-    sourcekitd_plugin_initialize_2(params, sourcekitdPath)
+  if FileManager.default.fileExists(at: url) {
+    try! url.filePath.withCString { sourcekitdPath in
+      sourcekitd_plugin_initialize_2(params, sourcekitdPath)
+    }
+  } else {
+    // When using a SourceKit plugin from the build directory, we can't find sourcekitd relative to the plugin.
+    // Since sourcekitd_plugin_initialize is only called on Darwin from Xcode toolchains, we know that we are getting
+    // called from an XPC sourcekitd. Thus, all sourcekitd symbols that we need should be loaded in the current process
+    // already and we can use `RTLD_DEFAULT` for the sourcekitd library.
+    sourcekitd_plugin_initialize_2(params, "SOURCEKIT_LSP_PLUGIN_PARENT_LIBRARY_RTLD_DEFAULT")
   }
   #else
   fatalError("sourcekitd_plugin_initialize is not supported on non-Darwin platforms")
@@ -223,15 +235,24 @@ public func sourcekitd_plugin_initialize_2(
   _ params: sourcekitd_api_plugin_initialize_params_t,
   _ parentLibraryPath: UnsafePointer<CChar>
 ) {
+  let parentLibraryPath = String(cString: parentLibraryPath)
   #if canImport(Darwin)
-  // On macOS, we need to find sourcekitdInProc relative to the library the plugin was loaded from.
-  DynamicallyLoadedSourceKitD.forPlugin = try! DynamicallyLoadedSourceKitD.inProcLibrary(
-    relativeTo: URL(fileURLWithPath: String(cString: parentLibraryPath))
-  )
+  if parentLibraryPath == "SOURCEKIT_LSP_PLUGIN_PARENT_LIBRARY_RTLD_DEFAULT" {
+    DynamicallyLoadedSourceKitD.forPlugin = try! DynamicallyLoadedSourceKitD(
+      dlhandle: .rtldDefault,
+      path: URL(string: "rtld-default://")!,
+      pluginPaths: nil,
+      initialize: false
+    )
+  } else {
+    DynamicallyLoadedSourceKitD.forPlugin = try! DynamicallyLoadedSourceKitD.inProcLibrary(
+      relativeTo: URL(fileURLWithPath: String(cString: parentLibraryPath))
+    )
+  }
   #else
   // On other platforms, sourcekitd is always in process, so we can load it straight away.
   DynamicallyLoadedSourceKitD.forPlugin = try! DynamicallyLoadedSourceKitD(
-    dylib: URL(fileURLWithPath: String(cString: parentLibraryPath)),
+    dylib: URL(fileURLWithPath: parentLibraryPath),
     pluginPaths: nil,
     initialize: false
   )

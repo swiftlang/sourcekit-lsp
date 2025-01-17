@@ -21,6 +21,10 @@ public import Csourcekitd
 import Csourcekitd
 #endif
 
+#if compiler(>=6.3)
+#warning("Remove sourcekitd_plugin_initialize when we no longer support toolchains that call it")
+#endif
+
 /// Legacy plugin initialization logic in which sourcekitd does not inform the plugin about the sourcekitd path it was
 /// loaded from.
 @_cdecl("sourcekitd_plugin_initialize")
@@ -38,6 +42,14 @@ public func sourcekitd_plugin_initialize(_ params: sourcekitd_api_plugin_initial
     .deletingLastPathComponent()
     .appendingPathComponent("sourcekitd.framework")
     .appendingPathComponent("sourcekitd")
+  if !FileManager.default.fileExists(at: url),
+    let sourcekitdPath = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_PLUGIN_SOURCEKITD_PATH_\(path)"]
+  {
+    // When using a SourceKit plugin from the build directory, we can't find sourcekitd relative to the plugin.
+    // Respect the sourcekitd path that was passed to us via an environment variable from
+    // `DynamicallyLoadedSourceKitD.getOrCreate`.
+    url = URL(fileURLWithPath: sourcekitdPath)
+  }
   try! url.filePath.withCString { sourcekitdPath in
     sourcekitd_plugin_initialize_2(params, sourcekitdPath)
   }

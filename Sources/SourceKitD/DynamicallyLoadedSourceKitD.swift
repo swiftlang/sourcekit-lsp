@@ -41,6 +41,22 @@ fileprivate extension ThreadSafeBox {
   }
 }
 
+#if canImport(Darwin)
+fileprivate func setenv(name: String, value: String, override: Bool) throws {
+  struct FailedToSetEnvError: Error {
+    let errorCode: Int32
+  }
+  try name.withCString { name in
+    try value.withCString { value in
+      let result = setenv(name, value, override ? 0 : 1)
+      if result != 0 {
+        throw FailedToSetEnvError(errorCode: result)
+      }
+    }
+  }
+}
+#endif
+
 /// Wrapper for sourcekitd, taking care of initialization, shutdown, and notification handler
 /// multiplexing.
 ///
@@ -103,12 +119,21 @@ package actor DynamicallyLoadedSourceKitD: SourceKitD {
     dylibPath: URL,
     pluginPaths: PluginPaths?
   ) async throws -> SourceKitD {
-    try await SourceKitDRegistry.shared
-      .getOrAdd(
-        dylibPath,
-        pluginPaths: pluginPaths,
-        create: { try DynamicallyLoadedSourceKitD(dylib: dylibPath, pluginPaths: pluginPaths) }
-      )
+    try await SourceKitDRegistry.shared.getOrAdd(dylibPath, pluginPaths: pluginPaths) {
+      #if canImport(Darwin)
+      #if compiler(>=6.3)
+      #warning("Remove this when we no longer need to support sourcekitd_plugin_initialize")
+      #endif
+      if let pluginPaths {
+        try setenv(
+          name: "SOURCEKIT_LSP_PLUGIN_SOURCEKITD_PATH_\(pluginPaths.clientPlugin.filePath)",
+          value: dylibPath.filePath,
+          override: false
+        )
+      }
+      #endif
+      return try DynamicallyLoadedSourceKitD(dylib: dylibPath, pluginPaths: pluginPaths)
+    }
   }
 
   package init(dylib path: URL, pluginPaths: PluginPaths?, initialize: Bool = true) throws {
