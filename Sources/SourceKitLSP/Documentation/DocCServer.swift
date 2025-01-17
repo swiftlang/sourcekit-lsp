@@ -61,7 +61,7 @@ package struct DocCServer {
         identifier: documentationBundleIdentifier,
         defaultCodeListingLanguage: nil,
         defaultAvailability: nil,
-        defaultModuleKind: nil,
+        defaultModuleKind: nil
       ),
       externalIDsToConvert: externalIDsToConvert,
       documentPathsToConvert: documentPathsToConvert,

@@ -1063,7 +1063,7 @@ final class CodingTests: XCTestCase {
       expected: DoccDocumentationRequest(
         textDocument: TextDocumentIdentifier(try DocumentURI(string: "file:///some/path")),
         position: Position(line: 4, utf16index: 17)
-      ),
+      )
     )
   }
 
