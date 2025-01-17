@@ -96,6 +96,10 @@ package class MultiFileTestProject {
       let markedText =
         markedText
         .replacingOccurrences(of: "$TEST_DIR_URL", with: testDirUrl)
+        .replacingOccurrences(
+          of: "$TEST_DIR_BACKSLASH_ESCAPED",
+          with: try scratchDirectory.filePath.replacing(#"\"#, with: #"\\"#)
+        )
         .replacingOccurrences(of: "$TEST_DIR", with: try scratchDirectory.filePath)
       let fileURL = fileLocation.url(relativeTo: scratchDirectory)
       try FileManager.default.createDirectory(
