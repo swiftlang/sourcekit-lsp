@@ -16,6 +16,7 @@ import Foundation
 import SKLogging
 import SKUtilities
 import SourceKitD
+import SwiftExtensions
 
 extension PopularityIndex.Scope {
   init(string name: String) {

@@ -10,92 +10,25 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKLogging
+import SwiftExtensions
+
 #if compiler(>=6)
 package import BuildServerProtocol
-import Dispatch
 package import Foundation
 package import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
-package import SKOptions
-import SwiftExtensions
-import ToolchainRegistry
-import TSCExtensions
-
-import struct TSCBasic.RelativePath
 #else
 import BuildServerProtocol
-import Dispatch
 import Foundation
 import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
-import SKOptions
-import SwiftExtensions
-import ToolchainRegistry
-import TSCExtensions
-
-import struct TSCBasic.RelativePath
 #endif
 
-fileprivate enum Cachable<Value> {
-  case noValue
-  case value(Value)
-
-  mutating func get(_ compute: () -> Value) -> Value {
-    switch self {
-    case .noValue:
-      let value = compute()
-      self = .value(value)
-      return value
-    case .value(let value):
-      return value
-    }
-  }
-
-  mutating func reset() {
-    self = .noValue
-  }
-}
-
-/// A `BuildSystem` based on loading clang-compatible compilation database(s).
-///
-/// Provides build settings from a `CompilationDatabase` found by searching a project. For now, only
-/// one compilation database located within the given seach paths (defaulting to the root or inside `build`).
-package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
-  static package func searchForConfig(in workspaceFolder: URL, options: SourceKitLSPOptions) -> BuildSystemSpec? {
-    let searchPaths =
-      (options.compilationDatabaseOrDefault.searchPaths ?? []).compactMap {
-        try? RelativePath(validating: $0)
-      } + [
-        // These default search paths match the behavior of `clangd`
-        try! RelativePath(validating: "."),
-        try! RelativePath(validating: "build"),
-      ]
-
-    return
-      searchPaths
-      .lazy
-      .compactMap { searchPath in
-        let path = workspaceFolder.appending(searchPath)
-
-        let jsonPath = path.appendingPathComponent(JSONCompilationDatabase.dbName)
-        if FileManager.default.isFile(at: jsonPath) {
-          return BuildSystemSpec(kind: .compilationDatabase, projectRoot: workspaceFolder, configPath: jsonPath)
-        }
-
-        let fixedPath = path.appendingPathComponent(FixedCompilationDatabase.dbName)
-        if FileManager.default.isFile(at: fixedPath) {
-          return BuildSystemSpec(kind: .compilationDatabase, projectRoot: workspaceFolder, configPath: fixedPath)
-        }
-
-        return nil
-      }
-      .first
-  }
+/// A `BuildSystem` that provides compiler arguments from a `compile_commands.json` file.
+package actor JSONCompilationDatabaseBuildSystem: BuiltInBuildSystem {
+  package static let dbName: String = "compile_commands.json"
 
   /// The compilation database.
-  var compdb: CompilationDatabase? = nil {
+  var compdb: JSONCompilationDatabase {
     didSet {
       // Build settings have changed and thus the index store path might have changed.
       // Recompute it on demand.
@@ -114,28 +47,18 @@ package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
   // about the change to `mybuild/compile_commands.json` because it effectively changes the contents of
   // `<project root>/compile_commands.json`.
   package let fileWatchers: [FileSystemWatcher] = [
-    FileSystemWatcher(globPattern: "**/compile_commands.json", kind: [.create, .change, .delete]),
-    FileSystemWatcher(globPattern: "**/compile_flags.txt", kind: [.create, .change, .delete]),
+    FileSystemWatcher(globPattern: "**/compile_commands.json", kind: [.create, .change, .delete])
   ]
 
-  private var _indexStorePath: Cachable<URL?> = .noValue
+  private var _indexStorePath: LazyValue<URL?> = .uninitialized
   package var indexStorePath: URL? {
-    _indexStorePath.get {
-      guard let compdb else {
-        return nil
-      }
-
-      for sourceItem in compdb.sourceItems {
-        for command in compdb[sourceItem.uri] {
-          let args = command.commandLine
-          for i in args.indices.reversed() {
-            if args[i] == "-index-store-path" && i + 1 < args.count {
-              return URL(
-                fileURLWithPath: args[i + 1],
-                relativeTo: URL(fileURLWithPath: command.directory, isDirectory: true)
-              )
-            }
-          }
+    _indexStorePath.cachedValueOrCompute {
+      for command in compdb.commands {
+        if let indexStorePath = lastIndexStorePathArgument(in: command.commandLine) {
+          return URL(
+            fileURLWithPath: indexStorePath,
+            relativeTo: URL(fileURLWithPath: command.directory, isDirectory: true)
+          )
         }
       }
       return nil
@@ -148,15 +71,11 @@ package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
 
   package nonisolated var supportsPreparation: Bool { false }
 
-  package init?(
+  package init(
     configPath: URL,
     connectionToSourceKitLSP: any Connection
   ) throws {
-    if let compdb = tryLoadCompilationDatabase(file: configPath) {
-      self.compdb = compdb
-    } else {
-      return nil
-    }
+    self.compdb = try JSONCompilationDatabase(file: configPath)
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
 
     self.configPath = configPath
@@ -178,14 +97,14 @@ package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
   }
 
   package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
-    guard request.targets.contains(.dummy), let compdb else {
+    guard request.targets.contains(.dummy) else {
       return BuildTargetSourcesResponse(items: [])
     }
     return BuildTargetSourcesResponse(items: [SourcesItem(target: .dummy, sources: compdb.sourceItems)])
   }
 
   package func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) {
-    if notification.changes.contains(where: { self.fileEventShouldTriggerCompilationDatabaseReload(event: $0) }) {
+    if notification.changes.contains(where: { $0.uri.fileURL?.lastPathComponent == Self.dbName }) {
       self.reloadCompilationDatabase()
     }
   }
@@ -197,7 +116,7 @@ package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
   package func sourceKitOptions(
     request: TextDocumentSourceKitOptionsRequest
   ) async throws -> TextDocumentSourceKitOptionsResponse? {
-    guard let compdb, let cmd = compdb[request.textDocument.uri].first else {
+    guard let cmd = compdb[request.textDocument.uri].first else {
       return nil
     }
     return TextDocumentSourceKitOptionsResponse(
@@ -210,14 +129,12 @@ package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     return VoidResponse()
   }
 
-  private func fileEventShouldTriggerCompilationDatabaseReload(event: FileEvent) -> Bool {
-    return event.uri.fileURL?.lastPathComponent == configPath.lastPathComponent
-  }
-
   /// The compilation database has been changed on disk.
   /// Reload it and notify the delegate about build setting changes.
   private func reloadCompilationDatabase() {
-    self.compdb = tryLoadCompilationDatabase(file: configPath)
-    connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
+    orLog("Reloading compilation database") {
+      self.compdb = try JSONCompilationDatabase(file: configPath)
+      connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
+    }
   }
 }

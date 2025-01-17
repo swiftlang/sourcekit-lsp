@@ -195,12 +195,22 @@ private extension BuildSystemSpec {
       }
       logger.log("Created external build server at \(projectRoot)")
       return .external(buildSystem)
-    case .compilationDatabase:
+    case .jsonCompilationDatabase:
       return await createBuiltInBuildSystemAdapter(
         messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
         buildSystemHooks: buildSystemHooks
       ) { connectionToSourceKitLSP in
-        try CompilationDatabaseBuildSystem(
+        try JSONCompilationDatabaseBuildSystem(
+          configPath: configPath,
+          connectionToSourceKitLSP: connectionToSourceKitLSP
+        )
+      }
+    case .fixedCompilationDatabase:
+      return await createBuiltInBuildSystemAdapter(
+        messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
+        buildSystemHooks: buildSystemHooks
+      ) { connectionToSourceKitLSP in
+        try FixedCompilationDatabaseBuildSystem(
           configPath: configPath,
           connectionToSourceKitLSP: connectionToSourceKitLSP
         )

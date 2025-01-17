@@ -9,11 +9,12 @@ add_library(BuildSystemIntegration STATIC
   BuiltInBuildSystem.swift
   BuiltInBuildSystemAdapter.swift
   CompilationDatabase.swift
-  CompilationDatabaseBuildSystem.swift
   DetermineBuildSystem.swift
   ExternalBuildSystemAdapter.swift
   FallbackBuildSettings.swift
   FileBuildSettings.swift
+  FixedCompilationDatabaseBuildSystem.swift
+  JSONCompilationDatabaseBuildSystem.swift
   LegacyBuildServerBuildSystem.swift
   MainFilesProvider.swift
   PathPrefixMapping.swift
