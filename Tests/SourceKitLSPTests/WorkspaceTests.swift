@@ -985,10 +985,10 @@ final class WorkspaceTests: XCTestCase {
       "build/compile_commands.json": """
       [
       {
-        "directory": "$TEST_DIR",
-        "command": "swiftc $TEST_DIR/src/Foo.swift -DHAVE_SETTINGS \(defaultSDKArgs)",
+        "directory": "$TEST_DIR_BACKSLASH_ESCAPED",
+        "command": "swiftc $TEST_DIR_BACKSLASH_ESCAPED/src/Foo.swift -DHAVE_SETTINGS \(defaultSDKArgs)",
         "file": "src/Foo.swift",
-        "output": "$TEST_DIR/build/Foo.swift.o"
+        "output": "$TEST_DIR_BACKSLASH_ESCAPED/build/Foo.swift.o"
       }
       ]
       """,
@@ -1031,10 +1031,10 @@ final class WorkspaceTests: XCTestCase {
       "projA/build/compile_commands.json": """
       [
       {
-        "directory": "$TEST_DIR/projA",
-        "command": "swiftc $TEST_DIR/projA/src/Foo.swift -DHAVE_SETTINGS \(defaultSDKArgs)",
+        "directory": "$TEST_DIR_BACKSLASH_ESCAPED/projA",
+        "command": "swiftc $TEST_DIR_BACKSLASH_ESCAPED/projA/src/Foo.swift -DHAVE_SETTINGS \(defaultSDKArgs)",
         "file": "src/Foo.swift",
-        "output": "$TEST_DIR/projA/build/Foo.swift.o"
+        "output": "$TEST_DIR_BACKSLASH_ESCAPED/projA/build/Foo.swift.o"
       }
       ]
       """,
@@ -1078,10 +1078,10 @@ final class WorkspaceTests: XCTestCase {
       "otherbuild/compile_commands.json": """
       [
       {
-        "directory": "$TEST_DIR",
-        "command": "swiftc $TEST_DIR/src/Foo.swift -DHAVE_SETTINGS \(defaultSDKArgs)",
+        "directory": "$TEST_DIR_BACKSLASH_ESCAPED",
+        "command": "swiftc $TEST_DIR_BACKSLASH_ESCAPED/src/Foo.swift -DHAVE_SETTINGS \(defaultSDKArgs)",
         "file": "src/Foo.swift",
-        "output": "$TEST_DIR/otherbuild/Foo.swift.o"
+        "output": "$TEST_DIR_BACKSLASH_ESCAPED/otherbuild/Foo.swift.o"
       }
       ]
       """,
@@ -1112,10 +1112,12 @@ final class WorkspaceTests: XCTestCase {
 
 fileprivate let defaultSDKArgs: String = {
   if let defaultSDKPath {
-    let escapedPath = defaultSDKPath.replacing(#"\"#, with: #"\\"#)
+    let escapedPath = defaultSDKPath
     return """
-      -sdk '\(escapedPath)'
+      -sdk "\(escapedPath)"
       """
+      .replacing(#"\"#, with: #"\\"#)
+      .replacing("\"", with: #"\""#)
   }
   return ""
 }()

@@ -107,6 +107,12 @@ package actor CompilationDatabaseBuildSystem: BuiltInBuildSystem {
 
   package let configPath: URL
 
+  // Watch for all all changes to `compile_commands.json` and `compile_flags.txt` instead of just the one at
+  // `configPath` so that we cover the following semi-common scenario:
+  // The user has a build that stores `compile_commands.json` in `mybuild`. In order to pick it  up, they create a
+  // symlink from `<project root>/compile_commands.json` to `mybuild/compile_commands.json`.  We want to get notified
+  // about the change to `mybuild/compile_commands.json` because it effectively changes the contents of
+  // `<project root>/compile_commands.json`.
   package let fileWatchers: [FileSystemWatcher] = [
     FileSystemWatcher(globPattern: "**/compile_commands.json", kind: [.create, .change, .delete]),
     FileSystemWatcher(globPattern: "**/compile_flags.txt", kind: [.create, .change, .delete]),
