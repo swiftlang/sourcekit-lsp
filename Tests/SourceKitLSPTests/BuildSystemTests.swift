@@ -27,7 +27,7 @@ private actor TestBuildSystemInjector: BuildSystemInjector {
 
   func createBuildSystem(projectRoot: URL, connectionToSourceKitLSP: any Connection) -> any BuiltInBuildSystem {
     assert(testBuildSystem == nil, "TestBuildSystemInjector can only create a single TestBuildSystem")
-    let buildSystem = TestBuildSystem(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
+    let buildSystem = TestBuildSystem(connectionToSourceKitLSP: connectionToSourceKitLSP)
     testBuildSystem = buildSystem
     return buildSystem
   }
@@ -61,7 +61,11 @@ final class BuildSystemTests: XCTestCase {
 
     let buildSystemInjector = TestBuildSystemInjector()
     let buildSystemManager = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(kind: .injected(buildSystemInjector), projectRoot: URL(fileURLWithPath: "/")),
+      buildSystemSpec: BuildSystemSpec(
+        kind: .injected(buildSystemInjector),
+        projectRoot: URL(fileURLWithPath: "/"),
+        configPath: URL(fileURLWithPath: "/")
+      ),
       toolchainRegistry: .forTesting,
       options: .testDefault(),
       connectionToClient: DummyBuildSystemManagerConnectionToClient(),

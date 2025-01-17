@@ -507,6 +507,17 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     )
   }
 
+  package static func merging(base: SourceKitLSPOptions, workspaceFolder: DocumentURI) -> SourceKitLSPOptions {
+    return SourceKitLSPOptions.merging(
+      base: base,
+      override: SourceKitLSPOptions(
+        path: workspaceFolder.fileURL?
+          .appendingPathComponent(".sourcekit-lsp")
+          .appendingPathComponent("config.json")
+      )
+    )
+  }
+
   public var generatedFilesAbsolutePath: URL {
     if let generatedFilesPath {
       return URL(fileURLWithPath: generatedFilesPath)

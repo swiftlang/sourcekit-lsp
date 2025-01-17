@@ -33,7 +33,11 @@ final class PluginSwiftPMTestProject {
         return _buildSystemManager
       }
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: scratchDirectory),
+        buildSystemSpec: BuildSystemSpec(
+          kind: .swiftPM,
+          projectRoot: scratchDirectory,
+          configPath: scratchDirectory.appendingPathComponent("Package.swift")
+        ),
         toolchainRegistry: .forTesting,
         options: .testDefault(backgroundIndexing: false),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),

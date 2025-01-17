@@ -35,11 +35,16 @@ package struct BuildSystemSpec {
 
   package var kind: Kind
 
+  /// The folder that best describes the root of the project that this build system handles.
   package var projectRoot: URL
 
-  package init(kind: BuildSystemSpec.Kind, projectRoot: URL) {
+  /// The main path that provides the build system configuration.
+  package var configPath: URL
+
+  package init(kind: BuildSystemSpec.Kind, projectRoot: URL, configPath: URL) {
     self.kind = kind
     self.projectRoot = projectRoot
+    self.configPath = configPath
   }
 }
 

@@ -30,7 +30,6 @@ import class TSCBasic.Process
 
 #if compiler(>=6)
 package import BuildServerProtocol
-package import BuildSystemIntegration
 package import Foundation
 package import LanguageServerProtocol
 package import SKOptions
@@ -39,7 +38,6 @@ package import ToolchainRegistry
 package import class ToolchainRegistry.Toolchain
 #else
 import BuildServerProtocol
-import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
 import SKOptions
@@ -145,7 +143,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   // MARK: Build system options (set once and not modified)
 
   /// The directory containing `Package.swift`.
-  package let projectRoot: URL
+  private let projectRoot: URL
 
   package let fileWatchers: [FileSystemWatcher]
 
@@ -168,19 +166,13 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
 
   private var targetDependencies: [BuildTargetIdentifier: Set<BuildTargetIdentifier>] = [:]
 
-  static package func projectRoot(for path: URL, options: SourceKitLSPOptions) -> URL? {
-    var path = path
-    while true {
-      let packagePath = path.appendingPathComponent("Package.swift")
-      if (try? String(contentsOf: packagePath, encoding: .utf8))?.contains("PackageDescription") ?? false {
-        return path
-      }
+  static package func searchForConfig(in path: URL, options: SourceKitLSPOptions) -> BuildSystemSpec? {
 
-      if (try? AbsolutePath(validating: path.filePath))?.isRoot ?? true {
-        break
-      }
-      path.deleteLastPathComponent()
+    let packagePath = path.appendingPathComponent("Package.swift")
+    if (try? String(contentsOf: packagePath, encoding: .utf8))?.contains("PackageDescription") ?? false {
+      return BuildSystemSpec(kind: .swiftPM, projectRoot: path, configPath: packagePath)
     }
+
     return nil
   }
 
@@ -201,7 +193,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     self.projectRoot = projectRoot
     self.options = options
     self.fileWatchers =
-      try ["Package.swift", "Package.resolved"].map {
+      try ["Package.swift", "Package@swift*.swift", "Package.resolved"].map {
         FileSystemWatcher(globPattern: try projectRoot.appendingPathComponent($0).filePath, kind: [.change])
       }
       + FileRuleDescription.builtinRules.flatMap({ $0.fileTypes }).map { fileExtension in

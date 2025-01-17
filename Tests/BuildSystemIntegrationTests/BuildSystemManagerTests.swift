@@ -32,13 +32,38 @@ private actor TestBuildSystemInjector: BuildSystemInjector {
 
   func createBuildSystem(projectRoot: URL, connectionToSourceKitLSP: any Connection) -> any BuiltInBuildSystem {
     assert(testBuildSystem == nil, "TestBuildSystemInjector can only create a single TestBuildSystem")
-    let buildSystem = TestBuildSystem(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
+    let buildSystem = TestBuildSystem(connectionToSourceKitLSP: connectionToSourceKitLSP)
     testBuildSystem = buildSystem
     return buildSystem
   }
 }
 
 final class BuildSystemManagerTests: XCTestCase {
+  /// The build system manager that we use to verify SourceKitLSPServer behavior.
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var manager: BuildSystemManager! = nil
+
+  /// The build system that we use to verify SourceKitLSPServer behavior.
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var buildSystem: TestBuildSystem! = nil
+
+  override func setUp() async throws {
+    let dummyPath = URL(fileURLWithPath: "/")
+    let injector = TestBuildSystemInjector()
+    let spec = BuildSystemSpec(kind: .injected(injector), projectRoot: dummyPath, configPath: dummyPath)
+
+    self.manager = await BuildSystemManager(
+      buildSystemSpec: spec,
+      toolchainRegistry: ToolchainRegistry.forTesting,
+      options: SourceKitLSPOptions(),
+      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
+      buildSystemHooks: BuildSystemHooks()
+    )
+    self.buildSystem = try await unwrap(injector.testBuildSystem)
+  }
+
   func testMainFiles() async throws {
     let a = try DocumentURI(string: "bsm:a")
     let b = try DocumentURI(string: "bsm:b")
@@ -54,84 +79,67 @@ final class BuildSystemManagerTests: XCTestCase {
       ]
     )
 
-    let bsm = await BuildSystemManager(
-      buildSystemSpec: nil,
-      toolchainRegistry: ToolchainRegistry.forTesting,
-      options: SourceKitLSPOptions(),
-      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-      buildSystemHooks: BuildSystemHooks()
-    )
-    await bsm.setMainFilesProvider(mainFiles)
-    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
+    await manager.setMainFilesProvider(mainFiles)
 
-    await assertEqual(bsm.cachedMainFile(for: a), nil)
-    await assertEqual(bsm.cachedMainFile(for: b), nil)
-    await assertEqual(bsm.cachedMainFile(for: c), nil)
-    await assertEqual(bsm.cachedMainFile(for: d), nil)
+    await assertEqual(manager.cachedMainFile(for: a), nil)
+    await assertEqual(manager.cachedMainFile(for: b), nil)
+    await assertEqual(manager.cachedMainFile(for: c), nil)
+    await assertEqual(manager.cachedMainFile(for: d), nil)
 
-    await bsm.registerForChangeNotifications(for: a, language: .c)
-    await bsm.registerForChangeNotifications(for: b, language: .c)
-    await bsm.registerForChangeNotifications(for: c, language: .c)
-    await bsm.registerForChangeNotifications(for: d, language: .c)
-    await assertEqual(bsm.cachedMainFile(for: a), c)
-    let bMain = await bsm.cachedMainFile(for: b)
+    await manager.registerForChangeNotifications(for: a, language: .c)
+    await manager.registerForChangeNotifications(for: b, language: .c)
+    await manager.registerForChangeNotifications(for: c, language: .c)
+    await manager.registerForChangeNotifications(for: d, language: .c)
+    await assertEqual(manager.cachedMainFile(for: a), c)
+    let bMain = await manager.cachedMainFile(for: b)
     XCTAssert(Set([c, d]).contains(bMain))
-    await assertEqual(bsm.cachedMainFile(for: c), c)
-    await assertEqual(bsm.cachedMainFile(for: d), d)
+    await assertEqual(manager.cachedMainFile(for: c), c)
+    await assertEqual(manager.cachedMainFile(for: d), d)
 
     await mainFiles.updateMainFiles(for: a, to: [a])
     await mainFiles.updateMainFiles(for: b, to: [c, d, a])
 
-    await assertEqual(bsm.cachedMainFile(for: a), c)
-    await assertEqual(bsm.cachedMainFile(for: b), bMain)
-    await assertEqual(bsm.cachedMainFile(for: c), c)
-    await assertEqual(bsm.cachedMainFile(for: d), d)
+    await assertEqual(manager.cachedMainFile(for: a), c)
+    await assertEqual(manager.cachedMainFile(for: b), bMain)
+    await assertEqual(manager.cachedMainFile(for: c), c)
+    await assertEqual(manager.cachedMainFile(for: d), d)
 
-    await bsm.mainFilesChanged()
+    await manager.mainFilesChanged()
 
-    await assertEqual(bsm.cachedMainFile(for: a), a)
-    await assertEqual(bsm.cachedMainFile(for: b), a)
-    await assertEqual(bsm.cachedMainFile(for: c), c)
-    await assertEqual(bsm.cachedMainFile(for: d), d)
+    await assertEqual(manager.cachedMainFile(for: a), a)
+    await assertEqual(manager.cachedMainFile(for: b), a)
+    await assertEqual(manager.cachedMainFile(for: c), c)
+    await assertEqual(manager.cachedMainFile(for: d), d)
 
-    await bsm.unregisterForChangeNotifications(for: a)
-    await assertEqual(bsm.cachedMainFile(for: a), nil)
-    await assertEqual(bsm.cachedMainFile(for: b), a)
-    await assertEqual(bsm.cachedMainFile(for: c), c)
-    await assertEqual(bsm.cachedMainFile(for: d), d)
+    await manager.unregisterForChangeNotifications(for: a)
+    await assertEqual(manager.cachedMainFile(for: a), nil)
+    await assertEqual(manager.cachedMainFile(for: b), a)
+    await assertEqual(manager.cachedMainFile(for: c), c)
+    await assertEqual(manager.cachedMainFile(for: d), d)
 
-    await bsm.unregisterForChangeNotifications(for: b)
-    await bsm.mainFilesChanged()
-    await bsm.unregisterForChangeNotifications(for: c)
-    await bsm.unregisterForChangeNotifications(for: d)
-    await assertEqual(bsm.cachedMainFile(for: a), nil)
-    await assertEqual(bsm.cachedMainFile(for: b), nil)
-    await assertEqual(bsm.cachedMainFile(for: c), nil)
-    await assertEqual(bsm.cachedMainFile(for: d), nil)
+    await manager.unregisterForChangeNotifications(for: b)
+    await manager.mainFilesChanged()
+    await manager.unregisterForChangeNotifications(for: c)
+    await manager.unregisterForChangeNotifications(for: d)
+    await assertEqual(manager.cachedMainFile(for: a), nil)
+    await assertEqual(manager.cachedMainFile(for: b), nil)
+    await assertEqual(manager.cachedMainFile(for: c), nil)
+    await assertEqual(manager.cachedMainFile(for: d), nil)
   }
 
   func testSettingsMainFile() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
-    let buildSystemInjector = TestBuildSystemInjector()
-    let bsm = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(kind: .injected(buildSystemInjector), projectRoot: URL(fileURLWithPath: "/")),
-      toolchainRegistry: ToolchainRegistry.forTesting,
-      options: SourceKitLSPOptions(),
-      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-      buildSystemHooks: BuildSystemHooks()
-    )
-    await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(buildSystemInjector.testBuildSystem)
-    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
 
-    await bs.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
+    await manager.setMainFilesProvider(mainFiles)
+    let del = await BSMDelegate(manager)
+
+    await buildSystem.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
     // Wait for the new build settings to settle before registering for change notifications
-    await bsm.waitForUpToDateBuildGraph()
-    await bsm.registerForChangeNotifications(for: a, language: .swift)
+    await manager.waitForUpToDateBuildGraph()
+    await manager.registerForChangeNotifications(for: a, language: .swift)
     assertEqual(
-      await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift, fallbackAfterTimeout: false)?
+      await manager.buildSettingsInferredFromMainFile(for: a, language: .swift, fallbackAfterTimeout: false)?
         .compilerArguments,
       ["x"]
     )
@@ -140,58 +148,40 @@ final class BuildSystemManagerTests: XCTestCase {
     await del.setExpected([
       (a, .swift, fallbackBuildSettings(for: a, language: .swift, options: .init()), changed)
     ])
-    await bs.setBuildSettings(for: a, to: nil)
+    await buildSystem.setBuildSettings(for: a, to: nil)
     try await fulfillmentOfOrThrow([changed])
   }
 
   func testSettingsMainFileInitialNil() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
-    let buildSystemInjector = TestBuildSystemInjector()
-    let bsm = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(kind: .injected(buildSystemInjector), projectRoot: URL(fileURLWithPath: "/")),
-      toolchainRegistry: ToolchainRegistry.forTesting,
-      options: SourceKitLSPOptions(),
-      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-      buildSystemHooks: BuildSystemHooks()
-    )
-    await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(buildSystemInjector.testBuildSystem)
-    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
-    await bsm.registerForChangeNotifications(for: a, language: .swift)
+
+    await manager.setMainFilesProvider(mainFiles)
+    let del = await BSMDelegate(manager)
+    await manager.registerForChangeNotifications(for: a, language: .swift)
 
     let changed = expectation(description: "changed settings")
     await del.setExpected([(a, .swift, FileBuildSettings(compilerArguments: ["x"]), changed)])
-    await bs.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
+    await buildSystem.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
     try await fulfillmentOfOrThrow([changed])
   }
 
   func testSettingsMainFileWithFallback() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
-    let buildSystemInjector = TestBuildSystemInjector()
-    let bsm = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(kind: .injected(buildSystemInjector), projectRoot: URL(fileURLWithPath: "/")),
-      toolchainRegistry: ToolchainRegistry.forTesting,
-      options: SourceKitLSPOptions(),
-      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-      buildSystemHooks: BuildSystemHooks()
-    )
-    await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(buildSystemInjector.testBuildSystem)
-    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
+
+    await manager.setMainFilesProvider(mainFiles)
+    let del = await BSMDelegate(manager)
     let fallbackSettings = fallbackBuildSettings(for: a, language: .swift, options: .init())
-    await bsm.registerForChangeNotifications(for: a, language: .swift)
+    await manager.registerForChangeNotifications(for: a, language: .swift)
     assertEqual(
-      await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift, fallbackAfterTimeout: false),
+      await manager.buildSettingsInferredFromMainFile(for: a, language: .swift, fallbackAfterTimeout: false),
       fallbackSettings
     )
 
     let changed = expectation(description: "changed settings")
     await del.setExpected([(a, .swift, FileBuildSettings(compilerArguments: ["non-fallback", "args"]), changed)])
-    await bs.setBuildSettings(
+    await buildSystem.setBuildSettings(
       for: a,
       to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["non-fallback", "args"])
     )
@@ -199,7 +189,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let revert = expectation(description: "revert to fallback settings")
     await del.setExpected([(a, .swift, fallbackSettings, revert)])
-    await bs.setBuildSettings(for: a, to: nil)
+    await buildSystem.setBuildSettings(for: a, to: nil)
     try await fulfillmentOfOrThrow([revert])
   }
 
@@ -215,27 +205,24 @@ final class BuildSystemManagerTests: XCTestCase {
       ]
     )
 
-    let buildSystemInjector = TestBuildSystemInjector()
-    let bsm = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(kind: .injected(buildSystemInjector), projectRoot: URL(fileURLWithPath: "/")),
-      toolchainRegistry: ToolchainRegistry.forTesting,
-      options: SourceKitLSPOptions(),
-      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-      buildSystemHooks: BuildSystemHooks()
-    )
-    await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(buildSystemInjector.testBuildSystem)
-    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
+    await manager.setMainFilesProvider(mainFiles)
+    let del = await BSMDelegate(manager)
 
-    await bs.setBuildSettings(for: cpp1, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["C++ 1"]))
-    await bs.setBuildSettings(for: cpp2, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["C++ 2"]))
+    await buildSystem.setBuildSettings(
+      for: cpp1,
+      to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["C++ 1"])
+    )
+    await buildSystem.setBuildSettings(
+      for: cpp2,
+      to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["C++ 2"])
+    )
 
     // Wait for the new build settings to settle before registering for change notifications
-    await bsm.waitForUpToDateBuildGraph()
-    await bsm.registerForChangeNotifications(for: h, language: .c)
+    await manager.waitForUpToDateBuildGraph()
+    await manager.registerForChangeNotifications(for: h, language: .c)
     assertEqual(
-      await bsm.buildSettingsInferredFromMainFile(for: h, language: .c, fallbackAfterTimeout: false)?.compilerArguments,
+      await manager.buildSettingsInferredFromMainFile(for: h, language: .c, fallbackAfterTimeout: false)?
+        .compilerArguments,
       ["C++ 1"]
     )
 
@@ -243,20 +230,20 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let changed = expectation(description: "changed settings to cpp2")
     await del.setExpected([(h, .c, FileBuildSettings(compilerArguments: ["C++ 2"]), changed)])
-    await bsm.mainFilesChanged()
+    await manager.mainFilesChanged()
     try await fulfillmentOfOrThrow([changed])
 
     let changed2 = expectation(description: "still cpp2, no update")
     changed2.isInverted = true
     await del.setExpected([(h, .c, nil, changed2)])
-    await bsm.mainFilesChanged()
+    await manager.mainFilesChanged()
     try await fulfillmentOfOrThrow([changed2], timeout: 1)
 
     await mainFiles.updateMainFiles(for: h, to: [cpp1, cpp2])
 
     let changed3 = expectation(description: "added lexicographically earlier main file")
     await del.setExpected([(h, .c, FileBuildSettings(compilerArguments: ["C++ 1"]), changed3)])
-    await bsm.mainFilesChanged()
+    await manager.mainFilesChanged()
     try await fulfillmentOfOrThrow([changed3], timeout: 1)
 
     await mainFiles.updateMainFiles(for: h, to: [])
@@ -265,7 +252,7 @@ final class BuildSystemManagerTests: XCTestCase {
     await del.setExpected([
       (h, .c, fallbackBuildSettings(for: h, language: .cpp, options: .init()), changed4)
     ])
-    await bsm.mainFilesChanged()
+    await manager.mainFilesChanged()
     try await fulfillmentOfOrThrow([changed4])
   }
 
@@ -280,39 +267,29 @@ final class BuildSystemManagerTests: XCTestCase {
       ]
     )
 
-    let buildSystemInjector = TestBuildSystemInjector()
-    let bsm = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(kind: .injected(buildSystemInjector), projectRoot: URL(fileURLWithPath: "/")),
-      toolchainRegistry: ToolchainRegistry.forTesting,
-      options: SourceKitLSPOptions(),
-      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-      buildSystemHooks: BuildSystemHooks()
-    )
-    await bsm.setMainFilesProvider(mainFiles)
-    let bs = try await unwrap(buildSystemInjector.testBuildSystem)
-    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
+    await manager.setMainFilesProvider(mainFiles)
+    let del = await BSMDelegate(manager)
 
     let cppArg = "C++ Main File"
-    await bs.setBuildSettings(
+    await buildSystem.setBuildSettings(
       for: cpp,
       to: TextDocumentSourceKitOptionsResponse(compilerArguments: [cppArg, cpp.pseudoPath])
     )
 
     // Wait for the new build settings to settle before registering for change notifications
-    await bsm.waitForUpToDateBuildGraph()
+    await manager.waitForUpToDateBuildGraph()
 
-    await bsm.registerForChangeNotifications(for: h1, language: .c)
-    await bsm.registerForChangeNotifications(for: h2, language: .c)
+    await manager.registerForChangeNotifications(for: h1, language: .c)
+    await manager.registerForChangeNotifications(for: h2, language: .c)
 
     let expectedArgsH1 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h1.pseudoPath])
     let expectedArgsH2 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h2.pseudoPath])
     assertEqual(
-      await bsm.buildSettingsInferredFromMainFile(for: h1, language: .c, fallbackAfterTimeout: false),
+      await manager.buildSettingsInferredFromMainFile(for: h1, language: .c, fallbackAfterTimeout: false),
       expectedArgsH1
     )
     assertEqual(
-      await bsm.buildSettingsInferredFromMainFile(for: h2, language: .c, fallbackAfterTimeout: false),
+      await manager.buildSettingsInferredFromMainFile(for: h2, language: .c, fallbackAfterTimeout: false),
       expectedArgsH2
     )
 
@@ -325,7 +302,7 @@ final class BuildSystemManagerTests: XCTestCase {
       (h1, .c, newArgsH1, changed1),
       (h2, .c, newArgsH2, changed2),
     ])
-    await bs.setBuildSettings(
+    await buildSystem.setBuildSettings(
       for: cpp,
       to: TextDocumentSourceKitOptionsResponse(compilerArguments: [newCppArg, cpp.pseudoPath])
     )
@@ -367,7 +344,7 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
     uri: DocumentURI, expectation: XCTestExpectation, file: StaticString, line: UInt
   )
 
-  unowned let bsm: BuildSystemManager
+  unowned let manager: BuildSystemManager
   var expected: [ExpectedBuildSettingChangedCall] = []
 
   /// - Note: Needed to set `expected` outside of the actor's isolation context.
@@ -379,9 +356,9 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
     self.expected = expected.map { ($0.uri, $0.language, $0.settings, $0.expectation, file, line) }
   }
 
-  init(_ bsm: BuildSystemManager) async {
-    self.bsm = bsm
-    await bsm.setDelegate(self)
+  init(_ manager: BuildSystemManager) async {
+    self.manager = manager
+    await manager.setDelegate(self)
   }
 
   func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
@@ -394,7 +371,7 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
       self.expected.remove(at: expectedIndex)
 
       XCTAssertEqual(uri, expected.uri, file: expected.file, line: expected.line)
-      let settings = await bsm.buildSettingsInferredFromMainFile(
+      let settings = await manager.buildSettingsInferredFromMainFile(
         for: uri,
         language: expected.language,
         fallbackAfterTimeout: false
