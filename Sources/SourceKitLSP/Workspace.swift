@@ -44,24 +44,6 @@ import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 #endif
 
-/// Same as `??` but allows the right-hand side of the operator to 'await'.
-fileprivate func firstNonNil<T>(_ optional: T?, _ defaultValue: @autoclosure () async throws -> T) async rethrows -> T {
-  if let optional {
-    return optional
-  }
-  return try await defaultValue()
-}
-
-fileprivate func firstNonNil<T>(
-  _ optional: T?,
-  _ defaultValue: @autoclosure () async throws -> T?
-) async rethrows -> T? {
-  if let optional {
-    return optional
-  }
-  return try await defaultValue()
-}
-
 /// Actor that caches realpaths for `sourceFilesWithSameRealpath`.
 fileprivate actor SourceFilesWithSameRealpathInferrer {
   private let buildSystemManager: BuildSystemManager
@@ -183,7 +165,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
         index: uncheckedIndex,
         buildSystemManager: buildSystemManager,
         updateIndexStoreTimeout: options.indexOrDefault.updateIndexStoreTimeoutOrDefault,
-        testHooks: hooks.indexTestHooks,
+        hooks: hooks.indexHooks,
         indexTaskScheduler: indexTaskScheduler,
         logMessageToIndexLog: { [weak sourceKitLSPServer] in
           sourceKitLSPServer?.logMessageToIndexLog(taskID: $0, message: $1)
@@ -289,28 +271,46 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     var indexDelegate: SourceKitIndexDelegate? = nil
 
     let indexOptions = options.indexOrDefault
-    let indexStorePath = await firstNonNil(
-      AbsolutePath(validatingOrNil: indexOptions.indexStorePath),
-      await AbsolutePath(validatingOrNil: buildSystemManager.initializationData?.indexStorePath)
-    )
-    let indexDatabasePath = await firstNonNil(
-      AbsolutePath(validatingOrNil: indexOptions.indexDatabasePath),
-      await AbsolutePath(validatingOrNil: buildSystemManager.initializationData?.indexDatabasePath)
-    )
+    let indexStorePath: URL? =
+      if let indexStorePath = indexOptions.indexStorePath {
+        URL(fileURLWithPath: indexStorePath, relativeTo: rootUri?.fileURL)
+      } else if let indexStorePath = await buildSystemManager.initializationData?.indexStorePath {
+        URL(fileURLWithPath: indexStorePath, relativeTo: rootUri?.fileURL)
+      } else {
+        nil
+      }
+    let indexDatabasePath: URL? =
+      if let indexDatabasePath = indexOptions.indexDatabasePath {
+        URL(fileURLWithPath: indexDatabasePath, relativeTo: rootUri?.fileURL)
+      } else if let indexDatabasePath = await buildSystemManager.initializationData?.indexDatabasePath {
+        URL(fileURLWithPath: indexDatabasePath, relativeTo: rootUri?.fileURL)
+      } else {
+        nil
+      }
     if let indexStorePath, let indexDatabasePath, let libPath = await toolchainRegistry.default?.libIndexStore {
       do {
-        let lib = try IndexStoreLibrary(dylibPath: libPath.filePath)
         indexDelegate = SourceKitIndexDelegate()
         let prefixMappings =
-          indexOptions.indexPrefixMap?.map { PathPrefixMapping(original: $0.key, replacement: $0.value) } ?? []
-        index = try IndexStoreDB(
-          storePath: indexStorePath.pathString,
-          databasePath: indexDatabasePath.pathString,
-          library: lib,
-          delegate: indexDelegate,
-          prefixMappings: prefixMappings.map { PathMapping(original: $0.original, replacement: $0.replacement) }
-        )
-        logger.debug("Opened IndexStoreDB at \(indexDatabasePath) with store path \(indexStorePath)")
+          (indexOptions.indexPrefixMap ?? [:])
+          .map { PathMapping(original: $0.key, replacement: $0.value) }
+        if let indexInjector = hooks.indexHooks.indexInjector {
+          index = try await indexInjector.createIndex(
+            storePath: indexStorePath,
+            databasePath: indexDatabasePath,
+            indexStoreLibraryPath: libPath,
+            delegate: indexDelegate!,
+            prefixMappings: prefixMappings
+          )
+        } else {
+          index = try IndexStoreDB(
+            storePath: indexStorePath.filePath,
+            databasePath: indexDatabasePath.filePath,
+            library: IndexStoreLibrary(dylibPath: libPath.filePath),
+            delegate: indexDelegate,
+            prefixMappings: prefixMappings
+          )
+          logger.debug("Opened IndexStoreDB at \(indexDatabasePath) with store path \(indexStorePath)")
+        }
       } catch {
         logger.error("Failed to open IndexStoreDB: \(error.localizedDescription)")
       }

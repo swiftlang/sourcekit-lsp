@@ -1,10 +1,10 @@
 
 add_library(BuildSystemIntegration STATIC
   BuildSettingsLogger.swift
+  BuildSystemHooks.swift
   BuildSystemManager.swift
   BuildSystemManagerDelegate.swift
   BuildSystemMessageDependencyTracker.swift
-  BuildSystemTestHooks.swift
   BuildTargetIdentifierExtensions.swift
   BuiltInBuildSystem.swift
   BuiltInBuildSystemAdapter.swift
@@ -16,7 +16,6 @@ add_library(BuildSystemIntegration STATIC
   FileBuildSettings.swift
   LegacyBuildServerBuildSystem.swift
   MainFilesProvider.swift
-  PathPrefixMapping.swift
   PrefixMessageWithTaskEmoji.swift
   SplitShellCommand.swift
   SwiftPMBuildSystem.swift

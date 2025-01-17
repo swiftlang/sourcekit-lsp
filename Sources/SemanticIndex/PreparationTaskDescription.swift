@@ -55,8 +55,8 @@ package struct PreparationTaskDescription: IndexTaskDescription {
   /// See `SemanticIndexManager.logMessageToIndexLog`.
   private let logMessageToIndexLog: @Sendable (_ taskID: String, _ message: String) -> Void
 
-  /// Test hooks that should be called when the preparation task finishes.
-  private let testHooks: IndexTestHooks
+  /// Hooks that should be called when the preparation task finishes.
+  private let hooks: IndexHooks
 
   /// The task is idempotent because preparing the same target twice produces the same result as preparing it once.
   package var isIdempotent: Bool { true }
@@ -76,13 +76,13 @@ package struct PreparationTaskDescription: IndexTaskDescription {
     buildSystemManager: BuildSystemManager,
     preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier>,
     logMessageToIndexLog: @escaping @Sendable (_ taskID: String, _ message: String) -> Void,
-    testHooks: IndexTestHooks
+    hooks: IndexHooks
   ) {
     self.targetsToPrepare = targetsToPrepare
     self.buildSystemManager = buildSystemManager
     self.preparationUpToDateTracker = preparationUpToDateTracker
     self.logMessageToIndexLog = logMessageToIndexLog
-    self.testHooks = testHooks
+    self.hooks = hooks
   }
 
   package func execute() async {
@@ -96,7 +96,7 @@ package struct PreparationTaskDescription: IndexTaskDescription {
       if targetsToPrepare.isEmpty {
         return
       }
-      await testHooks.preparationTaskDidStart?(self)
+      await hooks.preparationTaskDidStart?(self)
 
       let targetsToPrepareDescription = targetsToPrepare.map(\.uri.stringValue).joined(separator: ", ")
       logger.log(
@@ -119,7 +119,7 @@ package struct PreparationTaskDescription: IndexTaskDescription {
           "Preparation failed: \(error.forLogging)"
         )
       }
-      await testHooks.preparationTaskDidFinish?(self)
+      await hooks.preparationTaskDidFinish?(self)
       if !Task.isCancelled {
         await preparationUpToDateTracker.markUpToDate(targetsToPrepare, updateOperationStartDate: startDate)
       }

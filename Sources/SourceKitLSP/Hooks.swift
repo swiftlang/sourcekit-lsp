@@ -32,7 +32,7 @@ import struct TSCBasic.RelativePath
 
 /// Closures can be used to inspect or modify internal behavior in SourceKit-LSP.
 public struct Hooks: Sendable {
-  package var indexTestHooks: IndexTestHooks
+  package var indexHooks: IndexHooks
 
   package var buildSystemHooks: BuildSystemHooks
 
@@ -42,15 +42,15 @@ public struct Hooks: Sendable {
   package var preHandleRequest: (@Sendable (any RequestType) async -> Void)?
 
   public init() {
-    self.init(indexTestHooks: IndexTestHooks(), buildSystemHooks: BuildSystemHooks())
+    self.init(indexHooks: IndexHooks(), buildSystemHooks: BuildSystemHooks())
   }
 
   package init(
-    indexTestHooks: IndexTestHooks = IndexTestHooks(),
+    indexHooks: IndexHooks = IndexHooks(),
     buildSystemHooks: BuildSystemHooks = BuildSystemHooks(),
     preHandleRequest: (@Sendable (any RequestType) async -> Void)? = nil
   ) {
-    self.indexTestHooks = indexTestHooks
+    self.indexHooks = indexHooks
     self.buildSystemHooks = buildSystemHooks
     self.preHandleRequest = preHandleRequest
   }
