@@ -65,9 +65,9 @@ package final actor DocumentationManager {
       // Search for the nearest documentable symbol at this location
       let syntaxTree = await swiftLanguageService.syntaxTreeManager.syntaxTree(for: snapshot)
       guard
-        let nearestDocumentableSymbol = DocumentableSymbolFinder.find(
-          in: [Syntax(syntaxTree)],
-          at: snapshot.absolutePosition(of: position)
+        let nearestDocumentableSymbol = DocumentableSymbol.findNearestSymbol(
+          syntaxTree: syntaxTree,
+          position: snapshot.absolutePosition(of: position)
         )
       else {
         throw ResponseError.requestFailed(convertError: .noDocumentation)
@@ -140,149 +140,53 @@ fileprivate extension ResponseError {
   }
 }
 
-fileprivate final class DocumentableSymbolFinder: SyntaxAnyVisitor {
-  struct Symbol {
-    let position: AbsolutePosition
-    let documentationComments: [String]
-    let depth: Int
-  }
+fileprivate struct DocumentableSymbol {
+  let position: AbsolutePosition
+  let documentationComments: [String]
 
-  private let cursorPosition: AbsolutePosition
-
-  /// Accumulating the result in here.
-  private var result: Symbol? = nil
-
-  private var depth: Int = 0
-
-  private init(_ cursorPosition: AbsolutePosition) {
-    self.cursorPosition = cursorPosition
-    super.init(viewMode: .sourceAccurate)
-  }
-
-  /// Designated entry point for ``DocumentableSymbolFinder``.
-  static func find(
-    in nodes: some Sequence<Syntax>,
-    at cursorPosition: AbsolutePosition
-  ) -> Symbol? {
-    let visitor = DocumentableSymbolFinder(cursorPosition)
-    for node in nodes {
-      visitor.walk(node)
-    }
-    return visitor.result
-  }
-
-  private func setResult(node: some SyntaxProtocol, position: AbsolutePosition) {
-    setResult(
-      symbol: Symbol(
-        position: position,
-        documentationComments: node.leadingTrivia.flatMap { trivia -> [String] in
-          switch trivia {
-          case .docLineComment(let comment):
-            return [String(comment.dropFirst(3).trimmingCharacters(in: .whitespaces))]
-          case .docBlockComment(let comment):
-            return comment.dropFirst(3)
-              .dropLast(2)
-              .split(separator: "\n")
-              .map { String($0).trimmingCharacters(in: .whitespaces) }
-          default:
-            return []
-          }
-        },
-        depth: depth
-      )
-    )
-  }
-
-  private func setResult(symbol: Symbol) {
-    guard symbol.depth > result?.depth ?? -1 else {
-      return
-    }
-    result = symbol
-  }
-
-  override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
-    guard depth > result?.depth ?? -1 else {
-      return .skipChildren
-    }
-    return .visitChildren
-  }
-
-  private func visitNamedDecl(node: some NamedDeclSyntax) -> SyntaxVisitorContinueKind {
-    if cursorPosition < node.range.upperBound {
-      setResult(node: node, position: node.name.positionAfterSkippingLeadingTrivia)
-    }
-    return .visitChildren
-  }
-
-  override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
-    visitNamedDecl(node: node)
-  }
-
-  override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
-    visitNamedDecl(node: node)
-  }
-
-  override func visit(_ node: ActorDeclSyntax) -> SyntaxVisitorContinueKind {
-    visitNamedDecl(node: node)
-  }
-
-  override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind {
-    visitNamedDecl(node: node)
-  }
-
-  override func visit(_ node: ProtocolDeclSyntax) -> SyntaxVisitorContinueKind {
-    visitNamedDecl(node: node)
-  }
-
-  override func visit(_ node: MemberBlockSyntax) -> SyntaxVisitorContinueKind {
-    depth += 1
-    let range = node.leftBrace.endPositionBeforeTrailingTrivia..<node.rightBrace.positionAfterSkippingLeadingTrivia
-    guard range.contains(cursorPosition) else {
-      return .skipChildren
-    }
-    return .visitChildren
-  }
-
-  override func visitPost(_ node: MemberBlockSyntax) {
-    depth -= 1;
-  }
-
-  override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
-    let symbolPosition = node.name.positionAfterSkippingLeadingTrivia
-    if cursorPosition < node.range.upperBound {
-      setResult(node: node, position: symbolPosition)
-    }
-    return .skipChildren
-  }
-
-  override func visit(_ node: InitializerDeclSyntax) -> SyntaxVisitorContinueKind {
-    let symbolPosition = node.initKeyword.positionAfterSkippingLeadingTrivia
-    if node.range.contains(cursorPosition) || cursorPosition < symbolPosition {
-      setResult(node: node, position: symbolPosition)
-    }
-    return .skipChildren
-  }
-
-  override func visit(_ node: EnumCaseDeclSyntax) -> SyntaxVisitorContinueKind {
-    for element in node.elements {
-      let symbolPosition = element.name.positionAfterSkippingLeadingTrivia
-      if element.range.contains(cursorPosition) || cursorPosition < symbolPosition {
-        setResult(node: node, position: symbolPosition)
+  init(node: any SyntaxProtocol, position: AbsolutePosition) {
+    self.position = position
+    self.documentationComments = node.leadingTrivia.flatMap { trivia -> [String] in
+      switch trivia {
+      case .docLineComment(let comment):
+        return [String(comment.dropFirst(3).trimmingCharacters(in: .whitespaces))]
+      case .docBlockComment(let comment):
+        return comment.dropFirst(3)
+          .dropLast(2)
+          .split(separator: "\n")
+          .map { String($0).trimmingCharacters(in: .whitespaces) }
+      default:
+        return []
       }
     }
-    return .skipChildren
   }
+}
 
-  override func visit(_ node: VariableDeclSyntax) -> SyntaxVisitorContinueKind {
-    // A variable declaration is only documentable if there is only one pattern binding
-    guard let identifier = node.bindings.only?.pattern.as(IdentifierPatternSyntax.self) else {
-      return .skipChildren
+fileprivate extension DocumentableSymbol {
+  static func findNearestSymbol(syntaxTree: SourceFileSyntax, position: AbsolutePosition) -> DocumentableSymbol? {
+    guard let token = syntaxTree.token(at: position) else {
+      return nil
     }
-    let symbolPosition = identifier.positionAfterSkippingLeadingTrivia
-    if node.range.contains(cursorPosition) || cursorPosition < symbolPosition {
-      setResult(node: node, position: symbolPosition)
+    return token.ancestorOrSelf { node in
+      if let namedDecl = node.asProtocol(NamedDeclSyntax.self) {
+        return DocumentableSymbol(node: namedDecl, position: namedDecl.name.positionAfterSkippingLeadingTrivia)
+      } else if let initDecl = node.as(InitializerDeclSyntax.self) {
+        return DocumentableSymbol(node: initDecl, position: initDecl.initKeyword.positionAfterSkippingLeadingTrivia)
+      } else if let functionDecl = node.as(FunctionDeclSyntax.self) {
+        return DocumentableSymbol(node: functionDecl, position: functionDecl.name.positionAfterSkippingLeadingTrivia)
+      } else if let variableDecl = node.as(VariableDeclSyntax.self) {
+        guard let identifier = variableDecl.bindings.only?.pattern.as(IdentifierPatternSyntax.self) else {
+          return nil
+        }
+        return DocumentableSymbol(node: variableDecl, position: identifier.positionAfterSkippingLeadingTrivia)
+      } else if let enumCaseDecl = node.as(EnumCaseDeclSyntax.self) {
+        guard let name = enumCaseDecl.elements.only?.name else {
+          return nil
+        }
+        return DocumentableSymbol(node: enumCaseDecl, position: name.positionAfterSkippingLeadingTrivia)
+      }
+      return nil
     }
-    return .skipChildren
   }
 }
 #endif
