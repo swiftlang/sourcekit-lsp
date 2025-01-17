@@ -45,6 +45,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testBasicCompletion() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -166,6 +167,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testEmptyName() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -205,6 +207,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testMultipleFiles() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let pathA = scratchFilePath(fileName: "a.swift")
     let pathB = scratchFilePath(fileName: "b.swift")
@@ -269,6 +272,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testCancellation() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -335,6 +339,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testEdits() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -393,6 +398,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testDocumentation() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -439,6 +445,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testNumBytesToErase() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -472,6 +479,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testObjectLiterals() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -496,6 +504,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testAddInitsToTopLevel() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -554,6 +563,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testMembersGroupID() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -599,6 +609,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testAddCallWithNoDefaultArgs() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -647,6 +658,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testTextMatchScore() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -695,6 +707,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testSemanticScore() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -737,6 +750,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testSemanticScoreInit() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -785,6 +799,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testSemanticScoreComponents() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -818,6 +833,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testMemberAccessTypes() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath(fileName: "AnimalKit.swift")
     let positions = try await sourcekitd.openDocument(
@@ -864,6 +880,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testTypeModule() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath(fileName: "AnimalKit.swift")
     let positions = try await sourcekitd.openDocument(
@@ -893,6 +910,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testKeyword() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -918,6 +936,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testSemanticScoreComponentsAsExtraUpdate() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -986,6 +1005,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
     #if !os(macOS)
     try XCTSkipIf(true, "AppKit is only defined on macOS")
     #endif
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -1034,6 +1054,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testPopularity() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -1123,6 +1144,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testScopedPopularity() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -1196,6 +1218,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testModulePopularity() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -1262,6 +1285,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testFlair() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -1292,6 +1316,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testPluginFilterAndSortPerfAllMatch() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let (position, recent) = try await sourcekitd.perfTestSetup(path: path)
@@ -1331,6 +1356,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testPluginFilterAndSortPerfFiltered() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let (position, recent) = try await sourcekitd.perfTestSetup(path: path)
@@ -1399,6 +1425,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
     ])
 
     // Open document in sourcekitd
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let libBPath = try project.uri(for: "LibB.swift").pseudoPath
     try await sourcekitd.openDocument(
@@ -1471,6 +1498,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
       """,
     ])
 
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let mainPath = try project.uri(for: "Main.swift").pseudoPath
     try await sourcekitd.openDocument(
@@ -1503,6 +1531,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
     #if !os(macOS)
     try XCTSkipIf(true, "Soft deprecation is only defined for macOS in this test case")
     #endif
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -1568,6 +1597,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testActorKind() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -1587,6 +1617,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testMacroKind() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -1616,6 +1647,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testMaxResults() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     var sourceText = "//dummy\n";

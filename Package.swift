@@ -404,6 +404,7 @@ var targets: [Target] = [
       "SKLogging",
       "SKOptions",
       "SKUtilities",
+      "SourceKitD",
       "SourceKitLSP",
       "SwiftExtensions",
       "ToolchainRegistry",
