@@ -144,9 +144,9 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     return ClangBuildSettings(settings, clangPath: clangPath)
   }
 
-  nonisolated func canHandle(workspace: Workspace) -> Bool {
+  nonisolated func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool {
     // We launch different clangd instance for each workspace because clangd doesn't have multi-root workspace support.
-    return workspace === self.workspace.value
+    return workspace === self.workspace.value && self.clangdPath == toolchain.clangd
   }
 
   func addStateChangeHandler(handler: @escaping (LanguageServerState, LanguageServerState) -> Void) {

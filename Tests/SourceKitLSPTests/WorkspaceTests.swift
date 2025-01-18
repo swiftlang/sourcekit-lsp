@@ -984,12 +984,17 @@ final class WorkspaceTests: XCTestCase {
       "Sources/MyLib/Bar.swift": "",
       "build/compile_commands.json": """
       [
-      {
-        "directory": "$TEST_DIR_BACKSLASH_ESCAPED",
-        "command": "swiftc $TEST_DIR_BACKSLASH_ESCAPED/src/Foo.swift -DHAVE_SETTINGS \(defaultSDKArgs)",
-        "file": "src/Foo.swift",
-        "output": "$TEST_DIR_BACKSLASH_ESCAPED/build/Foo.swift.o"
-      }
+        {
+          "directory": "$TEST_DIR_BACKSLASH_ESCAPED",
+          "arguments": [
+            "swiftc",
+            "$TEST_DIR_BACKSLASH_ESCAPED/src/Foo.swift",
+            \(defaultSDKArgs)
+            "-DHAVE_SETTINGS"
+          ],
+          "file": "src/Foo.swift",
+          "output": "$TEST_DIR_BACKSLASH_ESCAPED/build/Foo.swift.o"
+        }
       ]
       """,
       "Package.swift": """
@@ -1030,12 +1035,17 @@ final class WorkspaceTests: XCTestCase {
       "projA/Sources/MyLib/Bar.swift": "",
       "projA/build/compile_commands.json": """
       [
-      {
-        "directory": "$TEST_DIR_BACKSLASH_ESCAPED/projA",
-        "command": "swiftc $TEST_DIR_BACKSLASH_ESCAPED/projA/src/Foo.swift -DHAVE_SETTINGS \(defaultSDKArgs)",
-        "file": "src/Foo.swift",
-        "output": "$TEST_DIR_BACKSLASH_ESCAPED/projA/build/Foo.swift.o"
-      }
+        {
+          "directory": "$TEST_DIR_BACKSLASH_ESCAPED/projA",
+          "arguments": [
+            "swiftc",
+            "$TEST_DIR_BACKSLASH_ESCAPED/projA/src/Foo.swift",
+            \(defaultSDKArgs)
+            "-DHAVE_SETTINGS"
+          ],
+          "file": "src/Foo.swift",
+          "output": "$TEST_DIR_BACKSLASH_ESCAPED/projA/build/Foo.swift.o"
+        }
       ]
       """,
       "projA/Package.swift": """
@@ -1077,12 +1087,17 @@ final class WorkspaceTests: XCTestCase {
       """,
       "otherbuild/compile_commands.json": """
       [
-      {
-        "directory": "$TEST_DIR_BACKSLASH_ESCAPED",
-        "command": "swiftc $TEST_DIR_BACKSLASH_ESCAPED/src/Foo.swift -DHAVE_SETTINGS \(defaultSDKArgs)",
-        "file": "src/Foo.swift",
-        "output": "$TEST_DIR_BACKSLASH_ESCAPED/otherbuild/Foo.swift.o"
-      }
+        {
+          "directory": "$TEST_DIR_BACKSLASH_ESCAPED",
+          "arguments": [
+            "swiftc",
+            "$TEST_DIR_BACKSLASH_ESCAPED/src/Foo.swift",
+            \(defaultSDKArgs)
+            "-DHAVE_SETTINGS"
+          ],
+          "file": "src/Foo.swift",
+          "output": "$TEST_DIR_BACKSLASH_ESCAPED/otherbuild/Foo.swift.o"
+        }
       ]
       """,
     ])
@@ -1112,12 +1127,10 @@ final class WorkspaceTests: XCTestCase {
 
 fileprivate let defaultSDKArgs: String = {
   if let defaultSDKPath {
-    let escapedPath = defaultSDKPath
+    let escapedPath = defaultSDKPath.replacing(#"\"#, with: #"\\"#)
     return """
-      -sdk "\(escapedPath)"
+      "-sdk", "\(escapedPath)",
       """
-      .replacing(#"\"#, with: #"\\"#)
-      .replacing("\"", with: #"\""#)
   }
   return ""
 }()

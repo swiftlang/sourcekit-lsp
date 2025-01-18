@@ -33,7 +33,7 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     workspace: Workspace
   ) async throws {}
 
-  package nonisolated func canHandle(workspace: Workspace) -> Bool {
+  package nonisolated func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool {
     return true
   }
 

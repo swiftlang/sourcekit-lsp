@@ -75,32 +75,10 @@ extension BuildDestinationIdentifier {
 
 extension BuildTargetIdentifier {
   fileprivate init(_ buildTarget: any SwiftBuildTarget) throws {
-    try self.init(target: buildTarget.name, destination: BuildDestinationIdentifier(buildTarget.destination))
-  }
-
-  fileprivate static let forPackageManifest = BuildTargetIdentifier(uri: try! URI(string: "swiftpm://package-manifest"))
-
-  fileprivate var targetProperties: (target: String, runDestination: String) {
-    get throws {
-      struct InvalidTargetIdentifierError: Swift.Error, CustomStringConvertible {
-        var target: BuildTargetIdentifier
-
-        var description: String {
-          return "Invalid target identifier \(target)"
-        }
-      }
-      guard let components = URLComponents(url: self.uri.arbitrarySchemeURL, resolvingAgainstBaseURL: false) else {
-        throw InvalidTargetIdentifierError(target: self)
-      }
-      let target = components.queryItems?.last(where: { $0.name == "target" })?.value
-      let runDestination = components.queryItems?.last(where: { $0.name == "destination" })?.value
-
-      guard let target, let runDestination else {
-        throw InvalidTargetIdentifierError(target: self)
-      }
-
-      return (target, runDestination)
-    }
+    self = try Self.createSwiftPM(
+      target: buildTarget.name,
+      destination: BuildDestinationIdentifier(buildTarget.destination)
+    )
   }
 }
 
@@ -608,7 +586,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       "--package-path", try projectRoot.filePath,
       "--scratch-path", self.swiftPMWorkspace.location.scratchDirectory.pathString,
       "--disable-index-store",
-      "--target", try target.targetProperties.target,
+      "--target", try target.swiftpmTargetProperties.target,
     ]
     if options.swiftPMOrDefault.disableSandbox ?? false {
       arguments += ["--disable-sandbox"]

@@ -43,9 +43,14 @@ package enum BuildDestinationIdentifier {
   }
 }
 
+// MARK: BuildTargetIdentifier for SwiftPM
+
 extension BuildTargetIdentifier {
   /// - Important: *For testing only*
-  package init(target: String, destination: BuildDestinationIdentifier) throws {
+  package static func createSwiftPM(
+    target: String,
+    destination: BuildDestinationIdentifier
+  ) throws -> BuildTargetIdentifier {
     var components = URLComponents()
     components.scheme = "swiftpm"
     components.host = "target"
@@ -67,12 +72,12 @@ extension BuildTargetIdentifier {
       throw FailedToConvertSwiftBuildTargetToUrlError(target: target, destination: destination.id)
     }
 
-    self.init(uri: URI(url))
+    return BuildTargetIdentifier(uri: URI(url))
   }
 
-  fileprivate static let forPackageManifest = BuildTargetIdentifier(uri: try! URI(string: "swiftpm://package-manifest"))
+  static let forPackageManifest = BuildTargetIdentifier(uri: try! URI(string: "swiftpm://package-manifest"))
 
-  fileprivate var targetProperties: (target: String, runDestination: String) {
+  var swiftpmTargetProperties: (target: String, runDestination: String) {
     get throws {
       struct InvalidTargetIdentifierError: Swift.Error, CustomStringConvertible {
         var target: BuildTargetIdentifier
@@ -92,6 +97,57 @@ extension BuildTargetIdentifier {
       }
 
       return (target, runDestination)
+    }
+  }
+}
+
+// MARK: BuildTargetIdentifier for CompileCommands
+
+extension BuildTargetIdentifier {
+  /// - Important: *For testing only*
+  package static func createCompileCommands(compiler: String) throws -> BuildTargetIdentifier {
+    var components = URLComponents()
+    components.scheme = "compilecommands"
+    components.host = "target"
+    components.queryItems = [URLQueryItem(name: "compiler", value: compiler)]
+
+    struct FailedToConvertSwiftBuildTargetToUrlError: Swift.Error, CustomStringConvertible {
+      var compiler: String
+
+      var description: String {
+        return "Failed to generate URL for compiler: \(compiler)"
+      }
+    }
+
+    guard let url = components.url else {
+      throw FailedToConvertSwiftBuildTargetToUrlError(compiler: compiler)
+    }
+
+    return BuildTargetIdentifier(uri: URI(url))
+  }
+
+  var compileCommandsCompiler: String {
+    get throws {
+      struct InvalidTargetIdentifierError: Swift.Error, CustomStringConvertible {
+        var target: BuildTargetIdentifier
+
+        var description: String {
+          return "Invalid target identifier \(target)"
+        }
+      }
+      guard let components = URLComponents(url: self.uri.arbitrarySchemeURL, resolvingAgainstBaseURL: false) else {
+        throw InvalidTargetIdentifierError(target: self)
+      }
+      guard components.scheme == "compilecommands", components.host == "target" else {
+        throw InvalidTargetIdentifierError(target: self)
+      }
+      let compiler = components.queryItems?.last(where: { $0.name == "compiler" })?.value
+
+      guard let compiler else {
+        throw InvalidTargetIdentifierError(target: self)
+      }
+
+      return compiler
     }
   }
 }

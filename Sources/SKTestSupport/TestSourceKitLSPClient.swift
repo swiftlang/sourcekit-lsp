@@ -10,34 +10,26 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
+import InProcessClient
+import LanguageServerProtocolExtensions
+import LanguageServerProtocolJSONRPC
+import SKUtilities
+import SourceKitD
+import SwiftExtensions
+import SwiftSyntax
+import XCTest
+
 #if compiler(>=6)
-import Foundation
-import InProcessClient
 package import LanguageServerProtocol
-import LanguageServerProtocolJSONRPC
-import LanguageServerProtocolExtensions
 package import SKOptions
-import SKUtilities
-import SourceKitD
 package import SourceKitLSP
-import SwiftExtensions
-import SwiftSyntax
-import ToolchainRegistry
-import XCTest
+package import ToolchainRegistry
 #else
-import Foundation
-import InProcessClient
 import LanguageServerProtocol
-import LanguageServerProtocolJSONRPC
-import LanguageServerProtocolExtensions
 import SKOptions
-import SKUtilities
-import SourceKitD
 import SourceKitLSP
-import SwiftExtensions
-import SwiftSyntax
 import ToolchainRegistry
-import XCTest
 #endif
 
 extension SourceKitLSPOptions {
@@ -150,6 +142,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     initialize: Bool = true,
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
+    toolchainRegistry: ToolchainRegistry = .forTesting,
     usePullDiagnostics: Bool = true,
     enableBackgroundIndexing: Bool = false,
     workspaceFolders: [WorkspaceFolder]? = nil,
@@ -175,7 +168,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     self.serverToClientConnection = serverToClientConnection
     server = SourceKitLSPServer(
       client: serverToClientConnection,
-      toolchainRegistry: ToolchainRegistry.forTesting,
+      toolchainRegistry: toolchainRegistry,
       options: options,
       hooks: hooks,
       onExit: {
