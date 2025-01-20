@@ -1034,6 +1034,52 @@ final class CodingTests: XCTestCase {
     )
   }
 
+  func testDoccDocumentationRequest() throws {
+    checkDecoding(
+      json: #"""
+        {
+          "textDocument" : {
+            "uri" : "file:\/\/\/some\/path"
+          }
+        }
+        """#,
+      expected: DoccDocumentationRequest(
+        textDocument: TextDocumentIdentifier(try DocumentURI(string: "file:///some/path"))
+      )
+    )
+
+    checkDecoding(
+      json: #"""
+        {
+          "position" : {
+            "character" : 17,
+            "line" : 4
+          },
+          "textDocument" : {
+            "uri" : "file:\/\/\/some\/path"
+          }
+        }
+        """#,
+      expected: DoccDocumentationRequest(
+        textDocument: TextDocumentIdentifier(try DocumentURI(string: "file:///some/path")),
+        position: Position(line: 4, utf16index: 17)
+      )
+    )
+  }
+
+  func testDoccDocumentationResponse() throws {
+    checkCoding(
+      DoccDocumentationResponse(
+        renderNode: "render node contents"
+      ),
+      json: #"""
+        {
+          "renderNode" : "render node contents"
+        }
+        """#
+    )
+  }
+
   func testWorkspaceDocumentDiagnosticReport() throws {
     checkCoding(
       WorkspaceDocumentDiagnosticReport.full(

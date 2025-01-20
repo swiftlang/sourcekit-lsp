@@ -169,6 +169,56 @@ interface SKCompletionOptions {
 }
 ```
 
+## `textDocument/doccDocumentation`
+
+New request that generates documentation for a symbol at a given cursor location.
+
+Primarily designed to support live preview of Swift documentation in editors.
+
+This request looks up the nearest documentable symbol (if any) at a given cursor location within
+a text document and returns a `DoccDocumentationResponse`. The response contains a string
+representing single JSON encoded DocC RenderNode. This RenderNode can then be rendered in an
+editor via https://github.com/swiftlang/swift-docc-render.
+
+The position may be ommitted for documentation within DocC markdown and tutorial files as they
+represent a single documentation page. It is only required for generating documentation within
+Swift files as they usually contain multiple documentable symbols.
+
+Documentation can fail to be generated for a number of reasons. The most common of which being
+that no documentable symbol could be found. In such cases the request will fail with a request
+failed LSP error code (-32803) that contains a human-readable error message. This error message can
+be displayed within the live preview editor to indicate that something has gone wrong.
+
+At the moment this request is only available on macOS and Linux. SourceKit-LSP will advertise
+`textDocument/doccDocumentation` in its experimental server capabilities if it supports it.
+
+- params: `DoccDocumentationParams`
+- result: `DoccDocumentationResponse`
+
+```ts
+export interface DoccDocumentationParams {
+  /**
+   * The document to generate documentation for.
+   */
+  textDocument: TextDocumentIdentifier;
+
+  /**
+   * The cursor position within the document. (optional)
+   * 
+   * This parameter is only used in Swift files to determine which symbol to render.
+   * The position is ignored for markdown and tutorial documents.
+   */
+  position?: Position;
+}
+
+export interface DoccDocumentationResponse {
+  /**
+   * The JSON encoded RenderNode that can be rendered by swift-docc-render.
+   */
+  renderNode: string;
+}
+```
+
 ## `textDocument/symbolInfo`
 
 New request for semantic information about the symbol at a given location.

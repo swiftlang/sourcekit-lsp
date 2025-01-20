@@ -92,6 +92,16 @@ package actor SourceKitLSPServer {
 
   package let documentManager = DocumentManager()
 
+  #if canImport(SwiftDocC)
+  /// The `DocumentationManager` that handles all documentation related requests
+  ///
+  /// Implicitly unwrapped optional so we can create an `DocumentationManager` that has a weak reference to
+  /// `SourceKitLSPServer`.
+  /// `nonisolated(unsafe)` because `documentationManager` will not be modified after it is assigned from the
+  /// initializer.
+  private(set) nonisolated(unsafe) var documentationManager: DocumentationManager!
+  #endif
+
   /// The `TaskScheduler` that schedules all background indexing tasks.
   ///
   /// Shared process-wide to ensure the scheduled index operations across multiple workspaces don't exceed the maximum
@@ -171,6 +181,10 @@ package actor SourceKitLSPServer {
       (TaskPriority.low, max(Int(lowPriorityCores), 1)),
     ])
     self.indexProgressManager = nil
+    #if canImport(SwiftDocC)
+    self.documentationManager = nil
+    self.documentationManager = DocumentationManager(sourceKitLSPServer: self)
+    #endif
     self.indexProgressManager = IndexProgressManager(sourceKitLSPServer: self)
     self.sourcekitdCrashedWorkDoneProgress = SharedWorkDoneProgressManager(
       sourceKitLSPServer: self,
@@ -739,6 +753,10 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.declaration)
     case let request as RequestAndReply<DefinitionRequest>:
       await self.handleRequest(for: request, requestHandler: self.definition)
+    #if canImport(SwiftDocC)
+    case let request as RequestAndReply<DoccDocumentationRequest>:
+      await request.reply { try await doccDocumentation(request.params) }
+    #endif
     case let request as RequestAndReply<DocumentColorRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentColor)
     case let request as RequestAndReply<DocumentDiagnosticsRequest>:
@@ -1045,6 +1063,16 @@ extension SourceKitLSPServer {
       ? nil
       : ExecuteCommandOptions(commands: builtinSwiftCommands)
 
+    var experimentalCapabilities: [String: LSPAny] = [
+      "workspace/tests": .dictionary(["version": .int(2)]),
+      "textDocument/tests": .dictionary(["version": .int(2)]),
+      "workspace/triggerReindex": .dictionary(["version": .int(1)]),
+      "workspace/getReferenceDocument": .dictionary(["version": .int(1)]),
+    ]
+    #if canImport(SwiftDocC)
+    experimentalCapabilities["textDocument/doccDocumentation"] = .dictionary(["version": .int(1)])
+    #endif
+
     return ServerCapabilities(
       textDocumentSync: .options(
         TextDocumentSyncOptions(
@@ -1086,12 +1114,7 @@ extension SourceKitLSPServer {
       typeHierarchyProvider: .bool(true),
       semanticTokensProvider: semanticTokensOptions,
       inlayHintProvider: inlayHintOptions,
-      experimental: .dictionary([
-        "workspace/tests": .dictionary(["version": .int(2)]),
-        "textDocument/tests": .dictionary(["version": .int(2)]),
-        "workspace/triggerReindex": .dictionary(["version": .int(1)]),
-        "workspace/getReferenceDocument": .dictionary(["version": .int(1)]),
-      ])
+      experimental: .dictionary(experimentalCapabilities)
     )
   }
 
@@ -1401,6 +1424,15 @@ extension SourceKitLSPServer {
   ) async throws -> CompletionList {
     return try await languageService.completion(req)
   }
+
+  #if canImport(SwiftDocC)
+  func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
+    return try await documentationManager.convertDocumentation(
+      req.textDocument.uri,
+      at: req.position
+    )
+  }
+  #endif
 
   func hover(
     _ req: HoverRequest,
