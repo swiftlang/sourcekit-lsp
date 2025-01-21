@@ -327,6 +327,10 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   ///
   /// - Important: Must only be called on `packageLoadingQueue`.
   private func reloadPackageAssumingOnPackageLoadingQueue() async throws {
+    let signposter = logger.makeSignposter()
+    let signpostID = signposter.makeSignpostID()
+    let state = signposter.beginInterval("Reloading package", id: signpostID, "Start reloading package")
+
     self.connectionToSourceKitLSP.send(
       TaskStartNotification(
         taskId: TaskId(id: "package-reloading"),
@@ -349,6 +353,8 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       observabilityScope: observabilitySystem.topScope.makeChildScope(description: "Load package graph")
     )
 
+    signposter.emitEvent("Finished loading modules graph", id: signpostID)
+
     let plan = try await BuildPlan(
       destinationBuildParameters: destinationBuildParameters,
       toolsBuildParameters: toolsBuildParameters,
@@ -357,6 +363,9 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       fileSystem: localFileSystem,
       observabilityScope: observabilitySystem.topScope.makeChildScope(description: "Create SwiftPM build plan")
     )
+
+    signposter.emitEvent("Finished generating build plan", id: signpostID)
+
     let buildDescription = BuildDescription(buildPlan: plan)
     self.buildDescription = buildDescription
 
@@ -380,7 +389,10 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       swiftPMTargets[targetIdentifier] = buildTarget
     }
 
+    signposter.emitEvent("Finished traversing modules", id: signpostID)
+
     connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
+    signposter.endInterval("Reloading package", state)
   }
 
   package nonisolated var supportsPreparation: Bool { true }
