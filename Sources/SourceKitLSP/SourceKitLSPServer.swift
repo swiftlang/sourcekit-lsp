@@ -1181,6 +1181,8 @@ extension SourceKitLSPServer {
       await workspace.buildSystemManager.setMainFilesProvider(nil)
       workspace.closeIndex()
     }
+    // Make sure we emit all pending log messages. When we're not using `NonDarwinLogger` this is a no-op.
+    await NonDarwinLogger.flush()
   }
 
   func shutdown(_ request: ShutdownRequest) async throws -> ShutdownRequest.Response {
