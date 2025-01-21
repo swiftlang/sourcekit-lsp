@@ -281,6 +281,16 @@ package actor SourceKitLSPServer {
     }.valuePropagatingCancellation
   }
 
+  private func documentService(for uri: DocumentURI) async throws -> LanguageService {
+    guard let workspace = await self.workspaceForDocument(uri: uri) else {
+      throw ResponseError.workspaceNotOpen(uri)
+    }
+    guard let languageService = workspace.documentService(for: uri) else {
+      throw ResponseError.unknown("No language service for '\(uri)' found")
+    }
+    return languageService
+  }
+
   /// This method must be executed on `workspaceQueue` to ensure that the file handling capabilities of the
   /// workspaces don't change during the computation. Otherwise, we could run into a race condition like the following:
   ///  1. We don't have an entry for file `a.swift` in `workspaceForUri` and start the computation
@@ -754,6 +764,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.colorPresentation)
     case let request as RequestAndReply<CompletionRequest>:
       await self.handleRequest(for: request, requestHandler: self.completion)
+    case let request as RequestAndReply<CompletionItemResolveRequest>:
+      await request.reply { try await completionItemResolve(request: request.params) }
     case let request as RequestAndReply<DeclarationRequest>:
       await self.handleRequest(for: request, requestHandler: self.declaration)
     case let request as RequestAndReply<DefinitionRequest>:
@@ -1035,7 +1047,7 @@ extension SourceKitLSPServer {
       await registry.clientHasDynamicCompletionRegistration
       ? nil
       : LanguageServerProtocol.CompletionOptions(
-        resolveProvider: false,
+        resolveProvider: true,
         triggerCharacters: [".", "("]
       )
 
@@ -1432,6 +1444,15 @@ extension SourceKitLSPServer {
     return try await languageService.completion(req)
   }
 
+  func completionItemResolve(
+    request: CompletionItemResolveRequest
+  ) async throws -> CompletionItem {
+    guard let completionItemData = CompletionItemData(fromLSPAny: request.item.data) else {
+      return request.item
+    }
+    return try await documentService(for: completionItemData.uri).completionItemResolve(request)
+  }
+
   #if canImport(SwiftDocC)
   func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
     return try await documentationManager.convertDocumentation(
@@ -1624,18 +1645,12 @@ extension SourceKitLSPServer {
       logger.error("Attempted to perform executeCommand request without an URL")
       return nil
     }
-    guard let workspace = await workspaceForDocument(uri: uri) else {
-      throw ResponseError.workspaceNotOpen(uri)
-    }
-    guard let languageService = workspace.documentService(for: uri) else {
-      return nil
-    }
 
     let executeCommand = ExecuteCommandRequest(
       command: req.command,
       arguments: req.argumentsWithoutSourceKitMetadata
     )
-    return try await languageService.executeCommand(executeCommand)
+    return try await documentService(for: uri).executeCommand(executeCommand)
   }
 
   func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {

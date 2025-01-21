@@ -31,8 +31,6 @@ extension SwiftLanguageService {
     let completionPos = await adjustPositionToStartOfIdentifier(req.position, in: snapshot)
     let filterText = String(snapshot.text[snapshot.index(of: completionPos)..<snapshot.index(of: req.position)])
 
-    let clientSupportsSnippets =
-      capabilityRegistry.clientCapabilities.textDocument?.completion?.completionItem?.snippetSupport ?? false
     let buildSettings = await buildSettings(for: snapshot.uri, fallbackAfterTimeout: false)
 
     let inferredIndentationWidth = BasicFormat.inferIndentation(of: await syntaxTreeManager.syntaxTree(for: snapshot))
@@ -45,8 +43,12 @@ extension SwiftLanguageService {
       completionPosition: completionPos,
       cursorPosition: req.position,
       compileCommand: buildSettings,
-      clientSupportsSnippets: clientSupportsSnippets,
+      clientCapabilities: capabilityRegistry.clientCapabilities,
       filterText: filterText
     )
+  }
+
+  package func completionItemResolve(_ req: CompletionItemResolveRequest) async throws -> CompletionItem {
+    return try await CodeCompletionSession.completionItemResolve(item: req.item, sourcekitd: sourcekitd)
   }
 }

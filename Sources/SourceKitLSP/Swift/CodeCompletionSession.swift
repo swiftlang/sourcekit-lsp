@@ -23,28 +23,53 @@ import SwiftParser
 @_spi(SourceKitLSP) import SwiftRefactor
 import SwiftSyntax
 
-/// Data that is attached to a `CompletionItem`.
-private struct CompletionItemData: LSPAnyCodable {
-  let id: Int?
+/// Uniquely identifies a code completion session. We need this so that when resolving a code completion item, we can
+/// verify that the item to resolve belongs to the code completion session that is currently open.
+struct CompletionSessionID: Equatable {
+  private static let nextSessionID = AtomicUInt32(initialValue: 0)
 
-  init(id: Int?) {
-    self.id = id
+  let value: UInt32
+
+  init(value: UInt32) {
+    self.value = value
+  }
+
+  static func next() -> CompletionSessionID {
+    return CompletionSessionID(value: nextSessionID.fetchAndIncrement())
+  }
+}
+
+/// Data that is attached to a `CompletionItem`.
+struct CompletionItemData: LSPAnyCodable {
+  let uri: DocumentURI
+  let sessionId: CompletionSessionID
+  let itemId: Int
+
+  init(uri: DocumentURI, sessionId: CompletionSessionID, itemId: Int) {
+    self.uri = uri
+    self.sessionId = sessionId
+    self.itemId = itemId
   }
 
   init?(fromLSPDictionary dictionary: [String: LSPAny]) {
-    if case .int(let id) = dictionary["id"] {
-      self.id = id
-    } else {
-      self.id = nil
+    guard case .string(let uriString) = dictionary["uri"],
+      case .int(let sessionId) = dictionary["sessionId"],
+      case .int(let itemId) = dictionary["itemId"],
+      let uri = try? DocumentURI(string: uriString)
+    else {
+      return nil
     }
+    self.uri = uri
+    self.sessionId = CompletionSessionID(value: UInt32(sessionId))
+    self.itemId = itemId
   }
 
   func encodeToLSPAny() -> LSPAny {
-    var dict: [String: LSPAny] = [:]
-    if let id {
-      dict["id"] = .int(id)
-    }
-    return .dictionary(dict)
+    return .dictionary([
+      "uri": .string(uri.stringValue),
+      "sessionId": .int(Int(sessionId.value)),
+      "itemId": .int(itemId),
+    ])
   }
 }
 
@@ -108,7 +133,6 @@ class CodeCompletionSession {
   ///   - compileCommand: The compiler arguments to use.
   ///   - options: Further options that can be sent from the editor to control
   ///     completion.
-  ///   - clientSupportsSnippets: Whether the editor supports LSP snippets.
   ///   - filterText: The text by which to filter code completion results.
   ///   - mustReuse: If `true` and there is an active session in this
   ///     `sourcekitd` instance, cancel the request instead of opening a new
@@ -125,7 +149,7 @@ class CodeCompletionSession {
     completionPosition: Position,
     cursorPosition: Position,
     compileCommand: SwiftCompileCommand?,
-    clientSupportsSnippets: Bool,
+    clientCapabilities: ClientCapabilities,
     filterText: String
   ) async throws -> CompletionList {
     let task = completionQueue.asyncThrowing {
@@ -134,7 +158,6 @@ class CodeCompletionSession {
           session.snapshot.uri == snapshot.uri
           && session.position == completionPosition
           && session.compileCommand == compileCommand
-          && session.clientSupportsSnippets == clientSupportsSnippets
 
         if isCompatible {
           return try await session.update(
@@ -155,12 +178,32 @@ class CodeCompletionSession {
         indentationWidth: indentationWidth,
         position: completionPosition,
         compileCommand: compileCommand,
-        clientSupportsSnippets: clientSupportsSnippets
+        clientCapabilities: clientCapabilities
       )
       completionSessions[ObjectIdentifier(sourcekitd)] = session
       return try await session.open(filterText: filterText, position: cursorPosition, in: snapshot)
     }
 
+    return try await task.valuePropagatingCancellation
+  }
+
+  static func completionItemResolve(
+    item: CompletionItem,
+    sourcekitd: SourceKitD
+  ) async throws -> CompletionItem {
+    guard let data = CompletionItemData(fromLSPAny: item.data) else {
+      return item
+    }
+    let task = completionQueue.asyncThrowing {
+      guard let session = completionSessions[ObjectIdentifier(sourcekitd)], data.sessionId == session.id else {
+        throw ResponseError.unknown("No active completion session for \(data.uri)")
+      }
+      return await Self.resolveDocumentation(
+        in: item,
+        timeout: session.options.sourcekitdRequestTimeoutOrDefault,
+        sourcekitd: sourcekitd
+      )
+    }
     return try await task.valuePropagatingCancellation
   }
 
@@ -180,6 +223,7 @@ class CodeCompletionSession {
 
   // MARK: - Implementation
 
+  private let id: CompletionSessionID
   private let sourcekitd: any SourceKitD
   private let snapshot: DocumentSnapshot
   private let options: SourceKitLSPOptions
@@ -188,6 +232,7 @@ class CodeCompletionSession {
   private let position: Position
   private let compileCommand: SwiftCompileCommand?
   private let clientSupportsSnippets: Bool
+  private let clientSupportsDocumentationResolve: Bool
   private var state: State = .closed
 
   private enum State {
@@ -205,15 +250,20 @@ class CodeCompletionSession {
     indentationWidth: Trivia?,
     position: Position,
     compileCommand: SwiftCompileCommand?,
-    clientSupportsSnippets: Bool
+    clientCapabilities: ClientCapabilities
   ) {
+    self.id = CompletionSessionID.next()
     self.sourcekitd = sourcekitd
     self.options = options
     self.indentationWidth = indentationWidth
     self.snapshot = snapshot
     self.position = position
     self.compileCommand = compileCommand
-    self.clientSupportsSnippets = clientSupportsSnippets
+    self.clientSupportsSnippets = clientCapabilities.textDocument?.completion?.completionItem?.snippetSupport ?? false
+    self.clientSupportsDocumentationResolve =
+      clientCapabilities.textDocument?.completion?.completionItem?.resolveSupport?.properties.contains("documentation")
+      ?? false
+
   }
 
   private func open(
@@ -389,7 +439,7 @@ class CodeCompletionSession {
     let sourcekitd = self.sourcekitd
     let keys = sourcekitd.keys
 
-    let completionItems = completions.compactMap { (value: SKDResponseDictionary) -> CompletionItem? in
+    var completionItems = completions.compactMap { (value: SKDResponseDictionary) -> CompletionItem? in
       guard let name: String = value[keys.description],
         var insertText: String = value[keys.sourceText]
       else {
@@ -449,7 +499,12 @@ class CodeCompletionSession {
         sortText = nil
       }
 
-      let data = CompletionItemData(id: value[keys.identifier] as Int?)
+      let data: CompletionItemData? =
+        if let identifier: Int = value[keys.identifier] {
+          CompletionItemData(uri: self.uri, sessionId: self.id, itemId: identifier)
+        } else {
+          nil
+        }
 
       let kind: sourcekitd_api_uid_t? = value[sourcekitd.keys.kind]
       return CompletionItem(
@@ -467,26 +522,34 @@ class CodeCompletionSession {
       )
     }
 
-    // TODO: Only compute documentation if the client doesn't support `completionItem/resolve`
-    // (https://github.com/swiftlang/sourcekit-lsp/issues/1935)
-    let withDocumentation = await completionItems.asyncMap { item in
-      var item = item
-
-      if let itemId = CompletionItemData(fromLSPAny: item.data)?.id {
-        let req = sourcekitd.dictionary([
-          keys.request: sourcekitd.requests.codeCompleteDocumentation,
-          keys.identifier: itemId,
-        ])
-        let documentationResponse = try? await sourcekitd.send(req, timeout: .seconds(1), fileContents: snapshot.text)
-        if let docString: String = documentationResponse?[keys.docBrief] {
-          item.documentation = .markupContent(MarkupContent(kind: .markdown, value: docString))
-        }
+    if !clientSupportsDocumentationResolve {
+      completionItems = await completionItems.asyncMap { item in
+        return await Self.resolveDocumentation(in: item, timeout: .seconds(1), sourcekitd: sourcekitd)
       }
-
-      return item
     }
 
-    return CompletionList(isIncomplete: isIncomplete, items: withDocumentation)
+    return CompletionList(isIncomplete: isIncomplete, items: completionItems)
+  }
+
+  private static func resolveDocumentation(
+    in item: CompletionItem,
+    timeout: Duration,
+    sourcekitd: SourceKitD
+  ) async -> CompletionItem {
+    var item = item
+    if let itemId = CompletionItemData(fromLSPAny: item.data)?.itemId {
+      let req = sourcekitd.dictionary([
+        sourcekitd.keys.request: sourcekitd.requests.codeCompleteDocumentation,
+        sourcekitd.keys.identifier: itemId,
+      ])
+      let documentationResponse = await orLog("Retrieving documentation for completion item") {
+        try await sourcekitd.send(req, timeout: timeout, fileContents: nil)
+      }
+      if let docString: String = documentationResponse?[sourcekitd.keys.docBrief] {
+        item.documentation = .markupContent(MarkupContent(kind: .markdown, value: docString))
+      }
+    }
+    return item
   }
 
   private func computeCompletionTextEdit(
