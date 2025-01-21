@@ -16,22 +16,6 @@ import SourceKitLSP
 import XCTest
 
 final class SwiftCompletionTests: XCTestCase {
-  /// Base document text to use for completion tests.
-  private let text: String = """
-    struct S {
-      /// Documentation for `abc`.
-      var abc: Int
-
-      func test(a: Int) {
-        self.abc
-      }
-
-      func test(_ b: Int) {
-        self.abc
-      }
-    }
-    """
-
   // MARK: - Helpers
 
   private var snippetCapabilities = ClientCapabilities(
@@ -44,24 +28,32 @@ final class SwiftCompletionTests: XCTestCase {
 
   // MARK: - Tests
 
-  func testCompletionServerFilter() async throws {
-    try await testCompletionBasic()
-  }
-
-  func testCompletionDefaultFilter() async throws {
-    try await testCompletionBasic()
-  }
-
   func testCompletionBasic() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
-    testClient.openDocument(text, uri: uri)
+    let positions = testClient.openDocument(
+      """
+      struct S {
+        /// Documentation for `abc`.
+        var abc: Int
+
+        func test(a: Int) {
+          self.1️⃣abc
+      2️⃣  }
+
+        func test(_ b: Int) {
+          self.abc
+        }
+      }
+      """,
+      uri: uri
+    )
 
     let selfDot = try await testClient.send(
       CompletionRequest(
         textDocument: TextDocumentIdentifier(uri),
-        position: Position(line: 5, utf16index: 9)
+        position: positions["1️⃣"]
       )
     )
 
@@ -74,20 +66,15 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(abc.detail, "Int")
       XCTAssertEqual(abc.documentation, .markupContent(MarkupContent(kind: .markdown, value: "Documentation for abc.")))
       XCTAssertEqual(abc.filterText, "abc")
-      XCTAssertEqual(
-        abc.textEdit,
-        .textEdit(TextEdit(range: Position(line: 5, utf16index: 9)..<Position(line: 5, utf16index: 9), newText: "abc"))
-      )
+      XCTAssertEqual(abc.textEdit, .textEdit(TextEdit(range: Range(positions["1️⃣"]), newText: "abc")))
       XCTAssertEqual(abc.insertText, "abc")
       XCTAssertEqual(abc.insertTextFormat, .plain)
     }
 
-    for col in 10...12 {
+    for columnOffset in 1...3 {
+      let offsetPosition = positions["1️⃣"].adding(columns: columnOffset)
       let inIdent = try await testClient.send(
-        CompletionRequest(
-          textDocument: TextDocumentIdentifier(uri),
-          position: Position(line: 5, utf16index: col)
-        )
+        CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: offsetPosition)
       )
       guard let abc = inIdent.items.first(where: { $0.label == "abc" }) else {
         XCTFail("No completion item with label 'abc'")
@@ -99,21 +86,13 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(abc.detail, "Int")
       XCTAssertEqual(abc.documentation, .markupContent(MarkupContent(kind: .markdown, value: "Documentation for abc.")))
       XCTAssertEqual(abc.filterText, "abc")
-      XCTAssertEqual(
-        abc.textEdit,
-        .textEdit(
-          TextEdit(range: Position(line: 5, utf16index: 9)..<Position(line: 5, utf16index: col), newText: "abc")
-        )
-      )
+      XCTAssertEqual(abc.textEdit, .textEdit(TextEdit(range: positions["1️⃣"]..<offsetPosition, newText: "abc")))
       XCTAssertEqual(abc.insertText, "abc")
       XCTAssertEqual(abc.insertTextFormat, .plain)
     }
 
     let after = try await testClient.send(
-      CompletionRequest(
-        textDocument: TextDocumentIdentifier(uri),
-        position: Position(line: 6, utf16index: 0)
-      )
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
     XCTAssertNotEqual(after, selfDot)
   }
@@ -121,7 +100,23 @@ final class SwiftCompletionTests: XCTestCase {
   func testCompletionSnippetSupport() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
     let uri = DocumentURI(for: .swift)
-    testClient.openDocument(text, uri: uri)
+    let positions = testClient.openDocument(
+      """
+      struct S {
+        /// Documentation for `abc`.
+        var abc: Int
+
+        func test(a: Int) {
+          self.1️⃣abc
+        }
+
+        func test(_ b: Int) {
+          self.2️⃣abc
+        }
+      }
+      """,
+      uri: uri
+    )
 
     func getTestMethodCompletion(_ position: Position, label: String) async throws -> CompletionItem? {
       let selfDot = try await testClient.send(
@@ -133,40 +128,24 @@ final class SwiftCompletionTests: XCTestCase {
       return selfDot.items.first { $0.label == label }
     }
 
-    var test = try await getTestMethodCompletion(Position(line: 5, utf16index: 9), label: "test(a: Int)")
+    var test = try await getTestMethodCompletion(positions["1️⃣"], label: "test(a: Int)")
     XCTAssertNotNil(test)
     if let test = test {
       XCTAssertEqual(test.kind, .method)
       XCTAssertEqual(test.detail, "Void")
       XCTAssertEqual(test.filterText, "test(a:)")
-      XCTAssertEqual(
-        test.textEdit,
-        .textEdit(
-          TextEdit(
-            range: Position(line: 5, utf16index: 9)..<Position(line: 5, utf16index: 9),
-            newText: "test(a: ${1:Int})"
-          )
-        )
-      )
+      XCTAssertEqual(test.textEdit, .textEdit(TextEdit(range: Range(positions["1️⃣"]), newText: "test(a: ${1:Int})")))
       XCTAssertEqual(test.insertText, "test(a: ${1:Int})")
       XCTAssertEqual(test.insertTextFormat, .snippet)
     }
 
-    test = try await getTestMethodCompletion(Position(line: 9, utf16index: 9), label: "test(b: Int)")
+    test = try await getTestMethodCompletion(positions["2️⃣"], label: "test(b: Int)")
     XCTAssertNotNil(test)
     if let test = test {
       XCTAssertEqual(test.kind, .method)
       XCTAssertEqual(test.detail, "Void")
       XCTAssertEqual(test.filterText, "test(:)")
-      XCTAssertEqual(
-        test.textEdit,
-        .textEdit(
-          TextEdit(
-            range: Position(line: 9, utf16index: 9)..<Position(line: 9, utf16index: 9),
-            newText: "test(${1:Int})"
-          )
-        )
-      )
+      XCTAssertEqual(test.textEdit, .textEdit(TextEdit(range: Range(positions["2️⃣"]), newText: "test(${1:Int})")))
       XCTAssertEqual(test.insertText, "test(${1:Int})")
       XCTAssertEqual(test.insertTextFormat, .snippet)
     }
@@ -175,7 +154,23 @@ final class SwiftCompletionTests: XCTestCase {
   func testCompletionNoSnippetSupport() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
-    testClient.openDocument(text, uri: uri)
+    let positions = testClient.openDocument(
+      """
+      struct S {
+        /// Documentation for `abc`.
+        var abc: Int
+
+        func test(a: Int) {
+          self.1️⃣abc
+        }
+
+        func test(_ b: Int) {
+          self.2️⃣abc
+        }
+      }
+      """,
+      uri: uri
+    )
 
     func getTestMethodCompletion(_ position: Position, label: String) async throws -> CompletionItem? {
       let selfDot = try await testClient.send(
@@ -187,34 +182,24 @@ final class SwiftCompletionTests: XCTestCase {
       return selfDot.items.first { $0.label == label }
     }
 
-    var test = try await getTestMethodCompletion(Position(line: 5, utf16index: 9), label: "test(a: Int)")
+    var test = try await getTestMethodCompletion(positions["1️⃣"], label: "test(a: Int)")
     XCTAssertNotNil(test)
     if let test = test {
       XCTAssertEqual(test.kind, .method)
       XCTAssertEqual(test.detail, "Void")
       XCTAssertEqual(test.filterText, "test(a:)")
-      XCTAssertEqual(
-        test.textEdit,
-        .textEdit(
-          TextEdit(range: Position(line: 5, utf16index: 9)..<Position(line: 5, utf16index: 9), newText: "test(a: )")
-        )
-      )
+      XCTAssertEqual(test.textEdit, .textEdit(TextEdit(range: Range(positions["1️⃣"]), newText: "test(a: )")))
       XCTAssertEqual(test.insertText, "test(a: )")
       XCTAssertEqual(test.insertTextFormat, .plain)
     }
 
-    test = try await getTestMethodCompletion(Position(line: 9, utf16index: 9), label: "test(b: Int)")
+    test = try await getTestMethodCompletion(positions["2️⃣"], label: "test(b: Int)")
     XCTAssertNotNil(test)
     if let test = test {
       XCTAssertEqual(test.kind, .method)
       XCTAssertEqual(test.detail, "Void")
       XCTAssertEqual(test.filterText, "test(:)")
-      XCTAssertEqual(
-        test.textEdit,
-        .textEdit(
-          TextEdit(range: Position(line: 9, utf16index: 9)..<Position(line: 9, utf16index: 9), newText: "test()")
-        )
-      )
+      XCTAssertEqual(test.textEdit, .textEdit(TextEdit(range: Range(positions["2️⃣"]), newText: "test()")))
       XCTAssertEqual(test.insertText, "test()")
       XCTAssertEqual(test.insertTextFormat, .plain)
     }
@@ -256,23 +241,21 @@ final class SwiftCompletionTests: XCTestCase {
   func testCompletionOptional() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
-    testClient.openDocument(
+    let positions = testClient.openDocument(
       """
       struct Foo {
         let bar: Int
       }
       let a: Foo? = Foo(bar: 1)
-      a.ba
+      a1️⃣.2️⃣ba
       """,
       uri: uri
     )
 
-    for col in 2...4 {
+    for columnOffset in 0...2 {
+      let offsetPosition = positions["2️⃣"].adding(columns: columnOffset)
       let response = try await testClient.send(
-        CompletionRequest(
-          textDocument: TextDocumentIdentifier(uri),
-          position: Position(line: 4, utf16index: col)
-        )
+        CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: offsetPosition)
       )
 
       guard let item = response.items.first(where: { $0.label.contains("bar") }) else {
@@ -283,7 +266,7 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(
         item.textEdit,
         .textEdit(
-          TextEdit(range: Position(line: 4, utf16index: 1)..<Position(line: 4, utf16index: col), newText: "?.bar")
+          TextEdit(range: positions["1️⃣"]..<offsetPosition, newText: "?.bar")
         )
       )
     }
@@ -292,23 +275,20 @@ final class SwiftCompletionTests: XCTestCase {
   func testCompletionOverride() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
-    testClient.openDocument(
+    let positions = testClient.openDocument(
       """
       class Base {
         func foo() {}
       }
       class C: Base {
-        func    // don't delete trailing space in this file
+        1️⃣func 2️⃣   // don't delete trailing space in this file
       }
       """,
       uri: uri
     )
 
     let response = try await testClient.send(
-      CompletionRequest(
-        textDocument: TextDocumentIdentifier(uri),
-        position: Position(line: 4, utf16index: 7)
-      )
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
     guard let item = response.items.first(where: { $0.label == "foo()" }) else {
       XCTFail("No completion item with label 'foo()'")
@@ -318,26 +298,21 @@ final class SwiftCompletionTests: XCTestCase {
     XCTAssertEqual(item.filterText, "func foo()")
     XCTAssertEqual(
       item.textEdit,
-      .textEdit(
-        TextEdit(
-          range: Position(line: 4, utf16index: 2)..<Position(line: 4, utf16index: 7),
-          newText: "override func foo() {\n\n}"
-        )
-      )
+      .textEdit(TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "override func foo() {\n\n}"))
     )
   }
 
   func testCompletionOverrideInNewLine() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
-    testClient.openDocument(
+    let positions = testClient.openDocument(
       """
       class Base {
         func foo() {}
       }
       class C: Base {
         func
-          // don't delete trailing space in this file
+        1️⃣  // don't delete trailing space in this file
       }
       """,
       uri: uri
@@ -346,7 +321,7 @@ final class SwiftCompletionTests: XCTestCase {
     let response = try await testClient.send(
       CompletionRequest(
         textDocument: TextDocumentIdentifier(uri),
-        position: Position(line: 5, utf16index: 2)
+        position: positions["1️⃣"]
       )
     )
     guard let item = response.items.first(where: { $0.label == "foo()" }) else {
@@ -357,19 +332,14 @@ final class SwiftCompletionTests: XCTestCase {
     XCTAssertEqual(item.filterText, "foo()")
     XCTAssertEqual(
       item.textEdit,
-      .textEdit(
-        TextEdit(
-          range: Position(line: 5, utf16index: 2)..<Position(line: 5, utf16index: 2),
-          newText: "override func foo() {\n\n}"
-        )
-      )
+      .textEdit(TextEdit(range: Range(positions["1️⃣"]), newText: "override func foo() {\n\n}"))
     )
   }
 
   func testRefilterAfterIncompleteResults() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
-    testClient.openDocument(
+    let positions = testClient.openDocument(
       """
       struct S {
         func fooAbc() {}
@@ -378,7 +348,7 @@ final class SwiftCompletionTests: XCTestCase {
         func fooDef() {}
         func fooGoop() {}
         func test() {
-          self.fcdez
+      1️⃣    self.f2️⃣cdez
         }
       }
       """,
@@ -391,7 +361,7 @@ final class SwiftCompletionTests: XCTestCase {
         try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(uri),
-            position: Position(line: 7, utf16index: 10),
+            position: positions["2️⃣"],
             context: CompletionContext(triggerKind: .invoked)
           )
         )
@@ -404,7 +374,7 @@ final class SwiftCompletionTests: XCTestCase {
         try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(uri),
-            position: Position(line: 7, utf16index: 11),
+            position: positions["2️⃣"].adding(columns: 1),
             context: CompletionContext(triggerKind: .triggerFromIncompleteCompletions)
           )
         )
@@ -416,7 +386,7 @@ final class SwiftCompletionTests: XCTestCase {
         try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(uri),
-            position: Position(line: 7, utf16index: 12),
+            position: positions["2️⃣"].adding(columns: 2),
             context: CompletionContext(triggerKind: .triggerFromIncompleteCompletions)
           )
         )
@@ -428,7 +398,7 @@ final class SwiftCompletionTests: XCTestCase {
         try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(uri),
-            position: Position(line: 7, utf16index: 13),
+            position: positions["2️⃣"].adding(columns: 3),
             context: CompletionContext(triggerKind: .triggerFromIncompleteCompletions)
           )
         )
@@ -440,7 +410,7 @@ final class SwiftCompletionTests: XCTestCase {
         try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(uri),
-            position: Position(line: 7, utf16index: 14),
+            position: positions["2️⃣"].adding(columns: 4),
             context: CompletionContext(triggerKind: .triggerFromIncompleteCompletions)
           )
         )
@@ -452,7 +422,7 @@ final class SwiftCompletionTests: XCTestCase {
         try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(uri),
-            position: Position(line: 7, utf16index: 12),
+            position: positions["2️⃣"].adding(columns: 2),
             context: CompletionContext(triggerKind: .triggerFromIncompleteCompletions)
           )
         )
@@ -465,7 +435,7 @@ final class SwiftCompletionTests: XCTestCase {
         try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(uri),
-            position: Position(line: 7, utf16index: 13),
+            position: positions["2️⃣"].adding(columns: 3),
             context: CompletionContext(triggerKind: .triggerFromIncompleteCompletions)
           )
         )
@@ -478,7 +448,7 @@ final class SwiftCompletionTests: XCTestCase {
       try await testClient.send(
         CompletionRequest(
           textDocument: TextDocumentIdentifier(uri),
-          position: Position(line: 7, utf16index: 0),
+          position: positions["1️⃣"],
           context: CompletionContext(triggerKind: .invoked)
         )
       ).items.count
@@ -488,7 +458,7 @@ final class SwiftCompletionTests: XCTestCase {
   func testRefilterAfterIncompleteResultsWithEdits() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
-    testClient.openDocument(
+    let positions = testClient.openDocument(
       """
       struct S {
         func fooAbc() {}
@@ -497,7 +467,7 @@ final class SwiftCompletionTests: XCTestCase {
         func fooDef() {}
         func fooGoop() {}
         func test() {
-          self.fz
+          self.f1️⃣z
         }
       }
       """,
@@ -511,7 +481,7 @@ final class SwiftCompletionTests: XCTestCase {
         try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(uri),
-            position: Position(line: 7, utf16index: 10),
+            position: positions["1️⃣"],
             context: CompletionContext(triggerKind: .invoked)
           )
         )
@@ -525,7 +495,7 @@ final class SwiftCompletionTests: XCTestCase {
         try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(uri),
-            position: Position(line: 7, utf16index: 11),
+            position: positions["1️⃣"].adding(columns: 1),
             context: CompletionContext(triggerKind: .triggerFromIncompleteCompletions)
           )
         )
@@ -536,7 +506,7 @@ final class SwiftCompletionTests: XCTestCase {
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(uri, version: 1),
         contentChanges: [
-          .init(range: Position(line: 7, utf16index: 10)..<Position(line: 7, utf16index: 11), text: "A ")
+          .init(range: positions["1️⃣"]..<(positions["1️⃣"].adding(columns: 1)), text: "A ")
         ]
       )
     )
@@ -548,7 +518,7 @@ final class SwiftCompletionTests: XCTestCase {
         try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(uri),
-            position: Position(line: 7, utf16index: 11),
+            position: positions["1️⃣"].adding(columns: 1),
             context: CompletionContext(triggerKind: .triggerFromIncompleteCompletions)
           )
         )
@@ -560,7 +530,7 @@ final class SwiftCompletionTests: XCTestCase {
       try await testClient.send(
         CompletionRequest(
           textDocument: TextDocumentIdentifier(uri),
-          position: Position(line: 7, utf16index: 12),
+          position: positions["1️⃣"].adding(columns: 2),
           context: CompletionContext(triggerKind: .triggerFromIncompleteCompletions)
         )
       ).items,
@@ -571,7 +541,7 @@ final class SwiftCompletionTests: XCTestCase {
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(uri, version: 1),
         contentChanges: [
-          .init(range: Position(line: 7, utf16index: 10)..<Position(line: 7, utf16index: 11), text: "Ab")
+          .init(range: positions["1️⃣"]..<(positions["1️⃣"].adding(columns: 1)), text: "Ab")
         ]
       )
     )
@@ -583,7 +553,7 @@ final class SwiftCompletionTests: XCTestCase {
         try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(uri),
-            position: Position(line: 7, utf16index: 11),
+            position: positions["1️⃣"].adding(columns: 1),
             context: CompletionContext(triggerKind: .triggerFromIncompleteCompletions)
           )
         )
@@ -594,7 +564,7 @@ final class SwiftCompletionTests: XCTestCase {
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(uri, version: 1),
         contentChanges: [
-          .init(range: Position(line: 7, utf16index: 10)..<Position(line: 7, utf16index: 11), text: "")
+          .init(range: positions["1️⃣"]..<(positions["1️⃣"].adding(columns: 1)), text: "")
         ]
       )
     )
@@ -606,7 +576,7 @@ final class SwiftCompletionTests: XCTestCase {
         try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(uri),
-            position: Position(line: 7, utf16index: 11),
+            position: positions["1️⃣"].adding(columns: 1),
             context: CompletionContext(triggerKind: .triggerFromIncompleteCompletions)
           )
         )
@@ -617,7 +587,7 @@ final class SwiftCompletionTests: XCTestCase {
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(uri, version: 1),
         contentChanges: [
-          .init(range: Position(line: 7, utf16index: 11)..<Position(line: 7, utf16index: 11), text: "d")
+          .init(range: Range(positions["1️⃣"].adding(columns: 1)), text: "d")
         ]
       )
     )
@@ -629,7 +599,7 @@ final class SwiftCompletionTests: XCTestCase {
         try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(uri),
-            position: Position(line: 7, utf16index: 12),
+            position: positions["1️⃣"].adding(columns: 2),
             context: CompletionContext(triggerKind: .triggerFromIncompleteCompletions)
           )
         )
@@ -642,17 +612,17 @@ final class SwiftCompletionTests: XCTestCase {
   func testSessionCloseWaitsforOpen() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
-    testClient.openDocument(
+    let positions = testClient.openDocument(
       """
       struct S {
         func forSomethingCrazy() {}
         func forSomethingCool() {}
         func test() {
-          self.forSome
+          self.forS1️⃣ome
         }
         func print() {}
         func anotherOne() {
-          self.prin
+          self.prin2️⃣
         }
       }
       """,
@@ -661,12 +631,12 @@ final class SwiftCompletionTests: XCTestCase {
 
     let forSomeComplete = CompletionRequest(
       textDocument: TextDocumentIdentifier(uri),
-      position: Position(line: 4, utf16index: 12),  // forS^
+      position: positions["1️⃣"],
       context: CompletionContext(triggerKind: .invoked)
     )
     let printComplete = CompletionRequest(
       textDocument: TextDocumentIdentifier(uri),
-      position: Position(line: 8, utf16index: 12),  // prin^
+      position: positions["2️⃣"],
       context: CompletionContext(triggerKind: .invoked)
     )
 
@@ -1061,4 +1031,10 @@ final class SwiftCompletionTests: XCTestCase {
 
 private func countFs(_ response: CompletionList) -> Int {
   return response.items.filter { $0.label.hasPrefix("f") }.count
+}
+
+fileprivate extension Position {
+  func adding(columns: Int) -> Position {
+    return Position(line: line, utf16index: utf16index + columns)
+  }
 }
