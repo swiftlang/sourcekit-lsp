@@ -708,6 +708,7 @@ public final class JSONRPCConnection: Connection {
             logger.info(
               """
               Received reply for request \(id, privacy: .public) from \(self.name, privacy: .public)
+              \(Request.method, privacy: .public)
               \(response.forLogging)
               """
             )
@@ -715,6 +716,7 @@ public final class JSONRPCConnection: Connection {
             logger.error(
               """
               Received error for request \(id, privacy: .public) from \(self.name, privacy: .public)
+              \(Request.method, privacy: .public)
               \(error.forLogging)
               """
             )
