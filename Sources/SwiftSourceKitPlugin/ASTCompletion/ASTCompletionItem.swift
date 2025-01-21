@@ -13,6 +13,7 @@
 import CompletionScoring
 import Csourcekitd
 import Foundation
+import SKLogging
 import SourceKitD
 import SwiftExtensions
 
@@ -392,12 +393,12 @@ extension CompletionItem {
     self.typeName = astItem.typeName(in: session)
     var editRange = completionReplaceRange
     if astItem.numBytesToErase(in: session) > 0 {
-      var newCol = editRange.lowerBound.utf8Column - astItem.numBytesToErase(in: session)
-      if newCol < 1 {
-        assertionFailure("num_bytes_to_erase crosses line boundary")
-        newCol = 1
+      let newCol = editRange.lowerBound.utf8Column - astItem.numBytesToErase(in: session)
+      if newCol >= 1 {
+        editRange = Position(line: editRange.lowerBound.line, utf8Column: newCol)..<editRange.upperBound
+      } else {
+        session.logger.error("num_bytes_to_erase crosses line boundary. Resetting num_bytes_to_erase to 0.")
       }
-      editRange = Position(line: editRange.lowerBound.line, utf8Column: newCol)..<editRange.upperBound
     }
     self.textEdit = TextEdit(range: editRange, newText: astItem.sourceText(in: session))
     self.kind = astItem.kind

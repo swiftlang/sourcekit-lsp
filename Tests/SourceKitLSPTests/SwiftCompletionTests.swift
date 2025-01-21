@@ -29,6 +29,8 @@ final class SwiftCompletionTests: XCTestCase {
   // MARK: - Tests
 
   func testCompletionBasic() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -98,6 +100,8 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionSnippetSupport() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -152,6 +156,8 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionNoSnippetSupport() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -206,6 +212,8 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionPositionServerFilter() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     testClient.openDocument("foo", uri: uri)
@@ -239,6 +247,8 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionOptional() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -273,6 +283,8 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionOverride() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -303,6 +315,8 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionOverrideInNewLine() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -337,6 +351,8 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testRefilterAfterIncompleteResults() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -456,6 +472,8 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testRefilterAfterIncompleteResultsWithEdits() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -610,6 +628,8 @@ final class SwiftCompletionTests: XCTestCase {
   /// Regression test for https://bugs.swift.org/browse/SR-13561 to make sure the a session
   /// close waits for its respective open to finish to prevent a session geting stuck open.
   func testSessionCloseWaitsforOpen() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -656,6 +676,8 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCodeCompleteSwiftPackage() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let project = try await SwiftPMTestProject(
       files: [
         "a.swift": """
@@ -678,14 +700,13 @@ final class SwiftCompletionTests: XCTestCase {
     )
 
     XCTAssertEqual(
-      results.items,
+      results.items.clearingUnstableValues,
       [
         CompletionItem(
           label: "method(a: Int)",
           kind: .method,
           detail: "Void",
           deprecated: false,
-          sortText: nil,
           filterText: "method(a:)",
           insertText: "method(a: )",
           insertTextFormat: .plain,
@@ -701,7 +722,6 @@ final class SwiftCompletionTests: XCTestCase {
           kind: .keyword,
           detail: "A",
           deprecated: false,
-          sortText: nil,
           filterText: "self",
           insertText: "self",
           insertTextFormat: .plain,
@@ -714,6 +734,8 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testTriggerFromIncompleteAfterStartingStringLiteral() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -773,6 +795,8 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testNonAsciiCompletionFilter() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -790,7 +814,7 @@ final class SwiftCompletionTests: XCTestCase {
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
     XCTAssertEqual(
-      completions.items,
+      completions.items.clearingUnstableValues,
       [
         CompletionItem(
           label: "👨‍👩‍👦👨‍👩‍👦()",
@@ -807,6 +831,8 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testExpandClosurePlaceholder() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -824,14 +850,13 @@ final class SwiftCompletionTests: XCTestCase {
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
     XCTAssertEqual(
-      completions.items.filter { $0.label.contains("myMap") },
+      completions.items.clearingUnstableValues.filter { $0.label.contains("myMap") },
       [
         CompletionItem(
           label: "myMap(body: (Int) -> Bool)",
           kind: .method,
           detail: "Void",
           deprecated: false,
-          sortText: nil,
           filterText: "myMap(:)",
           insertText: #"""
             myMap(${1:{ ${2:Int} in ${3:Bool} \}})
@@ -851,6 +876,8 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testExpandClosurePlaceholderOnOptional() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -868,14 +895,13 @@ final class SwiftCompletionTests: XCTestCase {
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
     XCTAssertEqual(
-      completions.items.filter { $0.label.contains("myMap") },
+      completions.items.clearingUnstableValues.filter { $0.label.contains("myMap") },
       [
         CompletionItem(
-          label: "?.myMap(body: (Int) -> Bool)",
+          label: "myMap(body: (Int) -> Bool)",
           kind: .method,
           detail: "Void",
           deprecated: false,
-          sortText: nil,
           filterText: ".myMap(:)",
           insertText: #"""
             ?.myMap(${1:{ ${2:Int} in ${3:Bool} \}})
@@ -895,6 +921,8 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testExpandMultipleClosurePlaceholders() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -912,14 +940,13 @@ final class SwiftCompletionTests: XCTestCase {
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
     XCTAssertEqual(
-      completions.items.filter { $0.label.contains("myMap") },
+      completions.items.clearingUnstableValues.filter { $0.label.contains("myMap") },
       [
         CompletionItem(
           label: "myMap(body: (Int) -> Bool, second: (Int) -> String)",
           kind: .method,
           detail: "Void",
           deprecated: false,
-          sortText: nil,
           filterText: "myMap(::)",
           insertText: #"""
             myMap(${1:{ ${2:Int} in ${3:Bool} \}}, ${4:{ ${5:Int} in ${6:String} \}})
@@ -939,6 +966,8 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testExpandMultipleClosurePlaceholdersWithLabel() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -956,14 +985,13 @@ final class SwiftCompletionTests: XCTestCase {
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
     XCTAssertEqual(
-      completions.items.filter { $0.label.contains("myMap") },
+      completions.items.clearingUnstableValues.filter { $0.label.contains("myMap") },
       [
         CompletionItem(
           label: "myMap(body: (Int) -> Bool, second: (Int) -> String)",
           kind: .method,
           detail: "Void",
           deprecated: false,
-          sortText: nil,
           filterText: "myMap(:second:)",
           insertText: #"""
             myMap(${1:{ ${2:Int} in ${3:Bool} \}}, second: ${4:{ ${5:Int} in ${6:String} \}})
@@ -983,6 +1011,8 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testInferIndentationWhenExpandingClosurePlaceholder() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -1002,14 +1032,13 @@ final class SwiftCompletionTests: XCTestCase {
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
     XCTAssertEqual(
-      completions.items.filter { $0.label.contains("myMap") },
+      completions.items.filter { $0.label.contains("myMap") }.clearingUnstableValues,
       [
         CompletionItem(
           label: "myMap(body: (Int) -> Bool)",
           kind: .method,
           detail: "Int",
           deprecated: false,
-          sortText: nil,
           filterText: "myMap(:)",
           insertText: #"""
             myMap(${1:{ ${2:Int} in ${3:Bool} \}})
@@ -1025,6 +1054,33 @@ final class SwiftCompletionTests: XCTestCase {
           )
         )
       ]
+    )
+  }
+
+  func testCompletionScoring() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
+    let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct Foo {
+        func makeBool() -> Bool { true }
+        func makeInt() -> Int { 1 }
+        func makeString() -> String { "" }
+      }
+      func test(foo: Foo) {
+        let x: Int = foo.make1️⃣
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertEqual(
+      completions.items.clearingUnstableValues.map(\.label),
+      ["makeInt()", "makeBool()", "makeString()"]
     )
   }
 }

@@ -13,6 +13,7 @@
 import CompletionScoring
 import Csourcekitd
 import Foundation
+import SKLogging
 import SourceKitD
 
 /// Represents a code completion session.
@@ -51,6 +52,8 @@ final class CompletionSession {
 
   /// Convenience accessor to the `SourceKitD` instance.
   var sourcekitd: SourceKitD { connection.sourcekitd }
+
+  var logger: Logger { connection.logger }
 
   init(
     connection: Connection,

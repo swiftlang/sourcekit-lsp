@@ -20,6 +20,8 @@ import XCTest
 final class SwiftPMIntegrationTests: XCTestCase {
 
   func testSwiftPMIntegration() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let project = try await SwiftPMTestProject(
       files: [
         "Lib.swift": """
@@ -60,7 +62,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
     )
 
     XCTAssertEqual(
-      completions.items,
+      completions.items.clearingUnstableValues,
       [
         CompletionItem(
           label: "foo()",
@@ -93,6 +95,8 @@ final class SwiftPMIntegrationTests: XCTestCase {
   }
 
   func testAddFile() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let project = try await SwiftPMTestProject(
       files: [
         "Lib.swift": """
@@ -144,7 +148,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
     )
 
     XCTAssertEqual(
-      completions.items,
+      completions.items.clearingUnstableValues,
       [
         CompletionItem(
           label: "foo()",
@@ -185,6 +189,8 @@ final class SwiftPMIntegrationTests: XCTestCase {
   }
 
   func testNestedPackage() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let project = try await MultiFileTestProject(files: [
       "pkg/Sources/lib/lib.swift": "",
       "pkg/Package.swift": """
@@ -220,7 +226,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
     )
 
     XCTAssertEqual(
-      result.items,
+      result.items.clearingUnstableValues,
       [
         CompletionItem(
           label: "bar()",
