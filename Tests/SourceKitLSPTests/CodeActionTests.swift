@@ -583,7 +583,6 @@ final class CodeActionTests: XCTestCase {
   }
 
   func testPackageManifestEditingCodeActionResult() async throws {
-    try XCTSkipIf(true, "Temporarily disable while investigating rdar://143336492")
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
@@ -658,7 +657,6 @@ final class CodeActionTests: XCTestCase {
   }
 
   func testPackageManifestEditingCodeActionNoTestResult() async throws {
-    try XCTSkipIf(true, "Temporarily disable while investigating rdar://143336492")
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
