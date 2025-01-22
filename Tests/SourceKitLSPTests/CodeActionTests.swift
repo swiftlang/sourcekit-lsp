@@ -540,7 +540,7 @@ final class CodeActionTests: XCTestCase {
 
   func testCodeActionForFixItsProducedBySwiftSyntax() async throws {
     let project = try await MultiFileTestProject(files: [
-      "test.swift": "protocol 1️⃣Multi 2️⃣ident 3️⃣{}",
+      "test.swift": "protocol 1️⃣Multi2️⃣ 3️⃣ident 4️⃣{}",
       "compile_commands.json": "[]",
     ])
 
@@ -560,8 +560,8 @@ final class CodeActionTests: XCTestCase {
         edit: WorkspaceEdit(
           changes: [
             uri: [
-              TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "Multiident "),
-              TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: ""),
+              TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "Multiident"),
+              TextEdit(range: positions["3️⃣"]..<positions["4️⃣"], newText: ""),
             ]
           ]
         )
@@ -572,8 +572,8 @@ final class CodeActionTests: XCTestCase {
         edit: WorkspaceEdit(
           changes: [
             uri: [
-              TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "MultiIdent "),
-              TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: ""),
+              TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "MultiIdent"),
+              TextEdit(range: positions["3️⃣"]..<positions["4️⃣"], newText: ""),
             ]
           ]
         )
