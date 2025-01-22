@@ -231,7 +231,10 @@ package actor SwiftLanguageService: LanguageService, Sendable {
         clientPlugin: URL(fileURLWithPath: clientPlugin),
         servicePlugin: URL(fileURLWithPath: servicePlugin)
       )
+    } else if let clientPlugin = toolchain.sourceKitClientPlugin, let servicePlugin = toolchain.sourceKitServicePlugin {
+      pluginPaths = PluginPaths(clientPlugin: clientPlugin, servicePlugin: servicePlugin)
     } else {
+      logger.fault("Failed to find SourceKit plugin for toolchain at \(toolchain.path?.path ?? "nil")")
       pluginPaths = nil
     }
     self.sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
