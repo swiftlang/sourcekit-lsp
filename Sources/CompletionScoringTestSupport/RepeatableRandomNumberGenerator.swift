@@ -12,6 +12,7 @@
 
 import CompletionScoring
 import Foundation
+import SwiftExtensions
 
 package struct RepeatableRandomNumberGenerator: RandomNumberGenerator {
   private let seed: [UInt64]
@@ -102,9 +103,54 @@ package struct RepeatableRandomNumberGenerator: RandomNumberGenerator {
   }
 }
 
+/// The bundle of the currently executing test.
+private let testBundle: Bundle = {
+  #if os(macOS)
+  if let bundle = Bundle.allBundles.first(where: { $0.bundlePath.hasSuffix(".xctest") }) {
+    return bundle
+  }
+  fatalError("couldn't find the test bundle")
+  #else
+  return Bundle.main
+  #endif
+}()
+
+/// The path to the built products directory, ie. `.build/debug/arm64-apple-macosx` or the platform-specific equivalent.
+private let productsDirectory: URL = {
+  #if os(macOS)
+  return testBundle.bundleURL.deletingLastPathComponent()
+  #else
+  return testBundle.bundleURL
+  #endif
+}()
+
+/// The path to the INPUTS directory of shared test projects.
+private let skTestSupportInputsDirectory: URL = {
+  #if os(macOS)
+  var resources =
+    productsDirectory
+    .appendingPathComponent("SourceKitLSP_CompletionScoringTestSupport.bundle")
+    .appendingPathComponent("Contents")
+    .appendingPathComponent("Resources")
+  if !FileManager.default.fileExists(at: resources) {
+    // Xcode and command-line swiftpm differ about the path.
+    resources.deleteLastPathComponent()
+    resources.deleteLastPathComponent()
+  }
+  #else
+  let resources =
+    productsDirectory
+    .appendingPathComponent("SourceKitLSP_CompletionScoringTestSupport.resources")
+  #endif
+  guard FileManager.default.fileExists(at: resources) else {
+    fatalError("missing resources \(resources)")
+  }
+  return resources.appendingPathComponent("INPUTS", isDirectory: true).standardizedFileURL
+}()
+
 func loadTestResource(name: String, withExtension ext: String) throws -> Data {
-  let file = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent()
+  let file =
+    skTestSupportInputsDirectory
     .appendingPathComponent("\(name).\(ext)")
   return try Data(contentsOf: file)
 }
