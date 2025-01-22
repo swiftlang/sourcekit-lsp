@@ -126,7 +126,7 @@ package actor DynamicallyLoadedSourceKitD: SourceKitD {
       #endif
       if let pluginPaths {
         try setenv(
-          name: "SOURCEKIT_LSP_PLUGIN_SOURCEKITD_PATH_\(pluginPaths.clientPlugin.filePath)",
+          name: "SOURCEKIT_LSP_PLUGIN_SOURCEKITD_PATH_\(pluginPaths.clientPlugin.realpath.filePath)",
           value: dylibPath.filePath,
           override: false
         )

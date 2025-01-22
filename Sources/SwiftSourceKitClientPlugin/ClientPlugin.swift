@@ -33,7 +33,8 @@ public func sourcekitd_plugin_initialize(_ params: sourcekitd_api_plugin_initial
   var dlInfo = Dl_info()
   dladdr(#dsohandle, &dlInfo)
   let path = String(cString: dlInfo.dli_fname)
-  var url = URL(fileURLWithPath: path, isDirectory: false)
+  let clientPluginDylibUrl = URL(fileURLWithPath: path, isDirectory: false)
+  var url = clientPluginDylibUrl
   while url.pathExtension != "framework" && url.lastPathComponent != "/" {
     url.deleteLastPathComponent()
   }
@@ -43,7 +44,10 @@ public func sourcekitd_plugin_initialize(_ params: sourcekitd_api_plugin_initial
     .appendingPathComponent("sourcekitd.framework")
     .appendingPathComponent("sourcekitd")
   if !FileManager.default.fileExists(at: url),
-    let sourcekitdPath = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_PLUGIN_SOURCEKITD_PATH_\(path)"]
+    let clientPluginDylibUrlRealpath = try? clientPluginDylibUrl.realpath.filePath,
+    let sourcekitdPath = ProcessInfo.processInfo.environment[
+      "SOURCEKIT_LSP_PLUGIN_SOURCEKITD_PATH_\(clientPluginDylibUrlRealpath)"
+    ]
   {
     // When using a SourceKit plugin from the build directory, we can't find sourcekitd relative to the plugin.
     // Respect the sourcekitd path that was passed to us via an environment variable from
