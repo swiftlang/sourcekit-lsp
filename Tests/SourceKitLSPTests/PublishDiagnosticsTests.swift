@@ -191,12 +191,7 @@ final class PublishDiagnosticsTests: XCTestCase {
     // about the missing module.
     try await repeatUntilExpectedResult {
       let diagnosticsBeforeBuilding = try? await project.testClient.nextDiagnosticsNotification(timeout: .seconds(1))
-      #if compiler(>=6.1)
-      #warning("When we drop support for Swift 5.10 we no longer need to check for the Objective-C error message")
-      #endif
-      if (diagnosticsBeforeBuilding?.diagnostics ?? []).contains(where: {
-        return $0.message == "No such module 'LibA'" || $0.message == "Could not build Objective-C module 'LibA'"
-      }) {
+      if (diagnosticsBeforeBuilding?.diagnostics ?? []).map(\.message).contains("No such module 'LibA'") {
         return true
       }
       logger.debug("Received unexpected diagnostics: \(diagnosticsBeforeBuilding?.forLogging)")

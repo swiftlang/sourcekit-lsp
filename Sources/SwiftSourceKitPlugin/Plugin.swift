@@ -246,7 +246,7 @@ public func sourcekitd_plugin_initialize_2(
     )
   } else {
     DynamicallyLoadedSourceKitD.forPlugin = try! DynamicallyLoadedSourceKitD.inProcLibrary(
-      relativeTo: URL(fileURLWithPath: String(cString: parentLibraryPath))
+      relativeTo: URL(fileURLWithPath: parentLibraryPath)
     )
   }
   #else

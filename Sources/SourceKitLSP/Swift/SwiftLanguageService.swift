@@ -741,10 +741,6 @@ extension SwiftLanguageService {
         }
         result += documentation
         return result
-      } else if let doc = cursorInfo.documentationXML {
-        return """
-          \(orLog("Convert XML to Markdown") { try xmlDocumentationToMarkdown(doc) } ?? doc)
-          """
       } else if let annotated: String = cursorInfo.annotatedDeclaration {
         return """
           \(orLog("Convert XML to Markdown") { try xmlDocumentationToMarkdown(annotated) } ?? annotated)
