@@ -16,7 +16,6 @@ import XCTest
 
 final class HoverTests: XCTestCase {
   func testBasic() async throws {
-    try await SkipUnless.sourcekitdReturnsRawDocumentationResponse()
     try await assertHover(
       """
       /// This is a doc comment for S.
@@ -89,7 +88,6 @@ final class HoverTests: XCTestCase {
   }
 
   func testMultiCursorInfoResultsHoverWithDocumentation() async throws {
-    try await SkipUnless.sourcekitdReturnsRawDocumentationResponse()
     try await assertHover(
       """
       /// A struct
@@ -122,7 +120,6 @@ final class HoverTests: XCTestCase {
   }
 
   func testHoverNameEscapingOnFunction() async throws {
-    try await SkipUnless.sourcekitdReturnsRawDocumentationResponse()
     try await assertHover(
       """
       /// this is **bold** documentation
@@ -140,7 +137,6 @@ final class HoverTests: XCTestCase {
   }
 
   func testHoverNameEscapingOnOperator() async throws {
-    try await SkipUnless.sourcekitdReturnsRawDocumentationResponse()
     try await assertHover(
       """
       /// this is *italic* documentation
@@ -158,7 +154,6 @@ final class HoverTests: XCTestCase {
   }
 
   func testPrecondition() async throws {
-    try await SkipUnless.sourcekitdReturnsRawDocumentationResponse()
     try await assertHover(
       """
       /// Eat an apple
