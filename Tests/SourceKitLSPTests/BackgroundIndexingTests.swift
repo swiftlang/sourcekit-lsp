@@ -1018,53 +1018,6 @@ final class BackgroundIndexingTests: XCTestCase {
     )
   }
 
-  func testUseSwiftSDKFlagsDuringPreparation() async throws {
-    try await SkipUnless.canSwiftPMCompileForIOS()
-
-    var options = SourceKitLSPOptions.testDefault()
-    options.swiftPMOrDefault.swiftSDK = "arm64-apple-ios"
-    let project = try await SwiftPMTestProject(
-      files: [
-        "Lib/Lib.swift": """
-        #if os(iOS)
-        public func foo() -> Int { 1 }
-        #endif
-        """,
-        "Client/Client.swift": """
-        import Lib
-
-        func test() -> String {
-          return foo()
-        }
-        """,
-      ],
-      manifest: """
-        let package = Package(
-          name: "MyLibrary",
-          targets: [
-            .target(name: "Lib"),
-            .target(name: "Client", dependencies: ["Lib"]),
-          ]
-        )
-        """,
-      options: options,
-      enableBackgroundIndexing: true
-    )
-
-    // Check that we get an error about the return type of `foo` (`Int`) not being convertible to the return type of
-    // `test` (`String`), which indicates that `Lib` had `foo` and was thus compiled for iOS
-    let (uri, _) = try project.openDocument("Client.swift")
-    let diagnostics = try await project.testClient.send(
-      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
-    )
-    XCTAssert(
-      (diagnostics.fullReport?.items ?? []).contains(where: {
-        $0.message == "Cannot convert return expression of type 'Int' to return type 'String'"
-      }),
-      "Did not get expected diagnostic: \(diagnostics)"
-    )
-  }
-
   func testLibraryUsedByExecutableTargetAndPackagePlugin() async throws {
     try await SkipUnless.swiftPMStoresModulesForTargetAndHostInSeparateFolders()
     let project = try await SwiftPMTestProject(

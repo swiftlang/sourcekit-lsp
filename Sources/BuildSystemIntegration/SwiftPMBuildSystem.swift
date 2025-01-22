@@ -616,15 +616,6 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     if let configuration = options.swiftPMOrDefault.configuration {
       arguments += ["-c", configuration.rawValue]
     }
-    if let triple = options.swiftPMOrDefault.triple {
-      arguments += ["--triple", triple]
-    }
-    if let swiftSDKsDirectory = options.swiftPMOrDefault.swiftSDKsDirectory {
-      arguments += ["--swift-sdks-path", swiftSDKsDirectory]
-    }
-    if let swiftSDK = options.swiftPMOrDefault.swiftSDK {
-      arguments += ["--swift-sdk", swiftSDK]
-    }
     arguments += options.swiftPMOrDefault.cCompilerFlags?.flatMap { ["-Xcc", $0] } ?? []
     arguments += options.swiftPMOrDefault.cxxCompilerFlags?.flatMap { ["-Xcxx", $0] } ?? []
     arguments += options.swiftPMOrDefault.swiftCompilerFlags?.flatMap { ["-Xswiftc", $0] } ?? []
