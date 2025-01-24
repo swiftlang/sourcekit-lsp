@@ -160,7 +160,7 @@ package final actor SemanticIndexManager {
   /// an expression for a long time.
   package var updateIndexStoreTimeout: Duration
 
-  private let testHooks: IndexTestHooks
+  private let hooks: IndexHooks
 
   /// The tasks to generate the build graph (resolving package dependencies, generating the build description,
   /// ...) and to schedule indexing of modified tasks.
@@ -237,7 +237,7 @@ package final actor SemanticIndexManager {
     index: UncheckedIndex,
     buildSystemManager: BuildSystemManager,
     updateIndexStoreTimeout: Duration,
-    testHooks: IndexTestHooks,
+    hooks: IndexHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
     logMessageToIndexLog: @escaping @Sendable (_ taskID: String, _ message: String) -> Void,
     indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
@@ -246,7 +246,7 @@ package final actor SemanticIndexManager {
     self.index = index
     self.buildSystemManager = buildSystemManager
     self.updateIndexStoreTimeout = updateIndexStoreTimeout
-    self.testHooks = testHooks
+    self.hooks = hooks
     self.indexTaskScheduler = indexTaskScheduler
     self.logMessageToIndexLog = logMessageToIndexLog
     self.indexTasksWereScheduled = indexTasksWereScheduled
@@ -278,12 +278,12 @@ package final actor SemanticIndexManager {
     let taskId = UUID()
     let generateBuildGraphTask = Task(priority: .low) {
       await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "build-graph-generation") {
-        await testHooks.buildGraphGenerationDidStart?()
+        await hooks.buildGraphGenerationDidStart?()
         await self.buildSystemManager.waitForUpToDateBuildGraph()
         // Ensure that we have an up-to-date indexstore-db. Waiting for the indexstore-db to be updated is cheaper than
         // potentially not knowing about unit files, which causes the corresponding source files to be re-indexed.
         index.pollForUnitChangesAndWait()
-        await testHooks.buildGraphGenerationDidFinish?()
+        await hooks.buildGraphGenerationDidFinish?()
         // TODO: Ideally this would be a type like any Collection<DocumentURI> & Sendable but that doesn't work due to
         // https://github.com/swiftlang/swift/issues/75602
         var filesToIndex: [DocumentURI] =
@@ -519,7 +519,7 @@ package final actor SemanticIndexManager {
         buildSystemManager: self.buildSystemManager,
         preparationUpToDateTracker: preparationUpToDateTracker,
         logMessageToIndexLog: logMessageToIndexLog,
-        testHooks: testHooks
+        hooks: hooks
       )
     )
     if Task.isCancelled {
@@ -581,7 +581,7 @@ package final actor SemanticIndexManager {
         indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit,
         logMessageToIndexLog: logMessageToIndexLog,
         timeout: updateIndexStoreTimeout,
-        testHooks: testHooks
+        hooks: hooks
       )
     )
 

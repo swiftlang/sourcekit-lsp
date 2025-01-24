@@ -116,9 +116,9 @@ actor ExpectedIndexTaskTracker {
 
   private var expectedIndexStoreUpdates: [[ExpectedIndexStoreUpdate]]?
 
-  /// Implicitly-unwrapped optional so we can reference `self` when creating `IndexTestHooks`.
+  /// Implicitly-unwrapped optional so we can reference `self` when creating `IndexHooks`.
   /// `nonisolated(unsafe)` is fine because this is not modified after `testHooks` is created.
-  nonisolated(unsafe) var testHooks: IndexTestHooks!
+  nonisolated(unsafe) var testHooks: IndexHooks!
 
   init(
     expectedPreparations: [[ExpectedPreparation]]? = nil,
@@ -126,7 +126,7 @@ actor ExpectedIndexTaskTracker {
   ) {
     self.expectedPreparations = expectedPreparations
     self.expectedIndexStoreUpdates = expectedIndexStoreUpdates
-    self.testHooks = IndexTestHooks(
+    self.testHooks = IndexHooks(
       preparationTaskDidStart: { [weak self] in
         await self?.preparationTaskDidStart(taskDescription: $0)
       },

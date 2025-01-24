@@ -286,7 +286,7 @@ final class PullDiagnosticsTests: XCTestCase {
   func testDiagnosticsWaitForDocumentToBePrepared() async throws {
     let diagnosticRequestSent = AtomicBool(initialValue: false)
     var testHooks = Hooks()
-    testHooks.indexTestHooks.preparationTaskDidStart = { @Sendable taskDescription in
+    testHooks.indexHooks.preparationTaskDidStart = { @Sendable taskDescription in
       // Only start preparation after we sent the diagnostic request. In almost all cases, this should not give
       // preparation enough time to finish before the diagnostic request is handled unless we wait for preparation in
       // the diagnostic request.
@@ -347,7 +347,7 @@ final class PullDiagnosticsTests: XCTestCase {
     testHooks.buildSystemHooks.swiftPMTestHooks.reloadPackageDidFinish = {
       packageLoadingDidFinish.fulfill()
     }
-    testHooks.indexTestHooks.preparationTaskDidStart = { _ in
+    testHooks.indexHooks.preparationTaskDidStart = { _ in
       _ = await XCTWaiter.fulfillment(of: [diagnosticRequestCancelled], timeout: defaultTimeout)
       // Poll until the `CancelRequestNotification` has been propagated to the request handling.
       for _ in 0..<Int(defaultTimeout * 100) {

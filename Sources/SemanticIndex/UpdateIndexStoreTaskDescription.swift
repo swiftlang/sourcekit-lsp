@@ -146,7 +146,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   private let timeout: Duration
 
   /// Test hooks that should be called when the index task finishes.
-  private let testHooks: IndexTestHooks
+  private let hooks: IndexHooks
 
   /// The task is idempotent because indexing the same file twice produces the same result as indexing it once.
   package var isIdempotent: Bool { true }
@@ -173,7 +173,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     indexFilesWithUpToDateUnit: Bool,
     logMessageToIndexLog: @escaping @Sendable (_ taskID: String, _ message: String) -> Void,
     timeout: Duration,
-    testHooks: IndexTestHooks
+    hooks: IndexHooks
   ) {
     self.filesToIndex = filesToIndex
     self.buildSystemManager = buildSystemManager
@@ -182,7 +182,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     self.indexFilesWithUpToDateUnit = indexFilesWithUpToDateUnit
     self.logMessageToIndexLog = logMessageToIndexLog
     self.timeout = timeout
-    self.testHooks = testHooks
+    self.hooks = hooks
   }
 
   package func execute() async {
@@ -192,7 +192,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "update-indexstore-\(id % 100)") {
       let startDate = Date()
 
-      await testHooks.updateIndexStoreTaskDidStart?(self)
+      await hooks.updateIndexStoreTaskDidStart?(self)
 
       let filesToIndexDescription = filesToIndex.map {
         $0.file.sourceFile.fileURL?.lastPathComponent ?? $0.file.sourceFile.stringValue
@@ -207,7 +207,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       for file in filesToIndex {
         await updateIndexStore(forSingleFile: file.file, in: file.target)
       }
-      await testHooks.updateIndexStoreTaskDidFinish?(self)
+      await hooks.updateIndexStoreTaskDidFinish?(self)
       logger.log(
         "Finished updating index store in \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms: \(filesToIndexDescription)"
       )

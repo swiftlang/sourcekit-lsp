@@ -36,16 +36,19 @@ import ArgumentParser
 import Android
 #endif
 
-extension PathPrefixMapping {
-  public init?(argument: String) {
+struct PathPrefixMapping: ArgumentParser.ExpressibleByArgument {
+  /// Path prefix to be replaced, typically the canonical or hermetic path.
+  package let original: String
+
+  /// Replacement path prefix, typically the path on the local machine.
+  package let replacement: String
+
+  init?(argument: String) {
     guard let eqIndex = argument.firstIndex(of: "=") else { return nil }
-    self.init(
-      original: String(argument[..<eqIndex]),
-      replacement: String(argument[argument.index(after: eqIndex)...])
-    )
+    self.original = String(argument[..<eqIndex])
+    self.replacement = String(argument[argument.index(after: eqIndex)...])
   }
 }
-extension PathPrefixMapping: ArgumentParser.ExpressibleByArgument {}
 
 extension SKOptions.BuildConfiguration: ArgumentParser.ExpressibleByArgument {}
 

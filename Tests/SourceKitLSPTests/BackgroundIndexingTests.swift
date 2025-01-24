@@ -165,10 +165,10 @@ final class BackgroundIndexingTests: XCTestCase {
 
   func testBackgroundIndexingHappensWithLowPriority() async throws {
     var testHooks = Hooks()
-    testHooks.indexTestHooks.preparationTaskDidFinish = { taskDescription in
+    testHooks.indexHooks.preparationTaskDidFinish = { taskDescription in
       XCTAssert(Task.currentPriority == .low, "\(taskDescription) ran with priority \(Task.currentPriority)")
     }
-    testHooks.indexTestHooks.updateIndexStoreTaskDidFinish = { taskDescription in
+    testHooks.indexHooks.updateIndexStoreTaskDidFinish = { taskDescription in
       XCTAssert(Task.currentPriority == .low, "\(taskDescription) ran with priority \(Task.currentPriority)")
     }
     let project = try await SwiftPMTestProject(
@@ -336,7 +336,7 @@ final class BackgroundIndexingTests: XCTestCase {
       name: "Received work done progress saying indexing"
     )
     var testHooks = Hooks()
-    testHooks.indexTestHooks = IndexTestHooks(
+    testHooks.indexHooks = IndexHooks(
       buildGraphGenerationDidFinish: {
         receivedBeginProgressNotification.waitOrXCTFail()
       },
@@ -560,7 +560,7 @@ final class BackgroundIndexingTests: XCTestCase {
         try ExpectedPreparation(target: "LibB", destination: .target)
       ],
     ])
-    testHooks.indexTestHooks = expectedPreparationTracker.testHooks
+    testHooks.indexHooks = expectedPreparationTracker.testHooks
 
     let project = try await SwiftPMTestProject(
       files: [
@@ -682,7 +682,7 @@ final class BackgroundIndexingTests: XCTestCase {
         )
       ],
     ])
-    testHooks.indexTestHooks = expectedPreparationTracker.testHooks
+    testHooks.indexHooks = expectedPreparationTracker.testHooks
 
     let project = try await SwiftPMTestProject(
       files: [
@@ -748,10 +748,10 @@ final class BackgroundIndexingTests: XCTestCase {
     // Block the index tasks until we have received a log notification to make sure we stream out results as they come
     // in and not only when the indexing task has finished
     var testHooks = Hooks()
-    testHooks.indexTestHooks.preparationTaskDidFinish = { _ in
+    testHooks.indexHooks.preparationTaskDidFinish = { _ in
       didReceivePreparationIndexLogMessage.waitOrXCTFail()
     }
-    testHooks.indexTestHooks.updateIndexStoreTaskDidFinish = { _ in
+    testHooks.indexHooks.updateIndexStoreTaskDidFinish = { _ in
       didReceiveIndexingLogMessage.waitOrXCTFail()
       updateIndexStoreTaskDidFinish.signal()
     }
@@ -810,7 +810,7 @@ final class BackgroundIndexingTests: XCTestCase {
         ]
       ]
     )
-    testHooks.indexTestHooks = expectedIndexTaskTracker.testHooks
+    testHooks.indexHooks = expectedIndexTaskTracker.testHooks
 
     _ = try await SwiftPMTestProject(
       files: [
@@ -849,7 +849,7 @@ final class BackgroundIndexingTests: XCTestCase {
     )
 
     var otherClientOptions = Hooks()
-    otherClientOptions.indexTestHooks = IndexTestHooks(
+    otherClientOptions.indexHooks = IndexHooks(
       preparationTaskDidStart: { taskDescription in
         XCTFail("Did not expect any target preparation, got \(taskDescription.targetsToPrepare)")
       },

@@ -10,8 +10,30 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=6)
+package import IndexStoreDB
+package import Foundation
+#else
+import IndexStoreDB
+import Foundation
+#endif
+
+/// When running SourceKit-LSP in-process, allows the creator of `SourceKitLSPServer` to provide the `IndexStoreDB`
+/// instead of SourceKit-LSP creating the instance when needed.
+package protocol IndexInjector: Sendable {
+  func createIndex(
+    storePath: URL,
+    databasePath: URL,
+    indexStoreLibraryPath: URL,
+    delegate: IndexDelegate,
+    prefixMappings: [PathMapping]
+  ) async throws -> IndexStoreDB
+}
+
 /// Callbacks that allow inspection of internal state modifications during testing.
-package struct IndexTestHooks: Sendable {
+package struct IndexHooks: Sendable {
+  package var indexInjector: IndexInjector?
+
   package var buildGraphGenerationDidStart: (@Sendable () async -> Void)?
 
   package var buildGraphGenerationDidFinish: (@Sendable () async -> Void)?
@@ -26,6 +48,7 @@ package struct IndexTestHooks: Sendable {
   package var updateIndexStoreTaskDidFinish: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)?
 
   package init(
+    indexInjector: IndexInjector? = nil,
     buildGraphGenerationDidStart: (@Sendable () async -> Void)? = nil,
     buildGraphGenerationDidFinish: (@Sendable () async -> Void)? = nil,
     preparationTaskDidStart: (@Sendable (PreparationTaskDescription) async -> Void)? = nil,
@@ -33,6 +56,7 @@ package struct IndexTestHooks: Sendable {
     updateIndexStoreTaskDidStart: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)? = nil,
     updateIndexStoreTaskDidFinish: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)? = nil
   ) {
+    self.indexInjector = indexInjector
     self.buildGraphGenerationDidStart = buildGraphGenerationDidStart
     self.buildGraphGenerationDidFinish = buildGraphGenerationDidFinish
     self.preparationTaskDidStart = preparationTaskDidStart
