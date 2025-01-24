@@ -192,7 +192,7 @@ extension QueueBasedMessageHandler {
       )
       .makeSignposter()
       let signpostID = signposter.makeSignpostID()
-      let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: notification))")
+      let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: notification).method)")
       messageHandlingQueue.async(metadata: DependencyTracker(notification)) {
         signposter.emitEvent("Start handling", id: signpostID)
         await self.handle(notification: notification)
@@ -209,7 +209,7 @@ extension QueueBasedMessageHandler {
     let signposter = Logger(subsystem: LoggingScope.subsystem, category: messageHandlingHelper.signpostLoggingCategory)
       .makeSignposter()
     let signpostID = signposter.makeSignpostID()
-    let state = signposter.beginInterval("Request", id: signpostID, "\(Request.self)")
+    let state = signposter.beginInterval("Request", id: signpostID, "\(Request.method)")
 
     self.didReceive(request: request, id: id)
 

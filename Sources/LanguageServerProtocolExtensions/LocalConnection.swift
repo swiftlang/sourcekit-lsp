@@ -138,6 +138,7 @@ package final class LocalConnection: Connection, Sendable {
         logger.info(
           """
           Received reply for request \(id, privacy: .public) from \(self.name, privacy: .public)
+          \(Request.method, privacy: .public)
           \(response.forLogging)
           """
         )
@@ -145,6 +146,7 @@ package final class LocalConnection: Connection, Sendable {
         logger.error(
           """
           Received error for request \(id, privacy: .public) from \(self.name, privacy: .public)
+          \(Request.method, privacy: .public)
           \(error.forLogging)
           """
         )
