@@ -149,6 +149,7 @@ var targets: [Target] = [
   .target(
     name: "CompletionScoringTestSupport",
     dependencies: ["CompletionScoring", "SwiftExtensions"],
+    resources: [.copy("INPUTS")],
     swiftSettings: globalSwiftSettings
   ),
 
