@@ -11,24 +11,55 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SKLogging
+import SwiftExtensions
+import TSCExtensions
+import ToolchainRegistry
+
+import struct TSCBasic.AbsolutePath
+import struct TSCBasic.RelativePath
 
 #if compiler(>=6)
 package import LanguageServerProtocol
-import SKLogging
 package import SKOptions
-import SwiftExtensions
-import ToolchainRegistry
-
-import struct TSCBasic.AbsolutePath
 #else
 import LanguageServerProtocol
-import SKLogging
 import SKOptions
-import SwiftExtensions
-import ToolchainRegistry
-
-import struct TSCBasic.AbsolutePath
 #endif
+
+private func searchForCompilationDatabaseConfig(
+  in workspaceFolder: URL,
+  options: SourceKitLSPOptions
+) -> BuildSystemSpec? {
+  let searchPaths =
+    (options.compilationDatabaseOrDefault.searchPaths ?? []).compactMap {
+      try? RelativePath(validating: $0)
+    } + [
+      // These default search paths match the behavior of `clangd`
+      try! RelativePath(validating: "."),
+      try! RelativePath(validating: "build"),
+    ]
+
+  return
+    searchPaths
+    .lazy
+    .compactMap { searchPath in
+      let path = workspaceFolder.appending(searchPath)
+
+      let jsonPath = path.appendingPathComponent(JSONCompilationDatabaseBuildSystem.dbName)
+      if FileManager.default.isFile(at: jsonPath) {
+        return BuildSystemSpec(kind: .jsonCompilationDatabase, projectRoot: workspaceFolder, configPath: jsonPath)
+      }
+
+      let fixedPath = path.appendingPathComponent(FixedCompilationDatabaseBuildSystem.dbName)
+      if FileManager.default.isFile(at: fixedPath) {
+        return BuildSystemSpec(kind: .fixedCompilationDatabase, projectRoot: workspaceFolder, configPath: fixedPath)
+      }
+
+      return nil
+    }
+    .first
+}
 
 /// Determine which build system should be started to handle the given workspace folder and at which folder that build
 /// system's project root is (see `BuiltInBuildSystem.projectRoot(for:options:)`). `onlyConsiderRoot` controls whether
@@ -66,7 +97,7 @@ package func determineBuildSystem(
         options: options
       )
     case .compilationDatabase:
-      spec = CompilationDatabaseBuildSystem.searchForConfig(in: workspaceFolderUrl, options: options)
+      spec = searchForCompilationDatabaseConfig(in: workspaceFolderUrl, options: options)
     case .swiftPM:
       #if canImport(PackageModel)
       spec = SwiftPMBuildSystem.searchForConfig(in: workspaceFolderUrl, options: options)

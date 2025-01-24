@@ -25,7 +25,7 @@ final class CompilationDatabaseTests: XCTestCase {
   func testEncodeCompDBCommand() throws {
     // Requires JSONEncoder.OutputFormatting.sortedKeys
     func check(
-      _ cmd: CompilationDatabase.Command,
+      _ cmd: CompilationDatabaseCompileCommand,
       _ expected: String,
       file: StaticString = #filePath,
       line: UInt = #line
@@ -53,11 +53,11 @@ final class CompilationDatabaseTests: XCTestCase {
   func testDecodeCompDBCommand() throws {
     func check(
       _ str: String,
-      _ expected: CompilationDatabase.Command,
+      _ expected: CompilationDatabaseCompileCommand,
       file: StaticString = #filePath,
       line: UInt = #line
     ) throws {
-      let cmd = try JSONDecoder().decode(CompilationDatabase.Command.self, from: str.data(using: .utf8)!)
+      let cmd = try JSONDecoder().decode(CompilationDatabaseCompileCommand.self, from: str.data(using: .utf8)!)
       XCTAssertEqual(cmd, expected, file: file, line: line)
     }
 
@@ -111,7 +111,7 @@ final class CompilationDatabaseTests: XCTestCase {
 
     XCTAssertThrowsError(
       try JSONDecoder().decode(
-        CompilationDatabase.Command.self,
+        CompilationDatabaseCompileCommand.self,
         from: """
             {"directory":"a","file":"b"}
           """.data(using: .utf8)!
@@ -162,9 +162,14 @@ final class CompilationDatabaseTests: XCTestCase {
     let fileSystemRoot = "/"
     #endif
 
-    let cmd1 = CompilationDatabase.Command(directory: "a", filename: "b", commandLine: [], output: nil)
-    let cmd2 = CompilationDatabase.Command(directory: "\(fileSystemRoot)c", filename: "b", commandLine: [], output: nil)
-    let cmd3 = CompilationDatabase.Command(
+    let cmd1 = CompilationDatabaseCompileCommand(directory: "a", filename: "b", commandLine: [], output: nil)
+    let cmd2 = CompilationDatabaseCompileCommand(
+      directory: "\(fileSystemRoot)c",
+      filename: "b",
+      commandLine: [],
+      output: nil
+    )
+    let cmd3 = CompilationDatabaseCompileCommand(
       directory: "\(fileSystemRoot)c",
       filename: "\(fileSystemRoot)b",
       commandLine: [],
@@ -180,9 +185,9 @@ final class CompilationDatabaseTests: XCTestCase {
 
   func testJSONCompilationDatabaseFromDirectory() async throws {
     try await withTestScratchDir { tempDir in
-      let dbFile = tempDir.appendingPathComponent(JSONCompilationDatabase.dbName)
+      let dbFile = tempDir.appendingPathComponent(JSONCompilationDatabaseBuildSystem.dbName)
 
-      XCTAssertNil(tryLoadCompilationDatabase(file: dbFile))
+      XCTAssertThrowsError(try JSONCompilationDatabase(file: dbFile))
 
       try """
       [
@@ -194,15 +199,20 @@ final class CompilationDatabaseTests: XCTestCase {
       ]
       """.write(to: dbFile, atomically: true, encoding: .utf8)
 
-      XCTAssertNotNil(tryLoadCompilationDatabase(file: dbFile))
+      XCTAssertNotNil(try JSONCompilationDatabase(file: dbFile))
     }
   }
 
   func testFixedCompilationDatabase() async throws {
     try await withTestScratchDir { tempDir in
-      let dbFile = tempDir.appendingPathComponent(FixedCompilationDatabase.dbName)
+      let dbFile = tempDir.appendingPathComponent(FixedCompilationDatabaseBuildSystem.dbName)
 
-      XCTAssertNil(tryLoadCompilationDatabase(file: dbFile))
+      XCTAssertThrowsError(
+        try FixedCompilationDatabaseBuildSystem(
+          configPath: dbFile,
+          connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP")
+        )
+      )
 
       try """
       -xc++
@@ -210,31 +220,37 @@ final class CompilationDatabaseTests: XCTestCase {
       libwidget/include/
       """.write(to: dbFile, atomically: true, encoding: .utf8)
 
-      let db = try XCTUnwrap(tryLoadCompilationDatabase(file: dbFile))
+      let buildSystem = try XCTUnwrap(
+        try FixedCompilationDatabaseBuildSystem(
+          configPath: dbFile,
+          connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP")
+        )
+      )
 
-      let filePath = try tempDir.appendingPathComponent("a.c").filePath
+      let dummyFile = tempDir.appendingPathComponent("a.c")
+      let buildSettings = try await buildSystem.sourceKitOptions(
+        request: TextDocumentSourceKitOptionsRequest(
+          textDocument: TextDocumentIdentifier(URI(dummyFile)),
+          target: .dummy,
+          language: .c
+        )
+      )
       XCTAssertEqual(
-        db[DocumentURI(filePath: filePath, isDirectory: false)],
-        [
-          CompilationDatabase.Command(
-            directory: try tempDir.filePath,
-            filename: filePath,
-            commandLine: [
-              "clang", "-xc++", "-I", "libwidget/include/", filePath,
-            ],
-            output: nil
-          )
-        ]
+        buildSettings,
+        TextDocumentSourceKitOptionsResponse(
+          compilerArguments: ["clang", "-xc++", "-I", "libwidget/include/", try dummyFile.filePath],
+          workingDirectory: try tempDir.filePath
+        )
       )
     }
   }
 
   func testInvalidCompilationDatabase() async throws {
     try await withTestScratchDir { tempDir in
-      let dbFile = tempDir.appendingPathComponent(JSONCompilationDatabase.dbName)
+      let dbFile = tempDir.appendingPathComponent(JSONCompilationDatabaseBuildSystem.dbName)
 
       try "".write(to: dbFile, atomically: true, encoding: .utf8)
-      XCTAssertNil(tryLoadCompilationDatabase(file: dbFile))
+      XCTAssertThrowsError(try JSONCompilationDatabase(file: dbFile))
     }
   }
 
@@ -416,12 +432,12 @@ fileprivate var pathSeparator: String {
 
 private func checkCompilationDatabaseBuildSystem(
   _ compdb: String,
-  block: @Sendable (CompilationDatabaseBuildSystem) async throws -> ()
+  block: @Sendable (JSONCompilationDatabaseBuildSystem) async throws -> ()
 ) async throws {
   try await withTestScratchDir { tempDir in
-    let configPath = tempDir.appendingPathComponent(JSONCompilationDatabase.dbName)
+    let configPath = tempDir.appendingPathComponent(JSONCompilationDatabaseBuildSystem.dbName)
     try compdb.write(to: configPath, atomically: true, encoding: .utf8)
-    let buildSystem = try CompilationDatabaseBuildSystem(
+    let buildSystem = try JSONCompilationDatabaseBuildSystem(
       configPath: configPath,
       connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP")
     )

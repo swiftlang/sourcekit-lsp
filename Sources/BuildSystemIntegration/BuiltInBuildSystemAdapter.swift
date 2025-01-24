@@ -28,7 +28,8 @@ import Foundation
 package struct BuildSystemSpec {
   package enum Kind {
     case buildServer
-    case compilationDatabase
+    case jsonCompilationDatabase
+    case fixedCompilationDatabase
     case swiftPM
     case injected(BuildSystemInjector)
   }

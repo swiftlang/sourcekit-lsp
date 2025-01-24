@@ -36,7 +36,6 @@ import WinSDK
 ///
 /// See https://clang.llvm.org/docs/JSONCompilationDatabase.html
 package struct CompilationDatabaseCompileCommand: Equatable, Codable {
-
   /// The working directory for the compilation.
   package var directory: String
 
@@ -103,84 +102,6 @@ package struct CompilationDatabaseCompileCommand: Equatable, Codable {
   }
 }
 
-/// A clang-compatible compilation database.
-///
-/// See https://clang.llvm.org/docs/JSONCompilationDatabase.html
-package protocol CompilationDatabase {
-  typealias Command = CompilationDatabaseCompileCommand
-  subscript(_ uri: DocumentURI) -> [Command] { get }
-  var sourceItems: [SourceItem] { get }
-}
-
-/// Loads a compilation database from `file`.
-package func tryLoadCompilationDatabase(
-  file: URL
-) -> CompilationDatabase? {
-  orLog("Failed to load compilation database") { () -> CompilationDatabase? in
-    switch file.lastPathComponent {
-    case JSONCompilationDatabase.dbName:
-      return try JSONCompilationDatabase(file: file)
-    case FixedCompilationDatabase.dbName:
-      return try FixedCompilationDatabase(file: file)
-    default:
-      return nil
-    }
-  }
-}
-
-/// Fixed clang-compatible compilation database (compile_flags.txt).
-///
-/// Each line in the file becomes a command line argument. Example:
-/// ```
-/// -xc++
-/// -I
-/// libwidget/include/
-/// ```
-///
-/// See https://clang.llvm.org/docs/JSONCompilationDatabase.html under Alternatives
-package struct FixedCompilationDatabase: CompilationDatabase, Equatable {
-  package static let dbName: String = "compile_flags.txt"
-
-  private let fixedArgs: [String]
-  private let directory: String
-
-  package subscript(path: DocumentURI) -> [CompilationDatabaseCompileCommand] {
-    [Command(directory: directory, filename: path.pseudoPath, commandLine: fixedArgs + [path.pseudoPath])]
-  }
-
-  package var sourceItems: [SourceItem] {
-    return [
-      SourceItem(uri: URI(filePath: directory, isDirectory: true), kind: .directory, generated: false)
-    ]
-  }
-
-  /// Loads the compilation database located in `directory`, if any.
-  /// - Returns: `nil` if `compile_flags.txt` was not found
-  package init?(directory: URL) throws {
-    let path = directory.appendingPathComponent(Self.dbName)
-    try self.init(file: path)
-  }
-
-  /// Loads the compilation database from `file`
-  /// - Returns: `nil` if the file does not exist
-  package init?(file: URL) throws {
-    self.directory = try file.deletingLastPathComponent().filePath
-
-    let fileContents: String
-    do {
-      fileContents = try String(contentsOf: file, encoding: .utf8)
-    } catch {
-      return nil
-    }
-
-    var fixedArgs: [String] = ["clang"]
-    fileContents.enumerateLines { line, _ in
-      fixedArgs.append(line.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-    self.fixedArgs = fixedArgs
-  }
-}
-
 /// The JSON clang-compatible compilation database.
 ///
 /// Example:
@@ -196,11 +117,9 @@ package struct FixedCompilationDatabase: CompilationDatabase, Equatable {
 /// ```
 ///
 /// See https://clang.llvm.org/docs/JSONCompilationDatabase.html
-package struct JSONCompilationDatabase: CompilationDatabase, Equatable, Codable {
-  package static let dbName: String = "compile_commands.json"
-
+package struct JSONCompilationDatabase: Equatable, Codable {
   private var pathToCommands: [DocumentURI: [Int]] = [:]
-  private var commands: [CompilationDatabaseCompileCommand] = []
+  var commands: [CompilationDatabaseCompileCommand] = []
 
   package init(_ commands: [CompilationDatabaseCompileCommand] = []) {
     for command in commands {
@@ -211,27 +130,22 @@ package struct JSONCompilationDatabase: CompilationDatabase, Equatable, Codable 
   package init(from decoder: Decoder) throws {
     var container = try decoder.unkeyedContainer()
     while !container.isAtEnd {
-      self.add(try container.decode(Command.self))
+      self.add(try container.decode(CompilationDatabaseCompileCommand.self))
     }
   }
 
   /// Loads the compilation database located in `directory`, if any.
   ///
   /// - Returns: `nil` if `compile_commands.json` was not found
-  package init?(directory: URL) throws {
-    let path = directory.appendingPathComponent(Self.dbName)
+  package init(directory: URL) throws {
+    let path = directory.appendingPathComponent(JSONCompilationDatabaseBuildSystem.dbName)
     try self.init(file: path)
   }
 
   /// Loads the compilation database from `file`
   /// - Returns: `nil` if the file does not exist
-  package init?(file: URL) throws {
-    let data: Data
-    do {
-      data = try Data(contentsOf: file)
-    } catch {
-      return nil
-    }
+  package init(file: URL) throws {
+    let data = try Data(contentsOf: file)
     self = try JSONDecoder().decode(JSONCompilationDatabase.self, from: data)
   }
 

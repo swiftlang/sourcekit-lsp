@@ -14,24 +14,7 @@ import CompletionScoring
 import Csourcekitd
 import Foundation
 import SourceKitD
-
-/// A value that is computed on its first access and saved for later retrievals.
-enum LazyValue<T> {
-  case computed(T)
-  case uninitialized
-
-  /// If the value has already been computed return it, otherwise compute it using `compute`.
-  mutating func cachedValueOrCompute(_ compute: () -> T) -> T {
-    switch self {
-    case .computed(let value):
-      return value
-    case .uninitialized:
-      let newValue = compute()
-      self = .computed(newValue)
-      return newValue
-    }
-  }
-}
+import SwiftExtensions
 
 /// A single code completion result returned from sourcekitd + additional information. This is effectively a wrapper
 /// around `swiftide_api_completion_item_t` that caches the properties which have already been retrieved.

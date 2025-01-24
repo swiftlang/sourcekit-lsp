@@ -786,19 +786,19 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     let uri = try project.uri(for: "MyTests.swift")
 
     let compilationDatabase = JSONCompilationDatabase([
-      JSONCompilationDatabase.Command(
+      CompilationDatabaseCompileCommand(
         directory: try project.scratchDirectory.filePath,
         filename: uri.pseudoPath,
         commandLine: [try swiftc.filePath, uri.pseudoPath]
       )
     ])
 
-    try JSONEncoder()
-      .encode(compilationDatabase).write(to: XCTUnwrap(project.uri(for: JSONCompilationDatabase.dbName).fileURL))
+    try JSONEncoder().encode(compilationDatabase)
+      .write(to: XCTUnwrap(project.uri(for: JSONCompilationDatabaseBuildSystem.dbName).fileURL))
 
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
-        FileEvent(uri: try project.uri(for: JSONCompilationDatabase.dbName), type: .changed)
+        FileEvent(uri: try project.uri(for: JSONCompilationDatabaseBuildSystem.dbName), type: .changed)
       ])
     )
 

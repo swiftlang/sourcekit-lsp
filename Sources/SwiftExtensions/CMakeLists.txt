@@ -9,6 +9,7 @@ set(sources
   Collection+PartitionIntoBatches.swift
   Duration+Seconds.swift
   FileManagerExtensions.swift
+  LazyValue.swift
   NSLock+WithLock.swift
   PipeAsStringHandler.swift
   Platform.swift
