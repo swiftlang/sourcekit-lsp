@@ -77,7 +77,7 @@ public final class Toolchain: Sendable {
   /// The path to this toolchain, if applicable.
   ///
   /// For example, this may be the path to an ".xctoolchain" directory.
-  package let path: URL?
+  package let path: URL
 
   // MARK: Tool Paths
 

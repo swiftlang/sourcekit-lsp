@@ -239,7 +239,7 @@ private func assertReduceSourceKitD(
   let (markers, fileContents) = extractMarkers(markedFileContents)
 
   let toolchain = try await unwrap(ToolchainRegistry.forTesting.default)
-  logger.debug("Using \(toolchain.path?.description ?? "<nil>") to reduce source file")
+  logger.debug("Using \(toolchain.path.description) to reduce source file")
 
   let markerOffset = try XCTUnwrap(markers["1️⃣"], "Failed to find position marker 1️⃣ in file contents")
 

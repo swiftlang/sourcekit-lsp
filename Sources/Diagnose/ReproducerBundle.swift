@@ -28,14 +28,12 @@ func makeReproducerBundle(for requestInfo: RequestInfo, toolchain: Toolchain, bu
     atomically: true,
     encoding: .utf8
   )
-  if let toolchainPath = toolchain.path {
-    try toolchainPath.realpath.filePath
-      .write(
-        to: bundlePath.appendingPathComponent("toolchain.txt"),
-        atomically: true,
-        encoding: .utf8
-      )
-  }
+  try toolchain.path.realpath.filePath
+    .write(
+      to: bundlePath.appendingPathComponent("toolchain.txt"),
+      atomically: true,
+      encoding: .utf8
+    )
   if requestInfo.requestTemplate == RequestInfo.fakeRequestTemplateForFrontendIssues {
     let command =
       "swift-frontend \\\n"

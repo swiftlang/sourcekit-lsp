@@ -425,7 +425,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
         languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift],
         dependencies: self.targetDependencies[targetId, default: []].sorted { $0.uri.stringValue < $1.uri.stringValue },
         dataKind: .sourceKit,
-        data: SourceKitBuildTarget(toolchain: toolchain.path.map(URI.init)).encodeToLSPAny()
+        data: SourceKitBuildTarget(toolchain: URI(toolchain.path)).encodeToLSPAny()
       )
     }
     targets.append(
