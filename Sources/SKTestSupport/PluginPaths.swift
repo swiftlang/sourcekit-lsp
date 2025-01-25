@@ -112,23 +112,34 @@ private func pluginPaths(relativeTo base: URL) -> PluginPaths? {
 package var sourceKitPluginPaths: PluginPaths {
   get throws {
     struct PluginLoadingError: Error, CustomStringConvertible {
-      var description: String =
-        "Could not find SourceKit plugin. Ensure that you build the entire SourceKit-LSP package before running tests."
+      let searchBase: URL
+      var description: String {
+        // We can't declare a dependency from the test *target* on the SourceKit plugin *product*
+        // (https://github.com/swiftlang/swift-package-manager/issues/8245).
+        // We thus require a build before running the tests to ensure the plugin dylibs are in the build products
+        // folder.
+        """
+        Could not find SourceKit plugin. Ensure that you build the entire SourceKit-LSP package before running tests.
+
+        Searching for plugin relative to \(searchBase)
+        """
+      }
     }
 
-    var base =
+    let base =
       if let pluginPaths = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_TEST_PLUGIN_PATHS"] {
         URL(fileURLWithPath: pluginPaths)
       } else {
         xctestBundle
       }
-    while base.pathComponents.count > 1 {
-      if let paths = pluginPaths(relativeTo: base) {
+    var searchPath = base
+    while searchPath.pathComponents.count > 1 {
+      if let paths = pluginPaths(relativeTo: searchPath) {
         return paths
       }
-      base = base.deletingLastPathComponent()
+      searchPath = searchPath.deletingLastPathComponent()
     }
 
-    throw PluginLoadingError()
+    throw PluginLoadingError(searchBase: base)
   }
 }
