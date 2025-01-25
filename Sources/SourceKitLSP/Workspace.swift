@@ -161,7 +161,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
     options: SourceKitLSPOptions,
-    testHooks: TestHooks,
+    hooks: Hooks,
     buildSystemManager: BuildSystemManager,
     index uncheckedIndex: UncheckedIndex?,
     indexDelegate: SourceKitIndexDelegate?,
@@ -183,7 +183,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
         index: uncheckedIndex,
         buildSystemManager: buildSystemManager,
         updateIndexStoreTimeout: options.indexOrDefault.updateIndexStoreTimeoutOrDefault,
-        testHooks: testHooks.indexTestHooks,
+        testHooks: hooks.indexTestHooks,
         indexTaskScheduler: indexTaskScheduler,
         logMessageToIndexLog: { [weak sourceKitLSPServer] in
           sourceKitLSPServer?.logMessageToIndexLog(taskID: $0, message: $1)
@@ -227,7 +227,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     buildSystemSpec: BuildSystemSpec?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
-    testHooks: TestHooks,
+    hooks: Hooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async {
     struct ConnectionToClient: BuildSystemManagerConnectionToClient {
@@ -278,7 +278,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       toolchainRegistry: toolchainRegistry,
       options: options,
       connectionToClient: ConnectionToClient(sourceKitLSPServer: sourceKitLSPServer),
-      buildSystemTestHooks: testHooks.buildSystemTestHooks
+      buildSystemHooks: hooks.buildSystemHooks
     )
 
     logger.log(
@@ -323,7 +323,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       rootUri: rootUri,
       capabilityRegistry: capabilityRegistry,
       options: options,
-      testHooks: testHooks,
+      hooks: hooks,
       buildSystemManager: buildSystemManager,
       index: UncheckedIndex(index),
       indexDelegate: indexDelegate,
@@ -334,7 +334,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
 
   package static func forTesting(
     options: SourceKitLSPOptions,
-    testHooks: TestHooks,
+    testHooks: Hooks,
     buildSystemManager: BuildSystemManager,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async -> Workspace {
@@ -343,7 +343,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       rootUri: nil,
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
       options: options,
-      testHooks: testHooks,
+      hooks: testHooks,
       buildSystemManager: buildSystemManager,
       index: nil,
       indexDelegate: nil,

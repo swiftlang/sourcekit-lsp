@@ -19,7 +19,6 @@ import IndexStoreDB
 package import LanguageServerProtocol
 package import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
-import PackageLoading
 import SKLogging
 package import SKOptions
 import SemanticIndex
@@ -27,7 +26,6 @@ import SourceKitD
 package import SwiftExtensions
 package import ToolchainRegistry
 
-import struct PackageModel.BuildFlags
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 #else
@@ -39,7 +37,6 @@ import IndexStoreDB
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
-import PackageLoading
 import SKLogging
 import SKOptions
 import SemanticIndex
@@ -47,7 +44,6 @@ import SourceKitD
 import SwiftExtensions
 import ToolchainRegistry
 
-import struct PackageModel.BuildFlags
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 #endif
@@ -86,7 +82,7 @@ package actor SourceKitLSPServer {
 
   var options: SourceKitLSPOptions
 
-  let testHooks: TestHooks
+  let hooks: Hooks
 
   let toolchainRegistry: ToolchainRegistry
 
@@ -158,12 +154,12 @@ package actor SourceKitLSPServer {
     client: Connection,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
-    testHooks: TestHooks,
+    hooks: Hooks,
     onExit: @escaping () -> Void = {}
   ) {
     self.toolchainRegistry = toolchainRegistry
     self.options = options
-    self.testHooks = testHooks
+    self.hooks = hooks
     self.onExit = onExit
 
     self.client = client
@@ -209,29 +205,48 @@ package actor SourceKitLSPServer {
     guard var url = uri.fileURL?.deletingLastPathComponent() else {
       return nil
     }
-    let projectRoots = await self.workspacesAndIsImplicit.filter { !$0.isImplicit }.asyncCompactMap {
-      await $0.workspace.buildSystemManager.projectRoot
+
+    // Roots of opened workspaces - only consider explicit here (all implicit must necessarily be subdirectories of
+    // the explicit workspace roots)
+    let workspaceRoots = workspacesAndIsImplicit.filter { !$0.isImplicit }.compactMap { $0.workspace.rootUri?.fileURL }
+
+    // We want to skip creating another workspace if any existing already has the same config path. This could happen if
+    // an existing workspace hasn't realoaded after a new file was added to it (and thus that build system needs to be
+    // reloaded).
+    let configPaths = await workspacesAndIsImplicit.asyncCompactMap {
+      await $0.workspace.buildSystemManager.configPath
     }
-    let rootURLs = workspacesAndIsImplicit.filter { !$0.isImplicit }.compactMap { $0.workspace.rootUri?.fileURL }
-    while url.pathComponents.count > 1 && rootURLs.contains(where: { $0.isPrefix(of: url) }) {
+
+    while url.pathComponents.count > 1 && workspaceRoots.contains(where: { $0.isPrefix(of: url) }) {
       defer {
         url.deleteLastPathComponent()
       }
-      // Ignore workspaces that have the same project root as an existing workspace.
-      // This might happen if there is an existing SwiftPM workspace that hasn't been reloaded after a new file
-      // was added to it and thus currently doesn't know that it can handle that file. In that case, we shouldn't open
-      // a new workspace for the same root. Instead, the existing workspace's build system needs to be reloaded.
+
       let uri = DocumentURI(url)
-      guard let buildSystemSpec = determineBuildSystem(forWorkspaceFolder: uri, options: self.options) else {
+      let options = SourceKitLSPOptions.merging(base: self.options, workspaceFolder: uri)
+
+      // Some build systems consider paths outside of the folder (eg. BSP has settings in the home directory). If we
+      // allowed those paths, then the very first folder that the file is in would always be its own build system - so
+      // skip them in that case.
+      guard
+        let buildSystemSpec = determineBuildSystem(
+          forWorkspaceFolder: uri,
+          onlyConsiderRoot: true,
+          options: options,
+          hooks: hooks.buildSystemHooks
+        )
+      else {
         continue
       }
-      guard !projectRoots.contains(buildSystemSpec.projectRoot) else {
+      if configPaths.contains(buildSystemSpec.configPath) {
         continue
       }
+
+      // No existing workspace matches this root - create one.
       guard
         let workspace = await orLog(
-          "Creating workspace",
-          { try await createWorkspace(workspaceFolder: uri, buildSystemSpec: buildSystemSpec) }
+          "Creating implicit workspace",
+          { try await createWorkspace(workspaceFolder: uri, options: options, buildSystemSpec: buildSystemSpec) }
         )
       else {
         continue
@@ -446,12 +461,12 @@ package actor SourceKitLSPServer {
     }
 
     // Start a new service.
-    return await orLog("failed to start language service", level: .error) { [options = workspace.options, testHooks] in
+    return await orLog("failed to start language service", level: .error) { [options = workspace.options, hooks] in
       let service = try await serverType.serverType.init(
         sourceKitLSPServer: self,
         toolchain: toolchain,
         options: options,
-        testHooks: testHooks,
+        hooks: hooks,
         workspace: workspace
       )
 
@@ -660,7 +675,7 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       }
     }
 
-    await self.testHooks.handleRequest?(params)
+    await self.hooks.preHandleRequest?(params)
 
     let startDate = Date()
 
@@ -820,9 +835,11 @@ extension SourceKitLSPServer {
 
   /// Creates a workspace at the given `uri`.
   ///
-  /// If the build system that was determined for the workspace does not satisfy `condition`, `nil` is returned.
+  /// A workspace does not necessarily have any build system attached to it, in which case `buildSystemSpec` may be
+  /// `nil` - consider eg. a top level workspace folder with multiple SwiftPM projects inside it.
   private func createWorkspace(
     workspaceFolder: DocumentURI,
+    options: SourceKitLSPOptions,
     buildSystemSpec: BuildSystemSpec?
   ) async throws -> Workspace {
     guard let capabilityRegistry = capabilityRegistry else {
@@ -830,7 +847,6 @@ extension SourceKitLSPServer {
       logger.log("Cannot open workspace before server is initialized")
       throw NoCapabilityRegistryError()
     }
-    let testHooks = self.testHooks
     let options = SourceKitLSPOptions.merging(
       base: self.options,
       override: SourceKitLSPOptions(
@@ -839,7 +855,7 @@ extension SourceKitLSPServer {
           .appendingPathComponent("config.json")
       )
     )
-    logger.log("Creating workspace at \(workspaceFolder.forLogging) with options: \(options.forLogging)")
+    logger.log("Creating workspace at \(workspaceFolder.forLogging)")
     logger.logFullObjectInMultipleLogMessages(header: "Options for workspace", options.loggingProxy)
 
     let workspace = await Workspace(
@@ -850,7 +866,7 @@ extension SourceKitLSPServer {
       buildSystemSpec: buildSystemSpec,
       toolchainRegistry: self.toolchainRegistry,
       options: options,
-      testHooks: testHooks,
+      hooks: hooks,
       indexTaskScheduler: indexTaskScheduler
     )
     return workspace
@@ -859,9 +875,17 @@ extension SourceKitLSPServer {
   /// Determines the build system for the given workspace folder and creates a `Workspace` that uses this inferred build
   /// system.
   private func createWorkspaceWithInferredBuildSystem(workspaceFolder: DocumentURI) async throws -> Workspace {
+    let options = SourceKitLSPOptions.merging(base: self.options, workspaceFolder: workspaceFolder)
+    let buildSystemSpec = determineBuildSystem(
+      forWorkspaceFolder: workspaceFolder,
+      onlyConsiderRoot: false,
+      options: options,
+      hooks: hooks.buildSystemHooks
+    )
     return try await self.createWorkspace(
       workspaceFolder: workspaceFolder,
-      buildSystemSpec: determineBuildSystem(forWorkspaceFolder: workspaceFolder, options: self.options)
+      options: options,
+      buildSystemSpec: buildSystemSpec
     )
   }
 
@@ -921,7 +945,7 @@ extension SourceKitLSPServer {
     logger.log("Initialized SourceKit-LSP")
     logger.logFullObjectInMultipleLogMessages(header: "SourceKit-LSP Options", options.loggingProxy)
 
-    await workspaceQueue.async { [testHooks] in
+    await workspaceQueue.async { [hooks] in
       if let workspaceFolders = req.workspaceFolders {
         self.workspacesAndIsImplicit += await workspaceFolders.asyncCompactMap { workspaceFolder in
           await orLog("Creating workspace from workspaceFolders") {
@@ -958,7 +982,7 @@ extension SourceKitLSPServer {
           buildSystemSpec: nil,
           toolchainRegistry: self.toolchainRegistry,
           options: options,
-          testHooks: testHooks,
+          hooks: hooks,
           indexTaskScheduler: self.indexTaskScheduler
         )
 

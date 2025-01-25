@@ -142,10 +142,9 @@ private enum BuildSystemAdapter {
 }
 
 private extension BuildSystemSpec {
-  private static func createBuiltInBuildSystemAdapter(
-    projectRoot: URL,
+  private func createBuiltInBuildSystemAdapter(
     messagesToSourceKitLSPHandler: any MessageHandler,
-    buildSystemTestHooks: BuildSystemTestHooks,
+    buildSystemHooks: BuildSystemHooks,
     _ createBuildSystem: @Sendable (_ connectionToSourceKitLSP: any Connection) async throws -> BuiltInBuildSystem?
   ) async -> BuildSystemAdapter? {
     let connectionToSourceKitLSP = LocalConnection(
@@ -164,7 +163,7 @@ private extension BuildSystemSpec {
     let buildSystemAdapter = BuiltInBuildSystemAdapter(
       underlyingBuildSystem: buildSystem,
       connectionToSourceKitLSP: connectionToSourceKitLSP,
-      buildSystemTestHooks: buildSystemTestHooks
+      buildSystemHooks: buildSystemHooks
     )
     let connectionToBuildSystem = LocalConnection(
       receiverName: "\(type(of: buildSystem)) for \(projectRoot.lastPathComponent)"
@@ -178,7 +177,7 @@ private extension BuildSystemSpec {
   func createBuildSystemAdapter(
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
-    buildSystemTestHooks testHooks: BuildSystemTestHooks,
+    buildSystemHooks: BuildSystemHooks,
     messagesToSourceKitLSPHandler: any MessageHandler
   ) async -> BuildSystemAdapter? {
     switch self.kind {
@@ -186,6 +185,7 @@ private extension BuildSystemSpec {
       let buildSystem = await orLog("Creating external build system") {
         try await ExternalBuildSystemAdapter(
           projectRoot: projectRoot,
+          configPath: configPath,
           messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
         )
       }
@@ -196,40 +196,38 @@ private extension BuildSystemSpec {
       logger.log("Created external build server at \(projectRoot)")
       return .external(buildSystem)
     case .compilationDatabase:
-      return await Self.createBuiltInBuildSystemAdapter(
-        projectRoot: projectRoot,
+      return await createBuiltInBuildSystemAdapter(
         messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
-        buildSystemTestHooks: testHooks
+        buildSystemHooks: buildSystemHooks
       ) { connectionToSourceKitLSP in
-        CompilationDatabaseBuildSystem(
-          projectRoot: projectRoot,
-          searchPaths: (options.compilationDatabaseOrDefault.searchPaths ?? []).compactMap {
-            try? RelativePath(validating: $0)
-          },
+        try CompilationDatabaseBuildSystem(
+          configPath: configPath,
           connectionToSourceKitLSP: connectionToSourceKitLSP
         )
       }
     case .swiftPM:
-      return await Self.createBuiltInBuildSystemAdapter(
-        projectRoot: projectRoot,
+      #if canImport(PackageModel)
+      return await createBuiltInBuildSystemAdapter(
         messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
-        buildSystemTestHooks: testHooks
+        buildSystemHooks: buildSystemHooks
       ) { connectionToSourceKitLSP in
         try await SwiftPMBuildSystem(
           projectRoot: projectRoot,
           toolchainRegistry: toolchainRegistry,
           options: options,
           connectionToSourceKitLSP: connectionToSourceKitLSP,
-          testHooks: testHooks.swiftPMTestHooks
+          testHooks: buildSystemHooks.swiftPMTestHooks
         )
       }
-    case .testBuildSystem:
-      return await Self.createBuiltInBuildSystemAdapter(
-        projectRoot: projectRoot,
+      #else
+      return nil
+      #endif
+    case .injected(let injector):
+      return await createBuiltInBuildSystemAdapter(
         messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
-        buildSystemTestHooks: testHooks
+        buildSystemHooks: buildSystemHooks
       ) { connectionToSourceKitLSP in
-        TestBuildSystem(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
+        await injector.createBuildSystem(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
       }
     }
   }
@@ -244,13 +242,14 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
   package let messageHandlingQueue = AsyncQueue<BuildSystemMessageDependencyTracker>()
 
-  /// The root of the project that this build system manages.
+  /// The path to the main configuration file (or directory) that this build system manages.
   ///
-  /// For example, in SwiftPM packages this is the folder containing Package.swift.
-  /// For compilation databases it is the root folder based on which the compilation database was found.
+  /// Some examples:
+  ///   - The path to `Package.swift` for SwiftPM packages
+  ///   - The path to `compile_commands.json` for a JSON compilation database
   ///
   /// `nil` if the `BuildSystemManager` does not have an underlying build system.
-  package let projectRoot: URL?
+  package let configPath: URL?
 
   /// The files for which the delegate has requested change notifications, ie. the files for which the delegate wants to
   /// get `fileBuildSettingsChanged` and `filesDependenciesUpdated` callbacks.
@@ -268,19 +267,6 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     get async {
       _ = await initializeResult.value
       return buildSystemAdapter
-    }
-  }
-
-  /// If the underlying build system is a `TestBuildSystem`, return it. Otherwise, `nil`
-  ///
-  /// - Important: For testing purposes only.
-  package var testBuildSystem: TestBuildSystem? {
-    get async {
-      switch buildSystemAdapter {
-      case .builtIn(let builtInBuildSystemAdapter, _): return await builtInBuildSystemAdapter.testBuildSystem
-      case .external: return nil
-      case nil: return nil
-      }
     }
   }
 
@@ -363,16 +349,16 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     connectionToClient: BuildSystemManagerConnectionToClient,
-    buildSystemTestHooks: BuildSystemTestHooks
+    buildSystemHooks: BuildSystemHooks
   ) async {
     self.toolchainRegistry = toolchainRegistry
     self.options = options
     self.connectionToClient = connectionToClient
-    self.projectRoot = buildSystemSpec?.projectRoot
+    self.configPath = buildSystemSpec?.configPath
     self.buildSystemAdapter = await buildSystemSpec?.createBuildSystemAdapter(
       toolchainRegistry: toolchainRegistry,
       options: options,
-      buildSystemTestHooks: buildSystemTestHooks,
+      buildSystemHooks: buildSystemHooks,
       messagesToSourceKitLSPHandler: WeakMessageHandler(self)
     )
 
@@ -422,13 +408,14 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         logger.log("Launched a legacy BSP server. Using push-based build settings model.")
         let legacyBuildServer = await LegacyBuildServerBuildSystem(
           projectRoot: buildSystemSpec.projectRoot,
+          configPath: buildSystemSpec.configPath,
           initializationData: initializeResponse,
           externalBuildSystemAdapter
         )
         let adapter = BuiltInBuildSystemAdapter(
           underlyingBuildSystem: legacyBuildServer,
           connectionToSourceKitLSP: legacyBuildServer.connectionToSourceKitLSP,
-          buildSystemTestHooks: buildSystemTestHooks
+          buildSystemHooks: buildSystemHooks
         )
         let connectionToBuildSystem = LocalConnection(receiverName: "Legacy BSP server")
         connectionToBuildSystem.start(handler: adapter)
@@ -688,8 +675,8 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         result.formUnion(targets)
       }
       if !filesAndDirectories.directories.isEmpty, let documentPathComponents = document.fileURL?.pathComponents {
-        for (directory, (directoryPathComponents, info)) in filesAndDirectories.directories {
-          guard let directoryPathComponents, let directoryPath = directory.fileURL else {
+        for (_, (directoryPathComponents, info)) in filesAndDirectories.directories {
+          guard let directoryPathComponents else {
             continue
           }
           if isDescendant(documentPathComponents, of: directoryPathComponents) {

@@ -31,27 +31,27 @@ import struct TSCBasic.RelativePath
 #endif
 
 /// Closures can be used to inspect or modify internal behavior in SourceKit-LSP.
-public struct TestHooks: Sendable {
+public struct Hooks: Sendable {
   package var indexTestHooks: IndexTestHooks
 
-  package var buildSystemTestHooks: BuildSystemTestHooks
+  package var buildSystemHooks: BuildSystemHooks
 
   /// A hook that will be executed before a request is handled.
   ///
   /// This allows requests to be artificially delayed.
-  package var handleRequest: (@Sendable (any RequestType) async -> Void)?
+  package var preHandleRequest: (@Sendable (any RequestType) async -> Void)?
 
   public init() {
-    self.init(indexTestHooks: IndexTestHooks(), buildSystemTestHooks: BuildSystemTestHooks(), handleRequest: nil)
+    self.init(indexTestHooks: IndexTestHooks(), buildSystemHooks: BuildSystemHooks())
   }
 
   package init(
     indexTestHooks: IndexTestHooks = IndexTestHooks(),
-    buildSystemTestHooks: BuildSystemTestHooks = BuildSystemTestHooks(),
-    handleRequest: (@Sendable (any RequestType) async -> Void)? = nil
+    buildSystemHooks: BuildSystemHooks = BuildSystemHooks(),
+    preHandleRequest: (@Sendable (any RequestType) async -> Void)? = nil
   ) {
     self.indexTestHooks = indexTestHooks
-    self.buildSystemTestHooks = buildSystemTestHooks
-    self.handleRequest = handleRequest
+    self.buildSystemHooks = buildSystemHooks
+    self.preHandleRequest = preHandleRequest
   }
 }

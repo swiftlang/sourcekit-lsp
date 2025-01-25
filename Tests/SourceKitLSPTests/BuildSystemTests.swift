@@ -22,6 +22,17 @@ import TSCBasic
 import ToolchainRegistry
 import XCTest
 
+private actor TestBuildSystemInjector: BuildSystemInjector {
+  var testBuildSystem: TestBuildSystem? = nil
+
+  func createBuildSystem(projectRoot: URL, connectionToSourceKitLSP: any Connection) -> any BuiltInBuildSystem {
+    assert(testBuildSystem == nil, "TestBuildSystemInjector can only create a single TestBuildSystem")
+    let buildSystem = TestBuildSystem(connectionToSourceKitLSP: connectionToSourceKitLSP)
+    testBuildSystem = buildSystem
+    return buildSystem
+  }
+}
+
 final class BuildSystemTests: XCTestCase {
   /// The mock client used to communicate with the SourceKit-LSP server.p
   ///
@@ -48,18 +59,23 @@ final class BuildSystemTests: XCTestCase {
 
     let server = testClient.server
 
+    let buildSystemInjector = TestBuildSystemInjector()
     let buildSystemManager = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(kind: .testBuildSystem, projectRoot: URL(fileURLWithPath: "/")),
+      buildSystemSpec: BuildSystemSpec(
+        kind: .injected(buildSystemInjector),
+        projectRoot: URL(fileURLWithPath: "/"),
+        configPath: URL(fileURLWithPath: "/")
+      ),
       toolchainRegistry: .forTesting,
       options: .testDefault(),
       connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-      buildSystemTestHooks: BuildSystemTestHooks()
+      buildSystemHooks: BuildSystemHooks()
     )
-    buildSystem = try await unwrap(buildSystemManager.testBuildSystem)
+    buildSystem = try await unwrap(buildSystemInjector.testBuildSystem)
 
     self.workspace = await Workspace.forTesting(
       options: SourceKitLSPOptions.testDefault(),
-      testHooks: TestHooks(),
+      testHooks: Hooks(),
       buildSystemManager: buildSystemManager,
       indexTaskScheduler: .forTesting
     )

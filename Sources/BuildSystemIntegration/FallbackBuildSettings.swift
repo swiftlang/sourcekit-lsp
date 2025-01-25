@@ -10,26 +10,20 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
+import LanguageServerProtocolExtensions
+import SwiftExtensions
+import TSCExtensions
+
+import struct TSCBasic.AbsolutePath
+import class TSCBasic.Process
+
 #if compiler(>=6)
-import Foundation
 package import LanguageServerProtocol
-import LanguageServerProtocolExtensions
 package import SKOptions
-import TSCExtensions
-
-import enum PackageLoading.Platform
-import struct TSCBasic.AbsolutePath
-import class TSCBasic.Process
 #else
-import Foundation
 import LanguageServerProtocol
-import LanguageServerProtocolExtensions
 import SKOptions
-import TSCExtensions
-
-import enum PackageLoading.Platform
-import struct TSCBasic.AbsolutePath
-import class TSCBasic.Process
 #endif
 
 /// The path to the SDK.

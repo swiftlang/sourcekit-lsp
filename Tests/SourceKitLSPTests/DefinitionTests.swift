@@ -16,8 +16,6 @@ import SKTestSupport
 import SwiftExtensions
 import XCTest
 
-import enum PackageLoading.Platform
-
 class DefinitionTests: XCTestCase {
   func testJumpToDefinitionAtEndOfIdentifier() async throws {
     let testClient = try await TestSourceKitLSPClient()

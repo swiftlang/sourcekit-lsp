@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Build
+#if canImport(PackageModel)
 import BuildServerProtocol
 @_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
@@ -19,6 +19,7 @@ import PackageModel
 import SKOptions
 import SKTestSupport
 import SourceKitLSP
+@preconcurrency import SPMBuildCore
 import SwiftExtensions
 import TSCBasic
 import TSCExtensions
@@ -27,11 +28,6 @@ import XCTest
 
 import struct Basics.AbsolutePath
 import struct Basics.Triple
-import struct PackageModel.BuildFlags
-
-#if canImport(SPMBuildCore)
-@preconcurrency import SPMBuildCore
-#endif
 
 private var hostTriple: Triple {
   get async throws {
@@ -57,7 +53,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         ]
       )
       let packageRoot = tempDir.appendingPathComponent("pkg")
-      XCTAssertNil(SwiftPMBuildSystem.projectRoot(for: packageRoot, options: .testDefault()))
+      let buildSystemSpec = SwiftPMBuildSystem.searchForConfig(in: packageRoot, options: .testDefault())
+      XCTAssertNil(buildSystemSpec)
     }
   }
 
@@ -146,11 +143,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemTestHooks: BuildSystemTestHooks()
+        buildSystemHooks: BuildSystemHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
@@ -218,11 +215,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemTestHooks: BuildSystemTestHooks()
+        buildSystemHooks: BuildSystemHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
@@ -290,11 +287,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
 
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(swiftPM: options),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemTestHooks: BuildSystemTestHooks()
+        buildSystemHooks: BuildSystemHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
@@ -341,8 +338,9 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         triple: "wasm32-unknown-wasi"
       )
 
+      let packageRoot = tempDir.appendingPathComponent("pkg")
       let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        projectRoot: tempDir.appendingPathComponent("pkg"),
+        projectRoot: packageRoot,
         toolchainRegistry: tr,
         options: SourceKitLSPOptions(swiftPM: options),
         connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy"),
@@ -375,11 +373,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = tempDir.appendingPathComponent("pkg")
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemTestHooks: BuildSystemTestHooks()
+        buildSystemHooks: BuildSystemHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
@@ -415,11 +413,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemTestHooks: BuildSystemTestHooks()
+        buildSystemHooks: BuildSystemHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
@@ -480,11 +478,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemTestHooks: BuildSystemTestHooks()
+        buildSystemHooks: BuildSystemHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
@@ -559,11 +557,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = tempDir.appendingPathComponent("pkg")
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemTestHooks: BuildSystemTestHooks()
+        buildSystemHooks: BuildSystemHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
@@ -624,11 +622,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemTestHooks: BuildSystemTestHooks()
+        buildSystemHooks: BuildSystemHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
@@ -710,7 +708,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   func testDeploymentTargetSwift() async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
-        root: try tempDir,
+        root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
           "pkg/Package.swift": """
@@ -725,11 +723,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = tempDir.appendingPathComponent("pkg")
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemTestHooks: BuildSystemTestHooks()
+        buildSystemHooks: BuildSystemHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
@@ -782,16 +780,13 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         withDestinationURL: URL(fileURLWithPath: tempDir.appendingPathComponent("pkg_real").filePath)
       )
 
-      let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: packageRoot, options: .testDefault()))
+      let buildSystemSpec = try XCTUnwrap(SwiftPMBuildSystem.searchForConfig(in: packageRoot, options: .testDefault()))
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(
-          kind: .swiftPM,
-          projectRoot: projectRoot
-        ),
+        buildSystemSpec: buildSystemSpec,
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemTestHooks: BuildSystemTestHooks()
+        buildSystemHooks: BuildSystemHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
@@ -810,27 +805,20 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           fallbackAfterTimeout: false
         )
       ).compilerArguments
-      let argumentsFromReal = try await unwrap(
-        buildSystemManager.buildSettingsInferredFromMainFile(
-          for: DocumentURI(aswiftReal),
-          language: .swift,
-          fallbackAfterTimeout: false
-        )
-      ).compilerArguments
 
-      // The arguments retrieved from the symlink and the real document should be the same, except that both should
-      // contain they file the build settings were created.
-      // FIXME: Or should the build settings always reference the main file?
-      XCTAssertEqual(
-        try argumentsFromSymlink.filter { try $0 != aswiftSymlink.filePath && $0 != aswiftReal.filePath },
-        try argumentsFromReal.filter { try $0 != aswiftSymlink.filePath && $0 != aswiftReal.filePath }
+      // We opened the project from a symlink. The realpath isn't part of the project and we should thus not receive
+      // build settings for it.
+      assertTrue(
+        try await unwrap(
+          buildSystemManager.buildSettingsInferredFromMainFile(
+            for: DocumentURI(aswiftReal),
+            language: .swift,
+            fallbackAfterTimeout: false
+          )
+        ).isFallback
       )
-
       assertArgumentsContain(try aswiftSymlink.filePath, arguments: argumentsFromSymlink)
       assertArgumentsDoNotContain(try aswiftReal.filePath, arguments: argumentsFromSymlink)
-
-      assertArgumentsContain(try aswiftReal.filePath, arguments: argumentsFromReal)
-      assertArgumentsDoNotContain(try aswiftSymlink.filePath, arguments: argumentsFromReal)
 
       let argsManifest = try await unwrap(
         buildSystemManager.buildSettingsInferredFromMainFile(
@@ -877,16 +865,13 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         withDestinationURL: URL(fileURLWithPath: tempDir.appendingPathComponent("pkg_real").filePath)
       )
 
-      let projectRoot = try XCTUnwrap(SwiftPMBuildSystem.projectRoot(for: symlinkRoot, options: .testDefault()))
+      let buildSystemSpec = try XCTUnwrap(SwiftPMBuildSystem.searchForConfig(in: symlinkRoot, options: .testDefault()))
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(
-          kind: .swiftPM,
-          projectRoot: projectRoot
-        ),
+        buildSystemSpec: buildSystemSpec,
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemTestHooks: BuildSystemTestHooks()
+        buildSystemHooks: BuildSystemHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
@@ -924,11 +909,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemTestHooks: BuildSystemTestHooks()
+        buildSystemHooks: BuildSystemHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
@@ -976,9 +961,9 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         .appendingPathComponent("pkg")
         .appendingPathComponent("Sources")
         .appendingPathComponent("lib")
-      let projectRoot = SwiftPMBuildSystem.projectRoot(for: workspaceRoot, options: .testDefault())
 
-      assertEqual(projectRoot, tempDir.appendingPathComponent("pkg", isDirectory: true))
+      let buildSystemSpec = SwiftPMBuildSystem.searchForConfig(in: workspaceRoot, options: .testDefault())
+      XCTAssertNil(buildSystemSpec)
     }
   }
 
@@ -1004,11 +989,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = tempDir.appendingPathComponent("pkg")
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemTestHooks: BuildSystemTestHooks()
+        buildSystemHooks: BuildSystemHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
 
@@ -1081,8 +1066,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         "MyLibrary/Test.swift": ""
       ],
       capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
-      testHooks: TestHooks(
-        buildSystemTestHooks: BuildSystemTestHooks(
+      hooks: Hooks(
+        buildSystemHooks: BuildSystemHooks(
           swiftPMTestHooks: SwiftPMTestHooks(reloadPackageDidStart: {
             didReceiveWorkDoneProgressNotification.waitOrXCTFail()
           })
@@ -1131,11 +1116,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let versionSpecificManifestURL = packageRoot.appendingPathComponent("Package@swift-5.8.swift")
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemTestHooks: BuildSystemTestHooks()
+        buildSystemHooks: BuildSystemHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
       let settings = await buildSystemManager.buildSettingsInferredFromMainFile(
@@ -1164,11 +1149,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let manifestURL = packageRoot.appendingPathComponent("Package.swift")
       let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(kind: .swiftPM, projectRoot: packageRoot),
+        buildSystemSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemTestHooks: BuildSystemTestHooks()
+        buildSystemHooks: BuildSystemHooks()
       )
       await buildSystemManager.waitForUpToDateBuildGraph()
       let settings = await buildSystemManager.buildSettingsInferredFromMainFile(
@@ -1243,3 +1228,15 @@ fileprivate extension URL {
     return result
   }
 }
+
+fileprivate extension BuildSystemSpec {
+  static func swiftpmSpec(for packageRoot: URL) -> BuildSystemSpec {
+    return BuildSystemSpec(
+      kind: .swiftPM,
+      projectRoot: packageRoot,
+      configPath: packageRoot.appendingPathComponent("Package.swift")
+    )
+  }
+}
+
+#endif

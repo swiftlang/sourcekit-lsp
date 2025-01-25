@@ -27,8 +27,6 @@ import ToolchainRegistry
 /// Build system to be used for testing BuildSystem and BuildSystemDelegate functionality with SourceKitLSPServer
 /// and other components.
 package actor TestBuildSystem: BuiltInBuildSystem {
-  package let projectRoot: URL
-
   package let fileWatchers: [FileSystemWatcher] = []
 
   package let indexStorePath: URL? = nil
@@ -46,11 +44,7 @@ package actor TestBuildSystem: BuiltInBuildSystem {
 
   package nonisolated var supportsPreparation: Bool { false }
 
-  package init(
-    projectRoot: URL,
-    connectionToSourceKitLSP: any Connection
-  ) {
-    self.projectRoot = projectRoot
+  package init(connectionToSourceKitLSP: any Connection) {
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
   }
 

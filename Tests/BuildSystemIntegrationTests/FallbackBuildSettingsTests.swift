@@ -19,8 +19,6 @@ import SourceKitLSP
 import TSCBasic
 import XCTest
 
-import struct PackageModel.BuildFlags
-
 final class FallbackBuildSystemTests: XCTestCase {
 
   func testSwift() throws {
@@ -171,9 +169,9 @@ final class FallbackBuildSystemTests: XCTestCase {
         let x: 1️⃣String2️⃣ = 1
         """
       ],
-      testHooks: TestHooks(
-        buildSystemTestHooks: BuildSystemTestHooks(
-          handleRequest: { request in
+      hooks: Hooks(
+        buildSystemHooks: BuildSystemHooks(
+          preHandleRequest: { request in
             if request is TextDocumentSourceKitOptionsRequest {
               fallbackResultsReceived.waitOrXCTFail()
             }

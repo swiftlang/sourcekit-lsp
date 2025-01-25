@@ -21,7 +21,6 @@ import TSCExtensions
 import ToolchainRegistry
 import XCTest
 
-import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import enum TSCBasic.ProcessEnv
