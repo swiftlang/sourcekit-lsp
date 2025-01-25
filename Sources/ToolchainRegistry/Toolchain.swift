@@ -99,6 +99,12 @@ public final class Toolchain: Sendable {
   /// The path to the Swift language server if available.
   package let sourcekitd: URL?
 
+  /// The path to the SourceKit client plugin if available.
+  package let sourceKitClientPlugin: URL?
+
+  /// The path to the SourceKit plugin if available.
+  package let sourceKitServicePlugin: URL?
+
   /// The path to the indexstore library if available.
   package let libIndexStore: URL?
 
@@ -153,6 +159,8 @@ public final class Toolchain: Sendable {
     swiftFormat: URL? = nil,
     clangd: URL? = nil,
     sourcekitd: URL? = nil,
+    sourceKitClientPlugin: URL? = nil,
+    sourceKitServicePlugin: URL? = nil,
     libIndexStore: URL? = nil
   ) {
     self.identifier = identifier
@@ -164,6 +172,8 @@ public final class Toolchain: Sendable {
     self.swiftFormat = swiftFormat
     self.clangd = clangd
     self.sourcekitd = sourcekitd
+    self.sourceKitClientPlugin = sourceKitClientPlugin
+    self.sourceKitServicePlugin = sourceKitServicePlugin
     self.libIndexStore = libIndexStore
   }
 
@@ -223,6 +233,8 @@ public final class Toolchain: Sendable {
     var swiftc: URL? = nil
     var swiftFormat: URL? = nil
     var sourcekitd: URL? = nil
+    var sourceKitClientPlugin: URL? = nil
+    var sourceKitServicePlugin: URL? = nil
     var libIndexStore: URL? = nil
 
     if let (infoPlist, xctoolchainPath) = containingXCToolchain(path) {
@@ -280,34 +292,53 @@ public final class Toolchain: Sendable {
       }
 
       // If 'currentPlatform' is nil it's most likely an unknown linux flavor.
-      let dylibExt: String
+      let dylibExtension: String
       if let dynamicLibraryExtension = Platform.current?.dynamicLibraryExtension {
-        dylibExt = dynamicLibraryExtension
+        dylibExtension = dynamicLibraryExtension
       } else {
         logger.fault("Could not determine host OS. Falling back to using '.so' as dynamic library extension")
-        dylibExt = ".so"
+        dylibExtension = ".so"
       }
 
-      let sourcekitdPath = libPath.appendingPathComponent("sourcekitd.framework").appendingPathComponent("sourcekitd")
-      if FileManager.default.isFile(at: sourcekitdPath) {
+      func findDylib(named name: String, searchFramework: Bool = false) -> URL? {
+        let frameworkPath = libPath.appendingPathComponent("\(name).framework").appendingPathComponent(name)
+        if FileManager.default.isFile(at: frameworkPath) {
+          return frameworkPath
+        }
+        let libSearchPath = libPath.appendingPathComponent("lib\(name)\(dylibExtension)")
+        if FileManager.default.isFile(at: libSearchPath) {
+          return libSearchPath
+        }
+        #if os(Windows)
+        let binSearchPath = binPath.appendingPathComponent("\(name)\(dylibExtension)")
+        if FileManager.default.isFile(at: binSearchPath) {
+          return binSearchPath
+        }
+        #endif
+        return nil
+      }
+
+      if let sourcekitdPath = findDylib(named: "sourcekitd", searchFramework: true)
+        ?? findDylib(named: "sourcekitdInProc")
+      {
         sourcekitd = sourcekitdPath
         foundAny = true
-      } else {
-        #if os(Windows)
-        let sourcekitdPath = binPath.appendingPathComponent("sourcekitdInProc\(dylibExt)")
-        #else
-        let sourcekitdPath = libPath.appendingPathComponent("libsourcekitdInProc\(dylibExt)")
-        #endif
-        if FileManager.default.isFile(at: sourcekitdPath) {
-          sourcekitd = sourcekitdPath
-          foundAny = true
-        }
+      }
+
+      if let clientPluginPath = findDylib(named: "SwiftSourceKitClientPlugin", searchFramework: true) {
+        sourceKitClientPlugin = clientPluginPath
+        foundAny = true
+      }
+
+      if let servicePluginPath = findDylib(named: "SwiftSourceKitPlugin", searchFramework: true) {
+        sourceKitServicePlugin = servicePluginPath
+        foundAny = true
       }
 
       #if os(Windows)
-      let libIndexStorePath = binPath.appendingPathComponent("libIndexStore\(dylibExt)")
+      let libIndexStorePath = binPath.appendingPathComponent("libIndexStore\(dylibExtension)")
       #else
-      let libIndexStorePath = libPath.appendingPathComponent("libIndexStore\(dylibExt)")
+      let libIndexStorePath = libPath.appendingPathComponent("libIndexStore\(dylibExtension)")
       #endif
       if FileManager.default.isFile(at: libIndexStorePath) {
         libIndexStore = libIndexStorePath
@@ -332,6 +363,8 @@ public final class Toolchain: Sendable {
       swiftFormat: swiftFormat,
       clangd: clangd,
       sourcekitd: sourcekitd,
+      sourceKitClientPlugin: sourceKitClientPlugin,
+      sourceKitServicePlugin: sourceKitServicePlugin,
       libIndexStore: libIndexStore
     )
   }
