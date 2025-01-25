@@ -246,12 +246,7 @@ final class PullDiagnosticsTests: XCTestCase {
       let beforeBuilding = try? await project.testClient.send(
         DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
       )
-      #if compiler(>=6.1)
-      #warning("When we drop support for Swift 5.10 we no longer need to check for the Objective-C error message")
-      #endif
-      if (beforeBuilding?.fullReport?.items ?? []).contains(where: {
-        return $0.message == "No such module 'LibA'" || $0.message == "Could not build Objective-C module 'LibA'"
-      }) {
+      if (beforeBuilding?.fullReport?.items ?? []).map(\.message).contains("No such module 'LibA'") {
         return true
       }
       logger.debug("Received unexpected diagnostics: \(beforeBuilding?.forLogging)")

@@ -58,7 +58,7 @@ package struct DocCServer {
     let request = ConvertRequest(
       bundleInfo: DocumentationBundle.Info(
         displayName: documentationBundleDisplayName,
-        identifier: documentationBundleIdentifier,
+        id: DocumentationBundle.Identifier(rawValue: documentationBundleIdentifier),
         defaultCodeListingLanguage: nil,
         defaultAvailability: nil,
         defaultModuleKind: nil

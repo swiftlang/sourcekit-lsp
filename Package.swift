@@ -123,12 +123,14 @@ var targets: [Target] = [
   .target(
     name: "CompletionScoring",
     dependencies: ["CCompletionScoring"],
+    exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
   ),
 
   .target(
     name: "CompletionScoringForPlugin",
     dependencies: ["CCompletionScoring"],
+    exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
   ),
 
@@ -550,6 +552,7 @@ var targets: [Target] = [
       "SwiftExtensionsForPlugin",
       "SwiftSourceKitPluginCommon",
     ],
+    exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings + [
       .unsafeFlags([
         "-module-alias", "SourceKitD=SourceKitDForPlugin",
@@ -569,6 +572,7 @@ var targets: [Target] = [
       "SwiftExtensionsForPlugin",
       "SKLoggingForPlugin",
     ],
+    exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings + [
       .unsafeFlags([
         "-module-alias", "SourceKitD=SourceKitDForPlugin",
@@ -591,6 +595,7 @@ var targets: [Target] = [
       "SwiftSourceKitPluginCommon",
       "SwiftExtensionsForPlugin",
     ],
+    exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings + [
       .unsafeFlags([
         "-module-alias", "CompletionScoring=CompletionScoringForPlugin",

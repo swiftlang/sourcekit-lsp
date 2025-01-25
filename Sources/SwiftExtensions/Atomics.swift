@@ -12,10 +12,7 @@
 
 import CAtomics
 
-#if compiler(>=6.2)
-#warning("We should be able to use atomics in the stdlib when we raise the deployment target to require Swift 6")
-#endif
-
+// TODO: Use atomic types from the standard library (https://github.com/swiftlang/sourcekit-lsp/issues/1949)
 package final class AtomicBool: Sendable {
   private nonisolated(unsafe) let atomic: UnsafeMutablePointer<CAtomicUInt32>
 

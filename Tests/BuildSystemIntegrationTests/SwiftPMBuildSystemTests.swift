@@ -125,7 +125,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
   }
 
   func testBasicSwiftArgs() async throws {
-    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,

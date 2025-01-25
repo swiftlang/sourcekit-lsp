@@ -50,13 +50,7 @@ final class DependencyTrackingTests: XCTestCase {
     // preparation is disabled). Before that, we might get empty syntactic diagnostics.
     try await repeatUntilExpectedResult {
       let initialDiags = try? await project.testClient.nextDiagnosticsNotification(timeout: .seconds(1))
-      #if compiler(>=6.1)
-      #warning("When we drop support for Swift 5.10 we no longer need to check for the Objective-C error message")
-      #endif
-      if let diagnostic = initialDiags?.diagnostics.only,
-        diagnostic.message.contains("Could not build Objective-C module")
-          || diagnostic.message.contains("No such module")
-      {
+      if let diagnostic = initialDiags?.diagnostics.only, diagnostic.message.contains("No such module") {
         return true
       }
       logger.debug("Received unexpected diagnostics: \(initialDiags?.forLogging)")

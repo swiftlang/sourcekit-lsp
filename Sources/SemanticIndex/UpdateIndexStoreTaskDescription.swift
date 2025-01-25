@@ -576,12 +576,6 @@ private func adjustClangCompilerArgumentsForIndexStoreUpdate(
   return result
 }
 
-#if compiler(>=6.1)
-#warning(
-  "Remove -fmodules-validate-system-headers from supplementalClangIndexingArgs once all supported Swift compilers have https://github.com/apple/swift/pull/74063"
-)
-#endif
-
 fileprivate let supplementalClangIndexingArgs: [String] = [
   // Retain extra information for indexing
   "-fretain-comments-from-system-headers",
@@ -596,11 +590,6 @@ fileprivate let supplementalClangIndexingArgs: [String] = [
   "-Xclang", "-fallow-pcm-with-compiler-errors",
   "-Wno-non-modular-include-in-framework-module",
   "-Wno-incomplete-umbrella",
-
-  // sourcekitd adds `-fno-modules-validate-system-headers` before https://github.com/apple/swift/pull/74063.
-  // This completely disables system module validation and never re-builds pcm for system modules. The intended behavior
-  // is to only re-build those PCMs once per sourcekitd session.
-  "-fmodules-validate-system-headers",
 ]
 
 fileprivate extension Sequence {

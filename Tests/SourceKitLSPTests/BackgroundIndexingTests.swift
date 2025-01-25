@@ -548,8 +548,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testPrepareTargetAfterEditToDependency() async throws {
-    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
-
     var testHooks = Hooks()
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       [
@@ -649,8 +647,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testDontStackTargetPreparationForEditorFunctionality() async throws {
-    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
-
     let allDocumentsOpened = WrappedSemaphore(name: "All documents opened")
     let libBStartedPreparation = WrappedSemaphore(name: "LibB started preparing")
     let libDPreparedForEditing = WrappedSemaphore(name: "LibD prepared for editing")
@@ -911,7 +907,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testImportPreparedModuleWithFunctionBodiesSkipped() async throws {
-    try await SkipUnless.sourcekitdSupportsRename()
     // This test case was crashing the indexing compiler invocation for Client if Lib was built for index preparation
     // (using `-enable-library-evolution -experimental-skip-all-function-bodies -experimental-lazy-typecheck`) but the
     // Client was not indexed with `-experimental-allow-module-with-compiler-errors`. rdar://129071600
@@ -1066,7 +1061,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testLibraryUsedByExecutableTargetAndPackagePlugin() async throws {
-    try await SkipUnless.swiftPMStoresModulesForTargetAndHostInSeparateFolders()
     let project = try await SwiftPMTestProject(
       files: [
         "Lib/MyFile.swift": """
@@ -1114,7 +1108,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testCrossModuleFunctionalityEvenIfLowLevelModuleHasErrors() async throws {
-    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
     var options = SourceKitLSPOptions.testDefault()
     options.backgroundPreparationMode = .enabled
     let project = try await SwiftPMTestProject(
@@ -1161,7 +1154,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testCrossModuleFunctionalityWithPreparationNoSkipping() async throws {
-    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
     var options = SourceKitLSPOptions.testDefault()
     options.backgroundPreparationMode = .noLazy
     let project = try await SwiftPMTestProject(
@@ -1444,7 +1436,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testCancelIndexing() async throws {
-    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
     try SkipUnless.longTestsEnabled()
 
     var options = SourceKitLSPOptions.testDefault()
@@ -1552,7 +1543,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testInvalidatePreparationStatusOfTransitiveDependencies() async throws {
-    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
@@ -1617,8 +1607,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testCodeCompletionShowsUpdatedResultsAfterDependencyUpdated() async throws {
-    try await SkipUnless.swiftPMSupportsExperimentalPrepareForIndexing()
-
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """

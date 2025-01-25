@@ -18,7 +18,6 @@ import XCTest
 
 final class RangeFormattingTests: XCTestCase {
   func testOnlyFormatsSpecifiedLines() async throws {
-    try await SkipUnless.toolchainContainsSwiftFormat()
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -51,7 +50,6 @@ final class RangeFormattingTests: XCTestCase {
   }
 
   func testOnlyFormatsSpecifiedColumns() async throws {
-    try await SkipUnless.toolchainContainsSwiftFormat()
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -84,7 +82,6 @@ final class RangeFormattingTests: XCTestCase {
   }
 
   func testFormatsMultipleLines() async throws {
-    try await SkipUnless.toolchainContainsSwiftFormat()
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
