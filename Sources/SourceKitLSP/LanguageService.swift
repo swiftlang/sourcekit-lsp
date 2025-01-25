@@ -113,10 +113,11 @@ package protocol LanguageService: AnyObject, Sendable {
     workspace: Workspace
   ) async throws
 
-  /// Returns `true` if this instance of the language server can handle opening documents in `workspace`.
+  /// Returns `true` if this instance of the language server can handle documents in `workspace` using the given
+  /// toolchain.
   ///
   /// If this returns `false`, a new language server will be started for `workspace`.
-  func canHandle(workspace: Workspace) -> Bool
+  func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool
 
   // MARK: - Lifetime
 

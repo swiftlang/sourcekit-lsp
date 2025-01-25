@@ -447,14 +447,15 @@ package actor SourceKitLSPServer {
     }
   }
 
-  /// If a language service of type `serverType` that can handle `workspace` has
-  /// already been started, return it, otherwise return `nil`.
+  /// If a language service of type `serverType` that can handle `workspace` using the given toolchain has already been
+  /// started, return it, otherwise return `nil`.
   private func existingLanguageService(
     _ serverType: LanguageServerType,
+    toolchain: Toolchain,
     workspace: Workspace
   ) -> LanguageService? {
     for languageService in languageServices[serverType, default: []] {
-      if languageService.canHandle(workspace: workspace) {
+      if languageService.canHandle(workspace: workspace, toolchain: toolchain) {
         return languageService
       }
     }
@@ -470,7 +471,7 @@ package actor SourceKitLSPServer {
       return nil
     }
     // Pick the first language service that can handle this workspace.
-    if let languageService = existingLanguageService(serverType, workspace: workspace) {
+    if let languageService = existingLanguageService(serverType, toolchain: toolchain, workspace: workspace) {
       return languageService
     }
 
@@ -522,7 +523,11 @@ package actor SourceKitLSPServer {
 
       await service.clientInitialized(InitializedNotification())
 
-      if let concurrentlyInitializedService = existingLanguageService(serverType, workspace: workspace) {
+      if let concurrentlyInitializedService = existingLanguageService(
+        serverType,
+        toolchain: toolchain,
+        workspace: workspace
+      ) {
         // Since we 'await' above, another call to languageService might have
         // happened concurrently, passed the `existingLanguageService` check at
         // the top and started initializing another language service.

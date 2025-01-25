@@ -23,15 +23,17 @@ import Android
 
 final class ToolchainRegistryTests: XCTestCase {
   func testDefaultSingleToolchain() async throws {
-    let tr = ToolchainRegistry(toolchains: [Toolchain(identifier: "a", displayName: "a", path: nil)])
+    let tr = ToolchainRegistry(toolchains: [
+      Toolchain(identifier: "a", displayName: "a", path: URL(fileURLWithPath: "/dummy"))
+    ])
     await assertEqual(tr.default?.identifier, "a")
   }
 
   func testDefaultTwoToolchains() async throws {
     let tr = ToolchainRegistry(
       toolchains: [
-        Toolchain(identifier: "a", displayName: "a", path: nil),
-        Toolchain(identifier: "b", displayName: "b", path: nil),
+        Toolchain(identifier: "a", displayName: "a", path: URL(fileURLWithPath: "/dummy")),
+        Toolchain(identifier: "b", displayName: "b", path: URL(fileURLWithPath: "/dummy")),
       ]
     )
     await assertEqual(tr.default?.identifier, "a")
@@ -517,7 +519,7 @@ final class ToolchainRegistryTests: XCTestCase {
   }
 
   func testDuplicateToolchainOnlyRegisteredOnce() async throws {
-    let toolchain = Toolchain(identifier: "a", displayName: "a", path: nil)
+    let toolchain = Toolchain(identifier: "a", displayName: "a", path: URL(fileURLWithPath: "/dummy"))
     let tr = ToolchainRegistry(toolchains: [toolchain, toolchain])
     assertEqual(await tr.toolchains.count, 1)
   }

@@ -17,6 +17,7 @@ import LanguageServerProtocolExtensions
 import SKTestSupport
 import SwiftExtensions
 import TSCExtensions
+import ToolchainRegistry
 import XCTest
 
 import struct TSCBasic.RelativePath
@@ -269,7 +270,7 @@ final class CompilationDatabaseTests: XCTestCase {
       let settings = try await buildSystem.sourceKitOptions(
         request: TextDocumentSourceKitOptionsRequest(
           textDocument: TextDocumentIdentifier(DocumentURI(URL(fileURLWithPath: "/a/a.swift"))),
-          target: BuildTargetIdentifier.dummy,
+          target: BuildTargetIdentifier.createCompileCommands(compiler: "swiftc"),
           language: .swift
         )
       )
@@ -439,6 +440,7 @@ private func checkCompilationDatabaseBuildSystem(
     try compdb.write(to: configPath, atomically: true, encoding: .utf8)
     let buildSystem = try JSONCompilationDatabaseBuildSystem(
       configPath: configPath,
+      toolchainRegistry: .forTesting,
       connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP")
     )
     try await block(XCTUnwrap(buildSystem))

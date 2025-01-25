@@ -17,11 +17,26 @@ import SwiftExtensions
 package import BuildServerProtocol
 package import Foundation
 package import LanguageServerProtocol
+package import ToolchainRegistry
 #else
 import BuildServerProtocol
 import Foundation
 import LanguageServerProtocol
+import ToolchainRegistry
 #endif
+
+fileprivate extension CompilationDatabaseCompileCommand {
+  /// The first entry in the command line identifies the compiler that should be used to compile the file and can thus
+  /// be used to infer the toolchain.
+  ///
+  /// Note that this compiler does not necessarily need to exist on disk. Eg. tools may just use `clang` as the compiler
+  /// without specifying a path.
+  ///
+  /// The absence of a compiler means we have an empty command line, which should never happen.
+  var compiler: String? {
+    return commandLine.first
+  }
+}
 
 /// A `BuildSystem` that provides compiler arguments from a `compile_commands.json` file.
 package actor JSONCompilationDatabaseBuildSystem: BuiltInBuildSystem {
@@ -35,6 +50,8 @@ package actor JSONCompilationDatabaseBuildSystem: BuiltInBuildSystem {
       _indexStorePath.reset()
     }
   }
+
+  private let toolchainRegistry: ToolchainRegistry
 
   private let connectionToSourceKitLSP: any Connection
 
@@ -73,34 +90,55 @@ package actor JSONCompilationDatabaseBuildSystem: BuiltInBuildSystem {
 
   package init(
     configPath: URL,
+    toolchainRegistry: ToolchainRegistry,
     connectionToSourceKitLSP: any Connection
   ) throws {
     self.compdb = try JSONCompilationDatabase(file: configPath)
+    self.toolchainRegistry = toolchainRegistry
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
-
     self.configPath = configPath
   }
 
   package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
-    return WorkspaceBuildTargetsResponse(targets: [
-      BuildTarget(
-        id: .dummy,
+    let compilers = Set(compdb.commands.compactMap(\.compiler)).sorted { $0 < $1 }
+    let targets = try await compilers.asyncMap { compiler in
+      let toolchainUri: URI? =
+        if let toolchainPath = await toolchainRegistry.toolchain(withCompiler: URL(fileURLWithPath: compiler))?.path {
+          URI(toolchainPath)
+        } else {
+          nil
+        }
+      return BuildTarget(
+        id: try BuildTargetIdentifier.createCompileCommands(compiler: compiler),
         displayName: nil,
         baseDirectory: nil,
         tags: [.test],
         capabilities: BuildTargetCapabilities(),
         // Be conservative with the languages that might be used in the target. SourceKit-LSP doesn't use this property.
         languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift],
-        dependencies: []
+        dependencies: [],
+        dataKind: .sourceKit,
+        data: SourceKitBuildTarget(toolchain: toolchainUri).encodeToLSPAny()
       )
-    ])
+    }
+    return WorkspaceBuildTargetsResponse(targets: targets)
   }
 
   package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
-    guard request.targets.contains(.dummy) else {
-      return BuildTargetSourcesResponse(items: [])
+    let items = request.targets.compactMap { (target) -> SourcesItem? in
+      guard let targetCompiler = orLog("Compiler for target", { try target.compileCommandsCompiler }) else {
+        return nil
+      }
+      let commandsWithRequestedCompilers = compdb.commands.lazy.filter { command in
+        return targetCompiler == command.compiler
+      }
+      let sources = commandsWithRequestedCompilers.map {
+        SourceItem(uri: $0.uri, kind: .file, generated: false)
+      }
+      return SourcesItem(target: target, sources: Array(sources))
     }
-    return BuildTargetSourcesResponse(items: [SourcesItem(target: .dummy, sources: compdb.sourceItems)])
+
+    return BuildTargetSourcesResponse(items: items)
   }
 
   package func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) {
@@ -116,12 +154,16 @@ package actor JSONCompilationDatabaseBuildSystem: BuiltInBuildSystem {
   package func sourceKitOptions(
     request: TextDocumentSourceKitOptionsRequest
   ) async throws -> TextDocumentSourceKitOptionsResponse? {
-    guard let cmd = compdb[request.textDocument.uri].first else {
+    let targetCompiler = try request.target.compileCommandsCompiler
+    let command = compdb[request.textDocument.uri].filter {
+      $0.compiler == targetCompiler
+    }.first
+    guard let command else {
       return nil
     }
     return TextDocumentSourceKitOptionsResponse(
-      compilerArguments: Array(cmd.commandLine.dropFirst()),
-      workingDirectory: cmd.directory
+      compilerArguments: Array(command.commandLine.dropFirst()),
+      workingDirectory: command.directory
     )
   }
 

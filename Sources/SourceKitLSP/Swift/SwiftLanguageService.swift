@@ -118,6 +118,8 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   /// The ``SourceKitLSPServer`` instance that created this `SwiftLanguageService`.
   private(set) weak var sourceKitLSPServer: SourceKitLSPServer?
 
+  private let sourcekitdPath: URL
+
   let sourcekitd: SourceKitD
 
   /// Path to the swift-format executable if it exists in the toolchain.
@@ -221,6 +223,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     workspace: Workspace
   ) async throws {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
+    self.sourcekitdPath = sourcekitd
     self.sourceKitLSPServer = sourceKitLSPServer
     self.swiftFormat = toolchain.swiftFormat
     let pluginPaths: PluginPaths?
@@ -321,9 +324,8 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     )
   }
 
-  package nonisolated func canHandle(workspace: Workspace) -> Bool {
-    // We have a single sourcekitd instance for all workspaces.
-    return true
+  package nonisolated func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool {
+    return self.sourcekitdPath == toolchain.sourcekitd
   }
 
   private func setState(_ newState: LanguageServerState) async {

@@ -78,7 +78,7 @@ package final actor ToolchainRegistry {
   /// Create a toolchain registry with a pre-defined list of toolchains.
   ///
   /// For testing purposes only.
-  public init(toolchains: [Toolchain]) {
+  package init(toolchains: [Toolchain]) {
     self.init(
       toolchainsAndReasons: toolchains.map { ($0, .xcode) },
       darwinToolchainOverride: nil
@@ -261,6 +261,17 @@ package final actor ToolchainRegistry {
       }
     }
 
+    return nil
+  }
+
+  /// If we have a toolchain in the toolchain registry that contains the compiler with the given URL, return it.
+  /// Otherwise, return `nil`.
+  package func toolchain(withCompiler compiler: URL) -> Toolchain? {
+    for toolchain in toolchains {
+      if [toolchain.clang, toolchain.swift, toolchain.swiftc].contains(compiler) {
+        return toolchain
+      }
+    }
     return nil
   }
 }

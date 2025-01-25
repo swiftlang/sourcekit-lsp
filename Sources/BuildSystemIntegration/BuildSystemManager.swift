@@ -202,6 +202,7 @@ private extension BuildSystemSpec {
       ) { connectionToSourceKitLSP in
         try JSONCompilationDatabaseBuildSystem(
           configPath: configPath,
+          toolchainRegistry: toolchainRegistry,
           connectionToSourceKitLSP: connectionToSourceKitLSP
         )
       }

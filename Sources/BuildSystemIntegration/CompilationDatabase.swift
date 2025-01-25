@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #if compiler(>=6)
-package import BuildServerProtocol
 package import Foundation
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
@@ -19,7 +18,6 @@ import SKLogging
 import SwiftExtensions
 import TSCExtensions
 #else
-import BuildServerProtocol
 import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
@@ -162,12 +160,6 @@ package struct JSONCompilationDatabase: Equatable, Codable {
       return indices.map { commands[$0] }
     }
     return []
-  }
-
-  package var sourceItems: [SourceItem] {
-    return commands.map {
-      SourceItem(uri: $0.uri, kind: .file, generated: false)
-    }
   }
 
   private mutating func add(_ command: CompilationDatabaseCompileCommand) {

@@ -146,7 +146,7 @@ public final class Toolchain: Sendable {
   package init(
     identifier: String,
     displayName: String,
-    path: URL? = nil,
+    path: URL,
     clang: URL? = nil,
     swift: URL? = nil,
     swiftc: URL? = nil,
@@ -191,9 +191,7 @@ public final class Toolchain: Sendable {
   func isProperSuperset(of other: Toolchain) -> Bool {
     return self.isSuperset(of: other) && !other.isSuperset(of: self)
   }
-}
 
-extension Toolchain {
   /// Create a toolchain for the given path, if it contains at least one tool, otherwise return nil.
   ///
   /// This initializer looks for a toolchain using the following basic layout:
@@ -218,7 +216,7 @@ extension Toolchain {
     // Properties that need to be initialized
     let identifier: String
     let displayName: String
-    let toolchainPath: URL?
+    let toolchainPath: URL
     var clang: URL? = nil
     var clangd: URL? = nil
     var swift: URL? = nil
