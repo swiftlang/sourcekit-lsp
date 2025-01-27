@@ -109,7 +109,7 @@ private func pluginPaths(relativeTo base: URL) -> PluginPaths? {
 
 /// Returns the paths from which the SourceKit plugins should be loaded or throws an error if the plugins cannot be
 /// found.
-package var sourceKitPluginPaths: PluginPaths {
+package var sourceKitPluginPaths: PluginPaths? {
   get throws {
     struct PluginLoadingError: Error, CustomStringConvertible {
       let searchBase: URL
@@ -126,12 +126,16 @@ package var sourceKitPluginPaths: PluginPaths {
       }
     }
 
-    let base =
-      if let pluginPaths = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_TEST_PLUGIN_PATHS"] {
-        URL(fileURLWithPath: pluginPaths)
+    var base: URL
+    if let pluginPaths = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_TEST_PLUGIN_PATHS"] {
+      if pluginPaths == "RELATIVE_TO_SOURCEKITD" {
+        return nil
       } else {
-        xctestBundle
+        base = URL(fileURLWithPath: pluginPaths)
       }
+    } else {
+      base = xctestBundle
+    }
     var searchPath = base
     while searchPath.pathComponents.count > 1 {
       if let paths = pluginPaths(relativeTo: searchPath) {

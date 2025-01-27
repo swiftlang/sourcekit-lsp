@@ -39,8 +39,8 @@ extension SourceKitLSPOptions {
   ) -> SourceKitLSPOptions {
     return SourceKitLSPOptions(
       sourcekitd: SourceKitDOptions(
-        clientPlugin: try! sourceKitPluginPaths.clientPlugin.filePath,
-        servicePlugin: try! sourceKitPluginPaths.servicePlugin.filePath
+        clientPlugin: try! sourceKitPluginPaths?.clientPlugin.filePath,
+        servicePlugin: try! sourceKitPluginPaths?.servicePlugin.filePath
       ),
       backgroundIndexing: backgroundIndexing,
       experimentalFeatures: experimentalFeatures,

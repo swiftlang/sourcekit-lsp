@@ -18,4 +18,4 @@ The following environment variables can be used to control some behavior in Sour
 - `SOURCEKIT_LSP_KEEP_TEST_SCRATCH_DIR`: Does not delete the temporary files created during test execution. Allows inspection of the test projects after the test finishes.
 - `SOURCEKIT_LSP_TEST_MODULE_CACHE`: Specifies where tests should store their shared module cache. Defaults to writing the module cache to a temporary directory. Intended so that CI systems can clean the module cache directory after running.
 - `SOURCEKIT_LSP_TEST_TIMEOUT`: Override the timeout duration for tests, in seconds.
-- `SOURCEKIT_LSP_TEST_PLUGIN_PATHS`: Load the SourceKit plugins from this path instead of relative to the package's build folder.
+- `SOURCEKIT_LSP_TEST_PLUGIN_PATHS`: Load the SourceKit plugins from this path instead of relative to the package's build folder. If set to `RELATIVE_TO_SOURCEKITD`, the SourceKit plugin is found from the toolchain, relative to sourcekitd.
