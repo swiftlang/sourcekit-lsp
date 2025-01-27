@@ -1607,6 +1607,8 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testCodeCompletionShowsUpdatedResultsAfterDependencyUpdated() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
@@ -1631,9 +1633,7 @@ final class BackgroundIndexingTests: XCTestCase {
           ]
         )
         """,
-      options: SourceKitLSPOptions(
-        backgroundPreparationMode: .enabled
-      ),
+      options: .testDefault(),
       enableBackgroundIndexing: true
     )
 

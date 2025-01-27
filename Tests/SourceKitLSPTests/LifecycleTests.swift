@@ -57,6 +57,8 @@ final class LifecycleTests: XCTestCase {
   }
 
   func testCancellation() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(

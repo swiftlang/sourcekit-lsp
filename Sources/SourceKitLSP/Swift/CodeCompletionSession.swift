@@ -23,6 +23,31 @@ import SwiftParser
 @_spi(SourceKitLSP) import SwiftRefactor
 import SwiftSyntax
 
+/// Data that is attached to a `CompletionItem`.
+private struct CompletionItemData: LSPAnyCodable {
+  let id: Int?
+
+  init(id: Int?) {
+    self.id = id
+  }
+
+  init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+    if case .int(let id) = dictionary["id"] {
+      self.id = id
+    } else {
+      self.id = nil
+    }
+  }
+
+  func encodeToLSPAny() -> LSPAny {
+    var dict: [String: LSPAny] = [:]
+    if let id {
+      dict["id"] = .int(id)
+    }
+    return .dictionary(dict)
+  }
+}
+
 /// Represents a code-completion session for a given source location that can be efficiently
 /// re-filtered by calling `update()`.
 ///
@@ -98,7 +123,6 @@ class CodeCompletionSession {
     options: SourceKitLSPOptions,
     indentationWidth: Trivia?,
     completionPosition: Position,
-    completionUtf8Offset: Int,
     cursorPosition: Position,
     compileCommand: SwiftCompileCommand?,
     clientSupportsSnippets: Bool,
@@ -107,8 +131,9 @@ class CodeCompletionSession {
     let task = completionQueue.asyncThrowing {
       if let session = completionSessions[ObjectIdentifier(sourcekitd)], session.state == .open {
         let isCompatible =
-          session.snapshot.uri == snapshot.uri && session.utf8StartOffset == completionUtf8Offset
-          && session.position == completionPosition && session.compileCommand == compileCommand
+          session.snapshot.uri == snapshot.uri
+          && session.position == completionPosition
+          && session.compileCommand == compileCommand
           && session.clientSupportsSnippets == clientSupportsSnippets
 
         if isCompatible {
@@ -128,7 +153,6 @@ class CodeCompletionSession {
         snapshot: snapshot,
         options: options,
         indentationWidth: indentationWidth,
-        utf8Offset: completionUtf8Offset,
         position: completionPosition,
         compileCommand: compileCommand,
         clientSupportsSnippets: clientSupportsSnippets
@@ -161,7 +185,6 @@ class CodeCompletionSession {
   private let options: SourceKitLSPOptions
   /// The inferred indentation width of the source file the completion is being performed in
   private let indentationWidth: Trivia?
-  private let utf8StartOffset: Int
   private let position: Position
   private let compileCommand: SwiftCompileCommand?
   private let clientSupportsSnippets: Bool
@@ -180,7 +203,6 @@ class CodeCompletionSession {
     snapshot: DocumentSnapshot,
     options: SourceKitLSPOptions,
     indentationWidth: Trivia?,
-    utf8Offset: Int,
     position: Position,
     compileCommand: SwiftCompileCommand?,
     clientSupportsSnippets: Bool
@@ -189,7 +211,6 @@ class CodeCompletionSession {
     self.options = options
     self.indentationWidth = indentationWidth
     self.snapshot = snapshot
-    self.utf8StartOffset = utf8Offset
     self.position = position
     self.compileCommand = compileCommand
     self.clientSupportsSnippets = clientSupportsSnippets
@@ -197,7 +218,7 @@ class CodeCompletionSession {
 
   private func open(
     filterText: String,
-    position: Position,
+    position cursorPosition: Position,
     in snapshot: DocumentSnapshot
   ) async throws -> CompletionList {
     logger.info("Opening code completion session: \(self.description) filter=\(filterText)")
@@ -205,14 +226,15 @@ class CodeCompletionSession {
       throw ResponseError(code: .invalidRequest, message: "open must use the original snapshot")
     }
 
+    let sourcekitdPosition = snapshot.sourcekitdPosition(of: self.position)
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.codeCompleteOpen,
-      keys.offset: utf8StartOffset,
+      keys.line: sourcekitdPosition.line,
+      keys.column: sourcekitdPosition.utf8Column,
       keys.name: uri.pseudoPath,
       keys.sourceFile: uri.pseudoPath,
       keys.sourceText: snapshot.text,
       keys.codeCompleteOptions: optionsDictionary(filterText: filterText),
-      keys.compilerArgs: compileCommand?.compilerArgs as [SKDRequestValue]?,
     ])
 
     let dict = try await sourcekitd.send(
@@ -228,11 +250,11 @@ class CodeCompletionSession {
 
     try Task.checkCancellation()
 
-    return self.completionsFromSKDResponse(
+    return await self.completionsFromSKDResponse(
       completions,
       in: snapshot,
       completionPos: self.position,
-      requestPosition: position,
+      requestPosition: cursorPosition,
       isIncomplete: true
     )
   }
@@ -243,10 +265,13 @@ class CodeCompletionSession {
     in snapshot: DocumentSnapshot
   ) async throws -> CompletionList {
     logger.info("Updating code completion session: \(self.description) filter=\(filterText)")
+    let sourcekitdPosition = snapshot.sourcekitdPosition(of: self.position)
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.codeCompleteUpdate,
-      keys.offset: utf8StartOffset,
+      keys.line: sourcekitdPosition.line,
+      keys.column: sourcekitdPosition.utf8Column,
       keys.name: uri.pseudoPath,
+      keys.sourceFile: uri.pseudoPath,
       keys.codeCompleteOptions: optionsDictionary(filterText: filterText),
     ])
 
@@ -259,7 +284,7 @@ class CodeCompletionSession {
       return CompletionList(isIncomplete: false, items: [])
     }
 
-    return self.completionsFromSKDResponse(
+    return await self.completionsFromSKDResponse(
       completions,
       in: snapshot,
       completionPos: self.position,
@@ -281,6 +306,7 @@ class CodeCompletionSession {
       // Filtering options.
       keys.filterText: filterText,
       keys.requestLimit: 200,
+      keys.useNewAPI: 1,
     ])
     return dict
   }
@@ -291,9 +317,12 @@ class CodeCompletionSession {
       // Already closed, nothing to do.
       break
     case .open:
+      let sourcekitdPosition = snapshot.sourcekitdPosition(of: self.position)
       let req = sourcekitd.dictionary([
         keys.request: sourcekitd.requests.codeCompleteClose,
-        keys.offset: utf8StartOffset,
+        keys.line: sourcekitdPosition.line,
+        keys.column: sourcekitdPosition.utf8Column,
+        keys.sourceFile: snapshot.uri.pseudoPath,
         keys.name: snapshot.uri.pseudoPath,
       ])
       logger.info("Closing code completion session: \(self.description)")
@@ -356,7 +385,10 @@ class CodeCompletionSession {
     completionPos: Position,
     requestPosition: Position,
     isIncomplete: Bool
-  ) -> CompletionList {
+  ) async -> CompletionList {
+    let sourcekitd = self.sourcekitd
+    let keys = sourcekitd.keys
+
     let completionItems = completions.compactMap { (value: SKDResponseDictionary) -> CompletionItem? in
       guard let name: String = value[keys.description],
         var insertText: String = value[keys.sourceText]
@@ -366,7 +398,6 @@ class CodeCompletionSession {
 
       var filterName: String? = value[keys.name]
       let typeName: String? = value[sourcekitd.keys.typeName]
-      let docBrief: String? = value[sourcekitd.keys.docBrief]
       let utf8CodeUnitsToErase: Int = value[sourcekitd.keys.numBytesToErase] ?? 0
 
       if let closureExpanded = expandClosurePlaceholders(insertText: insertText) {
@@ -398,22 +429,64 @@ class CodeCompletionSession {
       // Map SourceKit's not_recommended field to LSP's deprecated
       let notRecommended = (value[sourcekitd.keys.notRecommended] ?? 0) != 0
 
+      let sortText: String?
+      if let semanticScore: Double = value[sourcekitd.keys.semanticScore] {
+        // sourcekitd returns numeric completion item scores with a higher score being better. LSP's sort text is
+        // lexicographical. Map the numeric score to a lexicographically sortable score by subtracting it from 5_000.
+        // This gives us a valid range of semantic scores from -5_000 to 5_000 that can be sorted correctly
+        // lexicographically. This should be sufficient as semantic scores are typically single-digit.
+        var lexicallySortableScore = 5_000 - semanticScore
+        if lexicallySortableScore < 0 {
+          logger.fault("Semantic score out-of-bounds: \(semanticScore, privacy: .public)")
+          lexicallySortableScore = 0
+        }
+        if lexicallySortableScore >= 10_000 {
+          logger.fault("Semantic score out-of-bounds: \(semanticScore, privacy: .public)")
+          lexicallySortableScore = 9_999.99999999
+        }
+        sortText = String(format: "%013.8f", lexicallySortableScore) + "-\(name)"
+      } else {
+        sortText = nil
+      }
+
+      let data = CompletionItemData(id: value[keys.identifier] as Int?)
+
       let kind: sourcekitd_api_uid_t? = value[sourcekitd.keys.kind]
       return CompletionItem(
         label: name,
         kind: kind?.asCompletionItemKind(sourcekitd.values) ?? .value,
         detail: typeName,
-        documentation: docBrief != nil ? .markupContent(MarkupContent(kind: .markdown, value: docBrief!)) : nil,
+        documentation: nil,
         deprecated: notRecommended,
-        sortText: nil,
+        sortText: sortText,
         filterText: filterName,
         insertText: text,
         insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
-        textEdit: textEdit.map(CompletionItemEdit.textEdit)
+        textEdit: textEdit.map(CompletionItemEdit.textEdit),
+        data: data.encodeToLSPAny()
       )
     }
 
-    return CompletionList(isIncomplete: isIncomplete, items: completionItems)
+    // TODO: Only compute documentation if the client doesn't support `completionItem/resolve`
+    // (https://github.com/swiftlang/sourcekit-lsp/issues/1935)
+    let withDocumentation = await completionItems.asyncMap { item in
+      var item = item
+
+      if let itemId = CompletionItemData(fromLSPAny: item.data)?.id {
+        let req = sourcekitd.dictionary([
+          keys.request: sourcekitd.requests.codeCompleteDocumentation,
+          keys.identifier: itemId,
+        ])
+        let documentationResponse = try? await sourcekitd.send(req, timeout: .seconds(1), fileContents: snapshot.text)
+        if let docString: String = documentationResponse?[keys.docBrief] {
+          item.documentation = .markupContent(MarkupContent(kind: .markdown, value: docString))
+        }
+      }
+
+      return item
+    }
+
+    return CompletionList(isIncomplete: isIncomplete, items: withDocumentation)
   }
 
   private func computeCompletionTextEdit(

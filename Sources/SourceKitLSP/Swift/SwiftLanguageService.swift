@@ -1163,6 +1163,16 @@ extension SwiftLanguageService: SKDNotificationHandler {
 
 // MARK: - Position conversion
 
+/// A line:column position as it is used in sourcekitd, using UTF-8 for the column index and using a one-based line and
+/// column number.
+struct SourceKitDPosition {
+  /// Line number within a document (one-based).
+  public var line: Int
+
+  /// UTF-8 code-unit offset from the start of a line (1-based).
+  public var utf8Column: Int
+}
+
 extension DocumentSnapshot {
 
   // MARK: String.Index <-> Raw UTF-8
@@ -1378,6 +1388,23 @@ extension DocumentSnapshot {
       callerFile: callerFile,
       callerLine: callerLine
     )
+  }
+
+  // MARK: Position <-> SourceKitDPosition
+
+  func sourcekitdPosition(
+    of position: Position,
+    callerFile: StaticString = #fileID,
+    callerLine: UInt = #line
+  ) -> SourceKitDPosition {
+    let utf8Column = lineTable.utf8ColumnAt(
+      line: position.line,
+      utf16Column: position.utf16index,
+      callerFile: callerFile,
+      callerLine: callerLine
+    )
+    // FIXME: Introduce new type for UTF-8 based positions
+    return SourceKitDPosition(line: position.line + 1, utf8Column: utf8Column + 1)
   }
 
   // MAR: Position <-> SymbolLocation

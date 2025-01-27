@@ -25,6 +25,8 @@ import XCTest
 final class WorkspaceTests: XCTestCase {
 
   func testMultipleSwiftPMWorkspaces() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     // The package manifest is the same for both packages we open.
     let packageManifest = """
       // swift-tools-version: 5.7
@@ -88,14 +90,13 @@ final class WorkspaceTests: XCTestCase {
     )
 
     XCTAssertEqual(
-      completions.items,
+      completions.items.clearingUnstableValues,
       [
         CompletionItem(
           label: "foo()",
           kind: .method,
           detail: "Void",
           deprecated: false,
-          sortText: nil,
           filterText: "foo()",
           insertText: "foo()",
           insertTextFormat: .plain,
@@ -108,7 +109,6 @@ final class WorkspaceTests: XCTestCase {
           kind: .keyword,
           detail: "Lib",
           deprecated: false,
-          sortText: nil,
           filterText: "self",
           insertText: "self",
           insertTextFormat: .plain,
@@ -126,7 +126,7 @@ final class WorkspaceTests: XCTestCase {
     )
 
     XCTAssertEqual(
-      otherCompletions.items,
+      otherCompletions.items.clearingUnstableValues,
       [
         CompletionItem(
           label: "sayHello()",
@@ -134,7 +134,6 @@ final class WorkspaceTests: XCTestCase {
           detail: "Void",
           documentation: nil,
           deprecated: false,
-          sortText: nil,
           filterText: "sayHello()",
           insertText: "sayHello()",
           insertTextFormat: .plain,
@@ -148,7 +147,6 @@ final class WorkspaceTests: XCTestCase {
           detail: "FancyLib",
           documentation: nil,
           deprecated: false,
-          sortText: nil,
           filterText: "self",
           insertText: "self",
           insertTextFormat: .plain,
@@ -237,6 +235,8 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testSwiftPMPackageInSubfolder() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let packageManifest = """
       // swift-tools-version: 5.7
 
@@ -281,7 +281,7 @@ final class WorkspaceTests: XCTestCase {
     )
 
     XCTAssertEqual(
-      otherCompletions.items,
+      otherCompletions.items.clearingUnstableValues,
       [
         CompletionItem(
           label: "sayHello()",
@@ -289,7 +289,6 @@ final class WorkspaceTests: XCTestCase {
           detail: "Void",
           documentation: nil,
           deprecated: false,
-          sortText: nil,
           filterText: "sayHello()",
           insertText: "sayHello()",
           insertTextFormat: .plain,
@@ -303,7 +302,6 @@ final class WorkspaceTests: XCTestCase {
           detail: "FancyLib",
           documentation: nil,
           deprecated: false,
-          sortText: nil,
           filterText: "self",
           insertText: "self",
           insertTextFormat: .plain,
@@ -316,6 +314,8 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testNestedSwiftPMWorkspacesWithoutDedicatedWorkspaceFolder() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     // The package manifest is the same for both packages we open.
     let packageManifest = """
       // swift-tools-version: 5.7
@@ -374,14 +374,13 @@ final class WorkspaceTests: XCTestCase {
     )
 
     XCTAssertEqual(
-      completions.items,
+      completions.items.clearingUnstableValues,
       [
         CompletionItem(
           label: "foo()",
           kind: .method,
           detail: "Void",
           deprecated: false,
-          sortText: nil,
           filterText: "foo()",
           insertText: "foo()",
           insertTextFormat: .plain,
@@ -394,7 +393,6 @@ final class WorkspaceTests: XCTestCase {
           kind: .keyword,
           detail: "Lib",
           deprecated: false,
-          sortText: nil,
           filterText: "self",
           insertText: "self",
           insertTextFormat: .plain,
@@ -414,7 +412,7 @@ final class WorkspaceTests: XCTestCase {
     )
 
     XCTAssertEqual(
-      otherCompletions.items,
+      otherCompletions.items.clearingUnstableValues,
       [
         CompletionItem(
           label: "sayHello()",
@@ -422,7 +420,6 @@ final class WorkspaceTests: XCTestCase {
           detail: "Void",
           documentation: nil,
           deprecated: false,
-          sortText: nil,
           filterText: "sayHello()",
           insertText: "sayHello()",
           insertTextFormat: .plain,
@@ -436,7 +433,6 @@ final class WorkspaceTests: XCTestCase {
           detail: "FancyLib",
           documentation: nil,
           deprecated: false,
-          sortText: nil,
           filterText: "self",
           insertText: "self",
           insertTextFormat: .plain,
@@ -587,6 +583,8 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testMixedPackage() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let project = try await SwiftPMTestProject(
       files: [
         "clib/include/clib.h": """
@@ -637,6 +635,8 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testChangeWorkspaceFolders() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     let project = try await MultiFileTestProject(
       files: [
         "subdir/Sources/otherPackage/otherPackage.swift": """
@@ -730,7 +730,7 @@ final class WorkspaceTests: XCTestCase {
     )
 
     XCTAssertEqual(
-      postChangeWorkspaceResponse.items,
+      postChangeWorkspaceResponse.items.clearingUnstableValues,
       [
         CompletionItem(
           label: "helloWorld()",
@@ -738,7 +738,6 @@ final class WorkspaceTests: XCTestCase {
           detail: "Void",
           documentation: nil,
           deprecated: false,
-          sortText: nil,
           filterText: "helloWorld()",
           insertText: "helloWorld()",
           insertTextFormat: .plain,
@@ -755,7 +754,6 @@ final class WorkspaceTests: XCTestCase {
           detail: "Package",
           documentation: nil,
           deprecated: false,
-          sortText: nil,
           filterText: "self",
           insertText: "self",
           insertTextFormat: .plain,
@@ -770,6 +768,8 @@ final class WorkspaceTests: XCTestCase {
     )
   }
   func testIntegrationTest() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
     // This test is doing the same as `test-sourcekit-lsp` in the `swift-integration-tests` repo.
 
     let project = try await SwiftPMTestProject(
@@ -843,7 +843,7 @@ final class WorkspaceTests: XCTestCase {
       CompletionRequest(textDocument: TextDocumentIdentifier(mainUri), position: mainPositions["3️⃣"])
     )
     XCTAssertEqual(
-      swiftCompletionResponse.items,
+      swiftCompletionResponse.items.clearingUnstableValues,
       [
         CompletionItem(
           label: "foo()",

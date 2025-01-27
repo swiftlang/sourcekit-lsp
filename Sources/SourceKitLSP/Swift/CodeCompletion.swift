@@ -29,8 +29,7 @@ extension SwiftLanguageService {
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
 
     let completionPos = await adjustPositionToStartOfIdentifier(req.position, in: snapshot)
-    let offset = snapshot.utf8Offset(of: completionPos)
-    let filterText = String(snapshot.text[snapshot.indexOf(utf8Offset: offset)..<snapshot.index(of: req.position)])
+    let filterText = String(snapshot.text[snapshot.index(of: completionPos)..<snapshot.index(of: req.position)])
 
     let clientSupportsSnippets =
       capabilityRegistry.clientCapabilities.textDocument?.completion?.completionItem?.snippetSupport ?? false
@@ -44,7 +43,6 @@ extension SwiftLanguageService {
       options: options,
       indentationWidth: inferredIndentationWidth,
       completionPosition: completionPos,
-      completionUtf8Offset: offset,
       cursorPosition: req.position,
       compileCommand: buildSettings,
       clientSupportsSnippets: clientSupportsSnippets,

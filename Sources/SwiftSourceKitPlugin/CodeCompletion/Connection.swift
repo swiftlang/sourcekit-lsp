@@ -74,7 +74,7 @@ final class Connection {
     }
   }
 
-  fileprivate let logger = Logger(subsystem: "org.swift.sourcekit.service-plugin", category: "Connection")
+  let logger = Logger(subsystem: "org.swift.sourcekit.service-plugin", category: "Connection")
 
   private let impl: swiftide_api_connection_t
   let sourcekitd: SourceKitD
