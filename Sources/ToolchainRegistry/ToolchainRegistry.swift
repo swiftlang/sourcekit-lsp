@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Dispatch
+import SKLogging
 import SwiftExtensions
 import TSCExtensions
 
@@ -68,9 +69,13 @@ package final actor ToolchainRegistry {
   private let toolchainsByIdentifier: [String: [Toolchain]]
 
   /// The toolchains indexed by their path.
-  ///
-  /// Note: Not all toolchains have a path.
   private let toolchainsByPath: [URL: Toolchain]
+
+  /// Map from compiler paths (`clang`, `swift`, `swiftc`) mapping to the toolchain that contained them.
+  ///
+  /// This allows us to find the toolchain that should be used for semantic functionality based on which compiler it is
+  /// built with in the `compile_commands.json`.
+  private let toolchainsByCompiler: [URL: Toolchain]
 
   /// The currently selected toolchain identifier on Darwin.
   package let darwinToolchainOverride: String?
@@ -98,29 +103,40 @@ package final actor ToolchainRegistry {
     var toolchainsAndReasons: [(toolchain: Toolchain, reason: ToolchainRegisterReason)] = []
     var toolchainsByIdentifier: [String: [Toolchain]] = [:]
     var toolchainsByPath: [URL: Toolchain] = [:]
+    var toolchainsByCompiler: [URL: Toolchain] = [:]
     for (toolchain, reason) in toolchainsAndReasonsParam {
       // Non-XcodeDefault toolchain: disallow all duplicates.
-      if toolchain.identifier != ToolchainRegistry.darwinDefaultToolchainIdentifier {
-        guard toolchainsByIdentifier[toolchain.identifier] == nil else {
-          continue
-        }
+      if toolchainsByIdentifier[toolchain.identifier] != nil,
+        toolchain.identifier != ToolchainRegistry.darwinDefaultToolchainIdentifier
+      {
+        logger.error("Found two toolchains with the same identifier: \(toolchain.identifier)")
+        continue
       }
 
-      // Toolchain should always be unique by path if it is present.
-      if let path = toolchain.path {
-        guard toolchainsByPath[path] == nil else {
-          continue
-        }
-        toolchainsByPath[path] = toolchain
+      // Toolchain should always be unique by path.
+      if toolchainsByPath[toolchain.path] != nil {
+        logger.fault("Found two toolchains with the same path: \(toolchain.path)")
+        continue
       }
 
+      toolchainsByPath[toolchain.path] = toolchain
       toolchainsByIdentifier[toolchain.identifier, default: []].append(toolchain)
+
+      for case .some(let compiler) in [toolchain.clang, toolchain.swift, toolchain.swiftc] {
+        guard toolchainsByCompiler[compiler] == nil else {
+          logger.fault("Found two toolchains with the same compiler: \(compiler)")
+          continue
+        }
+        toolchainsByCompiler[compiler] = toolchain
+      }
+
       toolchainsAndReasons.append((toolchain, reason))
     }
 
     self.toolchainsAndReasons = toolchainsAndReasons
     self.toolchainsByIdentifier = toolchainsByIdentifier
     self.toolchainsByPath = toolchainsByPath
+    self.toolchainsByCompiler = toolchainsByCompiler
 
     if let darwinToolchainOverride, !darwinToolchainOverride.isEmpty, darwinToolchainOverride != "default" {
       self.darwinToolchainOverride = darwinToolchainOverride
@@ -267,12 +283,7 @@ package final actor ToolchainRegistry {
   /// If we have a toolchain in the toolchain registry that contains the compiler with the given URL, return it.
   /// Otherwise, return `nil`.
   package func toolchain(withCompiler compiler: URL) -> Toolchain? {
-    for toolchain in toolchains {
-      if [toolchain.clang, toolchain.swift, toolchain.swiftc].contains(compiler) {
-        return toolchain
-      }
-    }
-    return nil
+    return toolchainsByCompiler[compiler]
   }
 }
 

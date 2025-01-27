@@ -567,7 +567,7 @@ package actor SourceKitLSPServer {
 
     logger.log(
       """
-      Using toolchain at \(toolchain.path?.description ?? "<nil>") (\(toolchain.identifier, privacy: .public)) \
+      Using toolchain at \(toolchain.path.description) (\(toolchain.identifier, privacy: .public)) \
       for \(uri.forLogging)
       """
     )
