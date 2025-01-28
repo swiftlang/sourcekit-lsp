@@ -151,11 +151,35 @@ actor SyntacticTestIndex {
 
   /// Called when a list of files was updated. Re-scans those files
   private func rescanFiles(_ uris: [DocumentURI]) {
-    logger.info("Syntactically scanning files for tests: \(uris)")
-
     // If we scan a file again, it might have been added after being removed before. Remove it from the list of removed
     // files.
     removedFiles.subtract(uris)
+
+    // If we already know that the file has an up-to-date index, avoid re-scheduling it to be indexed. This ensures
+    // that we don't bloat `indexingQueue` if the build system is sending us repeated `buildTarget/didChange`
+    // notifications.
+    // This check does not need to be perfect and there might be an in-progress index operation that is about to index
+    // the file. In that case we still schedule anothe rescan of that file and notice in `rescanFilesAssumingOnQueue`
+    // that the index is already up-to-date, which makes the rescan a no-op.
+    let uris = uris.filter { uri in
+      if let url = uri.fileURL,
+        let indexModificationDate = self.indexedTests[uri]?.sourceFileModificationDate,
+        let fileModificationDate = try? FileManager.default.attributesOfItem(atPath: url.filePath)[.modificationDate]
+          as? Date,
+        indexModificationDate >= fileModificationDate
+      {
+        return false
+      }
+      return true
+    }
+
+    guard !uris.isEmpty else {
+      return
+    }
+
+    logger.info(
+      "Syntactically scanning \(uris.count) files for tests: \(uris.map(\.arbitrarySchemeURL.lastPathComponent).joined(separator: ", "))"
+    )
 
     // Divide the files into multiple batches. This is more efficient than spawning a new task for every file, mostly
     // because it keeps the number of pending items in `indexingQueue` low and adding a new task to `indexingQueue` is
