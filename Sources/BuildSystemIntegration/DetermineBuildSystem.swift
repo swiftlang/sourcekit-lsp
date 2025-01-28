@@ -72,8 +72,12 @@ package func determineBuildSystem(
   options: SourceKitLSPOptions,
   hooks: BuildSystemHooks
 ) -> BuildSystemSpec? {
-  if let workspaceURL = workspaceFolder.fileURL, let buildSystemInjector = hooks.buildSystemInjector {
-    return BuildSystemSpec(kind: .injected(buildSystemInjector), projectRoot: workspaceURL, configPath: workspaceURL)
+  if let buildSystemInjector = hooks.buildSystemInjector {
+    return BuildSystemSpec(
+      kind: .injected(buildSystemInjector),
+      projectRoot: workspaceFolder.arbitrarySchemeURL,
+      configPath: workspaceFolder.arbitrarySchemeURL
+    )
   }
 
   var buildSystemPreference: [WorkspaceType] = [
