@@ -16,16 +16,17 @@ public import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SwiftExtensions
 import TSCExtensions
-import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 
 #if compiler(>=6)
 package import SKOptions
 package import SourceKitLSP
+package import ToolchainRegistry
 #else
 import SKOptions
 import SourceKitLSP
+import ToolchainRegistry
 #endif
 
 /// Launches a `SourceKitLSPServer` in-process and allows sending messages to it.
@@ -41,7 +42,7 @@ public final class InProcessSourceKitLSPClient: Sendable {
     messageHandler: any MessageHandler
   ) async throws {
     try await self.init(
-      toolchainPath: toolchainPath,
+      toolchainRegistry: ToolchainRegistry(installPath: toolchainPath),
       options: SourceKitLSPOptions(),
       capabilities: capabilities,
       workspaceFolders: workspaceFolders,
@@ -53,7 +54,7 @@ public final class InProcessSourceKitLSPClient: Sendable {
   ///
   /// `messageHandler` handles notifications and requests sent from the SourceKit-LSP server to the client.
   package init(
-    toolchainPath: URL?,
+    toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions = SourceKitLSPOptions(),
     hooks: Hooks = Hooks(),
     capabilities: ClientCapabilities = ClientCapabilities(),
@@ -63,7 +64,7 @@ public final class InProcessSourceKitLSPClient: Sendable {
     let serverToClientConnection = LocalConnection(receiverName: "client")
     self.server = SourceKitLSPServer(
       client: serverToClientConnection,
-      toolchainRegistry: ToolchainRegistry(installPath: toolchainPath),
+      toolchainRegistry: toolchainRegistry,
       options: options,
       hooks: hooks,
       onExit: {

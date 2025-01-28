@@ -145,6 +145,17 @@ package final actor ToolchainRegistry {
     }
   }
 
+  package init(xcodeToolchains toolchainPaths: [URL]) {
+    let toolchainsAndReasons: [(toolchain: Toolchain, reason: ToolchainRegisterReason)] = toolchainPaths.compactMap {
+      path in
+      guard let toolchain = Toolchain(path) else {
+        return nil
+      }
+      return (toolchain, .xcode)
+    }
+    self.init(toolchainsAndReasons: toolchainsAndReasons, darwinToolchainOverride: nil)
+  }
+
   /// A toolchain registry used for testing that scans for toolchains based on environment variables and Xcode
   /// installations but not next to the `sourcekit-lsp` binary because there is no `sourcekit-lsp` binary during
   /// testing.
