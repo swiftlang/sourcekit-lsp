@@ -12,6 +12,7 @@
 
 #if compiler(>=6)
 package import BuildSystemIntegration
+import BuildServerProtocol
 import Csourcekitd
 import Dispatch
 import Foundation
@@ -30,6 +31,7 @@ package import SwiftSyntax
 package import ToolchainRegistry
 #else
 import BuildSystemIntegration
+import BuildServerProtocol
 import Csourcekitd
 import Dispatch
 import Foundation
@@ -1051,9 +1053,17 @@ extension SwiftLanguageService {
 
   package func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens] {
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
+    var targetDisplayName: String? = nil
+    if let workspace = await sourceKitLSPServer?.workspaceForDocument(uri: req.textDocument.uri),
+      let target = await workspace.buildSystemManager.canonicalTarget(for: req.textDocument.uri),
+      let buildTarget = await workspace.buildSystemManager.buildTarget(named: target)
+    {
+      targetDisplayName = buildTarget.displayName
+    }
     return await SwiftCodeLensScanner.findCodeLenses(
       in: snapshot,
       syntaxTreeManager: self.syntaxTreeManager,
+      targetName: targetDisplayName,
       supportedCommands: self.capabilityRegistry.supportedCodeLensCommands
     )
   }

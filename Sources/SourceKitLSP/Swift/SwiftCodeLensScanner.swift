@@ -21,11 +21,18 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
   /// The collection of CodeLenses found in the document.
   private var result: [CodeLens] = []
 
+  private let targetName: String?
+
   /// The map of supported commands and their client side command names
   private let supportedCommands: [SupportedCodeLensCommand: String]
 
-  private init(snapshot: DocumentSnapshot, supportedCommands: [SupportedCodeLensCommand: String]) {
+  private init(
+    snapshot: DocumentSnapshot,
+    targetName: String?,
+    supportedCommands: [SupportedCodeLensCommand: String]
+  ) {
     self.snapshot = snapshot
+    self.targetName = targetName
     self.supportedCommands = supportedCommands
     super.init(viewMode: .fixedUp)
   }
@@ -35,6 +42,7 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
   public static func findCodeLenses(
     in snapshot: DocumentSnapshot,
     syntaxTreeManager: SyntaxTreeManager,
+    targetName: String? = nil,
     supportedCommands: [SupportedCodeLensCommand: String]
   ) async -> [CodeLens] {
     guard snapshot.text.contains("@main") && !supportedCommands.isEmpty else {
@@ -43,7 +51,7 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
     }
 
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    let visitor = SwiftCodeLensScanner(snapshot: snapshot, supportedCommands: supportedCommands)
+    let visitor = SwiftCodeLensScanner(snapshot: snapshot, targetName: targetName, supportedCommands: supportedCommands)
     visitor.walk(syntaxTree)
     return visitor.result
   }
@@ -61,6 +69,10 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
   private func captureLensFromAttribute(attribute: AttributeListSyntax.Element) {
     if attribute.trimmedDescription == "@main" {
       let range = self.snapshot.absolutePositionRange(of: attribute.trimmedRange)
+      var targetNameToAppend: String = ""
+      if let targetName {
+        targetNameToAppend = " \(targetName)"
+      }
 
       if let runCommand = supportedCommands[SupportedCodeLensCommand.run] {
         // Return commands for running/debugging the executable.
@@ -68,7 +80,7 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
         self.result.append(
           CodeLens(
             range: range,
-            command: Command(title: "Run", command: runCommand, arguments: nil)
+            command: Command(title: "Run" + targetNameToAppend, command: runCommand, arguments: nil)
           )
         )
       }
@@ -77,7 +89,7 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
         self.result.append(
           CodeLens(
             range: range,
-            command: Command(title: "Debug", command: debugCommand, arguments: nil)
+            command: Command(title: "Debug" + targetNameToAppend, command: debugCommand, arguments: nil)
           )
         )
       }

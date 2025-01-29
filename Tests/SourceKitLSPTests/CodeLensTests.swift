@@ -73,13 +73,23 @@ final class CodeLensTests: XCTestCase {
 
     let project = try await SwiftPMTestProject(
       files: [
-        "Test.swift": """
+        "Sources/MyApp/Test.swift": """
         1️⃣@main2️⃣
         struct MyApp {
           public static func main() {}
         }
         """
       ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyApp",
+          targets: [.executableTarget(name: "MyApp")]
+        )
+        """,
       capabilities: capabilities
     )
 
@@ -94,11 +104,11 @@ final class CodeLensTests: XCTestCase {
       [
         CodeLens(
           range: positions["1️⃣"]..<positions["2️⃣"],
-          command: Command(title: "Run", command: "swift.run", arguments: nil)
+          command: Command(title: "Run MyApp", command: "swift.run", arguments: nil)
         ),
         CodeLens(
           range: positions["1️⃣"]..<positions["2️⃣"],
-          command: Command(title: "Debug", command: "swift.debug", arguments: nil)
+          command: Command(title: "Debug MyApp", command: "swift.debug", arguments: nil)
         ),
       ]
     )
