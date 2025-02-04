@@ -645,7 +645,10 @@ final class LocalSwiftTests: XCTestCase {
     }
   }
 
-  func testMuliEditFixitCodeActionPrimary() async throws {
+  func testMultiEditFixitCodeActionPrimary() async throws {
+    // FIXME: Update this test to use different syntax to test multi-fixit diagnostics
+    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1961")
+
     let testClient = try await TestSourceKitLSPClient(capabilities: quickFixCapabilities, usePullDiagnostics: false)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
