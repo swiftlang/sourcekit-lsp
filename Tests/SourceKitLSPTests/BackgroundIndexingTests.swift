@@ -969,7 +969,7 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testUseBuildFlagsDuringPreparation() async throws {
-    var options = SourceKitLSPOptions.testDefault()
+    var options = try await SourceKitLSPOptions.testDefault()
     options.swiftPMOrDefault.swiftCompilerFlags = ["-D", "MY_FLAG"]
     let project = try await SwiftPMTestProject(
       files: [
@@ -1016,7 +1016,7 @@ final class BackgroundIndexingTests: XCTestCase {
   func testUseSwiftSDKFlagsDuringPreparation() async throws {
     try await SkipUnless.canSwiftPMCompileForIOS()
 
-    var options = SourceKitLSPOptions.testDefault()
+    var options = try await SourceKitLSPOptions.testDefault()
     options.swiftPMOrDefault.swiftSDK = "arm64-apple-ios"
     let project = try await SwiftPMTestProject(
       files: [
@@ -1108,7 +1108,7 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testCrossModuleFunctionalityEvenIfLowLevelModuleHasErrors() async throws {
-    var options = SourceKitLSPOptions.testDefault()
+    var options = try await SourceKitLSPOptions.testDefault()
     options.backgroundPreparationMode = .enabled
     let project = try await SwiftPMTestProject(
       files: [
@@ -1154,7 +1154,7 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testCrossModuleFunctionalityWithPreparationNoSkipping() async throws {
-    var options = SourceKitLSPOptions.testDefault()
+    var options = try await SourceKitLSPOptions.testDefault()
     options.backgroundPreparationMode = .noLazy
     let project = try await SwiftPMTestProject(
       files: [
@@ -1438,7 +1438,7 @@ final class BackgroundIndexingTests: XCTestCase {
   func testCancelIndexing() async throws {
     try SkipUnless.longTestsEnabled()
 
-    var options = SourceKitLSPOptions.testDefault()
+    var options = try await SourceKitLSPOptions.testDefault()
     options.backgroundPreparationMode = .enabled
     options.indexOrDefault.updateIndexStoreTimeout = 1 /* second */
 

@@ -138,7 +138,7 @@ package class MultiFileTestProject {
     },
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
-    options: SourceKitLSPOptions = .testDefault(),
+    options: SourceKitLSPOptions? = nil,
     toolchainRegistry: ToolchainRegistry = .forTesting,
     hooks: Hooks = Hooks(),
     enableBackgroundIndexing: Bool = false,

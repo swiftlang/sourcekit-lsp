@@ -1425,7 +1425,7 @@ final class LocalSwiftTests: XCTestCase {
   func testSourceKitdTimeout() async throws {
     try SkipUnless.longTestsEnabled()
 
-    var options = SourceKitLSPOptions.testDefault()
+    var options = try await SourceKitLSPOptions.testDefault()
     // This is how long we wait until implicitly cancelling the first diagnostics request.
     // It needs to be long enough so we can compute diagnostics for the second requests.
     // 1s is not sufficient on Windows for that.

@@ -67,14 +67,14 @@ final class BuildSystemTests: XCTestCase {
         configPath: URL(fileURLWithPath: "/")
       ),
       toolchainRegistry: .forTesting,
-      options: .testDefault(),
+      options: try .testDefault(),
       connectionToClient: DummyBuildSystemManagerConnectionToClient(),
       buildSystemHooks: BuildSystemHooks()
     )
     buildSystem = try await unwrap(buildSystemInjector.testBuildSystem)
 
     self.workspace = await Workspace.forTesting(
-      options: SourceKitLSPOptions.testDefault(),
+      options: try .testDefault(),
       testHooks: Hooks(),
       buildSystemManager: buildSystemManager,
       indexTaskScheduler: .forTesting

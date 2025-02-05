@@ -196,7 +196,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
     },
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
-    options: SourceKitLSPOptions = .testDefault(),
+    options: SourceKitLSPOptions? = nil,
     hooks: Hooks = Hooks(),
     enableBackgroundIndexing: Bool = false,
     usePullDiagnostics: Bool = true,
