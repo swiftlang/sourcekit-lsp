@@ -646,51 +646,45 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testMultiEditFixitCodeActionPrimary() async throws {
-    // FIXME: Update this test to use different syntax to test multi-fixit diagnostics
-    try XCTSkipIf(true, "https://github.com/swiftlang/sourcekit-lsp/issues/1961")
-
-    let testClient = try await TestSourceKitLSPClient(capabilities: quickFixCapabilities, usePullDiagnostics: false)
-    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
-    let uri = DocumentURI(url)
-
-    testClient.openDocument(
+    let project = try await IndexedSingleSwiftFileTestProject(
       """
-      @available(*, introduced: 10, deprecated: 11)
-      func foo() {}
+      func foo(a: Int, b: Int) {}
+      func test() {
+        foo(1️⃣1, 2️⃣2)
+      }
       """,
-      uri: uri
+      capabilities: quickFixCapabilities,
+      allowBuildFailure: true
     )
-
-    let diags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(diags.diagnostics.count, 1)
-    let diagnostic = diags.diagnostics.first
+    let diags = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(project.fileURI))
+    )
+    let diagnostic = try XCTUnwrap(diags.fullReport?.items.only)
 
     let request = CodeActionRequest(
-      range: Position(line: 0, utf16index: 1)..<Position(line: 0, utf16index: 10),
+      range: diagnostic.range,
       context: CodeActionContext(
         diagnostics: [try XCTUnwrap(diagnostic, "expected diagnostic to be available")],
         only: nil
       ),
-      textDocument: TextDocumentIdentifier(uri)
+      textDocument: TextDocumentIdentifier(project.fileURI)
     )
-    let response = try await testClient.send(request)
+    let response = try await project.testClient.send(request)
 
-    XCTAssertNotNil(response)
     guard case .codeActions(let codeActions) = response else {
       XCTFail("Expected code actions as response")
       return
     }
     let quickFixes = codeActions.filter { $0.kind == .quickFix }
-    XCTAssertEqual(quickFixes.count, 1)
-    guard let fixit = quickFixes.first else { return }
+    let fixit = try XCTUnwrap(quickFixes.only)
 
-    XCTAssertEqual(fixit.title, "Remove ': 10'...")
+    XCTAssertEqual(fixit.title, "Insert 'a: '...")
     XCTAssertEqual(fixit.diagnostics?.count, 1)
     XCTAssertEqual(
-      fixit.edit?.changes?[uri],
+      fixit.edit?.changes?[project.fileURI],
       [
-        TextEdit(range: Position(line: 0, utf16index: 24)..<Position(line: 0, utf16index: 28), newText: ""),
-        TextEdit(range: Position(line: 0, utf16index: 40)..<Position(line: 0, utf16index: 44), newText: ""),
+        TextEdit(range: Range(project.positions["1️⃣"]), newText: "a: "),
+        TextEdit(range: Range(project.positions["2️⃣"]), newText: "b: "),
       ]
     )
   }
