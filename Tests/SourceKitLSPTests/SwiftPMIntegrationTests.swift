@@ -121,7 +121,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
         l.2️⃣foo()
       }
       """
-    try extractMarkers(newFileContents).textWithoutMarkers.write(to: newFileUrl, atomically: false, encoding: .utf8)
+    try await extractMarkers(newFileContents).textWithoutMarkers.writeWithRetry(to: newFileUrl)
 
     // Check that we don't get cross-file code completion before we send a `DidChangeWatchedFilesNotification` to make
     // sure we didn't include the file in the initial retrieval of build settings.

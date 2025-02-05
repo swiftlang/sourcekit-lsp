@@ -332,13 +332,13 @@ final class LocalClangTests: XCTestCase {
     XCTAssert(initialDiags.diagnostics.isEmpty)
 
     // We rename Object to MyObject in the header.
-    try """
+    try await """
     struct MyObject {
       int field;
     };
 
     struct MyObject * newObject();
-    """.write(to: headerUri.fileURL!, atomically: false, encoding: .utf8)
+    """.writeWithRetry(to: XCTUnwrap(headerUri.fileURL))
 
     let clangdServer = await project.testClient.server.languageService(
       for: mainUri,

@@ -57,7 +57,7 @@ final class CompilationDatabaseTests: XCTestCase {
     // Remove -DFOO from the compile commands.
 
     let compileFlagsUri = try project.uri(for: FixedCompilationDatabaseBuildSystem.dbName)
-    try "".write(to: compileFlagsUri.fileURL!, atomically: false, encoding: .utf8)
+    try await "".writeWithRetry(to: XCTUnwrap(compileFlagsUri.fileURL))
 
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [

@@ -509,15 +509,7 @@ final class BackgroundIndexingTests: XCTestCase {
 
     // clangd might have Header.h open, which prevents us from updating it. Keep retrying until we get a successful
     // write. This matches what a user would do.
-    try await repeatUntilExpectedResult {
-      do {
-        try headerNewMarkedContents.write(to: try XCTUnwrap(uri.fileURL), atomically: true, encoding: .utf8)
-        return true
-      } catch {
-        logger.error("Writing new Header.h failed, will retry: \(error.forLogging)")
-        return false
-      }
-    }
+    try await headerNewMarkedContents.writeWithRetry(to: try XCTUnwrap(uri.fileURL))
 
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: .changed)]))
     try await project.testClient.send(PollIndexRequest())
@@ -1254,10 +1246,10 @@ final class BackgroundIndexingTests: XCTestCase {
 
     // Just committing a new version of the dependency shouldn't change anything because we didn't update the package
     // dependencies.
-    try """
+    try await """
     /// Do something v1.1.0
     public func doSomething() {}
-    """.write(to: dependencySwiftURL, atomically: true, encoding: .utf8)
+    """.writeWithRetry(to: dependencySwiftURL)
     try await dependencyProject.tag(changedFiles: [dependencySwiftURL], version: "1.1.0")
 
     let hoverAfterNewVersionCommit = try await project.testClient.send(
@@ -1403,7 +1395,7 @@ final class BackgroundIndexingTests: XCTestCase {
         return value
       }
       """
-    try newLibAContents.write(to: XCTUnwrap(uri.fileURL), atomically: true, encoding: .utf8)
+    try await newLibAContents.writeWithRetry(to: XCTUnwrap(uri.fileURL))
     project.testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(uri: uri, language: .swift, version: 0, text: newLibAContents)
@@ -1590,7 +1582,7 @@ final class BackgroundIndexingTests: XCTestCase {
         }
         """
     )
-    try newAContents.write(to: XCTUnwrap(libAUri.fileURL), atomically: true, encoding: .utf8)
+    try await newAContents.writeWithRetry(to: XCTUnwrap(libAUri.fileURL))
 
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: libAUri, type: .changed)])
@@ -1645,11 +1637,11 @@ final class BackgroundIndexingTests: XCTestCase {
     XCTAssertEqual(completionBeforeEdit.items.map(\.label), ["self"])
 
     let libAUri = try project.uri(for: "LibA.swift")
-    try """
+    try await """
     public struct LibA {
       public func test() {}
     }
-    """.write(to: XCTUnwrap(libAUri.fileURL), atomically: true, encoding: .utf8)
+    """.writeWithRetry(to: XCTUnwrap(libAUri.fileURL))
 
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: libAUri, type: .changed)])
@@ -1708,7 +1700,7 @@ final class BackgroundIndexingTests: XCTestCase {
     )
 
     let libAUri = try project.uri(for: "LibA.swift")
-    try "public let myVar: Int".write(to: try XCTUnwrap(libAUri.fileURL), atomically: true, encoding: .utf8)
+    try await "public let myVar: Int".writeWithRetry(to: try XCTUnwrap(libAUri.fileURL))
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: libAUri, type: .changed)]))
 
     try await repeatUntilExpectedResult {

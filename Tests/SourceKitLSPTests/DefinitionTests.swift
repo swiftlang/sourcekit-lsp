@@ -354,7 +354,7 @@ class DefinitionTests: XCTestCase {
     let (updatedAPositions, updatedACode) = DocumentPositions.extract(from: "func 2️⃣sayHello() {}")
 
     let aUri = try project.uri(for: "FileA.swift")
-    try updatedACode.write(to: try XCTUnwrap(aUri.fileURL), atomically: true, encoding: .utf8)
+    try await updatedACode.writeWithRetry(to: XCTUnwrap(aUri.fileURL))
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: aUri, type: .changed)])
     )

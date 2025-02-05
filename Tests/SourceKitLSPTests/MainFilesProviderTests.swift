@@ -192,7 +192,7 @@ final class MainFilesProviderTests: XCTestCase {
       #include "\(try project.scratchDirectory.filePath)/Sources/shared.h"
       """
     let fancyLibraryUri = try project.uri(for: "MyFancyLibrary.c")
-    try newFancyLibraryContents.write(to: try XCTUnwrap(fancyLibraryUri.fileURL), atomically: false, encoding: .utf8)
+    try await newFancyLibraryContents.writeWithRetry(to: XCTUnwrap(fancyLibraryUri.fileURL))
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: fancyLibraryUri, type: .changed)])
     )
