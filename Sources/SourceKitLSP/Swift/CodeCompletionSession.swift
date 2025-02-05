@@ -430,18 +430,25 @@ class CodeCompletionSession {
       let notRecommended = (value[sourcekitd.keys.notRecommended] ?? 0) != 0
 
       let sortText: String?
-      if let semanticScore: Double = value[sourcekitd.keys.semanticScore] {
+      if let semanticScore: Double = value[sourcekitd.keys.semanticScore],
+        let textMatchScore: Double = value[sourcekitd.keys.textMatchScore]
+      {
+        let score = semanticScore * textMatchScore
         // sourcekitd returns numeric completion item scores with a higher score being better. LSP's sort text is
         // lexicographical. Map the numeric score to a lexicographically sortable score by subtracting it from 5_000.
         // This gives us a valid range of semantic scores from -5_000 to 5_000 that can be sorted correctly
         // lexicographically. This should be sufficient as semantic scores are typically single-digit.
-        var lexicallySortableScore = 5_000 - semanticScore
+        var lexicallySortableScore = 5_000 - score
         if lexicallySortableScore < 0 {
-          logger.fault("Semantic score out-of-bounds: \(semanticScore, privacy: .public)")
+          logger.fault(
+            "score out-of-bounds: \(score, privacy: .public), semantic: \(semanticScore, privacy: .public), textual: \(textMatchScore, privacy: .public)"
+          )
           lexicallySortableScore = 0
         }
         if lexicallySortableScore >= 10_000 {
-          logger.fault("Semantic score out-of-bounds: \(semanticScore, privacy: .public)")
+          logger.fault(
+            "score out-of-bounds: \(score, privacy: .public), semantic: \(semanticScore, privacy: .public), textual: \(textMatchScore, privacy: .public)"
+          )
           lexicallySortableScore = 9_999.99999999
         }
         sortText = String(format: "%013.8f", lexicallySortableScore) + "-\(name)"
