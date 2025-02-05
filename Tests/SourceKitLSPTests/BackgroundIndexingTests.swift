@@ -19,6 +19,7 @@ import SKTestSupport
 import SemanticIndex
 import SourceKitLSP
 import SwiftExtensions
+import Synchronization
 import TSCExtensions
 import ToolchainRegistry
 import XCTest
@@ -1307,11 +1308,11 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testAddingRandomSwiftFileDoesNotTriggerPackageReload() async throws {
-    let packageInitialized = AtomicBool(initialValue: false)
+    let packageInitialized: Atomic<Bool> = Atomic(false)
 
     var testHooks = Hooks()
     testHooks.buildSystemHooks.swiftPMTestHooks.reloadPackageDidStart = {
-      if packageInitialized.value {
+      if packageInitialized.load(ordering: .sequentiallyConsistent) {
         XCTFail("Build graph should not get reloaded when random file gets added")
       }
     }
@@ -1320,7 +1321,7 @@ final class BackgroundIndexingTests: XCTestCase {
       hooks: testHooks,
       enableBackgroundIndexing: true
     )
-    packageInitialized.value = true
+    packageInitialized.store(true, ordering: .sequentiallyConsistent)
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
         FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("random.swift")), type: .created)

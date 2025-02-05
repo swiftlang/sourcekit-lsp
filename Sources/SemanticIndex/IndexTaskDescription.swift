@@ -20,7 +20,7 @@ protocol IndexTaskDescription: TaskDescriptionProtocol {
   /// different types in `AnyIndexTaskDescription`
   static var idPrefix: String { get }
 
-  var id: UInt32 { get }
+  var id: Int { get }
 }
 
 extension IndexTaskDescription {

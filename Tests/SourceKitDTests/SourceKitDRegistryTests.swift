@@ -15,6 +15,7 @@ import LanguageServerProtocolExtensions
 import SKTestSupport
 import SourceKitD
 import SwiftExtensions
+import Synchronization
 import TSCBasic
 import XCTest
 
@@ -43,7 +44,7 @@ final class SourceKitDRegistryTests: XCTestCase {
     let registry = SourceKitDRegistry()
 
     @inline(never)
-    func scope(registry: SourceKitDRegistry) async throws -> UInt32 {
+    func scope(registry: SourceKitDRegistry) async throws -> Int {
       let a = await FakeSourceKitD.getOrCreate(URL(fileURLWithPath: "/a"), in: registry)
 
       await assertTrue(a === FakeSourceKitD.getOrCreate(URL(fileURLWithPath: "/a"), in: registry))
@@ -61,10 +62,10 @@ final class SourceKitDRegistryTests: XCTestCase {
   }
 }
 
-private let nextToken = AtomicUInt32(initialValue: 0)
+private let nextToken: Atomic<Int> = Atomic(0)
 
 final class FakeSourceKitD: SourceKitD {
-  let token: UInt32
+  let token: Int
   var api: sourcekitd_api_functions_t { fatalError() }
   var ideApi: sourcekitd_ide_api_functions_t { fatalError() }
   var pluginApi: sourcekitd_plugin_api_functions_t { fatalError() }
@@ -75,7 +76,7 @@ final class FakeSourceKitD: SourceKitD {
   func addNotificationHandler(_ handler: SKDNotificationHandler) { fatalError() }
   func removeNotificationHandler(_ handler: SKDNotificationHandler) { fatalError() }
   private init() {
-    token = nextToken.fetchAndIncrement()
+    token = nextToken.add(1, ordering: .sequentiallyConsistent).oldValue
   }
 
   static func getOrCreate(_ url: URL, in registry: SourceKitDRegistry) async -> SourceKitD {

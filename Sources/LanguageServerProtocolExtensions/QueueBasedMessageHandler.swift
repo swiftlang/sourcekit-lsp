@@ -13,6 +13,7 @@
 import Foundation
 import LanguageServerProtocolJSONRPC
 import SKLogging
+import Synchronization
 
 #if compiler(>=6)
 package import LanguageServerProtocol
@@ -41,7 +42,7 @@ package actor QueueBasedMessageHandlerHelper {
   private let cancellationMessageHandlingQueue = AsyncQueue<Serial>()
 
   /// Notifications don't have an ID. This represents the next ID we can use to identify a notification.
-  private let notificationIDForLogging = AtomicUInt32(initialValue: 1)
+  private let notificationIDForLogging: Atomic<Int> = Atomic(1)
 
   /// The requests that we are currently handling.
   ///
@@ -103,7 +104,7 @@ package actor QueueBasedMessageHandlerHelper {
     // Only use the last two digits of the notification ID for the logging scope to avoid creating too many scopes.
     // See comment in `withLoggingScope`.
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running notifications.
-    let notificationID = notificationIDForLogging.fetchAndIncrement()
+    let notificationID = notificationIDForLogging.add(1, ordering: .sequentiallyConsistent).oldValue
     withLoggingScope("notification-\(notificationID % 100)") {
       body()
     }

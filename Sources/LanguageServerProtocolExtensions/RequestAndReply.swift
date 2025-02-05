@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Synchronization
+
 #if compiler(>=6)
 package import LanguageServerProtocol
 import SwiftExtensions
@@ -24,7 +26,7 @@ package final class RequestAndReply<Params: RequestType>: Sendable {
   private let replyBlock: @Sendable (LSPResult<Params.Response>) -> Void
 
   /// Whether a reply has been made. Every request must reply exactly once.
-  private let replied: AtomicBool = AtomicBool(initialValue: false)
+  private let replied: Atomic<Bool> = Atomic(false)
 
   package init(_ request: Params, reply: @escaping @Sendable (LSPResult<Params.Response>) -> Void) {
     self.params = request
@@ -32,13 +34,13 @@ package final class RequestAndReply<Params: RequestType>: Sendable {
   }
 
   deinit {
-    precondition(replied.value, "request never received a reply")
+    precondition(replied.load(ordering: .sequentiallyConsistent), "request never received a reply")
   }
 
   /// Call the `replyBlock` with the result produced by the given closure.
   package func reply(_ body: @Sendable () async throws -> Params.Response) async {
-    precondition(!replied.value, "replied to request more than once")
-    replied.value = true
+    precondition(!replied.load(ordering: .sequentiallyConsistent), "replied to request more than once")
+    replied.store(true, ordering: .sequentiallyConsistent)
     do {
       replyBlock(.success(try await body()))
     } catch {

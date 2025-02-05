@@ -15,6 +15,7 @@ public import Foundation
 public import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SwiftExtensions
+import Synchronization
 import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
@@ -33,7 +34,7 @@ import ToolchainRegistry
 public final class InProcessSourceKitLSPClient: Sendable {
   private let server: SourceKitLSPServer
 
-  private let nextRequestID = AtomicUInt32(initialValue: 0)
+  private let nextRequestID: Atomic<Int> = Atomic(0)
 
   public convenience init(
     toolchainPath: URL?,
@@ -101,7 +102,11 @@ public final class InProcessSourceKitLSPClient: Sendable {
 
   /// Send the request to `server` and return the request result via a completion handler.
   public func send<R: RequestType>(_ request: R, reply: @Sendable @escaping (LSPResult<R.Response>) -> Void) {
-    server.handle(request, id: .number(Int(nextRequestID.fetchAndIncrement())), reply: reply)
+    server.handle(
+      request,
+      id: .number(Int(nextRequestID.add(1, ordering: .sequentiallyConsistent).oldValue)),
+      reply: reply
+    )
   }
 
   /// Send the notification to `server`.

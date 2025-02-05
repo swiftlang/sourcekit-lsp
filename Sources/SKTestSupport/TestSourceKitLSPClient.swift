@@ -18,6 +18,7 @@ import SKUtilities
 import SourceKitD
 import SwiftExtensions
 import SwiftSyntax
+import Synchronization
 import XCTest
 
 #if compiler(>=6)
@@ -88,7 +89,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   package typealias RequestHandler<Request: RequestType> = @Sendable (Request) -> Request.Response
 
   /// The ID that should be assigned to the next request sent to the `server`.
-  private let nextRequestID = AtomicUInt32(initialValue: 0)
+  private let nextRequestID: Atomic<Int> = Atomic(0)
 
   /// The server that handles the requests.
   package let server: SourceKitLSPServer
@@ -222,7 +223,8 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     // It's really unfortunate that there are no async deinits. If we had async
     // deinits, we could await the sending of a ShutdownRequest.
     let sema = DispatchSemaphore(value: 0)
-    server.handle(ShutdownRequest(), id: .number(Int(nextRequestID.fetchAndIncrement()))) { result in
+    server.handle(ShutdownRequest(), id: .number(Int(nextRequestID.add(1, ordering: .sequentiallyConsistent).oldValue)))
+    { result in
       sema.signal()
     }
     sema.wait()
@@ -257,7 +259,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     _ request: R,
     completionHandler: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) -> RequestID {
-    let requestID = RequestID.number(Int(nextRequestID.fetchAndIncrement()))
+    let requestID = RequestID.number(Int(nextRequestID.add(1, ordering: .sequentiallyConsistent).oldValue))
     server.handle(request, id: requestID) { result in
       completionHandler(result)
     }
