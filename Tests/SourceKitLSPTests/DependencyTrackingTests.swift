@@ -98,7 +98,7 @@ final class DependencyTrackingTests: XCTestCase {
 
     // Write an empty header file first since clangd doesn't handle missing header
     // files without a recently upstreamed extension.
-    try "".write(to: generatedHeaderURL, atomically: true, encoding: .utf8)
+    try await "".writeWithRetry(to: generatedHeaderURL)
     let (mainUri, _) = try project.openDocument("main.c")
 
     let openDiags = try await project.testClient.nextDiagnosticsNotification()
@@ -108,7 +108,7 @@ final class DependencyTrackingTests: XCTestCase {
 
     // Update the header file to have the proper contents for our code to build.
     let contents = "int libX(int value);"
-    try contents.write(to: generatedHeaderURL, atomically: true, encoding: .utf8)
+    try await contents.writeWithRetry(to: generatedHeaderURL)
 
     let workspace = try await unwrap(project.testClient.server.workspaceForDocument(uri: mainUri))
     await workspace.filesDependenciesUpdated([mainUri])

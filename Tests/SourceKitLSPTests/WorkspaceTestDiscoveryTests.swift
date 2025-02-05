@@ -172,7 +172,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         }6️⃣
         """
     )
-    try newFileContents.write(to: try XCTUnwrap(myTestsUri.fileURL), atomically: true, encoding: .utf8)
+    try await newFileContents.writeWithRetry(to: XCTUnwrap(myTestsUri.fileURL))
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: myTestsUri, type: .changed)]))
 
     let testsAfterDocumentChanged = try await project.testClient.send(WorkspaceTestsRequest())
@@ -672,7 +672,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       .deletingLastPathComponent()
       .appendingPathComponent("MyNewTests.swift")
     let uri = DocumentURI(url)
-    try fileContents.write(to: url, atomically: true, encoding: .utf8)
+    try await fileContents.writeWithRetry(to: url)
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: .created)])
     )
@@ -867,7 +867,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     let testsAfterFileRemove = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(testsAfterFileRemove, [])
 
-    try extractMarkers(markedFileContents).textWithoutMarkers.write(to: myTestsUrl, atomically: true, encoding: .utf8)
+    try await extractMarkers(markedFileContents).textWithoutMarkers.writeWithRetry(to: myTestsUrl)
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: myTestsUri, type: .created)]))
 
     let testsAfterFileReAdded = try await project.testClient.send(WorkspaceTestsRequest())
@@ -935,7 +935,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
 
     let uri = try XCTUnwrap(project.fileURI.fileURL)
 
-    try (originalContents + addedTest).write(to: uri, atomically: true, encoding: .utf8)
+    try await (originalContents + addedTest).writeWithRetry(to: uri)
 
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: project.fileURI, type: .changed)])
