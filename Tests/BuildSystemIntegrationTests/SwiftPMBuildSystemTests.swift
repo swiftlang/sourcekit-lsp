@@ -53,7 +53,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         ]
       )
       let packageRoot = tempDir.appendingPathComponent("pkg")
-      let buildSystemSpec = SwiftPMBuildSystem.searchForConfig(in: packageRoot, options: .testDefault())
+      let buildSystemSpec = SwiftPMBuildSystem.searchForConfig(in: packageRoot, options: try await .testDefault())
       XCTAssertNil(buildSystemSpec)
     }
   }
@@ -779,7 +779,9 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         withDestinationURL: URL(fileURLWithPath: tempDir.appendingPathComponent("pkg_real").filePath)
       )
 
-      let buildSystemSpec = try XCTUnwrap(SwiftPMBuildSystem.searchForConfig(in: packageRoot, options: .testDefault()))
+      let buildSystemSpec = try unwrap(
+        SwiftPMBuildSystem.searchForConfig(in: packageRoot, options: await .testDefault())
+      )
       let buildSystemManager = await BuildSystemManager(
         buildSystemSpec: buildSystemSpec,
         toolchainRegistry: .forTesting,
@@ -864,7 +866,9 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         withDestinationURL: URL(fileURLWithPath: tempDir.appendingPathComponent("pkg_real").filePath)
       )
 
-      let buildSystemSpec = try XCTUnwrap(SwiftPMBuildSystem.searchForConfig(in: symlinkRoot, options: .testDefault()))
+      let buildSystemSpec = try unwrap(
+        SwiftPMBuildSystem.searchForConfig(in: symlinkRoot, options: await .testDefault())
+      )
       let buildSystemManager = await BuildSystemManager(
         buildSystemSpec: buildSystemSpec,
         toolchainRegistry: .forTesting,
@@ -961,7 +965,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         .appendingPathComponent("Sources")
         .appendingPathComponent("lib")
 
-      let buildSystemSpec = SwiftPMBuildSystem.searchForConfig(in: workspaceRoot, options: .testDefault())
+      let buildSystemSpec = SwiftPMBuildSystem.searchForConfig(in: workspaceRoot, options: try await .testDefault())
       XCTAssertNil(buildSystemSpec)
     }
   }

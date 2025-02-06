@@ -36,11 +36,12 @@ extension SourceKitLSPOptions {
   package static func testDefault(
     backgroundIndexing: Bool = true,
     experimentalFeatures: Set<ExperimentalFeature>? = nil
-  ) -> SourceKitLSPOptions {
+  ) async throws -> SourceKitLSPOptions {
+    let pluginPaths = try await sourceKitPluginPaths
     return SourceKitLSPOptions(
       sourcekitd: SourceKitDOptions(
-        clientPlugin: try! sourceKitPluginPaths?.clientPlugin.filePath,
-        servicePlugin: try! sourceKitPluginPaths?.servicePlugin.filePath
+        clientPlugin: try pluginPaths.clientPlugin.filePath,
+        servicePlugin: try pluginPaths.servicePlugin.filePath
       ),
       backgroundIndexing: backgroundIndexing,
       experimentalFeatures: experimentalFeatures,
@@ -137,7 +138,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   ///     This allows e.g. a `IndexedSingleSwiftFileTestProject` to delete its temporary files when they are no longer
   ///     needed.
   package init(
-    options: SourceKitLSPOptions = .testDefault(),
+    options: SourceKitLSPOptions? = nil,
     hooks: Hooks = Hooks(),
     initialize: Bool = true,
     initializationOptions: LSPAny? = nil,
@@ -149,7 +150,12 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
     cleanUp: @Sendable @escaping () -> Void = {}
   ) async throws {
-    var options = options
+    var options =
+      if let options {
+        options
+      } else {
+        try await SourceKitLSPOptions.testDefault()
+      }
     if let globalModuleCache = try globalModuleCache {
       options.swiftPMOrDefault.swiftCompilerFlags =
         (options.swiftPMOrDefault.swiftCompilerFlags ?? []) + ["-module-cache-path", try globalModuleCache.filePath]

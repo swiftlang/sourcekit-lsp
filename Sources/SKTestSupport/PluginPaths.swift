@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import ToolchainRegistry
 
 #if compiler(>=6)
 package import SourceKitD
@@ -109,8 +110,8 @@ private func pluginPaths(relativeTo base: URL) -> PluginPaths? {
 
 /// Returns the paths from which the SourceKit plugins should be loaded or throws an error if the plugins cannot be
 /// found.
-package var sourceKitPluginPaths: PluginPaths? {
-  get throws {
+package var sourceKitPluginPaths: PluginPaths {
+  get async throws {
     struct PluginLoadingError: Error, CustomStringConvertible {
       let searchBase: URL
       var description: String {
@@ -129,7 +130,12 @@ package var sourceKitPluginPaths: PluginPaths? {
     var base: URL
     if let pluginPaths = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_TEST_PLUGIN_PATHS"] {
       if pluginPaths == "RELATIVE_TO_SOURCEKITD" {
-        return nil
+        let toolchain = await ToolchainRegistry.forTesting.default
+        guard let clientPlugin = toolchain?.sourceKitClientPlugin, let servicePlugin = toolchain?.sourceKitServicePlugin
+        else {
+          throw PluginLoadingError(searchBase: URL(string: "relative-to-sourcekitd://")!)
+        }
+        return PluginPaths(clientPlugin: clientPlugin, servicePlugin: servicePlugin)
       } else {
         base = URL(fileURLWithPath: pluginPaths)
       }

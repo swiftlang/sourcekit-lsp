@@ -28,7 +28,7 @@ final class PluginSwiftPMTestProject {
 
   private var _buildSystemManager: BuildSystemManager?
   private var buildSystemManager: BuildSystemManager {
-    get async {
+    get async throws {
       if let _buildSystemManager {
         return _buildSystemManager
       }
@@ -39,7 +39,7 @@ final class PluginSwiftPMTestProject {
           configPath: scratchDirectory.appendingPathComponent("Package.swift")
         ),
         toolchainRegistry: .forTesting,
-        options: .testDefault(backgroundIndexing: false),
+        options: try .testDefault(backgroundIndexing: false),
         connectionToClient: DummyBuildSystemManagerConnectionToClient(),
         buildSystemHooks: BuildSystemHooks()
       )
@@ -98,8 +98,8 @@ final class PluginSwiftPMTestProject {
   }
 
   package func compilerArguments(for fileName: String) async throws -> [String] {
-    await buildSystemManager.waitForUpToDateBuildGraph()
-    let buildSettings = await buildSystemManager.buildSettingsInferredFromMainFile(
+    try await buildSystemManager.waitForUpToDateBuildGraph()
+    let buildSettings = try await buildSystemManager.buildSettingsInferredFromMainFile(
       for: try uri(for: fileName),
       language: .swift,
       fallbackAfterTimeout: false
