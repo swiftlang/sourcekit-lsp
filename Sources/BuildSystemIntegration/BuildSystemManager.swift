@@ -217,7 +217,7 @@ private extension BuildSystemSpec {
         )
       }
     case .swiftPM:
-      #if canImport(PackageModel)
+      #if !NO_SWIFTPM_DEPENDENCY
       return await createBuiltInBuildSystemAdapter(
         messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
         buildSystemHooks: buildSystemHooks
