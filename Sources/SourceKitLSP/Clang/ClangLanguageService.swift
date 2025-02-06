@@ -496,6 +496,10 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
+  func completionItemResolve(_ req: CompletionItemResolveRequest) async throws -> CompletionItem {
+    return try await forwardRequestToClangd(req)
+  }
+
   func hover(_ req: HoverRequest) async throws -> HoverResponse? {
     return try await forwardRequestToClangd(req)
   }

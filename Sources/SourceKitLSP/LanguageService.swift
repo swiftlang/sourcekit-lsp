@@ -172,6 +172,7 @@ package protocol LanguageService: AnyObject, Sendable {
   // MARK: - Text Document
 
   func completion(_ req: CompletionRequest) async throws -> CompletionList
+  func completionItemResolve(_ req: CompletionItemResolveRequest) async throws -> CompletionItem
   func hover(_ req: HoverRequest) async throws -> HoverResponse?
   func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails]
 

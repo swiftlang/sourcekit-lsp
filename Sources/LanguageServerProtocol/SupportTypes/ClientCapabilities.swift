@@ -254,9 +254,33 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
 
   /// Capabilities specific to the `textDocument/...` change notifications.
   public struct Completion: Hashable, Codable, Sendable {
-
     /// Capabilities specific to `CompletionItem`.
     public struct CompletionItem: Hashable, Codable, Sendable {
+      public struct TagSupportValueSet: Hashable, Codable, Sendable {
+        /// The tags supported by the client.
+        public var valueSet: [CompletionItemTag]
+
+        public init(valueSet: [CompletionItemTag]) {
+          self.valueSet = valueSet
+        }
+      }
+
+      public struct ResolveSupportProperties: Hashable, Codable, Sendable {
+        /// The properties that a client can resolve lazily.
+        public var properties: [String]
+
+        public init(properties: [String]) {
+          self.properties = properties
+        }
+      }
+
+      public struct InsertTextModeSupportValueSet: Hashable, Codable, Sendable {
+        public var valueSet: [InsertTextMode]
+
+        public init(valueSet: [InsertTextMode]) {
+          self.valueSet = valueSet
+        }
+      }
 
       /// Whether the client supports rich snippets using placeholders, etc.
       public var snippetSupport: Bool? = nil
@@ -273,18 +297,48 @@ public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
       /// Whether the client supports the `preselect` property on a CompletionItem.
       public var preselectSupport: Bool? = nil
 
+      /// Client supports the tag property on a completion item. Clients supporting tags have to handle unknown tags
+      /// gracefully. Clients especially need to preserve unknown tags when sending a completion item back to the server
+      /// in a resolve call.
+      public var tagSupport: TagSupportValueSet?
+
+      /// Client supports insert replace edit to control different behavior if a completion item is inserted in the text
+      /// or should replace text.
+      public var insertReplaceSupport: Bool?
+
+      /// Indicates which properties a client can resolve lazily on a completion item. Before version 3.16.0 only the
+      /// predefined properties `documentation` and `detail` could be resolved lazily.
+      public var resolveSupport: ResolveSupportProperties?
+
+      /// The client supports the `insertTextMode` property on a completion item to override the whitespace handling mode
+      /// as defined by the client (see `insertTextMode`).
+      public var insertTextModeSupport: InsertTextModeSupportValueSet?
+
+      /// The client has support for completion item label details (see also `CompletionItemLabelDetails`).
+      public var labelDetailsSupport: Bool?
+
       public init(
         snippetSupport: Bool? = nil,
         commitCharactersSupport: Bool? = nil,
         documentationFormat: [MarkupKind]? = nil,
         deprecatedSupport: Bool? = nil,
-        preselectSupport: Bool? = nil
+        preselectSupport: Bool? = nil,
+        tagSupport: TagSupportValueSet? = nil,
+        insertReplaceSupport: Bool? = nil,
+        resolveSupport: ResolveSupportProperties? = nil,
+        insertTextModeSupport: InsertTextModeSupportValueSet? = nil,
+        labelDetailsSupport: Bool? = nil
       ) {
         self.snippetSupport = snippetSupport
         self.commitCharactersSupport = commitCharactersSupport
         self.documentationFormat = documentationFormat
         self.deprecatedSupport = deprecatedSupport
         self.preselectSupport = preselectSupport
+        self.tagSupport = tagSupport
+        self.insertReplaceSupport = insertReplaceSupport
+        self.resolveSupport = resolveSupport
+        self.insertTextModeSupport = insertTextModeSupport
+        self.labelDetailsSupport = labelDetailsSupport
       }
     }
 

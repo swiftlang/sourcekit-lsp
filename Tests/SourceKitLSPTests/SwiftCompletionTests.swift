@@ -13,6 +13,7 @@
 import LanguageServerProtocol
 import SKTestSupport
 import SourceKitLSP
+import SwiftExtensions
 import XCTest
 
 final class SwiftCompletionTests: XCTestCase {
@@ -1081,6 +1082,47 @@ final class SwiftCompletionTests: XCTestCase {
     XCTAssertEqual(
       completions.items.clearingUnstableValues.map(\.label),
       ["makeInt()", "makeBool()", "makeString()"]
+    )
+  }
+
+  func testCompletionItemResolve() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
+    let capabilities = ClientCapabilities(
+      textDocument: TextDocumentClientCapabilities(
+        completion: TextDocumentClientCapabilities.Completion(
+          completionItem: TextDocumentClientCapabilities.Completion.CompletionItem(
+            resolveSupport: TextDocumentClientCapabilities.Completion.CompletionItem.ResolveSupportProperties(
+              properties: ["documentation"]
+            )
+          )
+        )
+      )
+    )
+
+    let testClient = try await TestSourceKitLSPClient(capabilities: capabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct Foo {
+        /// Creates a true value
+        func makeBool() -> Bool { true }
+      }
+      func test(foo: Foo) {
+        foo.make1️⃣
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let item = try XCTUnwrap(completions.items.only)
+    XCTAssertNil(item.documentation)
+    let resolvedItem = try await testClient.send(CompletionItemResolveRequest(item: item))
+    XCTAssertEqual(
+      resolvedItem.documentation,
+      .markupContent(MarkupContent(kind: .markdown, value: "Creates a true value"))
     )
   }
 }

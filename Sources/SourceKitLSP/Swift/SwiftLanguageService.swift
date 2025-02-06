@@ -377,7 +377,7 @@ extension SwiftLanguageService {
         ),
         hoverProvider: .bool(true),
         completionProvider: CompletionOptions(
-          resolveProvider: false,
+          resolveProvider: true,
           triggerCharacters: [".", "("]
         ),
         definitionProvider: nil,

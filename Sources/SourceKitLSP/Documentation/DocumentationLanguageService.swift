@@ -103,6 +103,10 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     CompletionList(isIncomplete: false, items: [])
   }
 
+  package func completionItemResolve(_ req: CompletionItemResolveRequest) async throws -> CompletionItem {
+    return req.item
+  }
+
   package func hover(_ req: HoverRequest) async throws -> HoverResponse? {
     nil
   }
