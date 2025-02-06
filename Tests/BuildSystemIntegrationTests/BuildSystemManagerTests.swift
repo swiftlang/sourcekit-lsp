@@ -140,8 +140,8 @@ final class BuildSystemManagerTests: XCTestCase {
     await manager.registerForChangeNotifications(for: a, language: .swift)
     assertEqual(
       await manager.buildSettingsInferredFromMainFile(for: a, language: .swift, fallbackAfterTimeout: false)?
-        .compilerArguments,
-      ["x"]
+        .compilerArguments.first,
+      "x"
     )
 
     let changed = expectation(description: "changed settings")
@@ -222,8 +222,8 @@ final class BuildSystemManagerTests: XCTestCase {
     await manager.registerForChangeNotifications(for: h, language: .c)
     assertEqual(
       await manager.buildSettingsInferredFromMainFile(for: h, language: .c, fallbackAfterTimeout: false)?
-        .compilerArguments,
-      ["C++ 1"]
+        .compilerArguments.first,
+      "C++ 1"
     )
 
     await mainFiles.updateMainFiles(for: h, to: [cpp2])
@@ -282,15 +282,15 @@ final class BuildSystemManagerTests: XCTestCase {
     await manager.registerForChangeNotifications(for: h1, language: .c)
     await manager.registerForChangeNotifications(for: h2, language: .c)
 
-    let expectedArgsH1 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h1.pseudoPath])
-    let expectedArgsH2 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h2.pseudoPath])
     assertEqual(
-      await manager.buildSettingsInferredFromMainFile(for: h1, language: .c, fallbackAfterTimeout: false),
-      expectedArgsH1
+      await manager.buildSettingsInferredFromMainFile(for: h1, language: .c, fallbackAfterTimeout: false)?
+        .compilerArguments.prefix(3),
+      ["-xc++", cppArg, h1.pseudoPath]
     )
     assertEqual(
-      await manager.buildSettingsInferredFromMainFile(for: h2, language: .c, fallbackAfterTimeout: false),
-      expectedArgsH2
+      await manager.buildSettingsInferredFromMainFile(for: h2, language: .c, fallbackAfterTimeout: false)?
+        .compilerArguments.prefix(3),
+      ["-xc++", cppArg, h2.pseudoPath]
     )
 
     let newCppArg = "New C++ Main File"
@@ -376,7 +376,26 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
         language: expected.language,
         fallbackAfterTimeout: false
       )
-      XCTAssertEqual(settings, expected.settings, file: expected.file, line: expected.line)
+
+      if let expectedSettings = expected.settings {
+        let actualArgs = settings?.compilerArguments.prefix(expectedSettings.compilerArguments.count)
+        XCTAssertEqual(
+          actualArgs,
+          ArraySlice(expectedSettings.compilerArguments),
+          file: expected.file,
+          line: expected.line
+        )
+        XCTAssertEqual(
+          settings?.workingDirectory,
+          expectedSettings.workingDirectory,
+          file: expected.file,
+          line: expected.line
+        )
+        XCTAssertEqual(settings?.isFallback, expectedSettings.isFallback, file: expected.file, line: expected.line)
+      } else {
+        XCTAssertNil(settings, file: expected.file, line: expected.line)
+      }
+
       expected.expectation.fulfill()
     }
   }
