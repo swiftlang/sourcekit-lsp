@@ -26,7 +26,7 @@ let allSyntaxCodeActions: [SyntaxCodeActionProvider.Type] = {
     OpaqueParameterToGeneric.self,
     RemoveSeparatorsFromIntegerLiteral.self,
   ]
-  #if canImport(PackageModel)
+  #if !NO_SWIFTPM_DEPENDENCY
   result.append(PackageManifestEdits.self)
   #endif
   return result

@@ -103,7 +103,7 @@ package func determineBuildSystem(
     case .compilationDatabase:
       spec = searchForCompilationDatabaseConfig(in: workspaceFolderUrl, options: options)
     case .swiftPM:
-      #if canImport(PackageModel)
+      #if !NO_SWIFTPM_DEPENDENCY
       spec = SwiftPMBuildSystem.searchForConfig(in: workspaceFolderUrl, options: options)
       #endif
     }

@@ -4,10 +4,16 @@ import Foundation
 import PackageDescription
 
 /// Swift settings that should be applied to every Swift target.
-let globalSwiftSettings: [SwiftSetting] = [
-  .enableUpcomingFeature("InternalImportsByDefault"),
-  .enableUpcomingFeature("MemberImportVisibility"),
-]
+var globalSwiftSettings: [SwiftSetting] {
+  var result: [SwiftSetting] = [
+    .enableUpcomingFeature("InternalImportsByDefault"),
+    .enableUpcomingFeature("MemberImportVisibility"),
+  ]
+  if noSwiftPMDependency {
+    result += [.define("NO_SWIFTPM_DEPENDENCY")]
+  }
+  return result
+}
 
 var products: [Product] = [
   .executable(name: "sourcekit-lsp", targets: ["sourcekit-lsp"]),

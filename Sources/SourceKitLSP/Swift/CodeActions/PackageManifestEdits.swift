@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(PackageModel)
+#if !NO_SWIFTPM_DEPENDENCY
 
 import Foundation
 import LanguageServerProtocol
