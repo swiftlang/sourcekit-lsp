@@ -325,7 +325,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
   }
 
-  private var cachedSourceKitOptions = RequestCache<TextDocumentSourceKitOptionsRequest>()
+  private var cachedAdjustedSourceKitOptions = RequestCache<TextDocumentSourceKitOptionsRequest>()
 
   private var cachedBuildTargets = Cache<WorkspaceBuildTargetsRequest, [BuildTargetIdentifier: BuildTargetInfo]>()
 
@@ -529,7 +529,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       } else {
         nil
       }
-    self.cachedSourceKitOptions.clear(isolation: self) { cacheKey in
+    self.cachedAdjustedSourceKitOptions.clear(isolation: self) { cacheKey in
       guard let updatedTargets else {
         // All targets might have changed
         return true
@@ -758,13 +758,22 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       target: target,
       language: language
     )
-
-    let response = try await cachedSourceKitOptions.get(request, isolation: self) { request in
-      try await buildSystemAdapter.send(request)
+    let response = try await cachedAdjustedSourceKitOptions.get(request, isolation: self) { request in
+      let options = try await buildSystemAdapter.send(request)
+      switch language.semanticKind {
+      case .swift:
+        return options?.adjustArgsForSemanticSwiftFunctionality(fileToIndex: document)
+      case .clang:
+        return options?.adjustingArgsForSemanticClangFunctionality()
+      default:
+        return options
+      }
     }
+
     guard let response else {
       return nil
     }
+
     return FileBuildSettings(
       compilerArguments: response.compilerArguments,
       workingDirectory: response.workingDirectory,
@@ -1239,3 +1248,153 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 private func isDescendant(_ selfPathComponents: [String], of otherPathComponents: [String]) -> Bool {
   return selfPathComponents.dropLast().starts(with: otherPathComponents)
 }
+
+fileprivate extension TextDocumentSourceKitOptionsResponse {
+  /// Adjust compiler arguments that were created for building to compiler arguments that should be used for indexing
+  /// or background AST builds.
+  ///
+  /// This removes compiler arguments that produce output files and adds arguments to eg. allow errors and index the
+  /// file.
+  func adjustArgsForSemanticSwiftFunctionality(fileToIndex: DocumentURI) -> TextDocumentSourceKitOptionsResponse {
+    let optionsToRemove: [CompilerCommandLineOption] = [
+      .flag("c", [.singleDash]),
+      .flag("disable-cmo", [.singleDash]),
+      .flag("emit-dependencies", [.singleDash]),
+      .flag("emit-module-interface", [.singleDash]),
+      .flag("emit-module", [.singleDash]),
+      .flag("emit-objc-header", [.singleDash]),
+      .flag("incremental", [.singleDash]),
+      .flag("no-color-diagnostics", [.singleDash]),
+      .flag("parseable-output", [.singleDash]),
+      .flag("save-temps", [.singleDash]),
+      .flag("serialize-diagnostics", [.singleDash]),
+      .flag("use-frontend-parseable-output", [.singleDash]),
+      .flag("validate-clang-modules-once", [.singleDash]),
+      .flag("whole-module-optimization", [.singleDash]),
+      .flag("experimental-skip-all-function-bodies", frontendName: "Xfrontend", [.singleDash]),
+      .flag("experimental-skip-non-inlinable-function-bodies", frontendName: "Xfrontend", [.singleDash]),
+      .flag("experimental-skip-non-exportable-decls", frontendName: "Xfrontend", [.singleDash]),
+      .flag("experimental-lazy-typecheck", frontendName: "Xfrontend", [.singleDash]),
+
+      .option("clang-build-session-file", [.singleDash], [.separatedBySpace]),
+      .option("emit-module-interface-path", [.singleDash], [.separatedBySpace]),
+      .option("emit-module-path", [.singleDash], [.separatedBySpace]),
+      .option("emit-objc-header-path", [.singleDash], [.separatedBySpace]),
+      .option("emit-package-module-interface-path", [.singleDash], [.separatedBySpace]),
+      .option("emit-private-module-interface-path", [.singleDash], [.separatedBySpace]),
+      .option("num-threads", [.singleDash], [.separatedBySpace]),
+      // Technically, `-o` and the output file don't need to be separated by a space. Eg. `swiftc -oa file.swift` is
+      // valid and will write to an output file named `a`.
+      // We can't support that because the only way to know that `-output-file-map` is a different flag and not an option
+      // to write to an output file named `utput-file-map` is to know all compiler arguments of `swiftc`, which we don't.
+      .option("o", [.singleDash], [.separatedBySpace]),
+      .option("output-file-map", [.singleDash], [.separatedBySpace, .separatedByEqualSign]),
+    ]
+
+    var result: [String] = []
+    result.reserveCapacity(compilerArguments.count)
+    var iterator = compilerArguments.makeIterator()
+    while let argument = iterator.next() {
+      switch optionsToRemove.firstMatch(for: argument) {
+      case .removeOption:
+        continue
+      case .removeOptionAndNextArgument:
+        _ = iterator.next()
+        continue
+      case .removeOptionAndPreviousArgument(let name):
+        if let previousArg = result.last, previousArg.hasSuffix("-\(name)") {
+          _ = result.popLast()
+        }
+        continue
+      case nil:
+        break
+      }
+      result.append(argument)
+    }
+
+    result += [
+      // Avoid emitting the ABI descriptor, we don't need it
+      "-Xfrontend", "-empty-abi-descriptor",
+    ]
+
+    result += supplementalClangIndexingArgs.flatMap { ["-Xcc", $0] }
+
+    return TextDocumentSourceKitOptionsResponse(compilerArguments: result, workingDirectory: workingDirectory)
+  }
+
+  /// Adjust compiler arguments that were created for building to compiler arguments that should be used for indexing
+  /// or background AST builds.
+  ///
+  /// This removes compiler arguments that produce output files and adds arguments to eg. typecheck only.
+  func adjustingArgsForSemanticClangFunctionality() -> TextDocumentSourceKitOptionsResponse {
+    let optionsToRemove: [CompilerCommandLineOption] = [
+      // Disable writing of a depfile
+      .flag("M", [.singleDash]),
+      .flag("MD", [.singleDash]),
+      .flag("MMD", [.singleDash]),
+      .flag("MG", [.singleDash]),
+      .flag("MM", [.singleDash]),
+      .flag("MV", [.singleDash]),
+      // Don't create phony targets
+      .flag("MP", [.singleDash]),
+      // Don't write out compilation databases
+      .flag("MJ", [.singleDash]),
+      // Don't compile
+      .flag("c", [.singleDash]),
+
+      .flag("fmodules-validate-once-per-build-session", [.singleDash]),
+
+      // Disable writing of a depfile
+      .option("MT", [.singleDash], [.noSpace, .separatedBySpace]),
+      .option("MF", [.singleDash], [.noSpace, .separatedBySpace]),
+      .option("MQ", [.singleDash], [.noSpace, .separatedBySpace]),
+
+      // Don't write serialized diagnostic files
+      .option("serialize-diagnostics", [.singleDash, .doubleDash], [.separatedBySpace]),
+
+      .option("fbuild-session-file", [.singleDash], [.separatedByEqualSign]),
+    ]
+
+    var result: [String] = []
+    result.reserveCapacity(compilerArguments.count)
+    var iterator = compilerArguments.makeIterator()
+    while let argument = iterator.next() {
+      switch optionsToRemove.firstMatch(for: argument) {
+      case .removeOption:
+        continue
+      case .removeOptionAndNextArgument:
+        _ = iterator.next()
+        continue
+      case .removeOptionAndPreviousArgument(let name):
+        if let previousArg = result.last, previousArg.hasSuffix("-\(name)") {
+          _ = result.popLast()
+        }
+        continue
+      case nil:
+        break
+      }
+      result.append(argument)
+    }
+    result += supplementalClangIndexingArgs
+    result.append(
+      "-fsyntax-only"
+    )
+    return TextDocumentSourceKitOptionsResponse(compilerArguments: result, workingDirectory: workingDirectory)
+  }
+}
+
+fileprivate let supplementalClangIndexingArgs: [String] = [
+  // Retain extra information for indexing
+  "-fretain-comments-from-system-headers",
+  // Pick up macro definitions during indexing
+  "-Xclang", "-detailed-preprocessing-record",
+
+  // libclang uses 'raw' module-format. Match it so we can reuse the module cache and PCHs that libclang uses.
+  "-Xclang", "-fmodule-format=raw",
+
+  // Be less strict - we want to continue and typecheck/index as much as possible
+  "-Xclang", "-fallow-pch-with-compiler-errors",
+  "-Xclang", "-fallow-pcm-with-compiler-errors",
+  "-Wno-non-modular-include-in-framework-module",
+  "-Wno-incomplete-umbrella",
+]

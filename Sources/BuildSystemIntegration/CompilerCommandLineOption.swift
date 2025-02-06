@@ -12,7 +12,7 @@
 
 package struct CompilerCommandLineOption {
   /// Return value of `matches(argument:)`.
-  package enum Match {
+  package enum Match: Equatable {
     /// The `CompilerCommandLineOption` matched the command line argument. The next element in the command line is a
     /// separate argument and should not be removed.
     case removeOption
@@ -20,6 +20,10 @@ package struct CompilerCommandLineOption {
     /// The `CompilerCommandLineOption` matched the command line argument. The next element in the command line is an
     /// argument to this option and should be removed as well.
     case removeOptionAndNextArgument
+
+    /// The `CompilerCommandLineOption` matched the command line argument. The previous element in the command line is
+    /// a prefix to this argument and should be removed if it matches `name`.
+    case removeOptionAndPreviousArgument(name: String)
   }
 
   package enum DashSpelling {
@@ -39,6 +43,9 @@ package struct CompilerCommandLineOption {
   /// The name of the option, without any preceeding `-` or `--`.
   private let name: String
 
+  /// The name of the argument that prefixes this flag, without any preceeding `-` or `--` (eg. `Xfrontend`/`Xclang`).
+  private let frontendName: String?
+
   /// Whether the option can be spelled with one or two dashes.
   private let dashSpellings: [DashSpelling]
 
@@ -46,9 +53,18 @@ package struct CompilerCommandLineOption {
   /// argument.
   private let argumentStyles: [ArgumentStyles]
 
-  package static func flag(_ name: String, _ dashSpellings: [DashSpelling]) -> CompilerCommandLineOption {
+  package static func flag(
+    _ name: String,
+    frontendName: String? = nil,
+    _ dashSpellings: [DashSpelling]
+  ) -> CompilerCommandLineOption {
     precondition(!dashSpellings.isEmpty)
-    return CompilerCommandLineOption(name: name, dashSpellings: dashSpellings, argumentStyles: [])
+    return CompilerCommandLineOption(
+      name: name,
+      frontendName: frontendName,
+      dashSpellings: dashSpellings,
+      argumentStyles: []
+    )
   }
 
   package static func option(
@@ -58,10 +74,29 @@ package struct CompilerCommandLineOption {
   ) -> CompilerCommandLineOption {
     precondition(!dashSpellings.isEmpty)
     precondition(!argumentStyles.isEmpty)
-    return CompilerCommandLineOption(name: name, dashSpellings: dashSpellings, argumentStyles: argumentStyles)
+    return CompilerCommandLineOption(
+      name: name,
+      frontendName: nil,
+      dashSpellings: dashSpellings,
+      argumentStyles: argumentStyles
+    )
   }
 
   package func matches(argument: String) -> Match? {
+    let match = matchesIgnoringFrontend(argument: argument)
+    guard let match, let frontendName else {
+      return match
+    }
+
+    switch match {
+    case .removeOption:
+      return .removeOptionAndPreviousArgument(name: frontendName)
+    default:
+      return match
+    }
+  }
+
+  private func matchesIgnoringFrontend(argument: String) -> Match? {
     let argumentName: Substring
     if argument.hasPrefix("--") {
       if dashSpellings.contains(.doubleDash) {
