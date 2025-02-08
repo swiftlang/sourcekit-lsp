@@ -270,6 +270,85 @@ package actor SkipUnless {
       }
     }
   }
+
+  package static func canLoadPluginsBuiltByToolchain(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    return try await shared.skipUnlessSupported(file: file, line: line) {
+      let project = try await SwiftPMTestProject(
+        files: [
+          "Plugins/plugin.swift": #"""
+          import Foundation
+          import PackagePlugin
+          @main struct CodeGeneratorPlugin: BuildToolPlugin {
+            func createBuildCommands(context: PluginContext, target: Target) throws -> [Command] {
+              let genSourcesDir = context.pluginWorkDirectoryURL.appending(path: "GeneratedSources")
+              guard let target = target as? SourceModuleTarget else { return [] }
+              let codeGenerator = try context.tool(named: "CodeGenerator").url
+              let generatedFile = genSourcesDir.appending(path: "\(target.name)-generated.swift")
+              return [.buildCommand(
+                displayName: "Generating code for \(target.name)",
+                executable: codeGenerator,
+                arguments: [
+                  generatedFile.path
+                ],
+                inputFiles: [],
+                outputFiles: [generatedFile]
+              )]
+            }
+          }
+          """#,
+
+          "Sources/CodeGenerator/CodeGenerator.swift": #"""
+          import Foundation
+          try "let foo = 1".write(
+            to: URL(fileURLWithPath: CommandLine.arguments[1]),
+            atomically: true,
+            encoding: String.Encoding.utf8
+          )
+          """#,
+
+          "Sources/TestLib/TestLib.swift": #"""
+          func useGenerated() {
+            _ = 1️⃣foo
+          }
+          """#,
+        ],
+        manifest: """
+          // swift-tools-version: 6.0
+          import PackageDescription
+          let package = Package(
+            name: "PluginTest",
+            targets: [
+              .executableTarget(name: "CodeGenerator"),
+              .target(
+                name: "TestLib",
+                plugins: [.plugin(name: "CodeGeneratorPlugin")]
+              ),
+              .plugin(
+                name: "CodeGeneratorPlugin",
+                capability: .buildTool(),
+                dependencies: ["CodeGenerator"]
+              ),
+            ]
+          )
+          """,
+        enableBackgroundIndexing: true
+      )
+
+      let (uri, positions) = try project.openDocument("TestLib.swift")
+
+      let result = try await project.testClient.send(
+        DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      )
+
+      if result?.locations?.only == nil {
+        return .featureUnsupported(skipMessage: "Skipping because plugin protocols do not match.")
+      }
+      return .featureSupported
+    }
+  }
 }
 
 // MARK: - Parsing Swift compiler version

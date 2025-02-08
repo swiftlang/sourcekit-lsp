@@ -33,7 +33,7 @@ package import BuildServerProtocol
 package import Foundation
 package import LanguageServerProtocol
 package import SKOptions
-package import SourceKitLSPAPI
+@preconcurrency package import SourceKitLSPAPI
 package import ToolchainRegistry
 package import class ToolchainRegistry.Toolchain
 #else
@@ -41,7 +41,7 @@ import BuildServerProtocol
 import Foundation
 import LanguageServerProtocol
 import SKOptions
-import SourceKitLSPAPI
+@preconcurrency import SourceKitLSPAPI
 import ToolchainRegistry
 import class ToolchainRegistry.Toolchain
 #endif
@@ -131,6 +131,8 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   private let toolchain: Toolchain
   private let swiftPMWorkspace: Workspace
 
+  private let pluginConfiguration: PluginConfiguration
+
   /// A `ObservabilitySystem` from `SwiftPM` that logs.
   private let observabilitySystem: ObservabilitySystem
 
@@ -170,13 +172,10 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   ) async throws {
     self.projectRoot = projectRoot
     self.options = options
-    self.fileWatchers =
-      try ["Package.swift", "Package@swift*.swift", "Package.resolved"].map {
-        FileSystemWatcher(globPattern: try projectRoot.appendingPathComponent($0).filePath, kind: [.change])
-      }
-      + FileRuleDescription.builtinRules.flatMap({ $0.fileTypes }).map { fileExtension in
-        FileSystemWatcher(globPattern: "**/*.\(fileExtension)", kind: [.create, .change, .delete])
-      }
+    // We could theoretically dynamically register all known files when we get back the build graph, but that seems
+    // more errorprone than just watching everything and then filtering when we need to (eg. in
+    // `SemanticIndexManager.filesDidChange`).
+    self.fileWatchers = [FileSystemWatcher(globPattern: "**/*", kind: [.create, .change, .delete])]
     let toolchain = await toolchainRegistry.preferredToolchain(containing: [
       \.clang, \.clangd, \.sourcekitd, \.swift, \.swiftc,
     ])
@@ -291,6 +290,19 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       prepareForIndexing: options.backgroundPreparationModeOrDefault.toSwiftPMPreparation
     )
 
+    let pluginScriptRunner = DefaultPluginScriptRunner(
+      fileSystem: localFileSystem,
+      cacheDir: location.pluginWorkingDirectory.appending("cache"),
+      toolchain: hostSwiftPMToolchain,
+      extraPluginSwiftCFlags: [],
+      enableSandbox: !(options.swiftPMOrDefault.disableSandbox ?? false)
+    )
+    self.pluginConfiguration = PluginConfiguration(
+      scriptRunner: pluginScriptRunner,
+      workDirectory: location.pluginWorkingDirectory,
+      disableSandbox: options.swiftPMOrDefault.disableSandbox ?? false
+    )
+
     packageLoadingQueue.async {
       await orLog("Initial package loading") {
         // Schedule an initial generation of the build graph. Once the build graph is loaded, the build system will send
@@ -334,24 +346,47 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
 
     signposter.emitEvent("Finished loading modules graph", id: signpostID)
 
-    let plan = try await BuildPlan(
-      destinationBuildParameters: destinationBuildParameters,
-      toolsBuildParameters: toolsBuildParameters,
-      graph: modulesGraph,
-      disableSandbox: options.swiftPMOrDefault.disableSandbox ?? false,
-      fileSystem: localFileSystem,
-      observabilityScope: observabilitySystem.topScope.makeChildScope(description: "Create SwiftPM build plan")
-    )
+    // We have a whole separate arena if we're performing background indexing. This allows us to also build and run
+    // plugins, without having to worry about messing up any regular build state.
+    let buildDescription: SourceKitLSPAPI.BuildDescription
+    if isForIndexBuild {
+      let loaded = try await BuildDescription.load(
+        destinationBuildParameters: destinationBuildParameters,
+        toolsBuildParameters: toolsBuildParameters,
+        packageGraph: modulesGraph,
+        pluginConfiguration: pluginConfiguration,
+        disableSandbox: options.swiftPMOrDefault.disableSandbox ?? false,
+        scratchDirectory: swiftPMWorkspace.location.scratchDirectory.asURL,
+        fileSystem: localFileSystem,
+        observabilityScope: observabilitySystem.topScope.makeChildScope(description: "Create SwiftPM build description")
+      )
+      if !loaded.errors.isEmpty {
+        logger.error("Loading SwiftPM description had errors: \(loaded.errors)")
+      }
 
-    signposter.emitEvent("Finished generating build plan", id: signpostID)
+      signposter.emitEvent("Finished generating build description", id: signpostID)
 
-    let buildDescription = BuildDescription(buildPlan: plan)
-    self.buildDescription = buildDescription
+      buildDescription = loaded.description
+    } else {
+      let plan = try await BuildPlan(
+        destinationBuildParameters: destinationBuildParameters,
+        toolsBuildParameters: toolsBuildParameters,
+        graph: modulesGraph,
+        disableSandbox: options.swiftPMOrDefault.disableSandbox ?? false,
+        fileSystem: localFileSystem,
+        observabilityScope: observabilitySystem.topScope.makeChildScope(description: "Create SwiftPM build plan")
+      )
+
+      signposter.emitEvent("Finished generating build plan", id: signpostID)
+
+      buildDescription = BuildDescription(buildPlan: plan)
+    }
 
     /// Make sure to execute any throwing statements before setting any
     /// properties because otherwise we might end up in an inconsistent state
     /// with only some properties modified.
 
+    self.buildDescription = buildDescription
     self.swiftPMTargets = [:]
     self.targetDependencies = [:]
 
