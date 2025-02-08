@@ -15,6 +15,7 @@ import Foundation
 import LanguageServerProtocol
 import SKTestSupport
 import SourceKitLSP
+import SwiftExtensions
 import XCTest
 
 final class SwiftPMIntegrationTests: XCTestCase {
@@ -352,5 +353,205 @@ final class SwiftPMIntegrationTests: XCTestCase {
       diagnosticsAfterPackageLoading.fullReport?.items.map(\.message),
       ["Cannot convert value of type 'Int' to specified type 'String'"]
     )
+  }
+
+  func testToolPluginWithBuild() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Plugins/plugin.swift": #"""
+        import PackagePlugin
+        @main struct CodeGeneratorPlugin: BuildToolPlugin {
+          func createBuildCommands(context: PluginContext, target: Target) throws -> [Command] {
+            let genSourcesDir = context.pluginWorkDirectoryURL.appending(path: "GeneratedSources")
+            guard let target = target as? SourceModuleTarget else { return [] }
+            let codeGenerator = try context.tool(named: "CodeGenerator").url
+            let generatedFile = genSourcesDir.appending(path: "\(target.name)-generated.swift")
+            return [.buildCommand(
+              displayName: "Generating code for \(target.name)",
+              executable: codeGenerator,
+              arguments: [
+                generatedFile.path
+              ],
+              inputFiles: [],
+              outputFiles: [generatedFile]
+            )]
+          }
+        }
+        """#,
+
+        "Sources/CodeGenerator/CodeGenerator.swift": #"""
+        import Foundation
+        try "let generated = 1".write(to: URL(fileURLWithPath: CommandLine.arguments[1]), atomically: true, encoding: String.Encoding.utf8)
+        """#,
+
+        "Sources/TestLib/TestLib.swift": #"""
+        func useGenerated() {
+          _ = 1️⃣generated
+        }
+        """#,
+      ],
+      manifest: """
+        // swift-tools-version: 6.0
+        import PackageDescription
+        let package = Package(
+          name: "PluginTest",
+          targets: [
+            .executableTarget(name: "CodeGenerator"),
+            .target(
+              name: "TestLib",
+              plugins: [.plugin(name: "CodeGeneratorPlugin")]
+            ),
+            .plugin(
+              name: "CodeGeneratorPlugin",
+              capability: .buildTool(),
+              dependencies: ["CodeGenerator"]
+            ),
+          ]
+        )
+        """,
+      enableBackgroundIndexing: false
+    )
+
+    let (uri, positions) = try project.openDocument("TestLib.swift")
+    let result = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    // We cannot run plugins when not using background indexing, so we expect no result here.
+    XCTAssertNil(result)
+  }
+
+  func testToolPluginWithBackgroundIndexing() async throws {
+    try await SkipUnless.canLoadPluginsBuiltByToolchain()
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Plugins/plugin.swift": #"""
+        import Foundation
+        import PackagePlugin
+        @main struct CodeGeneratorPlugin: BuildToolPlugin {
+          func createBuildCommands(context: PluginContext, target: Target) throws -> [Command] {
+            let genSourcesDir = context.pluginWorkDirectoryURL.appending(path: "GeneratedSources")
+            guard let target = target as? SourceModuleTarget else { return [] }
+            let codeGenerator = try context.tool(named: "CodeGenerator").url
+            let generatedFile = genSourcesDir.appending(path: "\(target.name)-generated.swift")
+            return [.buildCommand(
+              displayName: "Generating code for \(target.name)",
+              executable: codeGenerator,
+              arguments: [
+                generatedFile.path
+              ],
+              inputFiles: [
+                URL(fileURLWithPath: "$TEST_DIR_BACKSLASH_ESCAPED/topDep.txt"),
+                URL(fileURLWithPath: "$TEST_DIR_BACKSLASH_ESCAPED/Sources/TestLib/targetDep.txt")
+              ],
+              outputFiles: [generatedFile]
+            )]
+          }
+        }
+        """#,
+
+        "Sources/CodeGenerator/CodeGenerator.swift": #"""
+        import Foundation
+        let topGenerated = try String(contentsOf: URL(fileURLWithPath: "$TEST_DIR_BACKSLASH_ESCAPED/topDep.txt"))
+        let targetGenerated = try String(contentsOf: URL(fileURLWithPath: "$TEST_DIR_BACKSLASH_ESCAPED/Sources/TestLib/targetDep.txt"))
+        try "\(topGenerated)\n\(targetGenerated)".write(
+          to: URL(fileURLWithPath: CommandLine.arguments[1]),
+          atomically: true,
+          encoding: String.Encoding.utf8
+        )
+        """#,
+
+        "Sources/TestLib/TestLib.swift": #"""
+        func useGenerated() {
+          _ = 1️⃣topGenerated
+          _ = 2️⃣targetGenerated
+        }
+        """#,
+
+        "/topDep.txt": "let topGenerated = 1",
+        "Sources/TestLib/targetDep.txt": "let targetGenerated = 1",
+      ],
+      manifest: """
+        // swift-tools-version: 6.0
+        import PackageDescription
+        let package = Package(
+          name: "PluginTest",
+          targets: [
+            .executableTarget(name: "CodeGenerator"),
+            .target(
+              name: "TestLib",
+              plugins: [.plugin(name: "CodeGeneratorPlugin")]
+            ),
+            .plugin(
+              name: "CodeGeneratorPlugin",
+              capability: .buildTool(),
+              dependencies: ["CodeGenerator"]
+            ),
+          ]
+        )
+        """,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("TestLib.swift")
+
+    // We should have run plugins and thus created generated.swift
+    do {
+      let topResult = try await project.testClient.send(
+        DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      )
+      let topLocation = try XCTUnwrap(topResult?.locations?.only)
+      XCTAssertTrue(topLocation.uri.pseudoPath.hasSuffix("generated.swift"))
+      XCTAssertEqual(topLocation.range.lowerBound, Position(line: 0, utf16index: 4))
+      XCTAssertEqual(topLocation.range.upperBound, Position(line: 0, utf16index: 4))
+
+      let targetResult = try await project.testClient.send(
+        DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+      )
+      let targetLocation = try XCTUnwrap(targetResult?.locations?.only)
+      XCTAssertTrue(targetLocation.uri.pseudoPath.hasSuffix("generated.swift"))
+      XCTAssertEqual(targetLocation.range.lowerBound, Position(line: 1, utf16index: 4))
+      XCTAssertEqual(targetLocation.range.upperBound, Position(line: 1, utf16index: 4))
+    }
+
+    // Make a change to the top level input file of the plugin command
+    let topDepUri = try project.uri(for: "topDep.txt")
+    let topDepUrl = try XCTUnwrap(topDepUri.fileURL)
+    try "// some change\nlet topGenerated = 2".write(
+      to: topDepUrl,
+      atomically: true,
+      encoding: .utf8
+    )
+    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: topDepUri, type: .changed)]))
+    try await project.testClient.send(PollIndexRequest())
+
+    // Expect that the position has been updated in the dependency
+    try await repeatUntilExpectedResult {
+      let result = try await project.testClient.send(
+        DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      )
+      let location = try XCTUnwrap(result?.locations?.only)
+      return location.range.lowerBound == Position(line: 1, utf16index: 4)
+    }
+
+    // Make a change to the target level input file of the plugin command
+    let targetDepUri = try project.uri(for: "targetDep.txt")
+    let targetDepUrl = try XCTUnwrap(targetDepUri.fileURL)
+    try "// some change\nlet targetGenerated = 2".write(
+      to: targetDepUrl,
+      atomically: true,
+      encoding: .utf8
+    )
+    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: targetDepUri, type: .changed)]))
+    try await project.testClient.send(PollIndexRequest())
+
+    // Expect that the position has been updated in the dependency
+    try await repeatUntilExpectedResult {
+      let result = try await project.testClient.send(
+        DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+      )
+      let location = try XCTUnwrap(result?.locations?.only)
+      return location.range.lowerBound == Position(line: 3, utf16index: 4)
+    }
   }
 }
