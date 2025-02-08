@@ -96,22 +96,6 @@ package struct FileAndTarget: Sendable {
   package let target: BuildTargetIdentifier
 }
 
-private enum IndexKind {
-  case clang
-  case swift
-
-  init?(language: Language) {
-    switch language {
-    case .swift:
-      self = .swift
-    case .c, .cpp, .objective_c, .objective_cpp:
-      self = .clang
-    default:
-      return nil
-    }
-  }
-}
-
 /// Describes a task to index a set of source files.
 ///
 /// This task description can be scheduled in a `TaskScheduler`.
@@ -162,7 +146,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   }
 
   static func canIndex(language: Language) -> Bool {
-    return IndexKind(language: language) != nil
+    return language.semanticKind != nil
   }
 
   init(
@@ -284,7 +268,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       return
     }
     let startDate = Date()
-    switch IndexKind(language: language) {
+    switch language.semanticKind {
     case .swift:
       do {
         try await updateIndexStore(
@@ -327,15 +311,20 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       return
     }
 
-    let indexingArguments = adjustSwiftCompilerArgumentsForIndexStoreUpdate(
-      buildSettings.compilerArguments,
-      fileToIndex: uri
-    )
+    let args =
+      try [swiftc.filePath] + buildSettings.compilerArguments + [
+        "-index-file",
+        "-index-file-path", uri.pseudoPath,
+        // batch mode is not compatible with -index-file
+        "-disable-batch-mode",
+        // Fake an output path so that we get a different unit file for every Swift file we background index
+        "-index-unit-output-path", uri.pseudoPath + ".o",
+      ]
 
     try await runIndexingProcess(
       indexFile: uri,
       buildSettings: buildSettings,
-      processArguments: [swiftc.filePath] + indexingArguments,
+      processArguments: args,
       workingDirectory: buildSettings.workingDirectory.map(AbsolutePath.init(validating:))
     )
   }
@@ -352,15 +341,10 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       return
     }
 
-    let indexingArguments = adjustClangCompilerArgumentsForIndexStoreUpdate(
-      buildSettings.compilerArguments,
-      fileToIndex: uri
-    )
-
     try await runIndexingProcess(
       indexFile: uri,
       buildSettings: buildSettings,
-      processArguments: [clang.filePath] + indexingArguments,
+      processArguments: [clang.filePath] + buildSettings.compilerArguments,
       workingDirectory: buildSettings.workingDirectory.map(AbsolutePath.init(validating:))
     )
   }
@@ -447,165 +431,5 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         BuildSettingsLogger.log(level: .error, settings: buildSettings, for: indexFile)
       }
     }
-  }
-}
-
-/// Adjust compiler arguments that were created for building to compiler arguments that should be used for indexing.
-///
-/// This removes compiler arguments that produce output files and adds arguments to index the file.
-private func adjustSwiftCompilerArgumentsForIndexStoreUpdate(
-  _ compilerArguments: [String],
-  fileToIndex: DocumentURI
-) -> [String] {
-  let optionsToRemove: [CompilerCommandLineOption] = [
-    .flag("c", [.singleDash]),
-    .flag("disable-cmo", [.singleDash]),
-    .flag("emit-dependencies", [.singleDash]),
-    .flag("emit-module-interface", [.singleDash]),
-    .flag("emit-module", [.singleDash]),
-    .flag("emit-objc-header", [.singleDash]),
-    .flag("incremental", [.singleDash]),
-    .flag("no-color-diagnostics", [.singleDash]),
-    .flag("parseable-output", [.singleDash]),
-    .flag("save-temps", [.singleDash]),
-    .flag("serialize-diagnostics", [.singleDash]),
-    .flag("use-frontend-parseable-output", [.singleDash]),
-    .flag("validate-clang-modules-once", [.singleDash]),
-    .flag("whole-module-optimization", [.singleDash]),
-
-    .option("clang-build-session-file", [.singleDash], [.separatedBySpace]),
-    .option("emit-module-interface-path", [.singleDash], [.separatedBySpace]),
-    .option("emit-module-path", [.singleDash], [.separatedBySpace]),
-    .option("emit-objc-header-path", [.singleDash], [.separatedBySpace]),
-    .option("emit-package-module-interface-path", [.singleDash], [.separatedBySpace]),
-    .option("emit-private-module-interface-path", [.singleDash], [.separatedBySpace]),
-    .option("num-threads", [.singleDash], [.separatedBySpace]),
-    // Technically, `-o` and the output file don't need to be separated by a space. Eg. `swiftc -oa file.swift` is
-    // valid and will write to an output file named `a`.
-    // We can't support that because the only way to know that `-output-file-map` is a different flag and not an option
-    // to write to an output file named `utput-file-map` is to know all compiler arguments of `swiftc`, which we don't.
-    .option("o", [.singleDash], [.separatedBySpace]),
-    .option("output-file-map", [.singleDash], [.separatedBySpace, .separatedByEqualSign]),
-  ]
-
-  var result: [String] = []
-  result.reserveCapacity(compilerArguments.count)
-  var iterator = compilerArguments.makeIterator()
-  while let argument = iterator.next() {
-    switch optionsToRemove.firstMatch(for: argument) {
-    case .removeOption:
-      continue
-    case .removeOptionAndNextArgument:
-      _ = iterator.next()
-      continue
-    case nil:
-      break
-    }
-    result.append(argument)
-  }
-  result += supplementalClangIndexingArgs.flatMap { ["-Xcc", $0] }
-  result += [
-    // Preparation produces modules with errors. We should allow reading them.
-    "-Xfrontend", "-experimental-allow-module-with-compiler-errors",
-    // Avoid emitting the ABI descriptor, we don't need it
-    "-Xfrontend", "-empty-abi-descriptor",
-    "-index-file",
-    "-index-file-path", fileToIndex.pseudoPath,
-    // batch mode is not compatible with -index-file
-    "-disable-batch-mode",
-    // Fake an output path so that we get a different unit file for every Swift file we background index
-    "-index-unit-output-path", fileToIndex.pseudoPath + ".o",
-  ]
-  return result
-}
-
-/// Adjust compiler arguments that were created for building to compiler arguments that should be used for indexing.
-///
-/// This removes compiler arguments that produce output files and adds arguments to index the file.
-private func adjustClangCompilerArgumentsForIndexStoreUpdate(
-  _ compilerArguments: [String],
-  fileToIndex: DocumentURI
-) -> [String] {
-  let optionsToRemove: [CompilerCommandLineOption] = [
-    // Disable writing of a depfile
-    .flag("M", [.singleDash]),
-    .flag("MD", [.singleDash]),
-    .flag("MMD", [.singleDash]),
-    .flag("MG", [.singleDash]),
-    .flag("MM", [.singleDash]),
-    .flag("MV", [.singleDash]),
-    // Don't create phony targets
-    .flag("MP", [.singleDash]),
-    // Don't write out compilation databases
-    .flag("MJ", [.singleDash]),
-    // Don't compile
-    .flag("c", [.singleDash]),
-
-    .flag("fmodules-validate-once-per-build-session", [.singleDash]),
-
-    // Disable writing of a depfile
-    .option("MT", [.singleDash], [.noSpace, .separatedBySpace]),
-    .option("MF", [.singleDash], [.noSpace, .separatedBySpace]),
-    .option("MQ", [.singleDash], [.noSpace, .separatedBySpace]),
-
-    // Don't write serialized diagnostic files
-    .option("serialize-diagnostics", [.singleDash, .doubleDash], [.separatedBySpace]),
-
-    .option("fbuild-session-file", [.singleDash], [.separatedByEqualSign]),
-  ]
-
-  var result: [String] = []
-  result.reserveCapacity(compilerArguments.count)
-  var iterator = compilerArguments.makeIterator()
-  while let argument = iterator.next() {
-    switch optionsToRemove.firstMatch(for: argument) {
-    case .removeOption:
-      continue
-    case .removeOptionAndNextArgument:
-      _ = iterator.next()
-      continue
-    case nil:
-      break
-    }
-    result.append(argument)
-  }
-  result += supplementalClangIndexingArgs
-  result.append(
-    "-fsyntax-only"
-  )
-  return result
-}
-
-fileprivate let supplementalClangIndexingArgs: [String] = [
-  // Retain extra information for indexing
-  "-fretain-comments-from-system-headers",
-  // Pick up macro definitions during indexing
-  "-Xclang", "-detailed-preprocessing-record",
-
-  // libclang uses 'raw' module-format. Match it so we can reuse the module cache and PCHs that libclang uses.
-  "-Xclang", "-fmodule-format=raw",
-
-  // Be less strict - we want to continue and typecheck/index as much as possible
-  "-Xclang", "-fallow-pch-with-compiler-errors",
-  "-Xclang", "-fallow-pcm-with-compiler-errors",
-  "-Wno-non-modular-include-in-framework-module",
-  "-Wno-incomplete-umbrella",
-]
-
-fileprivate extension Sequence {
-  /// Returns `true` if this sequence contains an element that is equal to an element in `otherSequence` when
-  /// considering two elements as equal if they satisfy `predicate`.
-  func hasIntersection(
-    with otherSequence: some Sequence<Element>,
-    where predicate: (Element, Element) -> Bool
-  ) -> Bool {
-    for outer in self {
-      for inner in otherSequence {
-        if predicate(outer, inner) {
-          return true
-        }
-      }
-    }
-    return false
   }
 }

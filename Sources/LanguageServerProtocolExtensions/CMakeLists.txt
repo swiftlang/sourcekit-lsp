@@ -3,7 +3,7 @@ add_library(LanguageServerProtocolExtensions STATIC
   Connection+Send.swift
   DocumentURI+CustomLogStringConvertible.swift
   DocumentURI+symlinkTarget.swift
-  Language+InferredFromFileExtension.swift
+  Language+Inference.swift
   LocalConnection.swift
   QueueBasedMessageHandler.swift
   RequestAndReply.swift

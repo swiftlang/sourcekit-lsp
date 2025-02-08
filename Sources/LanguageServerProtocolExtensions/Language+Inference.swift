@@ -19,6 +19,22 @@ import LanguageServerProtocol
 #endif
 
 extension Language {
+  package enum SemanticKind {
+    case clang
+    case swift
+  }
+
+  package var semanticKind: SemanticKind? {
+    switch self {
+    case .swift:
+      return .swift
+    case .c, .cpp, .objective_c, .objective_cpp:
+      return .clang
+    default:
+      return nil
+    }
+  }
+
   package init?(inferredFromFileExtension uri: DocumentURI) {
     // URL.pathExtension is only set for file URLs but we want to also infer a file extension for non-file URLs like
     // untitled:file.cpp

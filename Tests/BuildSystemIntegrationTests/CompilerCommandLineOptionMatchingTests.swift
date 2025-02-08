@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(Testing) import SemanticIndex
+@_spi(Testing) import BuildSystemIntegration
 import XCTest
 
 final class CompilerCommandLineOptionMatchingTests: XCTestCase {
@@ -19,6 +19,11 @@ final class CompilerCommandLineOptionMatchingTests: XCTestCase {
     assertOption(.flag("a", [.doubleDash]), "--a", .removeOption)
     assertOption(.flag("a", [.singleDash, .doubleDash]), "-a", .removeOption)
     assertOption(.flag("a", [.singleDash, .doubleDash]), "--a", .removeOption)
+    assertOption(
+      .flag("a", frontendName: "Xfrontend", [.singleDash]),
+      "-a",
+      .removeOptionAndPreviousArgument(name: "Xfrontend")
+    )
     assertOption(.flag("a", [.singleDash]), "-another", nil)
     assertOption(.flag("a", [.singleDash]), "--a", nil)
     assertOption(.flag("a", [.doubleDash]), "-a", nil)

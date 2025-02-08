@@ -168,12 +168,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       ).compilerArguments
 
       assertArgumentsContain("-module-name", "lib", arguments: arguments)
-      assertArgumentsContain("-emit-dependencies", arguments: arguments)
-      assertArgumentsContain("-emit-module", arguments: arguments)
-      assertArgumentsContain("-emit-module-path", arguments: arguments)
-      assertArgumentsContain("-incremental", arguments: arguments)
       assertArgumentsContain("-parse-as-library", arguments: arguments)
-      assertArgumentsContain("-c", arguments: arguments)
 
       assertArgumentsContain("-target", arguments: arguments)  // Only one!
       #if os(macOS)
@@ -686,15 +681,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         )
         assertArgumentsDoNotContain("-I", try build.filePath, arguments: args)
         assertArgumentsDoNotContain(try bcxx.filePath, arguments: args)
-
-        URL(fileURLWithPath: try build.appendingPathComponent("lib.build").appendingPathComponent("a.cpp.d").filePath)
-          .withUnsafeFileSystemRepresentation {
-            assertArgumentsContain("-MD", "-MT", "dependencies", "-MF", String(cString: $0!), arguments: args)
-          }
-
-        URL(fileURLWithPath: try file.filePath).withUnsafeFileSystemRepresentation {
-          assertArgumentsContain("-c", String(cString: $0!), arguments: args)
-        }
 
         URL(fileURLWithPath: try build.appendingPathComponent("lib.build").appendingPathComponent("a.cpp.o").filePath)
           .withUnsafeFileSystemRepresentation {
