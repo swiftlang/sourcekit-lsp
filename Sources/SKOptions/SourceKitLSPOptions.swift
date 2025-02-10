@@ -53,6 +53,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     /// Equivalent to SwiftPM's `--triple` option.
     public var triple: String?
 
+    /// Traits to enable for the package. Equivalent to SwiftPM's `--traits` option.
+    public var traits: [String]?
+
     /// Extra arguments passed to the compiler for C files. Equivalent to SwiftPM's `-Xcc` option.
     public var cCompilerFlags: [String]?
 
@@ -65,6 +68,10 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     /// Extra arguments passed to the linker. Equivalent to SwiftPM's `-Xlinker` option.
     public var linkerFlags: [String]?
 
+    /// Extra arguments passed to the compiler for Swift files or plugins. Equivalent to SwiftPM's
+    /// `-Xbuild-tools-swiftc` option.
+    public var buildToolsSwiftCompilerFlags: [String]?
+
     /// Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option.
     /// Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.
     public var disableSandbox: Bool?
@@ -75,10 +82,12 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       swiftSDKsDirectory: String? = nil,
       swiftSDK: String? = nil,
       triple: String? = nil,
+      traits: [String]? = nil,
       cCompilerFlags: [String]? = nil,
       cxxCompilerFlags: [String]? = nil,
       swiftCompilerFlags: [String]? = nil,
       linkerFlags: [String]? = nil,
+      buildToolsSwiftCompilerFlags: [String]? = nil,
       disableSandbox: Bool? = nil
     ) {
       self.configuration = configuration
@@ -86,10 +95,12 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       self.swiftSDKsDirectory = swiftSDKsDirectory
       self.swiftSDK = swiftSDK
       self.triple = triple
+      self.traits = traits
       self.cCompilerFlags = cCompilerFlags
       self.cxxCompilerFlags = cxxCompilerFlags
       self.swiftCompilerFlags = swiftCompilerFlags
       self.linkerFlags = linkerFlags
+      self.buildToolsSwiftCompilerFlags = buildToolsSwiftCompilerFlags
       self.disableSandbox = disableSandbox
     }
 
@@ -100,10 +111,12 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
         swiftSDKsDirectory: override?.swiftSDKsDirectory ?? base.swiftSDKsDirectory,
         swiftSDK: override?.swiftSDK ?? base.swiftSDK,
         triple: override?.triple ?? base.triple,
+        traits: override?.traits ?? base.traits,
         cCompilerFlags: override?.cCompilerFlags ?? base.cCompilerFlags,
         cxxCompilerFlags: override?.cxxCompilerFlags ?? base.cxxCompilerFlags,
         swiftCompilerFlags: override?.swiftCompilerFlags ?? base.swiftCompilerFlags,
         linkerFlags: override?.linkerFlags ?? base.linkerFlags,
+        buildToolsSwiftCompilerFlags: override?.buildToolsSwiftCompilerFlags ?? base.buildToolsSwiftCompilerFlags,
         disableSandbox: override?.disableSandbox ?? base.disableSandbox
       )
     }

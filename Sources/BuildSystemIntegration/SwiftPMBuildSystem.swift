@@ -132,6 +132,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   private let swiftPMWorkspace: Workspace
 
   private let pluginConfiguration: PluginConfiguration
+  private let traitConfiguration: TraitConfiguration
 
   /// A `ObservabilitySystem` from `SwiftPM` that logs.
   private let observabilitySystem: ObservabilitySystem
@@ -249,6 +250,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
         toolchain: hostSwiftPMToolchain,
         isManifestSandboxEnabled: !(options.swiftPMOrDefault.disableSandbox ?? false),
         cacheDir: location.sharedManifestsCacheDirectory,
+        extraManifestFlags: options.swiftPMOrDefault.buildToolsSwiftCompilerFlags,
         importRestrictions: configuration.manifestImportRestrictions
       )
     )
@@ -294,13 +296,17 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       fileSystem: localFileSystem,
       cacheDir: location.pluginWorkingDirectory.appending("cache"),
       toolchain: hostSwiftPMToolchain,
-      extraPluginSwiftCFlags: [],
+      extraPluginSwiftCFlags: options.swiftPMOrDefault.buildToolsSwiftCompilerFlags ?? [],
       enableSandbox: !(options.swiftPMOrDefault.disableSandbox ?? false)
     )
     self.pluginConfiguration = PluginConfiguration(
       scriptRunner: pluginScriptRunner,
       workDirectory: location.pluginWorkingDirectory,
       disableSandbox: options.swiftPMOrDefault.disableSandbox ?? false
+    )
+
+    self.traitConfiguration = TraitConfiguration(
+      enabledTraits: options.swiftPMOrDefault.traits.flatMap(Set.init)
     )
 
     packageLoadingQueue.async {
@@ -355,6 +361,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
         toolsBuildParameters: toolsBuildParameters,
         packageGraph: modulesGraph,
         pluginConfiguration: pluginConfiguration,
+        traitConfiguration: traitConfiguration,
         disableSandbox: options.swiftPMOrDefault.disableSandbox ?? false,
         scratchDirectory: swiftPMWorkspace.location.scratchDirectory.asURL,
         fileSystem: localFileSystem,
@@ -635,10 +642,14 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     if let swiftSDK = options.swiftPMOrDefault.swiftSDK {
       arguments += ["--swift-sdk", swiftSDK]
     }
+    if let traits = options.swiftPMOrDefault.traits {
+      arguments += ["--traits", traits.joined(separator: ",")]
+    }
     arguments += options.swiftPMOrDefault.cCompilerFlags?.flatMap { ["-Xcc", $0] } ?? []
     arguments += options.swiftPMOrDefault.cxxCompilerFlags?.flatMap { ["-Xcxx", $0] } ?? []
     arguments += options.swiftPMOrDefault.swiftCompilerFlags?.flatMap { ["-Xswiftc", $0] } ?? []
     arguments += options.swiftPMOrDefault.linkerFlags?.flatMap { ["-Xlinker", $0] } ?? []
+    arguments += options.swiftPMOrDefault.buildToolsSwiftCompilerFlags?.flatMap { ["-Xbuild-tools-swiftc", $0] } ?? []
     switch options.backgroundPreparationModeOrDefault {
     case .build: break
     case .noLazy: arguments += ["--experimental-prepare-for-indexing", "--experimental-prepare-for-indexing-no-lazy"]
