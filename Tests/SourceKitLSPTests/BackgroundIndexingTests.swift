@@ -1113,7 +1113,7 @@ final class BackgroundIndexingTests: XCTestCase {
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
-        public func test() -> Invalid {
+        public func libATest() -> Invalid {
           return ""
         }
         """,
@@ -1151,6 +1151,44 @@ final class BackgroundIndexingTests: XCTestCase {
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
     XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "LibB.swift")]))
+  }
+
+  func testCrossModuleFunctionalityWithErrors() async throws {
+    var options = try await SourceKitLSPOptions.testDefault()
+    options.backgroundPreparationMode = .enabled
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": """
+        public func 1️⃣libATest() -> Invalid {
+          return ""
+        }
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+
+        public func libBTest() {
+          2️⃣libATest()
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """,
+      options: options,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("LibB.swift")
+    let response = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "LibA.swift")]))
   }
 
   func testCrossModuleFunctionalityWithPreparationNoSkipping() async throws {

@@ -309,7 +309,8 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       configuration: buildConfiguration,
       toolchain: destinationSwiftPMToolchain,
       triple: destinationSDK.targetTriple,
-      flags: buildFlags
+      flags: buildFlags,
+      prepareForIndexing: options.backgroundPreparationModeOrDefault.toSwiftPMPreparation
     )
 
     packageLoadingQueue.async {
@@ -732,6 +733,19 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
 fileprivate extension URL {
   var isDirectory: Bool {
     (try? resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+  }
+}
+
+fileprivate extension SourceKitLSPOptions.BackgroundPreparationMode {
+  var toSwiftPMPreparation: BuildParameters.PrepareForIndexingMode {
+    switch self {
+    case .build:
+      return .off
+    case .noLazy:
+      return .noLazy
+    case .enabled:
+      return .on
+    }
   }
 }
 

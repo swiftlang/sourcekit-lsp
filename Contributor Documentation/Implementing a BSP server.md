@@ -29,7 +29,7 @@ If the build system loads the entire build graph during initialization, it may i
 
 ## Supporting background indexing
 
-To support background indexing, the build system must set `data.prepareProvider: true` in the `build/initialize` response and implement the `buildTarget/prepare` method.
+To support background indexing, the build system must set `data.prepareProvider: true` in the `build/initialize` response and implement the `buildTarget/prepare` method. The compiler options used to prepare a target should match those sent for `textDocument/sourceKitOptions` in order to avoid mismatches when loading modules.
 
 ## Optional methods
 
