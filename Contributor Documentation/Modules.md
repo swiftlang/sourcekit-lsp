@@ -10,10 +10,6 @@ Swift types to represent the [Build Server Protocol (BSP) specification](https:/
 
 Defines the queries SourceKit-LSP can ask of a build system, like getting compiler arguments for a file, finding a target’s dependencies or preparing a target.
 
-### CAtomics
-
-Implementation of atomics for Swift using C. Once we can raise our deployment target to use the `Atomic` type from the Swift standard library, this module should be removed.
-
 ### CSKTestSupport
 
 For testing, overrides `__cxa_atexit` to prevent registration of static destructors due to work around https://github.com/swiftlang/swift/issues/55112.

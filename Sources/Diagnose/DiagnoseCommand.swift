@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Synchronization
+
 #if compiler(>=6)
 package import ArgumentParser
 import Foundation
@@ -233,8 +235,8 @@ package struct DiagnoseCommand: AsyncParsableCommand {
       throw GenericError("Failed to create log.txt")
     }
     let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
-    let bytesCollected = AtomicInt32(initialValue: 0)
-    let processExited = AtomicBool(initialValue: false)
+    let bytesCollected: Atomic<Int> = Atomic(0)
+    let processExited: Atomic<Bool> = Atomic(false)
     // 50 MB is an average log size collected by sourcekit-lsp diagnose.
     // It's a good proxy to show some progress indication for the majority of the time.
     let expectedLogSize = 50_000_000
@@ -250,8 +252,8 @@ package struct DiagnoseCommand: AsyncParsableCommand {
       outputRedirection: .stream(
         stdout: { @Sendable bytes in
           try? fileHandle.write(contentsOf: bytes)
-          bytesCollected.value += Int32(bytes.count)
-          var progress = Double(bytesCollected.value) / Double(expectedLogSize)
+          let count = bytesCollected.add(bytes.count, ordering: .sequentiallyConsistent).newValue
+          var progress = Double(count) / Double(expectedLogSize)
           if progress > 1 {
             // The log is larger than we expected. Halt at 100%
             progress = 1
@@ -259,7 +261,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
           Task(priority: .high) {
             // We have launched an async task to call `reportProgress`, which means that the process might have exited
             // before we execute this task. To avoid overriding a more recent progress, add a guard.
-            if !processExited.value {
+            if !processExited.load(ordering: .sequentiallyConsistent) {
               await reportProgress(.collectingLogMessages(progress: progress), message: "Collecting log messages")
             }
           }
@@ -269,7 +271,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     )
     try process.launch()
     try await process.waitUntilExit()
-    processExited.value = true
+    processExited.store(true, ordering: .sequentiallyConsistent)
     #endif
   }
 

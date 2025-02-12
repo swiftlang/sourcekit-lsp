@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Synchronization
+
 #if compiler(>=6)
 package import BuildServerProtocol
 import BuildSystemIntegration
@@ -34,7 +36,7 @@ import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 #endif
 
-private let preparationIDForLogging = AtomicUInt32(initialValue: 1)
+private let preparationIDForLogging: Atomic<Int> = Atomic(1)
 
 /// Describes a task to prepare a set of targets.
 ///
@@ -42,7 +44,7 @@ private let preparationIDForLogging = AtomicUInt32(initialValue: 1)
 package struct PreparationTaskDescription: IndexTaskDescription {
   package static let idPrefix = "prepare"
 
-  package let id = preparationIDForLogging.fetchAndIncrement()
+  package let id = preparationIDForLogging.add(1, ordering: .sequentiallyConsistent).oldValue
 
   /// The targets that should be prepared.
   package let targetsToPrepare: [BuildTargetIdentifier]

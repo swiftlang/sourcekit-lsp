@@ -22,6 +22,7 @@ import SKLogging
 @preconcurrency package import SPMBuildCore
 import SourceControl
 import SwiftExtensions
+import Synchronization
 import TSCExtensions
 @preconcurrency import Workspace
 
@@ -88,7 +89,7 @@ fileprivate extension TSCBasic.AbsolutePath {
   }
 }
 
-fileprivate let preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
+fileprivate let preparationTaskID: Atomic<Int> = Atomic(0)
 
 /// Swift Package Manager build system and workspace support.
 ///
@@ -614,7 +615,9 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     }
     let start = ContinuousClock.now
 
-    let taskID: TaskId = TaskId(id: "preparation-\(preparationTaskID.fetchAndIncrement())")
+    let taskID: TaskId = TaskId(
+      id: "preparation-\(preparationTaskID.add(1, ordering: .sequentiallyConsistent).oldValue)"
+    )
     logMessageToIndexLog(
       taskID,
       """

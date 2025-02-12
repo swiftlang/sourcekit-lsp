@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Synchronization
+
 #if compiler(>=6)
 package import SwiftExtensions
 #else
@@ -407,14 +409,14 @@ package struct NonDarwinLogger: Sendable {
 // MARK: - Signposter
 
 package struct NonDarwinSignpostID: Sendable {
-  fileprivate let id: UInt32
+  fileprivate let id: Int
 }
 
 package struct NonDarwinSignpostIntervalState: Sendable {
   fileprivate let id: NonDarwinSignpostID
 }
 
-private let nextSignpostID = AtomicUInt32(initialValue: 0)
+private let nextSignpostID: Atomic<Int> = Atomic(0)
 
 /// A type that is API-compatible to `OSLogMessage` for all uses within sourcekit-lsp.
 ///
@@ -427,7 +429,7 @@ package struct NonDarwinSignposter: Sendable {
   }
 
   package func makeSignpostID() -> NonDarwinSignpostID {
-    return NonDarwinSignpostID(id: nextSignpostID.fetchAndIncrement())
+    return NonDarwinSignpostID(id: nextSignpostID.add(1, ordering: .sequentiallyConsistent).oldValue)
   }
 
   package func beginInterval(

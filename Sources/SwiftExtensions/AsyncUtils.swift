@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import Synchronization
 
 /// Wrapper around a task that allows multiple clients to depend on the task's value.
 ///
@@ -227,6 +228,14 @@ package func withTimeout<T: Sendable>(
   }
 }
 
+private final class Wrapped<T: ~Copyable & Sendable>: Sendable {
+  package let value: T
+
+  package init(_ value: consuming T) {
+    self.value = value
+  }
+}
+
 /// Executes `body`. If it doesn't finish after `duration`, return `nil` and continue running body. When `body` returns
 /// a value after the timeout, `resultReceivedAfterTimeout` is called.
 ///
@@ -237,19 +246,19 @@ package func withTimeout<T: Sendable>(
   body: @escaping @Sendable () async throws -> T?,
   resultReceivedAfterTimeout: @escaping @Sendable () async -> Void
 ) async throws -> T? {
-  let didHitTimeout = AtomicBool(initialValue: false)
+  let didHitTimeout: Wrapped<Atomic<Bool>> = Wrapped(Atomic(false))
 
   let stream = AsyncThrowingStream<T?, Error> { continuation in
     Task {
       try await Task.sleep(for: timeout)
-      didHitTimeout.value = true
+      didHitTimeout.value.store(true, ordering: .sequentiallyConsistent)
       continuation.yield(nil)
     }
 
     Task {
       do {
         let result = try await body()
-        if didHitTimeout.value {
+        if didHitTimeout.value.load(ordering: .sequentiallyConsistent) {
           await resultReceivedAfterTimeout()
         }
         continuation.yield(result)

@@ -13,6 +13,7 @@
 import Foundation
 import SKLogging
 import SwiftExtensions
+import Synchronization
 
 #if compiler(>=6)
 package import struct TSCBasic.AbsolutePath
@@ -39,10 +40,10 @@ extension Process {
   /// Should the process not terminate on SIGINT after 2 seconds, it is killed using `SIGKILL`.
   @discardableResult
   package func waitUntilExitStoppingProcessOnTaskCancellation() async throws -> ProcessResult {
-    let hasExited = AtomicBool(initialValue: false)
+    let hasExited = Atomic(false)
     return try await withTaskCancellationHandler {
       defer {
-        hasExited.value = true
+        hasExited.store(true, ordering: .sequentiallyConsistent)
       }
       return try await waitUntilExit()
     } onCancel: {
@@ -50,7 +51,7 @@ extension Process {
       Task {
         // Give the process 2 seconds to react to a SIGINT. If that doesn't work, kill the process.
         try await Task.sleep(for: .seconds(2))
-        if !hasExited.value {
+        if !hasExited.load(ordering: .sequentiallyConsistent) {
           #if os(Windows)
           // Windows does not define SIGKILL. Process.signal sends a `terminate` to the underlying Foundation process
           // for any signal that is not SIGINT. Use `SIGABRT` to terminate the process.

@@ -22,20 +22,21 @@ import SwiftExtensions
 import SwiftParser
 @_spi(SourceKitLSP) import SwiftRefactor
 import SwiftSyntax
+import Synchronization
 
 /// Uniquely identifies a code completion session. We need this so that when resolving a code completion item, we can
 /// verify that the item to resolve belongs to the code completion session that is currently open.
 struct CompletionSessionID: Equatable {
-  private static let nextSessionID = AtomicUInt32(initialValue: 0)
+  private static let nextSessionID: Atomic<Int> = Atomic(0)
 
-  let value: UInt32
+  let value: Int
 
-  init(value: UInt32) {
+  init(value: Int) {
     self.value = value
   }
 
   static func next() -> CompletionSessionID {
-    return CompletionSessionID(value: nextSessionID.fetchAndIncrement())
+    return CompletionSessionID(value: nextSessionID.add(1, ordering: .sequentiallyConsistent).oldValue)
   }
 }
 
@@ -60,7 +61,7 @@ struct CompletionItemData: LSPAnyCodable {
       return nil
     }
     self.uri = uri
-    self.sessionId = CompletionSessionID(value: UInt32(sessionId))
+    self.sessionId = CompletionSessionID(value: sessionId)
     self.itemId = itemId
   }
 

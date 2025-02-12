@@ -112,13 +112,6 @@ var targets: [Target] = [
     swiftSettings: globalSwiftSettings
   ),
 
-  // MARK: CAtomics
-
-  .target(
-    name: "CAtomics",
-    dependencies: []
-  ),
-
   .target(
     name: "CCompletionScoring",
     dependencies: []
@@ -526,14 +519,12 @@ var targets: [Target] = [
 
   .target(
     name: "SwiftExtensions",
-    dependencies: ["CAtomics"],
     exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
   ),
 
   .target(
     name: "SwiftExtensionsForPlugin",
-    dependencies: ["CAtomics"],
     exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
   ),
@@ -694,7 +685,7 @@ if buildOnlyTests {
 
 let package = Package(
   name: "SourceKitLSP",
-  platforms: [.macOS(.v13)],
+  platforms: [.macOS("15")],
   products: products,
   dependencies: dependencies,
   targets: targets,

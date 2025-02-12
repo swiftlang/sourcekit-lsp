@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Synchronization
+
 #if compiler(>=6)
 import Foundation
 import LanguageServerProtocolExtensions
@@ -133,7 +135,7 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Every time `execute` gets called, a new task is placed in this continuation. See comment on `executionTask`.
   private let executionTaskCreatedContinuation: AsyncStream<Task<ExecutionTaskFinishStatus, Never>>.Continuation
 
-  private let _priority: AtomicUInt8
+  private let _priority: Atomic<UInt8>
 
   /// The latest known priority of the task.
   ///
@@ -141,10 +143,10 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// it, the priority may get elevated.
   nonisolated var priority: TaskPriority {
     get {
-      TaskPriority(rawValue: _priority.value)
+      TaskPriority(rawValue: _priority.load(ordering: .sequentiallyConsistent))
     }
     set {
-      _priority.value = newValue.rawValue
+      _priority.store(newValue.rawValue, ordering: .sequentiallyConsistent)
     }
   }
 
@@ -154,13 +156,13 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   private var cancelledToBeRescheduled: Bool = false
 
   /// Whether `resultTask` has been cancelled.
-  private let resultTaskCancelled: AtomicBool = .init(initialValue: false)
+  private let resultTaskCancelled: Atomic<Bool> = Atomic(false)
 
-  private let _isExecuting: AtomicBool = .init(initialValue: false)
+  private let _isExecuting: Atomic<Bool> = Atomic(false)
 
   /// Whether the task is currently executing or still queued to be executed later.
   package nonisolated var isExecuting: Bool {
-    return _isExecuting.value
+    return _isExecuting.load(ordering: .sequentiallyConsistent)
   }
 
   package nonisolated func cancel() {
@@ -193,7 +195,7 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
     description: TaskDescription,
     executionStateChangedCallback: (@Sendable (QueuedTask, TaskExecutionState) async -> Void)?
   ) async {
-    self._priority = AtomicUInt8(initialValue: priority.rawValue)
+    self._priority = Atomic<UInt8>(priority.rawValue)
     self.description = description
     self.executionStateChangedCallback = executionStateChangedCallback
 
@@ -225,7 +227,7 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
           self.priority = Task.currentPriority
         }
       } onCancel: {
-        self.resultTaskCancelled.value = true
+        self.resultTaskCancelled.store(true, ordering: .sequentiallyConsistent)
       }
     }
   }
@@ -246,12 +248,12 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
     }
     precondition(executionTask == nil, "Task started twice")
     let task = Task.detached(priority: self.priority) {
-      if !Task.isCancelled && !self.resultTaskCancelled.value {
+      if !Task.isCancelled && !self.resultTaskCancelled.load(ordering: .sequentiallyConsistent) {
         await self.description.execute()
       }
       return await self.finalizeExecution()
     }
-    _isExecuting.value = true
+    _isExecuting.store(true, ordering: .sequentiallyConsistent)
     executionTask = task
     executionTaskCreatedContinuation.yield(task)
     await executionStateChangedCallback?(self, .executing)
@@ -261,7 +263,7 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Implementation detail of `execute` that is called after `self.description.execute()` finishes.
   private func finalizeExecution() async -> ExecutionTaskFinishStatus {
     self.executionTask = nil
-    _isExecuting.value = false
+    _isExecuting.store(false, ordering: .sequentiallyConsistent)
     if Task.isCancelled && self.cancelledToBeRescheduled {
       await executionStateChangedCallback?(self, .cancelledToBeRescheduled)
       self.cancelledToBeRescheduled = false
