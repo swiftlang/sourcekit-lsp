@@ -70,8 +70,10 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
     if attribute.trimmedDescription == "@main" {
       let range = self.snapshot.absolutePositionRange(of: attribute.trimmedRange)
       var targetNameToAppend: String = ""
+      var arguments: [LSPAny] = []
       if let targetName {
         targetNameToAppend = " \(targetName)"
+        arguments.append(.string(targetName))
       }
 
       if let runCommand = supportedCommands[SupportedCodeLensCommand.run] {
@@ -80,7 +82,7 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
         self.result.append(
           CodeLens(
             range: range,
-            command: Command(title: "Run" + targetNameToAppend, command: runCommand, arguments: nil)
+            command: Command(title: "Run" + targetNameToAppend, command: runCommand, arguments: arguments)
           )
         )
       }
@@ -89,7 +91,7 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
         self.result.append(
           CodeLens(
             range: range,
-            command: Command(title: "Debug" + targetNameToAppend, command: debugCommand, arguments: nil)
+            command: Command(title: "Debug" + targetNameToAppend, command: debugCommand, arguments: arguments)
           )
         )
       }
