@@ -283,7 +283,7 @@ final class CodingTests: XCTestCase {
       return $0 == .string("unknown") ? nil : InitializeResult.self
     }
 
-    var info = defaultCodingInfo as [CodingUserInfoKey: Any]
+    var info = defaultCodingInfo
     info[CodingUserInfoKey.responseTypeCallbackKey] = responseTypeCallback
 
     checkMessageDecodingError(
@@ -366,7 +366,9 @@ final class CodingTests: XCTestCase {
   }
 }
 
-let defaultCodingInfo = [CodingUserInfoKey.messageRegistryKey: MessageRegistry.lspProtocol]
+let defaultCodingInfo: [CodingUserInfoKey: any Sendable] = [
+  CodingUserInfoKey.messageRegistryKey: MessageRegistry.lspProtocol
+]
 
 private func checkMessageCoding<Request: RequestType & Equatable>(
   _ value: Request,
@@ -417,7 +419,7 @@ private func checkMessageCoding<Response: ResponseType & Equatable>(
     return $0 == .string("unknown") ? nil : Response.self
   }
 
-  var codingInfo = defaultCodingInfo as [CodingUserInfoKey: Any]
+  var codingInfo = defaultCodingInfo
   codingInfo[.responseTypeCallbackKey] = callback
 
   checkCoding(JSONRPCMessage.response(value, id: id), json: json, userInfo: codingInfo, file: file, line: line) {
@@ -462,7 +464,7 @@ private func checkMessageCoding(
 private func checkMessageDecodingError(
   _ expected: MessageDecodingError,
   json: String,
-  userInfo: [CodingUserInfoKey: Any] = defaultCodingInfo,
+  userInfo: [CodingUserInfoKey: any Sendable] = defaultCodingInfo,
   file: StaticString = #filePath,
   line: UInt = #line
 ) {

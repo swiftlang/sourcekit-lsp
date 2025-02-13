@@ -367,7 +367,9 @@ public final class JSONRPCConnection: Connection {
     decoder.userInfo[.messageRegistryKey] = messageRegistry
 
     // Setup callback for response type.
-    decoder.userInfo[.responseTypeCallbackKey] = { (id: RequestID) -> ResponseType.Type? in
+    decoder.userInfo[.responseTypeCallbackKey] = { @Sendable (id: RequestID) -> ResponseType.Type? in
+      // `outstandingRequests` should never be mutated in this closure. Reading is fine as all of our other writes are
+      // guarded by `queue`, but `JSONDecoder` could (since this is sendable) invoke this concurrently.
       guard let outstanding = self.outstandingRequests[id] else {
         logger.error("Unknown request for \(id, privacy: .public)")
         return nil

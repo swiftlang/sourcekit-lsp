@@ -34,7 +34,7 @@ extension CodingUserInfoKey {
 
 extension JSONRPCMessage: Codable {
 
-  public typealias ResponseTypeCallback = (RequestID) -> ResponseType.Type?
+  public typealias ResponseTypeCallback = @Sendable (RequestID) -> ResponseType.Type?
 
   private enum CodingKeys: String, CodingKey {
     case jsonrpc
