@@ -95,7 +95,7 @@ package func checkDecoding<T: Codable & Equatable>(
 package func checkCoding<T: Codable>(
   _ value: T,
   json: String,
-  userInfo: [CodingUserInfoKey: Any] = [:],
+  userInfo: [CodingUserInfoKey: any Sendable] = [:],
   file: StaticString = #filePath,
   line: UInt = #line,
   body: (T) -> Void
