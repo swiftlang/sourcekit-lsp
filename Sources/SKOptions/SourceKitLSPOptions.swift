@@ -76,6 +76,12 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     /// Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.
     public var disableSandbox: Bool?
 
+    /// Whether to skip building and running plugins when creating the in-memory build graph.
+    ///
+    /// - Note: Internal option, only exists as an escape hatch in case this causes unintentional interactions with
+    ///   background indexing.
+    public var skipPlugins: Bool?
+
     public init(
       configuration: BuildConfiguration? = nil,
       scratchPath: String? = nil,
@@ -88,7 +94,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       swiftCompilerFlags: [String]? = nil,
       linkerFlags: [String]? = nil,
       buildToolsSwiftCompilerFlags: [String]? = nil,
-      disableSandbox: Bool? = nil
+      disableSandbox: Bool? = nil,
+      skipPlugins: Bool? = nil
     ) {
       self.configuration = configuration
       self.scratchPath = scratchPath
@@ -117,7 +124,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
         swiftCompilerFlags: override?.swiftCompilerFlags ?? base.swiftCompilerFlags,
         linkerFlags: override?.linkerFlags ?? base.linkerFlags,
         buildToolsSwiftCompilerFlags: override?.buildToolsSwiftCompilerFlags ?? base.buildToolsSwiftCompilerFlags,
-        disableSandbox: override?.disableSandbox ?? base.disableSandbox
+        disableSandbox: override?.disableSandbox ?? base.disableSandbox,
+        skipPlugins: override?.skipPlugins ?? base.skipPlugins
       )
     }
   }

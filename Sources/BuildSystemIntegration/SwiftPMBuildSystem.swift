@@ -355,7 +355,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     // We have a whole separate arena if we're performing background indexing. This allows us to also build and run
     // plugins, without having to worry about messing up any regular build state.
     let buildDescription: SourceKitLSPAPI.BuildDescription
-    if isForIndexBuild {
+    if isForIndexBuild && !(options.swiftPMOrDefault.skipPlugins ?? false) {
       let loaded = try await BuildDescription.load(
         destinationBuildParameters: destinationBuildParameters,
         toolsBuildParameters: toolsBuildParameters,
