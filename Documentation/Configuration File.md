@@ -40,7 +40,6 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `indexStorePath: string`: Directory in which a separate compilation stores the index store. By default, inferred from the build system.
   - `indexDatabasePath: string`: Directory in which the indexstore-db should be stored. By default, inferred from the build system.
   - `indexPrefixMap: [string: string]`: Path remappings for remapping index data for local use.
-  - `maxCoresPercentageToUseForBackgroundIndexing: number`: A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting.
   - `updateIndexStoreTimeout: integer`: Number of seconds to wait for an update index store task to finish before killing it.
 - `logging`: Options related to logging, changing SourceKit-LSP’s logging behavior on non-Apple platforms. On Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging). These options can only be set globally and not per workspace.
   - `level: "debug"|"info"|"default"|"error"|"fault"`: The level from which one onwards log messages should be written.

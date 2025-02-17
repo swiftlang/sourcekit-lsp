@@ -188,6 +188,9 @@ struct OptionSchemaContext {
       let name = binding.pattern.trimmed.description
       let defaultValue = binding.initializer?.value.description
       let description = Self.extractDocComment(variable.leadingTrivia)
+      if description?.contains("- Note: Internal option") ?? false {
+        continue
+      }
       let typeInfo = try resolveType(type.type)
       properties.append(
         .init(name: name, type: typeInfo, description: description, defaultValue: defaultValue)

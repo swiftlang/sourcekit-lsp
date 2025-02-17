@@ -181,6 +181,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     /// Path remappings for remapping index data for local use.
     public var indexPrefixMap: [String: String]?
     /// A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting.
+    ///
+    /// - Note: Internal option, may not work as intended
     public var maxCoresPercentageToUseForBackgroundIndexing: Double?
     /// Number of seconds to wait for an update index store task to finish before killing it.
     public var updateIndexStoreTimeout: Int?
