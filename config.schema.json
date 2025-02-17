@@ -139,11 +139,6 @@
           "markdownDescription" : "Directory in which a separate compilation stores the index store. By default, inferred from the build system.",
           "type" : "string"
         },
-        "maxCoresPercentageToUseForBackgroundIndexing" : {
-          "description" : "A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting.",
-          "markdownDescription" : "A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting.",
-          "type" : "number"
-        },
         "updateIndexStoreTimeout" : {
           "description" : "Number of seconds to wait for an update index store task to finish before killing it.",
           "markdownDescription" : "Number of seconds to wait for an update index store task to finish before killing it.",
@@ -194,18 +189,6 @@
     "sourcekitd" : {
       "description" : "Options modifying the behavior of sourcekitd.",
       "markdownDescription" : "Options modifying the behavior of sourcekitd.",
-      "properties" : {
-        "clientPlugin" : {
-          "description" : "When set, load the SourceKit client plugin from this path instead of locating it inside the toolchain.",
-          "markdownDescription" : "When set, load the SourceKit client plugin from this path instead of locating it inside the toolchain.",
-          "type" : "string"
-        },
-        "servicePlugin" : {
-          "description" : "When set, load the SourceKit service plugin from this path instead of locating it inside the toolchain.",
-          "markdownDescription" : "When set, load the SourceKit service plugin from this path instead of locating it inside the toolchain.",
-          "type" : "string"
-        }
-      },
       "type" : "object"
     },
     "sourcekitdRequestTimeout" : {
