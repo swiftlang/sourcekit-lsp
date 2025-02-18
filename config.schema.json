@@ -200,6 +200,14 @@
       "description" : "Options for SwiftPM workspaces.",
       "markdownDescription" : "Options for SwiftPM workspaces.",
       "properties" : {
+        "buildToolsSwiftCompilerFlags" : {
+          "description" : "Extra arguments passed to the compiler for Swift files or plugins. Equivalent to SwiftPM's `-Xbuild-tools-swiftc` option.",
+          "items" : {
+            "type" : "string"
+          },
+          "markdownDescription" : "Extra arguments passed to the compiler for Swift files or plugins. Equivalent to SwiftPM's `-Xbuild-tools-swiftc` option.",
+          "type" : "array"
+        },
         "cCompilerFlags" : {
           "description" : "Extra arguments passed to the compiler for C files. Equivalent to SwiftPM's `-Xcc` option.",
           "items" : {
@@ -260,6 +268,14 @@
           "description" : "Equivalent to SwiftPM's `--swift-sdks-path` option.",
           "markdownDescription" : "Equivalent to SwiftPM's `--swift-sdks-path` option.",
           "type" : "string"
+        },
+        "traits" : {
+          "description" : "Traits to enable for the package. Equivalent to SwiftPM's `--traits` option.",
+          "items" : {
+            "type" : "string"
+          },
+          "markdownDescription" : "Traits to enable for the package. Equivalent to SwiftPM's `--traits` option.",
+          "type" : "array"
         },
         "triple" : {
           "description" : "Equivalent to SwiftPM's `--triple` option.",

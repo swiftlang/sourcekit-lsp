@@ -20,10 +20,12 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `swiftSDKsDirectory: string`: Equivalent to SwiftPM's `--swift-sdks-path` option.
   - `swiftSDK: string`: Equivalent to SwiftPM's `--swift-sdk` option.
   - `triple: string`: Equivalent to SwiftPM's `--triple` option.
+  - `traits: string[]`: Traits to enable for the package. Equivalent to SwiftPM's `--traits` option.
   - `cCompilerFlags: string[]`: Extra arguments passed to the compiler for C files. Equivalent to SwiftPM's `-Xcc` option.
   - `cxxCompilerFlags: string[]`: Extra arguments passed to the compiler for C++ files. Equivalent to SwiftPM's `-Xcxx` option.
   - `swiftCompilerFlags: string[]`: Extra arguments passed to the compiler for Swift files. Equivalent to SwiftPM's `-Xswiftc` option.
   - `linkerFlags: string[]`: Extra arguments passed to the linker. Equivalent to SwiftPM's `-Xlinker` option.
+  - `buildToolsSwiftCompilerFlags: string[]`: Extra arguments passed to the compiler for Swift files or plugins. Equivalent to SwiftPM's `-Xbuild-tools-swiftc` option.
   - `disableSandbox: boolean`: Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option. Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.
 - `compilationDatabase`: Dictionary with the following keys, defining options for workspaces with a compilation database.
   - `searchPaths: string[]`: Additional paths to search for a compilation database, relative to a workspace root.
