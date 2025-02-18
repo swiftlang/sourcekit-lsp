@@ -1123,6 +1123,51 @@ final class WorkspaceTests: XCTestCase {
       project.scratchDirectory
     )
   }
+
+  func testSourceKitOptions() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": ""
+      ],
+      options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest])
+    )
+    let options = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(unwrap(project.uri(for: "Test.swift"))),
+        allowFallbackSettings: false
+      )
+    )
+    try XCTAssert(XCTUnwrap(options).compilerArguments.contains("-module-name"))
+  }
+
+  func testSourceKitOptionsAllowingFallback() async throws {
+    let hooks = Hooks(
+      buildSystemHooks: BuildSystemHooks(
+        swiftPMTestHooks: SwiftPMTestHooks(
+          reloadPackageDidStart: {
+            // Essentially make sure that the package never loads, so we are forced to return fallback arguments.
+            try? await Task.sleep(for: .seconds(60 * 60))
+          }
+        )
+      )
+    )
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": ""
+      ],
+      options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest]),
+      hooks: hooks,
+      pollIndex: false
+    )
+    let options = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(unwrap(project.uri(for: "Test.swift"))),
+        allowFallbackSettings: true
+      )
+    )
+    // Fallback arguments can't know the module name
+    try XCTAssert(!XCTUnwrap(options).compilerArguments.contains("-module-name"))
+  }
 }
 
 fileprivate let defaultSDKArgs: String = {
