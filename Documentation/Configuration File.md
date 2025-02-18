@@ -38,7 +38,6 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `indexStorePath: string`: Directory in which a separate compilation stores the index store. By default, inferred from the build system.
   - `indexDatabasePath: string`: Directory in which the indexstore-db should be stored. By default, inferred from the build system.
   - `indexPrefixMap: [string: string]`: Path remappings for remapping index data for local use.
-  - `maxCoresPercentageToUseForBackgroundIndexing: number`: A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting.
   - `updateIndexStoreTimeout: integer`: Number of seconds to wait for an update index store task to finish before killing it.
 - `logging`: Options related to logging, changing SourceKit-LSP’s logging behavior on non-Apple platforms. On Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging). These options can only be set globally and not per workspace.
   - `level: "debug"|"info"|"default"|"error"|"fault"`: The level from which one onwards log messages should be written.
@@ -46,8 +45,6 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `inputMirrorDirectory: string`: Write all input received by SourceKit-LSP on stdin to a file in this directory. Useful to record and replay an entire SourceKit-LSP session.
   - `outputMirrorDirectory: string`: Write all data sent from SourceKit-LSP to the client to a file in this directory. Useful to record the raw communication between SourceKit-LSP and the client on a low level.
 - `sourcekitd`: Options modifying the behavior of sourcekitd.
-  - `clientPlugin: string`: When set, load the SourceKit client plugin from this path instead of locating it inside the toolchain.
-  - `servicePlugin: string`: When set, load the SourceKit service plugin from this path instead of locating it inside the toolchain.
 - `defaultWorkspaceType: "buildServer"|"compilationDatabase"|"swiftPM"`: Default workspace type. Overrides workspace type selection logic.
 - `generatedFilesPath: string`: Directory in which generated interfaces and macro expansions should be stored.
 - `backgroundIndexing: boolean`: Whether background indexing is enabled.
