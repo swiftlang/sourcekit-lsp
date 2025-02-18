@@ -134,13 +134,13 @@ package func unwrap<T>(
   return try XCTUnwrap(expression, file: file, line: line)
 }
 
-private struct ExpectationNotFulfilledError: Error, CustomStringConvertible {
-  var expecatations: [XCTestExpectation]
+package struct ExpectationNotFulfilledError: Error, CustomStringConvertible {
+  var expectations: [XCTestExpectation]
 
-  var description: String {
+  package var description: String {
     return """
       One of the expectation was not fulfilled within timeout: \
-      \(expecatations.map(\.description).joined(separator: ", "))
+      \(expectations.map(\.description).joined(separator: ", "))
       """
   }
 }
@@ -162,6 +162,6 @@ package nonisolated func fulfillmentOfOrThrow(
     enforceOrder: enforceOrderOfFulfillment
   )
   if started != .completed {
-    throw ExpectationNotFulfilledError(expecatations: expectations)
+    throw ExpectationNotFulfilledError(expectations: expectations)
   }
 }
