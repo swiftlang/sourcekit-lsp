@@ -295,6 +295,21 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     }
   }
 
+  func latestSnapshotOrDisk(for uri: DocumentURI) async throws -> DocumentSnapshot {
+    switch try? ReferenceDocumentURL(from: uri) {
+    case .macroExpansion(let data):
+      let content = try await self.macroExpansionManager.macroExpansion(for: data)
+      return DocumentSnapshot(uri: uri, language: .swift, version: 0, lineTable: LineTable(content))
+    case .generatedInterface(let data):
+      return try await self.generatedInterfaceManager.snapshot(of: data)
+    case nil:
+      guard let snapshot = try documentManager.latestSnapshotOrDisk(uri, language: .swift) else {
+        throw ResponseError.unknown("Failed to find snapshot for '\(uri)'")
+      }
+      return snapshot
+    }
+  }
+
   func buildSettings(for document: DocumentURI, fallbackAfterTimeout: Bool) async -> SwiftCompileCommand? {
     let buildSettingsFile = document.buildSettingsFile
 

@@ -20,6 +20,8 @@ import SwiftDocC
 import XCTest
 
 final class DoccDocumentationTests: XCTestCase {
+  // MARK: Swift Documentation
+
   func testEmptySwiftFile() async throws {
     try await renderDocumentation(
       swiftFile: "1️⃣",
@@ -467,11 +469,239 @@ final class DoccDocumentationTests: XCTestCase {
       expectedResponses: ["1️⃣": .renderNode(kind: .symbol, containing: "This is an amazing description")]
     )
   }
+
+  // MARK: Markdown Articles and Extensions
+
+  func testMarkdownArticle() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/MyFile.swift": "",
+        "MyLibrary/MyLibrary.docc/Getting Started.md": """
+        1️⃣# Getting Started with MyLibrary
+
+        This is a getting started article not associated with any symbol.
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+    try await renderDocumentation(
+      fileName: "Getting Started.md",
+      project: project,
+      expectedResponses: ["1️⃣": .renderNode(kind: .article, containing: "This is a getting started article")]
+    )
+  }
+
+  func testMarkdownExtension() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/MyFile.swift": """
+        /// Documentation for foo()
+        public func 1️⃣foo() {}
+
+        /// Documentation for bar()
+        public func 2️⃣bar() {}
+
+        public struct Foo {
+          /// Documentation for Foo.bar
+          var b3️⃣ar: String
+        }
+        """,
+        "MyLibrary/MyLibrary.docc/Module.md": """
+        1️⃣# ``MyLibrary``
+        """,
+        "MyLibrary/MyLibrary.docc/foo().md": """
+        1️⃣# ``MyLibrary/foo()``
+
+        # Additional information for foo()
+
+        This will be appended to the end of foo()'s documentation page
+        """,
+        "MyLibrary/MyLibrary.docc/bar().md": """
+        1️⃣# ``MyLibrary/bar()``
+
+        # Additional information for bar()
+
+        This will be appended to the end of bar()'s documentation page
+        """,
+        "MyLibrary/MyLibrary.docc/Foo.bar.md": """
+        1️⃣# ``MyLibrary/Foo/bar``
+
+        # Additional information for Foo.bar
+
+        This will be appended to the end of Foo.bar's documentation page
+        """,
+        "MyLibrary/MyLibrary.docc/SymbolNotFound.md": """
+        1️⃣# ``MyLibrary/thisIsNotAValidSymbol``
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+    try await renderDocumentation(
+      fileName: "MyFile.swift",
+      project: project,
+      expectedResponses: [
+        "1️⃣": .renderNode(kind: .symbol, path: "MyLibrary/foo()", containing: "Additional information for foo()"),
+        "2️⃣": .renderNode(kind: .symbol, path: "MyLibrary/bar()", containing: "Additional information for bar()"),
+        "3️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Foo/bar", containing: "Additional information for Foo.bar"),
+      ]
+    )
+    try await renderDocumentation(
+      fileName: "Module.md",
+      project: project,
+      expectedResponses: ["1️⃣": .renderNode(kind: .symbol, path: "MyLibrary")]
+    )
+    try await renderDocumentation(
+      fileName: "foo().md",
+      project: project,
+      expectedResponses: [
+        "1️⃣": .renderNode(kind: .symbol, path: "MyLibrary/foo()", containing: "Documentation for foo()")
+      ]
+    )
+    try await renderDocumentation(
+      fileName: "bar().md",
+      project: project,
+      expectedResponses: [
+        "1️⃣": .renderNode(kind: .symbol, path: "MyLibrary/bar()", containing: "Documentation for bar()")
+      ]
+    )
+    try await renderDocumentation(
+      fileName: "Foo.bar.md",
+      project: project,
+      expectedResponses: [
+        "1️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Foo/bar", containing: "Documentation for Foo.bar")
+      ]
+    )
+    try await renderDocumentation(
+      fileName: "SymbolNotFound.md",
+      project: project,
+      expectedResponses: ["1️⃣": .error(.symbolNotFound("MyLibrary/thisIsNotAValidSymbol"))]
+    )
+  }
+
+  func testMarkdownExtensionForExtendedStruct() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/Foo.swift": """
+        public struct Foo {
+          let bar: String
+        }
+        """,
+        "MyLibrary/Color.swift": """
+        extension Foo {
+          /// The color of Foo
+          1️⃣enum Color {
+            /// A red color
+            case red
+
+            /// A blue color
+            case blue
+
+            /// A green color
+            case green
+          }
+        }
+        """,
+        "MyLibrary/MyLibrary.docc/Color.md": """
+        1️⃣# ``MyLibrary/Foo/Color-swift.enum``
+
+        # Additional information for the Color enum
+
+        This will be appended to the end of Foo.bar's documentation page
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+    try await renderDocumentation(
+      fileName: "Color.swift",
+      project: project,
+      expectedResponses: [
+        "1️⃣": .renderNode(
+          kind: .symbol,
+          path: "MyLibrary/Foo/Color",
+          containing: "Additional information for the Color enum"
+        )
+      ]
+    )
+    try await renderDocumentation(
+      fileName: "Color.md",
+      project: project,
+      expectedResponses: [
+        "1️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Foo/Color", containing: "The color of Foo")
+      ]
+    )
+  }
+
+  // MARK: Tutorials
+
+  func testTutorial() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/MyFile.swift": "",
+        "MyLibrary/MyLibrary.docc/MyTutorial.tutorial": """
+        1️⃣@Tutorial(time: 30) {
+          @Intro(title: "My Custom Tutorial") {
+            This tutorial will show you how to use MyLibrary
+          }
+        }
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+    try await renderDocumentation(
+      fileName: "MyTutorial.tutorial",
+      project: project,
+      expectedResponses: [
+        "1️⃣": .renderNode(kind: .tutorial, containing: "This tutorial will show you how to use MyLibrary")
+      ]
+    )
+  }
+
+  func testTutorialOverview() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/MyFile.swift": "",
+        "MyLibrary/MyLibrary.docc/MyTutorialOverview.tutorial": """
+        1️⃣@Tutorials(name: "MyTutorialOverview") {
+          @Intro(title: "My Custom Tutorial Overview") {
+            These tutorials will help you understand MyLibrary
+          }
+        }
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+    try await renderDocumentation(
+      fileName: "MyTutorialOverview.tutorial",
+      project: project,
+      expectedResponses: [
+        "1️⃣": .renderNode(kind: .overview, containing: "These tutorials will help you understand MyLibrary")
+      ]
+    )
+  }
 }
 
 fileprivate enum PartialConvertResponse {
   case renderNode(kind: RenderNode.Kind, path: String? = nil, containing: String? = nil)
-  case error(ConvertDocumentationError)
+  case error(DoccDocumentationError)
+}
+
+fileprivate func renderDocumentation(
+  fileName: String,
+  project: SwiftPMTestProject,
+  expectedResponses: [String: PartialConvertResponse],
+  file: StaticString = #filePath,
+  line: UInt = #line
+) async throws {
+  let (uri, positions) = try project.openDocument(fileName)
+
+  await renderDocumentation(
+    testClient: project.testClient,
+    uri: uri,
+    positions: positions,
+    expectedResponses: expectedResponses,
+    file: file,
+    line: line
+  )
 }
 
 fileprivate func renderDocumentation(
@@ -518,7 +748,7 @@ fileprivate func renderDocumentation(
       guard let renderNodeData = renderNodeString.data(using: .utf8),
         let renderNode = try? JSONDecoder().decode(RenderNode.self, from: renderNodeData)
       else {
-        XCTFail("failed to decode response from textDocument/doccDocumentation at position \(marker)")
+        XCTFail("failed to decode response from \(DoccDocumentationRequest.method) at position \(marker)")
         return
       }
       switch expectedResponse {
@@ -558,7 +788,7 @@ fileprivate func renderDocumentation(
       switch expectedResponse {
       case .renderNode:
         XCTFail(
-          "textDocument/doccDocumentation failed at position \(marker): \(error.localizedDescription)",
+          "\(DoccDocumentationRequest.method) failed at position \(marker): \(error.message)",
           file: file,
           line: line
         )
