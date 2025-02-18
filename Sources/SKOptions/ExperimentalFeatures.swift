@@ -14,5 +14,9 @@
 /// to `sourcekit-lsp` on the command line or through the configuration file.
 /// The raw value of this feature is how it is named on the command line and in the configuration file.
 public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
+  /// Enable support for the `textDocument/onTypeFormatting` request.
   case onTypeFormatting = "on-type-formatting"
+
+  /// Enable support for the `workspace/_setOptions` request.
+  case setOptionsRequest = "set-options-request"
 }
