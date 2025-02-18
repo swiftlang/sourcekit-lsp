@@ -287,7 +287,7 @@ private let dateFormatter = {
 /// Actor that protects `logHandler`
 @globalActor
 actor LogHandlerActor {
-  static var shared: LogHandlerActor = LogHandlerActor()
+  static let shared: LogHandlerActor = LogHandlerActor()
 }
 
 /// The handler that is called to log a message from `NonDarwinLogger` unless `overrideLogHandler` is set on the logger.
