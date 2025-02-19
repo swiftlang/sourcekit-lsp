@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LanguageServerProtocolExtensions
+
 #if compiler(>=6)
 package import BuildServerProtocol
 package import BuildSystemIntegration
@@ -385,15 +387,28 @@ package final actor SemanticIndexManager {
     let changedFiles = events.map(\.uri)
     await indexStoreUpToDateTracker.markOutOfDate(changedFiles)
 
-    let targets = await changedFiles.asyncMap { await buildSystemManager.targets(for: $0) }.flatMap { $0 }
-    let dependentTargets = await buildSystemManager.targets(dependingOn: Set(targets))
-    logger.info(
-      """
-      Marking targets as out-of-date: \
-      \(String(dependentTargets.map(\.uri.stringValue).joined(separator: ", ")))
-      """
-    )
-    await preparationUpToDateTracker.markOutOfDate(dependentTargets)
+    // Preparation tracking should be per file. For now consider any non-known-language change as having to re-prepare
+    // the target itself so that we re-prepare potential input files to plugins.
+    // https://github.com/swiftlang/sourcekit-lsp/issues/1975
+    var outOfDateTargets = Set<BuildTargetIdentifier>()
+    for file in changedFiles {
+      let changedTargets = await buildSystemManager.targets(for: file)
+      if Language(inferredFromFileExtension: file) == nil {
+        outOfDateTargets.formUnion(changedTargets)
+      }
+
+      let dependentTargets = await buildSystemManager.targets(dependingOn: changedTargets)
+      outOfDateTargets.formUnion(dependentTargets)
+    }
+    if !outOfDateTargets.isEmpty {
+      logger.info(
+        """
+        Marking dependent targets as out-of-date: \
+        \(String(outOfDateTargets.map(\.uri.stringValue).joined(separator: ", ")))
+        """
+      )
+      await preparationUpToDateTracker.markOutOfDate(outOfDateTargets)
+    }
 
     await scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
       filesToIndex: changedFiles,

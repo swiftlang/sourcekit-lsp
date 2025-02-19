@@ -20,10 +20,12 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `swiftSDKsDirectory: string`: Equivalent to SwiftPM's `--swift-sdks-path` option.
   - `swiftSDK: string`: Equivalent to SwiftPM's `--swift-sdk` option.
   - `triple: string`: Equivalent to SwiftPM's `--triple` option.
+  - `traits: string[]`: Traits to enable for the package. Equivalent to SwiftPM's `--traits` option.
   - `cCompilerFlags: string[]`: Extra arguments passed to the compiler for C files. Equivalent to SwiftPM's `-Xcc` option.
   - `cxxCompilerFlags: string[]`: Extra arguments passed to the compiler for C++ files. Equivalent to SwiftPM's `-Xcxx` option.
   - `swiftCompilerFlags: string[]`: Extra arguments passed to the compiler for Swift files. Equivalent to SwiftPM's `-Xswiftc` option.
   - `linkerFlags: string[]`: Extra arguments passed to the linker. Equivalent to SwiftPM's `-Xlinker` option.
+  - `buildToolsSwiftCompilerFlags: string[]`: Extra arguments passed to the compiler for Swift files or plugins. Equivalent to SwiftPM's `-Xbuild-tools-swiftc` option.
   - `disableSandbox: boolean`: Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option. Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.
 - `compilationDatabase`: Dictionary with the following keys, defining options for workspaces with a compilation database.
   - `searchPaths: string[]`: Additional paths to search for a compilation database, relative to a workspace root.
@@ -38,7 +40,6 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `indexStorePath: string`: Directory in which a separate compilation stores the index store. By default, inferred from the build system.
   - `indexDatabasePath: string`: Directory in which the indexstore-db should be stored. By default, inferred from the build system.
   - `indexPrefixMap: [string: string]`: Path remappings for remapping index data for local use.
-  - `maxCoresPercentageToUseForBackgroundIndexing: number`: A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting.
   - `updateIndexStoreTimeout: integer`: Number of seconds to wait for an update index store task to finish before killing it.
 - `logging`: Options related to logging, changing SourceKit-LSP’s logging behavior on non-Apple platforms. On Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging). These options can only be set globally and not per workspace.
   - `level: "debug"|"info"|"default"|"error"|"fault"`: The level from which one onwards log messages should be written.

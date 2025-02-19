@@ -53,6 +53,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     /// Equivalent to SwiftPM's `--triple` option.
     public var triple: String?
 
+    /// Traits to enable for the package. Equivalent to SwiftPM's `--traits` option.
+    public var traits: [String]?
+
     /// Extra arguments passed to the compiler for C files. Equivalent to SwiftPM's `-Xcc` option.
     public var cCompilerFlags: [String]?
 
@@ -65,9 +68,19 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     /// Extra arguments passed to the linker. Equivalent to SwiftPM's `-Xlinker` option.
     public var linkerFlags: [String]?
 
+    /// Extra arguments passed to the compiler for Swift files or plugins. Equivalent to SwiftPM's
+    /// `-Xbuild-tools-swiftc` option.
+    public var buildToolsSwiftCompilerFlags: [String]?
+
     /// Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option.
     /// Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.
     public var disableSandbox: Bool?
+
+    /// Whether to skip building and running plugins when creating the in-memory build graph.
+    ///
+    /// - Note: Internal option, only exists as an escape hatch in case this causes unintentional interactions with
+    ///   background indexing.
+    public var skipPlugins: Bool?
 
     public init(
       configuration: BuildConfiguration? = nil,
@@ -75,21 +88,26 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       swiftSDKsDirectory: String? = nil,
       swiftSDK: String? = nil,
       triple: String? = nil,
+      traits: [String]? = nil,
       cCompilerFlags: [String]? = nil,
       cxxCompilerFlags: [String]? = nil,
       swiftCompilerFlags: [String]? = nil,
       linkerFlags: [String]? = nil,
-      disableSandbox: Bool? = nil
+      buildToolsSwiftCompilerFlags: [String]? = nil,
+      disableSandbox: Bool? = nil,
+      skipPlugins: Bool? = nil
     ) {
       self.configuration = configuration
       self.scratchPath = scratchPath
       self.swiftSDKsDirectory = swiftSDKsDirectory
       self.swiftSDK = swiftSDK
       self.triple = triple
+      self.traits = traits
       self.cCompilerFlags = cCompilerFlags
       self.cxxCompilerFlags = cxxCompilerFlags
       self.swiftCompilerFlags = swiftCompilerFlags
       self.linkerFlags = linkerFlags
+      self.buildToolsSwiftCompilerFlags = buildToolsSwiftCompilerFlags
       self.disableSandbox = disableSandbox
     }
 
@@ -100,11 +118,14 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
         swiftSDKsDirectory: override?.swiftSDKsDirectory ?? base.swiftSDKsDirectory,
         swiftSDK: override?.swiftSDK ?? base.swiftSDK,
         triple: override?.triple ?? base.triple,
+        traits: override?.traits ?? base.traits,
         cCompilerFlags: override?.cCompilerFlags ?? base.cCompilerFlags,
         cxxCompilerFlags: override?.cxxCompilerFlags ?? base.cxxCompilerFlags,
         swiftCompilerFlags: override?.swiftCompilerFlags ?? base.swiftCompilerFlags,
         linkerFlags: override?.linkerFlags ?? base.linkerFlags,
-        disableSandbox: override?.disableSandbox ?? base.disableSandbox
+        buildToolsSwiftCompilerFlags: override?.buildToolsSwiftCompilerFlags ?? base.buildToolsSwiftCompilerFlags,
+        disableSandbox: override?.disableSandbox ?? base.disableSandbox,
+        skipPlugins: override?.skipPlugins ?? base.skipPlugins
       )
     }
   }
@@ -168,6 +189,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     /// Path remappings for remapping index data for local use.
     public var indexPrefixMap: [String: String]?
     /// A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting.
+    ///
+    /// - Note: Internal option, may not work as intended
     public var maxCoresPercentageToUseForBackgroundIndexing: Double?
     /// Number of seconds to wait for an update index store task to finish before killing it.
     public var updateIndexStoreTimeout: Int?
