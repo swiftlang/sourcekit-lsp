@@ -204,7 +204,7 @@ export interface DoccDocumentationParams {
 
   /**
    * The cursor position within the document. (optional)
-   * 
+   *
    * This parameter is only used in Swift files to determine which symbol to render.
    * The position is ignored for markdown and tutorial documents.
    */
@@ -434,132 +434,6 @@ export interface DocumentTestsParams {
 }
 ```
 
-## `textDocument/symbolInfo`
-
-Request for semantic information about the symbol at a given location.
-This request looks up the symbol (if any) at a given text document location and returns `SymbolDetails` for that location, including information such as the symbol's USR. The symbolInfo request is not primarily designed for editors, but instead as an implementation detail of how one LSP implementation (e.g. SourceKit) gets information from another (e.g. clangd) to use in performing index queries or otherwise implementing the higher level requests such as definition.
-
-- params: `SymbolInfoParams`
-- result: `SymbolDetails[]`
-
-```ts
-export interface SymbolInfoParams {
-  /**
-   * The document in which to lookup the symbol location.
-   */
-  textDocument: TextDocumentIdentifier;
-
-  /**
-   * The document location at which to lookup symbol information.
-   */
-  position: Position;
-}
-
-export interface ModuleInfo {
-  /**
-   * The name of the module in which the symbol is defined.
-   */
-  moduleName: string;
-
-  /**
-   * If the symbol is defined within a subgroup of a module, the name of the group. Otherwise `nil`.
-   */
-  groupName?: string;
-}
-
-
-
-export interface SymbolDetails {
-  /**
-   * The name of the symbol, if any.
-   */
-  name?: string;
-
-  /**
-   * The name of the containing type for the symbol, if any.
-   *
-   * For example, in the following snippet, the `containerName` of `foo()` is `C`.
-   *
-   * ```c++
-   * class C {
-   *   void foo() {}
-   * }
-   * ```
-   */
-  containerName?: string;
-
-  /**
-   * The USR of the symbol, if any.
-   */
-  usr?: string;
-
-  /**
-   * Best known declaration or definition location without global knowledge.
-   *
-   * For a local or private variable, this is generally the canonical definition location -
-   * appropriate as a response to a `textDocument/definition` request. For global symbols this is
-   * the best known location within a single compilation unit. For example, in C++ this might be
-   * the declaration location from a header as opposed to the definition in some other
-   * translation unit.
-   */
-  bestLocalDeclaration?: Location;
-
-  /**
-   * The kind of the symbol
-   */
-  kind?: SymbolKind;
-
-  /**
-   * Whether the symbol is a dynamic call for which it isn't known which method will be invoked at runtime. This is
-   * the case for protocol methods and class functions.
-   *
-   * Optional because `clangd` does not return whether a symbol is dynamic.
-   */
-  isDynamic?: bool;
-
-  /**
-   * Whether this symbol is defined in the SDK or standard library.
-   *
-   * This property only applies to Swift symbols.
-   */
-  isSystem?: bool;
-
-  /**
-   * If the symbol is dynamic, the USRs of the types that might be called.
-   *
-   * This is relevant in the following cases
-   * ```swift
-   * class A {
-   *   func doThing() {}
-   * }
-   * class B: A {}
-   * class C: B {
-   *   override func doThing() {}
-   * }
-   * class D: A {
-   *   override func doThing() {}
-   * }
-   * func test(value: B) {
-   *   value.doThing()
-   * }
-   * ```
-   *
-   * The USR of the called function in `value.doThing` is `A.doThing` (or its
-   * mangled form) but it can never call `D.doThing`. In this case, the
-   * receiver USR would be `B`, indicating that only overrides of subtypes in
-   * `B` may be called dynamically.
-   */
-  receiverUsrs?: string[];
-
-  /**
-   * If the symbol is defined in a module that doesn't have source information associated with it, the name and group
-   * and group name that defines this symbol.
-   *
-   * This property only applies to Swift symbols.
-   */
-  systemModule?: ModuleInfo;
-```
-
 ## `window/logMessage`
 
 Added field:
@@ -584,29 +458,31 @@ New request to wait until the index is up-to-date.
 export interface PollIndexParams {}
 ```
 
-## `workspace/tests`
+## `workspace/getReferenceDocument`
 
-New request that returns symbols for all the test classes and test methods within the current workspace.
+Request from the client to the server asking for contents of a URI having a custom scheme.
+For example: "sourcekit-lsp:"
 
-- params: `WorkspaceTestsParams`
-- result: `TestItem[]`
+Enable the experimental client capability `"workspace/getReferenceDocument"` so that the server responds with reference document URLs for certain requests or commands whenever possible.
 
-```ts
-export interface WorkspaceTestsParams {}
-```
+- params: `GetReferenceDocumentParams`
 
-## `workspace/triggerReindex`
-
-New request to re-index all files open in the SourceKit-LSP server.
-
-Users should not need to rely on this request. The index should always be updated automatically in the background. Having to invoke this request means there is a bug in SourceKit-LSP's automatic re-indexing. It does, however, offer a workaround to re-index files when such a bug occurs where otherwise there would be no workaround.
-
-
-- params: `TriggerReindexParams`
-- result: `void`
+- result: `GetReferenceDocumentResponse`
 
 ```ts
-export interface TriggerReindexParams {}
+export interface GetReferenceDocumentParams {
+  /**
+   * The `DocumentUri` of the custom scheme url for which content is required
+   */
+  uri: DocumentUri;
+}
+
+/**
+ * Response containing `content` of `GetReferenceDocumentRequest`
+ */
+export interface GetReferenceDocumentResult {
+  content: string;
+}
 ```
 
 ## `workspace/peekDocuments`
@@ -646,31 +522,29 @@ export interface PeekDocumentsResult {
 }
 ```
 
-## `workspace/getReferenceDocument`
+## `workspace/tests`
 
-Request from the client to the server asking for contents of a URI having a custom scheme.
-For example: "sourcekit-lsp:"
+New request that returns symbols for all the test classes and test methods within the current workspace.
 
-Enable the experimental client capability `"workspace/getReferenceDocument"` so that the server responds with reference document URLs for certain requests or commands whenever possible.
-
-- params: `GetReferenceDocumentParams`
-
-- result: `GetReferenceDocumentResponse`
+- params: `WorkspaceTestsParams`
+- result: `TestItem[]`
 
 ```ts
-export interface GetReferenceDocumentParams {
-  /**
-   * The `DocumentUri` of the custom scheme url for which content is required
-   */
-  uri: DocumentUri;
-}
+export interface WorkspaceTestsParams {}
+```
 
-/**
- * Response containing `content` of `GetReferenceDocumentRequest`
- */
-export interface GetReferenceDocumentResult {
-  content: string;
-}
+## `workspace/triggerReindex`
+
+New request to re-index all files open in the SourceKit-LSP server.
+
+Users should not need to rely on this request. The index should always be updated automatically in the background. Having to invoke this request means there is a bug in SourceKit-LSP's automatic re-indexing. It does, however, offer a workaround to re-index files when such a bug occurs where otherwise there would be no workaround.
+
+
+- params: `TriggerReindexParams`
+- result: `void`
+
+```ts
+export interface TriggerReindexParams {}
 ```
 
 ## Languages
