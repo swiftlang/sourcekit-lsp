@@ -100,6 +100,9 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
       self = .freestanding
     case is CancelWorkDoneProgressNotification:
       self = .freestanding
+    case is DidChangeActiveDocumentNotification:
+      // The notification doesn't change behavior in an observable way, so we can treat it as freestanding.
+      self = .freestanding
     case is DidChangeConfigurationNotification:
       self = .globalConfigurationChange
     case let notification as DidChangeNotebookDocumentNotification:

@@ -650,6 +650,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
     logger.log("Received notification: \(notification.forLogging)")
 
     switch notification {
+    case let notification as DidChangeActiveDocumentNotification:
+      await self.didChangeActiveDocument(notification)
     case let notification as DidChangeTextDocumentNotification:
       await self.changeDocument(notification)
     case let notification as DidChangeWorkspaceFoldersNotification:
@@ -736,15 +738,7 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
     logger.log("Received request \(id): \(params.forLogging)")
 
     if let textDocumentRequest = params as? any TextDocumentRequest {
-      // When we are requesting information from a document, poke preparation of its target. We don't want to wait for
-      // the preparation to finish because that would cause too big a delay.
-      // In practice, while the user is working on a file, we'll get a text document request for it on a regular basis,
-      // which prepares the files. For files that are open but aren't being worked on (eg. a different tab), we don't
-      // get requests, ensuring that we don't unnecessarily prepare them.
-      let workspace = await self.workspaceForDocument(uri: textDocumentRequest.textDocument.uri)
-      await workspace?.semanticIndexManager?.schedulePreparationForEditorFunctionality(
-        of: textDocumentRequest.textDocument.uri
-      )
+      await self.clientInteractedWithDocument(textDocumentRequest.textDocument.uri)
     }
 
     switch request {
@@ -931,25 +925,22 @@ extension SourceKitLSPServer {
     //
     // The below is a workaround for the vscode-swift extension since it cannot set client capabilities.
     // It passes "workspace/peekDocuments" through the `initializationOptions`.
-    //
-    // Similarly, for "workspace/getReferenceDocument".
     var clientCapabilities = req.capabilities
     if case .dictionary(let initializationOptions) = req.initializationOptions {
-      if let peekDocuments = initializationOptions["workspace/peekDocuments"] {
-        if case .dictionary(var experimentalCapabilities) = clientCapabilities.experimental {
-          experimentalCapabilities["workspace/peekDocuments"] = peekDocuments
-          clientCapabilities.experimental = .dictionary(experimentalCapabilities)
-        } else {
-          clientCapabilities.experimental = .dictionary(["workspace/peekDocuments": peekDocuments])
+      let experimentalClientCapabilities = [
+        PeekDocumentsRequest.method,
+        GetReferenceDocumentRequest.method,
+        DidChangeActiveDocumentNotification.method,
+      ]
+      for capabilityName in experimentalClientCapabilities {
+        guard let experimentalCapability = initializationOptions[capabilityName] else {
+          continue
         }
-      }
-
-      if let getReferenceDocument = initializationOptions["workspace/getReferenceDocument"] {
         if case .dictionary(var experimentalCapabilities) = clientCapabilities.experimental {
-          experimentalCapabilities["workspace/getReferenceDocument"] = getReferenceDocument
+          experimentalCapabilities[capabilityName] = experimentalCapability
           clientCapabilities.experimental = .dictionary(experimentalCapabilities)
         } else {
-          clientCapabilities.experimental = .dictionary(["workspace/getReferenceDocument": getReferenceDocument])
+          clientCapabilities.experimental = .dictionary([capabilityName: experimentalCapability])
         }
       }
 
@@ -1081,10 +1072,11 @@ extension SourceKitLSPServer {
       : ExecuteCommandOptions(commands: builtinSwiftCommands)
 
     var experimentalCapabilities: [String: LSPAny] = [
-      "workspace/tests": .dictionary(["version": .int(2)]),
-      "textDocument/tests": .dictionary(["version": .int(2)]),
-      "workspace/triggerReindex": .dictionary(["version": .int(1)]),
-      "workspace/getReferenceDocument": .dictionary(["version": .int(1)]),
+      WorkspaceTestsRequest.method: .dictionary(["version": .int(2)]),
+      DocumentTestsRequest.method: .dictionary(["version": .int(2)]),
+      TriggerReindexRequest.method: .dictionary(["version": .int(1)]),
+      GetReferenceDocumentRequest.method: .dictionary(["version": .int(1)]),
+      DidChangeActiveDocumentNotification.method: .dictionary(["version": .int(1)]),
     ]
     #if canImport(SwiftDocC)
     experimentalCapabilities["textDocument/doccDocumentation"] = .dictionary(["version": .int(1)])
@@ -1268,7 +1260,7 @@ extension SourceKitLSPServer {
       )
       return
     }
-    await workspace.semanticIndexManager?.schedulePreparationForEditorFunctionality(of: uri)
+    await self.clientInteractedWithDocument(uri)
     await openDocument(notification, workspace: workspace)
   }
 
@@ -1352,7 +1344,7 @@ extension SourceKitLSPServer {
       )
       return
     }
-    await workspace.semanticIndexManager?.schedulePreparationForEditorFunctionality(of: uri)
+    await self.clientInteractedWithDocument(uri)
 
     // If the document is ready, we can handle the change right now.
     let editResult = orLog("Editing document") {
@@ -1372,6 +1364,30 @@ extension SourceKitLSPServer {
       postEditSnapshot: postEditSnapshot,
       edits: edits
     )
+  }
+
+  /// If the client doesn't support the `window/didChangeActiveDocument` notification, when the client interacts with a
+  /// document, infer that this is the currently active document and poke preparation of its target. We don't want to
+  /// wait for the preparation to finish because that would cause too big a delay.
+  ///
+  /// In practice, while the user is working on a file, we'll get a text document request for it on a regular basis,
+  /// which prepares the files. For files that are open but aren't being worked on (eg. a different tab), we don't
+  /// get requests, ensuring that we don't unnecessarily prepare them.
+  func clientInteractedWithDocument(_ uri: DocumentURI) async {
+    if self.capabilityRegistry?.clientHasExperimentalCapability(DidChangeActiveDocumentNotification.method) ?? false {
+      // The client actively notifies us about the currently active document, so we shouldn't infer the active document
+      // based on other requests that the client sends us.
+      return
+    }
+    await self.didChangeActiveDocument(
+      DidChangeActiveDocumentNotification(textDocument: TextDocumentIdentifier(uri))
+    )
+  }
+
+  func didChangeActiveDocument(_ notification: DidChangeActiveDocumentNotification) async {
+    let workspace = await self.workspaceForDocument(uri: notification.textDocument.uri)
+    await workspace?.semanticIndexManager?
+      .schedulePreparationForEditorFunctionality(of: notification.textDocument.uri)
   }
 
   func willSaveDocument(
