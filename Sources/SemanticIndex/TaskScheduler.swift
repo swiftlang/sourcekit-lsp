@@ -331,12 +331,13 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   /// The queue of pending tasks that haven't been scheduled for execution yet.
   private var pendingTasks: [QueuedTask<TaskDescription>] = []
 
-  /// An ordered list of task priorities to the number of tasks that might execute concurrently at that (or a higher)
-  /// priority.
+  /// An ordered list of task priorities to the number of tasks that might execute concurrently at that or a lower
+  /// priority. As the task priority is decreased, the number of current tasks becomes more restricted.
   ///
-  /// This list is sorted in descending priority order.
+  /// This list is normalized according to `normalize(maxConcurrentTasksByPriority:)`.
   ///
-  /// The `maxConcurrentTasks` of the last element in this list is also used for tasks with a lower priority.
+  /// The highest priority entry in this list restricts the total number of tasks that can be executed at any priority
+  /// (including priorities higher than its entry).
   ///
   /// For example if you have
   /// ```swift
@@ -347,38 +348,40 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   /// ```
   ///
   /// Then we allow the following number of concurrent tasks at the following priorities
-  ///  - `.high`: 4
+  ///  - `.high`: 4 (because `.medium: 4` restricts the total number of tasks to 4)
   ///  - `.medium`: 4
   ///  - `.low`: 2
   ///  - `.background`: 2
+  ///
+  /// When combining tasks with different priorities:
+  ///  - If we have 3 medium priority tasks, we can have at most 1 low priority task
+  ///  - If we have 1 medium priority task, we can still have 2 low priority tasks, but no more
   private var maxConcurrentTasksByPriority: [(priority: TaskPriority, maxConcurrentTasks: Int)] {
     didSet {
-      // These preconditions need to match the ones in `init`
-      maxConcurrentTasksByPriority = maxConcurrentTasksByPriority.sorted(by: { $0.priority > $1.priority })
-      precondition(maxConcurrentTasksByPriority.allSatisfy { $0.maxConcurrentTasks >= 0 })
-      precondition(maxConcurrentTasksByPriority.map(\.maxConcurrentTasks).isSorted(descending: true))
-      precondition(!maxConcurrentTasksByPriority.isEmpty)
+      maxConcurrentTasksByPriority = Self.normalize(maxConcurrentTasksByPriority: maxConcurrentTasksByPriority)
 
-      // Check we are over-subscribed in currently executing tasks. If we are, cancel currently executing task to be
-      // rescheduled until we are within the new limit.
-      var tasksToReschedule: [QueuedTask<TaskDescription>] = []
-      for (priority, maxConcurrentTasks) in maxConcurrentTasksByPriority {
-        var tasksInPrioritySlot = currentlyExecutingTasks.filter { $0.priority <= priority }
-        if tasksInPrioritySlot.count <= maxConcurrentTasks {
-          // We have enough available slots. Nothing to do.
-          continue
-        }
-        tasksInPrioritySlot = tasksInPrioritySlot.sorted { $0.priority > $1.priority }
-        while tasksInPrioritySlot.count > maxConcurrentTasks {
-          // Cancel the task with the lowest priority (because it is least important and also takes a slot in the lower
-          // priority execution buckets) and the among those the most recent one because it has probably made the least
-          // progress.
-          guard let mostRecentTaskInSlot = tasksInPrioritySlot.popLast() else {
-            // Should never happen because `tasksInPrioritySlot.count > maxConcurrentTasks >= 0`
-            logger.fault("Unexpectedly unable to pop last task from tasksInPrioritySlot")
-            break
-          }
-          tasksToReschedule.append(mostRecentTaskInSlot)
+      if maxConcurrentTasksByPriority.count == oldValue.count,
+        zip(maxConcurrentTasksByPriority, oldValue).allSatisfy(==)
+      {
+        // We didn't actually change anything, so we don't need to perform any validation or task processing.
+        return
+      }
+
+      // Check we are over-subscribed in currently executing tasks by walking through all currently executing tasks and
+      // checking if we could schedule them within the new execution limits. Cancel any tasks that do not fit within the
+      // new limit to be rescheduled when we are within the limit again.
+      var currentlyExecutingTaskDetails: [(priority: TaskPriority, estimatedCPUCoreCount: Int)] = []
+      var tasksToCancelAndReschedule: [QueuedTask<TaskDescription>] = []
+      for task in currentlyExecutingTasks.sorted(by: { $0.priority > $1.priority }) {
+        let taskPriority = task.priority
+        if Self.canScheduleTask(
+          withPriority: taskPriority,
+          maxConcurrentTasksByPriority: maxConcurrentTasksByPriority,
+          currentlyExecutingTaskDetails: currentlyExecutingTaskDetails
+        ) {
+          currentlyExecutingTaskDetails.append((taskPriority, task.description.estimatedCPUCoreCount))
+        } else {
+          tasksToCancelAndReschedule.append(task)
         }
       }
 
@@ -390,7 +393,7 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
       // would cancel the tasks and then immediately reschedule it – while that's doing unnecessary work, it's still
       // correct.
       Task.detached(priority: .high) {
-        for tasksToReschedule in tasksToReschedule {
+        for tasksToReschedule in tasksToCancelAndReschedule {
           await tasksToReschedule.cancelToBeRescheduled()
         }
       }
@@ -406,11 +409,7 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   }
 
   package init(maxConcurrentTasksByPriority: [(priority: TaskPriority, maxConcurrentTasks: Int)]) {
-    // These preconditions need to match the ones in `maxConcurrentTasksByPriority:didSet`
-    self.maxConcurrentTasksByPriority = maxConcurrentTasksByPriority.sorted(by: { $0.priority > $1.priority })
-    precondition(maxConcurrentTasksByPriority.allSatisfy { $0.maxConcurrentTasks >= 0 })
-    precondition(maxConcurrentTasksByPriority.map(\.maxConcurrentTasks).isSorted(descending: true))
-    precondition(!maxConcurrentTasksByPriority.isEmpty)
+    self.maxConcurrentTasksByPriority = Self.normalize(maxConcurrentTasksByPriority: maxConcurrentTasksByPriority)
   }
 
   /// Enqueue a new task to be executed.
@@ -448,16 +447,58 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
     return queuedTask
   }
 
-  /// Returns the maximum number of concurrent tasks that are allowed to execute at the given priority.
-  private func maxConcurrentTasks(at priority: TaskPriority) -> Int {
-    for (atPriority, maxConcurrentTasks) in maxConcurrentTasksByPriority {
-      if atPriority <= priority {
-        return maxConcurrentTasks
+  private static func normalize(
+    maxConcurrentTasksByPriority: [(priority: TaskPriority, maxConcurrentTasks: Int)]
+  ) -> [(priority: TaskPriority, maxConcurrentTasks: Int)] {
+    var maxConcurrentTasksByPriority = maxConcurrentTasksByPriority
+
+    // Ensure elements are sorted decreasingly by priority.
+    maxConcurrentTasksByPriority = maxConcurrentTasksByPriority.sorted(by: { $0.priority > $1.priority })
+
+    // Ensure array is not empty.
+    if maxConcurrentTasksByPriority.isEmpty {
+      logger.fault("Received empty maxConcurrentTasksByPriority. Allowing as many tasks as there are processor cores.")
+      maxConcurrentTasksByPriority = [(.medium, ProcessInfo.processInfo.processorCount)]
+    }
+
+    // Ensure `maxConcurrentTasks` is not increasing with lower priority tasks.
+    var lastMaxConcurrentTasks = maxConcurrentTasksByPriority.first!.maxConcurrentTasks
+    for i in 1..<maxConcurrentTasksByPriority.count {
+      if maxConcurrentTasksByPriority[i].maxConcurrentTasks > lastMaxConcurrentTasks {
+        logger.fault("More tasks allowed for lower priority than for higher priority")
+        maxConcurrentTasksByPriority[i].maxConcurrentTasks = lastMaxConcurrentTasks
+      } else {
+        lastMaxConcurrentTasks = maxConcurrentTasksByPriority[i].maxConcurrentTasks
       }
     }
-    // `last!` is fine because the initializer of `maxConcurrentTasksByPriority` has a precondition that
-    // `maxConcurrentTasksByPriority` is not empty.
-    return maxConcurrentTasksByPriority.last!.maxConcurrentTasks
+
+    return maxConcurrentTasksByPriority
+  }
+
+  /// Returns `true` if we can schedule a task with the given priority, assuming that the currently executing tasks have
+  /// the given priorities.
+  package static func canScheduleTask(
+    withPriority newTaskPriority: TaskPriority,
+    maxConcurrentTasksByPriority: [(priority: TaskPriority, maxConcurrentTasks: Int)],
+    currentlyExecutingTaskDetails: [(priority: TaskPriority, estimatedCPUCoreCount: Int)]
+  ) -> Bool {
+    if currentlyExecutingTaskDetails.sum(of: \.estimatedCPUCoreCount)
+      >= maxConcurrentTasksByPriority.first!.maxConcurrentTasks
+    {
+      return false
+    }
+    for (priority, maxConcurrentTasks) in maxConcurrentTasksByPriority {
+      guard priority >= newTaskPriority else {
+        // This limit does not affect the new task
+        continue
+      }
+      if currentlyExecutingTaskDetails.filter({ $0.priority <= priority }).sum(of: \.estimatedCPUCoreCount)
+        >= maxConcurrentTasks
+      {
+        return false
+      }
+    }
+    return true
   }
 
   /// Poke the execution of more tasks in the queue.
@@ -466,12 +507,19 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   private func poke() {
     pendingTasks.sort(by: { $0.priority > $1.priority })
     for task in pendingTasks {
-      if currentlyExecutingTasks.map(\.description.estimatedCPUCoreCount).sum() >= maxConcurrentTasks(at: task.priority)
-      {
+      guard
+        Self.canScheduleTask(
+          withPriority: task.priority,
+          maxConcurrentTasksByPriority: maxConcurrentTasksByPriority,
+          currentlyExecutingTaskDetails: currentlyExecutingTasks.map({
+            ($0.priority, $0.description.estimatedCPUCoreCount)
+          })
+        )
+      else {
         // We don't have any execution slots left. Thus, this poker has nothing to do and is done.
         // When the next task finishes, it calls `poke` again.
-        // If the low priority task's priority gets elevated that task's priority will get elevated and it will be
-        // picked up on the next `poke` call.
+        // If a low priority task's priority gets elevated that task's priority will get elevated, which will call
+        // `poke`.
         return
       }
       let dependencies = task.description.dependencies(to: currentlyExecutingTasks.map(\.description))
@@ -600,11 +648,11 @@ fileprivate extension Collection where Element: Comparable {
   }
 }
 
-fileprivate extension Collection<Int> {
-  func sum() -> Int {
+fileprivate extension Collection {
+  func sum(of transform: (Self.Element) -> Int) -> Int {
     var result = 0
     for element in self {
-      result += element
+      result += transform(element)
     }
     return result
   }
