@@ -251,17 +251,12 @@ final class TaskSchedulerTests: XCTestCase {
 
       taskStartedExecuting.fulfill()
 
-      do {
-        try await fulfillmentOfOrThrow([executionSlotsReduced])
+      try await fulfillmentOfOrThrow([executionSlotsReduced])
 
-        try await repeatUntilExpectedResult {
-          Task.isCancelled
-        }
-        taskCancelled.fulfill()
-      } catch {
-        XCTFail("Unexpectedly received error: \(error)")
-        return
+      try await repeatUntilExpectedResult {
+        Task.isCancelled
       }
+      taskCancelled.fulfill()
     }
 
     // Check that we cancel the in-progress task when reducing the number of execution slots
@@ -273,6 +268,65 @@ final class TaskSchedulerTests: XCTestCase {
     // And check that we execute it again when increasing the number of execution slots again
     await taskScheduler.setMaxConcurrentTasksByPriority([(.low, 1)])
     try await fulfillmentOfOrThrow([taskExecutedAgain])
+  }
+
+  func testUseAllExecutionSlotsWithHighAndLowPriorityTasks() async throws {
+    let taskScheduler = TaskScheduler<ClosureTaskDescription>(maxConcurrentTasksByPriority: [(.high, 2), (.low, 1)])
+
+    let highPriorityTaskStartedExecuting = WrappedSemaphore(name: "High priority task started executing")
+    let lowPriorityTaskStartedExecuting = WrappedSemaphore(name: "Low priority task started executing")
+
+    let highPriorityTaskFinished = WrappedSemaphore(name: "High priority task finished")
+    let lowPriorityTaskFinished = WrappedSemaphore(name: "Low priority task finished")
+
+    await taskScheduler.schedule(priority: .high, id: .highPriority(1)) {
+      highPriorityTaskStartedExecuting.signal()
+      lowPriorityTaskStartedExecuting.waitOrXCTFail()
+      highPriorityTaskFinished.signal()
+    }
+
+    await taskScheduler.schedule(priority: .low, id: .lowPriority(3)) {
+      lowPriorityTaskStartedExecuting.signal()
+      highPriorityTaskStartedExecuting.waitOrXCTFail()
+      lowPriorityTaskFinished.signal()
+    }
+
+    highPriorityTaskFinished.waitOrXCTFail()
+    lowPriorityTaskFinished.waitOrXCTFail()
+  }
+
+  func testScheduleTask() {
+    XCTAssertFalse(
+      TaskScheduler<ClosureTaskDescription>.canScheduleTask(
+        withPriority: .low,
+        maxConcurrentTasksByPriority: [(.high, 2), (.low, 1)],
+        prioritiesOfCurrentlyExecutingTasks: [.high, .high]
+      )
+    )
+
+    XCTAssert(
+      TaskScheduler<ClosureTaskDescription>.canScheduleTask(
+        withPriority: .low,
+        maxConcurrentTasksByPriority: [(.high, 3), (.low, 1)],
+        prioritiesOfCurrentlyExecutingTasks: [.high, .high]
+      )
+    )
+
+    XCTAssert(
+      TaskScheduler<ClosureTaskDescription>.canScheduleTask(
+        withPriority: .low,
+        maxConcurrentTasksByPriority: [(.high, 3), (.low, 2)],
+        prioritiesOfCurrentlyExecutingTasks: [.high, .low]
+      )
+    )
+
+    XCTAssertFalse(
+      TaskScheduler<ClosureTaskDescription>.canScheduleTask(
+        withPriority: .low,
+        maxConcurrentTasksByPriority: [(.high, 2), (.low, 0)],
+        prioritiesOfCurrentlyExecutingTasks: []
+      )
+    )
   }
 }
 
@@ -423,15 +477,23 @@ fileprivate extension TaskScheduler<ClosureTaskDescription> {
     priority: TaskPriority? = nil,
     id: TaskID?,
     estimatedCPUCoreCount: Int = 1,
-    body: @Sendable @escaping () async -> Void,
+    body: @Sendable @escaping () async throws -> Void,
     dependencies: @Sendable @escaping ([ClosureTaskDescription]) -> [TaskDependencyAction<ClosureTaskDescription>] = {
       _ in []
-    }
+    },
+    file: StaticString = #filePath,
+    line: UInt = #line
   ) async -> Task<Void, Never> {
     let taskDescription = ClosureTaskDescription(
       id: id,
       estimatedCPUCoreCount: estimatedCPUCoreCount,
-      body,
+      {
+        do {
+          try await body()
+        } catch {
+          XCTFail("Received unexpected error: \(error)", file: file, line: line)
+        }
+      },
       dependencies: dependencies
     )
     // Make sure that we call `schedule` outside of the `Task` because the execution order of `Task`s is not guaranteed
