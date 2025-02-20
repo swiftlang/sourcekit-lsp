@@ -24,6 +24,7 @@ find_package(LLBuild QUIET)
 find_package(ArgumentParser CONFIG REQUIRED)
 find_package(SwiftCollections QUIET)
 find_package(SwiftSyntax CONFIG REQUIRED)
+find_package(SwiftASN1 CONFIG REQUIRED)
 find_package(SwiftCrypto CONFIG REQUIRED)
 
 include(SwiftSupport)
