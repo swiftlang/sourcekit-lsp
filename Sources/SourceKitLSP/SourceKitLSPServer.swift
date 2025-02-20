@@ -822,6 +822,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.references)
     case let request as RequestAndReply<RenameRequest>:
       await request.reply { try await rename(request.params) }
+    case let request as RequestAndReply<SourceKitOptionsRequest>:
+      await request.reply { try await sourceKitOptions(request.params) }
     case let request as RequestAndReply<ShutdownRequest>:
       await request.reply { try await shutdown(request.params) }
     case let request as RequestAndReply<SymbolInfoRequest>:
@@ -1432,6 +1434,29 @@ extension SourceKitLSPServer {
     for workspace in workspaces {
       await workspace.filesDidChange(notification.changes)
     }
+  }
+
+  func sourceKitOptions(_ request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse {
+    guard options.hasExperimentalFeature(.sourceKitOptionsRequest) else {
+      throw ResponseError.unknown("Getting SourceKit options is an experimental feature")
+    }
+    let uri = request.textDocument.uri
+    guard let workspace = await self.workspaceForDocument(uri: uri) else {
+      throw ResponseError.workspaceNotOpen(uri)
+    }
+
+    let buildSettings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
+      for: request.textDocument.uri,
+      language: nil,
+      fallbackAfterTimeout: request.allowFallbackSettings
+    )
+    guard let buildSettings else {
+      throw ResponseError.unknown("Unable to determine build settings")
+    }
+    return SourceKitOptionsResponse(
+      compilerArguments: buildSettings.compilerArguments,
+      workingDirectory: buildSettings.workingDirectory
+    )
   }
 
   // MARK: - Language features

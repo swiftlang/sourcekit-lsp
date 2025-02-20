@@ -15,4 +15,7 @@
 /// The raw value of this feature is how it is named on the command line and in the configuration file.
 public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
   case onTypeFormatting = "on-type-formatting"
+
+  /// Enable the `workspace/sourceKitOptions` request.
+  case sourceKitOptionsRequest = "sourcekit-options-request"
 }

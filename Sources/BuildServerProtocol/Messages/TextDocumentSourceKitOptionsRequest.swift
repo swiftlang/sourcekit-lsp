@@ -24,7 +24,7 @@ import LanguageServerProtocol
 ///
 /// The request may return `nil` if it doesn't have any build settings for this file in the given target.
 public struct TextDocumentSourceKitOptionsRequest: RequestType, Hashable {
-  public static let method: String = "textDocument/sourceKitOptions"
+  public static let method: String = "workspace/_sourceKitOptions"
   public typealias Response = TextDocumentSourceKitOptionsResponse?
 
   /// The URI of the document to get options for

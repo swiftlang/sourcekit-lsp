@@ -458,6 +458,49 @@ New request to wait until the index is up-to-date.
 export interface PollIndexParams {}
 ```
 
+## `workspace/_sourceKitOptions`
+
+New request from the client to the server to retrieve the compiler arguments that SourceKit-LSP uses to process the document.
+
+This request does not require the document to be opened in SourceKit-LSP. This is also why it has the `workspace/` instead of the `textDocument/` prefix.
+
+> [!IMPORTANT]
+> This request is experimental, guarded behind the `sourcekit-options-request` experimental feature, and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
+
+
+- params: `TextDocumentSourceKitOptionsRequest`
+- result: `TextDocumentSourceKitOptionsResult`
+
+```ts
+export interface TextDocumentSourceKitOptionsRequest {
+  /**
+   * The document to get options for
+   */
+  textDocument: TextDocumentIdentifier;
+
+  /**
+   * The language with which the document would be opened in the editor. (see `TextDocumentItem`)
+   */
+  language: LanguageId;
+
+  /**
+   * If set to `true` and build settings could not be determined within a timeout (see `buildSettingsTimeout` in the
+   * SourceKit-LSP configuration file), this request returns fallback build settings.
+   *
+   * If set to `true` the request only finishes when build settings were provided by the build system.
+   */
+  allowFallbackSettings: bool
+}
+
+export interface TextDocumentSourceKitOptionsResult {
+  /** The compiler options required for the requested file. */
+  compilerArguments: string[];
+
+  /** The working directory for the compile command. */
+  workingDirectory?: string;
+}
+```
+
 ## `workspace/getReferenceDocument`
 
 Request from the client to the server asking for contents of a URI having a custom scheme.

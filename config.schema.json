@@ -69,7 +69,12 @@
       "description" : "Experimental features that are enabled.",
       "items" : {
         "enum" : [
-          "on-type-formatting"
+          "on-type-formatting",
+          "sourcekit-options-request"
+        ],
+        "markdownEnumDescriptions" : [
+          "",
+          "Enable the `workspace\/sourceKitOptions` request."
         ],
         "type" : "string"
       },

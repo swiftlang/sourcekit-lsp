@@ -11,8 +11,13 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LanguageServerProtocol
 import LanguageServerProtocolExtensions
+
+#if compiler(>=6)
+package import LanguageServerProtocol
+#else
+import LanguageServerProtocol
+#endif
 
 /// Build settings for a single file.
 ///
@@ -26,12 +31,22 @@ package struct FileBuildSettings: Equatable, Sendable {
   /// The working directory to resolve any relative paths in `compilerArguments`.
   package var workingDirectory: String? = nil
 
+  /// The language that the document was interpreted as, and which implies the compiler to which the build settings
+  /// would be passed.
+  package var language: Language
+
   /// Whether the build settings were computed from a real build system or whether they are synthesized fallback arguments while the build system is still busy computing build settings.
   package var isFallback: Bool
 
-  package init(compilerArguments: [String], workingDirectory: String? = nil, isFallback: Bool = false) {
+  package init(
+    compilerArguments: [String],
+    workingDirectory: String? = nil,
+    language: Language,
+    isFallback: Bool = false
+  ) {
     self.compilerArguments = compilerArguments
     self.workingDirectory = workingDirectory
+    self.language = language
     self.isFallback = isFallback
   }
 
@@ -65,6 +80,7 @@ package struct FileBuildSettings: Equatable, Sendable {
     return FileBuildSettings(
       compilerArguments: arguments,
       workingDirectory: self.workingDirectory,
+      language: self.language,
       isFallback: self.isFallback
     )
   }
