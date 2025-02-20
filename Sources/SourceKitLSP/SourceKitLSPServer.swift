@@ -1445,8 +1445,15 @@ extension SourceKitLSPServer {
       throw ResponseError.workspaceNotOpen(uri)
     }
 
+    let target: BuildTargetIdentifier? =
+      if let target = request.target {
+        BuildTargetIdentifier(uri: target)
+      } else {
+        nil
+      }
     let buildSettings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
       for: request.textDocument.uri,
+      target: target,
       language: nil,
       fallbackAfterTimeout: request.allowFallbackSettings
     )

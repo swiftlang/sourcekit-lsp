@@ -376,7 +376,6 @@ final class BuildServerBuildSystemTests: XCTestCase {
       files: [
         "Test.swift": ""
       ],
-      buildServerConfigLocation: "buildServer.json",
       buildServer: """
         class BuildServer(AbstractBuildServer):
           def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
@@ -406,7 +405,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
           def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
             return {
-              "compilerArguments": [r"$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS],
+              "compilerArguments": [r"$TEST_DIR/Test.swift"],
               "data": {"custom": "value"}
             }
         """,
@@ -419,5 +418,95 @@ final class BuildServerBuildSystemTests: XCTestCase {
       SourceKitOptionsRequest(textDocument: TextDocumentIdentifier(uri), allowFallbackSettings: false)
     )
     XCTAssertEqual(options?.data, LSPAny.dictionary(["custom": .string("value")]))
+  }
+
+  func testBuildSettingsForFilePartOfMultipleTargets() async throws {
+    let project = try await BuildServerTestProject(
+      files: [
+        "Test.swift": ""
+      ],
+      buildServer: """
+        class BuildServer(AbstractBuildServer):
+          def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "targets": [
+                {
+                  "id": {"uri": "bsp://first"},
+                  "tags": [],
+                  "languageIds": [],
+                  "dependencies": [],
+                  "capabilities": {},
+                },
+                {
+                  "id": {"uri": "bsp://second"},
+                  "tags": [],
+                  "languageIds": [],
+                  "dependencies": [],
+                  "capabilities": {},
+                }
+              ]
+            }
+
+          def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "items": [
+                {
+                  "target": {"uri": "bsp://first"},
+                  "sources": [
+                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False}
+                  ],
+                },
+                {
+                  "target": {"uri": "bsp://second"},
+                  "sources": [
+                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False}
+                  ],
+                }
+              ]
+            }
+
+          def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
+            if request["target"]["uri"] == "bsp://first":
+              return {
+                "compilerArguments": [r"$TEST_DIR/Test.swift", "-DFIRST"]
+              }
+            elif request["target"]["uri"] == "bsp://second":
+              return {
+                "compilerArguments": [r"$TEST_DIR/Test.swift", "-DSECOND"]
+              }
+            else:
+              assert False, f"Unknown target {request["target"]["uri"]}"
+        """,
+      options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest])
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+
+    let firstOptions = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        target: DocumentURI(string: "bsp://first"),
+        allowFallbackSettings: false
+      )
+    )
+    XCTAssert(try XCTUnwrap(firstOptions).compilerArguments.contains("-DFIRST"))
+
+    let secondOptions = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        target: DocumentURI(string: "bsp://second"),
+        allowFallbackSettings: false
+      )
+    )
+    XCTAssert(try XCTUnwrap(secondOptions).compilerArguments.contains("-DSECOND"))
+
+    let optionsWithoutTarget = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        allowFallbackSettings: false
+      )
+    )
+    // We currently pick the canonical target alphabetically, which means that `bsp://first` wins over `bsp://second`
+    XCTAssert(try XCTUnwrap(optionsWithoutTarget).compilerArguments.contains("-DFIRST"))
   }
 }

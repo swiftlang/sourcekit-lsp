@@ -479,6 +479,18 @@ export interface TextDocumentSourceKitOptionsRequest {
   textDocument: TextDocumentIdentifier;
 
   /**
+   * If specified, explicitly request the compiler arguments when interpreting the document in the context of the given
+   * target.
+   *
+   * The target URI must match the URI that is used by the BSP server to identify the target. This option thus only
+   * makes sense to specify if the client also controls the BSP server.
+   *
+   * When this is `null`, SourceKit-LSP returns the compiler arguments it uses when the the document is opened in the
+   * client, ie. it infers a canonical target for the document.
+   */
+  target?: DocumentURI;
+
+  /**
    * The language with which the document would be opened in the editor. (see `TextDocumentItem`)
    */
   language: LanguageId;

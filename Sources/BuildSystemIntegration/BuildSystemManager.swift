@@ -840,10 +840,14 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// settings of a C file that includes the header and replace any file references to that C file in the build settings
   /// by the header file.
   ///
+  /// When a target is passed in, the build settings for the document, interpreted as part of that target, are returned,
+  /// otherwise a canonical target is inferred for the source file.
+  ///
   /// If no language is passed, this method tries to infer the language of the target within the build system. If that
   /// fails, it returns `nil`.
   package func buildSettingsInferredFromMainFile(
     for document: DocumentURI,
+    target explicitlyRequestedTarget: BuildTargetIdentifier? = nil,
     language: Language?,
     fallbackAfterTimeout: Bool
   ) async -> FileBuildSettings? {
@@ -852,11 +856,16 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     ) async -> (mainFile: DocumentURI, settings: FileBuildSettings)? {
       let mainFile = await self.mainFile(for: document, language: language)
       let settings: FileBuildSettings? = await orLog("Getting build settings") {
-        let target = try await withTimeout(options.buildSettingsTimeoutOrDefault) {
-          await self.canonicalTarget(for: mainFile)
-        } resultReceivedAfterTimeout: {
-          await self.delegate?.fileBuildSettingsChanged([document])
-        }
+        let target =
+          if let explicitlyRequestedTarget {
+            explicitlyRequestedTarget
+          } else {
+            try await withTimeout(options.buildSettingsTimeoutOrDefault) {
+              await self.canonicalTarget(for: mainFile)
+            } resultReceivedAfterTimeout: {
+              await self.delegate?.fileBuildSettingsChanged([document])
+            }
+          }
         var languageForFile: Language
         if let language {
           languageForFile = language

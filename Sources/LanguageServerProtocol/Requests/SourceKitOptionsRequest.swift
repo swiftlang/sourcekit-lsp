@@ -24,14 +24,25 @@ public struct SourceKitOptionsRequest: RequestType, Hashable {
   /// The document to get options for
   public var textDocument: TextDocumentIdentifier
 
+  /// If specified, explicitly request the compiler arguments when interpreting the document in the context of the given
+  /// target.
+  ///
+  /// The target URI must match the URI that is used by the BSP server to identify the target. This option thus only
+  /// makes sense to specify if the client also controls the BSP server.
+  ///
+  /// When this is `nil`, SourceKit-LSP returns the compiler arguments it uses when the the document is opened in the
+  /// client, ie. it infers a canonical target for the document.
+  public var target: DocumentURI?
+
   /// If set to `true` and build settings could not be determined within a timeout (see `buildSettingsTimeout` in the
   /// SourceKit-LSP configuration file), this request returns fallback build settings.
   ///
   /// If set to `false` the request only finishes when build settings were provided by the build system.
   public var allowFallbackSettings: Bool
 
-  public init(textDocument: TextDocumentIdentifier, allowFallbackSettings: Bool) {
+  public init(textDocument: TextDocumentIdentifier, target: DocumentURI? = nil, allowFallbackSettings: Bool) {
     self.textDocument = textDocument
+    self.target = target
     self.allowFallbackSettings = allowFallbackSettings
   }
 }
