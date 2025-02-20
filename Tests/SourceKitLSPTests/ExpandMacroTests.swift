@@ -268,8 +268,8 @@ final class ExpandMacroTests: XCTestCase {
       files: files,
       manifest: SwiftPMTestProject.macroPackageManifest,
       capabilities: ClientCapabilities(experimental: [
-        "workspace/peekDocuments": .bool(peekDocuments),
-        "workspace/getReferenceDocument": .bool(getReferenceDocument),
+        PeekDocumentsRequest.method: .bool(peekDocuments),
+        GetReferenceDocumentRequest.method: .bool(getReferenceDocument),
       ]),
       options: SourceKitLSPOptions.testDefault(),
       enableBackgroundIndexing: true

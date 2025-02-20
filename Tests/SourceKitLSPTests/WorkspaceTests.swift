@@ -10,12 +10,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SKOptions
 import SKTestSupport
+import SemanticIndex
 import SourceKitLSP
 import SwiftExtensions
 import TSCBasic
@@ -1122,6 +1124,67 @@ final class WorkspaceTests: XCTestCase {
       await project.testClient.server.workspaceForDocument(uri: uri)?.rootUri?.fileURL,
       project.scratchDirectory
     )
+  }
+
+  func testDidChangeActiveEditorDocument() async throws {
+    let didChangeBaseLib = AtomicBool(initialValue: false)
+    let didPrepareLibBAfterChangingBaseLib = self.expectation(description: "Did prepare LibB after changing base lib")
+    let project = try await SwiftPMTestProject(
+      files: [
+        "BaseLib/BaseLib.swift": "",
+        "LibA/LibA.swift": "",
+        "LibB/LibB.swift": "",
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLib",
+          targets: [
+            .target(name: "BaseLib"),
+            .target(name: "LibA", dependencies: ["BaseLib"]),
+            .target(name: "LibB", dependencies: ["BaseLib"]),
+          ]
+        )
+        """,
+      capabilities: ClientCapabilities(experimental: [
+        DidChangeActiveDocumentNotification.method: .bool(true)
+      ]),
+      hooks: Hooks(
+        indexHooks: IndexHooks(preparationTaskDidStart: { task in
+          guard didChangeBaseLib.value else {
+            return
+          }
+          do {
+            XCTAssert(
+              task.targetsToPrepare.contains(try BuildTargetIdentifier(target: "LibB", destination: .target)),
+              "Prepared unexpected targets: \(task.targetsToPrepare)"
+            )
+            try await repeatUntilExpectedResult {
+              Task.currentPriority > .low
+            }
+            didPrepareLibBAfterChangingBaseLib.fulfill()
+          } catch {
+            XCTFail("Received unexpected error: \(error)")
+          }
+        })
+      ),
+      enableBackgroundIndexing: true
+    )
+
+    _ = try project.openDocument("LibA.swift")
+    let (libBUri, _) = try project.openDocument("LibB.swift")
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: try project.uri(for: "BaseLib.swift"), type: .changed)]
+      )
+    )
+    didChangeBaseLib.value = true
+
+    project.testClient.send(
+      DidChangeActiveDocumentNotification(textDocument: TextDocumentIdentifier(libBUri))
+    )
+    try await fulfillmentOfOrThrow([didPrepareLibBAfterChangingBaseLib])
+
+    withExtendedLifetime(project) {}
   }
 }
 

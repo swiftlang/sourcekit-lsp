@@ -102,6 +102,17 @@ package final actor CapabilityRegistry {
     registration(for: [language], in: pullDiagnostics) != nil
   }
 
+  package nonisolated var clientSupportsActiveDocumentNotification: Bool {
+    return clientHasExperimentalCapability(DidChangeActiveDocumentNotification.method)
+  }
+
+  package nonisolated func clientHasExperimentalCapability(_ name: String) -> Bool {
+    guard case .dictionary(let experimentalCapabilities) = clientCapabilities.experimental else {
+      return false
+    }
+    return experimentalCapabilities[name] == .bool(true)
+  }
+
   // MARK: Initializer
 
   package init(clientCapabilities: ClientCapabilities) {

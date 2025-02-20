@@ -221,9 +221,8 @@ extension SwiftLanguageService {
       }
     }
 
-    if case .dictionary(let experimentalCapabilities) = self.capabilityRegistry.clientCapabilities.experimental,
-      case .bool(true) = experimentalCapabilities["workspace/peekDocuments"],
-      case .bool(true) = experimentalCapabilities["workspace/getReferenceDocument"]
+    if self.capabilityRegistry.clientHasExperimentalCapability(PeekDocumentsRequest.method),
+      self.capabilityRegistry.clientHasExperimentalCapability(GetReferenceDocumentRequest.method)
     {
       let expansionURIs = try macroExpansionReferenceDocumentURLs.map { try $0.uri }
 
