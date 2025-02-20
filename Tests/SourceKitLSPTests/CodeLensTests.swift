@@ -104,11 +104,11 @@ final class CodeLensTests: XCTestCase {
       [
         CodeLens(
           range: positions["1️⃣"]..<positions["2️⃣"],
-          command: Command(title: "Run MyApp", command: "swift.run", arguments: nil)
+          command: Command(title: "Run MyApp", command: "swift.run", arguments: [.string("MyApp")])
         ),
         CodeLens(
           range: positions["1️⃣"]..<positions["2️⃣"],
-          command: Command(title: "Debug MyApp", command: "swift.debug", arguments: nil)
+          command: Command(title: "Debug MyApp", command: "swift.debug", arguments: [.string("MyApp")])
         ),
       ]
     )
