@@ -493,11 +493,21 @@ export interface TextDocumentSourceKitOptionsRequest {
 }
 
 export interface TextDocumentSourceKitOptionsResult {
-  /** The compiler options required for the requested file. */
+  /**
+   * The compiler options required for the requested file.
+   */
   compilerArguments: string[];
 
-  /** The working directory for the compile command. */
+  /**
+   * The working directory for the compile command.
+   */
   workingDirectory?: string;
+
+  /**
+   * Additional data that the BSP server returned in the `textDocument/sourceKitOptions` BSP request. This data is not
+   * interpreted by SourceKit-LSP.
+   */
+  data?: LSPAny
 }
 ```
 

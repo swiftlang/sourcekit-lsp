@@ -1455,7 +1455,8 @@ extension SourceKitLSPServer {
     }
     return SourceKitOptionsResponse(
       compilerArguments: buildSettings.compilerArguments,
-      workingDirectory: buildSettings.workingDirectory
+      workingDirectory: buildSettings.workingDirectory,
+      data: buildSettings.data
     )
   }
 

@@ -35,6 +35,10 @@ package struct FileBuildSettings: Equatable, Sendable {
   /// would be passed.
   package var language: Language
 
+  /// Additional data about the build settings that was received from the BSP server, will not be interpreted by
+  /// SourceKit-LSP but returned to clients using the `workspace/sourceKitOptions` LSP request.
+  package var data: LSPAny?
+
   /// Whether the build settings were computed from a real build system or whether they are synthesized fallback arguments while the build system is still busy computing build settings.
   package var isFallback: Bool
 
@@ -42,11 +46,13 @@ package struct FileBuildSettings: Equatable, Sendable {
     compilerArguments: [String],
     workingDirectory: String? = nil,
     language: Language,
+    data: LSPAny? = nil,
     isFallback: Bool = false
   ) {
     self.compilerArguments = compilerArguments
     self.workingDirectory = workingDirectory
     self.language = language
+    self.data = data
     self.isFallback = isFallback
   }
 
@@ -81,6 +87,7 @@ package struct FileBuildSettings: Equatable, Sendable {
       compilerArguments: arguments,
       workingDirectory: self.workingDirectory,
       language: self.language,
+      data: self.data,
       isFallback: self.isFallback
     )
   }

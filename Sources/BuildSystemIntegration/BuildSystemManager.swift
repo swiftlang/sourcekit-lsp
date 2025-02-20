@@ -778,6 +778,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       compilerArguments: response.compilerArguments,
       workingDirectory: response.workingDirectory,
       language: language,
+      data: response.data,
       isFallback: false
     )
   }
@@ -1337,7 +1338,9 @@ fileprivate extension TextDocumentSourceKitOptionsResponse {
 
     result += supplementalClangIndexingArgs.flatMap { ["-Xcc", $0] }
 
-    return TextDocumentSourceKitOptionsResponse(compilerArguments: result, workingDirectory: workingDirectory)
+    var adjusted = self
+    adjusted.compilerArguments = result
+    return adjusted
   }
 
   /// Adjust compiler arguments that were created for building to compiler arguments that should be used for indexing
@@ -1397,7 +1400,10 @@ fileprivate extension TextDocumentSourceKitOptionsResponse {
     result.append(
       "-fsyntax-only"
     )
-    return TextDocumentSourceKitOptionsResponse(compilerArguments: result, workingDirectory: workingDirectory)
+
+    var adjusted = self
+    adjusted.compilerArguments = result
+    return adjusted
   }
 }
 

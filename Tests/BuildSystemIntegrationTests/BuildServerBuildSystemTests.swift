@@ -15,6 +15,7 @@ import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
+import SKOptions
 import SKTestSupport
 import TSCBasic
 import XCTest
@@ -368,5 +369,55 @@ final class BuildServerBuildSystemTests: XCTestCase {
       )
       return diags.fullReport?.items.map(\.message) == ["DEBUG SET"]
     }
+  }
+
+  func testBuildSettingsDataPassThrough() async throws {
+    let project = try await BuildServerTestProject(
+      files: [
+        "Test.swift": ""
+      ],
+      buildServerConfigLocation: "buildServer.json",
+      buildServer: """
+        class BuildServer(AbstractBuildServer):
+          def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "targets": [
+                {
+                  "id": {"uri": "bsp://dummy"},
+                  "tags": [],
+                  "languageIds": [],
+                  "dependencies": [],
+                  "capabilities": {},
+                }
+              ]
+            }
+
+          def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "items": [
+                {
+                  "target": {"uri": "bsp://dummy"},
+                  "sources": [
+                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False}
+                  ],
+                }
+              ]
+            }
+
+          def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "compilerArguments": [r"$TEST_DIR/Test.swift", "-DDEBUG", $SDK_ARGS],
+              "data": {"custom": "value"}
+            }
+        """,
+      options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest])
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+
+    let options = try await project.testClient.send(
+      SourceKitOptionsRequest(textDocument: TextDocumentIdentifier(uri), allowFallbackSettings: false)
+    )
+    XCTAssertEqual(options?.data, LSPAny.dictionary(["custom": .string("value")]))
   }
 }
