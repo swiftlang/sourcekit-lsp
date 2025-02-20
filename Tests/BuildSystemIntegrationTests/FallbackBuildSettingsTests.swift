@@ -76,7 +76,7 @@ final class FallbackBuildSystemTests: XCTestCase {
       FileBuildSettings(
         compilerArguments: ["-isysroot", sdk, source.pseudoPath],
         workingDirectory: nil,
-        language: .swift,
+        language: .cpp,
         isFallback: true
       )
     )
