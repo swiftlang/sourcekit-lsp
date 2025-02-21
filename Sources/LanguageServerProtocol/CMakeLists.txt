@@ -75,6 +75,7 @@ add_library(LanguageServerProtocol STATIC
   Requests/RegisterCapabilityRequest.swift
   Requests/RenameRequest.swift
   Requests/SelectionRangeRequest.swift
+  Requests/SetOptionsRequest.swift
   Requests/ShowDocumentRequest.swift
   Requests/ShowMessageRequest.swift
   Requests/ShutdownRequest.swift

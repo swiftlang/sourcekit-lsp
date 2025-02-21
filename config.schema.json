@@ -69,7 +69,12 @@
       "description" : "Experimental features that are enabled.",
       "items" : {
         "enum" : [
-          "on-type-formatting"
+          "on-type-formatting",
+          "set-options-request"
+        ],
+        "markdownEnumDescriptions" : [
+          "Enable support for the `textDocument\/onTypeFormatting` request.",
+          "Enable support for the `workspace\/_setOptions` request."
         ],
         "type" : "string"
       },

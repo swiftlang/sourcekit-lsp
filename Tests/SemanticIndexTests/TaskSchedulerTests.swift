@@ -13,6 +13,7 @@
 import SKLogging
 import SKTestSupport
 import SemanticIndex
+import SwiftExtensions
 import XCTest
 
 final class TaskSchedulerTests: XCTestCase {
@@ -196,6 +197,84 @@ final class TaskSchedulerTests: XCTestCase {
         }
       }
     )
+  }
+
+  func testIncreaseNumberOfExecutionSlots() async throws {
+    let taskScheduler = TaskScheduler<ClosureTaskDescription>(maxConcurrentTasksByPriority: [(.high, 1), (.low, 0)])
+
+    let highPriorityTaskFinished = self.expectation(description: "High priority task finished")
+    await taskScheduler.schedule(priority: .high, id: .highPriority(1), estimatedCPUCoreCount: 1) {
+      highPriorityTaskFinished.fulfill()
+    }
+
+    // We have two different expectations so we can await non-fulfillment before increasing execution slots and
+    // await fulfillment after increasing execution slots.
+    let lowPriorityTaskFinished1 = self.expectation(description: "Low priority task finished (1)")
+    let lowPriorityTaskFinished2 = self.expectation(description: "Low priority task finished (2)")
+    await taskScheduler.schedule(priority: .low, id: .lowPriority(2), estimatedCPUCoreCount: 1) {
+      lowPriorityTaskFinished1.fulfill()
+      lowPriorityTaskFinished2.fulfill()
+    }
+
+    // The high priority task should be able to finish because we have an execution slot for it.
+    try await fulfillmentOfOrThrow([highPriorityTaskFinished])
+
+    // But we shouldn't be able to execute the low priority task because it doesn't have an execution slot.
+    await assertThrowsError(try await fulfillmentOfOrThrow([lowPriorityTaskFinished1], timeout: 1)) { error in
+      XCTAssert(error is ExpectationNotFulfilledError)
+    }
+
+    await taskScheduler.setMaxConcurrentTasksByPriority([(.high, 1), (.low, 1)])
+
+    // After increasing the number of execution slots, we should be able to execute the low-priority task
+    try await fulfillmentOfOrThrow([lowPriorityTaskFinished2])
+  }
+
+  func testDecreaseNumberOfExecutionSlots() async throws {
+    let taskScheduler = TaskScheduler<ClosureTaskDescription>(maxConcurrentTasksByPriority: [(.low, 1)])
+
+    /// True after the job was cancelled and is now being re-scheduled after increasing the number of execution slots.
+    let taskExecutedBefore = AtomicBool(initialValue: false)
+
+    let taskStartedExecuting = self.expectation(description: "Task started executing")
+    let executionSlotsReduced = self.expectation(description: "Execution slots reduced")
+    let taskCancelled = self.expectation(description: "Task was cancelled")
+    let taskExecutedAgain = self.expectation(description: "Task executed after being cancelled to be rescheduled")
+
+    await taskScheduler.schedule(priority: .low, id: .lowPriority(1)) {
+      if taskExecutedBefore.value {
+        taskExecutedAgain.fulfill()
+        return
+      }
+
+      taskExecutedBefore.value = true
+
+      taskStartedExecuting.fulfill()
+
+      do {
+        try await fulfillmentOfOrThrow([executionSlotsReduced])
+
+        try await repeatUntilExpectedResult {
+          try Task.checkCancellation()
+          return false
+        }
+      } catch is CancellationError {
+        taskCancelled.fulfill()
+      } catch {
+        XCTFail("Unexpectedly received error: \(error)")
+        return
+      }
+    }
+
+    // Check that we cancel the in-progress task when reducing the number of execution slots
+    try await fulfillmentOfOrThrow([taskStartedExecuting])
+    await taskScheduler.setMaxConcurrentTasksByPriority([(.low, 0)])
+    executionSlotsReduced.fulfill()
+    try await fulfillmentOfOrThrow([taskCancelled])
+
+    // And check that we execute it again when increasing the number of execution slots again
+    await taskScheduler.setMaxConcurrentTasksByPriority([(.low, 1)])
+    try await fulfillmentOfOrThrow([taskExecutedAgain])
   }
 }
 

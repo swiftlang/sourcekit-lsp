@@ -211,6 +211,10 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
       self = .globalConfigurationChange
     case is RegisterCapabilityRequest:
       self = .globalConfigurationChange
+    case is SetOptionsRequest:
+      // The request does not modify any global state in an observable way, so we can treat it as a freestanding
+      // request.
+      self = .freestanding
     case is ShowMessageRequest:
       self = .freestanding
     case is ShutdownRequest:

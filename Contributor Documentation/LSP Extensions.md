@@ -451,12 +451,37 @@ logName?: string;
 
 New request to wait until the index is up-to-date.
 
+> [!IMPORTANT]
+> This request is experimental and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
+
 - params: `PollIndexParams`
 - result: `void`
 
 ```ts
 export interface PollIndexParams {}
 ```
+
+## `workspace/_setOptions`
+
+New request to modify runtime options of SourceKit-LSP.
+
+Any options not specified in this request will be left as-is.
+
+> [!IMPORTANT]
+> This request is experimental, guarded behind the `set-options-request` experimental feature, and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
+
+- params: `SetOptionsParams`
+- result: `void`
+
+```ts
+export interface SetOptionsParams {
+  /**
+   * `true` to pause background indexing or `false` to resume background indexing.
+   */
+  backgroundIndexingPaused?: bool;
+}
+```
+
 
 ## `workspace/getReferenceDocument`
 
