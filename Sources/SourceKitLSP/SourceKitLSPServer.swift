@@ -159,6 +159,26 @@ package actor SourceKitLSPServer {
   /// The files that we asked the client to watch.
   private var watchers: Set<FileSystemWatcher> = []
 
+  private static func maxConcurrentIndexingTasksByPriority(
+    isIndexingPaused: Bool,
+    options: SourceKitLSPOptions
+  ) -> [(priority: TaskPriority, maxConcurrentTasks: Int)] {
+    let processorCount = ProcessInfo.processInfo.processorCount
+    let lowPriorityCores =
+      if isIndexingPaused {
+        0
+      } else {
+        max(
+          Int(options.indexOrDefault.maxCoresPercentageToUseForBackgroundIndexingOrDefault * Double(processorCount)),
+          1
+        )
+      }
+    return [
+      (TaskPriority.medium, processorCount),
+      (TaskPriority.low, lowPriorityCores),
+    ]
+  }
+
   /// Creates a language server for the given client.
   package init(
     client: Connection,
@@ -173,13 +193,9 @@ package actor SourceKitLSPServer {
     self.onExit = onExit
 
     self.client = client
-    let processorCount = ProcessInfo.processInfo.processorCount
-    let lowPriorityCores =
-      options.indexOrDefault.maxCoresPercentageToUseForBackgroundIndexingOrDefault * Double(processorCount)
-    self.indexTaskScheduler = TaskScheduler(maxConcurrentTasksByPriority: [
-      (TaskPriority.medium, processorCount),
-      (TaskPriority.low, max(Int(lowPriorityCores), 1)),
-    ])
+    self.indexTaskScheduler = TaskScheduler(
+      maxConcurrentTasksByPriority: Self.maxConcurrentIndexingTasksByPriority(isIndexingPaused: false, options: options)
+    )
     self.indexProgressManager = nil
     #if canImport(SwiftDocC)
     self.documentationManager = nil
@@ -822,6 +838,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.references)
     case let request as RequestAndReply<RenameRequest>:
       await request.reply { try await rename(request.params) }
+    case let request as RequestAndReply<SetOptionsRequest>:
+      await request.reply { try await self.setBackgroundIndexingPaused(request.params) }
     case let request as RequestAndReply<ShutdownRequest>:
       await request.reply { try await shutdown(request.params) }
     case let request as RequestAndReply<SymbolInfoRequest>:
@@ -1432,6 +1450,19 @@ extension SourceKitLSPServer {
     for workspace in workspaces {
       await workspace.filesDidChange(notification.changes)
     }
+  }
+
+  func setBackgroundIndexingPaused(_ request: SetOptionsRequest) async throws -> VoidResponse {
+    guard self.options.hasExperimentalFeature(.setOptionsRequest) else {
+      throw ResponseError.unknown("Pausing background indexing is an experimental feature")
+    }
+    if let backgroundIndexingPaused = request.backgroundIndexingPaused {
+      await self.indexTaskScheduler.setMaxConcurrentTasksByPriority(
+        Self.maxConcurrentIndexingTasksByPriority(isIndexingPaused: backgroundIndexingPaused, options: self.options)
+      )
+    }
+
+    return VoidResponse()
   }
 
   // MARK: - Language features

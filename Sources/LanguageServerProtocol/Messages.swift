@@ -67,6 +67,7 @@ public let builtinRequests: [_RequestType.Type] = [
   RegisterCapabilityRequest.self,
   RenameRequest.self,
   SelectionRangeRequest.self,
+  SetOptionsRequest.self,
   ShowDocumentRequest.self,
   ShowMessageRequest.self,
   ShutdownRequest.self,

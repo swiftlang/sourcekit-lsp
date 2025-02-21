@@ -1663,7 +1663,6 @@ final class BackgroundIndexingTests: XCTestCase {
           ]
         )
         """,
-      options: .testDefault(),
       enableBackgroundIndexing: true
     )
 
@@ -1746,6 +1745,142 @@ final class BackgroundIndexingTests: XCTestCase {
         HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
       )
       return try XCTUnwrap(postEditHover?.contents.markupContent?.value).contains("Int")
+    }
+  }
+
+  func testPauseBackgroundIndexing() async throws {
+    try SkipUnless.longTestsEnabled()
+    let backgroundIndexingPaused = WrappedSemaphore(name: "Background indexing was paused")
+    let hooks = Hooks(
+      buildSystemHooks: BuildSystemHooks(
+        swiftPMTestHooks: SwiftPMTestHooks(
+          reloadPackageDidFinish: {
+            backgroundIndexingPaused.waitOrXCTFail()
+          }
+        )
+      )
+    )
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": """
+        func foo() {}
+        """
+      ],
+      options: .testDefault(experimentalFeatures: [.setOptionsRequest]),
+      hooks: hooks,
+      enableBackgroundIndexing: true,
+      // pollIndex increases the background indexing priority from `low` to `medium`, which thus won't be affected by
+      // `workspace/_setBackgroundIndexingPaused` anymore
+      pollIndex: false
+    )
+    try await project.testClient.send(SetOptionsRequest(backgroundIndexingPaused: true))
+    backgroundIndexingPaused.signal()
+
+    // Give SwiftPM sufficient time to run background indexing if it was not paused.
+    try await Task.sleep(for: .seconds(5))
+
+    let workspaceSymbolsWithBackgroundIndexPaused = try await project.testClient.send(
+      WorkspaceSymbolsRequest(query: "foo")
+    )
+    XCTAssertEqual(workspaceSymbolsWithBackgroundIndexPaused, [])
+
+    try await project.testClient.send(SetOptionsRequest(backgroundIndexingPaused: false))
+
+    try await repeatUntilExpectedResult {
+      try await project.testClient.send(WorkspaceSymbolsRequest(query: "foo")) != []
+    }
+  }
+
+  func testBackgroundIndexingRunsOnPollIndexRequestEvenIfPaused() async throws {
+    let backgroundIndexingPaused = WrappedSemaphore(name: "Background indexing was paused")
+    let hooks = Hooks(
+      buildSystemHooks: BuildSystemHooks(
+        swiftPMTestHooks: SwiftPMTestHooks(
+          reloadPackageDidFinish: {
+            backgroundIndexingPaused.waitOrXCTFail()
+          }
+        )
+      )
+    )
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": """
+        func foo() {}
+        """
+      ],
+      options: .testDefault(experimentalFeatures: [.setOptionsRequest]),
+      hooks: hooks,
+      enableBackgroundIndexing: true,
+      // pollIndex increases the background indexing priority from `low` to `medium`, which thus won't be affected by
+      // `workspace/_setBackgroundIndexingPaused` anymore
+      pollIndex: false
+    )
+    try await project.testClient.send(SetOptionsRequest(backgroundIndexingPaused: true))
+    backgroundIndexingPaused.signal()
+
+    // Running a `PollIndexRequests` elevates the background indexing tasks to `medium` priority. We thus no longer
+    // consider the indexing to happen in the background and hence it is not affected by the paused background indexing
+    // state.
+    try await project.testClient.send(PollIndexRequest())
+
+    let workspaceSymbolsAfterPollIndex = try await project.testClient.send(WorkspaceSymbolsRequest(query: "foo"))
+    XCTAssertNotEqual(workspaceSymbolsAfterPollIndex, [])
+  }
+
+  func testPausingBackgroundIndexingDoesNotStopPreparation() async throws {
+    let backgroundIndexingPaused = WrappedSemaphore(name: "Background indexing was paused")
+    let hooks = Hooks(
+      buildSystemHooks: BuildSystemHooks(
+        swiftPMTestHooks: SwiftPMTestHooks(
+          reloadPackageDidFinish: {
+            backgroundIndexingPaused.waitOrXCTFail()
+          }
+        )
+      )
+    )
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": """
+        public struct LibA {
+
+        }
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+
+        func test() {
+          1️⃣LibA()
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """,
+      options: .testDefault(experimentalFeatures: [.setOptionsRequest]),
+      hooks: hooks,
+      enableBackgroundIndexing: true,
+      // pollIndex increases the background indexing priority from `low` to `medium`, which thus won't be affected by
+      // `workspace/_setBackgroundIndexingPaused` anymore
+      pollIndex: false
+    )
+    try await project.testClient.send(SetOptionsRequest(backgroundIndexingPaused: true))
+    backgroundIndexingPaused.signal()
+
+    let (uri, positions) = try project.openDocument("LibB.swift")
+
+    // Even with background indexing disabled, we should prepare LibB and eventually get hover results for it.
+    // We shouldn't use `PollIndexRequest` here because that elevates the background indexing priority and thereby
+    // unpauses background indexing.
+    try await repeatUntilExpectedResult {
+      return try await project.testClient.send(
+        HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      ) != nil
     }
   }
 }
