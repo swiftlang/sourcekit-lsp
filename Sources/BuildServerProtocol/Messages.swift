@@ -29,6 +29,7 @@ fileprivate let requestTypes: [_RequestType.Type] = [
 ]
 
 fileprivate let notificationTypes: [NotificationType.Type] = [
+  CancelRequestNotification.self,
   FileOptionsChangedNotification.self,
   OnBuildExitNotification.self,
   OnBuildInitializedNotification.self,
