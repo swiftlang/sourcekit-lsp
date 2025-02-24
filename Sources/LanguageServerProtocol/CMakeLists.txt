@@ -11,6 +11,7 @@ add_library(LanguageServerProtocol STATIC
   Notifications/CancelRequestNotification.swift
   Notifications/CancelWorkDoneProgressNotification.swift
   Notifications/ConfigurationNotification.swift
+  Notifications/DidChangeActiveDocumentNotification.swift
   Notifications/DidChangeFileNotifications.swift
   Notifications/DidChangeWatchedFilesNotification.swift
   Notifications/DidChangeWorkspaceFoldersNotification.swift

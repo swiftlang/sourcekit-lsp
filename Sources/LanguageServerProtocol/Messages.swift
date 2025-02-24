@@ -99,6 +99,7 @@ public let builtinRequests: [_RequestType.Type] = [
 public let builtinNotifications: [NotificationType.Type] = [
   CancelRequestNotification.self,
   CancelWorkDoneProgressNotification.self,
+  DidChangeActiveDocumentNotification.self,
   DidChangeConfigurationNotification.self,
   DidChangeNotebookDocumentNotification.self,
   DidChangeTextDocumentNotification.self,

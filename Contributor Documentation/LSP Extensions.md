@@ -434,6 +434,25 @@ export interface DocumentTestsParams {
 }
 ```
 
+## `window/didChangeActiveDocument`
+
+New notification from the client to the server, telling SourceKit-LSP which document is the currently active primary document.
+
+By default, SourceKit-LSP infers the currently active editor document from the last document that received a request.
+If the client supports active reporting of the currently active document, it should check for the
+`window/didChangeActiveDocument` experimental server capability. If that capability is present, it should respond with
+the `window/didChangeActiveDocument` experimental client capability and send this notification whenever the currently
+active document changes.
+
+- params: `DidChangeActiveDocumentParams`
+
+```ts
+export interface DidChangeActiveDocumentParams {
+  /**
+   * The document that is being displayed in the active editor.
+   */
+  textDocument: TextDocumentIdentifier;
+
 ## `window/logMessage`
 
 Added field:
