@@ -1278,8 +1278,8 @@ extension SourceKitLSPServer {
       )
       return
     }
-    await self.clientInteractedWithDocument(uri)
     await openDocument(notification, workspace: workspace)
+    await self.clientInteractedWithDocument(uri)
   }
 
   private func openDocument(_ notification: DidOpenTextDocumentNotification, workspace: Workspace) async {
@@ -1403,9 +1403,22 @@ extension SourceKitLSPServer {
   }
 
   func didChangeActiveDocument(_ notification: DidChangeActiveDocumentNotification) async {
-    let workspace = await self.workspaceForDocument(uri: notification.textDocument.uri)
-    await workspace?.semanticIndexManager?
-      .schedulePreparationForEditorFunctionality(of: notification.textDocument.uri)
+    guard let activeDocument = notification.textDocument?.uri else {
+      // The client no longer has a SourceKit-LSP document open. Mark in-progress preparations as irrelevant to cancel
+      // them if they haven't started yet.
+      for workspace in workspaces {
+        await workspace.semanticIndexManager?.markPreparationForEditorFunctionalityTaskAsIrrelevant()
+      }
+      return
+    }
+    let documentWorkspace = await self.workspaceForDocument(uri: activeDocument)
+    for workspace in workspaces {
+      if workspace === documentWorkspace {
+        await workspace.semanticIndexManager?.schedulePreparationForEditorFunctionality(of: activeDocument)
+      } else {
+        await workspace.semanticIndexManager?.markPreparationForEditorFunctionalityTaskAsIrrelevant()
+      }
+    }
   }
 
   func willSaveDocument(
