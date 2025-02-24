@@ -169,8 +169,8 @@ package class SwiftPMTestProject: MultiFileTestProject {
             .macro(
               name: "MyMacros",
               swiftSettings: [.unsafeFlags([
-                "-I", "\(moduleSearchPath)",
-                "-Xcc", "-fmodule-map-file=\(try swiftSyntaxCShimsModulemap.filePath)"
+                "-I", #"\(moduleSearchPath)"#,
+                "-Xcc", #"-fmodule-map-file=\(try swiftSyntaxCShimsModulemap.filePath)"#
               ])],
               linkerSettings: [
                 .unsafeFlags([
