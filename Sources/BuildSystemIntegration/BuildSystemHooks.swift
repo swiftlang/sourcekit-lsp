@@ -31,12 +31,6 @@ package struct SwiftPMTestHooks: Sendable {
   }
 }
 
-/// When running SourceKit-LSP in-process, allows the creator of `SourceKitLSPServer` to create the build system instead
-/// of SourceKit-LSP creating build systems as needed.
-package protocol BuildSystemInjector: Sendable {
-  func createBuildSystem(projectRoot: URL, connectionToSourceKitLSP: any Connection) async -> BuiltInBuildSystem
-}
-
 package struct BuildSystemHooks: Sendable {
   package var swiftPMTestHooks: SwiftPMTestHooks
 
@@ -45,15 +39,20 @@ package struct BuildSystemHooks: Sendable {
   /// This allows requests to be artificially delayed.
   package var preHandleRequest: (@Sendable (any RequestType) async -> Void)?
 
-  package var buildSystemInjector: BuildSystemInjector?
+  /// When running SourceKit-LSP in-process, allows the creator of `SourceKitLSPServer` to create a message handler that
+  /// handles BSP requests instead of SourceKit-LSP creating build systems as needed.
+  package var injectBuildServer:
+    (@Sendable (_ projectRoot: URL, _ connectionToSourceKitLSP: any Connection) async -> any Connection)?
 
   package init(
     swiftPMTestHooks: SwiftPMTestHooks = SwiftPMTestHooks(),
     preHandleRequest: (@Sendable (any RequestType) async -> Void)? = nil,
-    buildSystemInjector: BuildSystemInjector? = nil
+    injectBuildServer: (
+      @Sendable (_ projectRoot: URL, _ connectionToSourceKitLSP: any Connection) async -> any Connection
+    )? = nil
   ) {
     self.swiftPMTestHooks = swiftPMTestHooks
     self.preHandleRequest = preHandleRequest
-    self.buildSystemInjector = buildSystemInjector
+    self.injectBuildServer = injectBuildServer
   }
 }

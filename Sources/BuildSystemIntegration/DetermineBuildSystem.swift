@@ -72,9 +72,9 @@ package func determineBuildSystem(
   options: SourceKitLSPOptions,
   hooks: BuildSystemHooks
 ) -> BuildSystemSpec? {
-  if let buildSystemInjector = hooks.buildSystemInjector {
+  if let injectBuildServer = hooks.injectBuildServer {
     return BuildSystemSpec(
-      kind: .injected(buildSystemInjector),
+      kind: .injected(injectBuildServer),
       projectRoot: workspaceFolder.arbitrarySchemeURL,
       configPath: workspaceFolder.arbitrarySchemeURL
     )

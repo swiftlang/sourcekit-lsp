@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
-import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
 import SKOptions
@@ -20,8 +19,10 @@ import ToolchainRegistry
 
 #if compiler(>=6)
 package import Foundation
+package import LanguageServerProtocol
 #else
 import Foundation
+import LanguageServerProtocol
 #endif
 
 /// The details necessary to create a `BuildSystemAdapter`.
@@ -31,7 +32,9 @@ package struct BuildSystemSpec {
     case jsonCompilationDatabase
     case fixedCompilationDatabase
     case swiftPM
-    case injected(BuildSystemInjector)
+    case injected(
+      @Sendable (_ projectRoot: URL, _ connectionToSourceKitLSP: any Connection) async -> any Connection
+    )
   }
 
   package var kind: Kind

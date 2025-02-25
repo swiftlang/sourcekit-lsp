@@ -17,6 +17,7 @@ import LanguageServerProtocolExtensions
 import SKLogging
 import SKOptions
 import SKTestSupport
+import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
 import XCTest
@@ -24,17 +25,6 @@ import XCTest
 fileprivate extension BuildSystemManager {
   func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
     handle(OnBuildTargetDidChangeNotification(changes: nil))
-  }
-}
-
-private actor TestBuildSystemInjector: BuildSystemInjector {
-  var testBuildSystem: TestBuildSystem? = nil
-
-  func createBuildSystem(projectRoot: URL, connectionToSourceKitLSP: any Connection) -> any BuiltInBuildSystem {
-    assert(testBuildSystem == nil, "TestBuildSystemInjector can only create a single TestBuildSystem")
-    let buildSystem = TestBuildSystem(connectionToSourceKitLSP: connectionToSourceKitLSP)
-    testBuildSystem = buildSystem
-    return buildSystem
   }
 }
 
@@ -51,8 +41,19 @@ final class BuildSystemManagerTests: XCTestCase {
 
   override func setUp() async throws {
     let dummyPath = URL(fileURLWithPath: "/")
-    let injector = TestBuildSystemInjector()
-    let spec = BuildSystemSpec(kind: .injected(injector), projectRoot: dummyPath, configPath: dummyPath)
+    let testBuildSystem = ThreadSafeBox<TestBuildSystem?>(initialValue: nil)
+    let spec = BuildSystemSpec(
+      kind: .injected({ projectRoot, connectionToSourceKitLSP in
+        assert(testBuildSystem.value == nil, "Build system injector hook can only create a single TestBuildSystem")
+        let buildSystem = TestBuildSystem(connectionToSourceKitLSP: connectionToSourceKitLSP)
+        testBuildSystem.value = buildSystem
+        let connection = LocalConnection(receiverName: "TestBuildSystem")
+        connection.start(handler: buildSystem)
+        return connection
+      }),
+      projectRoot: dummyPath,
+      configPath: dummyPath
+    )
 
     self.manager = await BuildSystemManager(
       buildSystemSpec: spec,
@@ -61,7 +62,7 @@ final class BuildSystemManagerTests: XCTestCase {
       connectionToClient: DummyBuildSystemManagerConnectionToClient(),
       buildSystemHooks: BuildSystemHooks()
     )
-    self.buildSystem = try await unwrap(injector.testBuildSystem)
+    self.buildSystem = try unwrap(testBuildSystem.value)
   }
 
   func testMainFiles() async throws {
