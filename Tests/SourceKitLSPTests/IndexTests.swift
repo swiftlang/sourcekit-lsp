@@ -128,7 +128,8 @@ final class IndexTests: XCTestCase {
       XCTAssertEqual(jump.first?.uri, project.fileURI)
       XCTAssertEqual(jump.first?.range.lowerBound, project.positions["1️⃣"])
 
-      let tmpContents = try listdir(project.indexDBURL)
+      let indexDBURL = project.fileURI.fileURL!.deletingLastPathComponent().appendingPathComponent("IndexDatabase")
+      let tmpContents = try listdir(indexDBURL)
       guard let versionedPath = tmpContents.filter({ $0.lastPathComponent.starts(with: "v") }).only else {
         XCTFail("expected one version path 'v[0-9]*', found \(tmpContents)")
         return nil

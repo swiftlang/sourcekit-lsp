@@ -38,7 +38,6 @@ package struct IndexedSingleSwiftFileTestProject {
   package let testClient: TestSourceKitLSPClient
   package let fileURI: DocumentURI
   package let positions: DocumentPositions
-  package let indexDBURL: URL
 
   /// Writes a single file to a temporary directory on disk and compiles it to index it.
   ///
@@ -62,7 +61,6 @@ package struct IndexedSingleSwiftFileTestProject {
 
     let testFileURL = testWorkspaceDirectory.appendingPathComponent("test.swift")
     let indexURL = testWorkspaceDirectory.appendingPathComponent("index")
-    self.indexDBURL = testWorkspaceDirectory.appendingPathComponent("index-db")
     guard let swiftc = await ToolchainRegistry.forTesting.default?.swiftc else {
       throw Error.swiftcNotFound
     }
