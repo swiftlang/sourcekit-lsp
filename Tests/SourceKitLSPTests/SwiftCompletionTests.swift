@@ -1125,6 +1125,27 @@ final class SwiftCompletionTests: XCTestCase {
       .markupContent(MarkupContent(kind: .markdown, value: "Creates a true value"))
     )
   }
+
+  func testCallDefaultedArguments() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct Foo {
+        func makeBool(value: Bool = true) -> Bool { value }
+      }
+      func test(foo: Foo) {
+        foo.make1️⃣
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertEqual(completions.items.map(\.insertText), ["makeBool()", "makeBool(value: )"])
+  }
 }
 
 private func countFs(_ response: CompletionList) -> Int {

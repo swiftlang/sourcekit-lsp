@@ -353,6 +353,7 @@ class CodeCompletionSession {
       keys.hideByName: 0,
       keys.addInnerOperators: 0,
       keys.topNonLiteral: 0,
+      keys.addCallWithNoDefaultArgs: 1,
       // Filtering options.
       keys.filterText: filterText,
       keys.requestLimit: 200,
