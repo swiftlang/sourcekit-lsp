@@ -129,7 +129,7 @@ package struct UnsafeStackAllocator {
     maximumCapacity: Int,
     body: (inout UnsafeStackArray<Element>) throws -> R
   ) rethrows -> R {
-    var stackArray = allocateUnsafeArray(of: elementType, maximumCapacity: maximumCapacity);
+    var stackArray = allocateUnsafeArray(of: elementType, maximumCapacity: maximumCapacity)
     defer { deallocate(&stackArray) }
     return try body(&stackArray)
   }

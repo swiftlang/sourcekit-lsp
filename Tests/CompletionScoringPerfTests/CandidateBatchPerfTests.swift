@@ -27,7 +27,7 @@ class CandidateBatchPerfTests: XCTestCase {
     }
     let typeUTF8Buffers = typeStrings.map { typeString in
       typeString.allocateCopyOfUTF8Buffer()
-    };
+    }
     defer {
       for typeUTF8Buffer in typeUTF8Buffers {
         typeUTF8Buffer.deallocate()
