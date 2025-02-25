@@ -113,18 +113,6 @@ struct SourceKitLSP: AsyncParsableCommand {
   var clangdOptions = [String]()
 
   @Option(
-    name: .customLong("index-store-path", withSingleDash: true),
-    help: "Override index-store-path from the build system"
-  )
-  var indexStorePath: String?
-
-  @Option(
-    name: .customLong("index-db-path", withSingleDash: true),
-    help: "Override index-database-path from the build system"
-  )
-  var indexDatabasePath: String?
-
-  @Option(
     name: .customLong("index-prefix-map", withSingleDash: true),
     parsing: .unconditionalSingleValue,
     help: "Override the prefix map from the build system, values of form 'remote=local'"
@@ -177,8 +165,6 @@ struct SourceKitLSP: AsyncParsableCommand {
       compilationDatabase: SourceKitLSPOptions.CompilationDatabaseOptions(searchPaths: compilationDatabaseSearchPaths),
       clangdOptions: clangdOptions,
       index: SourceKitLSPOptions.IndexOptions(
-        indexStorePath: indexStorePath,
-        indexDatabasePath: indexDatabasePath,
         indexPrefixMap: [String: String](
           indexPrefixMappings.map { ($0.original, $0.replacement) },
           uniquingKeysWith: { lhs, rhs in rhs }

@@ -147,13 +147,8 @@ package struct IndexedSingleSwiftFileTestProject {
     }
 
     // Create the test client
-    var options = try await SourceKitLSPOptions.testDefault()
-    options.indexOrDefault = SourceKitLSPOptions.IndexOptions(
-      indexStorePath: try indexURL.filePath,
-      indexDatabasePath: try indexDBURL.filePath
-    )
     self.testClient = try await TestSourceKitLSPClient(
-      options: options,
+      options: try await SourceKitLSPOptions.testDefault(),
       capabilities: capabilities,
       workspaceFolders: [
         WorkspaceFolder(uri: DocumentURI(testWorkspaceDirectory))
