@@ -374,6 +374,7 @@ class CodeCompletionSession {
         keys.column: sourcekitdPosition.utf8Column,
         keys.sourceFile: snapshot.uri.pseudoPath,
         keys.name: snapshot.uri.pseudoPath,
+        keys.codeCompleteOptions: [keys.useNewAPI: 1],
       ])
       logger.info("Closing code completion session: \(self.description)")
       _ = try? await sourcekitd.send(req, timeout: options.sourcekitdRequestTimeoutOrDefault, fileContents: nil)
