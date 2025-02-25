@@ -190,6 +190,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     if let semanticIndexManager {
       await semanticIndexManager.scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
         filesToIndex: nil,
+        ensureAllUnitsRegisteredInIndex: true,
         indexFilesWithUpToDateUnit: false
       )
     }
