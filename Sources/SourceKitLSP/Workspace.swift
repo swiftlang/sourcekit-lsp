@@ -127,7 +127,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
   }
 
   /// The index that syntactically scans the workspace for tests.
-  let syntacticTestIndex = SyntacticTestIndex()
+  let syntacticTestIndex: SyntacticTestIndex
 
   /// Language service for an open document, if available.
   private let documentService: ThreadSafeBox<[DocumentURI: LanguageService]> = ThreadSafeBox(initialValue: [:])
@@ -180,12 +180,14 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     } else {
       self.semanticIndexManager = nil
     }
+    // Trigger an initial population of `syntacticTestIndex`.
+    self.syntacticTestIndex = SyntacticTestIndex(determineTestFiles: {
+      await orLog("Getting list of test files for initial syntactic index population") {
+        try await buildSystemManager.testFiles()
+      } ?? []
+    })
     await indexDelegate?.addMainFileChangedCallback { [weak self] in
       await self?.buildSystemManager.mainFilesChanged()
-    }
-    // Trigger an initial population of `syntacticTestIndex`.
-    if let testFiles = await orLog("Getting initial test files", { try await self.buildSystemManager.testFiles() }) {
-      await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
     }
     if let semanticIndexManager {
       await semanticIndexManager.scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
@@ -224,7 +226,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
           // `SourceKitLSPServer` has been destructed. We are tearing down the
           // language server. Nothing left to do.
           logger.error(
-            "Ignoring notificaiton \(type(of: notification).method) because connection to editor has been closed"
+            "Ignoring notification \(type(of: notification).method) because connection to editor has been closed"
           )
           return
         }

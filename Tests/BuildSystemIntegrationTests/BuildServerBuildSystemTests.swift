@@ -17,8 +17,14 @@ import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKOptions
 import SKTestSupport
+import SourceKitLSP
+import SwiftExtensions
 import TSCBasic
 import XCTest
+
+#if os(Windows)
+import WinSDK
+#endif
 
 final class BuildServerBuildSystemTests: XCTestCase {
   func testBuildSettingsFromBuildServer() async throws {
@@ -516,5 +522,52 @@ final class BuildServerBuildSystemTests: XCTestCase {
     )
     // We currently pick the canonical target alphabetically, which means that `bsp://first` wins over `bsp://second`
     XCTAssert(try XCTUnwrap(optionsWithoutTarget).compilerArguments.contains("-DFIRST"))
+  }
+
+  func testDontBlockBuildServerInitializationIfBuildSystemIsUnresponsive() async throws {
+    // A build server that responds to the initialize request but not to any other requests.
+    final class UnresponsiveBuildServer: MessageHandler {
+      func handle(_ notification: some LanguageServerProtocol.NotificationType) {}
+
+      func handle<Request: RequestType>(
+        _ request: Request,
+        id: RequestID,
+        reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
+      ) {
+        switch request {
+        case is InitializeBuildRequest:
+          reply(
+            .success(
+              InitializeBuildResponse(
+                displayName: "UnresponsiveBuildServer",
+                version: "",
+                bspVersion: "2.2.0",
+                capabilities: BuildServerCapabilities()
+              ) as! Request.Response
+            )
+          )
+        default:
+          #if os(Windows)
+          Sleep(60 * 60 * 1000 /*ms*/)
+          #else
+          sleep(60 * 60 /*s*/)
+          #endif
+          XCTFail("Build server should be terminated before finishing the timeout")
+        }
+      }
+    }
+
+    // Creating the `MultiFileTestProject` waits for the initialize response and times out if it doesn't receive one.
+    // Make sure that we get that response back.
+    _ = try await MultiFileTestProject(
+      files: ["Test.swift": ""],
+      hooks: Hooks(
+        buildSystemHooks: BuildSystemHooks(injectBuildServer: { _, _ in
+          let connection = LocalConnection(receiverName: "Unresponsive build system")
+          connection.start(handler: UnresponsiveBuildServer())
+          return connection
+        })
+      )
+    )
   }
 }
