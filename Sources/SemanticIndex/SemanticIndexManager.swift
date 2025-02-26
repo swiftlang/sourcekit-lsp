@@ -511,6 +511,18 @@ package final actor SemanticIndexManager {
     await self.prepare(targets: [target], purpose: .forEditorFunctionality, priority: nil)
   }
 
+  /// Prepare the given target.
+  ///
+  /// Returns `false` if the target was already up-to-date and `true` if this did actually cause the target to ger
+  /// prepared.
+  package func prepareTargetsForSourceKitOptions(target: BuildTargetIdentifier) async -> Bool {
+    if await preparationUpToDateTracker.isUpToDate(target) {
+      return false
+    }
+    await self.prepare(targets: [target], purpose: .forEditorFunctionality, priority: nil)
+    return true
+  }
+
   // MARK: - Helper functions
 
   private func prepare(

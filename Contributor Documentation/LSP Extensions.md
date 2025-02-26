@@ -506,6 +506,102 @@ export interface SetOptionsParams {
 }
 ```
 
+## `workspace/_sourceKitOptions`
+
+New request from the client to the server to retrieve the compiler arguments that SourceKit-LSP uses to process the document.
+
+This request does not require the document to be opened in SourceKit-LSP. This is also why it has the `workspace/` instead of the `textDocument/` prefix.
+
+> [!IMPORTANT]
+> This request is experimental, guarded behind the `sourcekit-options-request` experimental feature, and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
+
+
+- params: `SourceKitOptionsRequest`
+- result: `SourceKitOptionsResult`
+
+```ts
+export interface SourceKitOptionsRequest {
+  /**
+   * The document to get options for
+   */
+  textDocument: TextDocumentIdentifier;
+
+  /**
+   * If specified, explicitly request the compiler arguments when interpreting the document in the context of the given
+   * target.
+   *
+   * The target URI must match the URI that is used by the BSP server to identify the target. This option thus only
+   * makes sense to specify if the client also controls the BSP server.
+   *
+   * When this is `null`, SourceKit-LSP returns the compiler arguments it uses when the the document is opened in the
+   * client, ie. it infers a canonical target for the document.
+   */
+  target?: DocumentURI;
+
+  /**
+   * Whether SourceKit-LSP should ensure that the document's target is prepared before returning build settings.
+   *
+   * There is a tradeoff whether the target should be prepared: Preparing a target may take significant time but if the
+   * target is not prepared, the build settings might eg. refer to modules that haven't been built yet.
+   */
+  prepareTarget: bool;
+
+  /**
+   * If set to `true` and build settings could not be determined within a timeout (see `buildSettingsTimeout` in the
+   * SourceKit-LSP configuration file), this request returns fallback build settings.
+   *
+   * If set to `true` the request only finishes when build settings were provided by the build system.
+   */
+  allowFallbackSettings: bool
+}
+
+/**
+ * The kind of options that were returned by the `workspace/_sourceKitOptions` request, ie. whether they are fallback
+ * options or the real compiler options for the file.
+ */
+export namespace SourceKitOptionsKind {
+  /**
+   * The SourceKit options are known to SourceKit-LSP and returned them.
+   */
+  export const normal = "normal"
+
+  /**
+   * SourceKit-LSP was unable to determine the build settings for this file and synthesized fallback settings.
+   */
+  export const fallback = "fallback"
+}
+
+export interface SourceKitOptionsResult {
+  /**
+   * The compiler options required for the requested file.
+   */
+  compilerArguments: string[];
+
+  /**
+   * The working directory for the compile command.
+   */
+  workingDirectory?: string;
+
+  /**
+   * Whether SourceKit-LSP was able to determine the build settings or synthesized fallback settings.
+   */
+  kind: SourceKitOptionsKind;
+
+  /**
+   * - `true` If the request requested the file's target to be prepared and the target needed preparing
+   * - `false` If the request requested the file's target to be prepared and the target was up to date
+   * - `nil`: If the request did not request the file's target to be prepared or the target  could not be prepared for
+   * other reasons
+   */
+  didPrepareTarget?: bool
+
+  /**
+   * Additional data that the BSP server returned in the `textDocument/sourceKitOptions` BSP request. This data is not
+   * interpreted by SourceKit-LSP.
+   */
+  data?: LSPAny
+}
+```
 
 ## `workspace/getReferenceDocument`
 

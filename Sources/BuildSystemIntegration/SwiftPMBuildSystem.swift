@@ -610,7 +610,8 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       // with the `.cpp` file.
       let buildSettings = FileBuildSettings(
         compilerArguments: try await compilerArguments(for: DocumentURI(substituteFile), in: swiftPMTarget),
-        workingDirectory: try projectRoot.filePath
+        workingDirectory: try projectRoot.filePath,
+        language: request.language
       ).patching(newFile: DocumentURI(try path.asURL.realpath), originalFile: DocumentURI(substituteFile))
       return TextDocumentSourceKitOptionsResponse(
         compilerArguments: buildSettings.compilerArguments,

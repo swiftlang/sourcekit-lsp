@@ -14,6 +14,12 @@ import Foundation
 import SwiftExtensions
 import XCTest
 
+#if compiler(>=6)
+package import SKOptions
+#else
+import SKOptions
+#endif
+
 fileprivate let sdkArgs =
   if let defaultSDKPath {
     """
@@ -58,6 +64,7 @@ package class BuildServerTestProject: MultiFileTestProject {
     files: [RelativeFileLocation: String],
     buildServerConfigLocation: RelativeFileLocation = ".bsp/sourcekit-lsp.json",
     buildServer: String,
+    options: SourceKitLSPOptions? = nil,
     testName: String = #function
   ) async throws {
     var files = files
@@ -84,6 +91,7 @@ package class BuildServerTestProject: MultiFileTestProject {
       """.replacing("$SDK_ARGS", with: sdkArgs)
     try await super.init(
       files: files,
+      options: options,
       testName: testName
     )
   }

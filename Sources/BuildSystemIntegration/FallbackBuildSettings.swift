@@ -49,7 +49,7 @@ package func fallbackBuildSettings(
   default:
     return nil
   }
-  return FileBuildSettings(compilerArguments: args, workingDirectory: nil, isFallback: true)
+  return FileBuildSettings(compilerArguments: args, workingDirectory: nil, language: language, isFallback: true)
 }
 
 private func fallbackBuildSettingsSwift(
