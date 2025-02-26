@@ -897,8 +897,9 @@ final class SemanticTokensTests: XCTestCase {
     let testClient = try await TestSourceKitLSPClient(
       hooks: Hooks(preHandleRequest: { request in
         if request is DocumentSemanticTokensRequest {
-          // Sleep long enough for the edit to be handled
-          try? await Task.sleep(for: .seconds(10))
+          while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(1))
+          }
         }
       })
     )
