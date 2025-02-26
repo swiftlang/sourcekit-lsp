@@ -18,20 +18,10 @@ import SKOptions
 import SKTestSupport
 @_spi(Testing) import SemanticIndex
 @_spi(Testing) import SourceKitLSP
+import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
 import XCTest
-
-private actor TestBuildSystemInjector: BuildSystemInjector {
-  var testBuildSystem: TestBuildSystem? = nil
-
-  func createBuildSystem(projectRoot: URL, connectionToSourceKitLSP: any Connection) -> any BuiltInBuildSystem {
-    assert(testBuildSystem == nil, "TestBuildSystemInjector can only create a single TestBuildSystem")
-    let buildSystem = TestBuildSystem(connectionToSourceKitLSP: connectionToSourceKitLSP)
-    testBuildSystem = buildSystem
-    return buildSystem
-  }
-}
 
 final class BuildSystemTests: XCTestCase {
   /// The mock client used to communicate with the SourceKit-LSP server.p
@@ -59,10 +49,17 @@ final class BuildSystemTests: XCTestCase {
 
     let server = testClient.server
 
-    let buildSystemInjector = TestBuildSystemInjector()
+    let testBuildSystem = ThreadSafeBox<TestBuildSystem?>(initialValue: nil)
     let buildSystemManager = await BuildSystemManager(
       buildSystemSpec: BuildSystemSpec(
-        kind: .injected(buildSystemInjector),
+        kind: .injected({ projectRoot, connectionToSourceKitLSP in
+          assert(testBuildSystem.value == nil, "Build system injector hook can only create a single TestBuildSystem")
+          let buildSystem = TestBuildSystem(connectionToSourceKitLSP: connectionToSourceKitLSP)
+          testBuildSystem.value = buildSystem
+          let connection = LocalConnection(receiverName: "TestBuildSystem")
+          connection.start(handler: buildSystem)
+          return connection
+        }),
         projectRoot: URL(fileURLWithPath: "/"),
         configPath: URL(fileURLWithPath: "/")
       ),
@@ -71,7 +68,7 @@ final class BuildSystemTests: XCTestCase {
       connectionToClient: DummyBuildSystemManagerConnectionToClient(),
       buildSystemHooks: BuildSystemHooks()
     )
-    buildSystem = try await unwrap(buildSystemInjector.testBuildSystem)
+    buildSystem = try unwrap(testBuildSystem.value)
 
     self.workspace = await Workspace.forTesting(
       options: try .testDefault(),

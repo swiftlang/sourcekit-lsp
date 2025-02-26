@@ -10,28 +10,23 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
+import LanguageServerProtocolExtensions
+import SKLogging
+import SKOptions
+import ToolchainRegistry
+
 #if compiler(>=6)
 package import BuildServerProtocol
-package import Foundation
 package import LanguageServerProtocol
-import SKOptions
-import ToolchainRegistry
 #else
 import BuildServerProtocol
-import Foundation
 import LanguageServerProtocol
-import SKOptions
-import ToolchainRegistry
 #endif
 
 /// Build system to be used for testing BuildSystem and BuildSystemDelegate functionality with SourceKitLSPServer
 /// and other components.
-package actor TestBuildSystem: BuiltInBuildSystem {
-  package let fileWatchers: [FileSystemWatcher] = []
-
-  package let indexStorePath: URL? = nil
-  package let indexDatabasePath: URL? = nil
-
+package actor TestBuildSystem: MessageHandler {
   private let connectionToSourceKitLSP: any Connection
 
   /// Build settings by file.
@@ -48,7 +43,83 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
   }
 
-  package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
+  package nonisolated func handle(_ notification: some NotificationType) {
+    do {
+      switch notification {
+      case let notification as CancelRequestNotification:
+        try self.cancelRequest(notification)
+      case let notification as OnBuildExitNotification:
+        try self.onBuildExit(notification)
+      case let notification as OnBuildInitializedNotification:
+        try self.onBuildInitialized(notification)
+      case let notification as OnWatchedFilesDidChangeNotification:
+        try self.onWatchedFilesDidChange(notification)
+      default:
+        throw ResponseError.methodNotFound(type(of: notification).method)
+      }
+    } catch {
+      logger.error("Error while handling BSP notification")
+    }
+  }
+
+  package nonisolated func handle<Request: RequestType>(
+    _ request: Request,
+    id: RequestID,
+    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
+  ) {
+    func handle<R: RequestType>(_ request: R, using handler: @Sendable @escaping (R) async throws -> R.Response) {
+      Task {
+        do {
+          reply(.success(try await handler(request) as! Request.Response))
+        } catch {
+          reply(.failure(ResponseError(error)))
+        }
+      }
+    }
+
+    switch request {
+    case let request as BuildShutdownRequest:
+      handle(request, using: self.buildShutdown(_:))
+    case let request as BuildTargetSourcesRequest:
+      handle(request, using: self.buildTargetSourcesRequest)
+    case let request as InitializeBuildRequest:
+      handle(request, using: self.initializeBuildRequest)
+    case let request as TextDocumentSourceKitOptionsRequest:
+      handle(request, using: self.textDocumentSourceKitOptionsRequest)
+    case let request as WorkspaceBuildTargetsRequest:
+      handle(request, using: self.workspaceBuildTargetsRequest)
+    case let request as WorkspaceWaitForBuildSystemUpdatesRequest:
+      handle(request, using: self.workspaceWaitForBuildSystemUpdatesRequest)
+    default:
+      reply(.failure(ResponseError.methodNotFound(type(of: request).method)))
+    }
+  }
+
+  func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+    return InitializeBuildResponse(
+      displayName: "TestBuildSystem",
+      version: "",
+      bspVersion: "2.2.0",
+      capabilities: BuildServerCapabilities(),
+      data: nil
+    )
+  }
+
+  nonisolated func onBuildInitialized(_ notification: OnBuildInitializedNotification) throws {
+    // Nothing to do
+  }
+
+  func buildShutdown(_ request: BuildShutdownRequest) async throws -> VoidResponse {
+    return VoidResponse()
+  }
+
+  nonisolated func onBuildExit(_ notification: OnBuildExitNotification) throws {
+    // Nothing to do
+  }
+
+  func workspaceBuildTargetsRequest(
+    _ request: WorkspaceBuildTargetsRequest
+  ) async throws -> WorkspaceBuildTargetsResponse {
     return WorkspaceBuildTargetsResponse(targets: [
       BuildTarget(
         id: .dummy,
@@ -62,7 +133,7 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     ])
   }
 
-  package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+  func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
     return BuildTargetSourcesResponse(items: [
       SourcesItem(
         target: .dummy,
@@ -71,14 +142,8 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     ])
   }
 
-  package func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) async {}
-
-  package func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
-    throw PrepareNotSupportedError()
-  }
-
-  package func sourceKitOptions(
-    request: TextDocumentSourceKitOptionsRequest
+  func textDocumentSourceKitOptionsRequest(
+    _ request: TextDocumentSourceKitOptionsRequest
   ) async throws -> TextDocumentSourceKitOptionsResponse? {
     return buildSettingsByFile[request.textDocument.uri]
   }
@@ -86,4 +151,16 @@ package actor TestBuildSystem: BuiltInBuildSystem {
   package func waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
     return VoidResponse()
   }
+
+  nonisolated func onWatchedFilesDidChange(_ notification: OnWatchedFilesDidChangeNotification) throws {
+    // Not watching any files
+  }
+
+  func workspaceWaitForBuildSystemUpdatesRequest(
+    _ request: WorkspaceWaitForBuildSystemUpdatesRequest
+  ) async throws -> VoidResponse {
+    return VoidResponse()
+  }
+
+  nonisolated func cancelRequest(_ notification: CancelRequestNotification) throws {}
 }

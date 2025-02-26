@@ -119,6 +119,8 @@ fileprivate extension InitializeBuildResponse {
 private enum BuildSystemAdapter {
   case builtIn(BuiltInBuildSystemAdapter, connectionToBuildSystem: any Connection)
   case external(ExternalBuildSystemAdapter)
+  /// A message handler that was created by `injectBuildServer` and will handle all BSP messages.
+  case injected(any Connection)
 
   /// Send a notification to the build server.
   func send(_ notification: some NotificationType) async {
@@ -127,6 +129,8 @@ private enum BuildSystemAdapter {
       connectionToBuildSystem.send(notification)
     case .external(let external):
       await external.send(notification)
+    case .injected(let connection):
+      connection.send(notification)
     }
   }
 
@@ -137,6 +141,33 @@ private enum BuildSystemAdapter {
       return try await connectionToBuildSystem.send(request)
     case .external(let external):
       return try await external.send(request)
+    case .injected(let messageHandler):
+      // After we sent the request, the ID of the request.
+      // When we send a `CancelRequestNotification` this is reset to `nil` so that we don't send another cancellation
+      // notification.
+      let requestID = ThreadSafeBox<RequestID?>(initialValue: nil)
+
+      return try await withTaskCancellationHandler {
+        return try await withCheckedThrowingContinuation { continuation in
+          if Task.isCancelled {
+            return continuation.resume(throwing: CancellationError())
+          }
+          requestID.value = messageHandler.send(request) { response in
+            continuation.resume(with: response)
+          }
+          if Task.isCancelled {
+            // The task might have been cancelled after we checked `Task.isCancelled` above but before `requestID.value`
+            // is set, we won't send a `CancelRequestNotification` from the `onCancel` handler. Send it from here.
+            if let requestID = requestID.takeValue() {
+              messageHandler.send(CancelRequestNotification(id: requestID))
+            }
+          }
+        }
+      } onCancel: {
+        if let requestID = requestID.takeValue() {
+          messageHandler.send(CancelRequestNotification(id: requestID))
+        }
+      }
     }
   }
 }
@@ -234,12 +265,13 @@ private extension BuildSystemSpec {
       return nil
       #endif
     case .injected(let injector):
-      return await createBuiltInBuildSystemAdapter(
-        messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
-        buildSystemHooks: buildSystemHooks
-      ) { connectionToSourceKitLSP in
-        await injector.createBuildSystem(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
-      }
+      let connectionToSourceKitLSP = LocalConnection(
+        receiverName: "BuildSystemManager for \(projectRoot.lastPathComponent)"
+      )
+      connectionToSourceKitLSP.start(handler: messagesToSourceKitLSPHandler)
+      return .injected(
+        await injector(projectRoot, connectionToSourceKitLSP)
+      )
     }
   }
 }
