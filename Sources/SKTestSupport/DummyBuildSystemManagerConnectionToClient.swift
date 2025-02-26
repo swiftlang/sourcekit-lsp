@@ -29,12 +29,16 @@ package struct DummyBuildSystemManagerConnectionToClient: BuildSystemManagerConn
 
   package func send(_ notification: some LanguageServerProtocol.NotificationType) {}
 
+  package func nextRequestID() -> RequestID {
+    return .string(UUID().uuidString)
+  }
+
   package func send<Request: RequestType>(
     _ request: Request,
+    id: RequestID,
     reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
-  ) -> RequestID {
+  ) {
     reply(.failure(ResponseError.unknown("Not implemented")))
-    return .string(UUID().uuidString)
   }
 
   package func watchFiles(_ fileWatchers: [LanguageServerProtocol.FileSystemWatcher]) async {}
