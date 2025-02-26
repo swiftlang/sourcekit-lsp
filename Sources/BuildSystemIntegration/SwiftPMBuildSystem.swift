@@ -341,6 +341,52 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     }
   }
 
+  /// Loading the build description sometimes fails non-deterministically on Windows because it's unable to write
+  /// `output-file-map.json`, probably due to https://github.com/swiftlang/swift-package-manager/issues/8038.
+  /// If this happens, retry loading the build description up to `maxLoadAttempt` times.
+  private func loadBuildDescriptionWithRetryOnOutputFileMapWriteErrorOnWindows(
+    modulesGraph: ModulesGraph,
+    maxLoadAttempts: Int = 5
+  ) async throws -> (description: SourceKitLSPAPI.BuildDescription, errors: String) {
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift-package-manager/issues/8038 is fixed.
+    var loadAttempt = 0
+    while true {
+      loadAttempt += 1
+      do {
+        return try await BuildDescription.load(
+          destinationBuildParameters: destinationBuildParameters,
+          toolsBuildParameters: toolsBuildParameters,
+          packageGraph: modulesGraph,
+          pluginConfiguration: pluginConfiguration,
+          traitConfiguration: traitConfiguration,
+          disableSandbox: options.swiftPMOrDefault.disableSandbox ?? false,
+          scratchDirectory: swiftPMWorkspace.location.scratchDirectory.asURL,
+          fileSystem: localFileSystem,
+          observabilityScope: observabilitySystem.topScope.makeChildScope(
+            description: "Create SwiftPM build description"
+          )
+        )
+      } catch let error as NSError {
+        #if os(Windows)
+        if error.domain == NSCocoaErrorDomain, error.code == CocoaError.fileWriteNoPermission.rawValue,
+          let url = error.userInfo["NSURL"] as? URL, url.lastPathComponent == "output-file-map.json",
+          loadAttempt < maxLoadAttempts
+        {
+          logger.log(
+            """
+            Loading the build description failed to write output-file-map.json \
+            (attempt \(loadAttempt)/\(maxLoadAttempts)), trying again.
+            \(error)
+            """
+          )
+          continue
+        }
+        #endif
+        throw error
+      }
+    }
+  }
+
   /// (Re-)load the package settings by parsing the manifest and resolving all the targets and
   /// dependencies.
   ///
@@ -372,17 +418,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     // plugins, without having to worry about messing up any regular build state.
     let buildDescription: SourceKitLSPAPI.BuildDescription
     if isForIndexBuild && !(options.swiftPMOrDefault.skipPlugins ?? false) {
-      let loaded = try await BuildDescription.load(
-        destinationBuildParameters: destinationBuildParameters,
-        toolsBuildParameters: toolsBuildParameters,
-        packageGraph: modulesGraph,
-        pluginConfiguration: pluginConfiguration,
-        traitConfiguration: traitConfiguration,
-        disableSandbox: options.swiftPMOrDefault.disableSandbox ?? false,
-        scratchDirectory: swiftPMWorkspace.location.scratchDirectory.asURL,
-        fileSystem: localFileSystem,
-        observabilityScope: observabilitySystem.topScope.makeChildScope(description: "Create SwiftPM build description")
-      )
+      let loaded = try await loadBuildDescriptionWithRetryOnOutputFileMapWriteErrorOnWindows(modulesGraph: modulesGraph)
       if !loaded.errors.isEmpty {
         logger.error("Loading SwiftPM description had errors: \(loaded.errors)")
       }
