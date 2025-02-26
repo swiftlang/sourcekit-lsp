@@ -16,6 +16,8 @@ import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKTestSupport
+import SourceKitLSP
+import SwiftExtensions
 import TSCBasic
 import XCTest
 
@@ -368,5 +370,48 @@ final class BuildServerBuildSystemTests: XCTestCase {
       )
       return diags.fullReport?.items.map(\.message) == ["DEBUG SET"]
     }
+  }
+
+  func testDontBlockBuildServerInitializationIfBuildSystemIsUnresponsive() async throws {
+    // A build server that responds to the initialize request but not to any other requests.
+    final class UnresponsiveBuildServer: MessageHandler {
+      func handle(_ notification: some LanguageServerProtocol.NotificationType) {}
+
+      func handle<Request: RequestType>(
+        _ request: Request,
+        id: RequestID,
+        reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
+      ) {
+        switch request {
+        case is InitializeBuildRequest:
+          reply(
+            .success(
+              InitializeBuildResponse(
+                displayName: "UnresponsiveBuildServer",
+                version: "",
+                bspVersion: "2.2.0",
+                capabilities: BuildServerCapabilities()
+              ) as! Request.Response
+            )
+          )
+        default:
+          sleep(UInt32(defaultTimeout * 10))
+          break
+        }
+      }
+    }
+
+    // Creating the `MultiFileTestProject` waits for the initialize response and times out if it doesn't receive one.
+    // Make sure that we get that response back.
+    _ = try await MultiFileTestProject(
+      files: ["Test.swift": ""],
+      hooks: Hooks(
+        buildSystemHooks: BuildSystemHooks(injectBuildServer: { _, _ in
+          let connection = LocalConnection(receiverName: "Unresponsive build system")
+          connection.start(handler: UnresponsiveBuildServer())
+          return connection
+        })
+      )
+    )
   }
 }
