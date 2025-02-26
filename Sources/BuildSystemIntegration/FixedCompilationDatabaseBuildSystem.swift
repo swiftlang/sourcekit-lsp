@@ -24,10 +24,10 @@ import LanguageServerProtocol
 #endif
 
 func lastIndexStorePathArgument(in compilerArgs: [String]) -> String? {
-  for i in compilerArgs.indices.reversed() {
-    if compilerArgs[i] == "-index-store-path" && i + 1 < compilerArgs.count {
-      return compilerArgs[i + 1]
-    }
+  if let indexStorePathIndex = compilerArgs.lastIndex(of: "-index-store-path"),
+    indexStorePathIndex + 1 < compilerArgs.count
+  {
+    return compilerArgs[indexStorePathIndex + 1]
   }
   return nil
 }

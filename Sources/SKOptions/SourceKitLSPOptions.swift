@@ -182,10 +182,6 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   }
 
   public struct IndexOptions: Sendable, Codable, Equatable {
-    /// Directory in which a separate compilation stores the index store. By default, inferred from the build system.
-    public var indexStorePath: String?
-    /// Directory in which the indexstore-db should be stored. By default, inferred from the build system.
-    public var indexDatabasePath: String?
     /// Path remappings for remapping index data for local use.
     public var indexPrefixMap: [String: String]?
     /// A hint indicating how many cores background indexing should use at most (value between 0 and 1). Background indexing is not required to honor this setting.
@@ -208,14 +204,10 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     }
 
     public init(
-      indexStorePath: String? = nil,
-      indexDatabasePath: String? = nil,
       indexPrefixMap: [String: String]? = nil,
       maxCoresPercentageToUseForBackgroundIndexing: Double? = nil,
       updateIndexStoreTimeout: Int? = nil
     ) {
-      self.indexStorePath = indexStorePath
-      self.indexDatabasePath = indexDatabasePath
       self.indexPrefixMap = indexPrefixMap
       self.maxCoresPercentageToUseForBackgroundIndexing = maxCoresPercentageToUseForBackgroundIndexing
       self.updateIndexStoreTimeout = updateIndexStoreTimeout
@@ -223,8 +215,6 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
 
     static func merging(base: IndexOptions, override: IndexOptions?) -> IndexOptions {
       return IndexOptions(
-        indexStorePath: override?.indexStorePath ?? base.indexStorePath,
-        indexDatabasePath: override?.indexDatabasePath ?? base.indexDatabasePath,
         indexPrefixMap: override?.indexPrefixMap ?? base.indexPrefixMap,
         maxCoresPercentageToUseForBackgroundIndexing: override?.maxCoresPercentageToUseForBackgroundIndexing
           ?? base.maxCoresPercentageToUseForBackgroundIndexing,

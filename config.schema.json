@@ -126,11 +126,6 @@
       "description" : "Options related to indexing.",
       "markdownDescription" : "Options related to indexing.",
       "properties" : {
-        "indexDatabasePath" : {
-          "description" : "Directory in which the indexstore-db should be stored. By default, inferred from the build system.",
-          "markdownDescription" : "Directory in which the indexstore-db should be stored. By default, inferred from the build system.",
-          "type" : "string"
-        },
         "indexPrefixMap" : {
           "additionalProperties" : {
             "type" : "string"
@@ -138,11 +133,6 @@
           "description" : "Path remappings for remapping index data for local use.",
           "markdownDescription" : "Path remappings for remapping index data for local use.",
           "type" : "object"
-        },
-        "indexStorePath" : {
-          "description" : "Directory in which a separate compilation stores the index store. By default, inferred from the build system.",
-          "markdownDescription" : "Directory in which a separate compilation stores the index store. By default, inferred from the build system.",
-          "type" : "string"
         },
         "updateIndexStoreTimeout" : {
           "description" : "Number of seconds to wait for an update index store task to finish before killing it.",

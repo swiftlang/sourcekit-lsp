@@ -37,8 +37,6 @@ The structure of the file is currently not guaranteed to be stable. Options may 
 - `buildSettingsTimeout: integer`: Number of milliseconds to wait for build settings from the build system before using fallback build settings.
 - `clangdOptions: string[]`: Extra command line arguments passed to `clangd` when launching it.
 - `index`: Options related to indexing.
-  - `indexStorePath: string`: Directory in which a separate compilation stores the index store. By default, inferred from the build system.
-  - `indexDatabasePath: string`: Directory in which the indexstore-db should be stored. By default, inferred from the build system.
   - `indexPrefixMap: [string: string]`: Path remappings for remapping index data for local use.
   - `updateIndexStoreTimeout: integer`: Number of seconds to wait for an update index store task to finish before killing it.
 - `logging`: Options related to logging, changing SourceKit-LSP’s logging behavior on non-Apple platforms. On Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging). These options can only be set globally and not per workspace.
