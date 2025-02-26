@@ -312,4 +312,41 @@ final class CrashRecoveryTests: XCTestCase {
       "Clangd restarted too quickly after crashing twice in a row. We are not preventing crash loops."
     )
   }
+
+  func testPullDiagnosticsAfterCrash() async throws {
+    try SkipUnless.platformIsDarwin("Linux and Windows use in-process sourcekitd")
+    try SkipUnless.longTestsEnabled()
+
+    // Ensure that we don't cache the diagnostic report from the crashed sourcekitd and don't emit any of the internal
+    // sourcekitd errors such as `semantic editor disabled` in the diagnostic report.
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    testClient.openDocument(
+      """
+      func test() {
+        let x: String = 1
+      }
+      """,
+      uri: uri
+    )
+
+    let swiftLanguageService =
+      await testClient.server.languageService(
+        for: uri,
+        .swift,
+        in: testClient.server.workspaceForDocument(uri: uri)!
+      ) as! SwiftLanguageService
+
+    await swiftLanguageService.crash()
+
+    try await repeatUntilExpectedResult(timeout: .seconds(30)) {
+      let diagnostics = try await testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri)))
+      if diagnostics.fullReport?.items.count == 0 {
+        return false
+      }
+      let item = try XCTUnwrap(diagnostics.fullReport?.items.only)
+      XCTAssertEqual(item.message, "Cannot convert value of type 'Int' to specified type 'String'")
+      return true
+    }
+  }
 }

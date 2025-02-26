@@ -20,8 +20,10 @@ import SwiftExtensions
 import SwiftParserDiagnostics
 
 actor DiagnosticReportManager {
-  /// A task to produce diagnostics, either from a diagnostics request to `sourcektid` or by using the built-in swift-syntax.
-  private typealias ReportTask = RefCountedCancellableTask<RelatedFullDocumentDiagnosticReport>
+  /// A task to produce diagnostics, either from a diagnostics request to `sourcekitd` or by using the built-in swift-syntax.
+  private typealias ReportTask = RefCountedCancellableTask<
+    (report: RelatedFullDocumentDiagnosticReport, cachable: Bool)
+  >
 
   private let sourcekitd: SourceKitD
   private let options: SourceKitLSPOptions
@@ -68,7 +70,14 @@ actor DiagnosticReportManager {
     buildSettings: SwiftCompileCommand?
   ) async throws -> RelatedFullDocumentDiagnosticReport {
     if let reportTask = reportTask(for: snapshot.id, buildSettings: buildSettings), await !reportTask.isCancelled {
-      return try await reportTask.value
+      do {
+        let cachedValue = try await reportTask.value
+        if cachedValue.cachable {
+          return cachedValue.report
+        }
+      } catch {
+        // Do not cache failed requests
+      }
     }
     let reportTask: ReportTask
     if let buildSettings, !buildSettings.isFallback {
@@ -88,7 +97,7 @@ actor DiagnosticReportManager {
       }
     }
     setReportTask(for: snapshot.id, buildSettings: buildSettings, reportTask: reportTask)
-    return try await reportTask.value
+    return try await reportTask.value.report
   }
 
   func removeItemsFromCache(with uri: DocumentURI) async {
@@ -98,7 +107,7 @@ actor DiagnosticReportManager {
   private func requestReport(
     with snapshot: DocumentSnapshot,
     compilerArgs: [String]
-  ) async throws -> LanguageServerProtocol.RelatedFullDocumentDiagnosticReport {
+  ) async throws -> (report: RelatedFullDocumentDiagnosticReport, cachable: Bool) {
     try Task.checkCancellation()
 
     let keys = self.keys
@@ -119,10 +128,13 @@ actor DiagnosticReportManager {
       )
     } catch SKDError.requestFailed(let sourcekitdError) {
       var errorMessage = sourcekitdError
+      if errorMessage.contains("semantic editor is disabled") {
+        throw SKDError.requestFailed(sourcekitdError)
+      }
       if errorMessage.hasPrefix("error response (Request Failed): error: ") {
         errorMessage = String(errorMessage.dropFirst(40))
       }
-      return RelatedFullDocumentDiagnosticReport(items: [
+      let report = RelatedFullDocumentDiagnosticReport(items: [
         Diagnostic(
           range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
           severity: .error,
@@ -130,6 +142,9 @@ actor DiagnosticReportManager {
           message: "Internal SourceKit error: \(errorMessage)"
         )
       ])
+      // If generating the diagnostic report failed because of a sourcekitd problem, mark as as non-cachable because
+      // executing the sourcekitd request again might succeed (eg. if sourcekitd has been restored after a crash).
+      return (report, cachable: false)
     }
 
     try Task.checkCancellation()
@@ -144,12 +159,13 @@ actor DiagnosticReportManager {
         )
       }) ?? []
 
-    return RelatedFullDocumentDiagnosticReport(items: diagnostics)
+    let report = RelatedFullDocumentDiagnosticReport(items: diagnostics)
+    return (report, cachable: true)
   }
 
   private func requestFallbackReport(
     with snapshot: DocumentSnapshot
-  ) async throws -> LanguageServerProtocol.RelatedFullDocumentDiagnosticReport {
+  ) async throws -> (report: RelatedFullDocumentDiagnosticReport, cachable: Bool) {
     // If we don't have build settings or we only have fallback build settings,
     // sourcekitd won't be able to give us accurate semantic diagnostics.
     // Fall back to providing syntactic diagnostics from the built-in
@@ -163,7 +179,8 @@ actor DiagnosticReportManager {
       }
       return Diagnostic(diag, in: snapshot)
     }
-    return RelatedFullDocumentDiagnosticReport(items: diagnostics)
+    let report = RelatedFullDocumentDiagnosticReport(items: diagnostics)
+    return (report, cachable: true)
   }
 
   /// The reportTask for the given document snapshot and buildSettings.
@@ -184,10 +201,10 @@ actor DiagnosticReportManager {
     buildSettings: SwiftCompileCommand?,
     reportTask: ReportTask
   ) {
-    reportTaskCache.insert((snapshotID, buildSettings, reportTask), at: 0)
-
     // Remove any reportTasks for old versions of this document.
-    reportTaskCache.removeAll(where: { $0.snapshotID < snapshotID })
+    reportTaskCache.removeAll(where: { $0.snapshotID <= snapshotID })
+
+    reportTaskCache.insert((snapshotID, buildSettings, reportTask), at: 0)
 
     // If we still have more than `cacheSize` reportTasks, delete the ones that
     // were produced last. We can always re-request them on-demand.
