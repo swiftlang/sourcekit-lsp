@@ -4,7 +4,7 @@ This document contains notes about development and testing of SourceKit-LSP, the
 
 ## Building & Testing
 
-SourceKit-LSP is a SwiftPM package, so you can build and test it using anything that supports packages - opening in Xcode, Visual Studio Code with [Swift for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=sswg.swift-lang) installed, or through the command line using `swift build` and `swift test`. See below for extra instructions for Linux and Windows
+SourceKit-LSP is a SwiftPM package, so you can build and test it using anything that supports packages - opening in Xcode, Visual Studio Code with [Swift for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=swiftlang.swift-vscode) installed, or through the command line using `swift build` and `swift test`. See below for extra instructions for Linux and Windows
 
 SourceKit-LSP builds with the latest released Swift version and all its tests pass or, if unsupported by the latest Swift version, are skipped. Using the `main` development branch of SourceKit-LSP with an older Swift versions is not supported.
 
