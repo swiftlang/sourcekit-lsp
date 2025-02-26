@@ -471,21 +471,26 @@ package final actor SemanticIndexManager {
         }
       }
     }
-    if let inProgressPrepareForEditorTask {
-      // Cancel the in progress prepare for editor task to indicate that we are no longer interested in it.
-      // This will cancel the preparation of `inProgressPrepareForEditorTask`'s target if it hasn't started yet.
-      // (see comment at the end of `SemanticIndexManager.prepare`).
-      logger.debug(
-        "Marking preparation of \(inProgressPrepareForEditorTask.document) as no longer relevant because \(uri) was opened"
-      )
-      inProgressPrepareForEditorTask.task.cancel()
-    }
+
+    markPreparationForEditorFunctionalityTaskAsIrrelevant()
     inProgressPrepareForEditorTask = InProgressPrepareForEditorTask(
       id: id,
       document: uri,
       task: task
     )
     self.indexProgressStatusDidChange()
+  }
+
+  /// If there is an in-progress prepare for editor task, cancel it to indicate that we are no longer interested in it.
+  /// This will cancel the preparation of `inProgressPrepareForEditorTask`'s target if it hasn't started yet. If the
+  /// preparation has already started, we don't cancel it to guarantee forward progress (see comment at the end of
+  /// `SemanticIndexManager.prepare`).
+  package func markPreparationForEditorFunctionalityTaskAsIrrelevant() {
+    guard let inProgressPrepareForEditorTask else {
+      return
+    }
+    logger.debug("Marking preparation of \(inProgressPrepareForEditorTask.document) as no longer relevant")
+    inProgressPrepareForEditorTask.task.cancel()
   }
 
   /// Prepare the target that the given file is in, building all modules that the file depends on. Returns when

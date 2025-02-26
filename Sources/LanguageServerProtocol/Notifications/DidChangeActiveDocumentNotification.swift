@@ -13,10 +13,11 @@
 public struct DidChangeActiveDocumentNotification: NotificationType {
   public static let method: String = "window/didChangeActiveDocument"
 
-  /// The document that is being displayed in the active editor.
-  public var textDocument: TextDocumentIdentifier
+  /// The document that is being displayed in the active editor  or `null` to indicate that either no document is active
+  /// or that the currently open document is not handled by SourceKit-LSP.
+  public var textDocument: TextDocumentIdentifier?
 
-  public init(textDocument: TextDocumentIdentifier) {
+  public init(textDocument: TextDocumentIdentifier?) {
     self.textDocument = textDocument
   }
 }
