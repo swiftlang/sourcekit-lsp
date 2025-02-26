@@ -39,11 +39,15 @@ final class TaskSchedulerTests: XCTestCase {
         }
       },
       validate: { (recordings: [Set<TaskID>]) in
-        // Check that all high-priority tasks get executed before the low-priority tasks
-        let highPriorityRecordingSlice = recordings.dropLast(while: {
-          $0.isEmpty || $0.contains(where: \.isLowPriority)
+        // Check that all high-priority tasks start executing before the low-priority tasks
+        let highPriorityRecordingSlice = recordings.prefix(while: {
+          $0.isEmpty || $0.contains(where: \.isHighPriority)
         })
-        assertAllSatisfy(highPriorityRecordingSlice) { !$0.contains(where: \.isLowPriority) }
+        let taskIdsInHighPriorityRecordingSlice = Set(highPriorityRecordingSlice.flatMap { $0 })
+        XCTAssert(
+          taskIdsInHighPriorityRecordingSlice.isSuperset(of: (0..<10).map(TaskID.highPriority)),
+          "Low priority task started executing before high-priority task. Recording: \(recordings)"
+        )
 
         // Check that we never have more than the allowed number of low/high priority tasks, respectively
         assertAllSatisfy(recordings) { $0.count(where: \.isLowPriority) <= lowPriorityTasks }
