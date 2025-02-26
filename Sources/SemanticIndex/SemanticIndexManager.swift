@@ -255,20 +255,6 @@ package final actor SemanticIndexManager {
     self.indexProgressStatusDidChange = indexProgressStatusDidChange
   }
 
-  /// Schedules a task to index `files`. Files that are known to be up-to-date based on `indexStatus` will
-  /// not be re-indexed. The method will re-index files even if they have a unit with a timestamp that matches the
-  /// source file's mtime. This allows re-indexing eg. after compiler arguments or dependencies have changed.
-  ///
-  /// Returns immediately after scheduling that task.
-  ///
-  /// Indexing is being performed with a low priority.
-  private func scheduleBackgroundIndex(
-    files: some Collection<DocumentURI> & Sendable,
-    indexFilesWithUpToDateUnit: Bool
-  ) async {
-    _ = await self.scheduleIndexing(of: files, indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit, priority: .low)
-  }
-
   /// Regenerate the build graph (also resolving package dependencies) and then index all the source files known to the
   /// build system that don't currently have a unit with a timestamp that matches the mtime of the file.
   ///
@@ -295,7 +281,7 @@ package final actor SemanticIndexManager {
         await hooks.buildGraphGenerationDidFinish?()
         // TODO: Ideally this would be a type like any Collection<DocumentURI> & Sendable but that doesn't work due to
         // https://github.com/swiftlang/swift/issues/75602
-        var filesToIndex: [DocumentURI] =
+        let filesToIndex: [DocumentURI] =
           if let filesToIndex {
             filesToIndex
           } else {
@@ -304,21 +290,11 @@ package final actor SemanticIndexManager {
                 .sorted { $0.stringValue < $1.stringValue }
             } ?? []
           }
-        if !indexFilesWithUpToDateUnit {
-          let index = index.checked(for: .modifiedFiles)
-          filesToIndex = filesToIndex.filter {
-            if index.hasUpToDateUnit(for: $0) {
-              return false
-            }
-            if case .waitingForPreparation = inProgressIndexTasks[$0] {
-              // We haven't started preparing the file yet. Scheduling a new index operation for it won't produce any
-              // more recent results.
-              return false
-            }
-            return true
-          }
-        }
-        await scheduleBackgroundIndex(files: filesToIndex, indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit)
+        _ = await self.scheduleIndexing(
+          of: filesToIndex,
+          indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit,
+          priority: .low
+        )
         scheduleIndexingTasks[taskId] = nil
       }
     }
@@ -421,8 +397,12 @@ package final actor SemanticIndexManager {
   ///
   /// If `files` contains a header file, this will return a `FileToIndex` that re-indexes a main file which includes the
   /// header file to update the header file's index.
+  ///
+  /// The returned results will not include files that are known to be up-to-date based on `indexStoreUpToDateTracker`
+  /// or the unit timestamp will not be re-indexed unless `indexFilesWithUpToDateUnit` is `true`.
   private func filesToIndex(
-    toCover files: some Collection<DocumentURI> & Sendable
+    toCover files: some Collection<DocumentURI> & Sendable,
+    indexFilesWithUpToDateUnits: Bool
   ) async -> [FileToIndex] {
     let sourceFiles = await orLog("Getting source files in project") {
       Set(try await buildSystemManager.sourceFiles(includeNonBuildableFiles: false).keys)
@@ -430,24 +410,47 @@ package final actor SemanticIndexManager {
     guard let sourceFiles else {
       return []
     }
-    let filesToReIndex = await files.asyncCompactMap { (uri) -> FileToIndex? in
-      if sourceFiles.contains(uri) {
-        // If this is a source file, just index it.
-        return .indexableFile(uri)
+    let deletedFilesIndex = index.checked(for: .deletedFiles)
+    let modifiedFilesIndex = index.checked(for: .modifiedFiles)
+    let filesToReIndex =
+      await files
+      .asyncFilter {
+        // First, check if we know that the file is up-to-date, in which case we don't need to hit the index or file
+        // system at all
+        if !indexFilesWithUpToDateUnits, await indexStoreUpToDateTracker.isUpToDate($0) {
+          return false
+        }
+        if case .waitingForPreparation = inProgressIndexTasks[$0] {
+          // We haven't started preparing the file yet. Scheduling a new index operation for it won't produce any
+          // more recent results.
+          return false
+        }
+        return true
+      }.compactMap { (uri) -> FileToIndex? in
+        if sourceFiles.contains(uri) {
+          if !indexFilesWithUpToDateUnits, modifiedFilesIndex.hasUpToDateUnit(for: uri) {
+            return nil
+          }
+          // If this is a source file, just index it.
+          return .indexableFile(uri)
+        }
+        // Otherwise, see if it is a header file. If so, index a main file that that imports it to update header file's
+        // index.
+        // Deterministically pick a main file. This ensures that we always pick the same main file for a header. This way,
+        // if we request the same header to be indexed twice, we'll pick the same unit file the second time around,
+        // realize that its timestamp is later than the modification date of the header and we don't need to re-index.
+        let mainFile =
+          deletedFilesIndex
+          .mainFilesContainingFile(uri: uri, crossLanguage: false)
+          .sorted(by: { $0.stringValue < $1.stringValue }).first
+        guard let mainFile else {
+          return nil
+        }
+        if !indexFilesWithUpToDateUnits, modifiedFilesIndex.hasUpToDateUnit(for: uri, mainFile: mainFile) {
+          return nil
+        }
+        return .headerFile(header: uri, mainFile: mainFile)
       }
-      // Otherwise, see if it is a header file. If so, index a main file that that imports it to update header file's
-      // index.
-      // Deterministically pick a main file. This ensures that we always pick the same main file for a header. This way,
-      // if we request the same header to be indexed twice, we'll pick the same unit file the second time around,
-      // realize that its timestamp is later than the modification date of the header and we don't need to re-index.
-      let mainFile = index.checked(for: .deletedFiles)
-        .mainFilesContainingFile(uri: uri, crossLanguage: false)
-        .sorted(by: { $0.stringValue < $1.stringValue }).first
-      guard let mainFile else {
-        return nil
-      }
-      return .headerFile(header: uri, mainFile: mainFile)
-    }
     return filesToReIndex
   }
 
@@ -652,7 +655,9 @@ package final actor SemanticIndexManager {
     return await updateIndexTask.waitToFinishPropagatingCancellation()
   }
 
-  /// Index the given set of files at the given priority, preparing their targets beforehand, if needed.
+  /// Index the given set of files at the given priority, preparing their targets beforehand, if needed. Files that are
+  /// known to be up-to-date based on `indexStoreUpToDateTracker` or the unit timestamp will not be re-indexed unless
+  /// `indexFilesWithUpToDateUnit` is `true`.
   ///
   /// The returned task finishes when all files are indexed.
   private func scheduleIndexing(
@@ -665,14 +670,15 @@ package final actor SemanticIndexManager {
     // We will check the up-to-date status again in `IndexTaskDescription.execute`. This ensures that if we schedule
     // schedule two indexing jobs for the same file in quick succession, only the first one actually updates the index
     // store and the second one will be a no-op once it runs.
-    let outOfDateFiles = await filesToIndex(toCover: files).asyncFilter {
-      if await indexStoreUpToDateTracker.isUpToDate($0.sourceFile) {
-        return false
-      }
-      return true
+    let outOfDateFiles = await filesToIndex(toCover: files, indexFilesWithUpToDateUnits: indexFilesWithUpToDateUnit)
+      // sort files to get deterministic indexing order
+      .sorted(by: { $0.sourceFile.stringValue < $1.sourceFile.stringValue })
+
+    if outOfDateFiles.isEmpty {
+      // Early exit if there are no files to index.
+      return Task {}
     }
-    // sort files to get deterministic indexing order
-    .sorted(by: { $0.sourceFile.stringValue < $1.sourceFile.stringValue })
+
     logger.debug("Scheduling indexing of \(outOfDateFiles.map(\.sourceFile.stringValue).joined(separator: ", "))")
 
     // Sort the targets in topological order so that low-level targets get built before high-level targets, allowing us
