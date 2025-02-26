@@ -58,9 +58,9 @@ package struct MatchCollator {
     maximumNumberOfItemsForExpensiveSelection: Int,
     body: (inout MatchCollator) -> R
   ) -> R {
-    let rescoredMatches = UnsafeMutableBufferPointer<RescoredMatch>.allocate(capacity: originalMatches.count);
+    let rescoredMatches = UnsafeMutableBufferPointer<RescoredMatch>.allocate(capacity: originalMatches.count)
     defer { rescoredMatches.deinitializeAllAndDeallocate() }
-    let groupScores = UnsafeMutableBufferPointer<Double>.allocate(capacity: originalMatches.count);
+    let groupScores = UnsafeMutableBufferPointer<Double>.allocate(capacity: originalMatches.count)
     defer { groupScores.deinitializeAllAndDeallocate() }
     for (matchIndex, originalMatch) in originalMatches.enumerated() {
       rescoredMatches.initialize(

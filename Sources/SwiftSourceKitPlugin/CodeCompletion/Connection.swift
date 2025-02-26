@@ -198,9 +198,9 @@ final class Connection {
       let req = sourcekitd.ideApi.completion_request_create(loc.path, UInt32(offset), cargs, UInt32(cargs.count))
       defer { sourcekitd.ideApi.completion_request_dispose(req) }
       sourcekitd.ideApi.completion_request_set_annotate_result(req, options.annotateResults)
-      sourcekitd.ideApi.completion_request_set_include_objectliterals(req, options.includeObjectLiterals);
-      sourcekitd.ideApi.completion_request_set_add_inits_to_top_level(req, options.addInitsToTopLevel);
-      sourcekitd.ideApi.completion_request_set_add_call_with_no_default_args(req, options.addCallWithNoDefaultArgs);
+      sourcekitd.ideApi.completion_request_set_include_objectliterals(req, options.includeObjectLiterals)
+      sourcekitd.ideApi.completion_request_set_add_inits_to_top_level(req, options.addInitsToTopLevel)
+      sourcekitd.ideApi.completion_request_set_add_call_with_no_default_args(req, options.addCallWithNoDefaultArgs)
 
       do {
         let sourcekitd = self.sourcekitd

@@ -57,7 +57,7 @@ package struct InfluencingIdentifiers: Sendable {
     _ tokenizedIdentifiers: [[String]],
     body: (Self) throws -> R
   ) rethrows -> R {
-    let allocatedIdentifiers = allocate(copyingTokenizedIdentifiers: tokenizedIdentifiers);
+    let allocatedIdentifiers = allocate(copyingTokenizedIdentifiers: tokenizedIdentifiers)
     defer { allocatedIdentifiers.deallocate() }
     return try body(allocatedIdentifiers)
   }
@@ -84,7 +84,7 @@ package struct InfluencingIdentifiers: Sendable {
   /// match. If each identifier has one or more tokens in the candidate, return 1.0. If no tokens from the identifiers appear
   /// in the candidate, return 0.0.
   package func score(candidate: Candidate, allocator: inout UnsafeStackAllocator) -> Double {
-    var candidateTokenization: Pattern.Tokenization? = nil;
+    var candidateTokenization: Pattern.Tokenization? = nil
     defer { candidateTokenization?.deallocate(allocator: &allocator) }
     var score = 0.0
     for identifier in identifiers {

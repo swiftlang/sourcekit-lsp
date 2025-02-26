@@ -249,10 +249,10 @@ fileprivate struct WindowsCommandParser {
       } else if currentCharacter == "\"" {
         str += parseQuoted()
       } else if currentCharacter == #"\"# {
-        assert(!parsingCommandName, "else we'd have treated it as a normal char");
+        assert(!parsingCommandName, "else we'd have treated it as a normal char")
         str.append(parseBackslash())
       } else {
-        preconditionFailure("unexpected special character");
+        preconditionFailure("unexpected special character")
       }
     }
     return str
