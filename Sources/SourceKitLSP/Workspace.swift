@@ -231,17 +231,22 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
         sourceKitLSPServer.sendNotificationToClient(notification)
       }
 
+      func nextRequestID() -> RequestID {
+        return .string(UUID().uuidString)
+      }
+
       func send<Request: RequestType>(
         _ request: Request,
+        id: RequestID,
         reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
-      ) -> RequestID {
+      ) {
         guard let sourceKitLSPServer else {
           // `SourceKitLSPServer` has been destructed. We are tearing down the
           // language server. Nothing left to do.
           reply(.failure(ResponseError.unknown("Connection to the editor closed")))
-          return .string(UUID().uuidString)
+          return
         }
-        return sourceKitLSPServer.client.send(request, reply: reply)
+        sourceKitLSPServer.client.send(request, id: id, reply: reply)
       }
 
       /// Whether the client can handle `WorkDoneProgress` requests.

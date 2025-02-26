@@ -97,10 +97,7 @@ public final class JSONRPCConnection: Connection {
   }
 
   /// An integer that hasn't been used for a request ID yet.
-  ///
-  /// Access to this must be be guaranteed to be sequential to avoid data races. Currently, all access are
-  ///  - `nextRequestID()`: This is synchronized on `queue`.
-  private nonisolated(unsafe) var nextRequestIDStorage: Int = 0
+  let nextRequestIDStorage = AtomicUInt32(initialValue: 0)
 
   struct OutstandingRequest: Sendable {
     var responseType: ResponseType.Type
@@ -663,12 +660,8 @@ public final class JSONRPCConnection: Connection {
   }
 
   /// Request id for the next outgoing request.
-  ///
-  /// - Important: Must be called on `queue`
-  private func nextRequestID() -> RequestID {
-    dispatchPrecondition(condition: .onQueue(queue))
-    nextRequestIDStorage += 1
-    return .number(nextRequestIDStorage)
+  public func nextRequestID() -> RequestID {
+    return .string("sk-\(nextRequestIDStorage.fetchAndIncrement())")
   }
 
   // MARK: Connection interface
@@ -691,14 +684,13 @@ public final class JSONRPCConnection: Connection {
   /// When the receiving end replies to the request, execute `reply` with the response.
   public func send<Request: RequestType>(
     _ request: Request,
+    id: RequestID,
     reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
-  ) -> RequestID {
-    let id: RequestID = self.queue.sync {
-      let id = nextRequestID()
-
+  ) {
+    self.queue.sync {
       guard readyToSend() else {
         reply(.failure(.serverCancelled))
-        return id
+        return
       }
 
       outstandingRequests[id] = OutstandingRequest(
@@ -734,10 +726,8 @@ public final class JSONRPCConnection: Connection {
       )
 
       send(.request(request, id: id))
-      return id
+      return
     }
-
-    return id
   }
 
   /// After the remote side of the connection sent a request to us, return a reply to the remote side.

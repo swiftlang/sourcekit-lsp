@@ -10,16 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Dispatch
+import LanguageServerProtocolJSONRPC
+import SKLogging
+import SwiftExtensions
+
 #if compiler(>=6)
-import Dispatch
 package import LanguageServerProtocol
-import LanguageServerProtocolJSONRPC
-import SKLogging
 #else
-import Dispatch
 import LanguageServerProtocol
-import LanguageServerProtocolJSONRPC
-import SKLogging
 #endif
 
 /// A connection between two message handlers in the same process.
@@ -45,8 +44,7 @@ package final class LocalConnection: Connection, Sendable {
   /// The queue guarding `_nextRequestID`.
   private let queue: DispatchQueue = DispatchQueue(label: "local-connection-queue")
 
-  /// - Important: Must only be accessed from `queue`
-  nonisolated(unsafe) private var _nextRequestID: Int = 0
+  private let _nextRequestID = AtomicUInt32(initialValue: 0)
 
   /// - Important: Must only be accessed from `queue`
   nonisolated(unsafe) private var state: State = .ready
@@ -88,11 +86,8 @@ package final class LocalConnection: Connection, Sendable {
     }
   }
 
-  func nextRequestID() -> RequestID {
-    return queue.sync {
-      _nextRequestID += 1
-      return .number(_nextRequestID)
-    }
+  public func nextRequestID() -> RequestID {
+    return .string("sk-\(_nextRequestID.fetchAndIncrement())")
   }
 
   package func send<Notification: NotificationType>(_ notification: Notification) {
@@ -110,10 +105,9 @@ package final class LocalConnection: Connection, Sendable {
 
   package func send<Request: RequestType>(
     _ request: Request,
+    id: RequestID,
     reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
-  ) -> RequestID {
-    let id = nextRequestID()
-
+  ) {
     logger.info(
       """
       Sending request to \(self.name, privacy: .public) (id: \(id, privacy: .public)):
@@ -128,7 +122,7 @@ package final class LocalConnection: Connection, Sendable {
         """
       )
       reply(.failure(.serverCancelled))
-      return id
+      return
     }
 
     precondition(self.state == .started)
@@ -153,7 +147,5 @@ package final class LocalConnection: Connection, Sendable {
       }
       reply(result)
     }
-
-    return id
   }
 }
