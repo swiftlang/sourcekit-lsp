@@ -140,6 +140,11 @@ package actor SkipUnless {
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
+    try XCTSkipUnless(
+      Platform.current != .windows,
+      "Temporarily skipping as we need to fix these tests to use the cmake-built swift-syntax libraries on Windows."
+    )
+
     return try await shared.skipUnlessSupported(file: file, line: line) {
       do {
         let project = try await SwiftPMTestProject(
