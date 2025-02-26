@@ -53,8 +53,13 @@ public struct TextDocumentSourceKitOptionsResponse: ResponseType, Hashable {
   /// The working directory for the compile command.
   public var workingDirectory: String?
 
-  public init(compilerArguments: [String], workingDirectory: String? = nil) {
+  /// Additional data that will not be interpreted by SourceKit-LSP but made available to clients in the
+  /// `workspace/_sourceKitOptions` LSP requests.
+  public var data: LSPAny?
+
+  public init(compilerArguments: [String], workingDirectory: String? = nil, data: LSPAny? = nil) {
     self.compilerArguments = compilerArguments
     self.workingDirectory = workingDirectory
+    self.data = data
   }
 }

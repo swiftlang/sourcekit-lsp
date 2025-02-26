@@ -11,19 +11,20 @@
 //===----------------------------------------------------------------------===//
 
 import BuildSystemIntegration
+import LanguageServerProtocol
 import SourceKitLSP
 import XCTest
 
 final class SwiftCompileCommandsTest: XCTestCase {
 
   func testWorkingDirectoryIsAdded() {
-    let settings = FileBuildSettings(compilerArguments: ["a", "b"], workingDirectory: "/build/root")
+    let settings = FileBuildSettings(compilerArguments: ["a", "b"], workingDirectory: "/build/root", language: .swift)
     let compileCommand = SwiftCompileCommand(settings)
     XCTAssertEqual(compileCommand.compilerArgs, ["a", "b", "-working-directory", "/build/root"])
   }
 
   func testNoWorkingDirectory() {
-    let settings = FileBuildSettings(compilerArguments: ["a", "b"])
+    let settings = FileBuildSettings(compilerArguments: ["a", "b"], language: .swift)
     let compileCommand = SwiftCompileCommand(settings)
     XCTAssertEqual(compileCommand.compilerArgs, ["a", "b"])
   }
@@ -31,7 +32,8 @@ final class SwiftCompileCommandsTest: XCTestCase {
   func testPreexistingWorkingDirectoryArg() {
     let settings = FileBuildSettings(
       compilerArguments: ["a", "b", "-working-directory", "/custom-root"],
-      workingDirectory: "/build/root"
+      workingDirectory: "/build/root",
+      language: .swift
     )
     let compileCommand = SwiftCompileCommand(settings)
     XCTAssertEqual(compileCommand.compilerArgs, ["a", "b", "-working-directory", "/custom-root"])

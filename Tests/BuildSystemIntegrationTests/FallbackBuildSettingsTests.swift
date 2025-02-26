@@ -27,7 +27,12 @@ final class FallbackBuildSystemTests: XCTestCase {
 
     XCTAssertEqual(
       fallbackBuildSettings(for: source, language: .swift, options: .init(sdk: sdk)),
-      FileBuildSettings(compilerArguments: ["-sdk", sdk, source.pseudoPath], workingDirectory: nil, isFallback: true)
+      FileBuildSettings(
+        compilerArguments: ["-sdk", sdk, source.pseudoPath],
+        workingDirectory: nil,
+        language: .swift,
+        isFallback: true
+      )
     )
   }
 
@@ -71,6 +76,7 @@ final class FallbackBuildSystemTests: XCTestCase {
       FileBuildSettings(
         compilerArguments: ["-isysroot", sdk, source.pseudoPath],
         workingDirectory: nil,
+        language: .cpp,
         isFallback: true
       )
     )

@@ -834,6 +834,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await request.reply { try await rename(request.params) }
     case let request as RequestAndReply<SetOptionsRequest>:
       await request.reply { try await self.setBackgroundIndexingPaused(request.params) }
+    case let request as RequestAndReply<SourceKitOptionsRequest>:
+      await request.reply { try await sourceKitOptions(request.params) }
     case let request as RequestAndReply<ShutdownRequest>:
       await request.reply { try await shutdown(request.params) }
     case let request as RequestAndReply<SymbolInfoRequest>:
@@ -1483,7 +1485,7 @@ extension SourceKitLSPServer {
 
   func setBackgroundIndexingPaused(_ request: SetOptionsRequest) async throws -> VoidResponse {
     guard self.options.hasExperimentalFeature(.setOptionsRequest) else {
-      throw ResponseError.unknown("Pausing background indexing is an experimental feature")
+      throw ResponseError.unknown("\(SetOptionsRequest.method) indexing is an experimental request")
     }
     if let backgroundIndexingPaused = request.backgroundIndexingPaused {
       await self.indexTaskScheduler.setMaxConcurrentTasksByPriority(
@@ -1492,6 +1494,47 @@ extension SourceKitLSPServer {
     }
 
     return VoidResponse()
+  }
+
+  func sourceKitOptions(_ request: SourceKitOptionsRequest) async throws -> SourceKitOptionsResponse {
+    guard options.hasExperimentalFeature(.sourceKitOptionsRequest) else {
+      throw ResponseError.unknown("\(SourceKitOptionsRequest.method) is an experimental request")
+    }
+    let uri = request.textDocument.uri
+    guard let workspace = await self.workspaceForDocument(uri: uri) else {
+      throw ResponseError.workspaceNotOpen(uri)
+    }
+
+    let target: BuildTargetIdentifier?
+    if let requestedTarget = request.target {
+      target = BuildTargetIdentifier(uri: requestedTarget)
+    } else if let canonicalTarget = await workspace.buildSystemManager.canonicalTarget(for: uri) {
+      target = canonicalTarget
+    } else {
+      target = nil
+    }
+    let didPrepareTarget: Bool?
+    if request.prepareTarget, let target, let semanticIndexManager = workspace.semanticIndexManager {
+      didPrepareTarget = await semanticIndexManager.prepareTargetsForSourceKitOptions(target: target)
+    } else {
+      didPrepareTarget = nil
+    }
+    let buildSettings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
+      for: request.textDocument.uri,
+      target: target,
+      language: nil,
+      fallbackAfterTimeout: request.allowFallbackSettings
+    )
+    guard let buildSettings else {
+      throw ResponseError.unknown("Unable to determine build settings")
+    }
+    return SourceKitOptionsResponse(
+      compilerArguments: buildSettings.compilerArguments,
+      workingDirectory: buildSettings.workingDirectory,
+      kind: buildSettings.isFallback ? .fallback : .normal,
+      didPrepareTarget: didPrepareTarget,
+      data: buildSettings.data
+    )
   }
 
   // MARK: - Language features

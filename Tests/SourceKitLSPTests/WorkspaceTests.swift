@@ -1172,11 +1172,9 @@ final class WorkspaceTests: XCTestCase {
 
     _ = try project.openDocument("LibA.swift")
     let (libBUri, _) = try project.openDocument("LibB.swift")
+    let baseLibUri = try XCTUnwrap(project.uri(for: "BaseLib.swift"))
 
-    project.testClient.send(
-      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: try project.uri(for: "BaseLib.swift"), type: .changed)]
-      )
-    )
+    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: baseLibUri, type: .changed)]))
     didChangeBaseLib.value = true
 
     project.testClient.send(
@@ -1185,6 +1183,137 @@ final class WorkspaceTests: XCTestCase {
     try await fulfillmentOfOrThrow([didPrepareLibBAfterChangingBaseLib])
 
     withExtendedLifetime(project) {}
+  }
+
+  func testSourceKitOptions() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": ""
+      ],
+      options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest])
+    )
+    let optionsOptional = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(unwrap(project.uri(for: "Test.swift"))),
+        prepareTarget: false,
+        allowFallbackSettings: false
+      )
+    )
+    let options = try XCTUnwrap(optionsOptional)
+    XCTAssert(options.compilerArguments.contains("-module-name"))
+    XCTAssertEqual(options.kind, .normal)
+    XCTAssertNil(options.didPrepareTarget)
+  }
+
+  func testSourceKitOptionsAllowingFallback() async throws {
+    let hooks = Hooks(
+      buildSystemHooks: BuildSystemHooks(
+        swiftPMTestHooks: SwiftPMTestHooks(
+          reloadPackageDidStart: {
+            // Essentially make sure that the package never loads, so we are forced to return fallback arguments.
+            try? await Task.sleep(for: .seconds(60 * 60))
+          }
+        )
+      )
+    )
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": ""
+      ],
+      options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest]),
+      hooks: hooks,
+      pollIndex: false
+    )
+    let optionsOptional = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(unwrap(project.uri(for: "Test.swift"))),
+        prepareTarget: false,
+        allowFallbackSettings: true
+      )
+    )
+    let options = try XCTUnwrap(optionsOptional)
+    // Fallback arguments can't know the module name
+    XCTAssert(!options.compilerArguments.contains("-module-name"))
+    XCTAssertEqual(options.kind, .fallback)
+    XCTAssertNil(options.didPrepareTarget)
+  }
+
+  func testSourceKitOptionsTriggersPrepare() async throws {
+    let didChangeBaseLib = AtomicBool(initialValue: false)
+    let didPrepareAfterChangingBaseLib = self.expectation(description: "Did prepare after changing base lib")
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "BaseLib/BaseLib.swift": "",
+        "LibA/LibA.swift": "",
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLib",
+          targets: [
+            .target(name: "BaseLib"),
+            .target(name: "LibA", dependencies: ["BaseLib"])
+          ]
+        )
+        """,
+      options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest]),
+      hooks: Hooks(
+        indexHooks: IndexHooks(
+          preparationTaskDidStart: { _ in
+            guard didChangeBaseLib.value else {
+              return
+            }
+            didPrepareAfterChangingBaseLib.fulfill()
+          }
+        )
+      ),
+      enableBackgroundIndexing: true
+    )
+
+    let baseLibUri = try XCTUnwrap(project.uri(for: "BaseLib.swift"))
+    let uri = try XCTUnwrap(project.uri(for: "LibA.swift"))
+
+    let noPrepare = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        prepareTarget: false,
+        allowFallbackSettings: false
+      )
+    )
+    try XCTAssertEqual(XCTUnwrap(noPrepare).didPrepareTarget, nil)
+
+    let prepareUpToDate = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        prepareTarget: true,
+        allowFallbackSettings: false
+      )
+    )
+    try XCTAssertEqual(XCTUnwrap(prepareUpToDate).didPrepareTarget, false)
+
+    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: baseLibUri, type: .changed)]))
+    didChangeBaseLib.value = true
+
+    let triggerPrepare = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        prepareTarget: true,
+        allowFallbackSettings: false
+      )
+    )
+    try XCTAssertEqual(XCTUnwrap(triggerPrepare).didPrepareTarget, true)
+
+    // Check that we did actually run a preparation
+    try await fulfillmentOfOrThrow([didPrepareAfterChangingBaseLib])
+
+    let prepareUpToDateAgain = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        prepareTarget: true,
+        allowFallbackSettings: false
+      )
+    )
+    try XCTAssertEqual(XCTUnwrap(prepareUpToDateAgain).didPrepareTarget, false)
   }
 }
 

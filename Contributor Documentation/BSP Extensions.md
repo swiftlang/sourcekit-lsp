@@ -120,6 +120,10 @@ export interface TextDocumentSourceKitOptionsResult {
 
   /** The working directory for the compile command. */
   workingDirectory?: string;
+
+  /** Additional data that will not be interpreted by SourceKit-LSP but made available to clients in the
+   * `workspace/_sourceKitOptions` LSP requests. */
+  data?: LSPAny;
 }
 ```
 

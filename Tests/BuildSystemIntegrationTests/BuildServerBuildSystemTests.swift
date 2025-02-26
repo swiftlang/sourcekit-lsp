@@ -15,6 +15,7 @@ import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
+import SKOptions
 import SKTestSupport
 import TSCBasic
 import XCTest
@@ -368,5 +369,152 @@ final class BuildServerBuildSystemTests: XCTestCase {
       )
       return diags.fullReport?.items.map(\.message) == ["DEBUG SET"]
     }
+  }
+
+  func testBuildSettingsDataPassThrough() async throws {
+    let project = try await BuildServerTestProject(
+      files: [
+        "Test.swift": ""
+      ],
+      buildServer: """
+        class BuildServer(AbstractBuildServer):
+          def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "targets": [
+                {
+                  "id": {"uri": "bsp://dummy"},
+                  "tags": [],
+                  "languageIds": [],
+                  "dependencies": [],
+                  "capabilities": {},
+                }
+              ]
+            }
+
+          def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "items": [
+                {
+                  "target": {"uri": "bsp://dummy"},
+                  "sources": [
+                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False}
+                  ],
+                }
+              ]
+            }
+
+          def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "compilerArguments": [r"$TEST_DIR/Test.swift"],
+              "data": {"custom": "value"}
+            }
+        """,
+      options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest])
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+
+    let options = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        prepareTarget: false,
+        allowFallbackSettings: false
+      )
+    )
+    XCTAssertEqual(options?.data, LSPAny.dictionary(["custom": .string("value")]))
+  }
+
+  func testBuildSettingsForFilePartOfMultipleTargets() async throws {
+    let project = try await BuildServerTestProject(
+      files: [
+        "Test.swift": ""
+      ],
+      buildServer: """
+        class BuildServer(AbstractBuildServer):
+          def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "targets": [
+                {
+                  "id": {"uri": "bsp://first"},
+                  "tags": [],
+                  "languageIds": [],
+                  "dependencies": [],
+                  "capabilities": {},
+                },
+                {
+                  "id": {"uri": "bsp://second"},
+                  "tags": [],
+                  "languageIds": [],
+                  "dependencies": [],
+                  "capabilities": {},
+                }
+              ]
+            }
+
+          def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "items": [
+                {
+                  "target": {"uri": "bsp://first"},
+                  "sources": [
+                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False}
+                  ],
+                },
+                {
+                  "target": {"uri": "bsp://second"},
+                  "sources": [
+                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False}
+                  ],
+                }
+              ]
+            }
+
+          def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
+            target_uri = request["target"]["uri"]
+            if target_uri == "bsp://first":
+              return {
+                "compilerArguments": [r"$TEST_DIR/Test.swift", "-DFIRST"]
+              }
+            elif target_uri == "bsp://second":
+              return {
+                "compilerArguments": [r"$TEST_DIR/Test.swift", "-DSECOND"]
+              }
+            else:
+              assert False, f"Unknown target {target_uri}"
+        """,
+      options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest])
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+
+    let firstOptions = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        target: DocumentURI(string: "bsp://first"),
+        prepareTarget: false,
+        allowFallbackSettings: false
+      )
+    )
+    XCTAssert(try XCTUnwrap(firstOptions).compilerArguments.contains("-DFIRST"))
+
+    let secondOptions = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        target: DocumentURI(string: "bsp://second"),
+        prepareTarget: false,
+        allowFallbackSettings: false
+      )
+    )
+    XCTAssert(try XCTUnwrap(secondOptions).compilerArguments.contains("-DSECOND"))
+
+    let optionsWithoutTarget = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        prepareTarget: false,
+        allowFallbackSettings: false
+      )
+    )
+    // We currently pick the canonical target alphabetically, which means that `bsp://first` wins over `bsp://second`
+    XCTAssert(try XCTUnwrap(optionsWithoutTarget).compilerArguments.contains("-DFIRST"))
   }
 }

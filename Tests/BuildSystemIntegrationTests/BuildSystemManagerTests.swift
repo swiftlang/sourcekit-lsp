@@ -162,7 +162,7 @@ final class BuildSystemManagerTests: XCTestCase {
     await manager.registerForChangeNotifications(for: a, language: .swift)
 
     let changed = expectation(description: "changed settings")
-    await del.setExpected([(a, .swift, FileBuildSettings(compilerArguments: ["x"]), changed)])
+    await del.setExpected([(a, .swift, FileBuildSettings(compilerArguments: ["x"], language: .swift), changed)])
     await buildSystem.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
     try await fulfillmentOfOrThrow([changed])
   }
@@ -181,7 +181,9 @@ final class BuildSystemManagerTests: XCTestCase {
     )
 
     let changed = expectation(description: "changed settings")
-    await del.setExpected([(a, .swift, FileBuildSettings(compilerArguments: ["non-fallback", "args"]), changed)])
+    await del.setExpected([
+      (a, .swift, FileBuildSettings(compilerArguments: ["non-fallback", "args"], language: .swift), changed)
+    ])
     await buildSystem.setBuildSettings(
       for: a,
       to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["non-fallback", "args"])
@@ -230,7 +232,7 @@ final class BuildSystemManagerTests: XCTestCase {
     await mainFiles.updateMainFiles(for: h, to: [cpp2])
 
     let changed = expectation(description: "changed settings to cpp2")
-    await del.setExpected([(h, .c, FileBuildSettings(compilerArguments: ["C++ 2"]), changed)])
+    await del.setExpected([(h, .c, FileBuildSettings(compilerArguments: ["C++ 2"], language: .c), changed)])
     await manager.mainFilesChanged()
     try await fulfillmentOfOrThrow([changed])
 
@@ -243,7 +245,7 @@ final class BuildSystemManagerTests: XCTestCase {
     await mainFiles.updateMainFiles(for: h, to: [cpp1, cpp2])
 
     let changed3 = expectation(description: "added lexicographically earlier main file")
-    await del.setExpected([(h, .c, FileBuildSettings(compilerArguments: ["C++ 1"]), changed3)])
+    await del.setExpected([(h, .c, FileBuildSettings(compilerArguments: ["C++ 1"], language: .c), changed3)])
     await manager.mainFilesChanged()
     try await fulfillmentOfOrThrow([changed3], timeout: 1)
 
@@ -297,8 +299,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let newCppArg = "New C++ Main File"
     let changed1 = expectation(description: "initial settings h1 via cpp")
     let changed2 = expectation(description: "initial settings h2 via cpp")
-    let newArgsH1 = FileBuildSettings(compilerArguments: ["-xc++", newCppArg, h1.pseudoPath])
-    let newArgsH2 = FileBuildSettings(compilerArguments: ["-xc++", newCppArg, h2.pseudoPath])
+    let newArgsH1 = FileBuildSettings(compilerArguments: ["-xc++", newCppArg, h1.pseudoPath], language: .c)
+    let newArgsH2 = FileBuildSettings(compilerArguments: ["-xc++", newCppArg, h2.pseudoPath], language: .c)
     await del.setExpected([
       (h1, .c, newArgsH1, changed1),
       (h2, .c, newArgsH2, changed2),
