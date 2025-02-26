@@ -299,6 +299,33 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     await indexStoreUpToDateTracker.markUpToDate([file.sourceFile], updateOperationStartDate: startDate)
   }
 
+  /// If `args` does not contain an `-index-store-path` argument, add it, pointing to the build system's index store
+  /// path. If an `-index-store-path` already exists, validate that it matches the build system's index store path and
+  /// replace it by the build system's index store path if they don't match.
+  private func addOrReplaceIndexStorePath(in args: [String], for uri: DocumentURI) async throws -> [String] {
+    var args = args
+    guard let buildSystemIndexStorePath = await self.buildSystemManager.initializationData?.indexStorePath else {
+      struct NoIndexStorePathError: Error {}
+      throw NoIndexStorePathError()
+    }
+    if let indexStorePathIndex = args.lastIndex(of: "-index-store-path"), indexStorePathIndex + 1 < args.count {
+      let indexStorePath = args[indexStorePathIndex + 1]
+      if indexStorePath != buildSystemIndexStorePath {
+        logger.error(
+          """
+          Compiler arguments for \(uri) specify index store path \(indexStorePath) but build system specified an \
+          incompatible index store path \(buildSystemIndexStorePath). Overriding with the path specified by the build \
+          system.
+          """
+        )
+        args[indexStorePathIndex + 1] = buildSystemIndexStorePath
+      }
+    } else {
+      args += ["-index-store-path", buildSystemIndexStorePath]
+    }
+    return args
+  }
+
   private func updateIndexStore(
     forSwiftFile uri: DocumentURI,
     buildSettings: FileBuildSettings,
@@ -311,7 +338,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       return
     }
 
-    let args =
+    var args =
       try [swiftc.filePath] + buildSettings.compilerArguments + [
         "-index-file",
         "-index-file-path", uri.pseudoPath,
@@ -320,6 +347,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         // Fake an output path so that we get a different unit file for every Swift file we background index
         "-index-unit-output-path", uri.pseudoPath + ".o",
       ]
+    args = try await addOrReplaceIndexStorePath(in: args, for: uri)
 
     try await runIndexingProcess(
       indexFile: uri,
@@ -341,10 +369,13 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       return
     }
 
+    var args = [try clang.filePath] + buildSettings.compilerArguments
+    args = try await addOrReplaceIndexStorePath(in: args, for: uri)
+
     try await runIndexingProcess(
       indexFile: uri,
       buildSettings: buildSettings,
-      processArguments: [clang.filePath] + buildSettings.compilerArguments,
+      processArguments: args,
       workingDirectory: buildSettings.workingDirectory.map(AbsolutePath.init(validating:))
     )
   }

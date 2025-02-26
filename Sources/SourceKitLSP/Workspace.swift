@@ -273,17 +273,13 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
 
     let indexOptions = options.indexOrDefault
     let indexStorePath: URL? =
-      if let indexStorePath = indexOptions.indexStorePath {
-        URL(fileURLWithPath: indexStorePath, relativeTo: rootUri?.fileURL)
-      } else if let indexStorePath = await buildSystemManager.initializationData?.indexStorePath {
+      if let indexStorePath = await buildSystemManager.initializationData?.indexStorePath {
         URL(fileURLWithPath: indexStorePath, relativeTo: rootUri?.fileURL)
       } else {
         nil
       }
     let indexDatabasePath: URL? =
-      if let indexDatabasePath = indexOptions.indexDatabasePath {
-        URL(fileURLWithPath: indexDatabasePath, relativeTo: rootUri?.fileURL)
-      } else if let indexDatabasePath = await buildSystemManager.initializationData?.indexDatabasePath {
+      if let indexDatabasePath = await buildSystemManager.initializationData?.indexDatabasePath {
         URL(fileURLWithPath: indexDatabasePath, relativeTo: rootUri?.fileURL)
       } else {
         nil
