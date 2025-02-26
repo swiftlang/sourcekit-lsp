@@ -37,9 +37,15 @@ package actor TestBuildSystem: MessageHandler {
     connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
   }
 
-  package nonisolated var supportsPreparation: Bool { false }
+  private let initializeData: SourceKitInitializeBuildResponseData
 
-  package init(connectionToSourceKitLSP: any Connection) {
+  package init(
+    initializeData: SourceKitInitializeBuildResponseData = SourceKitInitializeBuildResponseData(
+      sourceKitOptionsProvider: true
+    ),
+    connectionToSourceKitLSP: any Connection
+  ) {
+    self.initializeData = initializeData
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
   }
 
@@ -90,6 +96,8 @@ package actor TestBuildSystem: MessageHandler {
       handle(request, using: self.workspaceBuildTargetsRequest)
     case let request as WorkspaceWaitForBuildSystemUpdatesRequest:
       handle(request, using: self.workspaceWaitForBuildSystemUpdatesRequest)
+    case let request as BuildTargetPrepareRequest:
+      handle(request, using: self.prepareTarget)
     default:
       reply(.failure(ResponseError.methodNotFound(type(of: request).method)))
     }
@@ -101,7 +109,8 @@ package actor TestBuildSystem: MessageHandler {
       version: "",
       bspVersion: "2.2.0",
       capabilities: BuildServerCapabilities(),
-      data: nil
+      dataKind: .sourceKit,
+      data: initializeData.encodeToLSPAny()
     )
   }
 
@@ -146,6 +155,10 @@ package actor TestBuildSystem: MessageHandler {
     _ request: TextDocumentSourceKitOptionsRequest
   ) async throws -> TextDocumentSourceKitOptionsResponse? {
     return buildSettingsByFile[request.textDocument.uri]
+  }
+
+  func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+    return VoidResponse()
   }
 
   package func waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
