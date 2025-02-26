@@ -54,7 +54,7 @@ private struct OpaqueQueuedIndexTask: Equatable {
 
 private enum InProgressIndexStore {
   /// We are waiting for preparation of the file's target to be scheduled. The next step is that we wait for
-  /// prepration to finish before we can update the index store for this file.
+  /// preparation to finish before we can update the index store for this file.
   ///
   /// `preparationTaskID` identifies the preparation task so that we can transition a file's index state to
   /// `updatingIndexStore` when its preparation task has finished.
@@ -273,8 +273,15 @@ package final actor SemanticIndexManager {
   /// build system that don't currently have a unit with a timestamp that matches the mtime of the file.
   ///
   /// If `filesToIndex` is `nil`, all files in the build system with out-of-date units are indexed.
+  ///
+  /// If `ensureAllUnitsRegisteredInIndex` is `true`, ensure that all units are registered in the index before
+  /// triggering the indexing. This is a costly operation since it iterates through all the unit files on the file
+  /// system but if existing unit files are not known to the index, we might re-index those files even if they are
+  /// up-to-date. Generally this should be set to `true` during the initial indexing (in which case we might be need to
+  /// build the indexstore-db) and `false` for all subsequent indexing.
   package func scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
     filesToIndex: [DocumentURI]?,
+    ensureAllUnitsRegisteredInIndex: Bool,
     indexFilesWithUpToDateUnit: Bool
   ) async {
     let taskId = UUID()
@@ -282,9 +289,9 @@ package final actor SemanticIndexManager {
       await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "build-graph-generation") {
         await hooks.buildGraphGenerationDidStart?()
         await self.buildSystemManager.waitForUpToDateBuildGraph()
-        // Ensure that we have an up-to-date indexstore-db. Waiting for the indexstore-db to be updated is cheaper than
-        // potentially not knowing about unit files, which causes the corresponding source files to be re-indexed.
-        index.pollForUnitChangesAndWait()
+        if ensureAllUnitsRegisteredInIndex {
+          index.pollForUnitChangesAndWait()
+        }
         await hooks.buildGraphGenerationDidFinish?()
         // TODO: Ideally this would be a type like any Collection<DocumentURI> & Sendable but that doesn't work due to
         // https://github.com/swiftlang/swift/issues/75602
@@ -324,7 +331,11 @@ package final actor SemanticIndexManager {
   package func scheduleReindex() async {
     await indexStoreUpToDateTracker.markAllKnownOutOfDate()
     await preparationUpToDateTracker.markAllKnownOutOfDate()
-    await scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(filesToIndex: nil, indexFilesWithUpToDateUnit: true)
+    await scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
+      filesToIndex: nil,
+      ensureAllUnitsRegisteredInIndex: false,
+      indexFilesWithUpToDateUnit: true
+    )
   }
 
   private func waitForBuildGraphGenerationTasks() async {
@@ -412,6 +423,7 @@ package final actor SemanticIndexManager {
 
     await scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
       filesToIndex: changedFiles,
+      ensureAllUnitsRegisteredInIndex: false,
       indexFilesWithUpToDateUnit: false
     )
   }
