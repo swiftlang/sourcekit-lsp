@@ -673,7 +673,7 @@ package final actor SemanticIndexManager {
   /// `indexFilesWithUpToDateUnit` is `true`.
   ///
   /// The returned task finishes when all files are indexed.
-  private func scheduleIndexing(
+  package func scheduleIndexing(
     of files: some Collection<DocumentURI> & Sendable,
     indexFilesWithUpToDateUnit: Bool,
     priority: TaskPriority?

@@ -283,11 +283,11 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
   public var sourceKitOptionsProvider: Bool?
 
   public init(
-    indexDatabasePath: String?,
-    indexStorePath: String?,
-    watchers: [FileSystemWatcher]?,
-    prepareProvider: Bool?,
-    sourceKitOptionsProvider: Bool?
+    indexDatabasePath: String? = nil,
+    indexStorePath: String? = nil,
+    watchers: [FileSystemWatcher]? = nil,
+    prepareProvider: Bool? = nil,
+    sourceKitOptionsProvider: Bool? = nil
   ) {
     self.indexDatabasePath = indexDatabasePath
     self.indexStorePath = indexStorePath
