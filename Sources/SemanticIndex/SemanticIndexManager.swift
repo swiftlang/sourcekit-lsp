@@ -96,7 +96,7 @@ package enum IndexTaskStatus: Comparable {
 package enum IndexProgressStatus: Sendable {
   case preparingFileForEditorFunctionality
   case schedulingIndexing
-  case indexing(preparationTasks: [BuildTargetIdentifier: IndexTaskStatus], indexTasks: [DocumentURI: IndexTaskStatus])
+  case indexing(preparationTasks: [BuildTargetIdentifier: IndexTaskStatus], indexTasks: [FileToIndex: IndexTaskStatus])
   case upToDate
 
   package func merging(with other: IndexProgressStatus) -> IndexProgressStatus {
@@ -182,7 +182,7 @@ package final actor SemanticIndexManager {
   /// store update task to be scheduled in the task scheduler or which currently have an index store update running.
   ///
   /// After the file is indexed, it is removed from this dictionary.
-  private var inProgressIndexTasks: [DocumentURI: InProgressIndexStore] = [:]
+  private var inProgressIndexTasks: [FileToIndex: InProgressIndexStore] = [:]
 
   /// The currently running task that prepares a document for editor functionality.
   ///
@@ -431,11 +431,6 @@ package final actor SemanticIndexManager {
         if !indexFilesWithUpToDateUnits, await indexStoreUpToDateTracker.isUpToDate($0) {
           return false
         }
-        if case .waitingForPreparation = inProgressIndexTasks[$0] {
-          // We haven't started preparing the file yet. Scheduling a new index operation for it won't produce any
-          // more recent results.
-          return false
-        }
         return true
       }.compactMap { (uri) -> FileToIndex? in
         if sourceFiles.contains(uri) {
@@ -461,6 +456,14 @@ package final actor SemanticIndexManager {
           return nil
         }
         return .headerFile(header: uri, mainFile: mainFile)
+      }
+      .filter {
+        switch inProgressIndexTasks[$0] {
+        case .waitingForPreparation:
+          return false
+        default:
+          return true
+        }
       }
     return filesToReIndex
   }
@@ -626,14 +629,14 @@ package final actor SemanticIndexManager {
         return
       }
       for fileAndTarget in filesAndTargets {
-        switch self.inProgressIndexTasks[fileAndTarget.file.sourceFile] {
+        switch self.inProgressIndexTasks[fileAndTarget.file] {
         case .updatingIndexStore(let registeredTask, _):
           if registeredTask == OpaqueQueuedIndexTask(task) {
-            self.inProgressIndexTasks[fileAndTarget.file.sourceFile] = nil
+            self.inProgressIndexTasks[fileAndTarget.file] = nil
           }
         case .waitingForPreparation(let registeredTask, _), .preparing(let registeredTask, _):
           if registeredTask == preparationTaskID {
-            self.inProgressIndexTasks[fileAndTarget.file.sourceFile] = nil
+            self.inProgressIndexTasks[fileAndTarget.file] = nil
           }
         case nil:
           break
@@ -642,9 +645,9 @@ package final actor SemanticIndexManager {
       self.indexProgressStatusDidChange()
     }
     for fileAndTarget in filesAndTargets {
-      switch inProgressIndexTasks[fileAndTarget.file.sourceFile] {
+      switch inProgressIndexTasks[fileAndTarget.file] {
       case .waitingForPreparation(preparationTaskID, let indexTask), .preparing(preparationTaskID, let indexTask):
-        inProgressIndexTasks[fileAndTarget.file.sourceFile] = .updatingIndexStore(
+        inProgressIndexTasks[fileAndTarget.file] = .updatingIndexStore(
           updateIndexStoreTask: OpaqueQueuedIndexTask(updateIndexTask),
           indexTask: indexTask
         )
@@ -730,9 +733,9 @@ package final actor SemanticIndexManager {
           if case .executing = newState {
             for file in filesToIndex {
               if case .waitingForPreparation(preparationTaskID: preparationTaskID, indexTask: let indexTask) =
-                self.inProgressIndexTasks[file.sourceFile]
+                self.inProgressIndexTasks[file]
               {
-                self.inProgressIndexTasks[file.sourceFile] = .preparing(
+                self.inProgressIndexTasks[file] = .preparing(
                   preparationTaskID: preparationTaskID,
                   indexTask: indexTask
                 )
@@ -766,14 +769,14 @@ package final actor SemanticIndexManager {
       // The number of index tasks that don't currently have an in-progress task associated with it.
       // The denominator in the index progress should get incremented by this amount.
       // We don't want to increment the denominator for tasks that already have an index in progress.
-      let newIndexTasks = filesToIndex.filter { inProgressIndexTasks[$0.sourceFile] == nil }.count
+      let newIndexTasks = filesToIndex.filter { inProgressIndexTasks[$0] == nil }.count
       for file in filesToIndex {
         // The state of `inProgressIndexTasks` will get pushed on from `updateIndexStore`.
         // The updates to `inProgressIndexTasks` from `updateIndexStore` cannot race with setting it to
         // `.waitingForPreparation` here  because we don't have an `await` call between the creation of `indexTask` and
         // this loop, so we still have exclusive access to the `SemanticIndexManager` actor and hence `updateIndexStore`
         // can't execute until we have set all index statuses to `.waitingForPreparation`.
-        inProgressIndexTasks[file.sourceFile] = .waitingForPreparation(
+        inProgressIndexTasks[file] = .waitingForPreparation(
           preparationTaskID: preparationTaskID,
           indexTask: indexTask
         )
