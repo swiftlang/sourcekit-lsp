@@ -14,6 +14,7 @@ import BuildSystemIntegration
 public import Foundation
 public import LanguageServerProtocol
 import LanguageServerProtocolExtensions
+import SKLogging
 import SwiftExtensions
 import TSCExtensions
 
@@ -124,9 +125,26 @@ public final class InProcessSourceKitLSPClient: Sendable {
     _ request: R,
     reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) -> RequestID {
-    let requestID = RequestID.number(Int(nextRequestID.fetchAndIncrement()))
+    let requestID = RequestID.string("sk-\(Int(nextRequestID.fetchAndIncrement()))")
     server.handle(request, id: requestID, reply: reply)
     return requestID
+  }
+
+  /// Send the request to `server` and return the request result via a completion handler.
+  ///
+  /// The request ID must not start with `sk-` to avoid conflicting with the request IDs that are created by
+  /// `send(:reply:)`.
+  public func send<R: RequestType>(
+    _ request: R,
+    id: RequestID,
+    reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
+  ) {
+    if case .string(let string) = id {
+      if string.starts(with: "sk-") {
+        logger.fault("Manually specified request ID must not have reserved prefix 'sk-'")
+      }
+    }
+    server.handle(request, id: id, reply: reply)
   }
 
   /// Send the notification to `server`.
