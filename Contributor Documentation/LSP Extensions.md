@@ -434,6 +434,27 @@ export interface DocumentTestsParams {
 }
 ```
 
+## `sourceKit/_isIndexing`
+
+Request from the client to the server querying whether SourceKit-LSP is currently performing an background indexing tasks, including target preparation.
+
+> [!IMPORTANT]
+> This request is experimental and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
+
+- params: `IsIndexingParams`
+- result: `IsIndexingResult`
+
+```ts
+export interface IsIndexingParams {}
+
+export interface IsIndexingResult {
+  /**
+   * Whether SourceKit-LSP is currently performing an indexing task.
+   */
+  indexing: boolean;
+}
+```
+
 ## `window/didChangeActiveDocument`
 
 New notification from the client to the server, telling SourceKit-LSP which document is the currently active primary document.

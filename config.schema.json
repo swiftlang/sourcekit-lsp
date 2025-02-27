@@ -71,12 +71,14 @@
         "enum" : [
           "on-type-formatting",
           "set-options-request",
-          "sourcekit-options-request"
+          "sourcekit-options-request",
+          "is-indexing-request"
         ],
         "markdownEnumDescriptions" : [
           "Enable support for the `textDocument\/onTypeFormatting` request.",
           "Enable support for the `workspace\/_setOptions` request.",
-          "Enable the `workspace\/_sourceKitOptions` request."
+          "Enable the `workspace\/_sourceKitOptions` request.",
+          "Enable the `sourceKit\/_isIndexing` request."
         ],
         "type" : "string"
       },

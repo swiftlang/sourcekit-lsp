@@ -824,6 +824,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       initialized = true
     case let request as RequestAndReply<InlayHintRequest>:
       await self.handleRequest(for: request, requestHandler: self.inlayHint)
+    case let request as RequestAndReply<IsIndexingRequest>:
+      await request.reply { try await self.isIndexing(request.params) }
     case let request as RequestAndReply<PollIndexRequest>:
       await request.reply { try await pollIndex(request.params) }
     case let request as RequestAndReply<PrepareRenameRequest>:
@@ -1268,6 +1270,17 @@ extension SourceKitLSPServer {
       watchers: self.watchers.sorted { $0.globPattern < $1.globPattern },
       server: self
     )
+  }
+
+  func isIndexing(_ request: IsIndexingRequest) async throws -> IsIndexingResponse {
+    guard self.options.hasExperimentalFeature(.isIndexingRequest) else {
+      throw ResponseError.unknown("\(IsIndexingRequest.method) indexing is an experimental request")
+    }
+    let isIndexing =
+      await workspaces
+      .compactMap(\.semanticIndexManager)
+      .asyncContains { await $0.progressStatus != .upToDate }
+    return IsIndexingResponse(indexing: isIndexing)
   }
 
   // MARK: - Text synchronization

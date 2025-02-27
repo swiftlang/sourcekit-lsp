@@ -58,6 +58,7 @@ public let builtinRequests: [_RequestType.Type] = [
   InlayHintResolveRequest.self,
   InlineValueRefreshRequest.self,
   InlineValueRequest.self,
+  IsIndexingRequest.self,
   LinkedEditingRangeRequest.self,
   MonikersRequest.self,
   PeekDocumentsRequest.self,
