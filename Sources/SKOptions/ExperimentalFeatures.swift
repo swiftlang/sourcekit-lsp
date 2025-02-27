@@ -19,4 +19,7 @@ public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
 
   /// Enable support for the `workspace/_setOptions` request.
   case setOptionsRequest = "set-options-request"
+
+  /// Enable the `workspace/_sourceKitOptions` request.
+  case sourceKitOptionsRequest = "sourcekit-options-request"
 }

@@ -809,6 +809,8 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     return FileBuildSettings(
       compilerArguments: response.compilerArguments,
       workingDirectory: response.workingDirectory,
+      language: language,
+      data: response.data,
       isFallback: false
     )
   }
@@ -869,25 +871,49 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// be inferred from the primary main file of the document. In practice this means that we will compute the build
   /// settings of a C file that includes the header and replace any file references to that C file in the build settings
   /// by the header file.
+  ///
+  /// When a target is passed in, the build settings for the document, interpreted as part of that target, are returned,
+  /// otherwise a canonical target is inferred for the source file.
+  ///
+  /// If no language is passed, this method tries to infer the language of the document from the build system. If that
+  /// fails, it returns `nil`.
   package func buildSettingsInferredFromMainFile(
     for document: DocumentURI,
-    language: Language,
+    target explicitlyRequestedTarget: BuildTargetIdentifier? = nil,
+    language: Language?,
     fallbackAfterTimeout: Bool
   ) async -> FileBuildSettings? {
     func mainFileAndSettings(
       basedOn document: DocumentURI
     ) async -> (mainFile: DocumentURI, settings: FileBuildSettings)? {
       let mainFile = await self.mainFile(for: document, language: language)
-      let settings = await orLog("Getting build settings") {
-        let target = try await withTimeout(options.buildSettingsTimeoutOrDefault) {
-          await self.canonicalTarget(for: mainFile)
-        } resultReceivedAfterTimeout: {
-          await self.delegate?.fileBuildSettingsChanged([document])
+      let settings: FileBuildSettings? = await orLog("Getting build settings") {
+        let target =
+          if let explicitlyRequestedTarget {
+            explicitlyRequestedTarget
+          } else {
+            try await withTimeout(options.buildSettingsTimeoutOrDefault) {
+              await self.canonicalTarget(for: mainFile)
+            } resultReceivedAfterTimeout: {
+              await self.delegate?.fileBuildSettingsChanged([document])
+            }
+          }
+        var languageForFile: Language
+        if let language {
+          languageForFile = language
+        } else if let target, let language = await self.defaultLanguage(for: mainFile, in: target) {
+          languageForFile = language
+        } else if let language = Language(inferredFromFileExtension: mainFile) {
+          languageForFile = language
+        } else {
+          // We don't know the language as which to interpret the document, so we can't ask the build system for its
+          // settings.
+          return nil
         }
         return await self.buildSettings(
           for: mainFile,
           in: target,
-          language: language,
+          language: languageForFile,
           fallbackAfterTimeout: fallbackAfterTimeout
         )
       }
@@ -1153,10 +1179,12 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
   /// Return the main file that should be used to get build settings for `uri`.
   ///
-  /// For Swift or normal C files, this will be the file itself. For header
-  /// files, we pick a main file that includes the header since header files
-  /// don't have build settings by themselves.
-  package func mainFile(for uri: DocumentURI, language: Language, useCache: Bool = true) async -> DocumentURI {
+  /// For Swift or normal C files, this will be the file itself. For header files, we pick a main file that includes the
+  /// header since header files don't have build settings by themselves.
+  ///
+  /// `language` is a hint of the document's language to speed up the `main` file lookup. Passing `nil` if the language
+  /// is unknown should always be safe.
+  package func mainFile(for uri: DocumentURI, language: Language?, useCache: Bool = true) async -> DocumentURI {
     if language == .swift {
       // Swift doesn't have main files. Skip the main file provider query.
       return uri
@@ -1351,7 +1379,9 @@ fileprivate extension TextDocumentSourceKitOptionsResponse {
 
     result += supplementalClangIndexingArgs.flatMap { ["-Xcc", $0] }
 
-    return TextDocumentSourceKitOptionsResponse(compilerArguments: result, workingDirectory: workingDirectory)
+    var adjusted = self
+    adjusted.compilerArguments = result
+    return adjusted
   }
 
   /// Adjust compiler arguments that were created for building to compiler arguments that should be used for indexing
@@ -1411,7 +1441,10 @@ fileprivate extension TextDocumentSourceKitOptionsResponse {
     result.append(
       "-fsyntax-only"
     )
-    return TextDocumentSourceKitOptionsResponse(compilerArguments: result, workingDirectory: workingDirectory)
+
+    var adjusted = self
+    adjusted.compilerArguments = result
+    return adjusted
   }
 }
 
