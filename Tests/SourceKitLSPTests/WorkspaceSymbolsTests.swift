@@ -76,20 +76,14 @@ class WorkspaceSymbolsTests: XCTestCase {
           SymbolInformation(
             name: "afuncFromA()",
             kind: .function,
-            location: Location(
-              uri: try project.uri(for: "PackageALib.swift"),
-              range: Range(try project.position(of: "1️⃣", in: "PackageALib.swift"))
-            )
+            location: try project.location(from: "1️⃣", to: "1️⃣", in: "PackageALib.swift")
           )
         ),
         .symbolInformation(
           SymbolInformation(
             name: "funcFromB()",
             kind: .function,
-            location: Location(
-              uri: try project.uri(for: "PackageBLib.swift"),
-              range: Range(try project.position(of: "2️⃣", in: "PackageBLib.swift"))
-            )
+            location: try project.location(from: "2️⃣", to: "2️⃣", in: "PackageBLib.swift")
           )
         ),
       ]
