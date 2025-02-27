@@ -53,6 +53,14 @@ private struct OpaqueQueuedIndexTask: Equatable {
 }
 
 private enum InProgressIndexStore {
+  /// We know that we need to index the file but and are currently gathering all information to create the `indexTask`
+  /// that will index it.
+  ///
+  /// This is needed to avoid the following race: We request indexing of file A. Getting the canonical target for A
+  /// takes a bit and before that finishes, we request another index of A. In this case, we don't want to kick off
+  /// two tasks to update the index store.
+  case creatingIndexTask
+
   /// We are waiting for preparation of the file's target to be scheduled. The next step is that we wait for
   /// preparation to finish before we can update the index store for this file.
   ///
@@ -223,7 +231,7 @@ package final actor SemanticIndexManager {
     }
     let indexTasks = inProgressIndexTasks.mapValues { status in
       switch status {
-      case .waitingForPreparation, .preparing:
+      case .creatingIndexTask, .waitingForPreparation, .preparing:
         return IndexTaskStatus.scheduled
       case .updatingIndexStore(updateIndexStoreTask: let updateIndexStoreTask, indexTask: _):
         return updateIndexStoreTask.isExecuting ? IndexTaskStatus.executing : IndexTaskStatus.scheduled
@@ -334,6 +342,8 @@ package final actor SemanticIndexManager {
     await withTaskGroup(of: Void.self) { taskGroup in
       for (_, status) in inProgressIndexTasks {
         switch status {
+        case .creatingIndexTask:
+          break
         case .waitingForPreparation(preparationTaskID: _, indexTask: let indexTask),
           .preparing(preparationTaskID: _, indexTask: let indexTask),
           .updatingIndexStore(updateIndexStoreTask: _, indexTask: let indexTask):
@@ -459,7 +469,7 @@ package final actor SemanticIndexManager {
       }
       .filter {
         switch inProgressIndexTasks[$0] {
-        case .waitingForPreparation:
+        case .waitingForPreparation, .creatingIndexTask:
           return false
         default:
           return true
@@ -638,7 +648,7 @@ package final actor SemanticIndexManager {
           if registeredTask == preparationTaskID {
             self.inProgressIndexTasks[fileAndTarget.file] = nil
           }
-        case nil:
+        case .creatingIndexTask, nil:
           break
         }
       }
@@ -686,6 +696,19 @@ package final actor SemanticIndexManager {
     // Sort the targets in topological order so that low-level targets get built before high-level targets, allowing us
     // to index the low-level targets ASAP.
     var filesByTarget: [BuildTargetIdentifier: [FileToIndex]] = [:]
+
+    // The number of index tasks that don't currently have an in-progress task associated with it.
+    // The denominator in the index progress should get incremented by this amount.
+    // We don't want to increment the denominator for tasks that already have an index in progress.
+    var newIndexTasks = 0
+    for file in outOfDateFiles {
+      if inProgressIndexTasks[file] == nil {
+        newIndexTasks += 1
+      }
+      inProgressIndexTasks[file] = .creatingIndexTask
+    }
+    indexTasksWereScheduled(newIndexTasks)
+
     for fileToIndex in outOfDateFiles {
       guard let target = await buildSystemManager.canonicalTarget(for: fileToIndex.mainFile) else {
         logger.error(
@@ -766,10 +789,6 @@ package final actor SemanticIndexManager {
       }
       indexTasks.append(indexTask)
 
-      // The number of index tasks that don't currently have an in-progress task associated with it.
-      // The denominator in the index progress should get incremented by this amount.
-      // We don't want to increment the denominator for tasks that already have an index in progress.
-      let newIndexTasks = filesToIndex.filter { inProgressIndexTasks[$0] == nil }.count
       for file in filesToIndex {
         // The state of `inProgressIndexTasks` will get pushed on from `updateIndexStore`.
         // The updates to `inProgressIndexTasks` from `updateIndexStore` cannot race with setting it to
@@ -781,7 +800,6 @@ package final actor SemanticIndexManager {
           indexTask: indexTask
         )
       }
-      indexTasksWereScheduled(newIndexTasks)
     }
     let indexTasksImmutable = indexTasks
 
