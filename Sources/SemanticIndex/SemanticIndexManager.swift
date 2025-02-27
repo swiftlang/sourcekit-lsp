@@ -339,13 +339,7 @@ package final actor SemanticIndexManager {
   }
 
   private func waitForBuildGraphGenerationTasks() async {
-    await withTaskGroup(of: Void.self) { taskGroup in
-      for generateBuildGraphTask in scheduleIndexingTasks.values {
-        taskGroup.addTask {
-          await generateBuildGraphTask.value
-        }
-      }
-    }
+    await scheduleIndexingTasks.values.concurrentForEach { await $0.value }
   }
 
   /// Wait for all in-progress index tasks to finish.
@@ -355,18 +349,13 @@ package final actor SemanticIndexManager {
     // can await the index tasks below.
     await waitForBuildGraphGenerationTasks()
 
-    await withTaskGroup(of: Void.self) { taskGroup in
-      for (_, status) in inProgressIndexTasks {
-        switch status {
-        case .waitingForPreparation(preparationTaskID: _, indexTask: let indexTask),
-          .preparing(preparationTaskID: _, indexTask: let indexTask),
-          .updatingIndexStore(updateIndexStoreTask: _, indexTask: let indexTask):
-          taskGroup.addTask {
-            await indexTask.value
-          }
-        }
+    await inProgressIndexTasks.concurrentForEach { (_, status) in
+      switch status {
+      case .waitingForPreparation(preparationTaskID: _, indexTask: let indexTask),
+        .preparing(preparationTaskID: _, indexTask: let indexTask),
+        .updatingIndexStore(updateIndexStoreTask: _, indexTask: let indexTask):
+        await indexTask.value
       }
-      await taskGroup.waitForAll()
     }
     index.pollForUnitChangesAndWait()
     logger.debug("Done waiting for up-to-date index")
@@ -786,17 +775,9 @@ package final actor SemanticIndexManager {
       }
       indexTasksWereScheduled(newIndexTasks)
     }
-    let indexTasksImmutable = indexTasks
 
     return Task(priority: priority) {
-      await withTaskGroup(of: Void.self) { taskGroup in
-        for indexTask in indexTasksImmutable {
-          taskGroup.addTask {
-            await indexTask.value
-          }
-        }
-        await taskGroup.waitForAll()
-      }
+      await indexTasks.concurrentForEach { await $0.value }
     }
   }
 }
