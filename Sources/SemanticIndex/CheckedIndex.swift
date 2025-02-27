@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #if compiler(>=6)
-import Foundation
+package import Foundation
 @preconcurrency package import IndexStoreDB
 package import LanguageServerProtocol
 import SKLogging
@@ -188,6 +188,20 @@ package final class CheckedIndex {
     return checker.fileHasInMemoryModifications(uri)
   }
 
+  /// Determine the modification date of the file at the given location or, if it is a symlink, the maximum modification
+  /// time of any hop in the symlink change until the real file.
+  ///
+  /// This uses the `CheckedIndex`'s  mod date cache, so it doesn't require disk access if the modification date of the
+  /// file has already been computed.
+  ///
+  /// Returns `nil` if the modification date of the file could not be determined.
+  package func modificationDate(of uri: DocumentURI) -> Date? {
+    switch try? checker.modificationDate(of: uri) {
+    case nil, .fileDoesNotExist: return nil
+    case .date(let date): return date
+    }
+  }
+
   /// If there are any definition occurrences of the given USR, return these.
   /// Otherwise return declaration occurrences.
   package func definitionOrDeclarationOccurrences(ofUSR usr: String) -> [SymbolOccurrence] {
@@ -327,7 +341,7 @@ private struct IndexOutOfDateChecker {
   private let checkLevel: IndexCheckLevel
 
   /// The last modification time of a file. Can also represent the fact that the file does not exist.
-  private enum ModificationTime {
+  enum ModificationTime {
     case fileDoesNotExist
     case date(Date)
   }
@@ -495,7 +509,7 @@ private struct IndexOutOfDateChecker {
     }
   }
 
-  private mutating func modificationDate(of uri: DocumentURI) throws -> ModificationTime {
+  mutating func modificationDate(of uri: DocumentURI) throws -> ModificationTime {
     if let cached = modTimeCache[uri] {
       return cached
     }

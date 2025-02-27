@@ -440,7 +440,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       if let changes {
         let changedTargets = changes.map(\.target)
         sourceFiles = sourceFiles.filter {
-          !$0.value.targets.intersection(changedTargets).isEmpty
+          !$0.value.targets.isDisjoint(with: changedTargets)
         }
       }
       _ = await semanticIndexManager?.scheduleIndexing(

@@ -52,42 +52,53 @@ private struct OpaqueQueuedIndexTask: Equatable {
   }
 }
 
-private enum InProgressIndexStore {
-  /// We know that we need to index the file but and are currently gathering all information to create the `indexTask`
-  /// that will index it.
-  ///
-  /// This is needed to avoid the following race: We request indexing of file A. Getting the canonical target for A
-  /// takes a bit and before that finishes, we request another index of A. In this case, we don't want to kick off
-  /// two tasks to update the index store.
-  case creatingIndexTask
+private struct InProgressIndexStore {
+  enum State {
+    /// We know that we need to index the file but and are currently gathering all information to create the `indexTask`
+    /// that will index it.
+    ///
+    /// This is needed to avoid the following race: We request indexing of file A. Getting the canonical target for A
+    /// takes a bit and before that finishes, we request another index of A. In this case, we don't want to kick off
+    /// two tasks to update the index store.
+    case creatingIndexTask
 
-  /// We are waiting for preparation of the file's target to be scheduled. The next step is that we wait for
-  /// preparation to finish before we can update the index store for this file.
-  ///
-  /// `preparationTaskID` identifies the preparation task so that we can transition a file's index state to
-  /// `updatingIndexStore` when its preparation task has finished.
-  ///
-  /// `indexTask` is a task that finishes after both preparation and index store update are done. Whoever owns the index
-  /// task is still the sole owner of it and responsible for its cancellation.
-  case waitingForPreparation(preparationTaskID: UUID, indexTask: Task<Void, Never>)
+    /// We are waiting for preparation of the file's target to be scheduled. The next step is that we wait for
+    /// preparation to finish before we can update the index store for this file.
+    ///
+    /// `preparationTaskID` identifies the preparation task so that we can transition a file's index state to
+    /// `updatingIndexStore` when its preparation task has finished.
+    ///
+    /// `indexTask` is a task that finishes after both preparation and index store update are done. Whoever owns the index
+    /// task is still the sole owner of it and responsible for its cancellation.
+    case waitingForPreparation(preparationTaskID: UUID, indexTask: Task<Void, Never>)
 
-  /// We have started preparing this file and are waiting for preparation to finish before we can update the index
-  /// store for this file.
-  ///
-  /// `preparationTaskID` identifies the preparation task so that we can transition a file's index state to
-  /// `updatingIndexStore` when its preparation task has finished.
-  ///
-  /// `indexTask` is a task that finishes after both preparation and index store update are done. Whoever owns the index
-  /// task is still the sole owner of it and responsible for its cancellation.
-  case preparing(preparationTaskID: UUID, indexTask: Task<Void, Never>)
+    /// We have started preparing this file and are waiting for preparation to finish before we can update the index
+    /// store for this file.
+    ///
+    /// `preparationTaskID` identifies the preparation task so that we can transition a file's index state to
+    /// `updatingIndexStore` when its preparation task has finished.
+    ///
+    /// `indexTask` is a task that finishes after both preparation and index store update are done. Whoever owns the index
+    /// task is still the sole owner of it and responsible for its cancellation.
+    case preparing(preparationTaskID: UUID, indexTask: Task<Void, Never>)
 
-  /// The file's target has been prepared and we are updating the file's index store.
+    /// The file's target has been prepared and we are updating the file's index store.
+    ///
+    /// `updateIndexStoreTask` is the task that updates the index store itself.
+    ///
+    /// `indexTask` is a task that finishes after both preparation and index store update are done. Whoever owns the index
+    /// task is still the sole owner of it and responsible for its cancellation.
+    case updatingIndexStore(updateIndexStoreTask: OpaqueQueuedIndexTask, indexTask: Task<Void, Never>)
+  }
+
+  var state: State
+
+  /// The modification time of the time of `FileToIndex.sourceFile` at the time that indexing was scheduled. This allows
+  /// us to avoid scheduling another indexing operation for the file if the file hasn't been modified since an
+  /// in-progress indexing operation was scheduled.
   ///
-  /// `updateIndexStoreTask` is the task that updates the index store itself.
-  ///
-  /// `indexTask` is a task that finishes after both preparation and index store update are done. Whoever owns the index
-  /// task is still the sole owner of it and responsible for its cancellation.
-  case updatingIndexStore(updateIndexStoreTask: OpaqueQueuedIndexTask, indexTask: Task<Void, Never>)
+  /// `nil` if the modification date of the file could not be determined.
+  var fileModificationDate: Date?
 }
 
 /// Status of document indexing / target preparation in `inProgressIndexAndPreparationTasks`.
@@ -229,8 +240,8 @@ package final actor SemanticIndexManager {
     let preparationTasks = inProgressPreparationTasks.mapValues { inProgressTask in
       return inProgressTask.task.isExecuting ? IndexTaskStatus.executing : IndexTaskStatus.scheduled
     }
-    let indexTasks = inProgressIndexTasks.mapValues { status in
-      switch status {
+    let indexTasks = inProgressIndexTasks.mapValues { inProgress in
+      switch inProgress.state {
       case .creatingIndexTask, .waitingForPreparation, .preparing:
         return IndexTaskStatus.scheduled
       case .updatingIndexStore(updateIndexStoreTask: let updateIndexStoreTask, indexTask: _):
@@ -333,8 +344,8 @@ package final actor SemanticIndexManager {
     // can await the index tasks below.
     await waitForBuildGraphGenerationTasks()
 
-    await inProgressIndexTasks.concurrentForEach { (_, status) in
-      switch status {
+    await inProgressIndexTasks.concurrentForEach { (_, inProgress) in
+      switch inProgress.state {
       case .creatingIndexTask:
         break
       case .waitingForPreparation(preparationTaskID: _, indexTask: let indexTask),
@@ -413,7 +424,7 @@ package final actor SemanticIndexManager {
   private func filesToIndex(
     toCover files: some Collection<DocumentURI> & Sendable,
     indexFilesWithUpToDateUnits: Bool
-  ) async -> [FileToIndex] {
+  ) async -> [(file: FileToIndex, fileModificationDate: Date?)] {
     let sourceFiles = await orLog("Getting source files in project") {
       Set(try await buildSystemManager.sourceFiles(includeNonBuildableFiles: false).keys)
     }
@@ -422,6 +433,7 @@ package final actor SemanticIndexManager {
     }
     let deletedFilesIndex = index.checked(for: .deletedFiles)
     let modifiedFilesIndex = index.checked(for: .modifiedFiles)
+
     let filesToReIndex =
       await files
       .asyncFilter {
@@ -431,13 +443,13 @@ package final actor SemanticIndexManager {
           return false
         }
         return true
-      }.compactMap { (uri) -> FileToIndex? in
+      }.compactMap { uri -> (FileToIndex, Date?)? in
         if sourceFiles.contains(uri) {
           if !indexFilesWithUpToDateUnits, modifiedFilesIndex.hasUpToDateUnit(for: uri) {
             return nil
           }
           // If this is a source file, just index it.
-          return .indexableFile(uri)
+          return (.indexableFile(uri), modifiedFilesIndex.modificationDate(of: uri))
         }
         // Otherwise, see if it is a header file. If so, index a main file that that imports it to update header file's
         // index.
@@ -454,15 +466,7 @@ package final actor SemanticIndexManager {
         if !indexFilesWithUpToDateUnits, modifiedFilesIndex.hasUpToDateUnit(for: uri, mainFile: mainFile) {
           return nil
         }
-        return .headerFile(header: uri, mainFile: mainFile)
-      }
-      .filter {
-        switch inProgressIndexTasks[$0] {
-        case .waitingForPreparation, .creatingIndexTask:
-          return false
-        default:
-          return true
-        }
+        return (.headerFile(header: uri, mainFile: mainFile), modifiedFilesIndex.modificationDate(of: uri))
       }
     return filesToReIndex
   }
@@ -640,7 +644,7 @@ package final actor SemanticIndexManager {
         return
       }
       for fileAndTarget in filesAndTargets {
-        switch self.inProgressIndexTasks[fileAndTarget.file] {
+        switch self.inProgressIndexTasks[fileAndTarget.file]?.state {
         case .updatingIndexStore(let registeredTask, _):
           if registeredTask == OpaqueQueuedIndexTask(task) {
             self.inProgressIndexTasks[fileAndTarget.file] = nil
@@ -656,9 +660,9 @@ package final actor SemanticIndexManager {
       self.indexProgressStatusDidChange()
     }
     for fileAndTarget in filesAndTargets {
-      switch inProgressIndexTasks[fileAndTarget.file] {
+      switch inProgressIndexTasks[fileAndTarget.file]?.state {
       case .waitingForPreparation(preparationTaskID, let indexTask), .preparing(preparationTaskID, let indexTask):
-        inProgressIndexTasks[fileAndTarget.file] = .updatingIndexStore(
+        inProgressIndexTasks[fileAndTarget.file]?.state = .updatingIndexStore(
           updateIndexStoreTask: OpaqueQueuedIndexTask(updateIndexTask),
           indexTask: indexTask
         )
@@ -683,34 +687,64 @@ package final actor SemanticIndexManager {
     // We will check the up-to-date status again in `IndexTaskDescription.execute`. This ensures that if we schedule
     // schedule two indexing jobs for the same file in quick succession, only the first one actually updates the index
     // store and the second one will be a no-op once it runs.
-    let outOfDateFiles = await filesToIndex(toCover: files, indexFilesWithUpToDateUnits: indexFilesWithUpToDateUnit)
+    var filesToIndex = await filesToIndex(toCover: files, indexFilesWithUpToDateUnits: indexFilesWithUpToDateUnit)
       // sort files to get deterministic indexing order
-      .sorted(by: { $0.sourceFile.stringValue < $1.sourceFile.stringValue })
-
-    if outOfDateFiles.isEmpty {
-      // Early exit if there are no files to index.
-      return Task {}
-    }
-
-    logger.debug("Scheduling indexing of \(outOfDateFiles.map(\.sourceFile.stringValue).joined(separator: ", "))")
-
-    // Sort the targets in topological order so that low-level targets get built before high-level targets, allowing us
-    // to index the low-level targets ASAP.
-    var filesByTarget: [BuildTargetIdentifier: [FileToIndex]] = [:]
+      .sorted(by: { $0.file.sourceFile.stringValue < $1.file.sourceFile.stringValue })
 
     // The number of index tasks that don't currently have an in-progress task associated with it.
     // The denominator in the index progress should get incremented by this amount.
     // We don't want to increment the denominator for tasks that already have an index in progress.
     var newIndexTasks = 0
-    for file in outOfDateFiles {
-      if inProgressIndexTasks[file] == nil {
-        newIndexTasks += 1
-      }
-      inProgressIndexTasks[file] = .creatingIndexTask
-    }
-    indexTasksWereScheduled(newIndexTasks)
+    var alreadyScheduledTasks: Set<FileToIndex> = []
+    for file in filesToIndex {
+      let inProgress = inProgressIndexTasks[file.file]
 
-    for fileToIndex in outOfDateFiles {
+      let shouldScheduleIndexing: Bool
+      switch inProgress?.state {
+      case nil:
+        newIndexTasks += 1
+        shouldScheduleIndexing = true
+      case .creatingIndexTask, .waitingForPreparation:
+        // We already have a task that indexes the file but hasn't started preparation yet. Indexing the file again
+        // won't produce any new results.
+        alreadyScheduledTasks.insert(file.file)
+        shouldScheduleIndexing = false
+      case .preparing(_, _), .updatingIndexStore(_, _):
+        // We have started indexing of the file and are now requesting to index it again. Unless we know that the file
+        // hasn't been modified since the last request for indexing, we need to schedule it to get re-indexed again.
+        if let modDate = file.fileModificationDate, inProgress?.fileModificationDate == modDate {
+          shouldScheduleIndexing = false
+        } else {
+          shouldScheduleIndexing = true
+        }
+      }
+      if shouldScheduleIndexing {
+        inProgressIndexTasks[file.file] = InProgressIndexStore(
+          state: .creatingIndexTask,
+          fileModificationDate: file.fileModificationDate
+        )
+      } else {
+        alreadyScheduledTasks.insert(file.file)
+
+      }
+    }
+    if newIndexTasks > 0 {
+      indexTasksWereScheduled(newIndexTasks)
+    }
+    filesToIndex = filesToIndex.filter { !alreadyScheduledTasks.contains($0.file) }
+
+    if filesToIndex.isEmpty {
+      // Early exit if there are no files to index.
+      return Task {}
+    }
+
+    logger.debug("Scheduling indexing of \(filesToIndex.map(\.file.sourceFile.stringValue).joined(separator: ", "))")
+
+    // Sort the targets in topological order so that low-level targets get built before high-level targets, allowing us
+    // to index the low-level targets ASAP.
+    var filesByTarget: [BuildTargetIdentifier: [(FileToIndex)]] = [:]
+
+    for fileToIndex in filesToIndex.map(\.file) {
       guard let target = await buildSystemManager.canonicalTarget(for: fileToIndex.mainFile) else {
         logger.error(
           "Not indexing \(fileToIndex.forLogging) because the target could not be determined"
@@ -757,9 +791,9 @@ package final actor SemanticIndexManager {
           if case .executing = newState {
             for file in filesToIndex {
               if case .waitingForPreparation(preparationTaskID: preparationTaskID, indexTask: let indexTask) =
-                self.inProgressIndexTasks[file]
+                self.inProgressIndexTasks[file]?.state
               {
-                self.inProgressIndexTasks[file] = .preparing(
+                self.inProgressIndexTasks[file]?.state = .preparing(
                   preparationTaskID: preparationTaskID,
                   indexTask: indexTask
                 )
@@ -796,7 +830,7 @@ package final actor SemanticIndexManager {
         // `.waitingForPreparation` here  because we don't have an `await` call between the creation of `indexTask` and
         // this loop, so we still have exclusive access to the `SemanticIndexManager` actor and hence `updateIndexStore`
         // can't execute until we have set all index statuses to `.waitingForPreparation`.
-        inProgressIndexTasks[file] = .waitingForPreparation(
+        inProgressIndexTasks[file]?.state = .waitingForPreparation(
           preparationTaskID: preparationTaskID,
           indexTask: indexTask
         )
