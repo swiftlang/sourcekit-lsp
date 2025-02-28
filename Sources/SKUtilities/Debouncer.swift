@@ -12,7 +12,7 @@
 
 /// Debounces calls to a function/closure. If multiple calls to the closure are made, it allows aggregating the
 /// parameters.
-package actor Debouncer<Parameter> {
+package actor Debouncer<Parameter: Sendable> {
   /// How long to wait for further `scheduleCall` calls before committing to actually calling `makeCall`.
   private let debounceDuration: Duration
 
@@ -36,7 +36,7 @@ package actor Debouncer<Parameter> {
   /// call can be debounced), the task that would commit the call (unless cancelled), the parameter with which this
   /// call should be made and the time at which the call should be made. Keeping track of the time ensures that we don't
   /// indefinitely debounce if a new `scheduleCall` is made every 0.4s but we debounce for 0.5s.
-  private var inProgressData: (Parameter, ContinuousClock.Instant, Task<Void, Never>)?
+  private var inProgressData: (parameter: Parameter, targetDate: ContinuousClock.Instant, task: Task<Void, Never>)?
 
   package init(
     debounceDuration: Duration,
@@ -66,10 +66,19 @@ package actor Debouncer<Parameter> {
       } catch {
         return
       }
-      inProgressData = nil
-      await makeCall(parameter)
+      await self.flush()
     }
     inProgressData = (parameter, ContinuousClock.now + debounceDuration, task)
+  }
+
+  /// If any debounced calls are in progress, make them now, even if the debounce duration hasn't expired yet.
+  package func flush() async {
+    guard let inProgressDataValue = inProgressData else {
+      return
+    }
+    inProgressData = nil
+    let parameter = inProgressDataValue.parameter
+    await makeCall(parameter)
   }
 }
 
