@@ -631,15 +631,18 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   }
 
   private func logMessage(notification: BuildServerProtocol.OnBuildLogMessageNotification) async {
-    let message =
-      if let taskID = notification.task?.id {
-        prefixMessageWithTaskEmoji(taskID: taskID, message: notification.message)
-      } else {
-        notification.message
-      }
     await connectionToClient.waitUntilInitialized()
-    connectionToClient.send(
-      LanguageServerProtocol.LogMessageNotification(type: .info, message: message, logName: "SourceKit-LSP: Indexing")
+    let type: WindowMessageType =
+      switch notification.type {
+      case .error: .error
+      case .warning: .warning
+      case .info: .info
+      case .log: .log
+      }
+    connectionToClient.logMessageToIndexLog(
+      message: notification.message,
+      type: type,
+      structure: notification.structure
     )
   }
 

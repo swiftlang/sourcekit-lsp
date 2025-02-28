@@ -188,9 +188,23 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     self.testHooks = testHooks
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
 
+    // Start an open-ended log for messages that we receive during package loading. We never end this log.
+    let logTaskID = "swiftpm-log-\(UUID())"
+    connectionToSourceKitLSP.send(
+      OnBuildLogMessageNotification(
+        type: .info,
+        message: "",
+        structure: .begin(StructuredLogBegin(title: "SwiftPM log for \(projectRoot.path)", taskID: logTaskID))
+      )
+    )
+
     self.observabilitySystem = ObservabilitySystem({ scope, diagnostic in
       connectionToSourceKitLSP.send(
-        OnBuildLogMessageNotification(type: .info, task: TaskId(id: "swiftpm-log"), message: diagnostic.description)
+        OnBuildLogMessageNotification(
+          type: .info,
+          message: diagnostic.description,
+          structure: .report(StructuredLogReport(taskID: logTaskID))
+        )
       )
       logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
     })
@@ -638,12 +652,6 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     return VoidResponse()
   }
 
-  private nonisolated func logMessageToIndexLog(_ taskID: TaskId, _ message: String) {
-    connectionToSourceKitLSP.send(
-      BuildServerProtocol.OnBuildLogMessageNotification(type: .info, task: taskID, message: message)
-    )
-  }
-
   private func prepare(singleTarget target: BuildTargetIdentifier) async throws {
     if target == .forPackageManifest {
       // Nothing to prepare for package manifests.
@@ -698,15 +706,36 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     let start = ContinuousClock.now
 
     let taskID: TaskId = TaskId(id: "preparation-\(preparationTaskID.fetchAndIncrement())")
-    logMessageToIndexLog(
-      taskID,
-      """
-      Preparing \(self.swiftPMTargets[target]?.name ?? target.uri.stringValue)
-      \(arguments.joined(separator: " "))
-      """
+    connectionToSourceKitLSP.send(
+      BuildServerProtocol.OnBuildLogMessageNotification(
+        type: .info,
+        message: "\(arguments.joined(separator: " "))",
+        structure: .begin(
+          StructuredLogBegin(
+            title: "Preparing \(self.swiftPMTargets[target]?.name ?? target.uri.stringValue)",
+            taskID: taskID.id
+          )
+        )
+      )
     )
-    let stdoutHandler = PipeAsStringHandler { self.logMessageToIndexLog(taskID, $0) }
-    let stderrHandler = PipeAsStringHandler { self.logMessageToIndexLog(taskID, $0) }
+    let stdoutHandler = PipeAsStringHandler { message in
+      self.connectionToSourceKitLSP.send(
+        BuildServerProtocol.OnBuildLogMessageNotification(
+          type: .info,
+          message: message,
+          structure: .report(StructuredLogReport(taskID: taskID.id))
+        )
+      )
+    }
+    let stderrHandler = PipeAsStringHandler { message in
+      self.connectionToSourceKitLSP.send(
+        BuildServerProtocol.OnBuildLogMessageNotification(
+          type: .info,
+          message: message,
+          structure: .report(StructuredLogReport(taskID: taskID.id))
+        )
+      )
+    }
 
     let result = try await Process.run(
       arguments: arguments,
@@ -717,7 +746,13 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       )
     )
     let exitStatus = result.exitStatus.exhaustivelySwitchable
-    logMessageToIndexLog(taskID, "Finished with \(exitStatus.description) in \(start.duration(to: .now))")
+    self.connectionToSourceKitLSP.send(
+      BuildServerProtocol.OnBuildLogMessageNotification(
+        type: exitStatus.isSuccess ? .info : .error,
+        message: "Finished with \(exitStatus.description) in \(start.duration(to: .now))",
+        structure: .end(StructuredLogEnd(taskID: taskID.id))
+      )
+    )
     switch exitStatus {
     case .terminated(code: 0):
       break

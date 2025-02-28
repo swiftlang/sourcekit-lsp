@@ -770,6 +770,47 @@ final class BackgroundIndexingTests: XCTestCase {
     try updateIndexStoreTaskDidFinish.waitOrThrow()
   }
 
+  func testProduceIndexLogWithTaskID() async throws {
+    let project = try await SwiftPMTestProject(
+      files: ["MyFile.swift": ""],
+      options: .testDefault(experimentalFeatures: [.structuredLogs]),
+      enableBackgroundIndexing: true,
+      pollIndex: false
+    )
+
+    var inProgressMessagesByTaskID: [String: String] = [:]
+    var finishedMessagesByTaskID: [String: String] = [:]
+    while true {
+      let notification = try await project.testClient.nextNotification(
+        ofType: LogMessageNotification.self,
+        satisfying: { $0.logName == "SourceKit-LSP: Indexing" }
+      )
+      switch notification.structure {
+      case .begin(let begin):
+        XCTAssertNil(inProgressMessagesByTaskID[begin.taskID])
+        inProgressMessagesByTaskID[begin.taskID] = begin.title + "\n" + notification.message + "\n"
+      case .report(let report):
+        XCTAssertNotNil(inProgressMessagesByTaskID[report.taskID])
+        inProgressMessagesByTaskID[report.taskID]?.append(notification.message + "\n")
+      case .end(let end):
+        finishedMessagesByTaskID[end.taskID] =
+          try XCTUnwrap(inProgressMessagesByTaskID[end.taskID]) + notification.message
+        inProgressMessagesByTaskID[end.taskID] = nil
+      case nil:
+        break
+      }
+
+      if let indexingTask = finishedMessagesByTaskID.values.first(where: { $0.contains("Indexing ") }),
+        let prepareTask = finishedMessagesByTaskID.values.first(where: { $0.contains("Preparing ") }),
+        indexingTask.contains("Finished"),
+        prepareTask.contains("Finished")
+      {
+        // We have two finished tasks, one for preparation, one for indexing, which is what we expect.
+        break
+      }
+    }
+  }
+
   func testIndexingHappensInParallel() async throws {
     let fileAIndexingStarted = WrappedSemaphore(name: "FileA indexing started")
     let fileBIndexingStarted = WrappedSemaphore(name: "FileB indexing started")

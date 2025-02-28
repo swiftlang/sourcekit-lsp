@@ -8,6 +8,7 @@ add_library(SourceKitLSP STATIC
   IndexStoreDB+MainFilesProvider.swift
   LanguageServerType.swift
   LanguageService.swift
+  LogMessageNotification+representingStructureUsingEmojiPrefixIfNecessary.swift
   MessageHandlingDependencyTracker.swift
   Rename.swift
   SemanticTokensLegend+SourceKitLSPLegend.swift

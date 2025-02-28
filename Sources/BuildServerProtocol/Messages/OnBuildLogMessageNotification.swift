@@ -18,22 +18,23 @@ import LanguageServerProtocol
 
 /// The log message notification is sent from a server to a client to ask the client to log a particular message in its console.
 ///
-/// A `build/logMessage`` notification is similar to LSP's `window/logMessage``, except for a few additions like id and originId.
+/// A `build/logMessage`` notification is similar to LSP's `window/logMessage``.
 public struct OnBuildLogMessageNotification: NotificationType {
   public static let method: String = "build/logMessage"
 
   /// The message type.
   public var type: MessageType
 
-  /// The task id if any.
-  public var task: TaskId?
-
   /// The actual message.
   public var message: String
 
-  public init(type: MessageType, task: TaskId? = nil, message: String) {
+  /// If specified, allows grouping log messages that belong to the same originating task together instead of logging
+  /// them in chronological order in which they were produced.
+  public var structure: StructuredLogKind?
+
+  public init(type: MessageType, message: String, structure: StructuredLogKind?) {
     self.type = type
-    self.task = task
     self.message = message
+    self.structure = structure
   }
 }

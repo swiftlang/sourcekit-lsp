@@ -53,4 +53,7 @@ package protocol BuildSystemManagerConnectionToClient: Sendable, Connection {
 
   /// Start watching for file changes with the given glob patterns.
   func watchFiles(_ fileWatchers: [FileSystemWatcher]) async
+
+  /// Log a message in the client's index log.
+  func logMessageToIndexLog(message: String, type: WindowMessageType, structure: StructuredLogKind?)
 }

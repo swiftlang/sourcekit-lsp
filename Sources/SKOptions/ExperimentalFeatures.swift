@@ -25,4 +25,7 @@ public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
 
   /// Enable the `sourceKit/_isIndexing` request.
   case isIndexingRequest = "is-indexing-request"
+
+  /// Indicate that the client can handle the experimental `structure` field in the `window/logMessage` notification.
+  case structuredLogs = "structured-logs"
 }
