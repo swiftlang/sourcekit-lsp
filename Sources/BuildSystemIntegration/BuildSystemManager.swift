@@ -357,6 +357,22 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
   }
 
+  /// Debounces calls to `delegate.fileBuildSettingsChanged`.
+  ///
+  /// This helps in the following situation: A build system takes 5s to return build settings for a file and we have 10
+  /// requests for those build settings coming in that time period. Once we get build settings, we get 10 calls to
+  /// `resultReceivedAfterTimeout` in `buildSettings(for:in:language:fallbackAfterTimeout:)`, all for the same document.
+  /// But calling `fileBuildSettingsChanged` once is totally sufficient.
+  ///
+  /// Force-unwrapped optional because initializing it requires access to `self`.
+  private var filesBuildSettingsChangedDebouncer: Debouncer<Set<DocumentURI>>! = nil {
+    didSet {
+      // Must only be set once
+      precondition(oldValue == nil)
+      precondition(filesBuildSettingsChangedDebouncer != nil)
+    }
+  }
+
   private var cachedAdjustedSourceKitOptions = RequestCache<TextDocumentSourceKitOptionsRequest>()
 
   private var cachedBuildTargets = Cache<WorkspaceBuildTargetsRequest, [BuildTargetIdentifier: BuildTargetInfo]>()
@@ -418,6 +434,24 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       let changedWatchedFiles = await self.watchedFilesReferencing(mainFiles: filesWithUpdatedDependencies)
       if !changedWatchedFiles.isEmpty {
         await delegate.filesDependenciesUpdated(changedWatchedFiles)
+      }
+    }
+
+    // We don't need a large debounce duration here. It just needs to be big enough to accumulate
+    // `resultReceivedAfterTimeout` calls for the same document (see comment on `filesBuildSettingsChangedDebouncer`).
+    // Since they should all come in at the same time, a couple of milliseconds should be sufficient here, an 20ms be
+    // plenty while still not causing a noticeable delay to the user.
+    self.filesBuildSettingsChangedDebouncer = Debouncer(
+      debounceDuration: .milliseconds(20),
+      combineResults: { $0.union($1) }
+    ) {
+      [weak self] (filesWithChangedBuildSettings) in
+      guard let self, let delegate = await self.delegate else {
+        logger.fault("Not calling fileBuildSettingsChanged because no delegate exists in SwiftPMBuildSystem")
+        return
+      }
+      if !filesWithChangedBuildSettings.isEmpty {
+        await delegate.fileBuildSettingsChanged(filesWithChangedBuildSettings)
       }
     }
 
@@ -579,7 +613,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     self.cachedSourceFilesAndDirectories.clearAll(isolation: self)
 
     await delegate?.buildTargetsChanged(notification.changes)
-    await delegate?.fileBuildSettingsChanged(Set(watchedFiles.keys))
+    await filesBuildSettingsChangedDebouncer.scheduleCall(Set(watchedFiles.keys))
   }
 
   private func logMessage(notification: BuildServerProtocol.OnBuildLogMessageNotification) async {
@@ -837,7 +871,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
           try await withTimeout(options.buildSettingsTimeoutOrDefault) {
             return try await self.buildSettingsFromBuildSystem(for: document, in: target, language: language)
           } resultReceivedAfterTimeout: {
-            await self.delegate?.fileBuildSettingsChanged([document])
+            await self.filesBuildSettingsChangedDebouncer.scheduleCall([document])
           }
         } else {
           try await self.buildSettingsFromBuildSystem(for: document, in: target, language: language)
@@ -895,7 +929,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
             try await withTimeout(options.buildSettingsTimeoutOrDefault) {
               await self.canonicalTarget(for: mainFile)
             } resultReceivedAfterTimeout: {
-              await self.delegate?.fileBuildSettingsChanged([document])
+              await self.filesBuildSettingsChangedDebouncer.scheduleCall([document])
             }
           }
         var languageForFile: Language
@@ -955,6 +989,10 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
     // Handle any messages the build system might have sent us while updating.
     await messageHandlingQueue.async(metadata: .stateChange) {}.valuePropagatingCancellation
+
+    // Ensure that we send out all delegate calls so that everybody is informed about the changes.
+    await filesBuildSettingsChangedDebouncer.flush()
+    await filesDependenciesUpdatedDebouncer.flush()
   }
 
   /// The root targets of the project have depth of 0 and all target dependencies have a greater depth than the target
