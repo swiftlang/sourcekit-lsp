@@ -14,13 +14,16 @@ Definition is the same as in LSP.
 
 ```ts
 export interface SourceKitInitializeBuildResponseData {
+  /** The path at which SourceKit-LSP can store its index database, aggregating data from `indexStorePath`.
+   * This should point to a directory that can be exclusively managed by SourceKit-LSP. Its exact location can be arbitrary. */
+  indexDatabasePath?: string;
+
   /** The directory to which the index store is written during compilation, ie. the path passed to `-index-store-path`
    * for `swiftc` or `clang` invocations **/
   indexStorePath?: string;
 
-  /** The path at which SourceKit-LSP can store its index database, aggregating data from `indexStorePath`.
-   * This should point to a directory that can be exclusively managed by SourceKit-LSP. Its exact location can be arbitrary. */
-  indexDatabasePath?: string;
+  /** Whether the server implements the `buildTarget/outputPaths` request. */
+  outputPathsProvider?: bool;
 
   /** Whether the build server supports the `buildTarget/prepare` request */
   prepareProvider?: bool;
@@ -43,6 +46,35 @@ If `data` contains a string value for the `workDoneProgressTitle` key, then the 
 
 `changes` can be `null` to indicate that all targets have changed.
 
+## `buildTarget/outputPaths`
+
+For all the source files in this target, the output paths that are used during indexing, ie. the `-index-unit-output-path` for the file, if it is specified in the compiler arguments or the file that is passed as `-o`, if `-index-unit-output-path` is not specified.
+
+ server communicates during the initialize handshake whether this method is supported or not by setting `outputPathsProvider: true` in `SourceKitInitializeBuildResponseData`.
+
+- method: `buildTarget/outputPaths`
+- params: `OutputPathsParams`
+- result: `OutputPathsResult`
+
+```ts
+export interface BuildTargetOutputPathsParams {
+  /** A list of build targets to get the output paths for. */
+  targets: BuildTargetIdentifier[];
+}
+
+export interface BuildTargetOutputPathsItem {
+  /** The target these output file paths are for. */
+  target: BuildTargetIdentifier;
+
+  /** The output paths for all source files in this target. */
+  outputPaths: string[];
+}
+
+export interface BuildTargetOutputPathsResult {
+  items: BuildTargetOutputPathsItem[];
+}
+```
+
 ## `buildTarget/prepare`
 
 The prepare build target request is sent from the client to the server to prepare the given list of build targets for editor functionality.
@@ -53,6 +85,7 @@ The server communicates during the initialize handshake whether this method is s
 
 - method: `buildTarget/prepare`
 - params: `PrepareParams`
+- result: `void`
 
 ```ts
 export interface PrepareParams {

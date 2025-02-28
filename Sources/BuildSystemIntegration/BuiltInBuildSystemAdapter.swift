@@ -100,9 +100,10 @@ actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
         indexStorePath: await orLog("getting index store file path") {
           try await underlyingBuildSystem.indexStorePath?.filePath
         },
-        watchers: await underlyingBuildSystem.fileWatchers,
-        prepareProvider: underlyingBuildSystem.supportsPreparation,
-        sourceKitOptionsProvider: true
+        outputPathsProvider: underlyingBuildSystem.supportsPreparationAndOutputPaths,
+        prepareProvider: underlyingBuildSystem.supportsPreparationAndOutputPaths,
+        sourceKitOptionsProvider: true,
+        watchers: await underlyingBuildSystem.fileWatchers
       ).encodeToLSPAny()
     )
   }
@@ -130,6 +131,8 @@ actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
     switch request {
     case let request as RequestAndReply<BuildShutdownRequest>:
       await request.reply { VoidResponse() }
+    case let request as RequestAndReply<BuildTargetOutputPathsRequest>:
+      await request.reply { try await underlyingBuildSystem.buildTargetOutputPaths(request: request.params) }
     case let request as RequestAndReply<BuildTargetPrepareRequest>:
       await request.reply { try await underlyingBuildSystem.prepare(request: request.params) }
     case let request as RequestAndReply<BuildTargetSourcesRequest>:

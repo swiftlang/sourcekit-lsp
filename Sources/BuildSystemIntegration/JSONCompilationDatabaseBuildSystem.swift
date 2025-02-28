@@ -86,7 +86,7 @@ package actor JSONCompilationDatabaseBuildSystem: BuiltInBuildSystem {
     indexStorePath?.deletingLastPathComponent().appendingPathComponent("IndexDatabase")
   }
 
-  package nonisolated var supportsPreparation: Bool { false }
+  package nonisolated var supportsPreparationAndOutputPaths: Bool { false }
 
   package init(
     configPath: URL,
@@ -148,7 +148,13 @@ package actor JSONCompilationDatabaseBuildSystem: BuiltInBuildSystem {
   }
 
   package func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
-    throw PrepareNotSupportedError()
+    throw ResponseError.methodNotFound(BuildTargetPrepareRequest.method)
+  }
+
+  package func buildTargetOutputPaths(
+    request: BuildTargetOutputPathsRequest
+  ) async throws -> BuildTargetOutputPathsResponse {
+    throw ResponseError.methodNotFound(BuildTargetOutputPathsRequest.method)
   }
 
   package func sourceKitOptions(

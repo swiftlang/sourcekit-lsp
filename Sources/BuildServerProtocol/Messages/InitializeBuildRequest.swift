@@ -273,8 +273,8 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
   /// The path at which SourceKit-LSP can store its index database, aggregating data from `indexStorePath`
   public var indexStorePath: String?
 
-  /// The files to watch for changes.
-  public var watchers: [FileSystemWatcher]?
+  /// Whether the server implements the `buildTarget/outputPaths` request.
+  public var outputPathsProvider: Bool?
 
   /// Whether the build server supports the `buildTarget/prepare` request.
   public var prepareProvider: Bool?
@@ -282,6 +282,10 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
   /// Whether the server implements the `textDocument/sourceKitOptions` request.
   public var sourceKitOptionsProvider: Bool?
 
+  /// The files to watch for changes.
+  public var watchers: [FileSystemWatcher]?
+
+  @available(*, deprecated, message: "Use initializer with alphabetical order of parameters")
   public init(
     indexDatabasePath: String? = nil,
     indexStorePath: String? = nil,
@@ -294,6 +298,22 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
     self.watchers = watchers
     self.prepareProvider = prepareProvider
     self.sourceKitOptionsProvider = sourceKitOptionsProvider
+  }
+
+  public init(
+    indexDatabasePath: String? = nil,
+    indexStorePath: String? = nil,
+    outputPathsProvider: Bool? = nil,
+    prepareProvider: Bool? = nil,
+    sourceKitOptionsProvider: Bool? = nil,
+    watchers: [FileSystemWatcher]? = nil
+  ) {
+    self.indexDatabasePath = indexDatabasePath
+    self.indexStorePath = indexStorePath
+    self.outputPathsProvider = outputPathsProvider
+    self.prepareProvider = prepareProvider
+    self.sourceKitOptionsProvider = sourceKitOptionsProvider
+    self.watchers = watchers
   }
 
   public init?(fromLSPDictionary dictionary: [String: LanguageServerProtocol.LSPAny]) {

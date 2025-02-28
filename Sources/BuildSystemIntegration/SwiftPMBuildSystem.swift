@@ -466,7 +466,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     signposter.endInterval("Reloading package", state)
   }
 
-  package nonisolated var supportsPreparation: Bool { true }
+  package nonisolated var supportsPreparationAndOutputPaths: Bool { true }
 
   package var buildPath: URL {
     return destinationBuildParameters.buildPath.asURL
@@ -483,9 +483,17 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     return buildPath.appendingPathComponent("index").appendingPathComponent("db")
   }
 
+  private func indexUnitOutputPath(forSwiftFile uri: DocumentURI) -> String {
+    return uri.pseudoPath + ".o"
+  }
+
   /// Return the compiler arguments for the given source file within a target, making any necessary adjustments to
   /// account for differences in the SwiftPM versions being linked into SwiftPM and being installed in the toolchain.
-  private func compilerArguments(for file: DocumentURI, in buildTarget: any SwiftBuildTarget) async throws -> [String] {
+  private func compilerArguments(
+    for file: DocumentURI,
+    in buildTarget: any SwiftBuildTarget,
+    language: Language
+  ) async throws -> [String] {
     guard let fileURL = file.fileURL else {
       struct NonFileURIError: Swift.Error, CustomStringConvertible {
         let uri: DocumentURI
@@ -496,7 +504,14 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
 
       throw NonFileURIError(uri: file)
     }
-    return try buildTarget.compileArguments(for: fileURL)
+    var compilerArguments = try buildTarget.compileArguments(for: fileURL)
+    if buildTarget.compiler == .swift {
+      compilerArguments += [
+        // Fake an output path so that we get a different unit file for every Swift file we background index
+        "-index-unit-output-path", indexUnitOutputPath(forSwiftFile: file),
+      ]
+    }
+    return compilerArguments
   }
 
   package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
@@ -623,7 +638,11 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       // getting its compiler arguments and then patching up the compiler arguments by replacing the substitute file
       // with the `.cpp` file.
       let buildSettings = FileBuildSettings(
-        compilerArguments: try await compilerArguments(for: DocumentURI(substituteFile), in: swiftPMTarget),
+        compilerArguments: try await compilerArguments(
+          for: DocumentURI(substituteFile),
+          in: swiftPMTarget,
+          language: request.language
+        ),
         workingDirectory: try projectRoot.filePath,
         language: request.language
       ).patching(newFile: DocumentURI(try path.asURL.realpath), originalFile: DocumentURI(substituteFile))
@@ -634,7 +653,11 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     }
 
     return TextDocumentSourceKitOptionsResponse(
-      compilerArguments: try await compilerArguments(for: request.textDocument.uri, in: swiftPMTarget),
+      compilerArguments: try await compilerArguments(
+        for: request.textDocument.uri,
+        in: swiftPMTarget,
+        language: request.language
+      ),
       workingDirectory: try projectRoot.filePath
     )
   }
@@ -650,6 +673,32 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       await orLog("Preparing") { try await prepare(singleTarget: target) }
     }
     return VoidResponse()
+  }
+
+  package func buildTargetOutputPaths(
+    request: BuildTargetOutputPathsRequest
+  ) async throws -> BuildTargetOutputPathsResponse {
+    var result: [BuildTargetOutputPathsItem] = []
+    for target in request.targets {
+      guard let swiftpmTarget = self.swiftPMTargets[target] else {
+        logger.error("Did not find target \(target.forLogging)")
+        continue
+      }
+      let outputPaths: [String]?
+      switch swiftpmTarget.compiler {
+      case .swift:
+        outputPaths = swiftpmTarget.sources.map { indexUnitOutputPath(forSwiftFile: DocumentURI($0)) }
+      case .clang:
+        outputPaths = orLog("Getting output paths for clang target") {
+          try swiftpmTarget.outputPaths.map { try $0.filePath }
+        }
+      }
+      guard let outputPaths else {
+        continue  // Already logged the error
+      }
+      result.append(BuildTargetOutputPathsItem(target: target, outputPaths: outputPaths))
+    }
+    return BuildTargetOutputPathsResponse(items: result)
   }
 
   private func prepare(singleTarget target: BuildTargetIdentifier) async throws {

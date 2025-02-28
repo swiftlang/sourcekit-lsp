@@ -136,7 +136,7 @@ actor LegacyBuildServerBuildSystem: MessageHandler, BuiltInBuildSystem {
     connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
   }
 
-  package nonisolated var supportsPreparation: Bool { false }
+  package nonisolated var supportsPreparationAndOutputPaths: Bool { false }
 
   package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
     return WorkspaceBuildTargetsResponse(targets: [
@@ -168,7 +168,13 @@ actor LegacyBuildServerBuildSystem: MessageHandler, BuiltInBuildSystem {
   package func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) {}
 
   package func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
-    throw PrepareNotSupportedError()
+    throw ResponseError.methodNotFound(BuildTargetPrepareRequest.method)
+  }
+
+  package func buildTargetOutputPaths(
+    request: BuildTargetOutputPathsRequest
+  ) async throws -> BuildTargetOutputPathsResponse {
+    throw ResponseError.methodNotFound(BuildTargetOutputPathsRequest.method)
   }
 
   package func sourceKitOptions(
