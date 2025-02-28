@@ -46,7 +46,7 @@ final class CodingTests: XCTestCase {
             },
             "locale" : "en-US",
             "processId" : 1,
-            "rootPath" : "\\/foo",
+            "rootPath" : "/foo",
             "trace" : "off"
           }
         }
@@ -74,7 +74,7 @@ final class CodingTests: XCTestCase {
 
             },
             "processId" : 1,
-            "rootPath" : "\\/foo",
+            "rootPath" : "/foo",
             "trace" : "off"
           }
         }
@@ -86,7 +86,7 @@ final class CodingTests: XCTestCase {
       json: """
         {
           "jsonrpc" : "2.0",
-          "method" : "$\\/cancelRequest",
+          "method" : "$/cancelRequest",
           "params" : {
             "id" : 1
           }

@@ -19,8 +19,7 @@ final class CodingTests: XCTestCase {
   func testValueCoding() throws {
     let url = URL(fileURLWithPath: "/foo.swift")
     let uri = DocumentURI(url)
-    // The \\/\\/\\/ is escaping file:// + /foo.swift, which is silly but allowed by json.
-    let urljson = "file:\\/\\/\\/foo.swift"
+    let urljson = "file:///foo.swift"
 
     let range = Position(line: 5, utf16index: 23)..<Position(line: 6, utf16index: 0)
     // Range.lowerBound -> start, Range.upperBound -> end
@@ -256,7 +255,7 @@ final class CodingTests: XCTestCase {
       CodeDescription(href: try DocumentURI(string: "file:///some/path")),
       json: """
         {
-          "href" : "file:\\/\\/\\/some\\/path"
+          "href" : "file:///some/path"
         }
         """
     )
@@ -697,7 +696,7 @@ final class CodingTests: XCTestCase {
                 "line" : 1
               }
             },
-            "uri" : "file:\\/\\/\\/foo.swift"
+            "uri" : "file:///foo.swift"
           },
           "fromRanges" : [
             {
@@ -862,7 +861,7 @@ final class CodingTests: XCTestCase {
           ],
           "kind" : "full",
           "relatedDocuments" : [
-            "file:\/\/\/some\/path",
+            "file:///some/path",
             {
               "kind" : "unchanged",
               "resultId" : "myOtherResults"
@@ -898,7 +897,7 @@ final class CodingTests: XCTestCase {
         {
           "kind" : "unchanged",
           "relatedDocuments" : [
-            "file:\/\/\/some\/path",
+            "file:///some/path",
             {
               "kind" : "unchanged",
               "resultId" : "myOtherResults"
@@ -1039,7 +1038,7 @@ final class CodingTests: XCTestCase {
       json: #"""
         {
           "textDocument" : {
-            "uri" : "file:\/\/\/some\/path"
+            "uri" : "file:///some/path"
           }
         }
         """#,
@@ -1056,7 +1055,7 @@ final class CodingTests: XCTestCase {
             "line" : 4
           },
           "textDocument" : {
-            "uri" : "file:\/\/\/some\/path"
+            "uri" : "file:///some/path"
           }
         }
         """#,
@@ -1091,7 +1090,7 @@ final class CodingTests: XCTestCase {
 
           ],
           "kind" : "full",
-          "uri" : "file:\/\/\/some\/path"
+          "uri" : "file:///some/path"
         }
         """#
     )
@@ -1107,7 +1106,7 @@ final class CodingTests: XCTestCase {
         {
           "kind" : "unchanged",
           "resultId" : "myResults",
-          "uri" : "file:\/\/\/some\/path"
+          "uri" : "file:///some/path"
         }
         """#
     )
@@ -1139,7 +1138,7 @@ final class CodingTests: XCTestCase {
                 "line" : 3
               }
             },
-            "uri" : "file:\/\/\/some\/path"
+            "uri" : "file:///some/path"
           },
           "name" : "mySym"
         }
@@ -1160,7 +1159,7 @@ final class CodingTests: XCTestCase {
         {
           "kind" : 17,
           "location" : {
-            "uri" : "file:\/\/\/some\/path"
+            "uri" : "file:///some/path"
           },
           "name" : "mySym"
         }
@@ -1173,7 +1172,7 @@ final class CodingTests: XCTestCase {
       WorkspaceSymbol.WorkspaceSymbolLocation.uri(.init(uri: try DocumentURI(string: "file:///some/path"))),
       json: #"""
         {
-          "uri" : "file:\/\/\/some\/path"
+          "uri" : "file:///some/path"
         }
         """#
     )
@@ -1197,7 +1196,7 @@ final class CodingTests: XCTestCase {
               "line" : 3
             }
           },
-          "uri" : "file:\/\/\/some\/path"
+          "uri" : "file:///some/path"
         }
         """#
     )

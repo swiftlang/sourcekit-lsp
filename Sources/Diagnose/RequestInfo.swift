@@ -40,7 +40,7 @@ package struct RequestInfo: Sendable {
 
   package func request(for file: URL) throws -> String {
     let encoder = JSONEncoder()
-    encoder.outputFormatting = .prettyPrinted
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     guard var compilerArgs = String(data: try encoder.encode(compilerArgs), encoding: .utf8) else {
       throw GenericError("Failed to encode compiler arguments")
     }
