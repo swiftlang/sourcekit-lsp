@@ -223,7 +223,7 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
     case is ShutdownRequest:
       self = .globalConfigurationChange
     case is SourceKitOptionsRequest:
-      self = .workspaceRequest
+      self = .freestanding
     case is TriggerReindexRequest:
       self = .globalConfigurationChange
     case is TypeHierarchySubtypesRequest:
