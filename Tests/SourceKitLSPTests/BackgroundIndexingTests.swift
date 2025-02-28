@@ -1883,6 +1883,33 @@ final class BackgroundIndexingTests: XCTestCase {
       ) != nil
     }
   }
+
+  func testIsIndexingRequest() async throws {
+    let checkedIsIndexStatus = AtomicBool(initialValue: false)
+    let hooks = Hooks(
+      indexHooks: IndexHooks(updateIndexStoreTaskDidStart: { task in
+        while !checkedIsIndexStatus.value {
+          try? await Task.sleep(for: .seconds(0.1))
+        }
+      })
+    )
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": ""
+      ],
+      options: .testDefault(experimentalFeatures: [.isIndexingRequest]),
+      hooks: hooks,
+      enableBackgroundIndexing: true,
+      pollIndex: false
+    )
+    let isIndexingResponseWhileIndexing = try await project.testClient.send(IsIndexingRequest())
+    XCTAssert(isIndexingResponseWhileIndexing.indexing)
+    checkedIsIndexStatus.value = true
+
+    try await repeatUntilExpectedResult {
+      try await project.testClient.send(IsIndexingRequest()).indexing == false
+    }
+  }
 }
 
 extension HoverResponseContents {

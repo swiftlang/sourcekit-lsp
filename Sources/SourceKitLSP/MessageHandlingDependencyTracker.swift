@@ -206,6 +206,8 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
       self = .freestanding
     case is InlineValueRefreshRequest:
       self = .freestanding
+    case is IsIndexingRequest:
+      self = .freestanding
     case is PollIndexRequest:
       self = .globalConfigurationChange
     case is RenameRequest:

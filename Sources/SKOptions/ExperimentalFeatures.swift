@@ -22,4 +22,7 @@ public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
 
   /// Enable the `workspace/_sourceKitOptions` request.
   case sourceKitOptionsRequest = "sourcekit-options-request"
+
+  /// Enable the `sourceKit/_isIndexing` request.
+  case isIndexingRequest = "is-indexing-request"
 }
