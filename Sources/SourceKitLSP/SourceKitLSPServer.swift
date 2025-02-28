@@ -830,6 +830,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.inlayHint)
     case let request as RequestAndReply<IsIndexingRequest>:
       await request.reply { try await self.isIndexing(request.params) }
+    case let request as RequestAndReply<OutputPathsRequest>:
+      await request.reply { try await outputPaths(request.params) }
     case let request as RequestAndReply<PollIndexRequest>:
       await request.reply { try await pollIndex(request.params) }
     case let request as RequestAndReply<PrepareRenameRequest>:
@@ -1557,6 +1559,22 @@ extension SourceKitLSPServer {
       didPrepareTarget: didPrepareTarget,
       data: buildSettings.data
     )
+  }
+
+  func outputPaths(_ request: OutputPathsRequest) async throws -> OutputPathsResponse {
+    guard options.hasExperimentalFeature(.outputPathsRequest) else {
+      throw ResponseError.unknown("\(OutputPathsRequest.method) is an experimental request")
+    }
+    guard let workspace = self.workspaces.first(where: { $0.rootUri == request.workspace }) else {
+      throw ResponseError.unknown("No workspace with URI \(request.workspace.forLogging) found")
+    }
+    guard await workspace.buildSystemManager.initializationData?.outputPathsProvider ?? false else {
+      throw ResponseError.unknown("Build server for \(request.workspace.forLogging) does not support output paths")
+    }
+    let outputPaths = try await workspace.buildSystemManager.outputPaths(in: [
+      BuildTargetIdentifier(uri: request.target)
+    ])
+    return OutputPathsResponse(outputPaths: outputPaths)
   }
 
   // MARK: - Language features

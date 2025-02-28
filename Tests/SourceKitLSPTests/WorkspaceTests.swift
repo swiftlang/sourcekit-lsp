@@ -1380,6 +1380,25 @@ final class WorkspaceTests: XCTestCase {
     )
     XCTAssert(options.compilerArguments.contains("-DHAVE_SETTINGS"))
   }
+
+  func testOutputPaths() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "FileA.swift": "",
+        "FileB.swift": "",
+      ],
+      options: .testDefault(experimentalFeatures: [.outputPathsRequest]),
+      enableBackgroundIndexing: true
+    )
+
+    let outputPaths = try await project.testClient.send(
+      OutputPathsRequest(
+        target: BuildTargetIdentifier(target: "MyLibrary", destination: .target).uri,
+        workspace: DocumentURI(project.scratchDirectory)
+      )
+    )
+    XCTAssertEqual(outputPaths.outputPaths.map { $0.suffix(13) }.sorted(), ["FileA.swift.o", "FileB.swift.o"])
+  }
 }
 
 fileprivate let defaultSDKArgs: String = {

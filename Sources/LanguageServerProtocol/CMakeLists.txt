@@ -70,6 +70,7 @@ add_library(LanguageServerProtocol STATIC
   Requests/IsIndexingRequest.swift
   Requests/LinkedEditingRangeRequest.swift
   Requests/MonikersRequest.swift
+  Requests/OutputPathsRequest.swift
   Requests/PeekDocumentsRequest.swift
   Requests/PollIndexRequest.swift
   Requests/PrepareRenameRequest.swift
