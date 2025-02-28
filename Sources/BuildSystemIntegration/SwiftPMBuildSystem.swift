@@ -466,7 +466,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     signposter.endInterval("Reloading package", state)
   }
 
-  package nonisolated var supportsPreparationAndOutputPaths: Bool { true }
+  package nonisolated var supportsPreparationAndOutputPaths: Bool { options.backgroundIndexingOrDefault }
 
   package var buildPath: URL {
     return destinationBuildParameters.buildPath.asURL
@@ -489,11 +489,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
 
   /// Return the compiler arguments for the given source file within a target, making any necessary adjustments to
   /// account for differences in the SwiftPM versions being linked into SwiftPM and being installed in the toolchain.
-  private func compilerArguments(
-    for file: DocumentURI,
-    in buildTarget: any SwiftBuildTarget,
-    language: Language
-  ) async throws -> [String] {
+  private func compilerArguments(for file: DocumentURI, in buildTarget: any SwiftBuildTarget) async throws -> [String] {
     guard let fileURL = file.fileURL else {
       struct NonFileURIError: Swift.Error, CustomStringConvertible {
         let uri: DocumentURI
@@ -638,11 +634,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       // getting its compiler arguments and then patching up the compiler arguments by replacing the substitute file
       // with the `.cpp` file.
       let buildSettings = FileBuildSettings(
-        compilerArguments: try await compilerArguments(
-          for: DocumentURI(substituteFile),
-          in: swiftPMTarget,
-          language: request.language
-        ),
+        compilerArguments: try await compilerArguments(for: DocumentURI(substituteFile), in: swiftPMTarget),
         workingDirectory: try projectRoot.filePath,
         language: request.language
       ).patching(newFile: DocumentURI(try path.asURL.realpath), originalFile: DocumentURI(substituteFile))
@@ -653,11 +645,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     }
 
     return TextDocumentSourceKitOptionsResponse(
-      compilerArguments: try await compilerArguments(
-        for: request.textDocument.uri,
-        in: swiftPMTarget,
-        language: request.language
-      ),
+      compilerArguments: try await compilerArguments(for: request.textDocument.uri, in: swiftPMTarget),
       workingDirectory: try projectRoot.filePath
     )
   }

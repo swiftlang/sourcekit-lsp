@@ -28,6 +28,10 @@ package protocol IndexInjector: Sendable {
     delegate: IndexDelegate,
     prefixMappings: [PathMapping]
   ) async throws -> IndexStoreDB
+
+  /// Whether the injected index uses explicit output paths and whether SourceKit-LSP should thus set the unit output
+  /// paths on the index as they change.
+  var usesExplicitOutputPaths: Bool { get async }
 }
 
 /// Callbacks that allow inspection of internal state modifications during testing.

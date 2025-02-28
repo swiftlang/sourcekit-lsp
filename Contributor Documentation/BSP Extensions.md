@@ -50,7 +50,9 @@ If `data` contains a string value for the `workDoneProgressTitle` key, then the 
 
 For all the source files in this target, the output paths that are used during indexing, ie. the `-index-unit-output-path` for the file, if it is specified in the compiler arguments or the file that is passed as `-o`, if `-index-unit-output-path` is not specified.
 
- server communicates during the initialize handshake whether this method is supported or not by setting `outputPathsProvider: true` in `SourceKitInitializeBuildResponseData`.
+This allows SourceKit-LSP to remove index entries for source files that are removed from a target but remain present on disk.
+
+The server communicates during the initialize handshake whether this method is supported or not by setting `outputPathsProvider: true` in `SourceKitInitializeBuildResponseData`.
 
 - method: `buildTarget/outputPaths`
 - params: `OutputPathsParams`

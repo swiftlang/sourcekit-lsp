@@ -323,14 +323,17 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
     if case .string(let indexStorePath) = dictionary[CodingKeys.indexStorePath.stringValue] {
       self.indexStorePath = indexStorePath
     }
-    if let watchers = dictionary[CodingKeys.watchers.stringValue] {
-      self.watchers = [FileSystemWatcher](fromLSPArray: watchers)
+    if case .bool(let outputPathsProvider) = dictionary[CodingKeys.outputPathsProvider.stringValue] {
+      self.outputPathsProvider = outputPathsProvider
     }
     if case .bool(let prepareProvider) = dictionary[CodingKeys.prepareProvider.stringValue] {
       self.prepareProvider = prepareProvider
     }
     if case .bool(let sourceKitOptionsProvider) = dictionary[CodingKeys.sourceKitOptionsProvider.stringValue] {
       self.sourceKitOptionsProvider = sourceKitOptionsProvider
+    }
+    if let watchers = dictionary[CodingKeys.watchers.stringValue] {
+      self.watchers = [FileSystemWatcher](fromLSPArray: watchers)
     }
   }
 
@@ -342,14 +345,17 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
     if let indexStorePath {
       result[CodingKeys.indexStorePath.stringValue] = .string(indexStorePath)
     }
-    if let watchers {
-      result[CodingKeys.watchers.stringValue] = watchers.encodeToLSPAny()
+    if let outputPathsProvider {
+      result[CodingKeys.outputPathsProvider.stringValue] = .bool(outputPathsProvider)
     }
     if let prepareProvider {
       result[CodingKeys.prepareProvider.stringValue] = .bool(prepareProvider)
     }
     if let sourceKitOptionsProvider {
       result[CodingKeys.sourceKitOptionsProvider.stringValue] = .bool(sourceKitOptionsProvider)
+    }
+    if let watchers {
+      result[CodingKeys.watchers.stringValue] = watchers.encodeToLSPAny()
     }
     return .dictionary(result)
   }

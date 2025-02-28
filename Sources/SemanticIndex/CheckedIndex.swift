@@ -58,7 +58,8 @@ package enum IndexCheckLevel {
 /// - SeeAlso: Comment on `IndexOutOfDateChecker`
 package final class CheckedIndex {
   private var checker: IndexOutOfDateChecker
-  private let index: IndexStoreDB
+  package let unchecked: UncheckedIndex
+  private var index: IndexStoreDB { unchecked.underlyingIndexStoreDB }
 
   /// Maps the USR of a symbol to its name and the name of all its containers, from outermost to innermost.
   ///
@@ -86,13 +87,9 @@ package final class CheckedIndex {
   /// `containerNamesCache[<usr of Foo>]` will be `["Bar", "Foo"]`.
   private var containerNamesCache: [String: [String]] = [:]
 
-  fileprivate init(index: IndexStoreDB, checkLevel: IndexCheckLevel) {
-    self.index = index
+  fileprivate init(unchecked: UncheckedIndex, checkLevel: IndexCheckLevel) {
+    self.unchecked = unchecked
     self.checker = IndexOutOfDateChecker(checkLevel: checkLevel)
-  }
-
-  package var unchecked: UncheckedIndex {
-    return UncheckedIndex(index)
   }
 
   @discardableResult
@@ -294,26 +291,43 @@ package final class CheckedIndex {
 /// access of the underlying `IndexStoreDB`. This makes sure that accesses to the raw `IndexStoreDB` are explicit (by
 /// calling `underlyingIndexStoreDB`) and we don't accidentally call into the `IndexStoreDB` when we wanted a
 /// `CheckedIndex`.
-package struct UncheckedIndex: Sendable {
-  package let underlyingIndexStoreDB: IndexStoreDB
+package final actor UncheckedIndex: Sendable {
+  package nonisolated let underlyingIndexStoreDB: IndexStoreDB
 
-  package init?(_ index: IndexStoreDB?) {
+  /// Whether the underlying `IndexStoreDB` uses has `useExplicitOutputUnits` enabled and thus needs to receive updates
+  /// updates as output paths are added or removed from the project.
+  package let usesExplicitOutputPaths: Bool
+
+  /// The set of unit output paths that are currently registered in the underlying `IndexStoreDB`.
+  private var unitOutputPaths: Set<String> = []
+
+  package init?(_ index: IndexStoreDB?, usesExplicitOutputPaths: Bool) {
     guard let index else {
       return nil
     }
+    self.usesExplicitOutputPaths = usesExplicitOutputPaths
     self.underlyingIndexStoreDB = index
   }
 
-  package init(_ index: IndexStoreDB) {
-    self.underlyingIndexStoreDB = index
+  /// Update the set of output paths that should be considered visible in the project. For example, if a source file is
+  /// removed from all targets in the project but remains on disk, this allows the index to start excluding it.
+  package func setUnitOutputPaths(_ paths: Set<String>) {
+    guard usesExplicitOutputPaths else {
+      return
+    }
+    let addedPaths = paths.filter { !unitOutputPaths.contains($0) }
+    let removedPaths = unitOutputPaths.filter { !paths.contains($0) }
+    underlyingIndexStoreDB.addUnitOutFilePaths(Array(addedPaths), waitForProcessing: false)
+    underlyingIndexStoreDB.removeUnitOutFilePaths(Array(removedPaths), waitForProcessing: false)
+    self.unitOutputPaths = paths
   }
 
-  package func checked(for checkLevel: IndexCheckLevel) -> CheckedIndex {
-    return CheckedIndex(index: underlyingIndexStoreDB, checkLevel: checkLevel)
+  package nonisolated func checked(for checkLevel: IndexCheckLevel) -> CheckedIndex {
+    return CheckedIndex(unchecked: self, checkLevel: checkLevel)
   }
 
   /// Wait for IndexStoreDB to be updated based on new unit files written to disk.
-  package func pollForUnitChangesAndWait() {
+  package nonisolated func pollForUnitChangesAndWait() {
     self.underlyingIndexStoreDB.pollForUnitChangesAndWait()
   }
 }

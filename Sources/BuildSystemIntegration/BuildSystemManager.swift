@@ -631,7 +631,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         // All targets might have changed
         return true
       }
-      return !updatedTargets.intersection(cacheKey.targets).isEmpty
+      return !updatedTargets.isDisjoint(with: cacheKey.targets)
     }
     self.cachedSourceFilesAndDirectories.clearAll(isolation: self)
 
@@ -1167,7 +1167,17 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     return response.items
   }
 
-  package func outputPath(from targets: Set<BuildTargetIdentifier>) async throws -> [String] {
+  /// Return the output paths for all source files known to the build server.
+  ///
+  /// See `BuildTargetOutputPathsRequest` for details.
+  package func outputPathInAllTargets() async throws -> [String] {
+    return try await outputPaths(in: Set(buildTargets().map(\.key)))
+  }
+
+  /// For all source files in the given targets, return their output file paths.
+  ///
+  /// See `BuildTargetOutputPathsRequest` for details.
+  package func outputPaths(in targets: Set<BuildTargetIdentifier>) async throws -> [String] {
     guard let buildSystemAdapter = await buildSystemAdapterAfterInitialized, !targets.isEmpty else {
       return []
     }

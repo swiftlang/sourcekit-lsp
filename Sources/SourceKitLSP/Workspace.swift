@@ -285,7 +285,6 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       "Created workspace at \(rootUri.forLogging) with project root \(buildSystemSpec?.projectRoot.description ?? "<nil>")"
     )
 
-    var index: IndexStoreDB? = nil
     var indexDelegate: SourceKitIndexDelegate? = nil
 
     let indexOptions = options.indexOrDefault
@@ -301,6 +300,8 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       } else {
         nil
       }
+    let supportsOutputPaths = await buildSystemManager.initializationData?.outputPathsProvider ?? false
+    var index: UncheckedIndex? = nil
     if let indexStorePath, let indexDatabasePath, let libPath = await toolchainRegistry.default?.libIndexStore {
       do {
         indexDelegate = SourceKitIndexDelegate()
@@ -308,29 +309,34 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
           (indexOptions.indexPrefixMap ?? [:])
           .map { PathMapping(original: $0.key, replacement: $0.value) }
         if let indexInjector = hooks.indexHooks.indexInjector {
-          index = try await indexInjector.createIndex(
+          let indexStoreDB = try await indexInjector.createIndex(
             storePath: indexStorePath,
             databasePath: indexDatabasePath,
             indexStoreLibraryPath: libPath,
             delegate: indexDelegate!,
             prefixMappings: prefixMappings
           )
+          index = UncheckedIndex(indexStoreDB, usesExplicitOutputPaths: await indexInjector.usesExplicitOutputPaths)
         } else {
-          index = try IndexStoreDB(
+          let indexStoreDB = try IndexStoreDB(
             storePath: indexStorePath.filePath,
             databasePath: indexDatabasePath.filePath,
             library: IndexStoreLibrary(dylibPath: libPath.filePath),
             delegate: indexDelegate,
+            useExplicitOutputUnits: supportsOutputPaths,
             prefixMappings: prefixMappings
           )
-          logger.debug("Opened IndexStoreDB at \(indexDatabasePath) with store path \(indexStorePath)")
+          index = UncheckedIndex(indexStoreDB, usesExplicitOutputPaths: supportsOutputPaths)
+          logger.debug(
+            "Opened IndexStoreDB at \(indexDatabasePath) with store path \(indexStorePath) with explicit output files \(supportsOutputPaths)"
+          )
         }
       } catch {
         logger.error("Failed to open IndexStoreDB: \(error.localizedDescription)")
       }
     }
 
-    await buildSystemManager.setMainFilesProvider(UncheckedIndex(index))
+    await buildSystemManager.setMainFilesProvider(index)
 
     await self.init(
       sourceKitLSPServer: sourceKitLSPServer,
@@ -339,7 +345,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       options: options,
       hooks: hooks,
       buildSystemManager: buildSystemManager,
-      index: UncheckedIndex(index),
+      index: index,
       indexDelegate: indexDelegate,
       indexTaskScheduler: indexTaskScheduler
     )
@@ -449,6 +455,18 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     await orLog("Scheduling syntactic test re-indexing") {
       let testFiles = try await buildSystemManager.testFiles()
       await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
+    }
+
+    if await self.uncheckedIndex?.usesExplicitOutputPaths ?? false {
+      if await buildSystemManager.initializationData?.outputPathsProvider ?? false {
+        await orLog("Setting new list of unit output paths") {
+          try await self.uncheckedIndex?.setUnitOutputPaths(Set(buildSystemManager.outputPathInAllTargets()))
+        }
+      } else {
+        // This can only happen if an index got injected that uses explicit output paths but the build system does not
+        // support output paths.
+        logger.error("The index uses explicit output paths but the build system does not support output paths")
+      }
     }
   }
 
