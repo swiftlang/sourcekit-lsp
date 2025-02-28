@@ -421,7 +421,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
         allowFallbackSettings: false
       )
     )
-    XCTAssertEqual(options?.data, LSPAny.dictionary(["custom": .string("value")]))
+    XCTAssertEqual(options.data, LSPAny.dictionary(["custom": .string("value")]))
   }
 
   func testBuildSettingsForFilePartOfMultipleTargets() async throws {

@@ -19,7 +19,7 @@
 /// **(LSP Extension)**.
 public struct SourceKitOptionsRequest: RequestType, Hashable {
   public static let method: String = "workspace/_sourceKitOptions"
-  public typealias Response = SourceKitOptionsResponse?
+  public typealias Response = SourceKitOptionsResponse
 
   /// The document to get options for
   public var textDocument: TextDocumentIdentifier
