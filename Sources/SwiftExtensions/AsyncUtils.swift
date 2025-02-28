@@ -165,6 +165,17 @@ extension Collection where Element: Sendable {
       count = indexedResults.count
     }
   }
+
+  /// Invoke `body` for every element in the collection and wait for all calls of `body` to finish
+  package func concurrentForEach(_ body: @escaping @Sendable (Element) async -> Void) async {
+    await withTaskGroup(of: Void.self) { taskGroup in
+      for element in self {
+        taskGroup.addTask {
+          await body(element)
+        }
+      }
+    }
+  }
 }
 
 package struct TimeoutError: Error, CustomStringConvertible {

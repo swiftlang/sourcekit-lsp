@@ -18,13 +18,28 @@ import SwiftExtensions
 
 /// Task metadata for `SyntacticTestIndexer.indexingQueue`
 fileprivate enum TaskMetadata: DependencyTracker, Equatable {
-  case read
+  /// Determine the list of test files from the build system and scan them for tests. Only created when the
+  /// `SyntacticTestIndex` is created
+  case initialPopulation
+
+  /// Index the files in the given set for tests
   case index(Set<DocumentURI>)
+
+  /// Retrieve information about syntactically discovered tests from the index.
+  case read
 
   /// Reads can be concurrent and files can be indexed concurrently. But we need to wait for all files to finish
   /// indexing before reading the index.
   func isDependency(of other: TaskMetadata) -> Bool {
     switch (self, other) {
+    case (.initialPopulation, _):
+      // The initial population need to finish before we can do anything with the task.
+      return true
+    case (_, .initialPopulation):
+      // Should never happen because the initial population should only be scheduled once before any other operations
+      // on the test index. But be conservative in case we do get an `initialPopulation` somewhere in between and use it
+      // as a full blocker on the queue.
+      return true
     case (.read, .read):
       // We allow concurrent reads
       return false
@@ -109,7 +124,23 @@ actor SyntacticTestIndex {
   /// indexing tasks to finish.
   private let indexingQueue = AsyncQueue<TaskMetadata>()
 
-  init() {}
+  init(determineTestFiles: @Sendable @escaping () async -> [DocumentURI]) {
+    indexingQueue.async(priority: .low, metadata: .initialPopulation) {
+      let testFiles = await determineTestFiles()
+
+      // Divide the files into multiple batches. This is more efficient than spawning a new task for every file, mostly
+      // because it keeps the number of pending items in `indexingQueue` low and adding a new task to `indexingQueue` is
+      // in O(number of pending tasks), since we need to scan for dependency edges to add, which would make scanning files
+      // be O(number of files).
+      // Over-subscribe the processor count in case one batch finishes more quickly than another.
+      let batches = testFiles.partition(intoNumberOfBatches: ProcessInfo.processInfo.processorCount * 4)
+      await batches.concurrentForEach { filesInBatch in
+        for uri in filesInBatch {
+          await self.rescanFileAssumingOnQueue(uri)
+        }
+      }
+    }
+  }
 
   private func removeFilesFromIndex(_ removedFiles: Set<DocumentURI>) {
     self.removedFiles.formUnion(removedFiles)

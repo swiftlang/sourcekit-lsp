@@ -204,17 +204,20 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     }
     preInitialization?(self)
     if initialize {
-      _ = try await self.send(
-        InitializeRequest(
-          processId: nil,
-          rootPath: nil,
-          rootURI: nil,
-          initializationOptions: initializationOptions,
-          capabilities: capabilities,
-          trace: .off,
-          workspaceFolders: workspaceFolders
+      let capabilities = capabilities
+      try await withTimeout(.seconds(defaultTimeout)) {
+        _ = try await self.send(
+          InitializeRequest(
+            processId: nil,
+            rootPath: nil,
+            rootURI: nil,
+            initializationOptions: initializationOptions,
+            capabilities: capabilities,
+            trace: .off,
+            workspaceFolders: workspaceFolders
+          )
         )
-      )
+      }
     }
   }
 
