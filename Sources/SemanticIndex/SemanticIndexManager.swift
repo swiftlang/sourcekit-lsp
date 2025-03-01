@@ -413,6 +413,38 @@ package final actor SemanticIndexManager {
     )
   }
 
+  package func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {
+    let targets = changes?.map(\.target)
+
+    if let targets {
+      var targetsAndDependencies = targets
+      targetsAndDependencies += await buildSystemManager.targets(dependingOn: Set(targets))
+      if !targetsAndDependencies.isEmpty {
+        logger.info(
+          """
+          Marking dependent targets as out-of-date: \
+          \(String(targetsAndDependencies.map(\.uri.stringValue).joined(separator: ", ")))
+          """
+        )
+        await preparationUpToDateTracker.markOutOfDate(targetsAndDependencies)
+      }
+    } else {
+      await preparationUpToDateTracker.markAllKnownOutOfDate()
+    }
+
+    await orLog("Scheduling re-indexing of changed targets") {
+      var sourceFiles = try await self.buildSystemManager.sourceFiles(includeNonBuildableFiles: false)
+      if let targets {
+        sourceFiles = sourceFiles.filter { !$0.value.targets.isDisjoint(with: targets) }
+      }
+      _ = await scheduleIndexing(
+        of: sourceFiles.keys,
+        indexFilesWithUpToDateUnit: false,
+        priority: .low
+      )
+    }
+  }
+
   /// Returns the files that should be indexed to get up-to-date index information for the given files.
   ///
   /// If `files` contains a header file, this will return a `FileToIndex` that re-indexes a main file which includes the
