@@ -173,7 +173,7 @@ extension SourceKitD {
       if sourcekitdResponse.error == .connectionInterrupted {
         log(crashedRequest: request, fileContents: fileContents)
       }
-      if sourcekitdResponse.error == .requestCancelled && !Task.isCancelled {
+      if sourcekitdResponse.error == .timedOut && !Task.isCancelled {
         throw SKDError.timedOut
       }
       throw sourcekitdResponse.error!
