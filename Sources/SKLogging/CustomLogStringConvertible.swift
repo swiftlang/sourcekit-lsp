@@ -101,8 +101,7 @@ extension Optional where Wrapped: CustomLogStringConvertible {
 extension Encodable {
   package var prettyPrintedJSON: String {
     let encoder = JSONEncoder()
-    encoder.outputFormatting.insert(.prettyPrinted)
-    encoder.outputFormatting.insert(.sortedKeys)
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     guard let data = try? encoder.encode(self) else {
       return "\(self)"
     }
@@ -137,7 +136,7 @@ extension Encodable {
       let jsonObject = try? JSONSerialization.jsonObject(with: encoded),
       let data = try? JSONSerialization.data(
         withJSONObject: redact(subject: jsonObject),
-        options: [.prettyPrinted, .sortedKeys]
+        options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
       ),
       let string = String(data: data, encoding: .utf8)
     else {

@@ -130,7 +130,7 @@ package struct IndexedSingleSwiftFileTestProject {
       ]
     )
     let encoder = JSONEncoder()
-    encoder.outputFormatting = .prettyPrinted
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     try encoder.encode(compilationDatabase).write(
       to: testWorkspaceDirectory.appendingPathComponent(JSONCompilationDatabaseBuildSystem.dbName)
     )

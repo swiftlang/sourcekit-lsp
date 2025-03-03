@@ -24,8 +24,7 @@ package func checkCoding<T: Codable & Equatable>(
   line: UInt = #line
 ) {
   let encoder = JSONEncoder()
-  encoder.outputFormatting.insert(.prettyPrinted)
-  encoder.outputFormatting.insert(.sortedKeys)
+  encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
 
   let data = try! encoder.encode(WrapFragment(value: value))
   let wrappedStr = String(data: data, encoding: .utf8)!
@@ -64,8 +63,7 @@ package func checkEncoding<T: Encodable & Equatable>(
   line: UInt = #line
 ) {
   let encoder = JSONEncoder()
-  encoder.outputFormatting.insert(.prettyPrinted)
-  encoder.outputFormatting.insert(.sortedKeys)
+  encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
   let data = try! encoder.encode(value)
   let str = String(data: data, encoding: .utf8)!
     // Remove trailing whitespace to normalize between corelibs and Apple Foundation.
@@ -101,8 +99,7 @@ package func checkCoding<T: Codable>(
   body: (T) -> Void
 ) {
   let encoder = JSONEncoder()
-  encoder.outputFormatting.insert(.prettyPrinted)
-  encoder.outputFormatting.insert(.sortedKeys)
+  encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
   let data = try! encoder.encode(value)
   let str = String(data: data, encoding: .utf8)!
     // Remove trailing whitespace to normalize between corelibs and Apple Foundation.
