@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SKLogging
 import SourceKitD
 import SwiftExtensions
 import SwiftSourceKitPluginCommon
@@ -62,14 +63,31 @@ final class RequestHandler: Sendable {
     func produceResult(
       body: @escaping @Sendable () async throws -> SKDResponseDictionaryBuilder
     ) -> HandleRequestResult {
-      requestHandlingQueue.async {
-        do {
-          receiver(try await body().response)
-        } catch {
-          receiver(SKDResponse.from(error: error, sourcekitd: self.sourcekitd))
+      withLoggingScope("request-\(handle?.numericValue ?? 0 % 100)") {
+        let start = Date()
+        logger.debug(
+          """
+          Plugin received sourcekitd request (handle: \(handle?.numericValue ?? -1))
+          \(dict.description)
+          """
+        )
+        requestHandlingQueue.async {
+          let response: SKDResponse
+          do {
+            response = try await body().response
+          } catch {
+            response = SKDResponse.from(error: error, sourcekitd: self.sourcekitd)
+          }
+          logger.debug(
+            """
+            Finished (took \(Date().timeIntervalSince(start))s)
+            \(response.description)
+            """
+          )
+          receiver(response)
         }
+        return .requestHandled
       }
-      return .requestHandled
     }
 
     func sourcekitdProducesResult(body: @escaping @Sendable () async -> ()) -> HandleRequestResult {
@@ -139,6 +157,7 @@ final class RequestHandler: Sendable {
   }
 
   func cancel(_ handle: RequestHandle) {
+    logger.debug("Cancelling request with handle \(handle.numericValue)")
     self.completionProvider.cancel(handle: handle)
   }
 }
