@@ -392,6 +392,20 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     /// `pathComponents` is the result of `key.fileURL?.pathComponents`. We frequently need these path components to
     /// determine if a file is descendent of the directory and computing them from the `DocumentURI` is expensive.
     let directories: [DocumentURI: (pathComponents: [String]?, info: SourceFileInfo)]
+
+    /// Same as `Set(files.filter(\.value.isBuildable).keys)`. Pre-computed because we need this pretty frequently in
+    /// `SemanticIndexManager.filesToIndex`.
+    let buildableSourceFiles: Set<DocumentURI>
+
+    internal init(
+      files: [DocumentURI: SourceFileInfo],
+      directories: [DocumentURI: (pathComponents: [String]?, info: SourceFileInfo)]
+    ) {
+      self.files = files
+      self.directories = directories
+      self.buildableSourceFiles = Set(files.filter(\.value.isBuildable).keys)
+    }
+
   }
 
   private let cachedSourceFilesAndDirectories = Cache<SourceFilesAndDirectoriesKey, SourceFilesAndDirectories>()
@@ -1151,6 +1165,13 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     } else {
       return files.filter(\.value.isBuildable)
     }
+  }
+
+  /// Returns all source files in the project that are considered buildable.
+  ///
+  /// - SeeAlso: Comment in `sourceFilesAndDirectories` for a definition of what `buildable` means.
+  package func buildableSourceFiles() async throws -> Set<DocumentURI> {
+    return try await sourceFilesAndDirectories().buildableSourceFiles
   }
 
   /// Get all files and directories that are known to the build system, ie. that are returned by a `buildTarget/sources`

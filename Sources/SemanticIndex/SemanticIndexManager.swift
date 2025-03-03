@@ -305,8 +305,7 @@ package final actor SemanticIndexManager {
             filesToIndex
           } else {
             await orLog("Getting files to index") {
-              try await self.buildSystemManager.sourceFiles(includeNonBuildableFiles: false).keys
-                .sorted { $0.stringValue < $1.stringValue }
+              try await self.buildSystemManager.buildableSourceFiles().sorted { $0.stringValue < $1.stringValue }
             } ?? []
           }
         _ = await self.scheduleIndexing(
@@ -426,7 +425,7 @@ package final actor SemanticIndexManager {
     indexFilesWithUpToDateUnits: Bool
   ) async -> [(file: FileToIndex, fileModificationDate: Date?)] {
     let sourceFiles = await orLog("Getting source files in project") {
-      Set(try await buildSystemManager.sourceFiles(includeNonBuildableFiles: false).keys)
+      try await buildSystemManager.buildableSourceFiles()
     }
     guard let sourceFiles else {
       return []
@@ -461,6 +460,7 @@ package final actor SemanticIndexManager {
           .mainFilesContainingFile(uri: uri, crossLanguage: false)
           .sorted(by: { $0.stringValue < $1.stringValue }).first
         guard let mainFile else {
+          logger.log("Not indexing \(uri) because its main file could not be inferred")
           return nil
         }
         if !indexFilesWithUpToDateUnits, modifiedFilesIndex.hasUpToDateUnit(for: uri, mainFile: mainFile) {
