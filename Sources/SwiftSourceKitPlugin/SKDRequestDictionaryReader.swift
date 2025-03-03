@@ -13,13 +13,33 @@
 import Csourcekitd
 import SourceKitD
 
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#elseif canImport(CRT)
+import CRT
+#elseif canImport(Bionic)
+import Bionic
+#endif
+
 /// Provide getters to get values of a sourcekitd request dictionary.
 ///
 /// This is not part of the `SourceKitD` module because it uses `SourceKitD.servicePluginAPI` which must not be accessed
 /// outside of the service plugin.
-final class SKDRequestDictionaryReader: Sendable {
+final class SKDRequestDictionaryReader: Sendable, CustomStringConvertible {
   private nonisolated(unsafe) let dict: sourcekitd_api_object_t
   let sourcekitd: SourceKitD
+
+  var description: String {
+    guard let description = sourcekitd.api.request_description_copy(dict) else {
+      return "getting request description failed"
+    }
+    defer { free(description) }
+    return String(cString: description)
+  }
 
   /// Creates an `SKDRequestDictionary` that essentially provides a view into the given opaque
   /// `sourcekitd_api_object_t`.

@@ -74,7 +74,7 @@ final class SKDResponse: CustomStringConvertible, Sendable {
   }
 
   public var description: String {
-    let cstr = sourcekitd.api.request_description_copy(value)!
+    let cstr = sourcekitd.api.response_description_copy(value)!
     defer { free(cstr) }
     return String(cString: cstr)
   }
