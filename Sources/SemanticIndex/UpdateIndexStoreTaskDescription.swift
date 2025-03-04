@@ -24,6 +24,7 @@ import TSCExtensions
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import struct TSCBasic.ProcessResult
+import enum TSCBasic.SystemError
 #else
 import BuildServerProtocol
 import BuildSystemIntegration
@@ -38,6 +39,11 @@ import TSCExtensions
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import struct TSCBasic.ProcessResult
+import enum TSCBasic.SystemError
+#endif
+
+#if os(Windows)
+import WinSDK
 #endif
 
 private let updateIndexStoreIDForLogging = AtomicUInt32(initialValue: 1)
@@ -415,7 +421,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     let result: ProcessResult
     do {
       result = try await withTimeout(timeout) {
-        try await Process.run(
+        try await Process.runUsingResponseFileIfTooManyArguments(
           arguments: processArguments,
           workingDirectory: workingDirectory,
           outputRedirection: .stream(
@@ -461,6 +467,69 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         logger.error("Updating index store for \(indexFile.forLogging) exited abnormally \(exception)")
         BuildSettingsLogger.log(level: .error, settings: buildSettings, for: indexFile)
       }
+    }
+  }
+}
+
+fileprivate extension Process {
+  /// Run a process with the given arguments. If the number of arguments exceeds the maximum number of arguments allows,
+  /// create a response file and use it to pass the arguments.
+  static func runUsingResponseFileIfTooManyArguments(
+    arguments: [String],
+    workingDirectory: AbsolutePath?,
+    outputRedirection: OutputRedirection = .collect(redirectStderr: false)
+  ) async throws -> ProcessResult {
+    do {
+      return try await Process.run(
+        arguments: arguments,
+        workingDirectory: workingDirectory,
+        outputRedirection: outputRedirection
+      )
+    } catch {
+      let argumentListTooLong: Bool
+      #if os(Windows)
+      if let error = error as? CocoaError {
+        argumentListTooLong =
+          error.underlyingErrors.contains(where: {
+            return ($0 as NSError).domain == "org.swift.Foundation.WindowsError"
+              && ($0 as NSError).code == ERROR_FILENAME_EXCED_RANGE
+          })
+      } else {
+        argumentListTooLong = false
+      }
+      #else
+      if case SystemError.posix_spawn(E2BIG, _) = error {
+        argumentListTooLong = true
+      } else {
+        argumentListTooLong = false
+      }
+      #endif
+
+      guard argumentListTooLong else {
+        throw error
+      }
+
+      logger.debug("Argument list is too long. Using response file.")
+      let responseFile = FileManager.default.temporaryDirectory.appendingPathComponent(
+        "index-response-file-\(UUID()).txt"
+      )
+      defer {
+        orLog("Failed to remove temporary response file") {
+          try FileManager.default.removeItem(at: responseFile)
+        }
+      }
+      FileManager.default.createFile(atPath: try responseFile.filePath, contents: nil)
+      let handle = try FileHandle(forWritingTo: responseFile)
+      for argument in arguments.dropFirst() {
+        handle.write(Data((argument.spm_shellEscaped() + "\n").utf8))
+      }
+      try handle.close()
+
+      return try await Process.run(
+        arguments: arguments.prefix(1) + ["@\(responseFile.filePath)"],
+        workingDirectory: workingDirectory,
+        outputRedirection: outputRedirection
+      )
     }
   }
 }

@@ -65,6 +65,7 @@ package class BuildServerTestProject: MultiFileTestProject {
     buildServerConfigLocation: RelativeFileLocation = ".bsp/sourcekit-lsp.json",
     buildServer: String,
     options: SourceKitLSPOptions? = nil,
+    enableBackgroundIndexing: Bool = false,
     testName: String = #function
   ) async throws {
     var files = files
@@ -92,6 +93,7 @@ package class BuildServerTestProject: MultiFileTestProject {
     try await super.init(
       files: files,
       options: options,
+      enableBackgroundIndexing: enableBackgroundIndexing,
       testName: testName
     )
   }

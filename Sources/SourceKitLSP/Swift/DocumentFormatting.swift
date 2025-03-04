@@ -23,7 +23,6 @@ import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
-import func TSCBasic.withTemporaryFile
 #else
 import Foundation
 import LanguageServerProtocol
@@ -37,7 +36,6 @@ import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
-import func TSCBasic.withTemporaryFile
 #endif
 
 fileprivate extension String {
