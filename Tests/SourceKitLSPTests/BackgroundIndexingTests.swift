@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import BuildSystemIntegration
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
@@ -1908,6 +1909,72 @@ final class BackgroundIndexingTests: XCTestCase {
 
     try await repeatUntilExpectedResult {
       try await project.testClient.send(IsIndexingRequest()).indexing == false
+    }
+  }
+
+  func testIndexFileIfBuildTargetsChange() async throws {
+    let testBuildSystem = ThreadSafeBox<TestBuildSystem?>(initialValue: nil)
+    let project = try await MultiFileTestProject(
+      files: [
+        "Test.swift": """
+        func 1️⃣myTestFunc() {}
+        """
+      ],
+      hooks: Hooks(
+        buildSystemHooks: BuildSystemHooks(injectBuildServer: { projectRoot, connectionToSourceKitLSP in
+          assert(testBuildSystem.value == nil, "Build system injector hook can only create a single TestBuildSystem")
+          let buildSystem = TestBuildSystem(
+            initializeData: SourceKitInitializeBuildResponseData(
+              indexDatabasePath: projectRoot.appendingPathComponent("index-db").path,
+              indexStorePath: projectRoot.appendingPathComponent("index-store").path,
+              prepareProvider: true,
+              sourceKitOptionsProvider: true
+            ),
+            connectionToSourceKitLSP: connectionToSourceKitLSP
+          )
+          testBuildSystem.value = buildSystem
+          let connection = LocalConnection(receiverName: "TestBuildSystem")
+          connection.start(handler: buildSystem)
+          return connection
+        })
+      ),
+      enableBackgroundIndexing: true
+    )
+    let fileUrl = try XCTUnwrap(project.uri(for: "Test.swift").fileURL)
+
+    var compilerArguments = [fileUrl.path]
+    if let defaultSDKPath {
+      compilerArguments += ["-sdk", defaultSDKPath]
+    }
+
+    // We don't initially index Test.swift because we don't have build settings for it.
+
+    try await XCTUnwrap(testBuildSystem.value).setBuildSettings(
+      for: DocumentURI(fileUrl),
+      to: TextDocumentSourceKitOptionsResponse(compilerArguments: compilerArguments)
+    )
+
+    // But once we get build settings for it, we should index the file.
+
+    try await repeatUntilExpectedResult {
+      let workspaceSymbols = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTestFunc"))
+      guard let workspaceSymbols, !workspaceSymbols.isEmpty else {
+        // No results yet, indexing of the file might not have finished.
+        return false
+      }
+      XCTAssertEqual(
+        workspaceSymbols,
+        [
+          .symbolInformation(
+            SymbolInformation(
+              name: "myTestFunc()",
+              kind: .function,
+              location: try project.location(from: "1️⃣", to: "1️⃣", in: "Test.swift")
+            )
+          )
+        ]
+      )
+      return true
     }
   }
 }

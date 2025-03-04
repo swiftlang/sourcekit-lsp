@@ -42,7 +42,7 @@ import struct TSCBasic.ProcessResult
 
 private let updateIndexStoreIDForLogging = AtomicUInt32(initialValue: 1)
 
-package enum FileToIndex: CustomLogStringConvertible {
+package enum FileToIndex: CustomLogStringConvertible, Hashable {
   /// A non-header file
   case indexableFile(DocumentURI)
 
