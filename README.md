@@ -4,7 +4,9 @@ SourceKit-LSP is an implementation of the [Language Server Protocol](https://mic
 
 ## Getting Started
 
-https://www.swift.org/tools has a list of popular editors that support LSP and can thus be hooked up to SourceKit-LSP to provide intelligent editor functionality as well as set-up guides.
+SourceKit-LSP is included in the the Swift toolchains available on [swift.org](http://swift.org/install/) and is bundled with [Xcode](http://developer.apple.com/xcode/).
+
+[swift.org/tools](https://www.swift.org/tools) has a list of popular editors that support LSP and can thus be hooked up to SourceKit-LSP to provide intelligent editor functionality as well as set-up guides.
 
 > [!IMPORTANT]
 > SourceKit-LSP does not update its global index in the background or build Swift modules in the background. Thus, a lot of cross-module or global functionality is limited if the project hasn't been built recently. To update the index or rebuild the Swift modules, build your project or enable the experimental background indexing as described in [Enable Experimental Background Indexing](Documentation/Enable%20Experimental%20Background%20Indexing.md).
