@@ -1315,6 +1315,71 @@ final class WorkspaceTests: XCTestCase {
     )
     try XCTAssertEqual(XCTUnwrap(prepareUpToDateAgain).didPrepareTarget, false)
   }
+
+  func testBuildSystemUsesStandardizedFileUrlsInsteadOfRealpath() async throws {
+    try SkipUnless.platformIsDarwin("The realpath vs standardized path difference only exists on macOS")
+
+    // Explicitly create a directory at /tmp (which is a standardized path but whose realpath is /private/tmp)
+    let scratchDirectory = URL(fileURLWithPath: "/tmp").appendingPathComponent("sourcekitlsp-test-\(UUID())")
+    try FileManager.default.createDirectory(at: scratchDirectory, withIntermediateDirectories: true)
+
+    defer {
+      if cleanScratchDirectories {
+        try? FileManager.default.removeItem(at: scratchDirectory)
+      }
+    }
+
+    _ = try MultiFileTestProject.writeFilesToDisk(
+      files: [
+        "test.h": "",
+        "test.c": """
+        #include "test.h"
+        """,
+        "compile_commands.json": """
+        [
+          {
+            "directory": "$TEST_DIR_BACKSLASH_ESCAPED",
+            "arguments": [
+              "clang",
+              "$TEST_DIR_BACKSLASH_ESCAPED/test.c",
+              "-DHAVE_SETTINGS",
+              "-index-store-path",
+              "$TEST_DIR_BACKSLASH_ESCAPED/index"
+            ],
+            "file": "test.c",
+            "output": "$TEST_DIR_BACKSLASH_ESCAPED/build/test.o"
+          }
+        ]
+        """,
+      ],
+      scratchDirectory: scratchDirectory
+    )
+
+    let clang = try unwrap(await ToolchainRegistry.forTesting.default?.clang)
+    try await Process.checkNonZeroExit(
+      arguments: [
+        clang.filePath, "-index-store-path", scratchDirectory.appendingPathComponent("index").filePath,
+        scratchDirectory.appendingPathComponent("test.c").filePath,
+        "-fsyntax-only",
+      ]
+    )
+
+    let testClient = try await TestSourceKitLSPClient(
+      options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest]),
+      workspaceFolders: [WorkspaceFolder(uri: DocumentURI(scratchDirectory), name: nil)]
+    )
+
+    // Check that we can infer build settings for the header from its main file. indexstore-db stores this main file
+    // path as `/private/tmp` while the build system only knows about it as `/tmp`.
+    let options = try await testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(scratchDirectory.appendingPathComponent("test.h")),
+        prepareTarget: false,
+        allowFallbackSettings: false
+      )
+    )
+    XCTAssert(options.compilerArguments.contains("-DHAVE_SETTINGS"))
+  }
 }
 
 fileprivate let defaultSDKArgs: String = {

@@ -1253,11 +1253,8 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       // it cached. We can just return it.
       return mainFile
     }
-    guard let mainFilesProvider else {
-      return uri
-    }
 
-    let mainFiles = await mainFilesProvider.mainFilesContainingFile(uri)
+    let mainFiles = await mainFiles(containing: uri)
     if mainFiles.contains(uri) {
       // If the main files contain the file itself, prefer to use that one
       return uri
@@ -1268,6 +1265,37 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     } else {
       return uri
     }
+  }
+
+  /// Returns all main files that include the given document.
+  ///
+  /// On Darwin platforms, this also performs the following normalization: indexstore-db by itself returns realpaths
+  /// but the build system might be using standardized Darwin paths (eg. realpath is `/private/tmp` but the standardized
+  /// path is `/tmp`). If the realpath that indexstore-db returns could not be found in the build system's source files
+  /// but the standardized path is part of the source files, return the standardized path instead.
+  package func mainFiles(containing uri: DocumentURI) async -> [DocumentURI] {
+    guard let mainFilesProvider else {
+      return [uri]
+    }
+    let mainFiles = Array(await mainFilesProvider.mainFiles(containing: uri, crossLanguage: false))
+    #if canImport(Darwin)
+    if let buildableSourceFiles = try? await self.buildableSourceFiles() {
+      return mainFiles.map { mainFile in
+        if buildableSourceFiles.contains(mainFile) {
+          return mainFile
+        }
+        guard let fileURL = mainFile.fileURL else {
+          return mainFile
+        }
+        let standardized = DocumentURI(fileURL.standardizedFileURL)
+        if buildableSourceFiles.contains(standardized) {
+          return standardized
+        }
+        return mainFile
+      }
+    }
+    #endif
+    return mainFiles
   }
 
   /// Returns the main file used for `uri`, if this is a registered file.
@@ -1317,11 +1345,9 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       filesWithUpdatedDependencies.formUnion(sourceFiles.flatMap(\.sources).map(\.uri))
     }
 
-    if let mainFilesProvider {
-      var mainFiles = await Set(events.asyncFlatMap { await mainFilesProvider.mainFilesContainingFile($0.uri) })
-      mainFiles.subtract(events.map(\.uri))
-      filesWithUpdatedDependencies.formUnion(mainFiles)
-    }
+    var mainFiles = await Set(events.asyncFlatMap { await self.mainFiles(containing: $0.uri) })
+    mainFiles.subtract(events.map(\.uri))
+    filesWithUpdatedDependencies.formUnion(mainFiles)
 
     await self.filesDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
   }

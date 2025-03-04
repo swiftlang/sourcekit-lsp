@@ -430,19 +430,16 @@ package final actor SemanticIndexManager {
     guard let sourceFiles else {
       return []
     }
-    let deletedFilesIndex = index.checked(for: .deletedFiles)
     let modifiedFilesIndex = index.checked(for: .modifiedFiles)
 
     let filesToReIndex =
       await files
-      .asyncFilter {
+      .asyncCompactMap { uri -> (FileToIndex, Date?)? in
         // First, check if we know that the file is up-to-date, in which case we don't need to hit the index or file
         // system at all
-        if !indexFilesWithUpToDateUnits, await indexStoreUpToDateTracker.isUpToDate($0) {
-          return false
+        if !indexFilesWithUpToDateUnits, await indexStoreUpToDateTracker.isUpToDate(uri) {
+          return nil
         }
-        return true
-      }.compactMap { uri -> (FileToIndex, Date?)? in
         if sourceFiles.contains(uri) {
           if !indexFilesWithUpToDateUnits, modifiedFilesIndex.hasUpToDateUnit(for: uri) {
             return nil
@@ -455,9 +452,7 @@ package final actor SemanticIndexManager {
         // Deterministically pick a main file. This ensures that we always pick the same main file for a header. This way,
         // if we request the same header to be indexed twice, we'll pick the same unit file the second time around,
         // realize that its timestamp is later than the modification date of the header and we don't need to re-index.
-        let mainFile =
-          deletedFilesIndex
-          .mainFilesContainingFile(uri: uri, crossLanguage: false)
+        let mainFile = await buildSystemManager.mainFiles(containing: uri)
           .sorted(by: { $0.stringValue < $1.stringValue }).first
         guard let mainFile else {
           logger.log("Not indexing \(uri) because its main file could not be inferred")

@@ -327,7 +327,7 @@ private final actor ManualMainFilesProvider: MainFilesProvider {
     self.mainFiles[file] = mainFiles
   }
 
-  func mainFilesContainingFile(_ file: DocumentURI) -> Set<DocumentURI> {
+  func mainFiles(containing file: DocumentURI, crossLanguage: Bool) -> Set<DocumentURI> {
     if let result = mainFiles[file] {
       return result
     }
