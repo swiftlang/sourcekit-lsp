@@ -751,7 +751,7 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       }
     }
 
-    logger.log("Received request \(id): \(params.forLogging)")
+    logger.log("Received request \(id, privacy: .public): \(params.forLogging)")
 
     if let textDocumentRequest = params as? any TextDocumentRequest {
       await self.clientInteractedWithDocument(textDocumentRequest.textDocument.uri)
