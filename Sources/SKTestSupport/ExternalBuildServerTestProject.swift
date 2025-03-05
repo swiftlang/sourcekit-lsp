@@ -59,7 +59,7 @@ private let skTestSupportInputsDirectory: URL = {
 ///
 /// The build server can contain `$SDK_ARGS`, which will replaced by `"-sdk", "/path/to/sdk"` on macOS and by an empty
 /// string on all other platforms.
-package class BuildServerTestProject: MultiFileTestProject {
+package class ExternalBuildServerTestProject: MultiFileTestProject {
   package init(
     files: [RelativeFileLocation: String],
     buildServerConfigLocation: RelativeFileLocation = ".bsp/sourcekit-lsp.json",

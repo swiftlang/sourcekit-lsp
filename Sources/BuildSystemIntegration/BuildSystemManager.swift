@@ -179,9 +179,9 @@ private extension BuildSystemSpec {
     _ createBuildSystem: @Sendable (_ connectionToSourceKitLSP: any Connection) async throws -> BuiltInBuildSystem?
   ) async -> BuildSystemAdapter? {
     let connectionToSourceKitLSP = LocalConnection(
-      receiverName: "BuildSystemManager for \(projectRoot.lastPathComponent)"
+      receiverName: "BuildSystemManager for \(projectRoot.lastPathComponent)",
+      handler: messagesToSourceKitLSPHandler
     )
-    connectionToSourceKitLSP.start(handler: messagesToSourceKitLSPHandler)
 
     let buildSystem = await orLog("Creating build system") {
       try await createBuildSystem(connectionToSourceKitLSP)
@@ -197,9 +197,9 @@ private extension BuildSystemSpec {
       buildSystemHooks: buildSystemHooks
     )
     let connectionToBuildSystem = LocalConnection(
-      receiverName: "\(type(of: buildSystem)) for \(projectRoot.lastPathComponent)"
+      receiverName: "\(type(of: buildSystem)) for \(projectRoot.lastPathComponent)",
+      handler: buildSystemAdapter
     )
-    connectionToBuildSystem.start(handler: buildSystemAdapter)
     return .builtIn(buildSystemAdapter, connectionToBuildSystem: connectionToBuildSystem)
   }
 
@@ -266,9 +266,9 @@ private extension BuildSystemSpec {
       #endif
     case .injected(let injector):
       let connectionToSourceKitLSP = LocalConnection(
-        receiverName: "BuildSystemManager for \(projectRoot.lastPathComponent)"
+        receiverName: "BuildSystemManager for \(projectRoot.lastPathComponent)",
+        handler: messagesToSourceKitLSPHandler
       )
-      connectionToSourceKitLSP.start(handler: messagesToSourceKitLSPHandler)
       return .injected(
         await injector(projectRoot, connectionToSourceKitLSP)
       )
@@ -510,8 +510,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
           connectionToSourceKitLSP: legacyBuildServer.connectionToSourceKitLSP,
           buildSystemHooks: buildSystemHooks
         )
-        let connectionToBuildSystem = LocalConnection(receiverName: "Legacy BSP server")
-        connectionToBuildSystem.start(handler: adapter)
+        let connectionToBuildSystem = LocalConnection(receiverName: "Legacy BSP server", handler: adapter)
         self.buildSystemAdapter = .builtIn(adapter, connectionToBuildSystem: connectionToBuildSystem)
       }
       Task {

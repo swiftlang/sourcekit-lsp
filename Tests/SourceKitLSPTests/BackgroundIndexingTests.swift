@@ -1954,31 +1954,50 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testIndexFileIfBuildTargetsChange() async throws {
-    let testBuildSystem = ThreadSafeBox<TestBuildSystem?>(initialValue: nil)
-    let project = try await MultiFileTestProject(
+    actor BuildServer: CustomBuildServer {
+      private let projectRoot: URL
+      private let connectionToSourceKitLSP: any Connection
+      private var buildSettingsByFile: [DocumentURI: TextDocumentSourceKitOptionsResponse] = [:]
+
+      package func setBuildSettings(for uri: DocumentURI, to buildSettings: TextDocumentSourceKitOptionsResponse?) {
+        buildSettingsByFile[uri] = buildSettings
+        connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
+      }
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {
+        self.projectRoot = projectRoot
+        self.connectionToSourceKitLSP = connectionToSourceKitLSP
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return initializationResponse(
+          initializeData: SourceKitInitializeBuildResponseData(
+            indexDatabasePath: try projectRoot.appendingPathComponent("index-db").filePath,
+            indexStorePath: try projectRoot.appendingPathComponent("index-store").filePath,
+            prepareProvider: true,
+            sourceKitOptionsProvider: true
+          )
+        )
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) -> BuildTargetSourcesResponse {
+        return dummyTargetSourcesResponse(buildSettingsByFile.keys)
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) -> TextDocumentSourceKitOptionsResponse? {
+        return buildSettingsByFile[request.textDocument.uri]
+      }
+    }
+
+    let project = try await CustomBuildServerTestProject(
       files: [
         "Test.swift": """
         func 1️⃣myTestFunc() {}
         """
       ],
-      hooks: Hooks(
-        buildSystemHooks: BuildSystemHooks(injectBuildServer: { projectRoot, connectionToSourceKitLSP in
-          assert(testBuildSystem.value == nil, "Build system injector hook can only create a single TestBuildSystem")
-          let buildSystem = TestBuildSystem(
-            initializeData: SourceKitInitializeBuildResponseData(
-              indexDatabasePath: projectRoot.appendingPathComponent("index-db").path,
-              indexStorePath: projectRoot.appendingPathComponent("index-store").path,
-              prepareProvider: true,
-              sourceKitOptionsProvider: true
-            ),
-            connectionToSourceKitLSP: connectionToSourceKitLSP
-          )
-          testBuildSystem.value = buildSystem
-          let connection = LocalConnection(receiverName: "TestBuildSystem")
-          connection.start(handler: buildSystem)
-          return connection
-        })
-      ),
+      buildServer: BuildServer.self,
       enableBackgroundIndexing: true
     )
     let fileUrl = try XCTUnwrap(project.uri(for: "Test.swift").fileURL)
@@ -1990,7 +2009,7 @@ final class BackgroundIndexingTests: XCTestCase {
 
     // We don't initially index Test.swift because we don't have build settings for it.
 
-    try await XCTUnwrap(testBuildSystem.value).setBuildSettings(
+    try await project.buildServer().setBuildSettings(
       for: DocumentURI(fileUrl),
       to: TextDocumentSourceKitOptionsResponse(compilerArguments: compilerArguments)
     )
@@ -2086,65 +2105,59 @@ final class BackgroundIndexingTests: XCTestCase {
     // The build system returns too many arguments to fit them into a command line invocation, so we need to use a
     // response file to invoke the indexer.
 
-    let project = try await BuildServerTestProject(
+    final class BuildServer: CustomBuildServer {
+      private let projectRoot: URL
+      private var testFileURL: URL { projectRoot.appendingPathComponent("Test File.swift") }
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any LanguageServerProtocol.Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return initializationResponse(
+          initializeData: SourceKitInitializeBuildResponseData(
+            indexDatabasePath: try projectRoot.appendingPathComponent("index-db").filePath,
+            indexStorePath: try projectRoot.appendingPathComponent("index-store").filePath,
+            prepareProvider: true,
+            sourceKitOptionsProvider: true
+          )
+        )
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        return BuildTargetSourcesResponse(items: [
+          SourcesItem(
+            target: .dummy,
+            sources: [
+              SourceItem(uri: URI(testFileURL), kind: .file, generated: false)
+            ]
+          )
+        ])
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        var arguments =
+          [try testFileURL.filePath] + (0..<50_000).map { "-DTHIS_IS_AN_OPTION_THAT_CONTAINS_MANY_BYTES_\($0)" }
+        if let defaultSDKPath {
+          arguments += ["-sdk", defaultSDKPath]
+        }
+        return TextDocumentSourceKitOptionsResponse(
+          compilerArguments: arguments
+        )
+      }
+
+    }
+
+    let project = try await CustomBuildServerTestProject(
       files: [
         // File name contains a space to ensure we escape it in the response file.
         "Test File.swift": """
         func 1️⃣myTestFunc() {}
         """
       ],
-      buildServer: """
-        class BuildServer(AbstractBuildServer):
-
-          def initialize(self, request: Dict[str, object]) -> Dict[str, object]:
-            return {
-              "displayName": "test server",
-              "version": "0.1",
-              "bspVersion": "2.0",
-              "rootUri": "blah",
-              "capabilities": {"languageIds": ["swift", "c", "cpp", "objective-c", "objective-c"]},
-              "data": {
-                "indexDatabasePath": r"$TEST_DIR/index-db",
-                "indexStorePath": r"$TEST_DIR/index",
-                "prepareProvider": True,
-                "sourceKitOptionsProvider": True,
-              },
-            }
-
-          def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
-            return {
-              "targets": [
-                {
-                  "id": {"uri": "bsp://dummy"},
-                  "tags": [],
-                  "languageIds": [],
-                  "dependencies": [],
-                  "capabilities": {},
-                }
-              ]
-            }
-
-          def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
-            return {
-              "items": [
-                {
-                  "target": {"uri": "bsp://dummy"},
-                  "sources": [
-                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False}
-                  ],
-                }
-              ]
-            }
-
-          def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
-            return {
-              "compilerArguments": [r"$TEST_DIR/Test File.swift", "-DDEBUG", $SDK_ARGS] + \
-                [f"-DTHIS_IS_AN_OPTION_THAT_CONTAINS_MANY_BYTES_{i}" for i in range(0, 50_000)]
-            }
-
-          def buildtarget_prepare(self, request: Dict[str, object]) -> Dict[str, object]:
-            return {}
-        """,
+      buildServer: BuildServer.self,
       enableBackgroundIndexing: true
     )
     try await project.testClient.send(PollIndexRequest())

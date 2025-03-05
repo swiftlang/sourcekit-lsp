@@ -22,6 +22,30 @@ import TSCBasic
 import ToolchainRegistry
 import XCTest
 
+fileprivate actor TestBuildSystem: CustomBuildServer {
+  private let connectionToSourceKitLSP: any Connection
+  private var buildSettingsByFile: [DocumentURI: TextDocumentSourceKitOptionsResponse] = [:]
+
+  func setBuildSettings(for uri: DocumentURI, to buildSettings: TextDocumentSourceKitOptionsResponse?) {
+    buildSettingsByFile[uri] = buildSettings
+    connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
+  }
+
+  init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {
+    self.connectionToSourceKitLSP = connectionToSourceKitLSP
+  }
+
+  func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) -> BuildTargetSourcesResponse {
+    return dummyTargetSourcesResponse(buildSettingsByFile.keys)
+  }
+
+  func textDocumentSourceKitOptionsRequest(
+    _ request: TextDocumentSourceKitOptionsRequest
+  ) async throws -> TextDocumentSourceKitOptionsResponse? {
+    return buildSettingsByFile[request.textDocument.uri]
+  }
+}
+
 fileprivate extension BuildSystemManager {
   func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
     handle(OnBuildTargetDidChangeNotification(changes: nil))
@@ -45,11 +69,9 @@ final class BuildSystemManagerTests: XCTestCase {
     let spec = BuildSystemSpec(
       kind: .injected({ projectRoot, connectionToSourceKitLSP in
         assert(testBuildSystem.value == nil, "Build system injector hook can only create a single TestBuildSystem")
-        let buildSystem = TestBuildSystem(connectionToSourceKitLSP: connectionToSourceKitLSP)
+        let buildSystem = TestBuildSystem(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
         testBuildSystem.value = buildSystem
-        let connection = LocalConnection(receiverName: "TestBuildSystem")
-        connection.start(handler: buildSystem)
-        return connection
+        return LocalConnection(receiverName: "TestBuildSystem", handler: buildSystem)
       }),
       projectRoot: dummyPath,
       configPath: dummyPath

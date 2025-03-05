@@ -28,7 +28,7 @@ import WinSDK
 
 final class BuildServerBuildSystemTests: XCTestCase {
   func testBuildSettingsFromBuildServer() async throws {
-    let project = try await BuildServerTestProject(
+    let project = try await ExternalBuildServerTestProject(
       files: [
         "Test.swift": """
         #if DEBUG
@@ -85,7 +85,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
   func testBuildTargetsChanged() async throws {
     try SkipUnless.longTestsEnabled()
 
-    let project = try await BuildServerTestProject(
+    let project = try await ExternalBuildServerTestProject(
       files: [
         "Test.swift": """
         #if DEBUG
@@ -168,7 +168,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
   func testSettingsOfSingleFileChanged() async throws {
     try SkipUnless.longTestsEnabled()
 
-    let project = try await BuildServerTestProject(
+    let project = try await ExternalBuildServerTestProject(
       files: [
         "Test.swift": """
         #if DEBUG
@@ -251,7 +251,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
   func testCrashRecovery() async throws {
     try SkipUnless.longTestsEnabled()
 
-    let project = try await BuildServerTestProject(
+    let project = try await ExternalBuildServerTestProject(
       files: [
         "Crash.swift": "",
         "Test.swift": """
@@ -322,7 +322,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testBuildServerConfigAtLegacyLocation() async throws {
-    let project = try await BuildServerTestProject(
+    let project = try await ExternalBuildServerTestProject(
       files: [
         "Test.swift": """
         #if DEBUG
@@ -378,7 +378,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testBuildSettingsDataPassThrough() async throws {
-    let project = try await BuildServerTestProject(
+    let project = try await ExternalBuildServerTestProject(
       files: [
         "Test.swift": ""
       ],
@@ -431,7 +431,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testBuildSettingsForFilePartOfMultipleTargets() async throws {
-    let project = try await BuildServerTestProject(
+    let project = try await ExternalBuildServerTestProject(
       files: [
         "Test.swift": ""
       ],
@@ -526,48 +526,37 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
   func testDontBlockBuildServerInitializationIfBuildSystemIsUnresponsive() async throws {
     // A build server that responds to the initialize request but not to any other requests.
-    final class UnresponsiveBuildServer: MessageHandler {
-      func handle(_ notification: some LanguageServerProtocol.NotificationType) {}
+    final class UnresponsiveBuildServer: CustomBuildServer {
+      init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {}
 
-      func handle<Request: RequestType>(
-        _ request: Request,
-        id: RequestID,
-        reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
-      ) {
-        switch request {
-        case is InitializeBuildRequest:
-          reply(
-            .success(
-              InitializeBuildResponse(
-                displayName: "UnresponsiveBuildServer",
-                version: "",
-                bspVersion: "2.2.0",
-                capabilities: BuildServerCapabilities()
-              ) as! Request.Response
-            )
-          )
-        default:
-          #if os(Windows)
-          Sleep(60 * 60 * 1000 /*ms*/)
-          #else
-          sleep(60 * 60 /*s*/)
-          #endif
-          XCTFail("Build server should be terminated before finishing the timeout")
-        }
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        #if os(Windows)
+        Sleep(60 * 60 * 1000 /*ms*/)
+        #else
+        sleep(60 * 60 /*s*/)
+        #endif
+        XCTFail("Build server should be terminated before finishing the timeout")
+        throw ResponseError.methodNotFound(BuildTargetSourcesRequest.method)
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        #if os(Windows)
+        Sleep(60 * 60 * 1000 /*ms*/)
+        #else
+        sleep(60 * 60 /*s*/)
+        #endif
+        XCTFail("Build server should be terminated before finishing the timeout")
+        throw ResponseError.methodNotFound(TextDocumentSourceKitOptionsRequest.method)
       }
     }
 
-    // Creating the `MultiFileTestProject` waits for the initialize response and times out if it doesn't receive one.
+    // Creating the `CustomBuildServerTestProject` waits for the initialize response and times out if it doesn't receive one.
     // Make sure that we get that response back.
-    _ = try await MultiFileTestProject(
+    _ = try await CustomBuildServerTestProject(
       files: ["Test.swift": ""],
-      hooks: Hooks(
-        buildSystemHooks: BuildSystemHooks(injectBuildServer: { _, _ in
-          let connection = LocalConnection(receiverName: "Unresponsive build system")
-          connection.start(handler: UnresponsiveBuildServer())
-          return connection
-        })
-      )
+      buildServer: UnresponsiveBuildServer.self
     )
   }
 }
