@@ -28,11 +28,16 @@ import SemanticIndex
 import SwiftExtensions
 #endif
 
-extension UncheckedIndex {
-  package func mainFilesContainingFile(_ uri: DocumentURI) -> Set<DocumentURI> {
+extension UncheckedIndex: BuildSystemIntegration.MainFilesProvider {
+  /// - Important: This may return realpaths when the build system might not be using realpaths. Use
+  ///   `BuildSystemManager.mainFiles(containing:)` to work around that problem.
+  package func mainFiles(containing uri: DocumentURI, crossLanguage: Bool) -> Set<DocumentURI> {
     let mainFiles: Set<DocumentURI>
     if let filePath = orLog("File path to get main files", { try uri.fileURL?.filePath }) {
-      let mainFilePaths = Set(self.underlyingIndexStoreDB.mainFilesContainingFile(path: filePath))
+      let mainFilePaths = self.underlyingIndexStoreDB.mainFilesContainingFile(
+        path: filePath,
+        crossLanguage: crossLanguage
+      )
       mainFiles = Set(
         mainFilePaths
           .filter { FileManager.default.fileExists(atPath: $0) }
@@ -41,9 +46,7 @@ extension UncheckedIndex {
     } else {
       mainFiles = []
     }
-    logger.info("mainFilesContainingFile(\(uri.forLogging)) -> \(mainFiles)")
+    logger.info("Main files for \(uri.forLogging): \(mainFiles)")
     return mainFiles
   }
 }
-
-extension UncheckedIndex: BuildSystemIntegration.MainFilesProvider {}

@@ -151,19 +151,6 @@ package final class CheckedIndex {
     return index.unitTests(referencedByMainFiles: mainFilePaths).filter { checker.isUpToDate($0.location) }
   }
 
-  /// Returns all the files that (transitively) include the header file at the given path.
-  ///
-  /// If `crossLanguage` is set to `true`, Swift files that import a header through a module will also be reported.
-  package func mainFilesContainingFile(uri: DocumentURI, crossLanguage: Bool = false) -> [DocumentURI] {
-    return index.mainFilesContainingFile(path: uri.pseudoPath, crossLanguage: crossLanguage).compactMap {
-      let uri = DocumentURI(filePath: $0, isDirectory: false)
-      guard checker.indexHasUpToDateUnit(for: uri, mainFile: nil, index: self.index) else {
-        return nil
-      }
-      return uri
-    }
-  }
-
   /// Returns all unit test symbols in the index.
   package func unitTests() -> [SymbolOccurrence] {
     return index.unitTests().filter { checker.isUpToDate($0.location) }

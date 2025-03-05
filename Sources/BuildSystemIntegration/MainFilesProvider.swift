@@ -18,13 +18,15 @@ import LanguageServerProtocol
 
 /// A type that can provide the set of main files that include a particular file.
 package protocol MainFilesProvider: Sendable {
-  /// Returns the set of main files that contain the given file.
+  /// Returns all the files that (transitively) include the header file at the given path.
   ///
-  /// For example,
+  /// If `crossLanguage` is set to `true`, Swift files that import a header through a module will also be reported.
+  ///
+  /// ### Examples
   ///
   /// ```
   /// mainFilesContainingFile("foo.cpp") == Set(["foo.cpp"])
   /// mainFilesContainingFile("foo.h") == Set(["foo.cpp", "bar.cpp"])
   /// ```
-  func mainFilesContainingFile(_: DocumentURI) async -> Set<DocumentURI>
+  func mainFiles(containing uri: DocumentURI, crossLanguage: Bool) async -> Set<DocumentURI>
 }
