@@ -494,6 +494,7 @@ package actor SourceKitLSPServer {
     in workspace: Workspace
   ) async -> LanguageService? {
     guard let serverType = LanguageServerType(language: language) else {
+      logger.error("Unable to infer language server type for language '\(language)'")
       return nil
     }
     // Pick the first language service that can handle this workspace.
