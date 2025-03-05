@@ -31,4 +31,8 @@ struct RequestHandle: Sendable {
     }
     self.handle = handle
   }
+
+  var numericValue: Int {
+    Int(bitPattern: handle)
+  }
 }

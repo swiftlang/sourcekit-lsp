@@ -272,7 +272,6 @@ final class SwiftSourceKitPluginTests: XCTestCase {
   }
 
   func testCancellation() async throws {
-    try XCTSkipIf(true, "rdar://145905708")
     try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()

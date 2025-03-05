@@ -21,7 +21,11 @@ package final class LoggingScope {
 
   /// The name of the current logging subsystem.
   package static var subsystem: String {
+    #if SKLOGGING_FOR_PLUGIN
+    return _subsystem ?? "org.swift.sourcekit-lsp.plugin"
+    #else
     return _subsystem ?? "org.swift.sourcekit-lsp"
+    #endif
   }
 
   /// The name of the current logging scope.

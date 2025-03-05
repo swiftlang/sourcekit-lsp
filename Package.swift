@@ -334,6 +334,7 @@ var targets: [Target] = [
     swiftSettings: globalSwiftSettings + lspLoggingSwiftSettings + [
       // We can't depend on swift-crypto in the plugin because we can't module-alias it due to https://github.com/swiftlang/swift-package-manager/issues/8119
       .define("NO_CRYPTO_DEPENDENCY"),
+      .define("SKLOGGING_FOR_PLUGIN"),
       .unsafeFlags([
         "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
       ]),
