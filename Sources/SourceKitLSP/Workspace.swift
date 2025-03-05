@@ -435,20 +435,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
 
   package func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {
     await sourceKitLSPServer?.fileHandlingCapabilityChanged()
-    await orLog("Scheduling re-indexing of changed targets") {
-      var sourceFiles = try await self.buildSystemManager.sourceFiles(includeNonBuildableFiles: false)
-      if let changes {
-        let changedTargets = changes.map(\.target)
-        sourceFiles = sourceFiles.filter {
-          !$0.value.targets.isDisjoint(with: changedTargets)
-        }
-      }
-      _ = await semanticIndexManager?.scheduleIndexing(
-        of: sourceFiles.keys,
-        indexFilesWithUpToDateUnit: false,
-        priority: .low
-      )
-    }
+    await semanticIndexManager?.buildTargetsChanged(changes)
     await orLog("Scheduling syntactic test re-indexing") {
       let testFiles = try await buildSystemManager.testFiles()
       await syntacticTestIndex.listOfTestFilesDidChange(testFiles)

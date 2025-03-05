@@ -1977,6 +1977,69 @@ final class BackgroundIndexingTests: XCTestCase {
       return true
     }
   }
+
+  func testRePrepareTargetsWhenBuildServerChanges() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": """
+        #if ENABLE_FOO
+        public func foo() {}
+        #endif
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+
+        func test() {
+          1️⃣foo()
+        }
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("LibB.swift")
+    let hoverWithMissingDependencyDeclaration = try await project.testClient.send(
+      HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertNil(hoverWithMissingDependencyDeclaration)
+
+    let manifestUri = try project.uri(for: "Package.swift")
+    try """
+    // swift-tools-version: 5.7
+
+    import PackageDescription
+
+    let package = Package(
+      name: "MyLibrary",
+      targets: [
+       .target(name: "LibA", swiftSettings: [.define("ENABLE_FOO")]),
+       .target(name: "LibB", dependencies: ["LibA"]),
+      ]
+    )
+    """.write(to: XCTUnwrap(project.uri(for: "Package.swift").fileURL), atomically: true, encoding: .utf8)
+
+    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: manifestUri, type: .changed)]))
+
+    try await repeatUntilExpectedResult {
+      let hoverAfterAddingDependencyDeclaration = try await project.testClient.send(
+        HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      )
+      return hoverAfterAddingDependencyDeclaration != nil
+    }
+  }
 }
 
 extension HoverResponseContents {
