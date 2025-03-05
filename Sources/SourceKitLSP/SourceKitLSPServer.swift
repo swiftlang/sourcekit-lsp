@@ -80,7 +80,10 @@ package actor SourceKitLSPServer {
   /// Initialization can be awaited using `waitUntilInitialized`.
   private var initialized: Bool = false
 
-  var options: SourceKitLSPOptions
+  private let _options: ThreadSafeBox<SourceKitLSPOptions>
+  nonisolated var options: SourceKitLSPOptions {
+    _options.value
+  }
 
   let hooks: Hooks
 
@@ -188,7 +191,7 @@ package actor SourceKitLSPServer {
     onExit: @escaping () -> Void = {}
   ) {
     self.toolchainRegistry = toolchainRegistry
-    self.options = options
+    self._options = ThreadSafeBox(initialValue: options)
     self.hooks = hooks
     self.onExit = onExit
 
@@ -862,13 +865,18 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
 }
 
 extension SourceKitLSPServer {
-  nonisolated package func logMessageToIndexLog(taskID: String, message: String) {
+  nonisolated package func logMessageToIndexLog(
+    message: String,
+    type: WindowMessageType,
+    structure: StructuredLogKind?
+  ) {
     self.sendNotificationToClient(
       LogMessageNotification(
-        type: .info,
-        message: prefixMessageWithTaskEmoji(taskID: taskID, message: message),
-        logName: "SourceKit-LSP: Indexing"
-      )
+        type: type,
+        message: message,
+        logName: "SourceKit-LSP: Indexing",
+        structure: structure
+      ).representingTaskIDUsingEmojiPrefixIfNecessary(options: options)
     )
   }
 
@@ -985,10 +993,10 @@ extension SourceKitLSPServer {
 
     capabilityRegistry = CapabilityRegistry(clientCapabilities: clientCapabilities)
 
-    self.options = SourceKitLSPOptions.merging(
-      base: self.options,
-      override: orLog("Parsing SourceKitLSPOptions", { try SourceKitLSPOptions(fromLSPAny: req.initializationOptions) })
-    )
+    let initializeOptions = orLog("Parsing options") { try SourceKitLSPOptions(fromLSPAny: req.initializationOptions) }
+    _options.withLock { options in
+      options = SourceKitLSPOptions.merging(base: options, override: initializeOptions)
+    }
 
     logger.log("Initialized SourceKit-LSP")
     logger.logFullObjectInMultipleLogMessages(header: "SourceKit-LSP Options", options.loggingProxy)

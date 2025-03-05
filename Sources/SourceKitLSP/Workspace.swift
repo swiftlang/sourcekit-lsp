@@ -168,7 +168,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
         hooks: hooks.indexHooks,
         indexTaskScheduler: indexTaskScheduler,
         logMessageToIndexLog: { [weak sourceKitLSPServer] in
-          sourceKitLSPServer?.logMessageToIndexLog(taskID: $0, message: $1)
+          sourceKitLSPServer?.logMessageToIndexLog(message: $0, type: $1, structure: $2)
         },
         indexTasksWereScheduled: { [weak sourceKitLSPServer] in
           sourceKitLSPServer?.indexProgressManager.indexTasksWereScheduled(count: $0)
@@ -260,6 +260,16 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
 
       func watchFiles(_ fileWatchers: [FileSystemWatcher]) async {
         await sourceKitLSPServer?.watchFiles(fileWatchers)
+      }
+
+      func logMessageToIndexLog(message: String, type: WindowMessageType, structure: StructuredLogKind?) {
+        guard let sourceKitLSPServer else {
+          // `SourceKitLSPServer` has been destructed. We are tearing down the
+          // language server. Nothing left to do.
+          logger.error("Ignoring index log notification because connection to editor has been closed")
+          return
+        }
+        sourceKitLSPServer.logMessageToIndexLog(message: message, type: type, structure: structure)
       }
     }
 

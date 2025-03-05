@@ -27,7 +27,7 @@ package struct DummyBuildSystemManagerConnectionToClient: BuildSystemManagerConn
 
   package func waitUntilInitialized() async {}
 
-  package func send(_ notification: some LanguageServerProtocol.NotificationType) {}
+  package func send(_ notification: some NotificationType) {}
 
   package func nextRequestID() -> RequestID {
     return .string(UUID().uuidString)
@@ -41,5 +41,7 @@ package struct DummyBuildSystemManagerConnectionToClient: BuildSystemManagerConn
     reply(.failure(ResponseError.unknown("Not implemented")))
   }
 
-  package func watchFiles(_ fileWatchers: [LanguageServerProtocol.FileSystemWatcher]) async {}
+  package func watchFiles(_ fileWatchers: [FileSystemWatcher]) async {}
+
+  func logMessageToIndexLog(message: String, type: WindowMessageType, structure: StructuredLogKind?) {}
 }

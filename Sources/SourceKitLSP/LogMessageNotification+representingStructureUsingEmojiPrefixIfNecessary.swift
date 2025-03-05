@@ -10,6 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LanguageServerProtocol
+import SKOptions
+
 import struct TSCBasic.ProcessResult
 
 private func numberToEmojis(_ number: Int, numEmojis: Int) -> String {
@@ -35,7 +38,7 @@ fileprivate extension String {
 }
 
 /// Add an emoji hash of the given `taskID` to the start of every line in `message`.
-package func prefixMessageWithTaskEmoji(taskID: String, message: String) -> String {
+private func prefixMessageWithTaskEmoji(taskID: String, message: String) -> String {
   var message: Substring = message[...]
   while message.last?.isNewline ?? false {
     message = message.dropLast(1)
@@ -44,4 +47,27 @@ package func prefixMessageWithTaskEmoji(taskID: String, message: String) -> Stri
     "\(taskID.emojiRepresentation) \($0)"
   }.joined(separator: "\n")
   return messageWithEmojiLinePrefixes
+}
+
+extension LogMessageNotification {
+  /// If the client does not support the experimental structured logs capability and the `LogMessageNotification`
+  /// contains structure, clear it and instead prefix the message with a an emoji sequence that indicates the task it
+  /// belongs to.
+  func representingTaskIDUsingEmojiPrefixIfNecessary(
+    options: SourceKitLSPOptions
+  ) -> LogMessageNotification {
+    if options.hasExperimentalFeature(.structuredLogs) {
+      // Client supports structured logs, nothing to do.
+      return self
+    }
+    var transformed = self
+    if let structure = transformed.structure {
+      if case .begin(let begin) = structure {
+        transformed.message = "\(begin.title)\n\(message)"
+      }
+      transformed.message = prefixMessageWithTaskEmoji(taskID: structure.taskID, message: transformed.message)
+      transformed.structure = nil
+    }
+    return transformed
+  }
 }

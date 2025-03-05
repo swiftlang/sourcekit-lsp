@@ -481,7 +481,7 @@ export interface DidChangeActiveDocumentParams {
 
 ## `window/logMessage`
 
-Added field:
+Added fields:
 
 ```ts
 /**
@@ -490,6 +490,60 @@ Added field:
  * Clients may ignore this parameter and add the message to the global log
  */
 logName?: string;
+
+
+/**
+ * If specified, allows grouping log messages that belong to the same originating task together instead of logging
+ * them in chronological order in which they were produced.
+ *
+ * LSP Extension guarded by the experimental `structured-logs` feature.
+ */
+structure?: StructuredLogBegin | StructuredLogReport | StructuredLogEnd;
+```
+
+With
+
+```ts
+/**
+ * Indicates the beginning of a new task that may receive updates with `StructuredLogReport` or `StructuredLogEnd`
+ * payloads.
+ */
+export interface StructuredLogBegin {
+  kind: 'begin'
+
+  /**
+   * A succinct title that can be used to describe the task that started this structured.
+   */
+  title: string;
+
+  /**
+   * A unique identifier, identifying the task this structured log message belongs to.
+   */
+  taskID: string;
+}
+
+
+/**
+ * Adds a new log message to a structured log without ending it.
+ */
+export interface StructuredLogReport {
+  /*
+   * A unique identifier, identifying the task this structured log message belongs to.
+   */
+  taskID: string;
+}
+
+/**
+ * Ends a structured log. No more `StructuredLogReport` updates should be sent for this task ID.
+ *
+ * The task ID may be re-used for new structured logs by beginning a new structured log for that task.
+ */
+export interface StructuredLogEnd {
+  /*
+   * A unique identifier, identifying the task this structured log message belongs to.
+   */
+  taskID: string;
+}
 ```
 
 ## `workspace/_pollIndex`

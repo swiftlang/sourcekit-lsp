@@ -18,7 +18,6 @@ add_library(BuildSystemIntegration STATIC
   JSONCompilationDatabaseBuildSystem.swift
   LegacyBuildServerBuildSystem.swift
   MainFilesProvider.swift
-  PrefixMessageWithTaskEmoji.swift
   SplitShellCommand.swift
   SwiftPMBuildSystem.swift
   TestBuildSystem.swift)

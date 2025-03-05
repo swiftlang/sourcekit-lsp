@@ -53,7 +53,8 @@ package struct PreparationTaskDescription: IndexTaskDescription {
   private let preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier>
 
   /// See `SemanticIndexManager.logMessageToIndexLog`.
-  private let logMessageToIndexLog: @Sendable (_ taskID: String, _ message: String) -> Void
+  private let logMessageToIndexLog:
+    @Sendable (_ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind) -> Void
 
   /// Hooks that should be called when the preparation task finishes.
   private let hooks: IndexHooks
@@ -75,7 +76,9 @@ package struct PreparationTaskDescription: IndexTaskDescription {
     targetsToPrepare: [BuildTargetIdentifier],
     buildSystemManager: BuildSystemManager,
     preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier>,
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: String, _ message: String) -> Void,
+    logMessageToIndexLog: @escaping @Sendable (
+      _ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind
+    ) -> Void,
     hooks: IndexHooks
   ) {
     self.targetsToPrepare = targetsToPrepare

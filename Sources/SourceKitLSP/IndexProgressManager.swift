@@ -125,7 +125,7 @@ actor IndexProgressManager {
     if let workDoneProgress {
       await workDoneProgress.update(message: message, percentage: percentage)
     } else {
-      workDoneProgress = await WorkDoneProgressManager(
+      workDoneProgress = WorkDoneProgressManager(
         server: sourceKitLSPServer,
         capabilityRegistry: await sourceKitLSPServer.capabilityRegistry,
         tokenPrefix: "indexing",
