@@ -14,6 +14,7 @@
 import Foundation
 import LanguageServerProtocol
 import SKTestSupport
+import SemanticIndex
 @_spi(Testing) import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
@@ -113,6 +114,9 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
   func testSyntacticOrIndexBasedXCTestsBasedOnWhetherFileIsIndexed() async throws {
     try SkipUnless.longTestsEnabled()
 
+    let initialIndexingFinished = AtomicBool(initialValue: false)
+    let syntacticWorkspaceRequestSent = WrappedSemaphore(name: "Syntactic workspace request sent")
+
     let project = try await SwiftPMTestProject(
       files: [
         "Tests/MyLibraryTests/MyTests.swift": """
@@ -126,8 +130,17 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         """
       ],
       manifest: packageManifestWithTestTarget,
+      hooks: Hooks(
+        indexHooks: IndexHooks(updateIndexStoreTaskDidStart: { _ in
+          if initialIndexingFinished.value {
+            syntacticWorkspaceRequestSent.waitOrXCTFail()
+          }
+        })
+      ),
       enableBackgroundIndexing: true
     )
+
+    initialIndexingFinished.value = true
 
     let myTestsUri = try project.uri(for: "MyTests.swift")
 
@@ -199,6 +212,8 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         )
       ]
     )
+
+    syntacticWorkspaceRequestSent.signal()
 
     // After building again, we should have updated the updated the semantic index and realize that `NotQuiteTests` does
     // not inherit from XCTest and thus doesn't have any test methods.
