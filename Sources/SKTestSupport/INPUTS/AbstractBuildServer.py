@@ -70,6 +70,8 @@ class AbstractBuildServer:
             return self.initialized(params)
         elif method == "build/shutdown":
             return self.shutdown(params)
+        elif method == "buildTarget/prepare":
+            return self.buildtarget_prepare(params)
         elif method == "buildTarget/sources":
             return self.buildtarget_sources(params)
         elif method == "textDocument/registerForChanges":
@@ -80,6 +82,8 @@ class AbstractBuildServer:
             return self.workspace_did_change_watched_files(params)
         elif method == "workspace/buildTargets":
             return self.workspace_build_targets(params)
+        elif method == "workspace/waitForBuildSystemUpdates":
+            return self.workspace_waitForBuildSystemUpdates(params)
 
         # ignore other notifications
         if "id" in message:
@@ -120,10 +124,8 @@ class AbstractBuildServer:
             "version": "0.1",
             "bspVersion": "2.0",
             "rootUri": "blah",
-            "capabilities": {"languageIds": ["a", "b"]},
+            "capabilities": {"languageIds": ["swift", "c", "cpp", "objective-c", "objective-c"]},
             "data": {
-                "indexDatabasePath": "some/index/db/path",
-                "indexStorePath": "some/index/store/path",
                 "sourceKitOptionsProvider": True,
             },
         }
@@ -144,6 +146,11 @@ class AbstractBuildServer:
     def shutdown(self, request: Dict[str, object]) -> Dict[str, object]:
         return {}
 
+    def buildtarget_prepare(self, request: Dict[str, object]) -> Dict[str, object]:
+        raise RequestError(
+            code=-32601, message=f"'buildTarget/prepare' not implemented"
+        )
+
     def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
         raise RequestError(
             code=-32601, message=f"'buildTarget/sources' not implemented"
@@ -156,6 +163,9 @@ class AbstractBuildServer:
         raise RequestError(
             code=-32601, message=f"'workspace/buildTargets' not implemented"
         )
+
+    def workspace_waitForBuildSystemUpdates(self, request: Dict[str, object]) -> Dict[str, object]:
+        return {}
 
 
 class LegacyBuildServer(AbstractBuildServer):

@@ -48,7 +48,9 @@ package actor BuildSettingsLogger {
       """
 
     let chunks = splitLongMultilineMessage(message: log)
-    for (index, chunk) in chunks.enumerated() {
+    // Only print the first 100 chunks. If the argument list gets any longer, we don't want to spam the log too much.
+    // In practice, 100 chunks should be sufficient.
+    for (index, chunk) in chunks.enumerated().prefix(100) {
       logger.log(
         level: level,
         """

@@ -2081,6 +2081,88 @@ final class BackgroundIndexingTests: XCTestCase {
       return hoverAfterAddingDependencyDeclaration != nil
     }
   }
+
+  func testUseResponseFileIfTooManyArguments() async throws {
+    // The build system returns too many arguments to fit them into a command line invocation, so we need to use a
+    // response file to invoke the indexer.
+
+    let project = try await BuildServerTestProject(
+      files: [
+        // File name contains a space to ensure we escape it in the response file.
+        "Test File.swift": """
+        func 1️⃣myTestFunc() {}
+        """
+      ],
+      buildServer: """
+        class BuildServer(AbstractBuildServer):
+
+          def initialize(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "displayName": "test server",
+              "version": "0.1",
+              "bspVersion": "2.0",
+              "rootUri": "blah",
+              "capabilities": {"languageIds": ["swift", "c", "cpp", "objective-c", "objective-c"]},
+              "data": {
+                "indexDatabasePath": r"$TEST_DIR/index-db",
+                "indexStorePath": r"$TEST_DIR/index",
+                "prepareProvider": True,
+                "sourceKitOptionsProvider": True,
+              },
+            }
+
+          def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "targets": [
+                {
+                  "id": {"uri": "bsp://dummy"},
+                  "tags": [],
+                  "languageIds": [],
+                  "dependencies": [],
+                  "capabilities": {},
+                }
+              ]
+            }
+
+          def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "items": [
+                {
+                  "target": {"uri": "bsp://dummy"},
+                  "sources": [
+                    {"uri": "$TEST_DIR_URL/Test.swift", "kind": 1, "generated": False}
+                  ],
+                }
+              ]
+            }
+
+          def textdocument_sourcekitoptions(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {
+              "compilerArguments": [r"$TEST_DIR/Test File.swift", "-DDEBUG", $SDK_ARGS] + \
+                [f"-DTHIS_IS_AN_OPTION_THAT_CONTAINS_MANY_BYTES_{i}" for i in range(0, 50_000)]
+            }
+
+          def buildtarget_prepare(self, request: Dict[str, object]) -> Dict[str, object]:
+            return {}
+        """,
+      enableBackgroundIndexing: true
+    )
+    try await project.testClient.send(PollIndexRequest())
+
+    let symbols = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTestFunc"))
+    XCTAssertEqual(
+      symbols,
+      [
+        .symbolInformation(
+          SymbolInformation(
+            name: "myTestFunc()",
+            kind: .function,
+            location: try project.location(from: "1️⃣", to: "1️⃣", in: "Test File.swift")
+          )
+        )
+      ]
+    )
+  }
 }
 
 extension HoverResponseContents {
