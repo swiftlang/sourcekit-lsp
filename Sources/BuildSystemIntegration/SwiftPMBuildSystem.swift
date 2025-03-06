@@ -512,7 +512,6 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       return BuildTarget(
         id: targetId,
         displayName: target.name,
-        baseDirectory: nil,
         tags: tags,
         capabilities: BuildTargetCapabilities(),
         // Be conservative with the languages that might be used in the target. SourceKit-LSP doesn't use this property.
@@ -526,7 +525,6 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       BuildTarget(
         id: .forPackageManifest,
         displayName: "Package.swift",
-        baseDirectory: nil,
         tags: [.notBuildable],
         capabilities: BuildTargetCapabilities(),
         languageIds: [.swift],

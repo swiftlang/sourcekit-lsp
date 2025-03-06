@@ -84,8 +84,6 @@ package actor FixedCompilationDatabaseBuildSystem: BuiltInBuildSystem {
     return WorkspaceBuildTargetsResponse(targets: [
       BuildTarget(
         id: .dummy,
-        displayName: nil,
-        baseDirectory: nil,
         tags: [.test],
         capabilities: BuildTargetCapabilities(),
         // Be conservative with the languages that might be used in the target. SourceKit-LSP doesn't use this property.
