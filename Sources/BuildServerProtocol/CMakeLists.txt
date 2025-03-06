@@ -2,7 +2,6 @@ add_library(BuildServerProtocol STATIC
   Messages.swift
 
   Messages/BuildShutdownRequest.swift
-  Messages/BuildTargetOutputPathsRequest.swift
   Messages/BuildTargetPrepareRequest.swift
   Messages/BuildTargetSourcesRequest.swift
   Messages/InitializeBuildRequest.swift

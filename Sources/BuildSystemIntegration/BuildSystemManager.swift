@@ -363,8 +363,6 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
   private var cachedTargetSources = RequestCache<BuildTargetSourcesRequest>()
 
-  private var cachedTargetOutputPaths = RequestCache<BuildTargetOutputPathsRequest>()
-
   /// `SourceFilesAndDirectories` is a global property that only gets reset when the build targets change and thus
   /// has no real key.
   private struct SourceFilesAndDirectoriesKey: Hashable {}
@@ -608,13 +606,6 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         return true
       }
       return !updatedTargets.intersection(cacheKey.targets).isEmpty
-    }
-    self.cachedTargetOutputPaths.clear(isolation: self) { cacheKey in
-      guard let updatedTargets else {
-        // All targets might have changed
-        return true
-      }
-      return !updatedTargets.isDisjoint(with: cacheKey.targets)
     }
     self.cachedSourceFilesAndDirectories.clearAll(isolation: self)
 
@@ -1152,7 +1143,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
   /// Return the output paths for all source files known to the build server.
   ///
-  /// See `BuildTargetOutputPathsRequest` for details.
+  /// See `SourceKitSourceItemData.outputFilePath` for details.
   package func outputPathInAllTargets() async throws -> [String] {
     return try await outputPaths(in: Set(buildTargets().map(\.key)))
   }
@@ -1161,29 +1152,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   ///
   /// See `BuildTargetOutputPathsRequest` for details.
   package func outputPaths(in targets: Set<BuildTargetIdentifier>) async throws -> [String] {
-    guard let buildSystemAdapter = await buildSystemAdapterAfterInitialized, !targets.isEmpty else {
-      return []
-    }
-
-    let request = BuildTargetOutputPathsRequest(targets: targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
-
-    // If we have a cached request for a superset of the targets, serve the result from that cache entry.
-    let fromSuperset = await orLog("Getting output paths from superset request") {
-      try await cachedTargetOutputPaths.getDerived(
-        isolation: self,
-        request,
-        canReuseKey: { targets.isSubset(of: $0.targets) },
-        transform: { BuildTargetOutputPathsResponse(items: $0.items.filter { targets.contains($0.target) }) }
-      )
-    }
-    if let fromSuperset {
-      return fromSuperset.items.flatMap(\.outputPaths)
-    }
-
-    let response = try await cachedTargetOutputPaths.get(request, isolation: self) { request in
-      try await buildSystemAdapter.send(request)
-    }
-    return response.items.flatMap(\.outputPaths)
+    return try await sourceFiles(in: targets).flatMap(\.sources).compactMap(\.sourceKitData?.outputPath)
   }
 
   /// Returns all source files in the project.
