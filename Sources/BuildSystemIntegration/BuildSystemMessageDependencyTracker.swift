@@ -82,8 +82,6 @@ package enum BuildSystemMessageDependencyTracker: QueueBasedMessageHandlerDepend
     switch request {
     case is BuildShutdownRequest:
       self = .stateChange
-    case is BuildTargetOutputPathsRequest:
-      self = .stateRead
     case is BuildTargetPrepareRequest:
       self = .stateRead
     case is BuildTargetSourcesRequest:

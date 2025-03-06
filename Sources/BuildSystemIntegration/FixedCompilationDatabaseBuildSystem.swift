@@ -115,12 +115,6 @@ package actor FixedCompilationDatabaseBuildSystem: BuiltInBuildSystem {
     throw ResponseError.methodNotFound(BuildTargetPrepareRequest.method)
   }
 
-  package func buildTargetOutputPaths(
-    request: BuildTargetOutputPathsRequest
-  ) async throws -> BuildTargetOutputPathsResponse {
-    throw ResponseError.methodNotFound(BuildTargetOutputPathsRequest.method)
-  }
-
   package func sourceKitOptions(
     request: TextDocumentSourceKitOptionsRequest
   ) async throws -> TextDocumentSourceKitOptionsResponse? {

@@ -31,6 +31,7 @@ import TSCExtensions
 package import ToolchainRegistry
 @preconcurrency import Workspace
 
+package import struct BuildServerProtocol.SourceItem
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 package import class ToolchainRegistry.Toolchain
@@ -569,8 +570,22 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       guard let swiftPMTarget = self.swiftPMTargets[target] else {
         continue
       }
-      var sources = swiftPMTarget.sources.map {
-        SourceItem(uri: DocumentURI($0), kind: .file, generated: false)
+      var sources = swiftPMTarget.sources.map { sourceItem in
+        let outputPath: String? =
+          if let outputFile = sourceItem.outputFile {
+            orLog("Getting file path of output file") { try outputFile.filePath }
+          } else if swiftPMTarget.compiler == .swift {
+            indexUnitOutputPath(forSwiftFile: DocumentURI(sourceItem.sourceFile))
+          } else {
+            nil
+          }
+        return SourceItem(
+          uri: DocumentURI(sourceItem.sourceFile),
+          kind: .file,
+          generated: false,
+          dataKind: .sourceKit,
+          data: SourceKitSourceItemData(outputPath: outputPath).encodeToLSPAny()
+        )
       }
       sources += swiftPMTarget.headers.map {
         SourceItem(
@@ -610,8 +625,8 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       return nil
     }
 
-    if !swiftPMTarget.sources.lazy.map(DocumentURI.init).contains(request.textDocument.uri),
-      let substituteFile = swiftPMTarget.sources.sorted(by: { $0.description < $1.description }).first
+    if !swiftPMTarget.sources.lazy.map({ DocumentURI($0.sourceFile) }).contains(request.textDocument.uri),
+      let substituteFile = swiftPMTarget.sources.map(\.sourceFile).sorted(by: { $0.description < $1.description }).first
     {
       logger.info("Getting compiler arguments for \(url) using substitute file \(substituteFile)")
       // If `url` is not part of the target's source, it's most likely a header file. Fake compiler arguments for it
@@ -649,32 +664,6 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       await orLog("Preparing") { try await prepare(singleTarget: target) }
     }
     return VoidResponse()
-  }
-
-  package func buildTargetOutputPaths(
-    request: BuildTargetOutputPathsRequest
-  ) async throws -> BuildTargetOutputPathsResponse {
-    var result: [BuildTargetOutputPathsItem] = []
-    for target in request.targets {
-      guard let swiftpmTarget = self.swiftPMTargets[target] else {
-        logger.error("Did not find target \(target.forLogging)")
-        continue
-      }
-      let outputPaths: [String]?
-      switch swiftpmTarget.compiler {
-      case .swift:
-        outputPaths = swiftpmTarget.sources.map { indexUnitOutputPath(forSwiftFile: DocumentURI($0)) }
-      case .clang:
-        outputPaths = orLog("Getting output paths for clang target") {
-          try swiftpmTarget.outputPaths.map { try $0.filePath }
-        }
-      }
-      guard let outputPaths else {
-        continue  // Already logged the error
-      }
-      result.append(BuildTargetOutputPathsItem(target: target, outputPaths: outputPaths))
-    }
-    return BuildTargetOutputPathsResponse(items: result)
   }
 
   private func prepare(singleTarget target: BuildTargetIdentifier) async throws {
