@@ -178,6 +178,7 @@ package extension CustomBuildServer {
       initializeData: SourceKitInitializeBuildResponseData(
         indexDatabasePath: try projectRoot.appendingPathComponent("index-db").filePath,
         indexStorePath: try projectRoot.appendingPathComponent("index-store").filePath,
+        outputPathsProvider: true,
         prepareProvider: true,
         sourceKitOptionsProvider: true
       )

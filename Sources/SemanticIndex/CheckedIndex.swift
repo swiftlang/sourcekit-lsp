@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+package import BuildSystemIntegration
 package import Foundation
 @preconcurrency package import IndexStoreDB
 package import LanguageServerProtocol
@@ -129,7 +130,7 @@ package final class CheckedIndex {
   }
 
   package func symbols(inFilePath path: String) -> [Symbol] {
-    guard self.hasUpToDateUnit(for: DocumentURI(filePath: path, isDirectory: false)) else {
+    guard self.hasAnyUpToDateUnit(for: DocumentURI(filePath: path, isDirectory: false)) else {
       return []
     }
     return index.symbols(inFilePath: path)
@@ -147,13 +148,26 @@ package final class CheckedIndex {
 
   /// Return `true` if a unit file has been indexed for the given file path after its last modification date.
   ///
-  /// This means that at least a single build configuration of this file has been indexed since its last modification.
-  ///
   /// If `mainFile` is passed, then `url` is a header file that won't have a unit associated with it. `mainFile` is
-  /// assumed to be a file that imports `url`. To check that `url` has an up-to-date unit, check that the latest unit
-  /// for `mainFile` is newer than the mtime of the header file at `url`.
-  package func hasUpToDateUnit(for uri: DocumentURI, mainFile: DocumentURI? = nil) -> Bool {
+  ///
+  /// This means that at least a single build configuration of this file has been indexed since its last modification.
+  /// This method does not care about which target (identified by output path in the index) produced the up-to-date
+  /// unit.
+  package func hasAnyUpToDateUnit(for uri: DocumentURI, mainFile: DocumentURI? = nil) -> Bool {
     return checker.indexHasUpToDateUnit(for: uri, mainFile: mainFile, index: index)
+  }
+
+  /// Return `true` if a unit file with the given output path has been indexed after its last modification date of
+  /// `uri`.
+  ///
+  /// If `outputPath` is `notSupported`, this behaves the same as `hasAnyUpToDateUnit`.
+  package func hasUpToDateUnit(for uri: DocumentURI, mainFile: DocumentURI? = nil, outputPath: OutputPath) -> Bool {
+    switch outputPath {
+    case .path(let outputPath):
+      return checker.indexHasUpToDateUnit(for: uri, outputPath: outputPath, index: index)
+    case .notSupported:
+      return self.hasAnyUpToDateUnit(for: uri, mainFile: mainFile)
+    }
   }
 
   /// Returns true if the file at the given URI has a different content in the document manager than on-disk. This is
@@ -393,14 +407,9 @@ private struct IndexOutOfDateChecker {
     }
   }
 
-  /// Return `true` if a unit file has been indexed for the given file path after its last modification date.
-  ///
-  /// This means that at least a single build configuration of this file has been indexed since its last modification.
-  ///
-  /// If `mainFile` is passed, then `filePath` is a header file that won't have a unit associated with it. `mainFile` is
-  /// assumed to be a file that imports `url`. To check that `url` has an up-to-date unit, check that the latest unit
-  /// for `mainFile` is newer than the mtime of the header file at `url`.
-  mutating func indexHasUpToDateUnit(for filePath: DocumentURI, mainFile: DocumentURI?, index: IndexStoreDB) -> Bool {
+  /// Checks if we have a unit that's up to date for the given source file, assuming that the unit in question has been
+  /// modified at the date returned by `unitModificationDate`.
+  private mutating func unitIsUpToDate(for filePath: DocumentURI, unitModificationDate: () -> Date?) -> Bool {
     switch checkLevel {
     case .inMemoryModifiedFiles(let documentManager):
       if fileHasInMemoryModifications(filePath, documentManager: documentManager) {
@@ -411,10 +420,7 @@ private struct IndexOutOfDateChecker {
       // If there are no in-memory modifications check if there are on-disk modifications.
       fallthrough
     case .modifiedFiles:
-      guard
-        let filePathStr = orLog("Realpath for up-to-date", { try (mainFile ?? filePath).fileURL?.realpath.filePath }),
-        let lastUnitDate = index.dateOfLatestUnitFor(filePath: filePathStr)
-      else {
+      guard let lastUnitDate = unitModificationDate() else {
         return false
       }
       do {
@@ -434,6 +440,33 @@ private struct IndexOutOfDateChecker {
       // source file exists (otherwise, why are we doing the query at all). Thus, there's nothing to check here.
       return true
     }
+  }
+
+  /// Return `true` if a unit file has been indexed for the given file path after its last modification date.
+  ///
+  /// This means that at least a single build configuration of this file has been indexed since its last modification.
+  mutating func indexHasUpToDateUnit(for filePath: DocumentURI, mainFile: DocumentURI?, index: IndexStoreDB) -> Bool {
+    return unitIsUpToDate(
+      for: filePath,
+      unitModificationDate: {
+        let filePathStr = orLog("Realpath for up-to-date", { try (mainFile ?? filePath).fileURL?.realpath.filePath })
+        guard let filePathStr else {
+          return nil
+        }
+        return index.dateOfLatestUnitFor(filePath: filePathStr)
+      }
+    )
+  }
+
+  /// Return `true` if a unit file has been indexed for the given file path after its last modification date.
+  ///
+  /// This means that at least a single build configuration of this file has been indexed since its last modification.
+  ///
+  /// If `mainFile` is passed, then `filePath` is a header file that won't have a unit associated with it. `mainFile` is
+  /// assumed to be a file that imports `url`. To check that `url` has an up-to-date unit, check that the latest unit
+  /// for `mainFile` is newer than the mtime of the header file at `url`.
+  mutating func indexHasUpToDateUnit(for filePath: DocumentURI, outputPath: String, index: IndexStoreDB) -> Bool {
+    return unitIsUpToDate(for: filePath, unitModificationDate: { index.dateOfUnitFor(outputPath: outputPath) })
   }
 
   // MARK: - Cached check primitives

@@ -71,6 +71,14 @@ public struct SourceItem: Codable, Hashable, Sendable {
   /// Language-specific metadata about this source item.
   public var data: LSPAny?
 
+  /// If `dataKind` is `sourceKit`, the `data` interpreted as `SourceKitSourceItemData`, otherwise `nil`.
+  public var sourceKitData: SourceKitSourceItemData? {
+    guard dataKind == .sourceKit else {
+      return nil
+    }
+    return SourceKitSourceItemData(fromLSPAny: data)
+  }
+
   public init(
     uri: URI,
     kind: SourceItemKind,

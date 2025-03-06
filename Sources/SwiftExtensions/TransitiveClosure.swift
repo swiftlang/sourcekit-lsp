@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-package func transitiveClosure<T: Hashable>(of values: Set<T>, successors: (T) -> Set<T>) -> Set<T> {
+package func transitiveClosure<T: Hashable>(of values: some Collection<T>, successors: (T) -> Set<T>) -> Set<T> {
   var transitiveClosure: Set<T> = []
   var workList = Array(values)
   while let element = workList.popLast() {

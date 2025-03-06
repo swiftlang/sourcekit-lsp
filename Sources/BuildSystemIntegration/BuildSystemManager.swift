@@ -26,9 +26,40 @@ import struct TSCBasic.RelativePath
 
 fileprivate typealias RequestCache<Request: RequestType & Hashable> = Cache<Request, Request.Response>
 
+/// An output path returned from the build server in the `SourceItem.data.outputPath` field.
+package enum OutputPath: Hashable, Comparable, CustomLogStringConvertible {
+  /// An output path returned from the build server.
+  case path(String)
+
+  /// The build server does not support output paths.
+  case notSupported
+
+  package var description: String {
+    switch self {
+    case .notSupported: return "<output path not supported>"
+    case .path(let path): return path
+    }
+  }
+
+  package var redactedDescription: String {
+    switch self {
+    case .notSupported: return "<output path not supported>"
+    case .path(let path): return path.hashForLogging
+    }
+  }
+}
+
 package struct SourceFileInfo: Sendable {
+  /// Maps the targets that this source file is a member of to the output path the file has within that target.
+  ///
+  /// The value in the dictionary can be:
+  ///  - `.path` if the build server supports output paths and produced a result
+  ///  - `.notSupported` if the build server does not support output paths.
+  ///  - `nil` if the build server supports output paths but did not return an output path for this file in this target.
+  package var targetsToOutputPaths: [BuildTargetIdentifier: OutputPath?]
+
   /// The targets that this source file is a member of
-  package var targets: Set<BuildTargetIdentifier>
+  package var targets: some Collection<BuildTargetIdentifier> & Sendable { targetsToOutputPaths.keys }
 
   /// `true` if this file belongs to the root project that the user is working on. It is false, if the file belongs
   /// to a dependency of the project.
@@ -48,8 +79,24 @@ package struct SourceFileInfo: Sendable {
     guard let other else {
       return self
     }
+    let mergedTargetsToOutputPaths = targetsToOutputPaths.merging(
+      other.targetsToOutputPaths,
+      uniquingKeysWith: { lhs, rhs in
+        if lhs == rhs {
+          return lhs
+        }
+        logger.error("Received mismatching output files: \(lhs?.forLogging) vs \(rhs?.forLogging)")
+        // Deterministically pick an output file if they mismatch. But really, this shouldn't happen.
+        switch (lhs, rhs) {
+        case (let lhs?, nil): return lhs
+        case (nil, let rhs?): return rhs
+        case (nil, nil): return nil  // Should be handled above already
+        case (let lhs?, let rhs?): return min(lhs, rhs)
+        }
+      }
+    )
     return SourceFileInfo(
-      targets: targets.union(other.targets),
+      targetsToOutputPaths: mergedTargetsToOutputPaths,
       isPartOfRootProject: other.isPartOfRootProject || isPartOfRootProject,
       mayContainTests: other.mayContainTests || mayContainTests,
       isBuildable: other.isBuildable || isBuildable
@@ -67,15 +114,6 @@ private struct BuildTargetInfo {
 
   /// The targets that depend on this target, ie. the inverse of `BuildTarget.dependencies`.
   var dependents: Set<BuildTargetIdentifier>
-}
-
-fileprivate extension SourceItem {
-  var sourceKitData: SourceKitSourceItemData? {
-    guard dataKind == .sourceKit else {
-      return nil
-    }
-    return SourceKitSourceItemData(fromLSPAny: data)
-  }
 }
 
 fileprivate extension BuildTarget {
@@ -743,13 +781,13 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     return languageFromBuildSystem ?? Language(inferredFromFileExtension: document)
   }
 
-  /// Returns all the targets that the document is part of.
-  package func targets(for document: DocumentURI) async -> Set<BuildTargetIdentifier> {
+  /// Retrieve information about the given source file within the build server.
+  package func sourceFileInfo(for document: DocumentURI) async -> SourceFileInfo? {
     return await orLog("Getting targets for source file") {
-      var result: Set<BuildTargetIdentifier> = []
+      var result: SourceFileInfo? = nil
       let filesAndDirectories = try await sourceFilesAndDirectories()
-      if let targets = filesAndDirectories.files[document]?.targets {
-        result.formUnion(targets)
+      if let info = filesAndDirectories.files[document] {
+        result = result?.merging(info) ?? info
       }
       if !filesAndDirectories.directories.isEmpty, let documentPathComponents = document.fileURL?.pathComponents {
         for (_, (directoryPathComponents, info)) in filesAndDirectories.directories {
@@ -757,12 +795,38 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
             continue
           }
           if isDescendant(documentPathComponents, of: directoryPathComponents) {
-            result.formUnion(info.targets)
+            result = result?.merging(info) ?? info
           }
         }
       }
       return result
-    } ?? []
+    }
+  }
+
+  /// Returns all the targets that the document is part of.
+  package func targets(for document: DocumentURI) async -> [BuildTargetIdentifier] {
+    guard let targets = await sourceFileInfo(for: document)?.targets else {
+      return []
+    }
+    return Array(targets)
+  }
+
+  /// The `OutputPath` with which `uri` should be indexed in `target`. This may return:
+  ///  - `.path` if the build server supports output paths and produced a result
+  ///  - `.notSupported` if the build server does not support output paths. In this case we will assume that the index
+  ///    for `uri` is up-to-date if we have any up-to-date unit for it.
+  ///  - `nil` if the build server supports output paths but did not return an output path for `uri` in `target`.
+  package func outputPath(for document: DocumentURI, in target: BuildTargetIdentifier) async throws -> OutputPath? {
+    guard await initializationData?.outputPathsProvider ?? false else {
+      // Early exit if the build server doesn't support output paths.
+      return .notSupported
+    }
+    guard let sourceFileInfo = await sourceFileInfo(for: document),
+      let outputPath = sourceFileInfo.targetsToOutputPaths[target]
+    else {
+      return nil
+    }
+    return outputPath
   }
 
   /// Returns the `BuildTargetIdentifier` that should be used for semantic functionality of the given document.
@@ -1045,7 +1109,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
   /// Returns the list of targets that might depend on the given target and that need to be re-prepared when a file in
   /// `target` is modified.
-  package func targets(dependingOn targetIds: Set<BuildTargetIdentifier>) async -> [BuildTargetIdentifier] {
+  package func targets(dependingOn targetIds: some Collection<BuildTargetIdentifier>) async -> [BuildTargetIdentifier] {
     guard
       let buildTargets = await orLog("Getting build targets for dependents", { try await self.buildTargets() })
     else {
@@ -1144,7 +1208,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// Return the output paths for all source files known to the build server.
   ///
   /// See `SourceKitSourceItemData.outputFilePath` for details.
-  package func outputPathInAllTargets() async throws -> [String] {
+  package func outputPathsInAllTargets() async throws -> [String] {
     return try await outputPaths(in: Set(buildTargets().map(\.key)))
   }
 
@@ -1180,6 +1244,8 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// - Important: This method returns both buildable and non-buildable source files. Callers need to check
   /// `SourceFileInfo.isBuildable` if they are only interested in buildable source files.
   private func sourceFilesAndDirectories() async throws -> SourceFilesAndDirectories {
+    let supportsOutputPaths = await initializationData?.outputPathsProvider ?? false
+
     return try await cachedSourceFilesAndDirectories.get(
       SourceFilesAndDirectoriesKey(),
       isolation: self
@@ -1194,12 +1260,21 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         let isPartOfRootProject = !(target?.tags.contains(.dependency) ?? false)
         let mayContainTests = target?.tags.contains(.test) ?? true
         for sourceItem in sourcesItem.sources {
+          let sourceKitData = sourceItem.sourceKitData
+          let outputPath: OutputPath? =
+            if !supportsOutputPaths {
+              .notSupported
+            } else if let outputPath = sourceKitData?.outputPath {
+              .path(outputPath)
+            } else {
+              nil
+            }
           let info = SourceFileInfo(
-            targets: [sourcesItem.target],
+            targetsToOutputPaths: [sourcesItem.target: outputPath],
             isPartOfRootProject: isPartOfRootProject,
             mayContainTests: mayContainTests,
             isBuildable: !(target?.tags.contains(.notBuildable) ?? false)
-              && !(sourceItem.sourceKitData?.isHeader ?? false)
+              && !(sourceKitData?.isHeader ?? false)
           )
           switch sourceItem.kind {
           case .file:
