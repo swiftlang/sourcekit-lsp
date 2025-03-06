@@ -44,15 +44,18 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// The path to put the index database, if any.
   var indexDatabasePath: URL? { get async }
 
-  /// Whether the build system is capable of preparing a target for indexing, ie. if the `prepare` methods has been
-  /// implemented.
-  var supportsPreparation: Bool { get }
+  /// Whether the build system is capable of preparing a target for indexing and determining the output paths for the
+  /// target, ie. whether the `prepare` and `buildTargetOutputPaths` methods have been implemented.
+  var supportsPreparationAndOutputPaths: Bool { get }
 
   /// Returns all targets in the build system
   func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse
 
   /// Returns all the source files in the given targets
   func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse
+
+  /// Returns all the output paths for the source files in the given targets.
+  func buildTargetOutputPaths(request: BuildTargetOutputPathsRequest) async throws -> BuildTargetOutputPathsResponse
 
   /// Called when files in the project change.
   func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) async

@@ -117,4 +117,82 @@ class WorkspaceSymbolsTests: XCTestCase {
       ]
     )
   }
+
+  func testHideSymbolsFromExcludedFiles() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "FileA.swift": "func 1️⃣doThingA() {}",
+        "FileB.swift": "func 2️⃣doThingB() {}",
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [.target(name: "MyLibrary")]
+        )
+        """,
+      enableBackgroundIndexing: true
+    )
+    let symbolsBeforeDeletion = try await project.testClient.send(WorkspaceSymbolsRequest(query: "doThing"))
+    XCTAssertEqual(
+      symbolsBeforeDeletion,
+      [
+        .symbolInformation(
+          SymbolInformation(
+            name: "doThingA()",
+            kind: .function,
+            location: try project.location(from: "1️⃣", to: "1️⃣", in: "FileA.swift")
+          )
+        ),
+        .symbolInformation(
+          SymbolInformation(
+            name: "doThingB()",
+            kind: .function,
+            location: try project.location(from: "2️⃣", to: "2️⃣", in: "FileB.swift")
+          )
+        ),
+      ]
+    )
+
+    try """
+    // swift-tools-version: 5.7
+
+    import PackageDescription
+
+    let package = Package(
+      name: "MyLibrary",
+      targets: [.target(name: "MyLibrary", exclude: ["FileA.swift"])]
+    )
+    """.write(to: XCTUnwrap(project.uri(for: "Package.swift").fileURL), atomically: true, encoding: .utf8)
+
+    // Test that we exclude FileB.swift from the index after it has been removed from the package's target.
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(
+        changes: [FileEvent(uri: try project.uri(for: "Package.swift"), type: .changed)]
+      )
+    )
+    try await repeatUntilExpectedResult {
+      let symbolsAfterDeletion = try await project.testClient.send(WorkspaceSymbolsRequest(query: "doThing"))
+      if symbolsAfterDeletion?.count == 2 {
+        // The exclusion hasn't been processed yet, try again.
+        return false
+      }
+      XCTAssertEqual(
+        symbolsAfterDeletion,
+        [
+          .symbolInformation(
+            SymbolInformation(
+              name: "doThingB()",
+              kind: .function,
+              location: try project.location(from: "2️⃣", to: "2️⃣", in: "FileB.swift")
+            )
+          )
+        ]
+      )
+      return true
+    }
+  }
 }

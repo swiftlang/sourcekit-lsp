@@ -273,8 +273,8 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
   /// The path at which SourceKit-LSP can store its index database, aggregating data from `indexStorePath`
   public var indexStorePath: String?
 
-  /// The files to watch for changes.
-  public var watchers: [FileSystemWatcher]?
+  /// Whether the server implements the `buildTarget/outputPaths` request.
+  public var outputPathsProvider: Bool?
 
   /// Whether the build server supports the `buildTarget/prepare` request.
   public var prepareProvider: Bool?
@@ -282,6 +282,10 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
   /// Whether the server implements the `textDocument/sourceKitOptions` request.
   public var sourceKitOptionsProvider: Bool?
 
+  /// The files to watch for changes.
+  public var watchers: [FileSystemWatcher]?
+
+  @available(*, deprecated, message: "Use initializer with alphabetical order of parameters")
   public init(
     indexDatabasePath: String? = nil,
     indexStorePath: String? = nil,
@@ -296,6 +300,22 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
     self.sourceKitOptionsProvider = sourceKitOptionsProvider
   }
 
+  public init(
+    indexDatabasePath: String? = nil,
+    indexStorePath: String? = nil,
+    outputPathsProvider: Bool? = nil,
+    prepareProvider: Bool? = nil,
+    sourceKitOptionsProvider: Bool? = nil,
+    watchers: [FileSystemWatcher]? = nil
+  ) {
+    self.indexDatabasePath = indexDatabasePath
+    self.indexStorePath = indexStorePath
+    self.outputPathsProvider = outputPathsProvider
+    self.prepareProvider = prepareProvider
+    self.sourceKitOptionsProvider = sourceKitOptionsProvider
+    self.watchers = watchers
+  }
+
   public init?(fromLSPDictionary dictionary: [String: LanguageServerProtocol.LSPAny]) {
     if case .string(let indexDatabasePath) = dictionary[CodingKeys.indexDatabasePath.stringValue] {
       self.indexDatabasePath = indexDatabasePath
@@ -303,14 +323,17 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
     if case .string(let indexStorePath) = dictionary[CodingKeys.indexStorePath.stringValue] {
       self.indexStorePath = indexStorePath
     }
-    if let watchers = dictionary[CodingKeys.watchers.stringValue] {
-      self.watchers = [FileSystemWatcher](fromLSPArray: watchers)
+    if case .bool(let outputPathsProvider) = dictionary[CodingKeys.outputPathsProvider.stringValue] {
+      self.outputPathsProvider = outputPathsProvider
     }
     if case .bool(let prepareProvider) = dictionary[CodingKeys.prepareProvider.stringValue] {
       self.prepareProvider = prepareProvider
     }
     if case .bool(let sourceKitOptionsProvider) = dictionary[CodingKeys.sourceKitOptionsProvider.stringValue] {
       self.sourceKitOptionsProvider = sourceKitOptionsProvider
+    }
+    if let watchers = dictionary[CodingKeys.watchers.stringValue] {
+      self.watchers = [FileSystemWatcher](fromLSPArray: watchers)
     }
   }
 
@@ -322,14 +345,17 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
     if let indexStorePath {
       result[CodingKeys.indexStorePath.stringValue] = .string(indexStorePath)
     }
-    if let watchers {
-      result[CodingKeys.watchers.stringValue] = watchers.encodeToLSPAny()
+    if let outputPathsProvider {
+      result[CodingKeys.outputPathsProvider.stringValue] = .bool(outputPathsProvider)
     }
     if let prepareProvider {
       result[CodingKeys.prepareProvider.stringValue] = .bool(prepareProvider)
     }
     if let sourceKitOptionsProvider {
       result[CodingKeys.sourceKitOptionsProvider.stringValue] = .bool(sourceKitOptionsProvider)
+    }
+    if let watchers {
+      result[CodingKeys.watchers.stringValue] = watchers.encodeToLSPAny()
     }
     return .dictionary(result)
   }

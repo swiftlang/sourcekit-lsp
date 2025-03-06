@@ -66,7 +66,7 @@ package actor FixedCompilationDatabaseBuildSystem: BuiltInBuildSystem {
     indexStorePath?.deletingLastPathComponent().appendingPathComponent("IndexDatabase")
   }
 
-  package nonisolated var supportsPreparation: Bool { false }
+  package nonisolated var supportsPreparationAndOutputPaths: Bool { false }
 
   private static func parseCompileFlags(at configPath: URL) throws -> [String] {
     let fileContents: String = try String(contentsOf: configPath, encoding: .utf8)
@@ -121,7 +121,13 @@ package actor FixedCompilationDatabaseBuildSystem: BuiltInBuildSystem {
   }
 
   package func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
-    throw PrepareNotSupportedError()
+    throw ResponseError.methodNotFound(BuildTargetPrepareRequest.method)
+  }
+
+  package func buildTargetOutputPaths(
+    request: BuildTargetOutputPathsRequest
+  ) async throws -> BuildTargetOutputPathsResponse {
+    throw ResponseError.methodNotFound(BuildTargetOutputPathsRequest.method)
   }
 
   package func sourceKitOptions(

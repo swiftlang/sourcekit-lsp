@@ -347,8 +347,6 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         "-index-file-path", uri.pseudoPath,
         // batch mode is not compatible with -index-file
         "-disable-batch-mode",
-        // Fake an output path so that we get a different unit file for every Swift file we background index
-        "-index-unit-output-path", uri.pseudoPath + ".o",
       ]
     args = try await addOrReplaceIndexStorePath(in: args, for: uri)
 
