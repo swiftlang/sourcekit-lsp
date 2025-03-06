@@ -1954,14 +1954,7 @@ final class BackgroundIndexingTests: XCTestCase {
       }
 
       func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
-        return initializationResponse(
-          initializeData: SourceKitInitializeBuildResponseData(
-            indexDatabasePath: try projectRoot.appendingPathComponent("index-db").filePath,
-            indexStorePath: try projectRoot.appendingPathComponent("index-store").filePath,
-            prepareProvider: true,
-            sourceKitOptionsProvider: true
-          )
-        )
+        return try initializationResponseSupportingBackgroundIndexing(projectRoot: projectRoot)
       }
 
       func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) -> BuildTargetSourcesResponse {
