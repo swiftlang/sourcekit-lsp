@@ -102,8 +102,6 @@ package actor JSONCompilationDatabaseBuildSystem: BuiltInBuildSystem {
         }
       return BuildTarget(
         id: try BuildTargetIdentifier.createCompileCommands(compiler: compiler),
-        displayName: nil,
-        baseDirectory: nil,
         tags: [.test],
         capabilities: BuildTargetCapabilities(),
         // Be conservative with the languages that might be used in the target. SourceKit-LSP doesn't use this property.

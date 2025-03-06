@@ -148,9 +148,6 @@ package extension CustomBuildServer {
     return WorkspaceBuildTargetsResponse(targets: [
       BuildTarget(
         id: .dummy,
-        displayName: nil,
-        baseDirectory: nil,
-        tags: [],
         capabilities: BuildTargetCapabilities(),
         languageIds: [],
         dependencies: []
