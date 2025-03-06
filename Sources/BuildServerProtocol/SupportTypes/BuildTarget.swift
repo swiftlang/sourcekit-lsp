@@ -71,7 +71,7 @@ public struct BuildTarget: Codable, Hashable, Sendable {
     displayName: String? = nil,
     baseDirectory: URI? = nil,
     tags: [BuildTargetTag] = [],
-    capabilities: BuildTargetCapabilities,
+    capabilities: BuildTargetCapabilities = BuildTargetCapabilities(),
     languageIds: [Language],
     dependencies: [BuildTargetIdentifier],
     dataKind: BuildTargetDataKind? = nil,
