@@ -108,9 +108,7 @@ package extension CustomBuildServer {
   // MARK: Helper functions for the implementation of BSP methods
 
   func initializationResponse(
-    initializeData: SourceKitInitializeBuildResponseData = SourceKitInitializeBuildResponseData(
-      sourceKitOptionsProvider: true
-    )
+    initializeData: SourceKitInitializeBuildResponseData = .init(sourceKitOptionsProvider: true)
   ) -> InitializeBuildResponse {
     InitializeBuildResponse(
       displayName: "\(type(of: self))",
@@ -119,6 +117,17 @@ package extension CustomBuildServer {
       capabilities: BuildServerCapabilities(),
       dataKind: .sourceKit,
       data: initializeData.encodeToLSPAny()
+    )
+  }
+
+  func initializationResponseSupportingBackgroundIndexing(projectRoot: URL) throws -> InitializeBuildResponse {
+    return initializationResponse(
+      initializeData: SourceKitInitializeBuildResponseData(
+        indexDatabasePath: try projectRoot.appendingPathComponent("index-db").filePath,
+        indexStorePath: try projectRoot.appendingPathComponent("index-store").filePath,
+        prepareProvider: true,
+        sourceKitOptionsProvider: true
+      )
     )
   }
 
