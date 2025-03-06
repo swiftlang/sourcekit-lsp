@@ -29,7 +29,7 @@ export interface SourceKitInitializeBuildResponseData {
   prepareProvider?: bool;
 
   /** Whether the server implements the `textDocument/sourceKitOptions` request. */
-  sourceKitOp tionsProvider?: bool;
+  sourceKitOptionsProvider?: bool;
 
   /** The files to watch for changes.
    * Changes to these files are sent to the BSP server using `workspace/didChangeWatchedFiles`.
@@ -94,7 +94,7 @@ export interface SourceKitSourceItemData {
    * in the compiler arguments or the file that is passed as `-o`, if `-index-unit-output-path` is not specified.
    *
    * This allows SourceKit-LSP to remove index entries for source files that are removed from a target but remain
-   * present on disk.
+   * present on disk and to index a file that is part of multiple targets in the context of each target.
    *
    * The server communicates during the initialize handshake whether it populates this property by setting
    * `outputPathsProvider: true` in `SourceKitInitializeBuildResponseData`.

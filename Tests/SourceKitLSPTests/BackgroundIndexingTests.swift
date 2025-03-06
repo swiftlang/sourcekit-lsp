@@ -2169,6 +2169,141 @@ final class BackgroundIndexingTests: XCTestCase {
       ]
     )
   }
+
+  func testFilePartOfMultipleTargets() async throws {
+    final class BuildServer: CustomBuildServer {
+      private let projectRoot: URL
+
+      private let libATarget = BuildTargetIdentifier(uri: try! URI(string: "build://targetA"))
+      private let libBTarget = BuildTargetIdentifier(uri: try! URI(string: "build://targetB"))
+
+      private var sources: [SourcesItem] {
+        return [
+          SourcesItem(
+            target: libATarget,
+            sources: [
+              SourceItem(
+                uri: URI(projectRoot.appendingPathComponent("Shared.swift")),
+                kind: .file,
+                generated: false,
+                dataKind: .sourceKit,
+                data: SourceKitSourceItemData(outputPath: "/LibA/Shared.swift.o").encodeToLSPAny()
+              ),
+              SourceItem(
+                uri: URI(projectRoot.appendingPathComponent("LibA.swift")),
+                kind: .file,
+                generated: false,
+                dataKind: .sourceKit,
+                data: SourceKitSourceItemData(outputPath: "/LibA/LibA.swift.o").encodeToLSPAny()
+              ),
+            ]
+          ),
+          SourcesItem(
+            target: libBTarget,
+            sources: [
+              SourceItem(
+                uri: URI(projectRoot.appendingPathComponent("Shared.swift")),
+                kind: .file,
+                generated: false,
+                dataKind: .sourceKit,
+                data: SourceKitSourceItemData(outputPath: "/LibB/Shared.swift.o").encodeToLSPAny()
+              ),
+              SourceItem(
+                uri: URI(projectRoot.appendingPathComponent("LibB.swift")),
+                kind: .file,
+                generated: false,
+                dataKind: .sourceKit,
+                data: SourceKitSourceItemData(outputPath: "/LibB/LibB.swift.o").encodeToLSPAny()
+              ),
+            ]
+          ),
+        ]
+      }
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any LanguageServerProtocol.Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return try initializationResponseSupportingBackgroundIndexing(projectRoot: projectRoot)
+      }
+
+      func workspaceBuildTargetsRequest(
+        _ request: WorkspaceBuildTargetsRequest
+      ) async throws -> WorkspaceBuildTargetsResponse {
+        WorkspaceBuildTargetsResponse(targets: [
+          BuildTarget(
+            id: libATarget,
+            capabilities: BuildTargetCapabilities(),
+            languageIds: [.swift],
+            dependencies: []
+          ),
+          BuildTarget(
+            id: libBTarget,
+            capabilities: BuildTargetCapabilities(),
+            languageIds: [.swift],
+            dependencies: []
+          ),
+        ])
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        return BuildTargetSourcesResponse(items: sources.filter { request.targets.contains($0.target) })
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        let targetSources = try XCTUnwrap(sources.first(where: { $0.target == request.target })?.sources)
+        let sourceInfo = try XCTUnwrap(targetSources.first(where: { $0.uri == request.textDocument.uri }))
+        var arguments = targetSources.map(\.uri.pseudoPath)
+        let targetName = try XCTUnwrap(request.target.uri.arbitrarySchemeURL.host)
+        arguments += [
+          "-module-name", targetName,
+          "-index-unit-output-path", try XCTUnwrap(sourceInfo.sourceKitData?.outputPath),
+        ]
+        if let defaultSDKPath {
+          arguments += ["-sdk", defaultSDKPath]
+        }
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
+      }
+    }
+
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "Shared.swift": """
+        class Shared {}
+        """,
+        "LibA.swift": """
+        class 1️⃣LibA: Shared {}
+        """,
+        "LibB.swift": """
+        class 2️⃣LibB: Shared {}
+        """,
+      ],
+      buildServer: BuildServer.self,
+      enableBackgroundIndexing: true
+    )
+    try await project.testClient.send(PollIndexRequest())
+
+    let (libAUri, libAPositions) = try project.openDocument("LibA.swift")
+    let libATypeHierarchyPrepare = try await project.testClient.send(
+      TypeHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(libAUri), position: libAPositions["1️⃣"])
+    )
+    let libASupertypes = try await project.testClient.send(
+      TypeHierarchySupertypesRequest(item: XCTUnwrap(libATypeHierarchyPrepare?.only))
+    )
+    XCTAssertEqual(libASupertypes?.count, 1)
+
+    let (libBUri, libBPositions) = try project.openDocument("LibB.swift")
+    let libBTypeHierarchyPrepare = try await project.testClient.send(
+      TypeHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(libBUri), position: libBPositions["2️⃣"])
+    )
+    let libBSupertypes = try await project.testClient.send(
+      TypeHierarchySupertypesRequest(item: XCTUnwrap(libBTypeHierarchyPrepare?.only))
+    )
+    XCTAssertEqual(libBSupertypes?.count, 1)
+  }
 }
 
 extension HoverResponseContents {
