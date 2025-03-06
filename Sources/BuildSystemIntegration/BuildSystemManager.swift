@@ -811,24 +811,6 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     return Array(targets)
   }
 
-  /// The `OutputPath` with which `uri` should be indexed in `target`. This may return:
-  ///  - `.path` if the build server supports output paths and produced a result
-  ///  - `.notSupported` if the build server does not support output paths. In this case we will assume that the index
-  ///    for `uri` is up-to-date if we have any up-to-date unit for it.
-  ///  - `nil` if the build server supports output paths but did not return an output path for `uri` in `target`.
-  package func outputPath(for document: DocumentURI, in target: BuildTargetIdentifier) async throws -> OutputPath? {
-    guard await initializationData?.outputPathsProvider ?? false else {
-      // Early exit if the build server doesn't support output paths.
-      return .notSupported
-    }
-    guard let sourceFileInfo = await sourceFileInfo(for: document),
-      let outputPath = sourceFileInfo.targetsToOutputPaths[target]
-    else {
-      return nil
-    }
-    return outputPath
-  }
-
   /// Returns the `BuildTargetIdentifier` that should be used for semantic functionality of the given document.
   package func canonicalTarget(for document: DocumentURI) async -> BuildTargetIdentifier? {
     // Sort the targets to deterministically pick the same `BuildTargetIdentifier` every time.

@@ -173,15 +173,28 @@ package extension CustomBuildServer {
     )
   }
 
-  func initializationResponseSupportingBackgroundIndexing(projectRoot: URL) throws -> InitializeBuildResponse {
+  func initializationResponseSupportingBackgroundIndexing(
+    projectRoot: URL,
+    outputPathsProvider: Bool
+  ) throws -> InitializeBuildResponse {
     return initializationResponse(
       initializeData: SourceKitInitializeBuildResponseData(
         indexDatabasePath: try projectRoot.appendingPathComponent("index-db").filePath,
         indexStorePath: try projectRoot.appendingPathComponent("index-store").filePath,
-        outputPathsProvider: true,
+        outputPathsProvider: outputPathsProvider,
         prepareProvider: true,
         sourceKitOptionsProvider: true
       )
+    )
+  }
+
+  func sourceItem(for url: URL, outputPath: String) -> SourceItem {
+    SourceItem(
+      uri: URI(url),
+      kind: .file,
+      generated: false,
+      dataKind: .sourceKit,
+      data: SourceKitSourceItemData(outputPath: outputPath).encodeToLSPAny()
     )
   }
 

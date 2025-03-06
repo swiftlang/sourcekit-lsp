@@ -468,68 +468,78 @@ package final actor SemanticIndexManager {
     }
     let modifiedFilesIndex = index.checked(for: .modifiedFiles)
 
-    let filesWithTargetAndOutput: [(file: DocumentURI, target: BuildTargetIdentifier, outputPath: OutputPath?)] =
-      await files.asyncFlatMap { file in
-        await buildSystemManager.sourceFileInfo(for: file)?.targetsToOutputPaths.map { (file, $0, $1) } ?? []
-      }
-
-    let filesToReIndex =
-      await filesWithTargetAndOutput
-      .asyncCompactMap { (uri, target, outputPath) -> (FileIndexInfo, Date?)? in
+    var filesToReIndex: [(FileIndexInfo, Date?)] = []
+    for uri in files {
+      var didFindTargetToIndex = false
+      for (target, outputPath) in await buildSystemManager.sourceFileInfo(for: uri)?.targetsToOutputPaths ?? [:] {
         // First, check if we know that the file is up-to-date, in which case we don't need to hit the index or file
         // system at all
         if !indexFilesWithUpToDateUnits, await indexStoreUpToDateTracker.isUpToDate(uri, target) {
-          return nil
+          continue
         }
         if sourceFiles.contains(uri) {
           guard let outputPath else {
             logger.info("Not indexing \(uri.forLogging) because its output file could not be determined")
-            return nil
+            continue
           }
           if !indexFilesWithUpToDateUnits, modifiedFilesIndex.hasUpToDateUnit(for: uri, outputPath: outputPath) {
-            return nil
+            continue
           }
           // If this is a source file, just index it.
-          return (
-            FileIndexInfo(file: .indexableFile(uri), target: target, outputPath: outputPath),
-            modifiedFilesIndex.modificationDate(of: uri)
+          didFindTargetToIndex = true
+          filesToReIndex.append(
+            (
+              FileIndexInfo(file: .indexableFile(uri), target: target, outputPath: outputPath),
+              modifiedFilesIndex.modificationDate(of: uri)
+            )
           )
         }
-        // Otherwise, see if it is a header file. If so, index a main file that that imports it to update header file's
-        // index.
-        // Deterministically pick a main file. This ensures that we always pick the same main file for a header. This way,
-        // if we request the same header to be indexed twice, we'll pick the same unit file the second time around,
-        // realize that its timestamp is later than the modification date of the header and we don't need to re-index.
-        let mainFile = await buildSystemManager.mainFiles(containing: uri)
-          .filter { sourceFiles.contains($0) }
-          .sorted(by: { $0.stringValue < $1.stringValue }).first
-        guard let mainFile else {
-          logger.info("Not indexing \(uri) because its main file could not be inferred")
-          return nil
-        }
-        let mainFileOutputPath = await orLog("Getting output path") {
-          try await buildSystemManager.outputPath(for: mainFile, in: target)
-        }
-        guard let mainFileOutputPath else {
-          logger.info(
-            "Not indexing \(uri.forLogging) because the output file of its main file \(mainFile.forLogging) could not be determined"
-          )
-          return nil
-        }
-        if !indexFilesWithUpToDateUnits,
-          modifiedFilesIndex.hasUpToDateUnit(for: uri, mainFile: mainFile, outputPath: mainFileOutputPath)
-        {
-          return nil
-        }
-        return (
+      }
+      if didFindTargetToIndex {
+        continue
+      }
+      // If we haven't found any ways to index the file, see if it is a header file. If so, index a main file that
+      // that imports it to update header file's index.
+      // Deterministically pick a main file. This ensures that we always pick the same main file for a header. This way,
+      // if we request the same header to be indexed twice, we'll pick the same unit file the second time around,
+      // realize that its timestamp is later than the modification date of the header and we don't need to re-index.
+      let mainFile = await buildSystemManager.mainFiles(containing: uri)
+        .filter { sourceFiles.contains($0) }
+        .sorted(by: { $0.stringValue < $1.stringValue }).first
+      guard let mainFile else {
+        logger.info("Not indexing \(uri.forLogging) because its main file could not be inferred")
+        continue
+      }
+      let targetAndOutputPath = (await buildSystemManager.sourceFileInfo(for: mainFile)?.targetsToOutputPaths ?? [:])
+        .sorted(by: { $0.key.uri.stringValue < $1.key.uri.stringValue }).first
+      guard let targetAndOutputPath else {
+        logger.info(
+          "Not indexing \(uri.forLogging) because the target file of its main file \(mainFile.forLogging) could not be determined"
+        )
+        continue
+      }
+      guard let outputPath = targetAndOutputPath.value else {
+        logger.info(
+          "Not indexing \(uri.forLogging) because the output file of its main file \(mainFile.forLogging) could not be determined"
+        )
+        continue
+      }
+      if !indexFilesWithUpToDateUnits,
+        modifiedFilesIndex.hasUpToDateUnit(for: uri, mainFile: mainFile, outputPath: outputPath)
+      {
+        continue
+      }
+      filesToReIndex.append(
+        (
           FileIndexInfo(
             file: .headerFile(header: uri, mainFile: mainFile),
-            target: target,
-            outputPath: mainFileOutputPath
+            target: targetAndOutputPath.key,
+            outputPath: outputPath
           ),
           modifiedFilesIndex.modificationDate(of: uri)
         )
-      }
+      )
+    }
     return filesToReIndex
   }
 

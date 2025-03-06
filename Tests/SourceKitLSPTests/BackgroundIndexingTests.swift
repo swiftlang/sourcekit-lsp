@@ -1954,7 +1954,10 @@ final class BackgroundIndexingTests: XCTestCase {
       }
 
       func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
-        return try initializationResponseSupportingBackgroundIndexing(projectRoot: projectRoot)
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: false
+        )
       }
 
       func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) -> BuildTargetSourcesResponse {
@@ -2289,39 +2292,15 @@ final class BackgroundIndexingTests: XCTestCase {
           SourcesItem(
             target: libATarget,
             sources: [
-              SourceItem(
-                uri: URI(projectRoot.appendingPathComponent("Shared.swift")),
-                kind: .file,
-                generated: false,
-                dataKind: .sourceKit,
-                data: SourceKitSourceItemData(outputPath: "/LibA/Shared.swift.o").encodeToLSPAny()
-              ),
-              SourceItem(
-                uri: URI(projectRoot.appendingPathComponent("LibA.swift")),
-                kind: .file,
-                generated: false,
-                dataKind: .sourceKit,
-                data: SourceKitSourceItemData(outputPath: "/LibA/LibA.swift.o").encodeToLSPAny()
-              ),
+              sourceItem(for: projectRoot.appendingPathComponent("Shared.swift"), outputPath: "/LibA/Shared.swift.o"),
+              sourceItem(for: projectRoot.appendingPathComponent("LibA.swift"), outputPath: "/LibA/LibA.swift.o"),
             ]
           ),
           SourcesItem(
             target: libBTarget,
             sources: [
-              SourceItem(
-                uri: URI(projectRoot.appendingPathComponent("Shared.swift")),
-                kind: .file,
-                generated: false,
-                dataKind: .sourceKit,
-                data: SourceKitSourceItemData(outputPath: "/LibB/Shared.swift.o").encodeToLSPAny()
-              ),
-              SourceItem(
-                uri: URI(projectRoot.appendingPathComponent("LibB.swift")),
-                kind: .file,
-                generated: false,
-                dataKind: .sourceKit,
-                data: SourceKitSourceItemData(outputPath: "/LibB/LibB.swift.o").encodeToLSPAny()
-              ),
+              sourceItem(for: projectRoot.appendingPathComponent("Shared.swift"), outputPath: "/LibB/Shared.swift.o"),
+              sourceItem(for: projectRoot.appendingPathComponent("LibB.swift"), outputPath: "/LibB/LibB.swift.o"),
             ]
           ),
         ]
@@ -2332,25 +2311,18 @@ final class BackgroundIndexingTests: XCTestCase {
       }
 
       func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
-        return try initializationResponseSupportingBackgroundIndexing(projectRoot: projectRoot)
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: true
+        )
       }
 
       func workspaceBuildTargetsRequest(
         _ request: WorkspaceBuildTargetsRequest
       ) async throws -> WorkspaceBuildTargetsResponse {
         WorkspaceBuildTargetsResponse(targets: [
-          BuildTarget(
-            id: libATarget,
-            capabilities: BuildTargetCapabilities(),
-            languageIds: [.swift],
-            dependencies: []
-          ),
-          BuildTarget(
-            id: libBTarget,
-            capabilities: BuildTargetCapabilities(),
-            languageIds: [.swift],
-            dependencies: []
-          ),
+          BuildTarget(id: libATarget, languageIds: [.swift], dependencies: []),
+          BuildTarget(id: libBTarget, languageIds: [.swift], dependencies: []),
         ])
       }
 
@@ -2411,6 +2383,126 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     XCTAssertEqual(libBSupertypes?.count, 1)
   }
+
+  func testHeaderIncludedFromMultipleTargets() async throws {
+    final class BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+
+      private let projectRoot: URL
+
+      private let libATarget = BuildTargetIdentifier(uri: try! URI(string: "build://targetA"))
+      private let libBTarget = BuildTargetIdentifier(uri: try! URI(string: "build://targetB"))
+
+      private var sources: [SourcesItem] {
+        return [
+          SourcesItem(
+            target: libATarget,
+            sources: [
+              sourceItem(for: projectRoot.appendingPathComponent("LibA.c"), outputPath: "/LibA/LibA.c.o")
+            ]
+          ),
+          SourcesItem(
+            target: libBTarget,
+            sources: [
+              sourceItem(for: projectRoot.appendingPathComponent("LibB.c"), outputPath: "/LibB/LibB.c.o")
+            ]
+          ),
+        ]
+      }
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any LanguageServerProtocol.Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: true
+        )
+      }
+
+      func workspaceBuildTargetsRequest(
+        _ request: WorkspaceBuildTargetsRequest
+      ) async throws -> WorkspaceBuildTargetsResponse {
+        WorkspaceBuildTargetsResponse(targets: [
+          BuildTarget(id: libATarget, languageIds: [.c], dependencies: []),
+          BuildTarget(id: libBTarget, languageIds: [.c], dependencies: []),
+        ])
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        return BuildTargetSourcesResponse(items: sources.filter { request.targets.contains($0.target) })
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        let targetSources = try XCTUnwrap(sources.first(where: { $0.target == request.target })?.sources)
+        let sourceInfo = try XCTUnwrap(targetSources.first(where: { $0.uri == request.textDocument.uri }))
+
+        var arguments: [String] = [
+          sourceInfo.uri.pseudoPath, "-index-unit-output-path", try XCTUnwrap(sourceInfo.sourceKitData?.outputPath),
+        ]
+        if request.target == libATarget {
+          arguments.append("-DLIBA")
+        } else if request.target == libBTarget {
+          arguments.append("-DLIBB")
+        } else {
+          throw ResponseError.unknown("Unknown target \(request.target)")
+        }
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
+      }
+    }
+
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "Header.h": """
+        #if defined(LIBA)
+        void myTestA() {}
+        #elif defined(LIBB)
+        void myTestB() {}
+        #else
+        void myTestC() {}
+        #endif
+        """,
+        "LibA.c": """
+        #include "Header.h"
+        """,
+        "LibB.c": """
+        #include "Header.h"
+        """,
+      ],
+      buildServer: BuildServer.self,
+      enableBackgroundIndexing: true
+    )
+    try await project.testClient.send(SynchronizeRequest(index: true))
+
+    let workspaceSymbolsBeforeUpdate = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTest"))
+    XCTAssertEqual(workspaceSymbolsBeforeUpdate?.compactMap(\.symbolInformation?.name), ["myTestA", "myTestB"])
+
+    try await """
+    #if defined(LIBA)
+    void myTestA_updated() {}
+    #elif defined(LIBB)
+    void myTestB_updated() {}
+    #else
+    void myTestC_updated() {}
+    #endif
+    """.writeWithRetry(to: XCTUnwrap(project.uri(for: "Header.h").fileURL))
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: try project.uri(for: "Header.h"), type: .changed)])
+    )
+
+    try await project.testClient.send(SynchronizeRequest(index: true))
+
+    // Technically, we would need to re-index the header in the context of every target that it's included in. But
+    // that's quite expensive. And since we don't re-index all the files that include the header either, we chose to
+    // only re-index the header file using a single main file that includes it. In this case, we deterministically pick
+    // LibA because it's lexicographically earlier than LibB. We are thus left with the stale `myTestB` entry.
+    let workspaceSymbolsAfterUpdate = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTest"))
+    XCTAssertEqual(workspaceSymbolsAfterUpdate?.compactMap(\.symbolInformation?.name), ["myTestA_updated", "myTestB"])
+  }
 }
 
 extension HoverResponseContents {
@@ -2419,5 +2511,14 @@ extension HoverResponseContents {
     case .markupContent(let markupContent): return markupContent
     default: return nil
     }
+  }
+}
+
+extension WorkspaceSymbolItem {
+  var symbolInformation: SymbolInformation? {
+    if case .symbolInformation(let symbolInformation) = self {
+      return symbolInformation
+    }
+    return nil
   }
 }
