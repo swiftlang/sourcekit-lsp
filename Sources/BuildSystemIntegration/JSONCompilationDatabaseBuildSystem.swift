@@ -10,20 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKLogging
-import SwiftExtensions
-
-#if compiler(>=6)
 package import BuildServerProtocol
 package import Foundation
 package import LanguageServerProtocol
+import SKLogging
+import SwiftExtensions
 package import ToolchainRegistry
-#else
-import BuildServerProtocol
-import Foundation
-import LanguageServerProtocol
-import ToolchainRegistry
-#endif
 
 fileprivate extension CompilationDatabaseCompileCommand {
   /// The first entry in the command line identifies the compiler that should be used to compile the file and can thus

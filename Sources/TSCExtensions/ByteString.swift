@@ -10,15 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Foundation
 
 package import struct TSCBasic.ByteString
-#else
-import Foundation
-
-import struct TSCBasic.ByteString
-#endif
 
 extension ByteString {
   /// Access the contents of `self` as `Data`. The contents are not copied, so it is not safe to

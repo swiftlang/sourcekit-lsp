@@ -1,4 +1,4 @@
-// swift-tools-version: 5.10
+// swift-tools-version: 6.0
 
 import Foundation
 import PackageDescription
@@ -699,9 +699,10 @@ let package = Package(
   products: products,
   dependencies: dependencies,
   targets: targets,
-  swiftLanguageVersions: [.v5, .version("6")]
+  swiftLanguageModes: [.v6]
 )
 
+@MainActor
 func swiftSyntaxDependencies(_ names: [String]) -> [Target.Dependency] {
   if buildDynamicSwiftSyntaxLibrary {
     return [.product(name: "_SwiftSyntaxDynamic", package: "swift-syntax")]
@@ -710,6 +711,7 @@ func swiftSyntaxDependencies(_ names: [String]) -> [Target.Dependency] {
   }
 }
 
+@MainActor
 func swiftPMDependency<T>(_ values: [T]) -> [T] {
   if noSwiftPMDependency {
     return []

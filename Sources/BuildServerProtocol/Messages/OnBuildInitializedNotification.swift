@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 public import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
 
 /// Like the language server protocol, the initialized notification is sent from the client to the server after the client received the result of the initialize request but before the client is sending any other request or notification to the server. The server can use the initialized notification for example to initialize intensive computation such as dependency resolution or compilation. The initialized notification may only be sent once.
 public struct OnBuildInitializedNotification: NotificationType {

@@ -10,16 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+public import Csourcekitd
 import Foundation
 import SourceKitD
 import SwiftExtensions
 import SwiftSourceKitPluginCommon
-
-#if compiler(>=6)
-public import Csourcekitd
-#else
-import Csourcekitd
-#endif
 
 #if compiler(>=6.3)
 #warning("Remove sourcekitd_plugin_initialize when we no longer support toolchains that call it")

@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import LanguageServerProtocol
 import SwiftExtensions
-#else
-import LanguageServerProtocol
-import SwiftExtensions
-#endif
 
 /// A request and a callback that returns the request's reply
 package final class RequestAndReply<Params: RequestType>: Sendable {

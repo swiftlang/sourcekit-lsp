@@ -11,13 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LanguageServerProtocolExtensions
-
-#if compiler(>=6)
 package import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
+import LanguageServerProtocolExtensions
 
 /// Build settings for a single file.
 ///

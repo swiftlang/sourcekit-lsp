@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
-public import LanguageServerProtocol
 public import Foundation
-#else
-import LanguageServerProtocol
-import Foundation
-#endif
+public import LanguageServerProtocol
 
 /// The BSP server can inform the client on the execution state of any task in the build tool.
 /// The execution of some tasks, such as compilation or tests, must always be reported by the server.

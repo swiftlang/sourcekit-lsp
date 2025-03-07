@@ -122,11 +122,7 @@
   ]
 }%
 
-#if compiler(>=6)
 package import Csourcekitd
-#else
-import Csourcekitd
-#endif
 % for (struct_type, uids) in TYPES_AND_KEYS:
 
 package struct ${struct_type} {

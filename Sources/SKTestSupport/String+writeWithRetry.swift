@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKLogging
-
-#if compiler(>=6)
 package import Foundation
-#else
-import Foundation
-#endif
+import SKLogging
 
 extension String {
   /// Write this string to the given URL using UTF-8 encoding.

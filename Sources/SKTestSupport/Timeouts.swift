@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Foundation
-#else
-import Foundation
-#endif
 
 /// The default duration how long tests should wait for responses from
 /// SourceKit-LSP / sourcekitd / clangd.

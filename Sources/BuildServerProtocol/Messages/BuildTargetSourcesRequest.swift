@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 public import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
 
 /// The build target sources request is sent from the client to the server to
 /// query for the list of text documents and directories that belong to a

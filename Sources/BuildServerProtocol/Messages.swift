@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 public import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
 
 fileprivate let requestTypes: [_RequestType.Type] = [
   BuildShutdownRequest.self,

@@ -10,25 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+package import BuildServerProtocol
 import BuildSystemIntegration
+package import Foundation
+package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
+package import SKOptions
 import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
 import XCTest
-
-#if compiler(>=6)
-package import BuildServerProtocol
-package import Foundation
-package import LanguageServerProtocol
-package import SKOptions
-#else
-import BuildServerProtocol
-import Foundation
-import LanguageServerProtocol
-import SKOptions
-#endif
 
 // MARK: - CustomBuildServer
 

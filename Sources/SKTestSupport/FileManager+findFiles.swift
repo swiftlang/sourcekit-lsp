@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Foundation
-#else
-import Foundation
-#endif
 
 extension FileManager {
   /// Returns the URLs of all files with the given file extension in the given directory (recursively).

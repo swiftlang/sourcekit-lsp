@@ -10,9 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
-package import BuildSystemIntegration
 import BuildServerProtocol
+package import BuildSystemIntegration
 import Csourcekitd
 import Dispatch
 import Foundation
@@ -29,26 +28,6 @@ import SwiftParser
 import SwiftParserDiagnostics
 package import SwiftSyntax
 package import ToolchainRegistry
-#else
-import BuildSystemIntegration
-import BuildServerProtocol
-import Csourcekitd
-import Dispatch
-import Foundation
-import IndexStoreDB
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
-import SKOptions
-import SKUtilities
-import SemanticIndex
-import SourceKitD
-import SwiftExtensions
-import SwiftParser
-import SwiftParserDiagnostics
-import SwiftSyntax
-import ToolchainRegistry
-#endif
 
 #if os(Windows)
 import WinSDK

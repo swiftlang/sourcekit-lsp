@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 import BuildServerProtocol
 import BuildSystemIntegration
 import Dispatch
@@ -28,25 +27,6 @@ package import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
-#else
-import BuildServerProtocol
-import BuildSystemIntegration
-import Dispatch
-import Foundation
-import IndexStoreDB
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import LanguageServerProtocolJSONRPC
-import SKLogging
-import SKOptions
-import SemanticIndex
-import SourceKitD
-import SwiftExtensions
-import ToolchainRegistry
-
-import struct TSCBasic.AbsolutePath
-import protocol TSCBasic.FileSystem
-#endif
 
 /// Disambiguate LanguageServerProtocol.Language and IndexstoreDB.Language
 package typealias Language = LanguageServerProtocol.Language

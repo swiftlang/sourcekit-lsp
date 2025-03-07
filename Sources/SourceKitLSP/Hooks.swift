@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import BuildSystemIntegration
 import Foundation
 package import LanguageServerProtocol
@@ -19,16 +18,6 @@ package import SemanticIndex
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
-#else
-import BuildSystemIntegration
-import Foundation
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SemanticIndex
-
-import struct TSCBasic.AbsolutePath
-import struct TSCBasic.RelativePath
-#endif
 
 /// Closures can be used to inspect or modify internal behavior in SourceKit-LSP.
 public struct Hooks: Sendable {

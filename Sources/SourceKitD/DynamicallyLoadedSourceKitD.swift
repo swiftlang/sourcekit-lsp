@@ -10,17 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Csourcekitd
 package import Foundation
 import SKLogging
 import SwiftExtensions
-#else
-import Csourcekitd
-import Foundation
-import SKLogging
-import SwiftExtensions
-#endif
 
 extension sourcekitd_api_keys: @unchecked Sendable {}
 extension sourcekitd_api_requests: @unchecked Sendable {}

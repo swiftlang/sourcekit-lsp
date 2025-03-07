@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Foundation
-#else
-import Foundation
-#endif
 
 #if !NO_CRYPTO_DEPENDENCY
 import Crypto

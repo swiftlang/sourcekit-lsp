@@ -10,29 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import ArgumentParser
 import Foundation
 import LanguageServerProtocolExtensions
-import ToolchainRegistry
 import SwiftExtensions
 import TSCExtensions
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import class TSCUtility.PercentProgressAnimation
-#else
-import ArgumentParser
-import Foundation
-import LanguageServerProtocolExtensions
-import ToolchainRegistry
-import SwiftExtensions
-import TSCExtensions
-
-import struct TSCBasic.AbsolutePath
-import class TSCBasic.Process
-import class TSCUtility.PercentProgressAnimation
-#endif
 
 /// When diagnosis is started, a progress bar displayed on the terminal that shows how far the diagnose command has
 /// progressed.

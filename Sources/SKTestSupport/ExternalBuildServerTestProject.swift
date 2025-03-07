@@ -11,14 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+package import SKOptions
 import SwiftExtensions
 import XCTest
-
-#if compiler(>=6)
-package import SKOptions
-#else
-import SKOptions
-#endif
 
 fileprivate let sdkArgs =
   if let defaultSDKPath {

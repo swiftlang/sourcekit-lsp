@@ -10,19 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 import Foundation
 package import LanguageServerProtocol
 import SKLogging
 import SourceKitD
 import SwiftBasicFormat
-#else
-import Foundation
-import LanguageServerProtocol
-import SKLogging
-import SourceKitD
-import SwiftBasicFormat
-#endif
 
 extension SwiftLanguageService {
   package func completion(_ req: CompletionRequest) async throws -> CompletionList {

@@ -10,17 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+package import Foundation
 import SwiftExtensions
 
-#if compiler(>=6)
 package import struct TSCBasic.AbsolutePath
 package import struct TSCBasic.RelativePath
-package import Foundation
-#else
-import struct TSCBasic.AbsolutePath
-import struct TSCBasic.RelativePath
-import Foundation
-#endif
 
 extension URL {
   package func appending(_ relativePath: RelativePath) -> URL {

@@ -10,17 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+public import Csourcekitd
 import Foundation
 import SKLogging
 import SourceKitD
 import SwiftExtensions
 import SwiftSourceKitPluginCommon
-
-#if compiler(>=6)
-public import Csourcekitd
-#else
-import Csourcekitd
-#endif
 
 private func useNewAPI(for dict: SKDRequestDictionaryReader) -> Bool {
   guard let opts: SKDRequestDictionaryReader = dict[dict.sourcekitd.keys.codeCompleteOptions],

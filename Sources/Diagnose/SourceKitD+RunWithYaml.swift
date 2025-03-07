@@ -10,15 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 import Csourcekitd
 import Foundation
 package import SourceKitD
-#else
-import Csourcekitd
-import Foundation
-import SourceKitD
-#endif
 
 extension SourceKitD {
   /// Parse the request from YAML and execute it.

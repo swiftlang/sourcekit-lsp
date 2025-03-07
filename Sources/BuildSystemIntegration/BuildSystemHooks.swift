@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
-package import LanguageServerProtocol
 package import Foundation
-#else
-import LanguageServerProtocol
-import Foundation
-#endif
+package import LanguageServerProtocol
 
 package struct SwiftPMTestHooks: Sendable {
   package var reloadPackageDidStart: (@Sendable () async -> Void)?

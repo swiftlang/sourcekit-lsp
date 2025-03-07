@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 @_spi(Testing) import BuildSystemIntegration
 package import Foundation
 package import LanguageServerProtocol
@@ -19,16 +18,6 @@ import SourceKitLSP
 import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
-#else
-@_spi(Testing) import BuildSystemIntegration
-import Foundation
-import LanguageServerProtocol
-import SKOptions
-import SourceKitLSP
-import SwiftExtensions
-import TSCBasic
-import ToolchainRegistry
-#endif
 
 package struct IndexedSingleSwiftFileTestProject {
   enum Error: Swift.Error {

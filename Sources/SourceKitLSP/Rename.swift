@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 import Csourcekitd
 import Foundation
 import IndexStoreDB
@@ -21,18 +20,6 @@ import SemanticIndex
 import SourceKitD
 import SwiftExtensions
 import SwiftSyntax
-#else
-import Csourcekitd
-import Foundation
-import IndexStoreDB
-import LanguageServerProtocol
-import SKLogging
-import SKUtilities
-import SemanticIndex
-import SourceKitD
-import SwiftExtensions
-import SwiftSyntax
-#endif
 
 // MARK: - Helper types
 

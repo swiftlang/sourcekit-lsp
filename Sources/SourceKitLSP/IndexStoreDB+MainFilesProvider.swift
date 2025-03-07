@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 import BuildSystemIntegration
 import Foundation
 import IndexStoreDB
@@ -18,15 +17,6 @@ package import LanguageServerProtocol
 import SKLogging
 import SemanticIndex
 import SwiftExtensions
-#else
-import BuildSystemIntegration
-import Foundation
-import IndexStoreDB
-import LanguageServerProtocol
-import SKLogging
-import SemanticIndex
-import SwiftExtensions
-#endif
 
 extension UncheckedIndex: BuildSystemIntegration.MainFilesProvider {
   /// - Important: This may return realpaths when the build system might not be using realpaths. Use

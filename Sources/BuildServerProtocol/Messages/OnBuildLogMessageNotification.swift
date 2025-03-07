@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 public import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
 
 /// The log message notification is sent from a server to a client to ask the client to log a particular message in its console.
 ///

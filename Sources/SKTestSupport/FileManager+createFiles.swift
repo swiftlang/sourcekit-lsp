@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Foundation
-#else
-import Foundation
-#endif
 
 extension FileManager {
   /// Creates files from a dictionary of path to contents.

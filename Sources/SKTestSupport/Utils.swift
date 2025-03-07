@@ -10,17 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Foundation
 package import LanguageServerProtocol
 import SwiftExtensions
+
 import struct TSCBasic.AbsolutePath
-#else
-import Foundation
-import LanguageServerProtocol
-import SwiftExtensions
-import struct TSCBasic.AbsolutePath
-#endif
 
 extension Language {
   var fileExtension: String {

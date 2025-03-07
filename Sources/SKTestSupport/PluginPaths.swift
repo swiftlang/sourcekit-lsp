@@ -11,13 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import ToolchainRegistry
-
-#if compiler(>=6)
 package import SourceKitD
-#else
-import SourceKitD
-#endif
+import ToolchainRegistry
 
 /// The path to the `SwiftSourceKitPluginTests` test bundle. This gives us a hook into the the build directory.
 private let xctestBundle: URL = {

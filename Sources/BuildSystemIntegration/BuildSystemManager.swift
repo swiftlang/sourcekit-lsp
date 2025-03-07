@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import BuildServerProtocol
 import Dispatch
 package import Foundation
@@ -20,25 +19,10 @@ import SKLogging
 package import SKOptions
 import SKUtilities
 package import SwiftExtensions
+import TSCExtensions
 package import ToolchainRegistry
-import TSCExtensions
 
 import struct TSCBasic.RelativePath
-#else
-import BuildServerProtocol
-import Dispatch
-import Foundation
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
-import SKOptions
-import SKUtilities
-import SwiftExtensions
-import ToolchainRegistry
-import TSCExtensions
-
-import struct TSCBasic.RelativePath
-#endif
 
 fileprivate typealias RequestCache<Request: RequestType & Hashable> = Cache<Request, Request.Response>
 

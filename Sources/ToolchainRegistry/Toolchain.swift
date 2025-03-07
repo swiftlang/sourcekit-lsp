@@ -10,17 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+package import Foundation
 import RegexBuilder
 import SKLogging
 import SwiftExtensions
 
 import class TSCBasic.Process
-
-#if compiler(>=6)
-package import Foundation
-#else
-import Foundation
-#endif
 
 /// A Swift version consisting of the major and minor component.
 package struct SwiftVersion: Sendable, Comparable, CustomStringConvertible {

@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Foundation
 package import LanguageServerProtocol
 package import SKOptions
@@ -19,16 +18,6 @@ import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
 import XCTest
-#else
-import Foundation
-import LanguageServerProtocol
-import SKOptions
-import SourceKitLSP
-import SwiftExtensions
-import TSCBasic
-import ToolchainRegistry
-import XCTest
-#endif
 
 package class SwiftPMTestProject: MultiFileTestProject {
   enum Error: Swift.Error {

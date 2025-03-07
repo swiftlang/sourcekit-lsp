@@ -11,18 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-
-#if compiler(>=6)
 package import LanguageServerProtocol
 package import SKOptions
 package import SwiftSyntax
 package import ToolchainRegistry
-#else
-import LanguageServerProtocol
-import SKOptions
-import SwiftSyntax
-import ToolchainRegistry
-#endif
 
 package actor DocumentationLanguageService: LanguageService, Sendable {
   package init?(

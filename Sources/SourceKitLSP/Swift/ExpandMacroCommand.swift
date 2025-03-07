@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import LanguageServerProtocol
 import SourceKitD
-#else
-import LanguageServerProtocol
-import SourceKitD
-#endif
 
 package struct ExpandMacroCommand: SwiftCommand {
   package static let identifier: String = "expand.macro.command"

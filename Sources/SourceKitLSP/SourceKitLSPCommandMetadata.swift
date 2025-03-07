@@ -10,17 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 import Foundation
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
-#else
-import Foundation
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
-#endif
 
 /// Represents metadata that SourceKit-LSP injects at every command returned by code actions.
 /// The ExecuteCommand is not a TextDocumentRequest, so metadata is injected to allow SourceKit-LSP

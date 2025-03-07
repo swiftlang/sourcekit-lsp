@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
 
 extension Array<CompletionItem> {
   /// Remove `sortText` and `data` from all completion items as these are not stable across runs. Instead, sort items

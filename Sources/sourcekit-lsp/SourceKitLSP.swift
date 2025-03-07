@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+public import ArgumentParser
 import BuildSystemIntegration
 import Csourcekitd  // Not needed here, but fixes debugging...
 import Diagnose
@@ -25,12 +26,6 @@ import SwiftExtensions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
-
-#if compiler(>=6)
-public import ArgumentParser
-#else
-import ArgumentParser
-#endif
 
 #if canImport(Android)
 import Android

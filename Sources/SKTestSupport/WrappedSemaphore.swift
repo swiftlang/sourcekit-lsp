@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Dispatch
 import XCTest
-#else
-import Dispatch
-import XCTest
-#endif
 
 /// Wrapper around `DispatchSemaphore` so that Swift Concurrency doesn't complain about the usage of semaphores in the
 /// tests.

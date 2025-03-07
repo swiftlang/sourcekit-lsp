@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import LanguageServerProtocol
 import SwiftExtensions
-#else
-import LanguageServerProtocol
-import SwiftExtensions
-#endif
 
 extension Connection {
   /// Send the given request to the connection and await its result.

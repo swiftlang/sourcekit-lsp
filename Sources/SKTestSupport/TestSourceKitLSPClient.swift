@@ -12,25 +12,17 @@
 
 import Foundation
 import InProcessClient
+package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
+package import SKOptions
 import SKUtilities
 import SourceKitD
+package import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
-import XCTest
-
-#if compiler(>=6)
-package import LanguageServerProtocol
-package import SKOptions
-package import SourceKitLSP
 package import ToolchainRegistry
-#else
-import LanguageServerProtocol
-import SKOptions
-import SourceKitLSP
-import ToolchainRegistry
-#endif
+import XCTest
 
 extension SourceKitLSPOptions {
   package static func testDefault(

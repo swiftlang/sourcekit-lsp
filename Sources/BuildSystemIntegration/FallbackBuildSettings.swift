@@ -11,20 +11,14 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
+package import SKOptions
 import SwiftExtensions
 import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
-
-#if compiler(>=6)
-package import LanguageServerProtocol
-package import SKOptions
-#else
-import LanguageServerProtocol
-import SKOptions
-#endif
 
 /// The path to the SDK.
 private let sdkpath: AbsolutePath? = {

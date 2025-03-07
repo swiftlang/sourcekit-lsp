@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
-package import IndexStoreDB
 package import Foundation
-#else
-import IndexStoreDB
-import Foundation
-#endif
+package import IndexStoreDB
 
 /// When running SourceKit-LSP in-process, allows the creator of `SourceKitLSPServer` to provide the `IndexStoreDB`
 /// instead of SourceKit-LSP creating the instance when needed.

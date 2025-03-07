@@ -15,20 +15,13 @@ public import Foundation
 public import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
-import SwiftExtensions
-import TSCExtensions
-
-import struct TSCBasic.AbsolutePath
-
-#if compiler(>=6)
 package import SKOptions
 package import SourceKitLSP
+import SwiftExtensions
+import TSCExtensions
 package import ToolchainRegistry
-#else
-import SKOptions
-import SourceKitLSP
-import ToolchainRegistry
-#endif
+
+import struct TSCBasic.AbsolutePath
 
 /// Launches a `SourceKitLSPServer` in-process and allows sending messages to it.
 public final class InProcessSourceKitLSPClient: Sendable {

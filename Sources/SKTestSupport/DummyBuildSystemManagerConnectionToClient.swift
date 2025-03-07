@@ -10,15 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 import BuildSystemIntegration
 import Foundation
 package import LanguageServerProtocol
-#else
-import BuildSystemIntegration
-import Foundation
-import LanguageServerProtocol
-#endif
 
 package struct DummyBuildSystemManagerConnectionToClient: BuildSystemManagerConnectionToClient {
   package var clientSupportsWorkDoneProgress: Bool = false

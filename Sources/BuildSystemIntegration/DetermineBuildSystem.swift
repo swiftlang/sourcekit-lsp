@@ -11,21 +11,15 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+package import LanguageServerProtocol
 import SKLogging
+package import SKOptions
 import SwiftExtensions
 import TSCExtensions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
-
-#if compiler(>=6)
-package import LanguageServerProtocol
-package import SKOptions
-#else
-import LanguageServerProtocol
-import SKOptions
-#endif
 
 private func searchForCompilationDatabaseConfig(
   in workspaceFolder: URL,

@@ -11,24 +11,15 @@
 //===----------------------------------------------------------------------===//
 
 import Dispatch
+package import Foundation
 import SKLogging
 import SwiftExtensions
 import TSCExtensions
 
-#if compiler(>=6)
-package import Foundation
 package import class TSCBasic.Process
 package import enum TSCBasic.ProcessEnv
 package import struct TSCBasic.ProcessEnvironmentKey
 package import func TSCBasic.getEnvSearchPaths
-#else
-import Foundation
-import struct TSCBasic.AbsolutePath
-import class TSCBasic.Process
-import enum TSCBasic.ProcessEnv
-import struct TSCBasic.ProcessEnvironmentKey
-import func TSCBasic.getEnvSearchPaths
-#endif
 
 /// Set of known toolchains.
 ///

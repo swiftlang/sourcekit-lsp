@@ -10,21 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SwiftExtensions
-
-#if compiler(>=6)
 package import Foundation
 package import LanguageServerProtocol
 package import SKOptions
 package import SourceKitLSP
+import SwiftExtensions
 package import ToolchainRegistry
-#else
-import Foundation
-import LanguageServerProtocol
-import SKOptions
-import SourceKitLSP
-import ToolchainRegistry
-#endif
 
 /// The location of a test file within test workspace.
 package struct RelativeFileLocation: Hashable, ExpressibleByStringLiteral {

@@ -10,15 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+package import CompletionScoring
 import Foundation
 import SwiftExtensions
 import XCTest
-
-#if compiler(>=6)
-package import CompletionScoring
-#else
-import CompletionScoring
-#endif
 
 @inline(never)
 package func drain<T>(_ value: T) {}
