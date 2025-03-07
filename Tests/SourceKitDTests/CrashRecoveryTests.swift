@@ -63,13 +63,13 @@ final class CrashRecoveryTests: XCTestCase {
     // Wait for diagnostics to be produced to make sure the document open got handled by sourcekitd.
     _ = try await testClient.nextDiagnosticsNotification()
 
-    // Do a sanity check and verify that we get the expected result from a hover response before crashing sourcekitd.
+    // Verify that we get the expected result from a hover response before crashing sourcekitd.
 
     let hoverRequest = HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     let preCrashHoverResponse = try await testClient.send(hoverRequest)
     precondition(
       preCrashHoverResponse?.contains(string: "foo()") ?? false,
-      "Sanity check failed. The Hover response did not contain foo(), even before crashing sourcekitd. Received response: \(String(describing: preCrashHoverResponse))"
+      "Precondition test failed. The Hover response did not contain foo(), even before crashing sourcekitd. Received response: \(String(describing: preCrashHoverResponse))"
     )
 
     testClient.handleSingleRequest { (request: CreateWorkDoneProgressRequest) -> VoidResponse in
@@ -170,7 +170,7 @@ final class CrashRecoveryTests: XCTestCase {
       )
     )
 
-    // Do a sanity check and verify that we get the expected result from a hover response before crashing clangd.
+    // Verify that we get the expected result from a hover response before crashing clangd.
 
     let expectedHoverRange = Position(line: 1, utf16index: 5)..<Position(line: 1, utf16index: 9)
 
@@ -181,7 +181,7 @@ final class CrashRecoveryTests: XCTestCase {
     let preCrashHoverResponse = try await testClient.send(hoverRequest)
     precondition(
       preCrashHoverResponse?.range == expectedHoverRange,
-      "Sanity check failed. The Hover response was not what we expected, even before crashing sourcekitd"
+      "Precondition test failed. The Hover response was not what we expected, even before crashing sourcekitd"
     )
 
     // Crash clangd
@@ -218,7 +218,7 @@ final class CrashRecoveryTests: XCTestCase {
 
     let (mainUri, positions) = try project.openDocument("main.cpp")
 
-    // Do a sanity check and verify that we get the expected result from a hover response before crashing clangd.
+    // Verify that we get the expected result from a hover response before crashing clangd.
 
     let expectedHighlightResponse = [
       DocumentHighlight(range: positions["1️⃣"]..<positions["2️⃣"], kind: .text),
@@ -232,7 +232,7 @@ final class CrashRecoveryTests: XCTestCase {
     let preCrashHighlightResponse = try await project.testClient.send(highlightRequest)
     precondition(
       preCrashHighlightResponse == expectedHighlightResponse,
-      "Sanity check failed. The Hover response was not what we expected, even before crashing sourcekitd"
+      "Precondition test failed. The Hover response was not what we expected, even before crashing sourcekitd"
     )
 
     // Crash clangd

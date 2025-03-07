@@ -179,7 +179,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     ///
     /// - Note: Internal option, may not work as intended
     public var maxCoresPercentageToUseForBackgroundIndexing: Double?
-    /// Number of seconds to wait for an update index store task to finish before killing it.
+    /// Number of seconds to wait for an update index store task to finish before terminating it.
     public var updateIndexStoreTimeout: Int?
 
     public var maxCoresPercentageToUseForBackgroundIndexingOrDefault: Double {

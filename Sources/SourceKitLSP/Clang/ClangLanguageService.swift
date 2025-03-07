@@ -318,19 +318,19 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   }
 
   func crash() {
-    // Since `clangd` doesn't have a method to crash it, kill it.
+    // Since `clangd` doesn't have a method to crash it, terminate it.
     #if os(Windows)
     if self.hClangd != INVALID_HANDLE_VALUE {
       // We can potentially deadlock the process if a kobject is a pending state.
       // Unfortunately, the `OpenProcess(PROCESS_TERMINATE, ...)`, `CreateRemoteThread`, `ExitProcess` dance, while
-      // safer, can also indefinitely hang as `CreateRemoteThread` may not be serviced depending on the state of
+      // safer, can also indefinitely spin as `CreateRemoteThread` may not be serviced depending on the state of
       // the process. This just attempts to terminate the process, risking a deadlock and resource leaks, which is fine
       // since we only use `crash` from tests.
       _ = TerminateProcess(self.hClangd, 255)
     }
     #else
     if let pid = self.clangdPid {
-      kill(pid, SIGKILL)
+      kill(pid, SIGKILL)  // ignore-unacceptable-language
     }
     #endif
   }

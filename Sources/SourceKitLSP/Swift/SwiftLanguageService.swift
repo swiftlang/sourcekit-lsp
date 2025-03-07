@@ -51,7 +51,7 @@ fileprivate extension Range {
   }
 }
 
-/// Explicitly blacklisted `DocumentURI` schemes.
+/// Explicitly excluded `DocumentURI` schemes.
 fileprivate let excludedDocumentURISchemes: [String] = [
   "git",
   "hg",
@@ -59,9 +59,9 @@ fileprivate let excludedDocumentURISchemes: [String] = [
 
 /// Returns true if diagnostics should be emitted for the given document.
 ///
-/// Some editors  (like Visual Studio Code) use non-file URLs to manage source control diff bases
+/// Some editors (like Visual Studio Code) use non-file URLs to manage source control diff bases
 /// for the active document, which can lead to duplicate diagnostics in the Problems view.
-/// As a workaround we explicitly blacklist those URIs and don't emit diagnostics for them.
+/// As a workaround we explicitly exclude those URIs and don't emit diagnostics for them.
 ///
 /// Additionally, as of Xcode 11.4, sourcekitd does not properly handle non-file URLs when
 /// the `-working-directory` argument is passed since it incorrectly applies it to the input

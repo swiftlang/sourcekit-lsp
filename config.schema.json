@@ -143,8 +143,8 @@
           "type" : "object"
         },
         "updateIndexStoreTimeout" : {
-          "description" : "Number of seconds to wait for an update index store task to finish before killing it.",
-          "markdownDescription" : "Number of seconds to wait for an update index store task to finish before killing it.",
+          "description" : "Number of seconds to wait for an update index store task to finish before terminating it.",
+          "markdownDescription" : "Number of seconds to wait for an update index store task to finish before terminating it.",
           "type" : "integer"
         }
       },
