@@ -56,6 +56,11 @@ package final class LocalConnection: Connection, Sendable {
     self.name = receiverName
   }
 
+  package convenience init(receiverName: String, handler: MessageHandler) {
+    self.init(receiverName: receiverName)
+    self.start(handler: handler)
+  }
+
   deinit {
     queue.sync {
       if state != .closed {

@@ -73,8 +73,10 @@ actor LegacyBuildServerBuildSystem: MessageHandler, BuiltInBuildSystem {
     self.configPath = configPath
     self.indexDatabasePath = nil
     self.indexStorePath = nil
-    self.connectionToSourceKitLSP = LocalConnection(receiverName: "BuildSystemManager")
-    await self.connectionToSourceKitLSP.start(handler: externalBuildSystemAdapter.messagesToSourceKitLSPHandler)
+    self.connectionToSourceKitLSP = LocalConnection(
+      receiverName: "BuildSystemManager",
+      handler: await externalBuildSystemAdapter.messagesToSourceKitLSPHandler
+    )
     await externalBuildSystemAdapter.changeMessageToSourceKitLSPHandler(to: self)
     self.buildServer = await externalBuildSystemAdapter.connectionToBuildServer
   }

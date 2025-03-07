@@ -21,7 +21,7 @@ import XCTest
 
 final class LegacyBuildServerBuildSystemTests: XCTestCase {
   func testBuildSettingsFromBuildServer() async throws {
-    let project = try await BuildServerTestProject(
+    let project = try await ExternalBuildServerTestProject(
       files: [
         "Test.swift": """
         #if DEBUG
@@ -57,7 +57,7 @@ final class LegacyBuildServerBuildSystemTests: XCTestCase {
   }
 
   func testBuildSettingsFromBuildServerChanged() async throws {
-    let project = try await BuildServerTestProject(
+    let project = try await ExternalBuildServerTestProject(
       files: [
         "Test.swift": """
         #if DEBUG
