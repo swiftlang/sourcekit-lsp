@@ -105,6 +105,8 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
   }
 
   /// The root directory of the workspace.
+  ///
+  /// `nil` when SourceKit-LSP is launched without a workspace (ie. no workspace folder or rootURI).
   package let rootUri: DocumentURI?
 
   /// Tracks dynamically registered server capabilities as well as the client's capabilities.

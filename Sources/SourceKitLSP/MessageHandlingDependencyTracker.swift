@@ -63,7 +63,7 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
     case (.globalConfigurationChange, _): return true
     case (_, .globalConfigurationChange): return true
 
-    // globalDocumentState
+    // workspaceRequest
     case (.workspaceRequest, .workspaceRequest): return false
     case (.documentUpdate, .workspaceRequest): return true
     case (.workspaceRequest, .documentUpdate): return true
@@ -207,6 +207,8 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
     case is InlineValueRefreshRequest:
       self = .freestanding
     case is IsIndexingRequest:
+      self = .freestanding
+    case is OutputPathsRequest:
       self = .freestanding
     case is PollIndexRequest:
       self = .globalConfigurationChange

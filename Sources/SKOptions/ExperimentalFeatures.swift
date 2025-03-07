@@ -28,4 +28,7 @@ public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
 
   /// Indicate that the client can handle the experimental `structure` field in the `window/logMessage` notification.
   case structuredLogs = "structured-logs"
+
+  /// Enable the `workspace/_outputPaths` request.
+  case outputPathsRequest = "output-paths-request"
 }

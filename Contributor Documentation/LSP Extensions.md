@@ -678,6 +678,40 @@ export interface SourceKitOptionsResult {
 }
 ```
 
+## `workspace/_outputPaths`
+
+New request from the client to the server to retrieve the output paths of a target (see the `buildTarget/outputPaths` BSP request).
+
+This request will only succeed if the build server supports the `buildTarget/outputPaths` request.
+
+> [!IMPORTANT]
+> This request is experimental, guarded behind the `output-paths-request` experimental feature, and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
+
+
+- params: `OutputPathsRequest`
+- result: `OutputPathsResult`
+
+```ts
+export interface OutputPathsRequest {
+  /**
+   * The target whose output file paths to get.
+   */
+  target: DocumentURI;
+
+  /**
+   * The URI of the workspace to which the target belongs.
+   */
+  workspace: DocumentURI;
+}
+
+export interface OutputPathsResult {
+  /**
+   * The output paths for all source files in the target
+   */
+  outputPaths: string[];
+}
+```
+
 ## `workspace/getReferenceDocument`
 
 Request from the client to the server asking for contents of a URI having a custom scheme.

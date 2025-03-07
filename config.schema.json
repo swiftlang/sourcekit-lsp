@@ -73,14 +73,16 @@
           "set-options-request",
           "sourcekit-options-request",
           "is-indexing-request",
-          "structured-logs"
+          "structured-logs",
+          "output-paths-request"
         ],
         "markdownEnumDescriptions" : [
           "Enable support for the `textDocument/onTypeFormatting` request.",
           "Enable support for the `workspace/_setOptions` request.",
           "Enable the `workspace/_sourceKitOptions` request.",
           "Enable the `sourceKit/_isIndexing` request.",
-          "Indicate that the client can handle the experimental `structure` field in the `window/logMessage` notification."
+          "Indicate that the client can handle the experimental `structure` field in the `window/logMessage` notification.",
+          "Enable the `workspace/_outputPaths` request."
         ],
         "type" : "string"
       },
