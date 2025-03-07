@@ -1,5 +1,3 @@
-//// Automatically Generated From UIDs.swift.gyb.
-//// Do Not Edit Directly! To regenerate run Utilities/generate-uids.py
 //===----------------------------------------------------------------------===//
 //
 // This source file is part of the Swift.org open source project
@@ -11,6 +9,8 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
+// Automatically Generated From UIDs.swift.gyb.
+// Do Not Edit Directly! To regenerate run Utilities/generate-uids.py
 
 package import Csourcekitd
 
