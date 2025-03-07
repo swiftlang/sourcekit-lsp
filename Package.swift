@@ -13,6 +13,7 @@ var products: [Product] = [
   .executable(name: "sourcekit-lsp", targets: ["sourcekit-lsp"]),
   .library(name: "_SourceKitLSP", targets: ["SourceKitLSP"]),
   .library(name: "LSPBindings", targets: ["LanguageServerProtocol", "LanguageServerProtocolJSONRPC"]),
+  .library(name: "InProcessLSPClient", targets: ["InProcessClient"]),
 ]
 
 var targets: [Target] = [
