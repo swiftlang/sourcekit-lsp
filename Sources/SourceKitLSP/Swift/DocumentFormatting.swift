@@ -190,6 +190,7 @@ extension SwiftLanguageService {
     var args = try [
       swiftFormat.filePath,
       "format",
+      "-",  // Read file contents from stdin
       "--configuration",
       swiftFormatConfiguration(for: textDocument.uri, options: options),
     ]
