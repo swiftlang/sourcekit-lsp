@@ -522,10 +522,8 @@ private struct IndexOutOfDateChecker {
       // updated.
       while let relativeSymlinkDestination = try? FileManager.default.destinationOfSymbolicLink(
         atPath: fileURL.filePath
-      ),
-        let symlinkDestination = URL(string: relativeSymlinkDestination, relativeTo: fileURL)
-      {
-        fileURL = symlinkDestination
+      ) {
+        fileURL = URL(fileURLWithPath: relativeSymlinkDestination, relativeTo: fileURL)
         modificationDate = max(modificationDate, try Self.modificationDate(atPath: fileURL.filePath))
       }
 
