@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 public import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
 
 /// The `TextDocumentSourceKitOptionsRequest` request is sent from the client to the server to query for the list of
 /// compiler options necessary to compile this file in the given target.

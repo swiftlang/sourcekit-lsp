@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Csourcekitd
 import SKLogging
-#else
-import Csourcekitd
-import SKLogging
-#endif
 
 #if canImport(Darwin)
 import Darwin

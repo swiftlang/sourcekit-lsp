@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 import Foundation
 package import LanguageServerProtocol
-#else
-import Foundation
-import LanguageServerProtocol
-#endif
 
 extension Language {
   package enum SemanticKind {

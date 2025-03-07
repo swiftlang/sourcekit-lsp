@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
 
 extension SwiftLanguageService {
   package func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {

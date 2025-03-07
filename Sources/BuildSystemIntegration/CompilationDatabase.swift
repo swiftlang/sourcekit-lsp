@@ -10,21 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Foundation
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
 import SwiftExtensions
 import TSCExtensions
-#else
-import Foundation
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
-import SwiftExtensions
-import TSCExtensions
-#endif
 
 #if os(Windows)
 import WinSDK

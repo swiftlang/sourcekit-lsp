@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
 
 extension SemanticTokenTypes {
   // LSP doesn’t know about actors. Display actors as classes.

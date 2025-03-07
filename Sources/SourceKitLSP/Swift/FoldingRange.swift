@@ -10,17 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import LanguageServerProtocol
 import SKLogging
 import SKUtilities
 import SwiftSyntax
-#else
-import LanguageServerProtocol
-import SKLogging
-import SKUtilities
-import SwiftSyntax
-#endif
 
 fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
   private let snapshot: DocumentSnapshot

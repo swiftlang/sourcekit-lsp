@@ -10,15 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 import Foundation
 package import LanguageServerProtocol
 package import SKLogging
-#else
-import Foundation
-import LanguageServerProtocol
-import SKLogging
-#endif
 
 // MARK: - RequestType
 

@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
 
 /// The set of known Swift commands.
 ///

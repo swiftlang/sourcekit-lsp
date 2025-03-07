@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import BuildServerProtocol
 import BuildSystemIntegration
 import Foundation
@@ -18,29 +17,13 @@ package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
 import SwiftExtensions
-import ToolchainRegistry
 import TSCExtensions
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import struct TSCBasic.ProcessResult
 import enum TSCBasic.SystemError
-#else
-import BuildServerProtocol
-import BuildSystemIntegration
-import Foundation
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
-import SwiftExtensions
-import ToolchainRegistry
-import TSCExtensions
-
-import struct TSCBasic.AbsolutePath
-import class TSCBasic.Process
-import struct TSCBasic.ProcessResult
-import enum TSCBasic.SystemError
-#endif
 
 #if os(Windows)
 import WinSDK

@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6.0)
 public import SwiftBasicFormat
 public import SwiftSyntax
-#else
-import SwiftBasicFormat
-import SwiftSyntax
-#endif
 
 /// A specialization of `BasicFormat` for closure literals in a code completion
 /// context.

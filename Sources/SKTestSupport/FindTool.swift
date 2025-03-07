@@ -10,19 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Foundation
 import LanguageServerProtocolExtensions
 import TSCExtensions
 
 import class TSCBasic.Process
-#else
-import Foundation
-import LanguageServerProtocolExtensions
-import TSCExtensions
-
-import class TSCBasic.Process
-#endif
 
 #if os(Windows)
 import WinSDK

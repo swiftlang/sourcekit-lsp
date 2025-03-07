@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKLogging
-
-#if compiler(>=6)
 package import Foundation
-#else
-import Foundation
-#endif
+import SKLogging
 
 /// The set of known SourceKitD instances, uniqued by path.
 ///

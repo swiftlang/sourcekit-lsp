@@ -10,21 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import ArgumentParser
 import Foundation
 import RegexBuilder
 import SwiftExtensions
 
 import class TSCBasic.Process
-#else
-import ArgumentParser
-import Foundation
-import RegexBuilder
-import SwiftExtensions
-
-import class TSCBasic.Process
-#endif
 
 /// Shared instance of the regex that is used to extract Signpost lines from `log stream --signpost`.
 fileprivate struct LogParseRegex {

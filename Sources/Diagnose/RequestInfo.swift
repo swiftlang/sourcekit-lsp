@@ -10,15 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Foundation
 import RegexBuilder
 import SwiftExtensions
-#else
-import Foundation
-import RegexBuilder
-import SwiftExtensions
-#endif
 
 /// All the information necessary to replay a sourcektid request.
 package struct RequestInfo: Sendable {

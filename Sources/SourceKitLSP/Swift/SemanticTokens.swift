@@ -10,21 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import LanguageServerProtocol
 import SKLogging
 import SourceKitD
 import SwiftIDEUtils
 import SwiftParser
 import SwiftSyntax
-#else
-import LanguageServerProtocol
-import SKLogging
-import SourceKitD
-import SwiftIDEUtils
-import SwiftParser
-import SwiftSyntax
-#endif
 
 extension SwiftLanguageService {
   /// Requests the semantic highlighting tokens for the given snapshot from sourcekitd.

@@ -10,18 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKLogging
-import SwiftExtensions
-
-#if compiler(>=6)
 package import BuildServerProtocol
 package import Foundation
 package import LanguageServerProtocol
-#else
-import BuildServerProtocol
-import Foundation
-import LanguageServerProtocol
-#endif
+import SKLogging
+import SwiftExtensions
 
 func lastIndexStorePathArgument(in compilerArgs: [String]) -> String? {
   if let indexStorePathIndex = compilerArgs.lastIndex(of: "-index-store-path"),

@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
 
 /// A type that can provide the set of main files that include a particular file.
 package protocol MainFilesProvider: Sendable {

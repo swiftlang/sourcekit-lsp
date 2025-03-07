@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
-public import LanguageServerProtocol
 public import Foundation
-#else
-import LanguageServerProtocol
-import Foundation
-#endif
+public import LanguageServerProtocol
 
 /// A `build/taskFinish` notification must always be sent after a `build/taskStart`` with the same `taskId` was sent.
 public struct TaskFinishNotification: NotificationType {

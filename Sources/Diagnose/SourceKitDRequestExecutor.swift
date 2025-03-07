@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Foundation
 import SourceKitD
 import SwiftExtensions
@@ -18,15 +17,6 @@ import SwiftExtensions
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import struct TSCBasic.ProcessResult
-#else
-import Foundation
-import SourceKitD
-import SwiftExtensions
-
-import struct TSCBasic.AbsolutePath
-import class TSCBasic.Process
-import struct TSCBasic.ProcessResult
-#endif
 
 /// The different states in which a sourcekitd request can finish.
 package enum SourceKitDRequestResult: Sendable {

@@ -11,15 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import Dispatch
+package import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKLogging
 import SwiftExtensions
-
-#if compiler(>=6)
-package import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
 
 /// A connection between two message handlers in the same process.
 ///

@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 import Dispatch
 import Foundation
 package import LanguageServerProtocol
@@ -18,15 +17,6 @@ import SKLogging
 package import SKUtilities
 import SemanticIndex
 package import SwiftSyntax
-#else
-import Dispatch
-import Foundation
-import LanguageServerProtocol
-import SKLogging
-import SKUtilities
-import SemanticIndex
-import SwiftSyntax
-#endif
 
 /// An immutable snapshot of a document at a given time.
 ///

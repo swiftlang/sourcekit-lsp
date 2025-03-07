@@ -10,15 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 import Foundation
 package import LanguageServerProtocol
 import SwiftExtensions
-#else
-import Foundation
-import LanguageServerProtocol
-import SwiftExtensions
-#endif
 
 extension DocumentURI {
   /// If this is a file URI pointing to a symlink, return the realpath of the URI, otherwise return `nil`.

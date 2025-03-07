@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 public import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
 
 /// Build target contains metadata about an artifact (for example library, test, or binary artifact).
 /// Using vocabulary of other build tools:

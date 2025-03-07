@@ -12,13 +12,8 @@
 
 import Foundation
 import SKLogging
-import SwiftExtensions
-
-#if compiler(>=6)
 package import SourceKitD
-#else
-import SourceKitD
-#endif
+import SwiftExtensions
 
 extension DynamicallyLoadedSourceKitD {
   private static nonisolated(unsafe) var _forPlugin: SourceKitD?

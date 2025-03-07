@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import XCTest
-#else
-import XCTest
-#endif
 
 /// Same as `XCTAssertNoThrow` but executes the trailing closure.
 package func assertNoThrow<T>(

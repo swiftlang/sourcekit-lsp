@@ -10,17 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
 package import SwiftExtensions
-#else
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
-import SwiftExtensions
-#endif
 
 /// A lightweight way of describing tasks that are created from handling LSP
 /// requests or notifications for the purpose of dependency tracking.

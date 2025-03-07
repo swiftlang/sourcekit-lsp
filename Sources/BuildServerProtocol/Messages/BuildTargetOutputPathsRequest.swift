@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 public import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
 
 /// For all the source files in this target, the output paths that are used during indexing, ie. the
 /// `-index-unit-output-path` for the file, if it is specified in the compiler arguments or the file that is passed as

@@ -11,13 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import SKLogging
-
-#if compiler(>=6)
 package import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
+import SKLogging
 
 extension SwiftLanguageService {
   package func openGeneratedInterface(

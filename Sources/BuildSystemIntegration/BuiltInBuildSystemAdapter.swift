@@ -11,19 +11,13 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
+package import Foundation
+package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
 import SKOptions
 import SwiftExtensions
 import ToolchainRegistry
-
-#if compiler(>=6)
-package import Foundation
-package import LanguageServerProtocol
-#else
-import Foundation
-import LanguageServerProtocol
-#endif
 
 /// The details necessary to create a `BuildSystemAdapter`.
 package struct BuildSystemSpec {

@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
-public import LanguageServerProtocol
 public import Foundation
-#else
-import LanguageServerProtocol
-import Foundation
-#endif
+public import LanguageServerProtocol
 
 public struct MillisecondsSince1970Date: CustomCodableWrapper {
   public var wrappedValue: Date

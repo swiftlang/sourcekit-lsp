@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import LanguageServerProtocol
 import SourceKitD
-#else
-import LanguageServerProtocol
-import SourceKitD
-#endif
 
 /// Represents an edit from semantic refactor response. Notionally, a subclass of `TextEdit`
 package struct RefactoringEdit: Hashable, Sendable, Codable {

@@ -10,17 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Foundation
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
-#else
-import Foundation
-import ToolchainRegistry
-
-import struct TSCBasic.AbsolutePath
-#endif
 
 extension Toolchain {
   /// The path to `swift-frontend` in the toolchain, found relative to `swift`.

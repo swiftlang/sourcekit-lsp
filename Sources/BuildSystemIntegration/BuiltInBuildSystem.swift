@@ -10,21 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import BuildServerProtocol
 package import Foundation
 package import LanguageServerProtocol
 import SKLogging
 import SKOptions
 import ToolchainRegistry
-#else
-import BuildServerProtocol
-import Foundation
-import LanguageServerProtocol
-import SKLogging
-import SKOptions
-import ToolchainRegistry
-#endif
 
 /// An error build systems can throw from `prepare` if they don't support preparation of targets.
 package struct PrepareNotSupportedError: Error, CustomStringConvertible {

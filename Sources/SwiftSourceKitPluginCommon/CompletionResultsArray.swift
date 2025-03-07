@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKitD
-
-#if compiler(>=6)
 package import Csourcekitd
-#else
-import Csourcekitd
-#endif
+import SourceKitD
 
 package struct CompletionResult {
   package struct StringEntry {

@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Foundation
-#else
-import Foundation
-#endif
 
 enum FilePathError: Error, CustomStringConvertible {
   case noFileSystemRepresentation(URL)

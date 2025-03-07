@@ -10,19 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 import BuildServerProtocol
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
 package import SwiftExtensions
-#else
-import BuildServerProtocol
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
-import SwiftExtensions
-#endif
 
 /// A lightweight way of describing tasks that are created from handling BSP
 /// requests or notifications for the purpose of dependency tracking.

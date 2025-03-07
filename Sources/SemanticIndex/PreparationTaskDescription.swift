@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import BuildServerProtocol
 import BuildSystemIntegration
 import Foundation
@@ -21,18 +20,6 @@ import SwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
-#else
-import BuildServerProtocol
-import BuildSystemIntegration
-import Foundation
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
-import SwiftExtensions
-
-import struct TSCBasic.AbsolutePath
-import class TSCBasic.Process
-#endif
 
 private let preparationIDForLogging = AtomicUInt32(initialValue: 1)
 

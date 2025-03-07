@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import LanguageServerProtocol
 package import SKLogging
-#else
-import LanguageServerProtocol
-import SKLogging
-#endif
 
 // MARK: - Build settings logger
 

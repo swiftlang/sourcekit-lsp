@@ -11,16 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+package import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKLogging
-
-#if compiler(>=6)
-package import LanguageServerProtocol
 package import SwiftExtensions
-#else
-import LanguageServerProtocol
-import SwiftExtensions
-#endif
 
 /// Side structure in which `QueueBasedMessageHandler` can keep track of active requests etc.
 ///

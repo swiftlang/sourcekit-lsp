@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Foundation
-#else
-import Foundation
-#endif
 
 extension FileManager {
   /// Same as `fileExists(atPath:)` but takes a `URL` instead of a `String`.

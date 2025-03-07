@@ -13,11 +13,7 @@
 import Foundation
 
 #if canImport(os) && !SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER
-#if compiler(>=6)
 @_exported public import os  // os_log
-#else
-@_exported import os  // os_log
-#endif
 
 package typealias LogLevel = os.OSLogType
 package typealias Logger = os.Logger

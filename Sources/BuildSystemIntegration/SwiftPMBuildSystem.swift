@@ -13,38 +13,27 @@
 #if !NO_SWIFTPM_DEPENDENCY
 import Basics
 @preconcurrency import Build
+package import BuildServerProtocol
 import Dispatch
+package import Foundation
+package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 @preconcurrency import PackageGraph
 import PackageLoading
 import PackageModel
 import SKLogging
+package import SKOptions
 @preconcurrency package import SPMBuildCore
 import SourceControl
+@preconcurrency package import SourceKitLSPAPI
 import SwiftExtensions
 import TSCExtensions
+package import ToolchainRegistry
 @preconcurrency import Workspace
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
-
-#if compiler(>=6)
-package import BuildServerProtocol
-package import Foundation
-package import LanguageServerProtocol
-package import SKOptions
-@preconcurrency package import SourceKitLSPAPI
-package import ToolchainRegistry
 package import class ToolchainRegistry.Toolchain
-#else
-import BuildServerProtocol
-import Foundation
-import LanguageServerProtocol
-import SKOptions
-@preconcurrency import SourceKitLSPAPI
-import ToolchainRegistry
-import class ToolchainRegistry.Toolchain
-#endif
 
 fileprivate typealias AbsolutePath = Basics.AbsolutePath
 

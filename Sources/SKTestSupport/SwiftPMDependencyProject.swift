@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import Foundation
 import LanguageServerProtocolExtensions
 import SwiftExtensions
@@ -20,17 +19,6 @@ import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import enum TSCBasic.ProcessEnv
 import struct TSCBasic.ProcessResult
-#else
-import Foundation
-import LanguageServerProtocolExtensions
-import SwiftExtensions
-import XCTest
-
-import struct TSCBasic.AbsolutePath
-import class TSCBasic.Process
-import enum TSCBasic.ProcessEnv
-import struct TSCBasic.ProcessResult
-#endif
 
 /// A SwiftPM package that gets written to disk and for which a Git repository is initialized with a commit tagged
 /// `1.0.0`. This repository can then be used as a dependency for another package, usually a `SwiftPMTestProject`.

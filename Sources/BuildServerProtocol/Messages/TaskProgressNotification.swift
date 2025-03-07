@@ -10,13 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
-public import LanguageServerProtocol
 public import Foundation
-#else
-import LanguageServerProtocol
-import Foundation
-#endif
+public import LanguageServerProtocol
 
 /// After a `taskStart` and before `taskFinish` for a `taskId`, the server may send any number of progress
 /// notifications.

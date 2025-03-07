@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import BuildServerProtocol
 package import BuildSystemIntegration
 import Foundation
@@ -21,28 +20,11 @@ import SKLogging
 package import SKOptions
 package import SemanticIndex
 import SwiftExtensions
-import ToolchainRegistry
 import TSCExtensions
+import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
-#else
-import BuildServerProtocol
-import BuildSystemIntegration
-import Foundation
-import IndexStoreDB
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
-import SKOptions
-import SemanticIndex
-import SwiftExtensions
-import ToolchainRegistry
-import TSCExtensions
-
-import struct TSCBasic.AbsolutePath
-import struct TSCBasic.RelativePath
-#endif
 
 /// Actor that caches realpaths for `sourceFilesWithSameRealpath`.
 fileprivate actor SourceFilesWithSameRealpathInferrer {

@@ -10,11 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if compiler(>=6)
 package import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
 
 extension DocumentDiagnosticReport {
   /// If this is a full diagnostic report, return it. Otherwise return `nil`.
