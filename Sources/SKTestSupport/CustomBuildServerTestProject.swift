@@ -188,6 +188,16 @@ package extension CustomBuildServer {
     )
   }
 
+  /// Returns a fake path that is unique to this target and file combination and can be used to identify this
+  /// combination in a unit's output path.
+  func fakeOutputPath(for file: String, in target: String) -> String {
+    #if os(Windows)
+    return #"C:\"# + target + #"\"# + file + ".o"
+    #else
+    return "/" + target + "/" + file + ".o"
+    #endif
+  }
+
   func sourceItem(for url: URL, outputPath: String) -> SourceItem {
     SourceItem(
       uri: URI(url),

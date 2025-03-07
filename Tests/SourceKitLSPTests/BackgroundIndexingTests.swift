@@ -2292,15 +2292,27 @@ final class BackgroundIndexingTests: XCTestCase {
           SourcesItem(
             target: libATarget,
             sources: [
-              sourceItem(for: projectRoot.appendingPathComponent("Shared.swift"), outputPath: "/LibA/Shared.swift.o"),
-              sourceItem(for: projectRoot.appendingPathComponent("LibA.swift"), outputPath: "/LibA/LibA.swift.o"),
+              sourceItem(
+                for: projectRoot.appendingPathComponent("Shared.swift"),
+                outputPath: fakeOutputPath(for: "Shared.swift", in: "LibA")
+              ),
+              sourceItem(
+                for: projectRoot.appendingPathComponent("LibA.swift"),
+                outputPath: fakeOutputPath(for: "LibA.swift", in: "LibA")
+              ),
             ]
           ),
           SourcesItem(
             target: libBTarget,
             sources: [
-              sourceItem(for: projectRoot.appendingPathComponent("Shared.swift"), outputPath: "/LibB/Shared.swift.o"),
-              sourceItem(for: projectRoot.appendingPathComponent("LibB.swift"), outputPath: "/LibB/LibB.swift.o"),
+              sourceItem(
+                for: projectRoot.appendingPathComponent("Shared.swift"),
+                outputPath: fakeOutputPath(for: "Shared.swift", in: "LibB")
+              ),
+              sourceItem(
+                for: projectRoot.appendingPathComponent("LibB.swift"),
+                outputPath: fakeOutputPath(for: "LibB.swift", in: "LibB")
+              ),
             ]
           ),
         ]
@@ -2398,13 +2410,19 @@ final class BackgroundIndexingTests: XCTestCase {
           SourcesItem(
             target: libATarget,
             sources: [
-              sourceItem(for: projectRoot.appendingPathComponent("LibA.c"), outputPath: "/LibA/LibA.c.o")
+              sourceItem(
+                for: projectRoot.appendingPathComponent("LibA.c"),
+                outputPath: fakeOutputPath(for: "LibA.c", in: "LibA")
+              )
             ]
           ),
           SourcesItem(
             target: libBTarget,
             sources: [
-              sourceItem(for: projectRoot.appendingPathComponent("LibB.c"), outputPath: "/LibB/LibB.c.o")
+              sourceItem(
+                for: projectRoot.appendingPathComponent("LibB.c"),
+                outputPath: fakeOutputPath(for: "LibB.c", in: "LibB")
+              )
             ]
           ),
         ]
