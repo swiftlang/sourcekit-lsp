@@ -1368,6 +1368,7 @@ final class WorkspaceTests: XCTestCase {
       options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest]),
       workspaceFolders: [WorkspaceFolder(uri: DocumentURI(scratchDirectory), name: nil)]
     )
+    try await testClient.send(PollIndexRequest())
 
     // Check that we can infer build settings for the header from its main file. indexstore-db stores this main file
     // path as `/private/tmp` while the build system only knows about it as `/tmp`.
