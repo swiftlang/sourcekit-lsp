@@ -39,7 +39,7 @@ final class CompilationDatabaseTests: XCTestCase {
 
     let (mainUri, positions) = try project.openDocument("main.cpp")
 
-    // Do a sanity check and verify that we get the expected result from a hover response before modifying the compile commands.
+    // Verify that we get the expected result from a hover response before modifying the compile commands.
 
     let highlightRequest = DocumentHighlightRequest(
       textDocument: TextDocumentIdentifier(mainUri),

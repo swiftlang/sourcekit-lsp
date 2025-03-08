@@ -35,7 +35,7 @@ final class SwiftInterfaceTests: XCTestCase {
     let location = try XCTUnwrap(resp?.locations?.only)
     XCTAssertTrue(location.uri.pseudoPath.hasSuffix("Foundation.swiftinterface"))
     let fileContents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
-    // Sanity-check that the generated Swift Interface contains Swift code
+    // Smoke test that the generated Swift Interface contains Swift code
     XCTAssert(
       fileContents.hasPrefix("import "),
       "Expected that the foundation swift interface starts with 'import ' but got '\(fileContents.prefix(100))'"

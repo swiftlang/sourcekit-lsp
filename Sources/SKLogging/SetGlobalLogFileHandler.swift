@@ -144,7 +144,7 @@ private func isProcessAlive(pid: Int32) -> Bool {
   }
   return false
   #else
-  return kill(pid, 0) == 0
+  return kill(pid, 0) == 0  // ignore-unacceptable-language
   #endif
 }
 

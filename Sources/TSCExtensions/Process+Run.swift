@@ -28,7 +28,7 @@ import Android
 
 extension Process {
   /// Wait for the process to exit. If the task gets cancelled, during this time, send a `SIGINT` to the process.
-  /// Should the process not terminate on SIGINT after 2 seconds, it is killed using `SIGKILL`.
+  /// Should the process not terminate on SIGINT after 2 seconds, it is terminated using `SIGKILL`.
   @discardableResult
   package func waitUntilExitStoppingProcessOnTaskCancellation() async throws -> ProcessResult {
     let hasExited = AtomicBool(initialValue: false)
@@ -40,7 +40,7 @@ extension Process {
     } onCancel: {
       signal(SIGINT)
       Task {
-        // Give the process 2 seconds to react to a SIGINT. If that doesn't work, kill the process.
+        // Give the process 2 seconds to react to a SIGINT. If that doesn't work, terminate the process.
         try await Task.sleep(for: .seconds(2))
         if !hasExited.value {
           #if os(Windows)
