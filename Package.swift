@@ -19,6 +19,7 @@ var products: [Product] = [
   .executable(name: "sourcekit-lsp", targets: ["sourcekit-lsp"]),
   .library(name: "_SourceKitLSP", targets: ["SourceKitLSP"]),
   .library(name: "LSPBindings", targets: ["LanguageServerProtocol", "LanguageServerProtocolJSONRPC"]),
+  .library(name: "InProcessClient", targets: ["InProcessClient"]),
   .library(name: "SwiftSourceKitPlugin", type: .dynamic, targets: ["SwiftSourceKitPlugin"]),
   .library(name: "SwiftSourceKitClientPlugin", type: .dynamic, targets: ["SwiftSourceKitClientPlugin"]),
 ]
