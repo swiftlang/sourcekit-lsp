@@ -2544,9 +2544,7 @@ extension SourceKitLSPServer {
 
   func pollIndex(_ req: PollIndexRequest) async throws -> VoidResponse {
     for workspace in workspaces {
-      await workspace.buildSystemManager.waitForUpToDateBuildGraph()
-      await workspace.semanticIndexManager?.waitForUpToDateIndex()
-      workspace.uncheckedIndex?.pollForUnitChangesAndWait()
+      await workspace.pollIndex()
     }
     return VoidResponse()
   }

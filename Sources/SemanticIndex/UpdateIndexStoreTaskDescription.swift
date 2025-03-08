@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 package import BuildServerProtocol
-import BuildSystemIntegration
+package import BuildSystemIntegration
 import Foundation
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
@@ -79,10 +79,11 @@ package enum FileToIndex: CustomLogStringConvertible, Hashable {
   }
 }
 
-/// A file to index and the target in which the file should be indexed.
-package struct FileAndTarget: Sendable {
+/// The information that's needed to index a file within a given target.
+package struct FileIndexInfo: Sendable, Hashable {
   package let file: FileToIndex
   package let target: BuildTargetIdentifier
+  package let outputPath: OutputPath
 }
 
 /// Describes a task to index a set of source files.
@@ -93,7 +94,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   package let id = updateIndexStoreIDForLogging.fetchAndIncrement()
 
   /// The files that should be indexed.
-  package let filesToIndex: [FileAndTarget]
+  package let filesToIndex: [FileIndexInfo]
 
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
@@ -102,7 +103,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   /// case we don't need to index it again.
   private let index: UncheckedIndex
 
-  private let indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>
+  private let indexStoreUpToDateTracker: UpToDateTracker<DocumentURI, BuildTargetIdentifier>
 
   /// Whether files that have an up-to-date unit file should be indexed.
   ///
@@ -140,10 +141,10 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   }
 
   init(
-    filesToIndex: [FileAndTarget],
+    filesToIndex: [FileIndexInfo],
     buildSystemManager: BuildSystemManager,
     index: UncheckedIndex,
-    indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>,
+    indexStoreUpToDateTracker: UpToDateTracker<DocumentURI, BuildTargetIdentifier>,
     indexFilesWithUpToDateUnit: Bool,
     logMessageToIndexLog: @escaping @Sendable (
       _ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind
@@ -180,8 +181,12 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       let filesToIndex = filesToIndex.sorted(by: { $0.file.sourceFile.stringValue < $1.file.sourceFile.stringValue })
       // TODO: Once swiftc supports it, we should group files by target and index files within the same target together
       // in one swiftc invocation. (https://github.com/swiftlang/sourcekit-lsp/issues/1268)
-      for file in filesToIndex {
-        await updateIndexStore(forSingleFile: file.file, in: file.target)
+      for fileIndexInfo in filesToIndex {
+        await updateIndexStore(
+          forSingleFile: fileIndexInfo.file,
+          in: fileIndexInfo.target,
+          outputPath: fileIndexInfo.outputPath
+        )
       }
       await hooks.updateIndexStoreTaskDidFinish?(self)
       logger.log(
@@ -211,14 +216,22 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     }
   }
 
-  private func updateIndexStore(forSingleFile file: FileToIndex, in target: BuildTargetIdentifier) async {
-    guard await !indexStoreUpToDateTracker.isUpToDate(file.sourceFile) else {
+  private func updateIndexStore(
+    forSingleFile file: FileToIndex,
+    in target: BuildTargetIdentifier,
+    outputPath: OutputPath
+  ) async {
+    guard await !indexStoreUpToDateTracker.isUpToDate(file.sourceFile, target) else {
       // If we know that the file is up-to-date without having ot hit the index, do that because it's fastest.
       return
     }
     guard
       indexFilesWithUpToDateUnit
-        || !index.checked(for: .modifiedFiles).hasUpToDateUnit(for: file.sourceFile, mainFile: file.mainFile)
+        || !index.checked(for: .modifiedFiles).hasUpToDateUnit(
+          for: file.sourceFile,
+          mainFile: file.mainFile,
+          outputPath: outputPath
+        )
     else {
       logger.debug("Not indexing \(file.forLogging) because index has an up-to-date unit")
       // We consider a file's index up-to-date if we have any up-to-date unit. Changing build settings does not
@@ -288,7 +301,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         "Not updating index store for \(file) because it is a language that is not supported by background indexing"
       )
     }
-    await indexStoreUpToDateTracker.markUpToDate([file.sourceFile], updateOperationStartDate: startDate)
+    await indexStoreUpToDateTracker.markUpToDate([(file.sourceFile, target)], updateOperationStartDate: startDate)
   }
 
   /// If `args` does not contain an `-index-store-path` argument, add it, pointing to the build system's index store
