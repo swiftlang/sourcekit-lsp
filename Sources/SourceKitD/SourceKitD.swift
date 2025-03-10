@@ -139,10 +139,9 @@ extension SourceKitD {
     timeout: Duration,
     fileContents: String?
   ) async throws -> SKDResponseDictionary {
-    log(request: request)
-
     let sourcekitdResponse = try await withTimeout(timeout) {
       return try await withCancellableCheckedThrowingContinuation { (continuation) -> SourceKitDRequestHandle? in
+        self.log(request: request)
         var handle: sourcekitd_api_request_handle_t? = nil
         self.api.send_request(request.dict, &handle) { response in
           continuation.resume(returning: SKDResponse(response!, sourcekitd: self))
