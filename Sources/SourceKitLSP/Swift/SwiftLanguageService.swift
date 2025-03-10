@@ -237,6 +237,12 @@ package actor SwiftLanguageService: LanguageService, Sendable {
         logger.fault("Not sending DiagnosticRefreshRequest to client because sourceKitLSPServer has been deallocated")
         return
       }
+      guard
+        await sourceKitLSPServer.capabilityRegistry?.clientCapabilities.workspace?.diagnostics?.refreshSupport ?? false
+      else {
+        logger.debug("Not sending DiagnosticRefreshRequest because the client doesn't support it")
+        return
+      }
       _ = await orLog("Sending DiagnosticRefreshRequest to client after document dependencies updated") {
         try await sourceKitLSPServer.sendRequestToClient(DiagnosticsRefreshRequest())
       }

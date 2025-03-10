@@ -179,7 +179,10 @@ final class PullDiagnosticsTests: XCTestCase {
           sayHello()
         }
         """,
-      ]
+      ],
+      capabilities: ClientCapabilities(
+        workspace: WorkspaceClientCapabilities(diagnostics: RefreshRegistrationCapability(refreshSupport: true))
+      )
     )
 
     let (bUri, _) = try project.openDocument("FileB.swift")
@@ -235,7 +238,10 @@ final class PullDiagnosticsTests: XCTestCase {
             .target(name: "LibB", dependencies: ["LibA"]),
           ]
         )
-        """
+        """,
+      capabilities: ClientCapabilities(
+        workspace: WorkspaceClientCapabilities(diagnostics: RefreshRegistrationCapability(refreshSupport: true))
+      )
     )
 
     let (bUri, _) = try project.openDocument("LibB.swift")

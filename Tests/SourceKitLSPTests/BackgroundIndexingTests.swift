@@ -572,7 +572,10 @@ final class BackgroundIndexingTests: XCTestCase {
           ]
         )
         """,
-      capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
+      capabilities: ClientCapabilities(
+        workspace: WorkspaceClientCapabilities(diagnostics: RefreshRegistrationCapability(refreshSupport: true)),
+        window: WindowClientCapabilities(workDoneProgress: true)
+      ),
       hooks: testHooks,
       enableBackgroundIndexing: true,
       cleanUp: { expectedPreparationTracker.keepAlive() }

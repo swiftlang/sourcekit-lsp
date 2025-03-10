@@ -365,12 +365,6 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
         return (handler, index, handlerAndIsOneShot.isOneShot)
       }.first
       guard let (requestHandler, index, isOneShot) = requestHandlerIndexAndIsOneShot else {
-        if Request.self == DiagnosticsRefreshRequest.self {
-          // Ignore diagnostic refresh requests. This keeps the log a little cleaner than if we return
-          // methodNotFound.
-          reply(.success(VoidResponse() as! Request.Response))
-          return
-        }
         reply(.failure(.methodNotFound(Request.method)))
         return
       }
