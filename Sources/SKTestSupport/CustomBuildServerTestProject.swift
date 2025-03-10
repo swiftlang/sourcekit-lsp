@@ -24,8 +24,59 @@ import XCTest
 
 // MARK: - CustomBuildServer
 
+package actor CustomBuildServerInProgressRequestTracker {
+  private var inProgressRequests: [RequestID: Task<Void, Never>] = [:]
+  private let queue = AsyncQueue<Serial>()
+
+  package init() {}
+
+  private func setInProgressRequestImpl(_ id: RequestID, task: Task<Void, Never>) {
+    guard inProgressRequests[id] == nil else {
+      logger.fault("Received duplicate request for id: \(id, privacy: .public)")
+      return
+    }
+    inProgressRequests[id] = task
+  }
+
+  fileprivate nonisolated func setInProgressRequest(_ id: RequestID, task: Task<Void, Never>) {
+    queue.async {
+      await self.setInProgressRequestImpl(id, task: task)
+    }
+  }
+
+  private func markTaskAsFinishedImpl(_ id: RequestID) {
+    guard inProgressRequests[id] != nil else {
+      logger.fault("Cannot mark request \(id, privacy: .public) as finished because it is not being tracked.")
+      return
+    }
+    inProgressRequests[id] = nil
+  }
+
+  fileprivate nonisolated func markTaskAsFinished(_ id: RequestID) {
+    queue.async {
+      await self.markTaskAsFinishedImpl(id)
+    }
+  }
+
+  private func cancelTaskImpl(_ id: RequestID) {
+    guard let task = inProgressRequests[id] else {
+      logger.fault("Cannot cancel task \(id, privacy: .public) because it isn't tracked")
+      return
+    }
+    task.cancel()
+  }
+
+  fileprivate nonisolated func cancelTask(_ id: RequestID) {
+    queue.async {
+      await self.cancelTaskImpl(id)
+    }
+  }
+}
+
 /// A build server that can be injected into `CustomBuildServerTestProject`.
 package protocol CustomBuildServer: MessageHandler {
+  var inProgressRequestsTracker: CustomBuildServerInProgressRequestTracker { get }
+
   init(projectRoot: URL, connectionToSourceKitLSP: any Connection)
 
   func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse
@@ -74,13 +125,15 @@ extension CustomBuildServer {
     reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
   ) {
     func handle<R: RequestType>(_ request: R, using handler: @Sendable @escaping (R) async throws -> R.Response) {
-      Task {
+      let task = Task {
+        defer { inProgressRequestsTracker.markTaskAsFinished(id) }
         do {
           reply(.success(try await handler(request) as! Request.Response))
         } catch {
           reply(.failure(ResponseError(error)))
         }
       }
+      inProgressRequestsTracker.setInProgressRequest(id, task: task)
     }
 
     switch request {
@@ -174,7 +227,9 @@ package extension CustomBuildServer {
     return VoidResponse()
   }
 
-  nonisolated func cancelRequest(_ notification: CancelRequestNotification) throws {}
+  nonisolated func cancelRequest(_ notification: CancelRequestNotification) throws {
+    inProgressRequestsTracker.cancelTask(notification.id)
+  }
 }
 
 // MARK: - CustomBuildServerTestProject

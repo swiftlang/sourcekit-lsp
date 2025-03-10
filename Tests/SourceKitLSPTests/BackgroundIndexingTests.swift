@@ -1955,6 +1955,7 @@ final class BackgroundIndexingTests: XCTestCase {
 
   func testIndexFileIfBuildTargetsChange() async throws {
     actor BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
       private let projectRoot: URL
       private let connectionToSourceKitLSP: any Connection
       private var buildSettingsByFile: [DocumentURI: TextDocumentSourceKitOptionsResponse] = [:]
@@ -2106,6 +2107,7 @@ final class BackgroundIndexingTests: XCTestCase {
     // response file to invoke the indexer.
 
     final class BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
       private let projectRoot: URL
       private var testFileURL: URL { projectRoot.appendingPathComponent("Test File.swift") }
 
