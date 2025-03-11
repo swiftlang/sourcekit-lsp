@@ -225,9 +225,6 @@ package final actor SemanticIndexManager {
     if inProgressPreparationTasks.values.contains(where: { $0.purpose == .forEditorFunctionality }) {
       return .preparingFileForEditorFunctionality
     }
-    if !scheduleIndexingTasks.isEmpty {
-      return .schedulingIndexing
-    }
     let preparationTasks = inProgressPreparationTasks.mapValues { inProgressTask in
       return inProgressTask.task.isExecuting ? IndexTaskStatus.executing : IndexTaskStatus.scheduled
     }
@@ -239,10 +236,16 @@ package final actor SemanticIndexManager {
         return updateIndexStoreTask.isExecuting ? IndexTaskStatus.executing : IndexTaskStatus.scheduled
       }
     }
-    if preparationTasks.isEmpty && indexTasks.isEmpty {
-      return .upToDate
+    if !preparationTasks.isEmpty || !indexTasks.isEmpty {
+      return .indexing(preparationTasks: preparationTasks, indexTasks: indexTasks)
     }
-    return .indexing(preparationTasks: preparationTasks, indexTasks: indexTasks)
+    // Only report the `schedulingIndexing` status when we don't have any in-progress indexing tasks. This way we avoid
+    // flickering between indexing progress and `Scheduling indexing` if we trigger an index schedule task while
+    // indexing is already in progress
+    if !scheduleIndexingTasks.isEmpty {
+      return .schedulingIndexing
+    }
+    return .upToDate
   }
 
   package init(
