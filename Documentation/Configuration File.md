@@ -20,6 +20,7 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `swiftSDKsDirectory: string`: Equivalent to SwiftPM's `--swift-sdks-path` option.
   - `swiftSDK: string`: Equivalent to SwiftPM's `--swift-sdk` option.
   - `triple: string`: Equivalent to SwiftPM's `--triple` option.
+  - `toolsets: string[]`: Equivalent to SwiftPM's `--toolset` option.
   - `traits: string[]`: Traits to enable for the package. Equivalent to SwiftPM's `--traits` option.
   - `cCompilerFlags: string[]`: Extra arguments passed to the compiler for C files. Equivalent to SwiftPM's `-Xcc` option.
   - `cxxCompilerFlags: string[]`: Extra arguments passed to the compiler for C++ files. Equivalent to SwiftPM's `-Xcxx` option.

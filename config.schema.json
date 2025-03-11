@@ -272,6 +272,14 @@
           "markdownDescription" : "Equivalent to SwiftPM's `--swift-sdks-path` option.",
           "type" : "string"
         },
+        "toolsets" : {
+          "description" : "Equivalent to SwiftPM's `--toolset` option.",
+          "items" : {
+            "type" : "string"
+          },
+          "markdownDescription" : "Equivalent to SwiftPM's `--toolset` option.",
+          "type" : "array"
+        },
         "traits" : {
           "description" : "Traits to enable for the package. Equivalent to SwiftPM's `--traits` option.",
           "items" : {

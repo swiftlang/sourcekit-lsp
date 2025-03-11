@@ -44,6 +44,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     /// Equivalent to SwiftPM's `--triple` option.
     public var triple: String?
 
+    /// Equivalent to SwiftPM's `--toolset` option.
+    public var toolsets: [String]?
+
     /// Traits to enable for the package. Equivalent to SwiftPM's `--traits` option.
     public var traits: [String]?
 
@@ -79,6 +82,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       swiftSDKsDirectory: String? = nil,
       swiftSDK: String? = nil,
       triple: String? = nil,
+      toolsets: [String]? = nil,
       traits: [String]? = nil,
       cCompilerFlags: [String]? = nil,
       cxxCompilerFlags: [String]? = nil,
@@ -93,6 +97,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       self.swiftSDKsDirectory = swiftSDKsDirectory
       self.swiftSDK = swiftSDK
       self.triple = triple
+      self.toolsets = toolsets
       self.traits = traits
       self.cCompilerFlags = cCompilerFlags
       self.cxxCompilerFlags = cxxCompilerFlags
@@ -109,6 +114,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
         swiftSDKsDirectory: override?.swiftSDKsDirectory ?? base.swiftSDKsDirectory,
         swiftSDK: override?.swiftSDK ?? base.swiftSDK,
         triple: override?.triple ?? base.triple,
+        toolsets: override?.toolsets ?? base.toolsets,
         traits: override?.traits ?? base.traits,
         cCompilerFlags: override?.cCompilerFlags ?? base.cCompilerFlags,
         cxxCompilerFlags: override?.cxxCompilerFlags ?? base.cxxCompilerFlags,
