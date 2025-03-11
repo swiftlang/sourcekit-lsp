@@ -12,6 +12,7 @@
 
 package import Foundation
 package import LanguageServerProtocol
+import SKLogging
 package import SKOptions
 package import SourceKitLSP
 import SwiftExtensions
@@ -260,7 +261,16 @@ package class SwiftPMTestProject: MultiFileTestProject {
         "-Xswiftc", "-module-cache-path", "-Xswiftc", try globalModuleCache.filePath,
       ]
     }
-    try await Process.checkNonZeroExit(arguments: arguments)
+    let argumentsCopy = arguments
+    let output = try await withTimeout(defaultTimeoutDuration) {
+      try await Process.checkNonZeroExit(arguments: argumentsCopy)
+    }
+    logger.debug(
+      """
+      'swift build' output: 
+      \(output)
+      """
+    )
   }
 
   /// Resolve package dependencies for the package at `path`.
@@ -274,6 +284,14 @@ package class SwiftPMTestProject: MultiFileTestProject {
       "resolve",
       "--package-path", try path.filePath,
     ]
-    try await Process.checkNonZeroExit(arguments: arguments)
+    let output = try await withTimeout(defaultTimeoutDuration) {
+      try await Process.checkNonZeroExit(arguments: arguments)
+    }
+    logger.debug(
+      """
+      'swift package resolve' output: 
+      \(output)
+      """
+    )
   }
 }

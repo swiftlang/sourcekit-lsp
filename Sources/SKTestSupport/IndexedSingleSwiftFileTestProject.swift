@@ -13,6 +13,7 @@
 @_spi(Testing) import BuildSystemIntegration
 package import Foundation
 package import LanguageServerProtocol
+import SKLogging
 import SKOptions
 import SourceKitLSP
 import SwiftExtensions
@@ -126,7 +127,11 @@ package struct IndexedSingleSwiftFileTestProject {
 
     // Run swiftc to build the index store
     do {
-      try await Process.checkNonZeroExit(arguments: [swiftc.filePath] + compilerArguments)
+      let compilerArgumentsCopy = compilerArguments
+      let output = try await withTimeout(defaultTimeoutDuration) {
+        try await Process.checkNonZeroExit(arguments: [swiftc.filePath] + compilerArgumentsCopy)
+      }
+      logger.debug("swiftc output:\n\(output)")
     } catch {
       if !allowBuildFailure {
         throw error

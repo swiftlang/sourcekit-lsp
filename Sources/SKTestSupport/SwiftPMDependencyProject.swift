@@ -13,6 +13,7 @@
 package import Foundation
 import LanguageServerProtocolExtensions
 import SwiftExtensions
+import TSCExtensions
 import XCTest
 
 import struct TSCBasic.AbsolutePath
@@ -45,11 +46,12 @@ package class SwiftPMDependencyProject {
     }
     // We can't use `workingDirectory` because Amazon Linux doesn't support working directories (or at least
     // TSCBasic.Process doesn't support working directories on Amazon Linux)
-    let process = TSCBasic.Process(
-      arguments: [try git.filePath, "-C", try workingDirectory.filePath] + arguments
-    )
-    try process.launch()
-    let processResult = try await process.waitUntilExit()
+    let processResult = try await withTimeout(defaultTimeoutDuration) {
+      try await TSCBasic.Process.run(
+        arguments: [try git.filePath, "-C", try workingDirectory.filePath] + arguments,
+        workingDirectory: nil
+      )
+    }
     guard processResult.exitStatus == .terminated(code: 0) else {
       throw Error.processedTerminatedWithNonZeroExitCode(processResult)
     }

@@ -1353,14 +1353,24 @@ final class BackgroundIndexingTests: XCTestCase {
     //  - The user runs `swift package update`
     //  - This updates `Package.resolved`, which we watch
     //  - We reload the package, which updates `Dependency.swift` in `.build/index-build/checkouts`, which we also watch.
-    try await Process.run(
-      arguments: [
-        unwrap(ToolchainRegistry.forTesting.default?.swift?.filePath),
-        "package", "update",
-        "--package-path", project.scratchDirectory.filePath,
-      ],
-      workingDirectory: nil
+    let projectURL = project.scratchDirectory
+    let packageUpdateOutput = try await withTimeout(defaultTimeoutDuration) {
+      try await Process.run(
+        arguments: [
+          unwrap(ToolchainRegistry.forTesting.default?.swift?.filePath),
+          "package", "update",
+          "--package-path", projectURL.filePath,
+        ],
+        workingDirectory: nil
+      )
+    }
+    logger.debug(
+      """
+      'swift package update' output:
+      \(packageUpdateOutput)
+      """
     )
+
     XCTAssertNotEqual(try String(contentsOf: packageResolvedURL, encoding: .utf8), originalPackageResolvedContents)
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
