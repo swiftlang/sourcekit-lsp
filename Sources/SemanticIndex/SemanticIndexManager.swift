@@ -215,9 +215,6 @@ package final actor SemanticIndexManager {
     if inProgressPreparationTasks.values.contains(where: { $0.purpose == .forEditorFunctionality }) {
       return .preparingFileForEditorFunctionality
     }
-    if !scheduleIndexingTasks.isEmpty {
-      return .schedulingIndexing
-    }
     let preparationTasks = inProgressPreparationTasks.mapValues { inProgressTask in
       return inProgressTask.task.isExecuting ? IndexTaskStatus.executing : IndexTaskStatus.scheduled
     }
@@ -230,6 +227,9 @@ package final actor SemanticIndexManager {
       }
     }
     if preparationTasks.isEmpty && indexTasks.isEmpty {
+      if !scheduleIndexingTasks.isEmpty {
+        return .schedulingIndexing
+      }
       return .upToDate
     }
     return .indexing(preparationTasks: preparationTasks, indexTasks: indexTasks)
