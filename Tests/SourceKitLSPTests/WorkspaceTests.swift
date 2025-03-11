@@ -1205,7 +1205,7 @@ final class WorkspaceTests: XCTestCase {
         swiftPMTestHooks: SwiftPMTestHooks(
           reloadPackageDidStart: {
             // Essentially make sure that the package never loads, so we are forced to return fallback arguments.
-            try? await Task.sleep(for: .seconds(60 * 60))
+            try? await Task.sleep(for: .seconds(defaultTimeout * 2))
           }
         )
       )

@@ -75,21 +75,12 @@ final class CompilationDatabaseTests: XCTestCase {
       DocumentHighlight(range: positions["5️⃣"]..<positions["6️⃣"], kind: .text),
     ]
 
-    var didReceiveCorrectHighlight = false
-
     // Updating the build settings takes a few seconds.
     // Send highlight requests every second until we receive correct results.
-    for _ in 0..<30 {
+    try await repeatUntilExpectedResult {
       let postChangeHighlightResponse = try await project.testClient.send(highlightRequest)
-
-      if postChangeHighlightResponse == expectedPostEditHighlight {
-        didReceiveCorrectHighlight = true
-        break
-      }
-      try await Task.sleep(for: .seconds(1))
+      return postChangeHighlightResponse == expectedPostEditHighlight
     }
-
-    XCTAssert(didReceiveCorrectHighlight)
   }
 
   func testJSONCompilationDatabaseWithDifferentToolchainsForSwift() async throws {
