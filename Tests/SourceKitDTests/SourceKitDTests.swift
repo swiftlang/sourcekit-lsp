@@ -84,7 +84,7 @@ final class SourceKitDTests: XCTestCase {
       keys.compilerArgs: args,
     ])
 
-    _ = try await sourcekitd.send(req, timeout: .seconds(defaultTimeout), fileContents: nil)
+    _ = try await sourcekitd.send(req, timeout: defaultTimeoutDuration, fileContents: nil)
 
     try await fulfillmentOfOrThrow([expectation1, expectation2])
 
@@ -92,7 +92,7 @@ final class SourceKitDTests: XCTestCase {
       keys.request: sourcekitd.requests.editorClose,
       keys.name: path,
     ])
-    _ = try await sourcekitd.send(close, timeout: .seconds(defaultTimeout), fileContents: nil)
+    _ = try await sourcekitd.send(close, timeout: defaultTimeoutDuration, fileContents: nil)
   }
 }
 

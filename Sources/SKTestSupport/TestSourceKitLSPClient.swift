@@ -197,7 +197,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     preInitialization?(self)
     if initialize {
       let capabilities = capabilities
-      try await withTimeout(.seconds(defaultTimeout)) {
+      try await withTimeout(defaultTimeoutDuration) {
         _ = try await self.send(
           InitializeRequest(
             processId: nil,
@@ -270,7 +270,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   ///
   /// - Note: This also returns any notifications sent before the call to
   ///   `nextNotification`.
-  package func nextNotification(timeout: Duration = .seconds(defaultTimeout)) async throws -> any NotificationType {
+  package func nextNotification(timeout: Duration = defaultTimeoutDuration) async throws -> any NotificationType {
     return try await notifications.next(timeout: timeout)
   }
 
@@ -279,7 +279,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   /// If the next notification is not a `PublishDiagnosticsNotification`, this
   /// methods throws.
   package func nextDiagnosticsNotification(
-    timeout: Duration = .seconds(defaultTimeout)
+    timeout: Duration = defaultTimeoutDuration
   ) async throws -> PublishDiagnosticsNotification {
     guard !usePullDiagnostics else {
       struct PushDiagnosticsError: Error, CustomStringConvertible {
@@ -295,7 +295,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   package func nextNotification<ExpectedNotificationType: NotificationType>(
     ofType: ExpectedNotificationType.Type,
     satisfying predicate: (ExpectedNotificationType) throws -> Bool = { _ in true },
-    timeout: Duration = .seconds(defaultTimeout)
+    timeout: Duration = defaultTimeoutDuration
   ) async throws -> ExpectedNotificationType {
     while true {
       let nextNotification = try await nextNotification(timeout: timeout)

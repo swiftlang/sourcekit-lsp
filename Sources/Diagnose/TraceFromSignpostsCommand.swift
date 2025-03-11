@@ -15,8 +15,6 @@ import Foundation
 import RegexBuilder
 import SwiftExtensions
 
-import class TSCBasic.Process
-
 /// Shared instance of the regex that is used to extract Signpost lines from `log stream --signpost`.
 fileprivate struct LogParseRegex {
   @MainActor static let shared = LogParseRegex()
