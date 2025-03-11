@@ -188,13 +188,11 @@ final class MainFilesProviderTests: XCTestCase {
     let preEditDiag = try XCTUnwrap(preEditDiags.diagnostics.first)
     XCTAssertEqual(preEditDiag.message, "Unused variable 'fromMyLibrary'")
 
-    let newFancyLibraryContents = """
-      #include "\(try project.scratchDirectory.filePath)/Sources/shared.h"
-      """
-    let fancyLibraryUri = try project.uri(for: "MyFancyLibrary.c")
-    try await newFancyLibraryContents.writeWithRetry(to: XCTUnwrap(fancyLibraryUri.fileURL))
-    project.testClient.send(
-      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: fancyLibraryUri, type: .changed)])
+    try await project.changeFileOnDisk(
+      "MyFancyLibrary.c",
+      newMarkedContents: """
+        #include "\(try project.scratchDirectory.filePath)/Sources/shared.h"
+        """
     )
 
     // 'MyFancyLibrary.c' now also includes 'shared.h'. Since it lexicographically precedes MyLibrary, we should use its

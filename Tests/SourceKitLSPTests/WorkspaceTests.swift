@@ -550,27 +550,12 @@ final class WorkspaceTests: XCTestCase {
       .appendingPathComponent("PackageB")
       .appendingPathComponent("Package.swift")
 
-    // Package resolving can open Package.swift in exclusive mode on Windows, which prevents us from writing the new
-    // package manifest. Keep retrying until we get a successful write. This matches what a user would do.
-    try await repeatUntilExpectedResult {
-      do {
-        try newPackageManifest.write(
-          to: packageBManifestPath,
-          atomically: true,
-          encoding: .utf8
-        )
-        return true
-      } catch {
-        logger.error("Writing new package manifest failed, will retry: \(error.forLogging)")
-        return false
-      }
-    }
+    try await newPackageManifest.writeWithRetry(to: packageBManifestPath)
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
         FileEvent(uri: DocumentURI(packageBManifestPath), type: .changed)
       ])
     )
-
     // Ensure that the DidChangeWatchedFilesNotification is handled before we continue.
     _ = try await project.testClient.send(BarrierRequest())
 
@@ -1175,6 +1160,8 @@ final class WorkspaceTests: XCTestCase {
     let baseLibUri = try XCTUnwrap(project.uri(for: "BaseLib.swift"))
 
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: baseLibUri, type: .changed)]))
+    // Ensure that we handle the `DidChangeWatchedFilesNotification`.
+    try await project.testClient.send(BarrierRequest())
     didChangeBaseLib.value = true
 
     project.testClient.send(
@@ -1292,6 +1279,8 @@ final class WorkspaceTests: XCTestCase {
     try XCTAssertEqual(XCTUnwrap(prepareUpToDate).didPrepareTarget, false)
 
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: baseLibUri, type: .changed)]))
+    // Ensure that we handle the `DidChangeWatchedFilesNotification`.
+    try await project.testClient.send(BarrierRequest())
     didChangeBaseLib.value = true
 
     let triggerPrepare = try await project.testClient.send(

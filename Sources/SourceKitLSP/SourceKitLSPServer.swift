@@ -1482,9 +1482,7 @@ extension SourceKitLSPServer {
     // a file doesn't mean a file can't affect the build system's build settings
     // (e.g. Package.swift doesn't have build settings but affects build
     // settings). Inform the build system about all file changes.
-    for workspace in workspaces {
-      await workspace.filesDidChange(notification.changes)
-    }
+    await workspaces.concurrentForEach { await $0.filesDidChange(notification.changes) }
   }
 
   func setBackgroundIndexingPaused(_ request: SetOptionsRequest) async throws -> VoidResponse {

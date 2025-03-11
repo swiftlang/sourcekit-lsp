@@ -430,24 +430,14 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     XCTAssertEqual(callsBeforeEdit, [])
 
-    let (otherFilePositions, otherFileMarkedContents) = DocumentPositions.extract(
-      from: """
+    let (otherFileUri, otherFilePositions) = try await project.changeFileOnDisk(
+      "MyOtherFile.swift",
+      newMarkedContents: """
         func 2️⃣bar() {
           3️⃣foo()
         }
         """
     )
-
-    let otherFileUri = try project.uri(for: "MyOtherFile.swift")
-    let otherFileUrl = try XCTUnwrap(otherFileUri.fileURL)
-
-    try otherFileMarkedContents.write(
-      to: otherFileUrl,
-      atomically: true,
-      encoding: .utf8
-    )
-
-    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: otherFileUri, type: .changed)]))
     try await project.testClient.send(PollIndexRequest())
 
     let callsAfterEdit = try await project.testClient.send(
@@ -498,8 +488,9 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     XCTAssertEqual(callsBeforeEdit, [])
 
-    let (newPositions, headerNewMarkedContents) = DocumentPositions.extract(
-      from: """
+    let (_, newPositions) = try await project.changeFileOnDisk(
+      "Header.h",
+      newMarkedContents: """
         void someFunc();
 
         void 2️⃣test() {
@@ -507,12 +498,6 @@ final class BackgroundIndexingTests: XCTestCase {
         };
         """
     )
-
-    // clangd might have Header.h open, which prevents us from updating it. Keep retrying until we get a successful
-    // write. This matches what a user would do.
-    try await headerNewMarkedContents.writeWithRetry(to: try XCTUnwrap(uri.fileURL))
-
-    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: .changed)]))
     try await project.testClient.send(PollIndexRequest())
 
     let callsAfterEdit = try await project.testClient.send(
@@ -584,15 +569,7 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     XCTAssertNotEqual(initialDiagnostics.fullReport?.items, [])
 
-    try "public func foo() {}".write(
-      to: try XCTUnwrap(project.uri(for: "MyFile.swift").fileURL),
-      atomically: true,
-      encoding: .utf8
-    )
-
-    project.testClient.send(
-      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: try project.uri(for: "MyFile.swift"), type: .changed)])
-    )
+    try await project.changeFileOnDisk("MyFile.swift", newMarkedContents: "public func foo() {}")
 
     let receivedEmptyDiagnostics = self.expectation(description: "Received diagnostic refresh request")
     receivedEmptyDiagnostics.assertForOverFulfill = false
@@ -700,6 +677,8 @@ final class BackgroundIndexingTests: XCTestCase {
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: try project.uri(for: "LibA.swift"), type: .changed)])
     )
+    // Ensure that we handle the `DidChangeWatchedFilesNotification`.
+    try await project.testClient.send(BarrierRequest())
 
     // Quickly flip through all files. The way the test is designed to work is as follows:
     //  - LibB.swift gets opened and prepared. Preparation is simulated to take a long time until both LibC.swift and
@@ -1654,18 +1633,13 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     XCTAssertNil(definitionBeforeEdit)
 
-    let libAUri = try project.uri(for: "LibA.swift")
-    let (newAMarkers, newAContents) = DocumentPositions.extract(
-      from: """
+    let (libAUri, newAMarkers) = try await project.changeFileOnDisk(
+      "LibA.swift",
+      newMarkedContents: """
         public struct LibA {
           public func 2️⃣test() {}
         }
         """
-    )
-    try await newAContents.writeWithRetry(to: XCTUnwrap(libAUri.fileURL))
-
-    project.testClient.send(
-      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: libAUri, type: .changed)])
     )
 
     // Triggering a definition request causes `LibC` to be re-prepared. Repeat the request until LibC has been prepared
@@ -1715,16 +1689,15 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     XCTAssertEqual(completionBeforeEdit.items.map(\.label), ["self"])
 
-    let libAUri = try project.uri(for: "LibA.swift")
-    try await """
-    public struct LibA {
-      public func test() {}
-    }
-    """.writeWithRetry(to: XCTUnwrap(libAUri.fileURL))
-
-    project.testClient.send(
-      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: libAUri, type: .changed)])
+    try await project.changeFileOnDisk(
+      "LibA.swift",
+      newMarkedContents: """
+        public struct LibA {
+          public func test() {}
+        }
+        """
     )
+
     try await repeatUntilExpectedResult {
       let completionAfterEdit = try await project.testClient.send(
         CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
@@ -1778,9 +1751,7 @@ final class BackgroundIndexingTests: XCTestCase {
       "Pre edit hover content '\(preEditHoverContent)' does not contain 'String'"
     )
 
-    let libAUri = try project.uri(for: "LibA.swift")
-    try await "public let myVar: Int".writeWithRetry(to: try XCTUnwrap(libAUri.fileURL))
-    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: libAUri, type: .changed)]))
+    try await project.changeFileOnDisk("LibA.swift", newMarkedContents: "public let myVar: Int")
 
     try await repeatUntilExpectedResult {
       let postEditHover = try await project.testClient.send(
@@ -2076,22 +2047,22 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     XCTAssertNil(hoverWithMissingDependencyDeclaration)
 
-    let manifestUri = try project.uri(for: "Package.swift")
-    try """
-    // swift-tools-version: 5.7
+    try await project.changeFileOnDisk(
+      "Package.swift",
+      newMarkedContents: """
+        // swift-tools-version: 5.7
 
-    import PackageDescription
+        import PackageDescription
 
-    let package = Package(
-      name: "MyLibrary",
-      targets: [
-       .target(name: "LibA", swiftSettings: [.define("ENABLE_FOO")]),
-       .target(name: "LibB", dependencies: ["LibA"]),
-      ]
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA", swiftSettings: [.define("ENABLE_FOO")]),
+           .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """
     )
-    """.write(to: XCTUnwrap(project.uri(for: "Package.swift").fileURL), atomically: true, encoding: .utf8)
-
-    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: manifestUri, type: .changed)]))
 
     try await repeatUntilExpectedResult {
       let hoverAfterAddingDependencyDeclaration = try await project.testClient.send(

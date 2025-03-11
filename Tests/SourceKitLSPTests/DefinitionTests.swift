@@ -351,12 +351,9 @@ class DefinitionTests: XCTestCase {
     )
     XCTAssertNil(beforeChangingFileA)
 
-    let (updatedAPositions, updatedACode) = DocumentPositions.extract(from: "func 2️⃣sayHello() {}")
-
-    let aUri = try project.uri(for: "FileA.swift")
-    try await updatedACode.writeWithRetry(to: XCTUnwrap(aUri.fileURL))
-    project.testClient.send(
-      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: aUri, type: .changed)])
+    let (aUri, updatedAPositions) = try await project.changeFileOnDisk(
+      "FileA.swift",
+      newMarkedContents: "func 2️⃣sayHello() {}"
     )
 
     // Wait until SourceKit-LSP has handled the `DidChangeWatchedFilesNotification` (which it only does after a delay

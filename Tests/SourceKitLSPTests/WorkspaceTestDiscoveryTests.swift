@@ -174,8 +174,9 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     // Now update the file on disk and recompute tests. This should give use tests using the syntactic index, which will
     // include the tests in here even though `NotQuiteTests` doesn't inherit from XCTest
 
-    let (newFilePositions, newFileContents) = DocumentPositions.extract(
-      from: """
+    let (_, newFilePositions) = try await project.changeFileOnDisk(
+      "MyTests.swift",
+      newMarkedContents: """
         import XCTest
 
         class ClassThatMayInheritFromXCTest {}
@@ -185,8 +186,6 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         }6️⃣
         """
     )
-    try await newFileContents.writeWithRetry(to: XCTUnwrap(myTestsUri.fileURL))
-    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: myTestsUri, type: .changed)]))
 
     let testsAfterDocumentChanged = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(
@@ -634,9 +633,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       enableBackgroundIndexing: true
     )
 
-    let uri = try project.uri(for: "MyTests.swift")
-    try FileManager.default.removeItem(at: XCTUnwrap(uri.fileURL))
-    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: .deleted)]))
+    try await project.changeFileOnDisk("MyTests.swift", newMarkedContents: nil)
 
     let tests = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(tests, [])
@@ -657,9 +654,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       manifest: packageManifestWithTestTarget
     )
 
-    let uri = try project.uri(for: "MyTests.swift")
-    try FileManager.default.removeItem(at: XCTUnwrap(uri.fileURL))
-    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: .deleted)]))
+    try await project.changeFileOnDisk("MyTests.swift", newMarkedContents: nil)
 
     let tests = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(tests, [])
@@ -673,23 +668,15 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       manifest: packageManifestWithTestTarget
     )
 
-    let (positions, fileContents) = DocumentPositions.extract(
-      from: """
+    let (uri, positions) = try await project.changeFileOnDisk(
+      "MyTests.swift",
+      newMarkedContents: """
         import XCTest
 
         1️⃣class 2️⃣MyTests: XCTestCase {
           3️⃣func 4️⃣testSomething() {}5️⃣
         }6️⃣
         """
-    )
-
-    let url = try XCTUnwrap(project.uri(for: "MyTests.swift").fileURL)
-      .deletingLastPathComponent()
-      .appendingPathComponent("MyNewTests.swift")
-    let uri = DocumentURI(url)
-    try await fileContents.writeWithRetry(to: url)
-    project.testClient.send(
-      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: .created)])
     )
 
     let tests = try await project.testClient.send(WorkspaceTestsRequest())
@@ -808,13 +795,9 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       )
     ])
 
-    try JSONEncoder().encode(compilationDatabase)
-      .write(to: XCTUnwrap(project.uri(for: JSONCompilationDatabaseBuildSystem.dbName).fileURL))
-
-    project.testClient.send(
-      DidChangeWatchedFilesNotification(changes: [
-        FileEvent(uri: try project.uri(for: JSONCompilationDatabaseBuildSystem.dbName), type: .changed)
-      ])
+    try await project.changeFileOnDisk(
+      JSONCompilationDatabaseBuildSystem.dbName,
+      newMarkedContents: XCTUnwrap(String(data: JSONEncoder().encode(compilationDatabase), encoding: .utf8))
     )
 
     let tests = try await project.testClient.send(WorkspaceTestsRequest())
@@ -873,17 +856,12 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     let testsBeforeFileRemove = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(testsBeforeFileRemove, expectedTests)
 
-    let myTestsUri = try project.uri(for: "MyTests.swift")
-    let myTestsUrl = try XCTUnwrap(myTestsUri.fileURL)
-
-    try FileManager.default.removeItem(at: myTestsUrl)
-    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: myTestsUri, type: .deleted)]))
+    try await project.changeFileOnDisk("MyTests.swift", newMarkedContents: nil)
 
     let testsAfterFileRemove = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(testsAfterFileRemove, [])
 
-    try await extractMarkers(markedFileContents).textWithoutMarkers.writeWithRetry(to: myTestsUrl)
-    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: myTestsUri, type: .created)]))
+    try await project.changeFileOnDisk("MyTests.swift", newMarkedContents: markedFileContents)
 
     let testsAfterFileReAdded = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(testsAfterFileReAdded, expectedTests)
@@ -955,6 +933,8 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: project.fileURI, type: .changed)])
     )
+    // Ensure that we handle the `DidChangeWatchedFilesNotification`.
+    try await project.testClient.send(BarrierRequest())
 
     let testsAfterEdit = try await project.testClient.send(WorkspaceTestsRequest())
     // We know from the semantic index that NotQuiteTest does not inherit from XCTestCase, so we should not include it.

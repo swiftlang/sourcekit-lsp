@@ -12,6 +12,7 @@
 
 package import Foundation
 package import LanguageServerProtocol
+import SKLogging
 package import SKOptions
 package import SourceKitLSP
 import SwiftExtensions
@@ -66,7 +67,10 @@ package class MultiFileTestProject {
 
   enum Error: Swift.Error {
     /// No file with the given filename is known to the `MultiFileTestProject`.
-    case fileNotFound
+    case fileNotFound(name: String)
+
+    /// Trying to delete a file in `changeDocument` that doesn't exist.
+    case deleteNonExistentFile
   }
 
   /// The directory in which the temporary files are being placed.
@@ -168,7 +172,7 @@ package class MultiFileTestProject {
     language: Language? = nil
   ) throws -> (uri: DocumentURI, positions: DocumentPositions) {
     guard let fileData = self.fileData[fileName] else {
-      throw Error.fileNotFound
+      throw Error.fileNotFound(name: fileName)
     }
     let positions = testClient.openDocument(fileData.markedText, uri: fileData.uri, language: language)
     return (fileData.uri, positions)
@@ -177,7 +181,7 @@ package class MultiFileTestProject {
   /// Returns the URI of the file with the given name.
   package func uri(for fileName: String) throws -> DocumentURI {
     guard let fileData = self.fileData[fileName] else {
-      throw Error.fileNotFound
+      throw Error.fileNotFound(name: fileName)
     }
     return fileData.uri
   }
@@ -185,7 +189,7 @@ package class MultiFileTestProject {
   /// Returns the position of the given marker in the given file.
   package func position(of marker: String, in fileName: String) throws -> Position {
     guard let fileData = self.fileData[fileName] else {
-      throw Error.fileNotFound
+      throw Error.fileNotFound(name: fileName)
     }
     return DocumentPositions(markedText: fileData.markedText)[marker]
   }
@@ -197,5 +201,51 @@ package class MultiFileTestProject {
   package func location(from fromMarker: String, to toMarker: String, in fileName: String) throws -> Location {
     let range = try self.range(from: fromMarker, to: toMarker, in: fileName)
     return Location(uri: try self.uri(for: fileName), range: range)
+  }
+
+  /// Modify the given file on disk, send a watched files did change notification to SourceKit-LSP and wait for that
+  /// notification to get handled.
+  ///
+  /// When `newMarkedContents` is `nil`, the file is deleted.
+  ///
+  /// Returns the URI and the document positions of the new document.
+  @discardableResult
+  package func changeFileOnDisk(
+    _ fileName: String,
+    newMarkedContents: String?
+  ) async throws -> (uri: DocumentURI, positions: DocumentPositions) {
+    let uri = try self.uri(for: fileName)
+    guard let url = uri.fileURL else {
+      throw Error.fileNotFound(name: fileName)
+    }
+    let positions: DocumentPositions
+    let newContents: String?
+    if let newMarkedContents {
+      (positions, newContents) = DocumentPositions.extract(from: newMarkedContents)
+    } else {
+      positions = DocumentPositions(markedText: "")
+      newContents = nil
+    }
+
+    let fileExists = FileManager.default.fileExists(at: url)
+    let changeType: FileChangeType
+    switch (fileExists, newContents) {
+    case (false, let newContents?):
+      try await newContents.writeWithRetry(to: url)
+      changeType = .created
+    case (false, nil):
+      throw Error.deleteNonExistentFile
+    case (true, let newContents?):
+      try await newContents.writeWithRetry(to: url)
+      changeType = .changed
+    case (true, nil):
+      try FileManager.default.removeItem(at: url)
+      changeType = .deleted
+    }
+    testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: changeType)]))
+    // Ensure that we handle the `DidChangeWatchedFilesNotification`.
+    try await testClient.send(BarrierRequest())
+
+    return (uri, positions)
   }
 }
