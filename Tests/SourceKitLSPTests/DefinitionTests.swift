@@ -342,6 +342,9 @@ class DefinitionTests: XCTestCase {
         }
         """,
       ],
+      capabilities: ClientCapabilities(
+        workspace: WorkspaceClientCapabilities(diagnostics: RefreshRegistrationCapability(refreshSupport: true))
+      ),
       enableBackgroundIndexing: true
     )
 
@@ -408,7 +411,10 @@ class DefinitionTests: XCTestCase {
             .target(name: "LibB", dependencies: ["LibA"]),
           ]
         )
-        """
+        """,
+      capabilities: ClientCapabilities(
+        workspace: WorkspaceClientCapabilities(diagnostics: RefreshRegistrationCapability(refreshSupport: true))
+      )
     )
 
     let (bUri, bPositions) = try project.openDocument("LibB.swift")

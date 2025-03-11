@@ -328,6 +328,9 @@ final class SwiftPMIntegrationTests: XCTestCase {
         let x: String = 1
         """
       ],
+      capabilities: ClientCapabilities(
+        workspace: WorkspaceClientCapabilities(diagnostics: RefreshRegistrationCapability(refreshSupport: true))
+      ),
       hooks: Hooks(
         buildSystemHooks: BuildSystemHooks(
           swiftPMTestHooks: SwiftPMTestHooks(reloadPackageDidStart: {
