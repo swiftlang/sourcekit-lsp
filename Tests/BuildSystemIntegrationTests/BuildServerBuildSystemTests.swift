@@ -527,6 +527,8 @@ final class BuildServerBuildSystemTests: XCTestCase {
   func testDontBlockBuildServerInitializationIfBuildSystemIsUnresponsive() async throws {
     // A build server that responds to the initialize request but not to any other requests.
     final class UnresponsiveBuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+
       init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {}
 
       func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {

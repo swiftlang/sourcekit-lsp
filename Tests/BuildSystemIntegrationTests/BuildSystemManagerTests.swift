@@ -23,6 +23,7 @@ import ToolchainRegistry
 import XCTest
 
 fileprivate actor TestBuildSystem: CustomBuildServer {
+  let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
   private let connectionToSourceKitLSP: any Connection
   private var buildSettingsByFile: [DocumentURI: TextDocumentSourceKitOptionsResponse] = [:]
 
