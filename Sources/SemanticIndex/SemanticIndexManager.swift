@@ -711,35 +711,28 @@ package final actor SemanticIndexManager {
       // sort files to get deterministic indexing order
       .sorted(by: { $0.file.sourceFile.stringValue < $1.file.sourceFile.stringValue })
 
-    var alreadyScheduledTasks: Set<FileToIndex> = []
-    for file in filesToIndex {
-      let inProgress = inProgressIndexTasks[file.file]
+    filesToIndex =
+      filesToIndex
+      .filter { file in
+        let inProgress = inProgressIndexTasks[file.file]
 
-      let shouldScheduleIndexing: Bool
-      switch inProgress?.state {
-      case nil:
-        shouldScheduleIndexing = true
-      case .creatingIndexTask, .waitingForPreparation:
-        // We already have a task that indexes the file but hasn't started preparation yet. Indexing the file again
-        // won't produce any new results.
-        alreadyScheduledTasks.insert(file.file)
-        shouldScheduleIndexing = false
-      case .preparing(_, _), .updatingIndexStore(_, _):
-        // We have started indexing of the file and are now requesting to index it again. Unless we know that the file
-        // hasn't been modified since the last request for indexing, we need to schedule it to get re-indexed again.
-        if let modDate = file.fileModificationDate, inProgress?.fileModificationDate == modDate {
-          shouldScheduleIndexing = false
-        } else {
-          shouldScheduleIndexing = true
+        switch inProgress?.state {
+        case nil:
+          return true
+        case .creatingIndexTask, .waitingForPreparation:
+          // We already have a task that indexes the file but hasn't started preparation yet. Indexing the file again
+          // won't produce any new results.
+          return false
+        case .preparing(_, _), .updatingIndexStore(_, _):
+          // We have started indexing of the file and are now requesting to index it again. Unless we know that the file
+          // hasn't been modified since the last request for indexing, we need to schedule it to get re-indexed again.
+          if let modDate = file.fileModificationDate, inProgress?.fileModificationDate == modDate {
+            return false
+          } else {
+            return true
+          }
         }
       }
-      if shouldScheduleIndexing {
-
-      } else {
-        alreadyScheduledTasks.insert(file.file)
-      }
-    }
-    filesToIndex = filesToIndex.filter { !alreadyScheduledTasks.contains($0.file) }
 
     if filesToIndex.isEmpty {
       // Early exit if there are no files to index.
