@@ -1937,12 +1937,10 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testIsIndexingRequest() async throws {
-    let checkedIsIndexStatus = AtomicBool(initialValue: false)
+    let checkedIsIndexStatus = MultiEntrySemaphore(name: "Checked is index status")
     let hooks = Hooks(
       indexHooks: IndexHooks(updateIndexStoreTaskDidStart: { task in
-        while !checkedIsIndexStatus.value {
-          try? await Task.sleep(for: .seconds(0.1))
-        }
+        await checkedIsIndexStatus.waitOrXCTFail()
       })
     )
     let project = try await SwiftPMTestProject(
@@ -1956,7 +1954,7 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     let isIndexingResponseWhileIndexing = try await project.testClient.send(IsIndexingRequest())
     XCTAssert(isIndexingResponseWhileIndexing.indexing)
-    checkedIsIndexStatus.value = true
+    checkedIsIndexStatus.signal()
 
     try await repeatUntilExpectedResult {
       try await project.testClient.send(IsIndexingRequest()).indexing == false

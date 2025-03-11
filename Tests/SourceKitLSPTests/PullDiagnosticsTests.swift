@@ -279,20 +279,13 @@ final class PullDiagnosticsTests: XCTestCase {
   }
 
   func testDiagnosticsWaitForDocumentToBePrepared() async throws {
-    let diagnosticRequestSent = AtomicBool(initialValue: false)
+    let diagnosticRequestSent = MultiEntrySemaphore(name: "Diagnostic request sent")
     var testHooks = Hooks()
     testHooks.indexHooks.preparationTaskDidStart = { @Sendable taskDescription in
       // Only start preparation after we sent the diagnostic request. In almost all cases, this should not give
       // preparation enough time to finish before the diagnostic request is handled unless we wait for preparation in
       // the diagnostic request.
-      while diagnosticRequestSent.value == false {
-        do {
-          try await Task.sleep(for: .seconds(0.01))
-        } catch {
-          XCTFail("Did not expect sleep to fail")
-          break
-        }
-      }
+      await diagnosticRequestSent.waitOrXCTFail()
     }
 
     let project = try await SwiftPMTestProject(
@@ -331,7 +324,7 @@ final class PullDiagnosticsTests: XCTestCase {
       XCTAssertEqual(diagnostics.success?.fullReport?.items, [])
       receivedDiagnostics.fulfill()
     }
-    diagnosticRequestSent.value = true
+    diagnosticRequestSent.signal()
     try await fulfillmentOfOrThrow([receivedDiagnostics])
   }
 
