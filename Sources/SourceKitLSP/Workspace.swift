@@ -382,8 +382,10 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
 
     // Notify all clients about the reported and inferred edits.
     await buildSystemManager.filesDidChange(events)
-    await syntacticTestIndex.filesDidChange(events)
-    await semanticIndexManager?.filesDidChange(events)
+
+    async let updateSyntacticIndex: Void = await syntacticTestIndex.filesDidChange(events)
+    async let updateSemanticIndex: Void? = await semanticIndexManager?.filesDidChange(events)
+    _ = await (updateSyntacticIndex, updateSemanticIndex)
   }
 
   func documentService(for uri: DocumentURI) -> LanguageService? {

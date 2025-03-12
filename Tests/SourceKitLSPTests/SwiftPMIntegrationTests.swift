@@ -524,14 +524,13 @@ final class SwiftPMIntegrationTests: XCTestCase {
     }
 
     // Make a change to the top level input file of the plugin command
-    let topDepUri = try project.uri(for: "topDep.txt")
-    let topDepUrl = try XCTUnwrap(topDepUri.fileURL)
-    try "// some change\nlet topGenerated = 2".write(
-      to: topDepUrl,
-      atomically: true,
-      encoding: .utf8
+    try await project.changeFileOnDisk(
+      "topDep.txt",
+      newMarkedContents: """
+        // some change
+        let topGenerated = 2
+        """
     )
-    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: topDepUri, type: .changed)]))
     try await project.testClient.send(PollIndexRequest())
 
     // Expect that the position has been updated in the dependency
@@ -544,14 +543,13 @@ final class SwiftPMIntegrationTests: XCTestCase {
     }
 
     // Make a change to the target level input file of the plugin command
-    let targetDepUri = try project.uri(for: "targetDep.txt")
-    let targetDepUrl = try XCTUnwrap(targetDepUri.fileURL)
-    try "// some change\nlet targetGenerated = 2".write(
-      to: targetDepUrl,
-      atomically: true,
-      encoding: .utf8
+    try await project.changeFileOnDisk(
+      "targetDep.txt",
+      newMarkedContents: """
+        // some change
+        let targetGenerated = 2
+        """
     )
-    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: targetDepUri, type: .changed)]))
     try await project.testClient.send(PollIndexRequest())
 
     // Expect that the position has been updated in the dependency

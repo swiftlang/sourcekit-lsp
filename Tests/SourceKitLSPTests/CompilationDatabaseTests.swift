@@ -56,17 +56,7 @@ final class CompilationDatabaseTests: XCTestCase {
 
     // Remove -DFOO from the compile commands.
 
-    let compileFlagsUri = try project.uri(for: FixedCompilationDatabaseBuildSystem.dbName)
-    try await "".writeWithRetry(to: XCTUnwrap(compileFlagsUri.fileURL))
-
-    project.testClient.send(
-      DidChangeWatchedFilesNotification(changes: [
-        FileEvent(uri: compileFlagsUri, type: .changed)
-      ])
-    )
-
-    // Ensure that the DidChangeWatchedFilesNotification is handled before we continue.
-    try await project.testClient.send(PollIndexRequest())
+    try await project.changeFileOnDisk(FixedCompilationDatabaseBuildSystem.dbName, newMarkedContents: "")
 
     // DocumentHighlight should now point to the definition in the `#else` block.
 

@@ -103,7 +103,12 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
     case let notification as DidChangeTextDocumentNotification:
       self = .documentUpdate(notification.textDocument.uri)
     case is DidChangeWatchedFilesNotification:
-      self = .globalConfigurationChange
+      // Technically, the watched files notification can change the response of any other request (eg. because a target
+      // needs to be re-prepared). But treating it as a `globalConfiguration` inserts a lot of barriers in request
+      // handling and significantly prevents parallelism. Since many editors batch file change notifications already,
+      // they might have delayed the file change notification even more, which is equivalent to handling the
+      // notification a little later inside SourceKit-LSP. Thus, treating it as `freestanding` should be acceptable.
+      self = .freestanding
     case is DidChangeWorkspaceFoldersNotification:
       self = .globalConfigurationChange
     case let notification as DidCloseNotebookDocumentNotification:

@@ -146,12 +146,7 @@ final class PublishDiagnosticsTests: XCTestCase {
       return false
     }
 
-    let updatedACode = "func sayHello() {}"
-    let aUri = try project.uri(for: "FileA.swift")
-    try await updatedACode.writeWithRetry(to: XCTUnwrap(aUri.fileURL))
-    project.testClient.send(
-      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: aUri, type: .changed)])
-    )
+    try await project.changeFileOnDisk("FileA.swift", newMarkedContents: "func sayHello() {}")
 
     let diagnosticsAfterChangingFileA = try await project.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diagnosticsAfterChangingFileA.diagnostics, [])

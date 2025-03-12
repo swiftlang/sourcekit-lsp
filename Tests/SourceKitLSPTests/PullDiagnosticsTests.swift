@@ -199,13 +199,7 @@ final class PullDiagnosticsTests: XCTestCase {
       return VoidResponse()
     }
 
-    let updatedACode = "func sayHello() {}"
-    let aUri = try project.uri(for: "FileA.swift")
-    try await updatedACode.writeWithRetry(to: XCTUnwrap(aUri.fileURL))
-    project.testClient.send(
-      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: aUri, type: .changed)])
-    )
-
+    try await project.changeFileOnDisk("FileA.swift", newMarkedContents: "func sayHello() {}")
     try await fulfillmentOfOrThrow([diagnosticsRefreshRequestReceived])
 
     let afterChangingFileA = try await project.testClient.send(

@@ -157,23 +157,20 @@ class WorkspaceSymbolsTests: XCTestCase {
       ]
     )
 
-    try """
-    // swift-tools-version: 5.7
+    try await project.changeFileOnDisk(
+      "Package.swift",
+      newMarkedContents: """
+        // swift-tools-version: 5.7
 
-    import PackageDescription
+        import PackageDescription
 
-    let package = Package(
-      name: "MyLibrary",
-      targets: [.target(name: "MyLibrary", exclude: ["FileA.swift"])]
+        let package = Package(
+          name: "MyLibrary",
+          targets: [.target(name: "MyLibrary", exclude: ["FileA.swift"])]
+        )
+        """
     )
-    """.write(to: XCTUnwrap(project.uri(for: "Package.swift").fileURL), atomically: true, encoding: .utf8)
 
-    // Test that we exclude FileB.swift from the index after it has been removed from the package's target.
-    project.testClient.send(
-      DidChangeWatchedFilesNotification(
-        changes: [FileEvent(uri: try project.uri(for: "Package.swift"), type: .changed)]
-      )
-    )
     try await repeatUntilExpectedResult {
       let symbolsAfterDeletion = try await project.testClient.send(WorkspaceSymbolsRequest(query: "doThing"))
       if symbolsAfterDeletion?.count == 2 {
