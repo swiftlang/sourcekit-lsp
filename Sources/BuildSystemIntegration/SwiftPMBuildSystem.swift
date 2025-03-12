@@ -208,6 +208,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     let destinationSDK = try SwiftSDK.deriveTargetSwiftSDK(
       hostSwiftSDK: hostSDK,
       hostTriple: hostSwiftPMToolchain.targetTriple,
+      customToolsets: options.swiftPMOrDefault.toolsets?.map { try AbsolutePath(validating: $0) } ?? [],
       customCompileTriple: options.swiftPMOrDefault.triple.map { try Triple($0) },
       swiftSDKSelector: options.swiftPMOrDefault.swiftSDK,
       store: SwiftSDKBundleStore(
