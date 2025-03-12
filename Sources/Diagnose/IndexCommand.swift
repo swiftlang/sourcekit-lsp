@@ -103,7 +103,7 @@ package struct IndexCommand: AsyncParsableCommand {
       messageHandler: messageHandler
     )
     let start = ContinuousClock.now
-    _ = try await inProcessClient.send(PollIndexRequest())
+    _ = try await inProcessClient.send(SynchronizeRequest(index: true))
     print("Indexing finished in \(start.duration(to: .now))")
     if await messageHandler.hasSeenError {
       throw ExitCode(1)

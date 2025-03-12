@@ -157,7 +157,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
 
     try await SwiftPMTestProject.build(at: project.scratchDirectory)
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     // After indexing, we know that `LooksLikeTestCaseButIsNot` does not inherit from `XCTestCase` and we don't report any tests.
     let indexBasedTests = try await project.testClient.send(

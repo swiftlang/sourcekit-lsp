@@ -83,7 +83,7 @@ final class WorkspaceTests: XCTestCase {
       },
       enableBackgroundIndexing: true
     )
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     let (bUri, bPositions) = try project.openDocument("execB.swift")
 
@@ -276,7 +276,7 @@ final class WorkspaceTests: XCTestCase {
 
     let (uri, positions) = try project.openDocument("execA.swift")
 
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     let otherCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
@@ -367,7 +367,7 @@ final class WorkspaceTests: XCTestCase {
       enableBackgroundIndexing: true
     )
 
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     let (bUri, bPositions) = try project.openDocument("execB.swift")
 
@@ -407,7 +407,7 @@ final class WorkspaceTests: XCTestCase {
 
     let (aUri, aPositions) = try project.openDocument("execA.swift")
 
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     let otherCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(aUri), position: aPositions["1️⃣"])
@@ -557,7 +557,7 @@ final class WorkspaceTests: XCTestCase {
       ])
     )
     // Ensure that the DidChangeWatchedFilesNotification is handled before we continue.
-    _ = try await project.testClient.send(BarrierRequest())
+    _ = try await project.testClient.send(SynchronizeRequest())
 
     // After updating PackageB/Package.swift, PackageB can provide proper build settings for MyExec/main.swift and
     // thus workspace membership should switch to PackageB.
@@ -707,7 +707,7 @@ final class WorkspaceTests: XCTestCase {
       )
     )
 
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     let postChangeWorkspaceResponse = try await project.testClient.send(
       CompletionRequest(
@@ -1161,7 +1161,7 @@ final class WorkspaceTests: XCTestCase {
 
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: baseLibUri, type: .changed)]))
     // Ensure that we handle the `DidChangeWatchedFilesNotification`.
-    try await project.testClient.send(BarrierRequest())
+    try await project.testClient.send(SynchronizeRequest())
     didChangeBaseLib.value = true
 
     project.testClient.send(
@@ -1280,7 +1280,7 @@ final class WorkspaceTests: XCTestCase {
 
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: baseLibUri, type: .changed)]))
     // Ensure that we handle the `DidChangeWatchedFilesNotification`.
-    try await project.testClient.send(BarrierRequest())
+    try await project.testClient.send(SynchronizeRequest())
     didChangeBaseLib.value = true
 
     let triggerPrepare = try await project.testClient.send(
@@ -1357,7 +1357,7 @@ final class WorkspaceTests: XCTestCase {
       options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest]),
       workspaceFolders: [WorkspaceFolder(uri: DocumentURI(scratchDirectory), name: nil)]
     )
-    try await testClient.send(PollIndexRequest())
+    try await testClient.send(SynchronizeRequest(index: true))
 
     // Check that we can infer build settings for the header from its main file. indexstore-db stores this main file
     // path as `/private/tmp` while the build system only knows about it as `/tmp`.

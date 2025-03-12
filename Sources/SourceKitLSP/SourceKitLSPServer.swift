@@ -742,8 +742,6 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
     }
 
     switch request {
-    case let request as RequestAndReply<BarrierRequest>:
-      await request.reply { VoidResponse() }
     case let request as RequestAndReply<CallHierarchyIncomingCallsRequest>:
       await request.reply { try await incomingCalls(request.params) }
     case let request as RequestAndReply<CallHierarchyOutgoingCallsRequest>:
@@ -812,8 +810,6 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await request.reply { try await self.isIndexing(request.params) }
     case let request as RequestAndReply<OutputPathsRequest>:
       await request.reply { try await outputPaths(request.params) }
-    case let request as RequestAndReply<PollIndexRequest>:
-      await request.reply { try await pollIndex(request.params) }
     case let request as RequestAndReply<PrepareRenameRequest>:
       await self.handleRequest(for: request, requestHandler: self.prepareRename)
     case let request as RequestAndReply<ReferencesRequest>:
@@ -828,6 +824,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await request.reply { try await shutdown(request.params) }
     case let request as RequestAndReply<SymbolInfoRequest>:
       await self.handleRequest(for: request, requestHandler: self.symbolInfo)
+    case let request as RequestAndReply<SynchronizeRequest>:
+      await request.reply { try await synchronize(request.params) }
     case let request as RequestAndReply<TriggerReindexRequest>:
       await request.reply { try await triggerReindex(request.params) }
     case let request as RequestAndReply<TypeHierarchyPrepareRequest>:
@@ -2540,11 +2538,18 @@ extension SourceKitLSPServer {
     return types.sorted { $0.name < $1.name }
   }
 
-  func pollIndex(_ req: PollIndexRequest) async throws -> VoidResponse {
+  func synchronize(_ req: SynchronizeRequest) async throws -> VoidResponse {
+    guard self.options.hasExperimentalFeature(.synchronizeRequest) else {
+      throw ResponseError.unknown("\(SynchronizeRequest.method) indexing is an experimental request")
+    }
     for workspace in workspaces {
-      await workspace.buildSystemManager.waitForUpToDateBuildGraph()
-      await workspace.semanticIndexManager?.waitForUpToDateIndex()
-      workspace.uncheckedIndex?.pollForUnitChangesAndWait()
+      if req.buildServerUpdates ?? false || req.index ?? false {
+        await workspace.buildSystemManager.waitForUpToDateBuildGraph()
+      }
+      if req.index ?? false {
+        await workspace.semanticIndexManager?.waitForUpToDateIndex()
+        workspace.uncheckedIndex?.pollForUnitChangesAndWait()
+      }
     }
     return VoidResponse()
   }

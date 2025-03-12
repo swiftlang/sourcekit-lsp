@@ -18,17 +18,30 @@ public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
   case onTypeFormatting = "on-type-formatting"
 
   /// Enable support for the `workspace/_setOptions` request.
+  ///
+  /// - Note: Internal option
   case setOptionsRequest = "set-options-request"
 
   /// Enable the `workspace/_sourceKitOptions` request.
+  ///
+  /// - Note: Internal option
   case sourceKitOptionsRequest = "sourcekit-options-request"
 
   /// Enable the `sourceKit/_isIndexing` request.
+  ///
+  /// - Note: Internal option
   case isIndexingRequest = "is-indexing-request"
 
   /// Indicate that the client can handle the experimental `structure` field in the `window/logMessage` notification.
   case structuredLogs = "structured-logs"
 
   /// Enable the `workspace/_outputPaths` request.
+  ///
+  /// - Note: Internal option
   case outputPathsRequest = "output-paths-request"
+
+  /// Enable the `workspace/_synchronize` request.
+  ///
+  /// - Note: Internal option, for testing only
+  case synchronizeRequest = "synchronize-request"
 }

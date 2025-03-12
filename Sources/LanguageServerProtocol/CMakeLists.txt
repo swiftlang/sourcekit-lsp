@@ -27,7 +27,6 @@ add_library(LanguageServerProtocol STATIC
   Notifications/WorkDoneProgress.swift
 
   Requests/ApplyEditRequest.swift
-  Requests/BarrierRequest.swift
   Requests/CallHierarchyIncomingCallsRequest.swift
   Requests/CallHierarchyOutgoingCallsRequest.swift
   Requests/CallHierarchyPrepareRequest.swift
@@ -72,7 +71,6 @@ add_library(LanguageServerProtocol STATIC
   Requests/MonikersRequest.swift
   Requests/OutputPathsRequest.swift
   Requests/PeekDocumentsRequest.swift
-  Requests/PollIndexRequest.swift
   Requests/PrepareRenameRequest.swift
   Requests/ReferencesRequest.swift
   Requests/RegisterCapabilityRequest.swift
@@ -85,6 +83,7 @@ add_library(LanguageServerProtocol STATIC
   Requests/SignatureHelpRequest.swift
   Requests/SourceKitOptionsRequest.swift
   Requests/SymbolInfoRequest.swift
+  Requests/SynchronizeRequest.swift
   Requests/TriggerReindexRequest.swift
   Requests/TypeDefinitionRequest.swift
   Requests/TypeHierarchyPrepareRequest.swift

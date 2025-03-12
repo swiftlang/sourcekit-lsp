@@ -64,7 +64,7 @@ class WorkspaceSymbolsTests: XCTestCase {
       enableBackgroundIndexing: true
     )
 
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
     let response = try await project.testClient.send(WorkspaceSymbolsRequest(query: "funcFrom"))
 
     // Ideally, the item from the current package (PackageB) should be returned before the item from PackageA

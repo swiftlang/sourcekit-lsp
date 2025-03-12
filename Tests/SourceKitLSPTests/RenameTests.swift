@@ -1140,7 +1140,7 @@ final class RenameTests: XCTestCase {
       ])
     )
 
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     let resultAfterFileMove = try await project.testClient.send(
       RenameRequest(textDocument: TextDocumentIdentifier(callerUri), position: callerPositions["3️⃣"], newName: "bar")

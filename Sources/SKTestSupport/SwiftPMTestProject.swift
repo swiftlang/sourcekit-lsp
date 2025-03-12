@@ -237,7 +237,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
 
     if pollIndex {
       // Wait for the indexstore-db to finish indexing
-      try await testClient.send(PollIndexRequest())
+      try await testClient.send(SynchronizeRequest(index: true))
     }
   }
 

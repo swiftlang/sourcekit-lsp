@@ -142,7 +142,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
     )
 
     // Ensure that the DidChangeWatchedFilesNotification is handled before we continue.
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     let completions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(newFileUri), position: newFilePositions["2️⃣"])
@@ -220,7 +220,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
 
     let (uri, positions) = try project.openDocument("b.swift")
 
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     let result = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
@@ -531,7 +531,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
         let topGenerated = 2
         """
     )
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     // Expect that the position has been updated in the dependency
     try await repeatUntilExpectedResult {
@@ -550,7 +550,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
         let targetGenerated = 2
         """
     )
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     // Expect that the position has been updated in the dependency
     try await repeatUntilExpectedResult {
