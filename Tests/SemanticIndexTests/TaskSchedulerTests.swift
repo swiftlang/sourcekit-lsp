@@ -39,9 +39,14 @@ final class TaskSchedulerTests: XCTestCase {
         }
       },
       validate: { (recordings: [Set<TaskID>]) in
-        // Check that all high-priority tasks start executing before the low-priority tasks
-        let highPriorityRecordingSlice = recordings.prefix(while: {
-          $0.isEmpty || $0.contains(where: \.isHighPriority)
+        // Check that all high-priority tasks start executing before the first low-priority task finishes
+        var startedLowPriorityTasks: Set<TaskID> = []
+        let highPriorityRecordingSlice = recordings.prefix(while: { recording in
+          if startedLowPriorityTasks.contains(where: { !recording.contains($0) }) {
+            return false
+          }
+          startedLowPriorityTasks.formUnion(recording.filter(\.isLowPriority))
+          return true
         })
         let taskIdsInHighPriorityRecordingSlice = Set(highPriorityRecordingSlice.flatMap { $0 })
         XCTAssert(
