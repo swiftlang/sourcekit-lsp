@@ -2181,6 +2181,55 @@ final class BackgroundIndexingTests: XCTestCase {
       ]
     )
   }
+
+  func testIndexingProgressIfNonIndexableFileIsInPackage() async throws {
+    let receivedReportProgressNotification = AtomicBool(initialValue: false)
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/include/Test.h": "",
+        "MyLibrary/Test.c": "",
+        "MyLibrary/Assembly.S": "",
+      ],
+      capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
+      hooks: Hooks(
+        indexHooks: IndexHooks(updateIndexStoreTaskDidFinish: { _ in
+          while !receivedReportProgressNotification.value {
+            try? await Task.sleep(for: .milliseconds(10))
+          }
+        })
+      ),
+      enableBackgroundIndexing: true,
+      pollIndex: false,
+      preInitialization: { testClient in
+        testClient.handleMultipleRequests { (request: CreateWorkDoneProgressRequest) in
+          return VoidResponse()
+        }
+      }
+    )
+
+    let beginNotification = try await project.testClient.nextNotification(
+      ofType: WorkDoneProgress.self,
+      satisfying: { notification in
+        guard case .begin(let data) = notification.value else {
+          return false
+        }
+        return data.title == "Indexing"
+      }
+    )
+    receivedReportProgressNotification.value = true
+
+    // Check that we receive an `end` notification
+    _ = try await project.testClient.nextNotification(
+      ofType: WorkDoneProgress.self,
+      satisfying: { notification in
+        if notification.token == beginNotification.token, case .end = notification.value {
+          return true
+        }
+        return false
+      }
+    )
+  }
 }
 
 extension HoverResponseContents {

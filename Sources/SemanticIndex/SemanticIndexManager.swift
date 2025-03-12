@@ -714,47 +714,28 @@ package final actor SemanticIndexManager {
       // sort files to get deterministic indexing order
       .sorted(by: { $0.file.sourceFile.stringValue < $1.file.sourceFile.stringValue })
 
-    // The number of index tasks that don't currently have an in-progress task associated with it.
-    // The denominator in the index progress should get incremented by this amount.
-    // We don't want to increment the denominator for tasks that already have an index in progress.
-    var newIndexTasks = 0
-    var alreadyScheduledTasks: Set<FileToIndex> = []
-    for file in filesToIndex {
-      let inProgress = inProgressIndexTasks[file.file]
+    filesToIndex =
+      filesToIndex
+      .filter { file in
+        let inProgress = inProgressIndexTasks[file.file]
 
-      let shouldScheduleIndexing: Bool
-      switch inProgress?.state {
-      case nil:
-        newIndexTasks += 1
-        shouldScheduleIndexing = true
-      case .creatingIndexTask, .waitingForPreparation:
-        // We already have a task that indexes the file but hasn't started preparation yet. Indexing the file again
-        // won't produce any new results.
-        alreadyScheduledTasks.insert(file.file)
-        shouldScheduleIndexing = false
-      case .preparing(_, _), .updatingIndexStore(_, _):
-        // We have started indexing of the file and are now requesting to index it again. Unless we know that the file
-        // hasn't been modified since the last request for indexing, we need to schedule it to get re-indexed again.
-        if let modDate = file.fileModificationDate, inProgress?.fileModificationDate == modDate {
-          shouldScheduleIndexing = false
-        } else {
-          shouldScheduleIndexing = true
+        switch inProgress?.state {
+        case nil:
+          return true
+        case .creatingIndexTask, .waitingForPreparation:
+          // We already have a task that indexes the file but hasn't started preparation yet. Indexing the file again
+          // won't produce any new results.
+          return false
+        case .preparing(_, _), .updatingIndexStore(_, _):
+          // We have started indexing of the file and are now requesting to index it again. Unless we know that the file
+          // hasn't been modified since the last request for indexing, we need to schedule it to get re-indexed again.
+          if let modDate = file.fileModificationDate, inProgress?.fileModificationDate == modDate {
+            return false
+          } else {
+            return true
+          }
         }
       }
-      if shouldScheduleIndexing {
-        inProgressIndexTasks[file.file] = InProgressIndexStore(
-          state: .creatingIndexTask,
-          fileModificationDate: file.fileModificationDate
-        )
-      } else {
-        alreadyScheduledTasks.insert(file.file)
-
-      }
-    }
-    if newIndexTasks > 0 {
-      indexTasksWereScheduled(newIndexTasks)
-    }
-    filesToIndex = filesToIndex.filter { !alreadyScheduledTasks.contains($0.file) }
 
     if filesToIndex.isEmpty {
       // Early exit if there are no files to index.
@@ -767,7 +748,12 @@ package final actor SemanticIndexManager {
     // to index the low-level targets ASAP.
     var filesByTarget: [BuildTargetIdentifier: [(FileToIndex)]] = [:]
 
-    for fileToIndex in filesToIndex.map(\.file) {
+    // The number of index tasks that don't currently have an in-progress task associated with it.
+    // The denominator in the index progress should get incremented by this amount.
+    // We don't want to increment the denominator for tasks that already have an index in progress.
+    var newIndexTasks = 0
+
+    for (fileToIndex, fileModificationDate) in filesToIndex {
       guard let target = await buildSystemManager.canonicalTarget(for: fileToIndex.mainFile) else {
         logger.error(
           "Not indexing \(fileToIndex.forLogging) because the target could not be determined"
@@ -780,7 +766,20 @@ package final actor SemanticIndexManager {
         continue
       }
 
+      if inProgressIndexTasks[fileToIndex] == nil {
+        // If `inProgressIndexTasks[fileToIndex]` is not `nil`, this new index task is replacing another index task.
+        // We are thus not indexing a new file and thus shouldn't increment the denominator of the indexing status.
+        newIndexTasks += 1
+      }
+      inProgressIndexTasks[fileToIndex] = InProgressIndexStore(
+        state: .creatingIndexTask,
+        fileModificationDate: fileModificationDate
+      )
+
       filesByTarget[target, default: []].append(fileToIndex)
+    }
+    if newIndexTasks > 0 {
+      indexTasksWereScheduled(newIndexTasks)
     }
 
     // The targets sorted in reverse topological order, low-level targets before high-level targets. If topological

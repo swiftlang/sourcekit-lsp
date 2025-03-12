@@ -109,6 +109,7 @@ actor IndexProgressManager {
       } else {
         message = "\(finishedTasks) / \(queuedIndexTasks)"
       }
+      logger.debug("In-progress index tasks: \(indexTasks.map(\.key.sourceFile))")
       if queuedIndexTasks != 0 {
         percentage = Int(Double(finishedTasks) / Double(queuedIndexTasks) * 100)
       } else {
