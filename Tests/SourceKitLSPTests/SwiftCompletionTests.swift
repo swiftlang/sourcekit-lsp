@@ -1146,6 +1146,29 @@ final class SwiftCompletionTests: XCTestCase {
     )
     XCTAssertEqual(completions.items.map(\.insertText), ["makeBool()", "makeBool(value: )"])
   }
+
+  func testCompletionUsingCompileFlagsTxt() async throws {
+    let project = try await MultiFileTestProject(
+      files: [
+        "test.swift": """
+        func test() {
+          #if FOO
+          let myVar: String
+          #else
+          let myVar: Int
+          #endif
+          print(myVar1️⃣)
+        }
+        """,
+        "compile_flags.txt": "-DFOO",
+      ]
+    )
+    let (uri, positions) = try project.openDocument("test.swift")
+    let completions = try await project.testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertEqual(completions.items.only?.detail, "String")
+  }
 }
 
 private func countFs(_ response: CompletionList) -> Int {
