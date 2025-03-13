@@ -222,19 +222,22 @@ package actor SkipUnless {
           throw FailedToCrateInputFileError()
         }
         // If we can't compile for wasm, this fails complaining that it can't find the stdlib for wasm.
-        let process = Process(
-          args: try swiftFrontend.filePath,
-          "-typecheck",
-          try input.filePath,
-          "-triple",
-          "wasm32-unknown-none-wasm",
-          "-enable-experimental-feature",
-          "Embedded",
-          "-Xcc",
-          "-fdeclspec"
-        )
-        try process.launch()
-        let result = try await process.waitUntilExit()
+        let result = try await withTimeout(defaultTimeoutDuration) {
+          try await Process.run(
+            arguments: [
+              try swiftFrontend.filePath,
+              "-typecheck",
+              try input.filePath,
+              "-triple",
+              "wasm32-unknown-none-wasm",
+              "-enable-experimental-feature",
+              "Embedded",
+              "-Xcc",
+              "-fdeclspec",
+            ],
+            workingDirectory: nil
+          )
+        }
         if result.exitStatus == .terminated(code: 0) {
           return .featureSupported
         }
@@ -266,7 +269,7 @@ package actor SkipUnless {
               sourcekitd.keys.useNewAPI: 1
             ],
           ]),
-          timeout: .seconds(defaultTimeout),
+          timeout: defaultTimeoutDuration,
           fileContents: nil
         )
         return response[sourcekitd.keys.useNewAPI] == 1

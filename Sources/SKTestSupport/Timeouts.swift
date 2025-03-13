@@ -22,3 +22,5 @@ package let defaultTimeout: TimeInterval = {
   }
   return 180
 }()
+
+package var defaultTimeoutDuration: Duration { .seconds(defaultTimeout) }

@@ -21,7 +21,7 @@ import XCTest
 ///
 /// `sleepInterval` is the duration to wait before re-executing the body.
 package func repeatUntilExpectedResult(
-  timeout: Duration = .seconds(defaultTimeout),
+  timeout: Duration = defaultTimeoutDuration,
   sleepInterval: Duration = .seconds(1),
   _ body: () async throws -> Bool,
   file: StaticString = #filePath,

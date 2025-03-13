@@ -1335,14 +1335,24 @@ final class BackgroundIndexingTests: XCTestCase {
     //  - The user runs `swift package update`
     //  - This updates `Package.resolved`, which we watch
     //  - We reload the package, which updates `Dependency.swift` in `.build/index-build/checkouts`, which we also watch.
-    try await Process.run(
-      arguments: [
-        unwrap(ToolchainRegistry.forTesting.default?.swift?.filePath),
-        "package", "update",
-        "--package-path", project.scratchDirectory.filePath,
-      ],
-      workingDirectory: nil
+    let projectURL = project.scratchDirectory
+    let packageUpdateOutput = try await withTimeout(defaultTimeoutDuration) {
+      try await Process.run(
+        arguments: [
+          unwrap(ToolchainRegistry.forTesting.default?.swift?.filePath),
+          "package", "update",
+          "--package-path", projectURL.filePath,
+        ],
+        workingDirectory: nil
+      )
+    }
+    logger.debug(
+      """
+      'swift package update' output:
+      \(packageUpdateOutput)
+      """
     )
+
     XCTAssertNotEqual(try String(contentsOf: packageResolvedURL, encoding: .utf8), originalPackageResolvedContents)
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
@@ -1901,12 +1911,10 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testIsIndexingRequest() async throws {
-    let checkedIsIndexStatus = AtomicBool(initialValue: false)
+    let checkedIsIndexStatus = MultiEntrySemaphore(name: "Checked is index status")
     let hooks = Hooks(
       indexHooks: IndexHooks(updateIndexStoreTaskDidStart: { task in
-        while !checkedIsIndexStatus.value {
-          try? await Task.sleep(for: .seconds(0.1))
-        }
+        await checkedIsIndexStatus.waitOrXCTFail()
       })
     )
     let project = try await SwiftPMTestProject(
@@ -1920,7 +1928,7 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     let isIndexingResponseWhileIndexing = try await project.testClient.send(IsIndexingRequest())
     XCTAssert(isIndexingResponseWhileIndexing.indexing)
-    checkedIsIndexStatus.value = true
+    checkedIsIndexStatus.signal()
 
     try await repeatUntilExpectedResult {
       try await project.testClient.send(IsIndexingRequest()).indexing == false

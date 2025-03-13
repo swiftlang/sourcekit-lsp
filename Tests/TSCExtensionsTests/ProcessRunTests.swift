@@ -38,10 +38,12 @@ final class ProcessRunTests: XCTestCase {
       print(os.getcwd(), end='')
       """.write(to: pythonFile, atomically: true, encoding: .utf8)
 
-      let result = try await Process.run(
-        arguments: [python.filePath, pythonFile.filePath],
-        workingDirectory: AbsolutePath(validating: workingDir.filePath)
-      )
+      let result = try await withTimeout(defaultTimeoutDuration) {
+        try await Process.run(
+          arguments: [python.filePath, pythonFile.filePath],
+          workingDirectory: AbsolutePath(validating: workingDir.filePath)
+        )
+      }
       let stdout = try unwrap(String(bytes: result.output.get(), encoding: .utf8))
       XCTAssertEqual(stdout, try workingDir.filePath)
     }

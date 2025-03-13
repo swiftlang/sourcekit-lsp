@@ -675,13 +675,7 @@ final class WorkspaceTests: XCTestCase {
 
     let packageDir = try project.uri(for: "Package.swift").fileURL!.deletingLastPathComponent()
 
-    try await TSCBasic.Process.checkNonZeroExit(arguments: [
-      ToolchainRegistry.forTesting.default!.swift!.filePath,
-      "build",
-      "--package-path", packageDir.filePath,
-      "-Xswiftc", "-index-ignore-system-modules",
-      "-Xcc", "-index-ignore-system-symbols",
-    ])
+    try await SwiftPMTestProject.build(at: packageDir)
 
     let (otherPackageUri, positions) = try project.openDocument("otherPackage.swift")
     let testPosition = positions["1️⃣"]
@@ -1198,7 +1192,7 @@ final class WorkspaceTests: XCTestCase {
         swiftPMTestHooks: SwiftPMTestHooks(
           reloadPackageDidStart: {
             // Essentially make sure that the package never loads, so we are forced to return fallback arguments.
-            try? await Task.sleep(for: .seconds(60 * 60))
+            try? await Task.sleep(for: .seconds(defaultTimeout * 2))
           }
         )
       )
@@ -1345,13 +1339,16 @@ final class WorkspaceTests: XCTestCase {
     )
 
     let clang = try unwrap(await ToolchainRegistry.forTesting.default?.clang)
-    try await Process.checkNonZeroExit(
-      arguments: [
-        clang.filePath, "-index-store-path", scratchDirectory.appendingPathComponent("index").filePath,
-        scratchDirectory.appendingPathComponent("test.c").filePath,
-        "-fsyntax-only",
-      ]
-    )
+    let clangOutput = try await withTimeout(defaultTimeoutDuration) {
+      try await Process.checkNonZeroExit(
+        arguments: [
+          clang.filePath, "-index-store-path", scratchDirectory.appendingPathComponent("index").filePath,
+          scratchDirectory.appendingPathComponent("test.c").filePath,
+          "-fsyntax-only",
+        ]
+      )
+    }
+    logger.debug("Clang output:\n\(clangOutput)")
 
     let testClient = try await TestSourceKitLSPClient(
       options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest]),
