@@ -1309,7 +1309,8 @@ final class WorkspaceTests: XCTestCase {
     try SkipUnless.platformIsDarwin("The realpath vs standardized path difference only exists on macOS")
 
     // Explicitly create a directory at /tmp (which is a standardized path but whose realpath is /private/tmp)
-    let scratchDirectory = URL(fileURLWithPath: "/tmp").appendingPathComponent("sourcekitlsp-test-\(UUID())")
+    let scratchDirectory = URL(fileURLWithPath: "/tmp")
+      .appendingPathComponent(testScratchName())
     try FileManager.default.createDirectory(at: scratchDirectory, withIntermediateDirectories: true)
 
     defer {

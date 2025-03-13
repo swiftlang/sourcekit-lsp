@@ -2201,6 +2201,77 @@ final class BackgroundIndexingTests: XCTestCase {
       }
     )
   }
+
+  func testBuildSystemUsesStandardizedFileUrlsInsteadOfRealpath() async throws {
+    try SkipUnless.platformIsDarwin("The realpath vs standardized path difference only exists on macOS")
+
+    final class BuildSystem: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+      private let projectRoot: URL
+      private var testFileURL: URL { projectRoot.appendingPathComponent("test.c").standardized }
+
+      required init(projectRoot: URL, connectionToSourceKitLSP: any LanguageServerProtocol.Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return initializationResponse(
+          initializeData: SourceKitInitializeBuildResponseData(
+            indexDatabasePath: try projectRoot.appendingPathComponent("index-db").filePath,
+            indexStorePath: try projectRoot.appendingPathComponent("index-store").filePath,
+            prepareProvider: true,
+            sourceKitOptionsProvider: true
+          )
+        )
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        return BuildTargetSourcesResponse(items: [
+          SourcesItem(target: .dummy, sources: [SourceItem(uri: URI(testFileURL), kind: .file, generated: false)])
+        ])
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: [request.textDocument.uri.pseudoPath])
+      }
+    }
+
+    let scratchDirectory = URL(fileURLWithPath: "/tmp")
+      .appendingPathComponent("sourcekitlsp-test")
+      .appendingPathComponent(testScratchName())
+    let indexedFiles = ThreadSafeBox<[DocumentURI]>(initialValue: [])
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "test.c": "void x() {}"
+      ],
+      buildServer: BuildSystem.self,
+      hooks: Hooks(
+        indexHooks: IndexHooks(
+          updateIndexStoreTaskDidStart: { task in
+            indexedFiles.withLock { indexedFiles in
+              indexedFiles += task.filesToIndex.map(\.file.sourceFile)
+            }
+          }
+        )
+      ),
+      enableBackgroundIndexing: true,
+      testScratchDir: scratchDirectory
+    )
+    try await project.testClient.send(PollIndexRequest())
+
+    // Ensure that changing `/private/tmp/.../test.c` only causes `/tmp/.../test.c` to be indexed, not
+    // `/private/tmp/.../test.c`.
+    indexedFiles.value = []
+    let testFileURL = try XCTUnwrap(project.uri(for: "test.c").fileURL?.realpath)
+    try await "void y() {}".writeWithRetry(to: testFileURL)
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: DocumentURI(testFileURL), type: .changed)])
+    )
+    try await project.testClient.send(PollIndexRequest())
+    XCTAssertEqual(indexedFiles.value, [try project.uri(for: "test.c")])
+  }
 }
 
 extension HoverResponseContents {

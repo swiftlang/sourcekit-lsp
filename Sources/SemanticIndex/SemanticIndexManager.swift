@@ -481,6 +481,7 @@ package final actor SemanticIndexManager {
         // if we request the same header to be indexed twice, we'll pick the same unit file the second time around,
         // realize that its timestamp is later than the modification date of the header and we don't need to re-index.
         let mainFile = await buildSystemManager.mainFiles(containing: uri)
+          .filter { sourceFiles.contains($0) }
           .sorted(by: { $0.stringValue < $1.stringValue }).first
         guard let mainFile else {
           logger.log("Not indexing \(uri) because its main file could not be inferred")
