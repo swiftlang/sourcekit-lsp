@@ -17,7 +17,6 @@
 /// `MessageRegistry._register()` which allows you to avoid bloating the real server implementation.
 public let builtinRequests: [_RequestType.Type] = [
   ApplyEditRequest.self,
-  BarrierRequest.self,
   CallHierarchyIncomingCallsRequest.self,
   CallHierarchyOutgoingCallsRequest.self,
   CallHierarchyPrepareRequest.self,
@@ -63,7 +62,7 @@ public let builtinRequests: [_RequestType.Type] = [
   MonikersRequest.self,
   OutputPathsRequest.self,
   PeekDocumentsRequest.self,
-  PollIndexRequest.self,
+  SynchronizeRequest.self,
   PrepareRenameRequest.self,
   ReferencesRequest.self,
   RegisterCapabilityRequest.self,

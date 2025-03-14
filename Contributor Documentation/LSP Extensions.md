@@ -546,20 +546,6 @@ export interface StructuredLogEnd {
 }
 ```
 
-## `workspace/_pollIndex`
-
-New request to wait until the index is up-to-date.
-
-> [!IMPORTANT]
-> This request is experimental and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
-
-- params: `PollIndexParams`
-- result: `void`
-
-```ts
-export interface PollIndexParams {}
-```
-
 ## `workspace/_setOptions`
 
 New request to modify runtime options of SourceKit-LSP.
@@ -675,6 +661,33 @@ export interface SourceKitOptionsResult {
    * interpreted by SourceKit-LSP.
    */
   data?: LSPAny
+}
+```
+
+## `workspace/_synchronize`
+
+New request from the client to the server to wait for SourceKit-LSP to handle all ongoing requests and, optionally, wait for background activity to finish.
+
+> [!IMPORTANT]
+> This request is experimental, guarded behind the `synchronize-request` experimental feature and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
+
+- params: `SynchronizeParams`
+- result: `void`
+
+```ts
+export interface SynchronizeParams {
+  /**
+   * Wait for the build server to have an up-to-date build graph by sending a `workspace/waitForBuildSystemUpdates` to 
+   * it.
+   */
+  buildServerUpdates?: bool
+
+  /**
+   * Wait for background indexing to finish and all index unit files to be loaded into indexstore-db.
+   * 
+   * Implies `buildServerUpdates = true`.
+   */
+  index?: bool
 }
 ```
 

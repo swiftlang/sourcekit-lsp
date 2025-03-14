@@ -244,7 +244,7 @@ package class MultiFileTestProject {
     }
     testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: changeType)]))
     // Ensure that we handle the `DidChangeWatchedFilesNotification`.
-    try await testClient.send(BarrierRequest())
+    try await testClient.send(SynchronizeRequest())
 
     return (uri, positions)
   }

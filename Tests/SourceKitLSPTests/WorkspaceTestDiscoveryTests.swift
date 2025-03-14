@@ -934,7 +934,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: project.fileURI, type: .changed)])
     )
     // Ensure that we handle the `DidChangeWatchedFilesNotification`.
-    try await project.testClient.send(BarrierRequest())
+    try await project.testClient.send(SynchronizeRequest())
 
     let testsAfterEdit = try await project.testClient.send(WorkspaceTestsRequest())
     // We know from the semantic index that NotQuiteTest does not inherit from XCTestCase, so we should not include it.

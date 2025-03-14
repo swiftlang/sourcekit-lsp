@@ -150,7 +150,7 @@ struct OptionSchemaContext {
       guard let caseDecl = member.decl.as(EnumCaseDeclSyntax.self) else {
         return []
       }
-      return try caseDecl.elements.map {
+      return try caseDecl.elements.compactMap {
         guard $0.parameterClause == nil else {
           throw ConfigSchemaGenError("Associated values in enum cases are not supported: \(caseDecl)")
         }
@@ -168,7 +168,11 @@ struct OptionSchemaContext {
         } else {
           name = $0.name.text
         }
-        return OptionTypeSchama.Case(name: name, description: Self.extractDocComment(caseDecl.leadingTrivia))
+        let description = Self.extractDocComment(caseDecl.leadingTrivia)
+        if description?.contains("- Note: Internal option") ?? false {
+          return nil
+        }
+        return OptionTypeSchama.Case(name: name, description: description)
       }
     }
     let typeName = node.name.text

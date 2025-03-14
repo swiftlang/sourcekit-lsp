@@ -203,7 +203,7 @@ final class BackgroundIndexingTests: XCTestCase {
     let testClient = project.testClient
     Task(priority: .low) {
       await assertNoThrow {
-        try await testClient.send(PollIndexRequest())
+        try await testClient.send(SynchronizeRequest(index: true))
       }
       semaphore.signal()
     }
@@ -438,7 +438,7 @@ final class BackgroundIndexingTests: XCTestCase {
         }
         """
     )
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     let callsAfterEdit = try await project.testClient.send(
       CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
@@ -498,7 +498,7 @@ final class BackgroundIndexingTests: XCTestCase {
         };
         """
     )
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     let callsAfterEdit = try await project.testClient.send(
       CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
@@ -681,7 +681,7 @@ final class BackgroundIndexingTests: XCTestCase {
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: try project.uri(for: "LibA.swift"), type: .changed)])
     )
     // Ensure that we handle the `DidChangeWatchedFilesNotification`.
-    try await project.testClient.send(BarrierRequest())
+    try await project.testClient.send(SynchronizeRequest())
 
     // Quickly flip through all files. The way the test is designed to work is as follows:
     //  - LibB.swift gets opened and prepared. Preparation is simulated to take a long time until both LibC.swift and
@@ -701,11 +701,11 @@ final class BackgroundIndexingTests: XCTestCase {
     // Ensure that LibC gets opened before LibD, so that LibD is the latest document. Two open requests don't have
     // dependencies between each other, so SourceKit-LSP is free to execute them in parallel or re-order them without
     // the barrier.
-    try await project.testClient.send(BarrierRequest())
+    try await project.testClient.send(SynchronizeRequest())
     _ = try project.openDocument("LibD.swift")
 
     // Send a barrier request to ensure we have finished opening LibD before allowing the preparation of LibB to finish.
-    try await project.testClient.send(BarrierRequest())
+    try await project.testClient.send(SynchronizeRequest())
 
     allDocumentsOpened.signal()
     try libDPreparedForEditing.waitOrThrow()
@@ -876,7 +876,7 @@ final class BackgroundIndexingTests: XCTestCase {
         WorkspaceFolder(uri: DocumentURI(project.scratchDirectory))
       ]
     )
-    try await otherClient.send(PollIndexRequest())
+    try await otherClient.send(SynchronizeRequest(index: true))
   }
 
   func testOpeningFileThatIsNotPartOfThePackageDoesntGenerateABuildFolderThere() async throws {
@@ -919,7 +919,7 @@ final class BackgroundIndexingTests: XCTestCase {
       return VoidResponse()
     }
     _ = try project.openDocument("Lib.swift")
-    try await project.testClient.send(BarrierRequest())
+    try await project.testClient.send(SynchronizeRequest())
   }
 
   func testImportPreparedModuleWithFunctionBodiesSkipped() async throws {
@@ -1328,7 +1328,7 @@ final class BackgroundIndexingTests: XCTestCase {
         FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("Package.resolved")), type: .changed)
       ])
     )
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
     XCTAssertEqual(try String(contentsOf: packageResolvedURL, encoding: .utf8), originalPackageResolvedContents)
 
     // Simulate a package update which goes as follows:
@@ -1359,7 +1359,7 @@ final class BackgroundIndexingTests: XCTestCase {
         FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("Package.resolved")), type: .changed)
       ])
     )
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
     project.testClient.send(
       DidChangeWatchedFilesNotification(
         changes: FileManager.default.findFiles(
@@ -1398,7 +1398,7 @@ final class BackgroundIndexingTests: XCTestCase {
         FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("random.swift")), type: .created)
       ])
     )
-    _ = try await project.testClient.send(PollIndexRequest())
+    _ = try await project.testClient.send(SynchronizeRequest(index: true))
   }
 
   func testManualReindex() async throws {
@@ -1474,7 +1474,7 @@ final class BackgroundIndexingTests: XCTestCase {
       )
     )
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: .changed)]))
-    _ = try await project.testClient.send(PollIndexRequest())
+    _ = try await project.testClient.send(SynchronizeRequest(index: true))
 
     // The USR of `getInt` has changed but LibB.swift has not been re-indexed due to
     // https://github.com/apple/sourcekit-lsp/issues/1264. We expect to get an empty call hierarchy.
@@ -1488,7 +1488,7 @@ final class BackgroundIndexingTests: XCTestCase {
 
     // After re-indexing, we expect to get a full call hierarchy again.
     _ = try await project.testClient.send(TriggerReindexRequest())
-    _ = try await project.testClient.send(PollIndexRequest())
+    _ = try await project.testClient.send(SynchronizeRequest(index: true))
 
     let prepareAfterReindex = try await project.testClient.send(
       CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
@@ -1600,7 +1600,7 @@ final class BackgroundIndexingTests: XCTestCase {
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: DocumentURI(symlink), type: .changed)])
     )
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     let callsAfterRedirect = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
     XCTAssertEqual(callsAfterRedirect?.only?.from.name, "updated()")
@@ -1634,7 +1634,8 @@ final class BackgroundIndexingTests: XCTestCase {
         )
         """,
       options: SourceKitLSPOptions(
-        backgroundPreparationMode: .enabled
+        backgroundPreparationMode: .enabled,
+        experimentalFeatures: [.synchronizeRequest]
       ),
       enableBackgroundIndexing: true
     )
@@ -1817,7 +1818,7 @@ final class BackgroundIndexingTests: XCTestCase {
     }
   }
 
-  func testBackgroundIndexingRunsOnPollIndexRequestEvenIfPaused() async throws {
+  func testBackgroundIndexingRunsOnSynchronizeRequestEvenIfPaused() async throws {
     let backgroundIndexingPaused = WrappedSemaphore(name: "Background indexing was paused")
     let hooks = Hooks(
       buildSystemHooks: BuildSystemHooks(
@@ -1844,10 +1845,10 @@ final class BackgroundIndexingTests: XCTestCase {
     try await project.testClient.send(SetOptionsRequest(backgroundIndexingPaused: true))
     backgroundIndexingPaused.signal()
 
-    // Running a `PollIndexRequests` elevates the background indexing tasks to `medium` priority. We thus no longer
+    // Running a `SynchronizeRequest` elevates the background indexing tasks to `medium` priority. We thus no longer
     // consider the indexing to happen in the background and hence it is not affected by the paused background indexing
     // state.
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     let workspaceSymbolsAfterPollIndex = try await project.testClient.send(WorkspaceSymbolsRequest(query: "foo"))
     XCTAssertNotEqual(workspaceSymbolsAfterPollIndex, [])
@@ -1901,7 +1902,7 @@ final class BackgroundIndexingTests: XCTestCase {
     let (uri, positions) = try project.openDocument("LibB.swift")
 
     // Even with background indexing disabled, we should prepare LibB and eventually get hover results for it.
-    // We shouldn't use `PollIndexRequest` here because that elevates the background indexing priority and thereby
+    // We shouldn't use `SynchronizeRequest` here because that elevates the background indexing priority and thereby
     // unpauses background indexing.
     try await repeatUntilExpectedResult {
       return try await project.testClient.send(
@@ -2144,7 +2145,7 @@ final class BackgroundIndexingTests: XCTestCase {
       buildServer: BuildServer.self,
       enableBackgroundIndexing: true
     )
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     let symbols = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTestFunc"))
     XCTAssertEqual(

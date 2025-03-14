@@ -168,8 +168,6 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
     switch request {
     case is ApplyEditRequest:
       self = .freestanding
-    case is BarrierRequest:
-      self = .globalConfigurationChange
     case is CallHierarchyIncomingCallsRequest:
       self = .freestanding
     case is CallHierarchyOutgoingCallsRequest:
@@ -208,8 +206,6 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
       self = .freestanding
     case is OutputPathsRequest:
       self = .freestanding
-    case is PollIndexRequest:
-      self = .globalConfigurationChange
     case is RenameRequest:
       // Rename might touch multiple files. Make it a global configuration change so that edits to all files that might
       // be affected have been processed.
@@ -226,6 +222,8 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
       self = .globalConfigurationChange
     case is SourceKitOptionsRequest:
       self = .freestanding
+    case is SynchronizeRequest:
+      self = .globalConfigurationChange
     case is TriggerReindexRequest:
       self = .globalConfigurationChange
     case is TypeHierarchySubtypesRequest:

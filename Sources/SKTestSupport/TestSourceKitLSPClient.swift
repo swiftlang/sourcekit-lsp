@@ -27,7 +27,7 @@ import XCTest
 extension SourceKitLSPOptions {
   package static func testDefault(
     backgroundIndexing: Bool = true,
-    experimentalFeatures: Set<ExperimentalFeature>? = nil
+    experimentalFeatures: Set<ExperimentalFeature> = [],
   ) async throws -> SourceKitLSPOptions {
     let pluginPaths = try await sourceKitPluginPaths
     return SourceKitLSPOptions(
@@ -36,7 +36,7 @@ extension SourceKitLSPOptions {
         servicePlugin: try pluginPaths.servicePlugin.filePath
       ),
       backgroundIndexing: backgroundIndexing,
-      experimentalFeatures: experimentalFeatures,
+      experimentalFeatures: experimentalFeatures.union([.synchronizeRequest]),
       swiftPublishDiagnosticsDebounceDuration: 0,
       workDoneProgressDebounceDuration: 0
     )
