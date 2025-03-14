@@ -2268,7 +2268,7 @@ final class BackgroundIndexingTests: XCTestCase {
       enableBackgroundIndexing: true,
       testScratchDir: scratchDirectory
     )
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     // Ensure that changing `/private/tmp/.../test.c` only causes `/tmp/.../test.c` to be indexed, not
     // `/private/tmp/.../test.c`.
@@ -2278,7 +2278,7 @@ final class BackgroundIndexingTests: XCTestCase {
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: DocumentURI(testFileURL), type: .changed)])
     )
-    try await project.testClient.send(PollIndexRequest())
+    try await project.testClient.send(SynchronizeRequest(index: true))
     XCTAssertEqual(indexedFiles.value, [try project.uri(for: "test.c")])
   }
 }
