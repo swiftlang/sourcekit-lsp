@@ -341,11 +341,14 @@ private struct IndexOutOfDateChecker {
 
   private enum Error: Swift.Error, CustomStringConvertible {
     case fileAttributesDontHaveModificationDate
+    case circularSymlink(URL)
 
     var description: String {
       switch self {
       case .fileAttributesDontHaveModificationDate:
         return "File attributes don't contain a modification date"
+      case .circularSymlink(let url):
+        return "Circular symlink at \(url)"
       }
     }
   }
@@ -484,6 +487,8 @@ private struct IndexOutOfDateChecker {
       }
       var modificationDate = try Self.modificationDate(atPath: fileURL.filePath)
 
+      var visited: Set<URL> = [fileURL]
+
       // Get the maximum mtime in the symlink chain as the modification date of the URI. That way if either the symlink
       // is changed to point to a different file or if the underlying file is modified, the modification time is
       // updated.
@@ -492,6 +497,9 @@ private struct IndexOutOfDateChecker {
       ),
         let symlinkDestination = URL(string: relativeSymlinkDestination, relativeTo: fileURL)
       {
+        if !visited.insert(symlinkDestination).inserted {
+          throw Error.circularSymlink(symlinkDestination)
+        }
         fileURL = symlinkDestination
         modificationDate = max(modificationDate, try Self.modificationDate(atPath: fileURL.filePath))
       }
