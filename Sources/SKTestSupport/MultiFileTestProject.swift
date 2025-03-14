@@ -139,10 +139,11 @@ package class MultiFileTestProject {
     enableBackgroundIndexing: Bool = false,
     usePullDiagnostics: Bool = true,
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
+    testScratchDir overrideTestScratchDir: URL? = nil,
     cleanUp: (@Sendable () -> Void)? = nil,
     testName: String = #function
   ) async throws {
-    scratchDirectory = try testScratchDir(testName: testName)
+    scratchDirectory = try overrideTestScratchDir ?? testScratchDir(testName: testName)
     self.fileData = try Self.writeFilesToDisk(files: files, scratchDirectory: scratchDirectory)
 
     self.testClient = try await TestSourceKitLSPClient(

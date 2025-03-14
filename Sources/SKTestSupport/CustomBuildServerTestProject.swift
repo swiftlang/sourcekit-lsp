@@ -17,7 +17,7 @@ package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
 package import SKOptions
-import SourceKitLSP
+package import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
 import XCTest
@@ -245,21 +245,24 @@ package final class CustomBuildServerTestProject<BuildServer: CustomBuildServer>
     files: [RelativeFileLocation: String],
     buildServer buildServerType: BuildServer.Type,
     options: SourceKitLSPOptions? = nil,
+    hooks: Hooks = Hooks(),
     enableBackgroundIndexing: Bool = false,
+    testScratchDir: URL? = nil,
     testName: String = #function
   ) async throws {
-    let hooks: Hooks = Hooks(
-      buildSystemHooks: BuildSystemHooks(injectBuildServer: { [buildServerBox] projectRoot, connectionToSourceKitLSP in
-        let buildServer = BuildServer(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
-        buildServerBox.value = buildServer
-        return LocalConnection(receiverName: "TestBuildSystem", handler: buildServer)
-      })
-    )
+    var hooks = hooks
+    XCTAssertNil(hooks.buildSystemHooks.injectBuildServer)
+    hooks.buildSystemHooks.injectBuildServer = { [buildServerBox] projectRoot, connectionToSourceKitLSP in
+      let buildServer = BuildServer(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
+      buildServerBox.value = buildServer
+      return LocalConnection(receiverName: "TestBuildSystem", handler: buildServer)
+    }
     try await super.init(
       files: files,
       options: options,
       hooks: hooks,
       enableBackgroundIndexing: enableBackgroundIndexing,
+      testScratchDir: testScratchDir,
       testName: testName
     )
   }
