@@ -333,6 +333,9 @@ package actor SwiftLanguageService: LanguageService, Sendable {
       await sourceKitLSPServer.sourcekitdCrashedWorkDoneProgress.start()
     case (.connectionInterrupted, .connected), (.semanticFunctionalityDisabled, .connected):
       await sourceKitLSPServer.sourcekitdCrashedWorkDoneProgress.end()
+      // We can provide diagnostics again now. Send a diagnostic refresh request to prompt the editor to reload
+      // diagnostics.
+      await refreshDiagnosticsDebouncer.scheduleCall()
     case (.connected, .connected),
       (.connectionInterrupted, .connectionInterrupted),
       (.connectionInterrupted, .semanticFunctionalityDisabled),
