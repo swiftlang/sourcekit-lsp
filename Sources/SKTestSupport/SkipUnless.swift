@@ -372,8 +372,8 @@ package actor SkipUnless {
       let output = try result.utf8Output()
       switch output {
       case "": return false
-      case "let x = 1": return true
-      default: throw GenericError("Received unexpected formatting output: \(output)")
+      case "let x = 1\n": return true
+      default: throw GenericError("Received unexpected formatting output: '\(output)'")
       }
     }
   }
