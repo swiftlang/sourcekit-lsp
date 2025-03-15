@@ -2543,13 +2543,7 @@ extension SourceKitLSPServer {
       throw ResponseError.unknown("\(SynchronizeRequest.method) indexing is an experimental request")
     }
     for workspace in workspaces {
-      if req.buildServerUpdates ?? false || req.index ?? false {
-        await workspace.buildSystemManager.waitForUpToDateBuildGraph()
-      }
-      if req.index ?? false {
-        await workspace.semanticIndexManager?.waitForUpToDateIndex()
-        workspace.uncheckedIndex?.pollForUnitChangesAndWait()
-      }
+      await workspace.synchronize(req)
     }
     return VoidResponse()
   }

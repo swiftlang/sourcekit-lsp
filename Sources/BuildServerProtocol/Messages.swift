@@ -14,7 +14,6 @@ public import LanguageServerProtocol
 
 fileprivate let requestTypes: [_RequestType.Type] = [
   BuildShutdownRequest.self,
-  BuildTargetOutputPathsRequest.self,
   BuildTargetPrepareRequest.self,
   BuildTargetSourcesRequest.self,
   CreateWorkDoneProgressRequest.self,

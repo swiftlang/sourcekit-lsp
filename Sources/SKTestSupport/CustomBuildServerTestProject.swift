@@ -161,9 +161,7 @@ package extension CustomBuildServer {
   // MARK: Helper functions for the implementation of BSP methods
 
   func initializationResponse(
-    initializeData: SourceKitInitializeBuildResponseData = SourceKitInitializeBuildResponseData(
-      sourceKitOptionsProvider: true
-    )
+    initializeData: SourceKitInitializeBuildResponseData = .init(sourceKitOptionsProvider: true)
   ) -> InitializeBuildResponse {
     InitializeBuildResponse(
       displayName: "\(type(of: self))",
@@ -172,6 +170,41 @@ package extension CustomBuildServer {
       capabilities: BuildServerCapabilities(),
       dataKind: .sourceKit,
       data: initializeData.encodeToLSPAny()
+    )
+  }
+
+  func initializationResponseSupportingBackgroundIndexing(
+    projectRoot: URL,
+    outputPathsProvider: Bool
+  ) throws -> InitializeBuildResponse {
+    return initializationResponse(
+      initializeData: SourceKitInitializeBuildResponseData(
+        indexDatabasePath: try projectRoot.appendingPathComponent("index-db").filePath,
+        indexStorePath: try projectRoot.appendingPathComponent("index-store").filePath,
+        outputPathsProvider: outputPathsProvider,
+        prepareProvider: true,
+        sourceKitOptionsProvider: true
+      )
+    )
+  }
+
+  /// Returns a fake path that is unique to this target and file combination and can be used to identify this
+  /// combination in a unit's output path.
+  func fakeOutputPath(for file: String, in target: String) -> String {
+    #if os(Windows)
+    return #"C:\"# + target + #"\"# + file + ".o"
+    #else
+    return "/" + target + "/" + file + ".o"
+    #endif
+  }
+
+  func sourceItem(for url: URL, outputPath: String) -> SourceItem {
+    SourceItem(
+      uri: URI(url),
+      kind: .file,
+      generated: false,
+      dataKind: .sourceKit,
+      data: SourceKitSourceItemData(outputPath: outputPath).encodeToLSPAny()
     )
   }
 
@@ -201,9 +234,6 @@ package extension CustomBuildServer {
     return WorkspaceBuildTargetsResponse(targets: [
       BuildTarget(
         id: .dummy,
-        displayName: nil,
-        baseDirectory: nil,
-        tags: [],
         capabilities: BuildTargetCapabilities(),
         languageIds: [],
         dependencies: []

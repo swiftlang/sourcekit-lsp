@@ -37,7 +37,7 @@ package struct PreparationTaskDescription: IndexTaskDescription {
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
 
-  private let preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier>
+  private let preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier, DummySecondaryKey>
 
   /// See `SemanticIndexManager.logMessageToIndexLog`.
   private let logMessageToIndexLog:
@@ -62,7 +62,7 @@ package struct PreparationTaskDescription: IndexTaskDescription {
   init(
     targetsToPrepare: [BuildTargetIdentifier],
     buildSystemManager: BuildSystemManager,
-    preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier>,
+    preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier, DummySecondaryKey>,
     logMessageToIndexLog: @escaping @Sendable (
       _ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind
     ) -> Void,

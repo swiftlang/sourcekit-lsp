@@ -106,7 +106,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
   /// Usually a checked index (retrieved using `index(checkedFor:)`) should be used instead of the unchecked index.
   private let _uncheckedIndex: ThreadSafeBox<UncheckedIndex?>
 
-  package var uncheckedIndex: UncheckedIndex? {
+  private var uncheckedIndex: UncheckedIndex? {
     return _uncheckedIndex.value
   }
 
@@ -121,6 +121,12 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
   ///
   /// `nil` if background indexing is not enabled.
   let semanticIndexManager: SemanticIndexManager?
+
+  /// If the index uses explicit output paths, the queue on which we update the explicit output paths.
+  ///
+  /// The reason we perform these update on a queue is that we can wait for all of them to finish when polling the
+  /// index.
+  private let indexUnitOutputPathsUpdateQueue = AsyncQueue<Serial>()
 
   private init(
     sourceKitLSPServer: SourceKitLSPServer?,
@@ -285,7 +291,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
         nil
       }
     let supportsOutputPaths = await buildSystemManager.initializationData?.outputPathsProvider ?? false
-    var index: UncheckedIndex? = nil
+    let index: UncheckedIndex?
     if let indexStorePath, let indexDatabasePath, let libPath = await toolchainRegistry.default?.libIndexStore {
       do {
         indexDelegate = SourceKitIndexDelegate()
@@ -316,8 +322,11 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
           )
         }
       } catch {
+        index = nil
         logger.error("Failed to open IndexStoreDB: \(error.localizedDescription)")
       }
+    } else {
+      index = nil
     }
 
     await buildSystemManager.setMainFilesProvider(index)
@@ -334,6 +343,9 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       indexTaskScheduler: indexTaskScheduler
     )
     await buildSystemManager.setDelegate(self)
+
+    // Populate the initial list of unit output paths in the index.
+    await scheduleUpdateOfUnitOutputPathsInIndexIfNecessary()
   }
 
   package static func forTesting(
@@ -443,15 +455,24 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
     }
 
-    if await self.uncheckedIndex?.usesExplicitOutputPaths ?? false {
-      if await buildSystemManager.initializationData?.outputPathsProvider ?? false {
-        await orLog("Setting new list of unit output paths") {
-          try await self.uncheckedIndex?.setUnitOutputPaths(Set(buildSystemManager.outputPathInAllTargets()))
-        }
-      } else {
-        // This can only happen if an index got injected that uses explicit output paths but the build system does not
-        // support output paths.
-        logger.error("The index uses explicit output paths but the build system does not support output paths")
+    await scheduleUpdateOfUnitOutputPathsInIndexIfNecessary()
+  }
+
+  private func scheduleUpdateOfUnitOutputPathsInIndexIfNecessary() async {
+    guard await self.uncheckedIndex?.usesExplicitOutputPaths ?? false else {
+      return
+    }
+    guard await buildSystemManager.initializationData?.outputPathsProvider ?? false else {
+      // This can only happen if an index got injected that uses explicit output paths but the build system does not
+      // support output paths.
+      logger.error("The index uses explicit output paths but the build system does not support output paths")
+      return
+    }
+
+    indexUnitOutputPathsUpdateQueue.async {
+      await orLog("Setting new list of unit output paths") {
+        let outputPaths = try await Set(self.buildSystemManager.outputPathsInAllTargets())
+        await self.uncheckedIndex?.setUnitOutputPaths(outputPaths)
       }
     }
   }
@@ -464,6 +485,17 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
 
   package func waitUntilInitialized() async {
     await sourceKitLSPServer?.waitUntilInitialized()
+  }
+
+  package func synchronize(_ request: SynchronizeRequest) async {
+    if request.buildServerUpdates ?? false || request.index ?? false {
+      await buildSystemManager.waitForUpToDateBuildGraph()
+      await indexUnitOutputPathsUpdateQueue.async {}.value
+    }
+    if request.index ?? false {
+      await semanticIndexManager?.waitForUpToDateIndex()
+      uncheckedIndex?.pollForUnitChangesAndWait()
+    }
   }
 }
 
