@@ -126,14 +126,8 @@ package actor FixedCompilationDatabaseBuildSystem: BuiltInBuildSystem {
   package func sourceKitOptions(
     request: TextDocumentSourceKitOptionsRequest
   ) async throws -> TextDocumentSourceKitOptionsResponse? {
-    let compilerName: String
-    switch request.language {
-    case .swift: compilerName = "swiftc"
-    case .c, .cpp, .objective_c, .objective_cpp: compilerName = "clang"
-    default: return nil
-    }
     return TextDocumentSourceKitOptionsResponse(
-      compilerArguments: [compilerName] + compilerArgs + [request.textDocument.uri.pseudoPath],
+      compilerArguments: compilerArgs + [request.textDocument.uri.pseudoPath],
       workingDirectory: try? configPath.deletingLastPathComponent().filePath
     )
   }

@@ -239,7 +239,7 @@ final class CompilationDatabaseTests: XCTestCase {
       XCTAssertEqual(
         buildSettings,
         TextDocumentSourceKitOptionsResponse(
-          compilerArguments: ["clang", "-xc++", "-I", "libwidget/include/", try dummyFile.filePath],
+          compilerArguments: ["-xc++", "-I", "libwidget/include/", try dummyFile.filePath],
           workingDirectory: try tempDir.filePath
         )
       )
