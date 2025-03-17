@@ -253,8 +253,20 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     completionHandler: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) -> RequestID {
     let requestID = RequestID.number(Int(nextRequestID.fetchAndIncrement()))
+    let replyOutstanding = ThreadSafeBox<Bool?>(initialValue: true)
+    let timeoutTask = Task {
+      try await Task.sleep(for: defaultTimeoutDuration)
+      if replyOutstanding.takeValue() ?? false {
+        completionHandler(
+          .failure(ResponseError.unknown("\(R.method) request timed out after \(defaultTimeoutDuration)"))
+        )
+      }
+    }
     server.handle(request, id: requestID) { result in
-      completionHandler(result)
+      if replyOutstanding.takeValue() ?? false {
+        completionHandler(result)
+      }
+      timeoutTask.cancel()
     }
     return requestID
   }
