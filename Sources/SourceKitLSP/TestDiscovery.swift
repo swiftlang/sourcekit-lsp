@@ -269,7 +269,7 @@ extension SourceKitLSPServer {
           // up-to-date. Include the tests from `testsFromFilesWithInMemoryState`.
           return nil
         }
-        if index?.hasUpToDateUnit(for: testItem.location.uri) ?? false {
+        if index?.hasAnyUpToDateUnit(for: testItem.location.uri) ?? false {
           // We don't have a test for this file in the semantic index but an up-to-date unit file. This means that the
           // index is up-to-date and has more knowledge that identifies a `TestItem` as not actually being a test, eg.
           // because it starts with `test` but doesn't appear in a class inheriting from `XCTestCase`.
@@ -360,7 +360,7 @@ extension SourceKitLSPServer {
           }
         ) + syntacticSwiftTestingTests
       }
-      if index.hasUpToDateUnit(for: mainFileUri) {
+      if index.hasAnyUpToDateUnit(for: mainFileUri) {
         // The semantic index is up-to-date and doesn't contain any tests. We don't need to do a syntactic fallback for
         // XCTest. We do still need to return swift-testing tests which don't have a semantic index.
         return syntacticSwiftTestingTests

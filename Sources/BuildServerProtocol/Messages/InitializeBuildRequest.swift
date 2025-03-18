@@ -282,6 +282,7 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
   public var watchers: [FileSystemWatcher]?
 
   @available(*, deprecated, message: "Use initializer with alphabetical order of parameters")
+  @_disfavoredOverload
   public init(
     indexDatabasePath: String? = nil,
     indexStorePath: String? = nil,

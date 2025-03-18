@@ -36,7 +36,8 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   var indexDatabasePath: URL? { get async }
 
   /// Whether the build system is capable of preparing a target for indexing and determining the output paths for the
-  /// target, ie. whether the `prepare` and `buildTargetOutputPaths` methods have been implemented.
+  /// target, ie. whether the `prepare` method has been implemented and this build server populates the `outputPath`
+  /// property in the `buildTarget/sources` request.
   var supportsPreparationAndOutputPaths: Bool { get }
 
   /// Returns all targets in the build system
@@ -44,9 +45,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
 
   /// Returns all the source files in the given targets
   func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse
-
-  /// Returns all the output paths for the source files in the given targets.
-  func buildTargetOutputPaths(request: BuildTargetOutputPathsRequest) async throws -> BuildTargetOutputPathsResponse
 
   /// Called when files in the project change.
   func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) async

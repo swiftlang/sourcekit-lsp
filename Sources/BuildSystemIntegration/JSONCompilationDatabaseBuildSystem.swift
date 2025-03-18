@@ -102,8 +102,6 @@ package actor JSONCompilationDatabaseBuildSystem: BuiltInBuildSystem {
         }
       return BuildTarget(
         id: try BuildTargetIdentifier.createCompileCommands(compiler: compiler),
-        displayName: nil,
-        baseDirectory: nil,
         tags: [.test],
         capabilities: BuildTargetCapabilities(),
         // Be conservative with the languages that might be used in the target. SourceKit-LSP doesn't use this property.
@@ -141,12 +139,6 @@ package actor JSONCompilationDatabaseBuildSystem: BuiltInBuildSystem {
 
   package func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
     throw ResponseError.methodNotFound(BuildTargetPrepareRequest.method)
-  }
-
-  package func buildTargetOutputPaths(
-    request: BuildTargetOutputPathsRequest
-  ) async throws -> BuildTargetOutputPathsResponse {
-    throw ResponseError.methodNotFound(BuildTargetOutputPathsRequest.method)
   }
 
   package func sourceKitOptions(

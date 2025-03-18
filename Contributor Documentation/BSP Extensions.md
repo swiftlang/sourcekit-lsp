@@ -22,7 +22,7 @@ export interface SourceKitInitializeBuildResponseData {
    * for `swiftc` or `clang` invocations **/
   indexStorePath?: string;
 
-  /** Whether the server implements the `buildTarget/outputPaths` request. */
+  /** Whether the server set the `outputPath` property in the `buildTarget/sources` request */
   outputPathsProvider?: bool;
 
   /** Whether the build server supports the `buildTarget/prepare` request */
@@ -45,37 +45,6 @@ If `data` contains a string value for the `workDoneProgressTitle` key, then the 
 ## `buildTarget/didChange`
 
 `changes` can be `null` to indicate that all targets have changed.
-
-## `buildTarget/outputPaths`
-
-For all the source files in this target, the output paths that are used during indexing, ie. the `-index-unit-output-path` for the file, if it is specified in the compiler arguments or the file that is passed as `-o`, if `-index-unit-output-path` is not specified.
-
-This allows SourceKit-LSP to remove index entries for source files that are removed from a target but remain present on disk.
-
-The server communicates during the initialize handshake whether this method is supported or not by setting `outputPathsProvider: true` in `SourceKitInitializeBuildResponseData`.
-
-- method: `buildTarget/outputPaths`
-- params: `OutputPathsParams`
-- result: `OutputPathsResult`
-
-```ts
-export interface BuildTargetOutputPathsParams {
-  /** A list of build targets to get the output paths for. */
-  targets: BuildTargetIdentifier[];
-}
-
-export interface BuildTargetOutputPathsItem {
-  /** The target these output file paths are for. */
-  target: BuildTargetIdentifier;
-
-  /** The output paths for all source files in this target. */
-  outputPaths: string[];
-}
-
-export interface BuildTargetOutputPathsResult {
-  items: BuildTargetOutputPathsItem[];
-}
-```
 
 ## `buildTarget/prepare`
 
@@ -119,6 +88,18 @@ export interface SourceKitSourceItemData {
    * inferring build settings from it. Listing header files in `buildTarget/sources` allows SourceKit-LSP to provide
    * semantic functionality for header files if they haven't been included by any main file. **/
   isHeader?: bool;
+
+  /**
+   * The output path that are is during indexing for this file, ie. the `-index-unit-output-path`, if it is specified
+   * in the compiler arguments or the file that is passed as `-o`, if `-index-unit-output-path` is not specified.
+   *
+   * This allows SourceKit-LSP to remove index entries for source files that are removed from a target but remain
+   * present on disk and to index a file that is part of multiple targets in the context of each target.
+   *
+   * The server communicates during the initialize handshake whether it populates this property by setting
+   * `outputPathsProvider: true` in `SourceKitInitializeBuildResponseData`.
+   */
+  outputPath?: string;
 }
 ```
 

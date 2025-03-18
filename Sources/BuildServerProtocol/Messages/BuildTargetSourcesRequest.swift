@@ -71,6 +71,14 @@ public struct SourceItem: Codable, Hashable, Sendable {
   /// Language-specific metadata about this source item.
   public var data: LSPAny?
 
+  /// If `dataKind` is `sourceKit`, the `data` interpreted as `SourceKitSourceItemData`, otherwise `nil`.
+  public var sourceKitData: SourceKitSourceItemData? {
+    guard dataKind == .sourceKit else {
+      return nil
+    }
+    return SourceKitSourceItemData(fromLSPAny: data)
+  }
+
   public init(
     uri: URI,
     kind: SourceItemKind,
@@ -126,9 +134,20 @@ public struct SourceKitSourceItemData: LSPAnyCodable, Codable {
   /// semantic functionality for header files if they haven't been included by any main file.
   public var isHeader: Bool?
 
-  public init(language: Language? = nil, isHeader: Bool? = nil) {
+  /// The output path that is used during indexing for this file, ie. the `-index-unit-output-path`, if it is specified
+  /// in the compiler arguments or the file that is passed as `-o`, if `-index-unit-output-path` is not specified.
+  ///
+  /// This allows SourceKit-LSP to remove index entries for source files that are removed from a target but remain
+  /// present on disk.
+  ///
+  /// The server communicates during the initialize handshake whether it populates this property by setting
+  /// `outputPathsProvider: true` in `SourceKitInitializeBuildResponseData`.
+  public var outputPath: String?
+
+  public init(language: Language? = nil, isHeader: Bool? = nil, outputPath: String? = nil) {
     self.language = language
     self.isHeader = isHeader
+    self.outputPath = outputPath
   }
 
   public init?(fromLSPDictionary dictionary: [String: LanguageServerProtocol.LSPAny]) {
@@ -137,6 +156,9 @@ public struct SourceKitSourceItemData: LSPAnyCodable, Codable {
     }
     if case .bool(let isHeader) = dictionary[CodingKeys.isHeader.stringValue] {
       self.isHeader = isHeader
+    }
+    if case .string(let outputFilePath) = dictionary[CodingKeys.outputPath.stringValue] {
+      self.outputPath = outputFilePath
     }
   }
 
@@ -147,6 +169,9 @@ public struct SourceKitSourceItemData: LSPAnyCodable, Codable {
     }
     if let isHeader {
       result[CodingKeys.isHeader.stringValue] = .bool(isHeader)
+    }
+    if let outputPath {
+      result[CodingKeys.outputPath.stringValue] = .string(outputPath)
     }
     return .dictionary(result)
   }

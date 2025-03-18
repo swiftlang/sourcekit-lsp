@@ -68,10 +68,10 @@ public struct BuildTarget: Codable, Hashable, Sendable {
 
   public init(
     id: BuildTargetIdentifier,
-    displayName: String?,
-    baseDirectory: URI?,
-    tags: [BuildTargetTag],
-    capabilities: BuildTargetCapabilities,
+    displayName: String? = nil,
+    baseDirectory: URI? = nil,
+    tags: [BuildTargetTag] = [],
+    capabilities: BuildTargetCapabilities = BuildTargetCapabilities(),
     languageIds: [Language],
     dependencies: [BuildTargetIdentifier],
     dataKind: BuildTargetDataKind? = nil,
