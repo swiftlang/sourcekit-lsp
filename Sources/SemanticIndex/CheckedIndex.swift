@@ -336,6 +336,11 @@ package final actor UncheckedIndex: Sendable {
   package nonisolated func pollForUnitChangesAndWait() {
     self.underlyingIndexStoreDB.pollForUnitChangesAndWait()
   }
+
+  /// Import the units for the given output paths into indexstore-db. Returns after the import has finished.
+  package nonisolated func processUnitsForOutputPathsAndWait(_ outputPaths: some Collection<String>) {
+    self.underlyingIndexStoreDB.processUnitsForOutputPathsAndWait(outputPaths)
+  }
 }
 
 /// Helper class to check if symbols from the index are up-to-date or if the source file has been modified after it was
