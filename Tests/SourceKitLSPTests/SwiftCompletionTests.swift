@@ -1148,6 +1148,17 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionUsingCompileFlagsTxt() async throws {
+    let compileFlags =
+      if let defaultSDKPath {
+        """
+        -DFOO
+        -sdk
+        \(defaultSDKPath)
+        """
+      } else {
+        "-DFOO"
+      }
+
     let project = try await MultiFileTestProject(
       files: [
         "test.swift": """
@@ -1160,7 +1171,7 @@ final class SwiftCompletionTests: XCTestCase {
           print(myVar1️⃣)
         }
         """,
-        "compile_flags.txt": "-DFOO",
+        "compile_flags.txt": compileFlags,
       ]
     )
     let (uri, positions) = try project.openDocument("test.swift")
