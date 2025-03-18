@@ -38,11 +38,10 @@ $ swift build -Xcxx -I/usr/lib/swift -Xcxx -I/usr/lib/swift/Block
 
 ### Windows
 
-To build SourceKit-LSP on Windows, the swift-syntax libraries need to be built as dynamic libraries so we do not exceed the maximum symbol limit in a single binary. Additionally, the equivalent search paths to the linux build need to be passed. Run the following in Command Prompt.
+To build SourceKit-LSP on Windows, the swift-syntax libraries need to be built as dynamic libraries so we do not exceed the maximum symbol limit in a single binary. Additionally, the equivalent search paths to the linux build need to be passed. Run the following in PowerShell.
 
-```cmd
-> set SWIFTSYNTAX_BUILD_DYNAMIC_LIBRARY=1
-> swift build -Xcc -I%SDKROOT%\usr\include -Xcc -I%SDKROOT%\usr\include\Block
+```ps
+> $env:SWIFTSYNTAX_BUILD_DYNAMIC_LIBRARIES = 1; swift test  -Xcc -I -Xcc $env:SDKROOT\usr\include -Xcc -I -Xcc $env:SDKROOT\usr\include\Block
 ```
 
 To work on SourceKit-LSP in VS Code, add the following to your `settings.json`, for other editors ensure that the `SWIFTSYNTAX_BUILD_DYNAMIC_LIBRARY` environment variable is set when launching `sourcekit-lsp`.
