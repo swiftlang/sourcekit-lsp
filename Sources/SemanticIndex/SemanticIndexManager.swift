@@ -471,7 +471,7 @@ package final actor SemanticIndexManager {
     var filesToReIndex: [(FileIndexInfo, Date?)] = []
     for uri in files {
       var didFindTargetToIndex = false
-      for (target, outputPath) in await buildSystemManager.sourceFileInfo(for: uri)?.targetsToOutputPaths ?? [:] {
+      for (target, outputPath) in await buildSystemManager.sourceFileInfo(for: uri)?.targetsToOutputPath ?? [:] {
         // First, check if we know that the file is up-to-date, in which case we don't need to hit the index or file
         // system at all
         if !indexFilesWithUpToDateUnits, await indexStoreUpToDateTracker.isUpToDate(uri, target) {
@@ -510,7 +510,7 @@ package final actor SemanticIndexManager {
         logger.info("Not indexing \(uri.forLogging) because its main file could not be inferred")
         continue
       }
-      let targetAndOutputPath = (await buildSystemManager.sourceFileInfo(for: mainFile)?.targetsToOutputPaths ?? [:])
+      let targetAndOutputPath = (await buildSystemManager.sourceFileInfo(for: mainFile)?.targetsToOutputPath ?? [:])
         .sorted(by: { $0.key.uri.stringValue < $1.key.uri.stringValue }).first
       guard let targetAndOutputPath else {
         logger.info(

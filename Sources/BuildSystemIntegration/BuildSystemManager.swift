@@ -56,10 +56,10 @@ package struct SourceFileInfo: Sendable {
   ///  - `.path` if the build server supports output paths and produced a result
   ///  - `.notSupported` if the build server does not support output paths.
   ///  - `nil` if the build server supports output paths but did not return an output path for this file in this target.
-  package var targetsToOutputPaths: [BuildTargetIdentifier: OutputPath?]
+  package var targetsToOutputPath: [BuildTargetIdentifier: OutputPath?]
 
   /// The targets that this source file is a member of
-  package var targets: some Collection<BuildTargetIdentifier> & Sendable { targetsToOutputPaths.keys }
+  package var targets: some Collection<BuildTargetIdentifier> & Sendable { targetsToOutputPath.keys }
 
   /// `true` if this file belongs to the root project that the user is working on. It is false, if the file belongs
   /// to a dependency of the project.
@@ -79,8 +79,8 @@ package struct SourceFileInfo: Sendable {
     guard let other else {
       return self
     }
-    let mergedTargetsToOutputPaths = targetsToOutputPaths.merging(
-      other.targetsToOutputPaths,
+    let mergedTargetsToOutputPaths = targetsToOutputPath.merging(
+      other.targetsToOutputPath,
       uniquingKeysWith: { lhs, rhs in
         if lhs == rhs {
           return lhs
@@ -96,7 +96,7 @@ package struct SourceFileInfo: Sendable {
       }
     )
     return SourceFileInfo(
-      targetsToOutputPaths: mergedTargetsToOutputPaths,
+      targetsToOutputPath: mergedTargetsToOutputPaths,
       isPartOfRootProject: other.isPartOfRootProject || isPartOfRootProject,
       mayContainTests: other.mayContainTests || mayContainTests,
       isBuildable: other.isBuildable || isBuildable
@@ -1252,7 +1252,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
               nil
             }
           let info = SourceFileInfo(
-            targetsToOutputPaths: [sourcesItem.target: outputPath],
+            targetsToOutputPath: [sourcesItem.target: outputPath],
             isPartOfRootProject: isPartOfRootProject,
             mayContainTests: mayContainTests,
             isBuildable: !(target?.tags.contains(.notBuildable) ?? false)

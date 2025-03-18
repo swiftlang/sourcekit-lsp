@@ -134,7 +134,7 @@ public struct SourceKitSourceItemData: LSPAnyCodable, Codable {
   /// semantic functionality for header files if they haven't been included by any main file.
   public var isHeader: Bool?
 
-  /// The output paths that are used during indexing for this file, ie. the `-index-unit-output-path`, if it is specified
+  /// The output path that is used during indexing for this file, ie. the `-index-unit-output-path`, if it is specified
   /// in the compiler arguments or the file that is passed as `-o`, if `-index-unit-output-path` is not specified.
   ///
   /// This allows SourceKit-LSP to remove index entries for source files that are removed from a target but remain
