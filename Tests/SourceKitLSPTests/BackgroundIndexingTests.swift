@@ -1978,7 +1978,8 @@ final class BackgroundIndexingTests: XCTestCase {
         """
       ],
       buildServer: BuildServer.self,
-      enableBackgroundIndexing: true
+      enableBackgroundIndexing: true,
+      pollIndex: false
     )
     let fileUrl = try XCTUnwrap(project.uri(for: "Test.swift").fileURL)
 
@@ -2141,7 +2142,6 @@ final class BackgroundIndexingTests: XCTestCase {
       buildServer: BuildServer.self,
       enableBackgroundIndexing: true
     )
-    try await project.testClient.send(SynchronizeRequest(index: true))
 
     let symbols = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTestFunc"))
     XCTAssertEqual(
@@ -2220,13 +2220,9 @@ final class BackgroundIndexingTests: XCTestCase {
       }
 
       func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
-        return initializationResponse(
-          initializeData: SourceKitInitializeBuildResponseData(
-            indexDatabasePath: try projectRoot.appendingPathComponent("index-db").filePath,
-            indexStorePath: try projectRoot.appendingPathComponent("index-store").filePath,
-            prepareProvider: true,
-            sourceKitOptionsProvider: true
-          )
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: false
         )
       }
 
@@ -2264,7 +2260,6 @@ final class BackgroundIndexingTests: XCTestCase {
       enableBackgroundIndexing: true,
       testScratchDir: scratchDirectory
     )
-    try await project.testClient.send(SynchronizeRequest(index: true))
 
     // Ensure that changing `/private/tmp/.../test.c` only causes `/tmp/.../test.c` to be indexed, not
     // `/private/tmp/.../test.c`.
@@ -2375,7 +2370,6 @@ final class BackgroundIndexingTests: XCTestCase {
       buildServer: BuildServer.self,
       enableBackgroundIndexing: true
     )
-    try await project.testClient.send(SynchronizeRequest(index: true))
 
     let (libAUri, libAPositions) = try project.openDocument("LibA.swift")
     let libATypeHierarchyPrepare = try await project.testClient.send(
@@ -2493,7 +2487,6 @@ final class BackgroundIndexingTests: XCTestCase {
       buildServer: BuildServer.self,
       enableBackgroundIndexing: true
     )
-    try await project.testClient.send(SynchronizeRequest(index: true))
 
     let workspaceSymbolsBeforeUpdate = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTest"))
     XCTAssertEqual(workspaceSymbolsBeforeUpdate?.compactMap(\.symbolInformation?.name), ["myTestA", "myTestB"])
@@ -2538,6 +2531,59 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     // Check that we don't enter an infinite loop trying to index the circular symlink.
     try await project.testClient.send(SynchronizeRequest(index: true))
+  }
+
+  func testBuildSystemDoesNotReturnIndexUnitOutputPath() async throws {
+    final class BuildSystem: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+      private let projectRoot: URL
+
+      required init(projectRoot: URL, connectionToSourceKitLSP: any LanguageServerProtocol.Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: true
+        )
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        return BuildTargetSourcesResponse(items: [
+          SourcesItem(
+            target: .dummy,
+            sources: [
+              sourceItem(
+                for: projectRoot.appendingPathComponent("test.swift"),
+                outputPath: fakeOutputPath(for: "test.swift", in: "dummy")
+              )
+            ]
+          )
+        ])
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        var arguments = [request.textDocument.uri.pseudoPath, "-o", fakeOutputPath(for: "test.swift", in: "dummy")]
+        if let defaultSDKPath {
+          arguments += ["-sdk", defaultSDKPath]
+        }
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
+      }
+    }
+
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "test.swift": "func myTestFunc() {}"
+      ],
+      buildServer: BuildSystem.self,
+      enableBackgroundIndexing: true
+    )
+
+    let symbols = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTestFu"))
+    XCTAssertEqual(symbols?.compactMap(\.symbolInformation?.name), ["myTestFunc()"])
   }
 }
 

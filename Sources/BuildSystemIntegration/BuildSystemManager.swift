@@ -1471,6 +1471,15 @@ fileprivate extension TextDocumentSourceKitOptionsResponse {
   /// This removes compiler arguments that produce output files and adds arguments to eg. allow errors and index the
   /// file.
   func adjustArgsForSemanticSwiftFunctionality(fileToIndex: DocumentURI) -> TextDocumentSourceKitOptionsResponse {
+    // Technically, `-o` and the output file don't need to be separated by a space. Eg. `swiftc -oa file.swift` is
+    // valid and will write to an output file named `a`.
+    // We can't support that because the only way to know that `-output-file-map` is a different flag and not an option
+    // to write to an output file named `utput-file-map` is to know all compiler arguments of `swiftc`, which we don't.
+    let outputPathOption = CompilerCommandLineOption.option("o", [.singleDash], [.separatedBySpace])
+
+    let indexUnitOutputPathOption =
+      CompilerCommandLineOption.option("index-unit-output-path", [.singleDash], [.separatedBySpace])
+
     let optionsToRemove: [CompilerCommandLineOption] = [
       .flag("c", [.singleDash]),
       .flag("disable-cmo", [.singleDash]),
@@ -1498,11 +1507,7 @@ fileprivate extension TextDocumentSourceKitOptionsResponse {
       .option("emit-package-module-interface-path", [.singleDash], [.separatedBySpace]),
       .option("emit-private-module-interface-path", [.singleDash], [.separatedBySpace]),
       .option("num-threads", [.singleDash], [.separatedBySpace]),
-      // Technically, `-o` and the output file don't need to be separated by a space. Eg. `swiftc -oa file.swift` is
-      // valid and will write to an output file named `a`.
-      // We can't support that because the only way to know that `-output-file-map` is a different flag and not an option
-      // to write to an output file named `utput-file-map` is to know all compiler arguments of `swiftc`, which we don't.
-      .option("o", [.singleDash], [.separatedBySpace]),
+      outputPathOption,
       .option("output-file-map", [.singleDash], [.separatedBySpace, .separatedByEqualSign]),
     ]
 
@@ -1533,6 +1538,15 @@ fileprivate extension TextDocumentSourceKitOptionsResponse {
     ]
 
     result += supplementalClangIndexingArgs.flatMap { ["-Xcc", $0] }
+
+    if let outputPathIndex = compilerArguments.lastIndex(where: { outputPathOption.matches(argument: $0) != nil }),
+      compilerArguments.allSatisfy({ indexUnitOutputPathOption.matches(argument: $0) == nil }),
+      outputPathIndex + 1 < compilerArguments.count
+    {
+      // The original compiler arguments contained `-o` to specify the output file but we have stripped that away.
+      // Re-introduce the output path as `-index-unit-output-path` so that we have an output path for the unit file.
+      result += ["-index-unit-output-path", compilerArguments[outputPathIndex + 1]]
+    }
 
     var adjusted = self
     adjusted.compilerArguments = result

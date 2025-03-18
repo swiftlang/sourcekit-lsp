@@ -277,6 +277,7 @@ package final class CustomBuildServerTestProject<BuildServer: CustomBuildServer>
     options: SourceKitLSPOptions? = nil,
     hooks: Hooks = Hooks(),
     enableBackgroundIndexing: Bool = false,
+    pollIndex: Bool = true,
     testScratchDir: URL? = nil,
     testName: String = #function
   ) async throws {
@@ -295,6 +296,11 @@ package final class CustomBuildServerTestProject<BuildServer: CustomBuildServer>
       testScratchDir: testScratchDir,
       testName: testName
     )
+
+    if pollIndex {
+      // Wait for the indexstore-db to finish indexing
+      try await testClient.send(SynchronizeRequest(index: true))
+    }
   }
 
   package func buildServer(file: StaticString = #filePath, line: UInt = #line) throws -> BuildServer {
