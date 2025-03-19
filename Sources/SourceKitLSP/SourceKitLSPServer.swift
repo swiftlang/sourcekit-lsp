@@ -13,6 +13,7 @@
 import BuildServerProtocol
 import BuildSystemIntegration
 import Dispatch
+package import DocCDocumentation
 import Foundation
 import IndexStoreDB
 package import LanguageServerProtocol
@@ -75,9 +76,7 @@ package actor SourceKitLSPServer {
 
   package let documentManager = DocumentManager()
 
-  #if canImport(SwiftDocC)
-  package let documentationManager = DocumentationManager()
-  #endif
+  package let documentationManager = createDocCDocumentationManager()
 
   /// The `TaskScheduler` that schedules all background indexing tasks.
   ///
@@ -752,10 +751,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.declaration)
     case let request as RequestAndReply<DefinitionRequest>:
       await self.handleRequest(for: request, requestHandler: self.definition)
-    #if canImport(SwiftDocC)
     case let request as RequestAndReply<DoccDocumentationRequest>:
       await self.handleRequest(for: request, requestHandler: self.doccDocumentation)
-    #endif
     case let request as RequestAndReply<DocumentColorRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentColor)
     case let request as RequestAndReply<DocumentDiagnosticsRequest>:
@@ -1079,9 +1076,9 @@ extension SourceKitLSPServer {
       GetReferenceDocumentRequest.method: .dictionary(["version": .int(1)]),
       DidChangeActiveDocumentNotification.method: .dictionary(["version": .int(1)]),
     ]
-    #if canImport(SwiftDocC)
-    experimentalCapabilities["textDocument/doccDocumentation"] = .dictionary(["version": .int(1)])
-    #endif
+    if (await documentationManager.getRenderingSupport() != nil) {
+      experimentalCapabilities["textDocument/doccDocumentation"] = .dictionary(["version": .int(1)])
+    }
 
     return ServerCapabilities(
       textDocumentSync: .options(
@@ -1472,9 +1469,7 @@ extension SourceKitLSPServer {
     // (e.g. Package.swift doesn't have build settings but affects build
     // settings). Inform the build system about all file changes.
     await workspaces.concurrentForEach { await $0.filesDidChange(notification.changes) }
-    #if canImport(SwiftDocC)
-    await documentationManager.filesDidChange(notification.changes)
-    #endif
+    await documentationManager.getRenderingSupport()?.filesDidChange(notification.changes)
   }
 
   func setBackgroundIndexingPaused(_ request: SetOptionsRequest) async throws -> VoidResponse {
@@ -1566,7 +1561,6 @@ extension SourceKitLSPServer {
     return try await documentService(for: completionItemData.uri).completionItemResolve(request)
   }
 
-  #if canImport(SwiftDocC)
   func doccDocumentation(
     _ req: DoccDocumentationRequest,
     workspace: Workspace,
@@ -1574,7 +1568,6 @@ extension SourceKitLSPServer {
   ) async throws -> DoccDocumentationResponse {
     return try await languageService.doccDocumentation(req)
   }
-  #endif
 
   func hover(
     _ req: HoverRequest,

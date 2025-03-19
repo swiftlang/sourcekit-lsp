@@ -180,7 +180,7 @@ enum DocCServerError: LocalizedError {
   case messagePayloadDecodingFailure(messageType: String, decodingError: Error)
   case unknownMessageType(_ messageType: String)
   case unexpectedlyNilPayload(_ messageType: String)
-  case internalError(_ underlyingError: DescribedError)
+  case internalError(_ underlyingError: LocalizedError)
 
   var errorDescription: String? {
     switch self {
