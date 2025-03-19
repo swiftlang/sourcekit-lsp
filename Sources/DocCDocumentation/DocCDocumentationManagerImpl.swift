@@ -6,8 +6,6 @@ package import IndexStoreDB
 package import LanguageServerProtocol
 package import SemanticIndex
 import SwiftDocC
-import SwiftExtensions
-import SwiftSyntax
 
 package final actor DocCDocumentationManagerImpl: DocCDocumentationManagerWithRendering {
   private let doccServer: DocCServer

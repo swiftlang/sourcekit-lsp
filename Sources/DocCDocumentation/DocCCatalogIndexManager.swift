@@ -18,7 +18,6 @@ package protocol DocCCatalogIndex: Sendable {
 
 #if canImport(SwiftDocC)
 @preconcurrency import SwiftDocC
-import SwiftExtensions
 
 final actor DocCCatalogIndexManager {
   private let server: DocCServer
