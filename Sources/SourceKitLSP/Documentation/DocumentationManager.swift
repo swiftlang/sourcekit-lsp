@@ -49,26 +49,68 @@ package final actor DocumentationManager {
     await catalogIndexManager.invalidate(catalogURLs: affectedCatalogURLs)
   }
 
-  func catalogIndex(for catalogURL: URL, moduleName: String?) async throws(DocCIndexError) -> DocCCatalogIndex {
-    try await catalogIndexManager.index(for: catalogURL, moduleName: moduleName)
+  func emptySymbolGraph(moduleName: String) throws -> String {
+    let data = try JSONEncoder().encode(
+      SymbolGraph(
+        metadata: SymbolGraph.Metadata(
+          formatVersion: SymbolGraph.SemanticVersion(major: 0, minor: 5, patch: 0),
+          generator: "SourceKit-LSP"
+        ),
+        module: SymbolGraph.Module(name: moduleName, platform: SymbolGraph.Platform()),
+        symbols: [],
+        relationships: []
+      )
+    )
+    guard let result = String(data: data, encoding: .utf8) else {
+      throw ResponseError.internalError("Failed to encode symbol graph")
+    }
+    return result
   }
 
-  func convertDocumentation(
-    workspace: Workspace,
-    buildInformation: DocCBuildInformation,
-    externalIDsToConvert: [String]? = nil,
-    symbolGraphs: [Data] = [],
-    overridingDocumentationComments: [String: [String]] = [:],
-    markupFiles: [Data] = [],
-    tutorialFiles: [Data] = []
+  func catalogIndex(for catalogURL: URL) async throws(DocCIndexError) -> DocCCatalogIndex {
+    try await catalogIndexManager.index(for: catalogURL)
+  }
+
+  func renderDocCDocumentation(
+    symbolUSR: String? = nil,
+    symbolGraph: String? = nil,
+    overrideDocComments: [String]? = nil,
+    markupFile: String? = nil,
+    tutorialFile: String? = nil,
+    moduleName: String?,
+    catalogURL: URL?
   ) async throws -> DoccDocumentationResponse {
+    // Make inputs consumable by DocC
+    var externalIDsToConvert: [String]? = nil
+    var overridingDocumentationComments = [String: [String]]()
+    if let symbolUSR {
+      externalIDsToConvert = [symbolUSR]
+      if let overrideDocComments {
+        overridingDocumentationComments[symbolUSR] = overrideDocComments
+      }
+    }
+    var symbolGraphs = [Data]()
+    if let symbolGraphData = symbolGraph?.data(using: .utf8) {
+      symbolGraphs.append(symbolGraphData)
+    }
+    var markupFiles = [Data]()
+    if let markupFile = markupFile?.data(using: .utf8) {
+      markupFiles.append(markupFile)
+    }
+    var tutorialFiles = [Data]()
+    if let tutorialFile = tutorialFile?.data(using: .utf8) {
+      tutorialFiles.append(tutorialFile)
+    }
     // Store the convert request identifier in order to fulfill index requests from SwiftDocC
     let convertRequestIdentifier = UUID().uuidString
+    var catalogIndex: DocCCatalogIndex? = nil
+    if let catalogURL {
+      catalogIndex = try await self.catalogIndex(for: catalogURL)
+    }
     referenceResolutionService.addContext(
       DocCReferenceResolutionContext(
-        catalogURL: buildInformation.catalogURL,
-        uncheckedIndex: workspace.uncheckedIndex,
-        catalogIndex: buildInformation.catalogIndex
+        catalogURL: catalogURL,
+        catalogIndex: catalogIndex
       ),
       withKey: convertRequestIdentifier
     )
@@ -78,7 +120,7 @@ package final actor DocumentationManager {
       documentPathsToConvert: nil,
       includeRenderReferenceStore: false,
       documentationBundleLocation: nil,
-      documentationBundleDisplayName: buildInformation.moduleName ?? "Unknown",
+      documentationBundleDisplayName: moduleName ?? "Unknown",
       documentationBundleIdentifier: "unknown",
       symbolGraphs: symbolGraphs,
       overridingDocumentationComments: overridingDocumentationComments,

@@ -32,7 +32,7 @@ final actor DocCCatalogIndexManager {
     }
   }
 
-  func index(for catalogURL: URL, moduleName: String?) async throws(DocCIndexError) -> DocCCatalogIndex {
+  func index(for catalogURL: URL) async throws(DocCIndexError) -> DocCCatalogIndex {
     if let existingCatalog = catalogToIndexMap[catalogURL] {
       return try existingCatalog.get()
     }
@@ -43,7 +43,7 @@ final actor DocCCatalogIndexManager {
         documentPathsToConvert: [],
         includeRenderReferenceStore: true,
         documentationBundleLocation: catalogURL,
-        documentationBundleDisplayName: moduleName ?? "unknown",
+        documentationBundleDisplayName: "unknown",
         documentationBundleIdentifier: "unknown",
         symbolGraphs: [],
         emitSymbolSourceFileURIs: true,

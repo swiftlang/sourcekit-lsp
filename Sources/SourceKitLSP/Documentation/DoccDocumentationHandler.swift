@@ -13,15 +13,10 @@
 #if canImport(SwiftDocC)
 import Foundation
 import IndexStoreDB
+package import LanguageServerProtocol
 import Markdown
 import SemanticIndex
-import SymbolKit
-
-#if compiler(>=6)
-package import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
+import SKUtilities
 
 extension DocumentationLanguageService {
   private var documentationManager: DocumentationManager {
@@ -41,37 +36,28 @@ extension DocumentationLanguageService {
     guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: req.textDocument.uri) else {
       throw ResponseError.workspaceNotOpen(req.textDocument.uri)
     }
-    let doccBuildInfo = await workspace.doccBuildInformation(for: req.textDocument.uri)
-    guard let fileContents = snapshot.text.data(using: .utf8) else {
-      throw ResponseError.internalError("Failed to encode file contents")
-    }
+    let moduleName = await workspace.findModuleName(for: req.textDocument.uri)
+    let catalogURL = await workspace.findDocCCatalog(for: req.textDocument.uri)
 
-    var externalIDsToConvert: [String]? = nil
-    var symbolGraphs: [Data] = []
-    var markupFiles: [Data] = []
-    var tutorialFiles: [Data] = []
     switch snapshot.language {
     case .tutorial:
-      tutorialFiles.append(fileContents)
+      return try await documentationManager.renderDocCDocumentation(
+        tutorialFile: snapshot.text,
+        moduleName: moduleName,
+        catalogURL: catalogURL
+      )
     case .markdown:
-      markupFiles.append(fileContents)
       if case let .symbol(symbolName) = MarkdownTitleFinder.find(parsing: snapshot.text) {
-        if let moduleName = doccBuildInfo.moduleName, symbolName == moduleName {
+        if let moduleName = moduleName, symbolName == moduleName {
           // This is a page representing the module itself.
           // Create a dummy symbol graph and tell SwiftDocC to convert the module name.
-          externalIDsToConvert = [moduleName]
-          symbolGraphs.append(
-            try JSONEncoder().encode(
-              SymbolGraph(
-                metadata: SymbolGraph.Metadata(
-                  formatVersion: SymbolGraph.SemanticVersion(major: 0, minor: 5, patch: 0),
-                  generator: "SourceKit-LSP"
-                ),
-                module: SymbolGraph.Module(name: moduleName, platform: SymbolGraph.Platform()),
-                symbols: [],
-                relationships: []
-              )
-            )
+          let emptySymbolGraph = try await documentationManager.emptySymbolGraph(moduleName: moduleName)
+          return try await documentationManager.renderDocCDocumentation(
+            symbolUSR: moduleName,
+            symbolGraph: emptySymbolGraph,
+            markupFile: snapshot.text,
+            moduleName: moduleName,
+            catalogURL: catalogURL
           )
         } else {
           // This is a symbol extension page. Find the symbol so that we can include it in the request.
@@ -106,24 +92,27 @@ extension DocumentationLanguageService {
             includeSymbolGraph: true,
             fallbackSettingsAfterTimeout: false
           )
-          guard let symbolGraph = cursorInfo.symbolGraph, let rawSymbolGraph = symbolGraph.data(using: .utf8) else {
+          guard let symbolGraph = cursorInfo.symbolGraph else {
             throw ResponseError.internalError("Unable to retrieve symbol graph for \(symbolOccurrence.symbol.name)")
           }
-          externalIDsToConvert = [symbolOccurrence.symbol.usr]
-          symbolGraphs.append(rawSymbolGraph)
+          return try await documentationManager.renderDocCDocumentation(
+            symbolUSR: symbolOccurrence.symbol.usr,
+            symbolGraph: symbolGraph,
+            markupFile: snapshot.text,
+            moduleName: moduleName,
+            catalogURL: catalogURL
+          )
         }
       }
+      // This is an article that can be rendered on its own
+      return try await documentationManager.renderDocCDocumentation(
+        markupFile: snapshot.text,
+        moduleName: moduleName,
+        catalogURL: catalogURL
+      )
     default:
       throw ResponseError.requestFailed(doccDocumentationError: .noDocumentation)
     }
-    return try await documentationManager.convertDocumentation(
-      workspace: workspace,
-      buildInformation: doccBuildInfo,
-      externalIDsToConvert: externalIDsToConvert,
-      symbolGraphs: symbolGraphs,
-      markupFiles: markupFiles,
-      tutorialFiles: tutorialFiles
-    )
   }
 }
 

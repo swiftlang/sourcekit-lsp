@@ -12,15 +12,10 @@
 
 #if canImport(SwiftDocC)
 import Foundation
+package import LanguageServerProtocol
 import SemanticIndex
 import SwiftExtensions
 import SwiftSyntax
-
-#if compiler(>=6)
-package import LanguageServerProtocol
-#else
-import LanguageServerProtocol
-#endif
 
 extension SwiftLanguageService {
   private var documentationManager: DocumentationManager {
@@ -43,12 +38,9 @@ extension SwiftLanguageService {
     guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: req.textDocument.uri) else {
       throw ResponseError.workspaceNotOpen(req.textDocument.uri)
     }
-    let buildInformation = await workspace.doccBuildInformation(for: req.textDocument.uri)
+    let moduleName = await workspace.findModuleName(for: req.textDocument.uri)
+    let catalogURL = await workspace.findDocCCatalog(for: req.textDocument.uri)
 
-    var externalIDsToConvert: [String]? = nil
-    var overridingDocumentationComments: [String: [String]] = [:]
-    var symbolGraphs: [Data] = []
-    var markupFiles: [Data] = []
     // Search for the nearest documentable symbol at this location
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
     guard
@@ -76,32 +68,43 @@ extension SwiftLanguageService {
     else {
       throw ResponseError.internalError("Unable to retrieve symbol graph for the document")
     }
-    guard let rawSymbolGraph = symbolGraph.data(using: .utf8) else {
-      throw ResponseError.internalError("Unable to encode symbol graph")
-    }
-    externalIDsToConvert = [symbolUSR]
-    symbolGraphs.append(rawSymbolGraph)
-    overridingDocumentationComments[symbolUSR] = nearestDocumentableSymbol.documentationComments
     // Locate the documentation extension and include it in the request if one exists
-    if let index = workspace.index(checkedFor: .deletedFiles),
-      let symbolLink = index.doccSymbolLink(forUSR: symbolUSR),
-      let documentationExtensionURL = buildInformation.catalogIndex?.documentationExtension(for: symbolLink),
-      let documentationExtensionSnapshot = try? documentManager.latestSnapshotOrDisk(
-        DocumentURI(documentationExtensionURL),
-        language: .markdown
-      ),
-      let documentationExtensionContents = documentationExtensionSnapshot.text.data(using: .utf8)
-    {
-      markupFiles.append(documentationExtensionContents)
-    }
-    return try await documentationManager.convertDocumentation(
+    let markupExtensionFile = try? await findMarkupExtensionFile(
       workspace: workspace,
-      buildInformation: buildInformation,
-      externalIDsToConvert: externalIDsToConvert,
-      symbolGraphs: symbolGraphs,
-      overridingDocumentationComments: overridingDocumentationComments,
-      markupFiles: markupFiles
+      documentationManager: sourceKitLSPServer.documentationManager,
+      catalogURL: catalogURL,
+      for: symbolUSR
     )
+    return try await sourceKitLSPServer.documentationManager.renderDocCDocumentation(
+      symbolUSR: symbolUSR,
+      symbolGraph: symbolGraph,
+      overrideDocComments: nearestDocumentableSymbol.documentationComments,
+      markupFile: markupExtensionFile,
+      moduleName: moduleName,
+      catalogURL: catalogURL
+    )
+  }
+
+  private func findMarkupExtensionFile(
+    workspace: Workspace,
+    documentationManager: DocumentationManager,
+    catalogURL: URL?,
+    for symbolUSR: String
+  ) async throws -> String? {
+    guard let catalogURL else {
+      return nil
+    }
+    let catalogIndex = try await documentationManager.catalogIndex(for: catalogURL)
+    guard let index = workspace.index(checkedFor: .deletedFiles),
+      let symbolLink = index.doccSymbolLink(forUSR: symbolUSR),
+      let markupExtensionFileURL = catalogIndex.documentationExtension(for: symbolLink)
+    else {
+      return nil
+    }
+    return try? documentManager.latestSnapshotOrDisk(
+      DocumentURI(markupExtensionFileURL),
+      language: .markdown
+    )?.text
   }
 }
 

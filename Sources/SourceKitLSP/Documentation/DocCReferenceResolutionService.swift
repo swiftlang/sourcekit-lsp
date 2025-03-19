@@ -118,26 +118,7 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
     }
     switch request.payload {
     case .symbol(let symbolUSR):
-      guard let index = context.uncheckedIndex?.checked(for: .deletedFiles) else {
-        completion(.failure(.indexNotAvailable))
-        return
-      }
-      guard let symbolOccurrence = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: symbolUSR),
-        let symbolURL = symbolOccurrence.location.documentUri.fileURL
-      else {
-        completion(.failure(.symbolNotFound(symbolUSR)))
-        return
-      }
-      completion(
-        .success(
-          .resolvedInformation(
-            OutOfProcessReferenceResolver.ResolvedInformation(
-              symbolURL: symbolURL,
-              symbolName: symbolOccurrence.symbol.name
-            )
-          )
-        )
-      )
+      completion(.failure(.symbolNotFound(symbolUSR)))
     case .asset(let assetReference):
       guard let catalog = context.catalogIndex else {
         completion(.failure(.indexNotAvailable))
@@ -209,7 +190,6 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
 
 struct DocCReferenceResolutionContext {
   let catalogURL: URL?
-  let uncheckedIndex: UncheckedIndex?
   let catalogIndex: DocCCatalogIndex?
 }
 
