@@ -20,6 +20,41 @@ import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
 
+package struct WindowsPlatformInfo {
+  package struct DefaultProperties {
+    /// XCTEST_VERSION
+    /// specifies the version string of the bundled XCTest.
+    public let xctestVersion: String
+
+    /// SWIFT_TESTING_VERSION
+    /// specifies the version string of the bundled swift-testing.
+    public let swiftTestingVersion: String?
+
+    /// SWIFTC_FLAGS
+    /// Specifies extra flags to pass to swiftc from Swift Package Manager.
+    public let extraSwiftCFlags: [String]?
+  }
+
+  public let defaults: DefaultProperties
+}
+extension WindowsPlatformInfo.DefaultProperties: Decodable {
+  enum CodingKeys: String, CodingKey {
+    case xctestVersion = "XCTEST_VERSION"
+    case swiftTestingVersion = "SWIFT_TESTING_VERSION"
+    case extraSwiftCFlags = "SWIFTC_FLAGS"
+  }
+}
+extension WindowsPlatformInfo: Decodable {
+  enum CodingKeys: String, CodingKey {
+    case defaults = "DefaultProperties"
+  }
+}
+extension WindowsPlatformInfo {
+  package init(reading path: URL) throws {
+    let data: Data = try Data(contentsOf: path)
+    self = try PropertyListDecoder().decode(WindowsPlatformInfo.self, from: data)
+  }
+}
 package struct IndexedSingleSwiftFileTestProject {
   enum Error: Swift.Error {
     case swiftcNotFound
@@ -79,12 +114,13 @@ package struct IndexedSingleSwiftFileTestProject {
       // The following are needed so we can import XCTest
       let sdkUrl = URL(fileURLWithPath: sdk)
       #if os(Windows)
+      let platform = sdkUrl.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+      let info = try WindowsPlatformInfo(reading: platform.appendingPathComponent("Info.plist"))
       let xctestModuleDir =
-        sdkUrl
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
+        platform
+        .appendingPathComponent("Developer")
         .appendingPathComponent("Library")
-        .appendingPathComponent("XCTest-development")
+        .appendingPathComponent("XCTest-\(info.defaults.xctestVersion)")
         .appendingPathComponent("usr")
         .appendingPathComponent("lib")
         .appendingPathComponent("swift")
