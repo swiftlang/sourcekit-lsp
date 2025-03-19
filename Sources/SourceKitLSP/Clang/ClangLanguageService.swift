@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import BuildSystemIntegration
+import DocCDocumentation
 import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
@@ -482,11 +483,9 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
-  #if canImport(SwiftDocC)
   func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
     throw ResponseError.requestFailed(doccDocumentationError: .noDocumentation)
   }
-  #endif
 
   func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
     return try await forwardRequestToClangd(req)

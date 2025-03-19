@@ -9,17 +9,21 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
-
-#if canImport(SwiftDocC)
 import Foundation
-@preconcurrency import SwiftDocC
 
 /// Represents the link to a symbol in DocC documentation.
 ///
 /// Symbol links are always of the form `<ModuleName>/<SymbolName>` or simply `<ModuleName>`
 /// if they refer to the module itself.
-struct DocCSymbolLink: Sendable {
-  let moduleName: String
+package protocol DocCSymbolLink: Sendable {
+  var moduleName: String { get }
+}
+
+#if canImport(SwiftDocC)
+@preconcurrency import SwiftDocC
+
+struct DocCSymbolLinkImpl: DocCSymbolLink {
+  public let moduleName: String
   let components: [AbsoluteSymbolLink.LinkComponent]
 
   var absoluteString: String {
@@ -52,7 +56,7 @@ struct DocCSymbolLink: Sendable {
       }
       components.append(component)
     }
-    self = DocCSymbolLink(moduleName: moduleName, components: components)
+    self = DocCSymbolLinkImpl(moduleName: moduleName, components: components)
   }
 
   private init(moduleName: String, components: [AbsoluteSymbolLink.LinkComponent]) {
@@ -60,14 +64,14 @@ struct DocCSymbolLink: Sendable {
     self.components = components
   }
 
-  func appending(string componentString: String) -> DocCSymbolLink? {
+  func appending(string componentString: String) -> DocCSymbolLinkImpl? {
     guard let component = AbsoluteSymbolLink.LinkComponent(string: componentString) else {
       return nil
     }
-    return DocCSymbolLink(moduleName: moduleName, components: components + [component])
+    return DocCSymbolLinkImpl(moduleName: moduleName, components: components + [component])
   }
 
-  func appending(components rawComponents: [String]) -> DocCSymbolLink? {
+  func appending(components rawComponents: [String]) -> DocCSymbolLinkImpl? {
     var result = self
     for rawComponent in rawComponents {
       guard let nextSymbolLink = result.appending(string: rawComponent) else {
@@ -79,8 +83,8 @@ struct DocCSymbolLink: Sendable {
   }
 }
 
-extension DocCSymbolLink: Equatable {
-  static func == (lhs: DocCSymbolLink, rhs: DocCSymbolLink) -> Bool {
+extension DocCSymbolLinkImpl: Equatable {
+  public static func == (lhs: DocCSymbolLinkImpl, rhs: DocCSymbolLinkImpl) -> Bool {
     guard lhs.components.count == rhs.components.count else {
       return false
     }
@@ -100,8 +104,8 @@ extension DocCSymbolLink: Equatable {
   }
 }
 
-extension DocCSymbolLink: Hashable {
-  func hash(into hasher: inout Hasher) {
+extension DocCSymbolLinkImpl: Hashable {
+  public func hash(into hasher: inout Hasher) {
     for component in components {
       component.asLinkComponentString.hash(into: &hasher)
     }

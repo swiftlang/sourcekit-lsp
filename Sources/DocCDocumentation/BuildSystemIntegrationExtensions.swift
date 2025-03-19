@@ -10,49 +10,39 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(SwiftDocC)
 import BuildServerProtocol
-import BuildSystemIntegration
-import Foundation
-import LanguageServerProtocol
+package import BuildSystemIntegration
+package import Foundation
+package import LanguageServerProtocol
 
-extension Workspace {
-  private var documentationManager: DocumentationManager {
-    get throws {
-      guard let sourceKitLSPServer else {
-        throw ResponseError.unknown("Connection to the editor closed")
-      }
-      return sourceKitLSPServer.documentationManager
-    }
-  }
-
-  func findModuleName(for document: DocumentURI) async -> String? {
-    guard let target = await buildSystemManager.canonicalTarget(for: document) else {
+package extension BuildSystemManager {
+  func moduleName(for document: DocumentURI) async -> String? {
+    guard let target = await canonicalTarget(for: document) else {
       return nil
     }
-    let sourceFiles = (try? await buildSystemManager.sourceFiles(in: [target]).flatMap(\.sources)) ?? []
+    let sourceFiles = (try? await sourceFiles(in: [target]).flatMap(\.sources)) ?? []
     for sourceFile in sourceFiles {
-      let language = await buildSystemManager.defaultLanguage(for: sourceFile.uri, in: target)
+      let language = await defaultLanguage(for: sourceFile.uri, in: target)
       guard language == .swift else {
         continue
       }
-      if let moduleName = await buildSystemManager.moduleName(for: sourceFile.uri, in: target) {
+      if let moduleName = await moduleName(for: sourceFile.uri, in: target) {
         return moduleName
       }
     }
     return nil
   }
 
-  func findDocCCatalog(for document: DocumentURI) async -> URL? {
-    guard let target = await buildSystemManager.canonicalTarget(for: document) else {
+  func doccCatalog(for document: DocumentURI) async -> URL? {
+    guard let target = await canonicalTarget(for: document) else {
       return nil
     }
-    let sourceFiles = (try? await buildSystemManager.sourceFiles(in: [target]).flatMap(\.sources)) ?? []
+    let sourceFiles = (try? await sourceFiles(in: [target]).flatMap(\.sources)) ?? []
     return sourceFiles.compactMap(\.uri.fileURL?.doccCatalogURL).first
   }
 }
 
-extension URL {
+package extension URL {
   var doccCatalogURL: URL? {
     var pathComponents = self.pathComponents
     var result = self
@@ -66,4 +56,3 @@ extension URL {
     return nil
   }
 }
-#endif

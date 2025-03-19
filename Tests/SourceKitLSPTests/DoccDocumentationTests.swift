@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #if canImport(SwiftDocC)
+import DocCDocumentation
 import Foundation
 import LanguageServerProtocol
 import SKLogging

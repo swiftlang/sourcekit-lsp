@@ -10,14 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+package import Foundation
+
+package protocol DocCCatalogIndex: Sendable {
+  func documentationExtension(for symbolLink: any DocCSymbolLink) -> URL?
+}
+
 #if canImport(SwiftDocC)
-import Foundation
 @preconcurrency import SwiftDocC
 import SwiftExtensions
 
 final actor DocCCatalogIndexManager {
   private let server: DocCServer
-  private var catalogToIndexMap = [URL: Result<DocCCatalogIndex, DocCIndexError>]()
+  private var catalogToIndexMap = [URL: Result<DocCCatalogIndexImpl, DocCIndexError>]()
 
   init(server: DocCServer) {
     self.server = server
@@ -32,11 +37,11 @@ final actor DocCCatalogIndexManager {
     }
   }
 
-  func index(for catalogURL: URL) async throws(DocCIndexError) -> DocCCatalogIndex {
+  func index(for catalogURL: URL) async throws(DocCIndexError) -> DocCCatalogIndexImpl {
     if let existingCatalog = catalogToIndexMap[catalogURL] {
       return try existingCatalog.get()
     }
-    let catalogIndexResult: Result<DocCCatalogIndex, DocCIndexError>
+    let catalogIndexResult: Result<DocCCatalogIndexImpl, DocCIndexError>
     do {
       let convertResponse = try await server.convert(
         externalIDsToConvert: [],
@@ -62,9 +67,9 @@ final actor DocCCatalogIndexManager {
           Result { try JSONDecoder().decode(RenderReferenceStore.self, from: renderReferenceStoreData) }
             .flatMapError { .failure(.decodingFailure($0)) }
         }
-        .map { DocCCatalogIndex(from: $0) }
+        .map { DocCCatalogIndexImpl(from: $0) }
     } catch {
-      catalogIndexResult = .failure(.serverError(error))
+      catalogIndexResult = .failure(.internalError(error))
     }
     catalogToIndexMap[catalogURL] = catalogIndexResult
     return try catalogIndexResult.get()
@@ -72,27 +77,27 @@ final actor DocCCatalogIndexManager {
 }
 
 /// Represents a potential error that the ``DocCCatalogIndexManager`` could encounter while indexing
-enum DocCIndexError: LocalizedError {
+package enum DocCIndexError: LocalizedError {
   case decodingFailure(Error)
-  case serverError(DocCServerError)
+  case internalError(LocalizedError)
   case unexpectedlyNilRenderReferenceStore
 
-  var errorDescription: String? {
+  package var errorDescription: String? {
     switch self {
     case .decodingFailure(let decodingError):
       return "Failed to decode a received message: \(decodingError.localizedDescription)"
-    case .serverError(let serverError):
-      return "DocC server failed to convert the catalog: \(serverError.localizedDescription)"
+    case .internalError(let internalError):
+      return "An internal error occurred: \(internalError.localizedDescription)"
     case .unexpectedlyNilRenderReferenceStore:
       return "Did not receive a RenderReferenceStore from the DocC server"
     }
   }
 }
 
-struct DocCCatalogIndex: Sendable {
+package struct DocCCatalogIndexImpl: DocCCatalogIndex {
   private let assetReferenceToDataAsset: [String: DataAsset]
   private let fuzzyAssetReferenceToDataAsset: [String: DataAsset]
-  private let documentationExtensionToSourceURL: [DocCSymbolLink: URL]
+  private let documentationExtensionToSourceURL: [DocCSymbolLinkImpl: URL]
   let articlePathToSourceURLAndReference: [String: (URL, TopicRenderReference)]
   let tutorialPathToSourceURLAndReference: [String: (URL, TopicRenderReference)]
   let tutorialOverviewPathToSourceURLAndReference: [String: (URL, TopicRenderReference)]
@@ -101,8 +106,11 @@ struct DocCCatalogIndex: Sendable {
     assetReferenceToDataAsset[assetReference.assetName] ?? fuzzyAssetReferenceToDataAsset[assetReference.assetName]
   }
 
-  func documentationExtension(for symbolLink: DocCSymbolLink) -> URL? {
-    documentationExtensionToSourceURL[symbolLink]
+  package func documentationExtension(for symbolLink: any DocCSymbolLink) -> URL? {
+    guard let symbolLink = symbolLink as? DocCSymbolLinkImpl else {
+      return nil
+    }
+    return documentationExtensionToSourceURL[symbolLink]
   }
 
   init(from renderReferenceStore: RenderReferenceStore) {
@@ -121,7 +129,7 @@ struct DocCCatalogIndex: Sendable {
     self.assetReferenceToDataAsset = assetReferenceToDataAsset
     self.fuzzyAssetReferenceToDataAsset = fuzzyAssetReferenceToDataAsset
     // Markdown and Tutorial content
-    var documentationExtensionToSourceURL = [DocCSymbolLink: URL]()
+    var documentationExtensionToSourceURL = [DocCSymbolLinkImpl: URL]()
     var articlePathToSourceURLAndReference = [String: (URL, TopicRenderReference)]()
     var tutorialPathToSourceURLAndReference = [String: (URL, TopicRenderReference)]()
     var tutorialOverviewPathToSourceURLAndReference = [String: (URL, TopicRenderReference)]()
@@ -138,7 +146,7 @@ struct DocCCatalogIndex: Sendable {
         else {
           continue
         }
-        let doccSymbolLink = DocCSymbolLink(absoluteSymbolLink: absoluteSymbolLink)
+        let doccSymbolLink = DocCSymbolLinkImpl(absoluteSymbolLink: absoluteSymbolLink)
         documentationExtensionToSourceURL[doccSymbolLink] = topicContentValue.source
       } else if topicRenderReference.kind == .article {
         articlePathToSourceURLAndReference[renderReferenceKey.url.lastPathComponent] = (
