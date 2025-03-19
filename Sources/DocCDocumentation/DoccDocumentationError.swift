@@ -10,9 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(SwiftDocC)
 import Foundation
-import LanguageServerProtocol
+package import LanguageServerProtocol
 
 package enum DoccDocumentationError {
   case noDocumentation
@@ -31,9 +30,8 @@ package enum DoccDocumentationError {
   }
 }
 
-extension ResponseError {
+package extension ResponseError {
   static func requestFailed(doccDocumentationError: DoccDocumentationError) -> ResponseError {
     return ResponseError.requestFailed(doccDocumentationError.message)
   }
 }
-#endif

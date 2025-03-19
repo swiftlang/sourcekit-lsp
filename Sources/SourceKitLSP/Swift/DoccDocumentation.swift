@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(SwiftDocC)
+import DocCDocumentation
 import Foundation
 package import LanguageServerProtocol
 import SemanticIndex
@@ -31,6 +31,9 @@ extension SwiftLanguageService {
     guard let sourceKitLSPServer else {
       throw ResponseError.internalError("SourceKit-LSP is shutting down")
     }
+    guard let documentationManager = await sourceKitLSPServer.documentationManager.getRenderingSupport() else {
+      throw ResponseError.requestFailed("Documentation rendering is not supported in this version of SourceKit-LSP")
+    }
     guard let position = req.position else {
       throw ResponseError.invalidParams("A position must be provided for Swift files")
     }
@@ -38,8 +41,8 @@ extension SwiftLanguageService {
     guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: req.textDocument.uri) else {
       throw ResponseError.workspaceNotOpen(req.textDocument.uri)
     }
-    let moduleName = await workspace.findModuleName(for: req.textDocument.uri)
-    let catalogURL = await workspace.findDocCCatalog(for: req.textDocument.uri)
+    let moduleName = await workspace.buildSystemManager.moduleName(for: req.textDocument.uri)
+    let catalogURL = await workspace.buildSystemManager.doccCatalog(for: req.textDocument.uri)
 
     // Search for the nearest documentable symbol at this location
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
@@ -71,11 +74,11 @@ extension SwiftLanguageService {
     // Locate the documentation extension and include it in the request if one exists
     let markupExtensionFile = try? await findMarkupExtensionFile(
       workspace: workspace,
-      documentationManager: sourceKitLSPServer.documentationManager,
+      documentationManager: documentationManager,
       catalogURL: catalogURL,
       for: symbolUSR
     )
-    return try await sourceKitLSPServer.documentationManager.renderDocCDocumentation(
+    return try await documentationManager.renderDocCDocumentation(
       symbolUSR: symbolUSR,
       symbolGraph: symbolGraph,
       overrideDocComments: nearestDocumentableSymbol.documentationComments,
@@ -87,7 +90,7 @@ extension SwiftLanguageService {
 
   private func findMarkupExtensionFile(
     workspace: Workspace,
-    documentationManager: DocumentationManager,
+    documentationManager: DocCDocumentationManagerWithRendering,
     catalogURL: URL?,
     for symbolUSR: String
   ) async throws -> String? {
@@ -96,7 +99,7 @@ extension SwiftLanguageService {
     }
     let catalogIndex = try await documentationManager.catalogIndex(for: catalogURL)
     guard let index = workspace.index(checkedFor: .deletedFiles),
-      let symbolLink = index.doccSymbolLink(forUSR: symbolUSR),
+      let symbolLink = await documentationManager.symbolLink(forUSR: symbolUSR, in: index),
       let markupExtensionFileURL = catalogIndex.documentationExtension(for: symbolLink)
     else {
       return nil
@@ -157,4 +160,3 @@ fileprivate extension DocumentableSymbol {
     }
   }
 }
-#endif

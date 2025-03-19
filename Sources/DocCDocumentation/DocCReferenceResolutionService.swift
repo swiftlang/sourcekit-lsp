@@ -190,7 +190,7 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
 
 struct DocCReferenceResolutionContext {
   let catalogURL: URL?
-  let catalogIndex: DocCCatalogIndex?
+  let catalogIndex: DocCCatalogIndexImpl?
 }
 
 fileprivate extension AbsoluteSymbolLink {
