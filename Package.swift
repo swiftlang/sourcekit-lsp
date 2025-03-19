@@ -214,6 +214,24 @@ var targets: [Target] = [
     swiftSettings: globalSwiftSettings
   ),
 
+  // MARK: DocCDocumentation
+
+  .target(
+    name: "DocCDocumentation",
+    dependencies: [
+      "BuildServerProtocol",
+      "BuildSystemIntegration",
+      "LanguageServerProtocol",
+      "SemanticIndex",
+      "SKLogging",
+      "SKUtilities",
+      "SwiftExtensions",
+      .product(name: "SwiftDocC", package: "swift-docc"),
+    ],
+    exclude: ["CMakeLists.txt"],
+    swiftSettings: globalSwiftSettings
+  ),
+
   // MARK: InProcessClient
 
   .target(
@@ -474,6 +492,7 @@ var targets: [Target] = [
     dependencies: [
       "BuildServerProtocol",
       "BuildSystemIntegration",
+      "DocCDocumentation",
       "LanguageServerProtocol",
       "LanguageServerProtocolExtensions",
       "LanguageServerProtocolJSONRPC",
@@ -485,12 +504,11 @@ var targets: [Target] = [
       "SwiftExtensions",
       "ToolchainRegistry",
       "TSCExtensions",
-      .product(name: "SwiftDocC", package: "swift-docc"),
-      .product(name: "SymbolKit", package: "swift-docc-symbolkit"),
-      .product(name: "Markdown", package: "swift-markdown"),
       .product(name: "IndexStoreDB", package: "indexstore-db"),
       .product(name: "Crypto", package: "swift-crypto"),
+      .product(name: "Markdown", package: "swift-markdown"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+      .product(name: "SymbolKit", package: "swift-docc-symbolkit"),
     ]
       + swiftPMDependency([
         .product(name: "SwiftPM-auto", package: "swift-package-manager")

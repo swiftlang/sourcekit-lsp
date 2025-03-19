@@ -10,34 +10,29 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(SwiftDocC)
+import DocCDocumentation
 import Foundation
-import IndexStoreDB
+@preconcurrency import IndexStoreDB
 package import LanguageServerProtocol
 import Markdown
-import SemanticIndex
 import SKUtilities
+import SemanticIndex
+import SymbolKit
 
 extension DocumentationLanguageService {
-  private var documentationManager: DocumentationManager {
-    get throws {
-      guard let sourceKitLSPServer else {
-        throw ResponseError.unknown("Connection to the editor closed")
-      }
-      return sourceKitLSPServer.documentationManager
-    }
-  }
-
   package func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
     guard let sourceKitLSPServer else {
       throw ResponseError.internalError("SourceKit-LSP is shutting down")
+    }
+    guard let documentationManager = await sourceKitLSPServer.documentationManager.getRenderingSupport() else {
+      throw ResponseError.requestFailed("Documentation rendering is not supported in this version of SourceKit-LSP")
     }
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
     guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: req.textDocument.uri) else {
       throw ResponseError.workspaceNotOpen(req.textDocument.uri)
     }
-    let moduleName = await workspace.findModuleName(for: req.textDocument.uri)
-    let catalogURL = await workspace.findDocCCatalog(for: req.textDocument.uri)
+    let moduleName = await workspace.buildSystemManager.moduleName(for: req.textDocument.uri)
+    let catalogURL = await workspace.buildSystemManager.doccCatalog(for: req.textDocument.uri)
 
     switch snapshot.language {
     case .tutorial:
@@ -51,7 +46,20 @@ extension DocumentationLanguageService {
         if let moduleName = moduleName, symbolName == moduleName {
           // This is a page representing the module itself.
           // Create a dummy symbol graph and tell SwiftDocC to convert the module name.
-          let emptySymbolGraph = try await documentationManager.emptySymbolGraph(moduleName: moduleName)
+          let emptySymbolGraph = String(
+            data: try JSONEncoder().encode(
+              SymbolGraph(
+                metadata: SymbolGraph.Metadata(
+                  formatVersion: SymbolGraph.SemanticVersion(major: 0, minor: 5, patch: 0),
+                  generator: "SourceKit-LSP"
+                ),
+                module: SymbolGraph.Module(name: moduleName, platform: SymbolGraph.Platform()),
+                symbols: [],
+                relationships: []
+              )
+            ),
+            encoding: .utf8
+          )
           return try await documentationManager.renderDocCDocumentation(
             symbolUSR: moduleName,
             symbolGraph: emptySymbolGraph,
@@ -64,8 +72,11 @@ extension DocumentationLanguageService {
           guard let index = workspace.index(checkedFor: .deletedFiles) else {
             throw ResponseError.requestFailed(doccDocumentationError: .indexNotAvailable)
           }
-          guard let symbolLink = DocCSymbolLink(string: symbolName),
-            let symbolOccurrence = index.primaryDefinitionOrDeclarationOccurrence(ofDocCSymbolLink: symbolLink)
+          guard let symbolLink = await documentationManager.symbolLink(string: symbolName),
+            let symbolOccurrence = await documentationManager.primaryDefinitionOrDeclarationOccurrence(
+              ofDocCSymbolLink: symbolLink,
+              in: index
+            )
           else {
             throw ResponseError.requestFailed(doccDocumentationError: .symbolNotFound(symbolName))
           }
@@ -153,4 +164,3 @@ struct MarkdownTitleFinder: MarkupVisitor {
     return .plainText(heading.plainText)
   }
 }
-#endif
