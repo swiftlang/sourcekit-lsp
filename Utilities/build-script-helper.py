@@ -55,7 +55,7 @@ def check_call(cmd: List[str], additional_env: Dict[str, str] = {}, verbose: boo
     if verbose:
         print_cmd(cmd=cmd, additional_env=additional_env)
 
-    subprocess.check_call(cmd, env=env_with_additional_env(additional_env), stderr=subprocess.STDOUT)
+    subprocess.check_call(cmd, env=env_with_additional_env(additional_env), stderr=subprocess.STDOUT, timeout=60 * 60)
 
 
 def check_output(cmd: List[str], additional_env: Dict[str, str] = {}, capture_stderr: bool = True, verbose: bool = False) -> str:
@@ -65,7 +65,7 @@ def check_output(cmd: List[str], additional_env: Dict[str, str] = {}, capture_st
         stderr = subprocess.STDOUT
     else:
         stderr = subprocess.DEVNULL
-    return subprocess.check_output(cmd, env=env_with_additional_env(additional_env), stderr=stderr, encoding='utf-8')
+    return subprocess.check_output(cmd, env=env_with_additional_env(additional_env), stderr=stderr, encoding='utf-8', timeout=60 * 60)
 
 # -----------------------------------------------------------------------------
 # SwiftPM wrappers
