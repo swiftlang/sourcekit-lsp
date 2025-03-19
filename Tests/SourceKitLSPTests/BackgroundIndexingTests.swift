@@ -2521,6 +2521,24 @@ final class BackgroundIndexingTests: XCTestCase {
     let workspaceSymbolsAfterUpdate = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTest"))
     XCTAssertEqual(workspaceSymbolsAfterUpdate?.compactMap(\.symbolInformation?.name), ["myTestA_updated", "myTestB"])
   }
+
+  func testCircularSymlink() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Symlink.swift": ""
+      ],
+      enableBackgroundIndexing: true
+    )
+    let circularSymlink = try XCTUnwrap(project.uri(for: "Symlink.swift").fileURL)
+    try FileManager.default.removeItem(at: circularSymlink)
+    try FileManager.default.createSymbolicLink(at: circularSymlink, withDestinationURL: circularSymlink)
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: URI(circularSymlink), type: .changed)])
+    )
+    // Check that we don't enter an infinite loop trying to index the circular symlink.
+    try await project.testClient.send(SynchronizeRequest(index: true))
+  }
 }
 
 extension HoverResponseContents {
