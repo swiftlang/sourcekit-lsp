@@ -13,7 +13,7 @@ We decided to not re-index any files other than the file itself because naively 
 We mark the targets of the changed file as well as any dependent targets as out-of-date. The assumption is that most likely the user will go back to any of the affected files shortly afterwards and modify them again. When that happens, the affected file will get re-indexed and bring the index back up to date.
 
 Alternatives would be:
-- We could we check the file’s interface hash and re-index other files based on whether it has changed. But at that point we are somewhat implementing a build system. And even if a new public method was introduced it’s very likely that the user hasn’t actually used it anywhere yet, which means that re-indexing all dependent modules would still be doing unnecessary work.
+- We could check the file’s interface hash and re-index other files based on whether it has changed. But at that point we are somewhat implementing a build system. And even if a new public method was introduced it’s very likely that the user hasn’t actually used it anywhere yet, which means that re-indexing all dependent modules would still be doing unnecessary work.
 - To cover case (2) from above, we could re-index only dependencies that previously indexed with errors. This is an alternative that hasn’t been fully explored.
 
 ## `.h`

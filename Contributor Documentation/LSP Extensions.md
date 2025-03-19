@@ -180,7 +180,7 @@ a text document and returns a `DoccDocumentationResponse`. The response contains
 representing single JSON encoded DocC RenderNode. This RenderNode can then be rendered in an
 editor via https://github.com/swiftlang/swift-docc-render.
 
-The position may be ommitted for documentation within DocC markdown and tutorial files as they
+The position may be omitted for documentation within DocC markdown and tutorial files as they
 represent a single documentation page. It is only required for generating documentation within
 Swift files as they usually contain multiple documentable symbols.
 
