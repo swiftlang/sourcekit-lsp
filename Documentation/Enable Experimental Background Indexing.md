@@ -7,12 +7,12 @@ Background indexing in SourceKit-LSP is enabled by default in Swift 6.1 toolchai
 
 ## Behavior Without Background Indexing
 
-With background indexing disabled SourceKit-LSP does not update its global index in the background or build Swift modules in the background. Thus, a lot of cross-module or global functionality is limited if the project hasn't been built recently. For example consider two modules: `Lib` and `Exec`, where `Exec` depends on `Lib`: Without background indexing, if a function is added to `Lib`, completion/jump to definition/etc in `Exec` would not be able to see that function until after a build. Background indexing solves that issue.
+With background indexing disabled, SourceKit-LSP does not update its global index in the background or build Swift modules in the background. Thus, a lot of cross-module or global functionality is limited if the project hasn't been built recently. For example, consider two modules: `Lib` and `Exec`, where `Exec` depends on `Lib`: Without background indexing, if a function is added to `Lib`, completion/jump to definition/etc in `Exec` would not be able to see that function until after a build. Background indexing solves that issue.
 
 ## Set Up
 
 1. Install the Swift 6.0 toolchain or install [Xcode 16](https://developer.apple.com/xcode/).
-3. Enable the experimental `background-indexing` feature by creating a [configuration file](Configuration%20File.md) with the following contents at `~/.sourcekit-lsp/config.json` with the following contents:
+2. Enable the experimental `background-indexing` feature by creating a [configuration file](Configuration%20File.md) at `~/.sourcekit-lsp/config.json` with the following contents:
 ```json
 {
   "backgroundIndexing": true,
