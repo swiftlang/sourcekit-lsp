@@ -16,18 +16,6 @@ import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
 
-struct DocCBuildInformation {
-  let catalogURL: URL?
-  let moduleName: String?
-  let catalogIndex: DocCCatalogIndex?
-
-  init(catalogURL: URL? = nil, moduleName: String? = nil, catalogIndex: DocCCatalogIndex? = nil) {
-    self.catalogURL = catalogURL
-    self.moduleName = moduleName
-    self.catalogIndex = catalogIndex
-  }
-}
-
 extension Workspace {
   private var documentationManager: DocumentationManager {
     get throws {
@@ -38,29 +26,29 @@ extension Workspace {
     }
   }
 
-  func doccBuildInformation(for document: DocumentURI) async -> DocCBuildInformation {
-    let target = await buildSystemManager.canonicalTarget(for: document)
-    guard let target else {
-      return DocCBuildInformation()
+  func findModuleName(for document: DocumentURI) async -> String? {
+    guard let target = await buildSystemManager.canonicalTarget(for: document) else {
+      return nil
     }
     let sourceFiles = (try? await buildSystemManager.sourceFiles(in: [target]).flatMap(\.sources)) ?? []
-    var moduleName: String? = nil
-    let catalogURL: URL? = sourceFiles.compactMap(\.uri.fileURL?.doccCatalogURL).first
     for sourceFile in sourceFiles {
       let language = await buildSystemManager.defaultLanguage(for: sourceFile.uri, in: target)
       guard language == .swift else {
         continue
       }
-      moduleName = await buildSystemManager.moduleName(for: sourceFile.uri, in: target)
-      if moduleName != nil {
-        break
+      if let moduleName = await buildSystemManager.moduleName(for: sourceFile.uri, in: target) {
+        return moduleName
       }
     }
-    var catalogIndex: DocCCatalogIndex? = nil
-    if let catalogURL {
-      catalogIndex = try? await documentationManager.catalogIndex(for: catalogURL, moduleName: moduleName)
+    return nil
+  }
+
+  func findDocCCatalog(for document: DocumentURI) async -> URL? {
+    guard let target = await buildSystemManager.canonicalTarget(for: document) else {
+      return nil
     }
-    return DocCBuildInformation(catalogURL: catalogURL, moduleName: moduleName, catalogIndex: catalogIndex)
+    let sourceFiles = (try? await buildSystemManager.sourceFiles(in: [target]).flatMap(\.sources)) ?? []
+    return sourceFiles.compactMap(\.uri.fileURL?.doccCatalogURL).first
   }
 }
 
