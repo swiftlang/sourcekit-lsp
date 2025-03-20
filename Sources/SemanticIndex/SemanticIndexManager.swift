@@ -379,7 +379,7 @@ package final actor SemanticIndexManager {
   package func filesDidChange(_ events: [FileEvent]) async {
     // We only re-index the files that were changed and don't re-index any of their dependencies. See the
     // `Documentation/Files_To_Reindex.md` file.
-    let changedFiles = events.map(\.uri)
+    let changedFiles = events.filter { $0.type != .deleted }.map(\.uri)
     await indexStoreUpToDateTracker.markOutOfDate(changedFiles)
 
     // Preparation tracking should be per file. For now consider any non-known-language change as having to re-prepare
