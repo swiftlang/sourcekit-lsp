@@ -382,19 +382,19 @@ package final actor SemanticIndexManager {
     let changedFiles = events.map(\.uri)
     await indexStoreUpToDateTracker.markOutOfDate(changedFiles)
 
-    // Preparation tracking should be per file. For now consider any non-known-language change as having to re-prepare
-    // the target itself so that we re-prepare potential input files to plugins.
-    // https://github.com/swiftlang/sourcekit-lsp/issues/1975
     var outOfDateTargets = Set<BuildTargetIdentifier>()
+    var targetsOfChangedFiles = Set<BuildTargetIdentifier>()
     for file in changedFiles {
       let changedTargets = await buildSystemManager.targets(for: file)
+      targetsOfChangedFiles.formUnion(changedTargets)
       if Language(inferredFromFileExtension: file) == nil {
+        // Preparation tracking should be per file. For now consider any non-known-language change as having to
+        // re-prepare the target itself so that we re-prepare potential input files to plugins.
+        // https://github.com/swiftlang/sourcekit-lsp/issues/1975
         outOfDateTargets.formUnion(changedTargets)
       }
-
-      let dependentTargets = await buildSystemManager.targets(dependingOn: changedTargets)
-      outOfDateTargets.formUnion(dependentTargets)
     }
+    outOfDateTargets.formUnion(await buildSystemManager.targets(dependingOn: targetsOfChangedFiles))
     if !outOfDateTargets.isEmpty {
       logger.info(
         """
