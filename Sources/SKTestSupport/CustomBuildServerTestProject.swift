@@ -208,7 +208,7 @@ package extension CustomBuildServer {
     )
   }
 
-  func dummyTargetSourcesResponse(_ files: some Sequence<DocumentURI>) -> BuildTargetSourcesResponse {
+  func dummyTargetSourcesResponse(files: some Sequence<DocumentURI>) -> BuildTargetSourcesResponse {
     return BuildTargetSourcesResponse(items: [
       SourcesItem(target: .dummy, sources: files.map { SourceItem(uri: $0, kind: .file, generated: false) })
     ])
