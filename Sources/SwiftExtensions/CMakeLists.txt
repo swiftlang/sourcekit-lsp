@@ -13,6 +13,7 @@ set(sources
   NSLock+WithLock.swift
   PipeAsStringHandler.swift
   Platform.swift
+  Process+terminate.swift
   ResultExtensions.swift
   Sequence+AsyncMap.swift
   Sequence+ContainsAnyIn.swift

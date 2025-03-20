@@ -102,6 +102,9 @@ actor ExternalBuildSystemAdapter {
   /// server crashes.
   private var initializeRequest: InitializeBuildRequest?
 
+  /// The process that runs the external BSP server.
+  private var process: Process?
+
   /// The date at which `clangd` was last restarted.
   /// Used to delay restarting in case of a crash loop.
   private var lastRestart: Date?
@@ -175,7 +178,7 @@ actor ExternalBuildSystemAdapter {
       serverPath = interpreterPath
     }
 
-    return try JSONRPCConnection.start(
+    let (connection, process) = try JSONRPCConnection.start(
       executable: serverPath,
       arguments: serverArgs,
       name: "BSP-Server",
@@ -194,7 +197,9 @@ actor ExternalBuildSystemAdapter {
           }
         }
       }
-    ).connection
+    )
+    self.process = process
+    return connection
   }
 
   private static func getConfigPath(for workspaceFolder: URL? = nil, onlyConsiderRoot: Bool = false) -> URL? {
@@ -294,6 +299,11 @@ actor ExternalBuildSystemAdapter {
     // The build targets might have changed after the restart. Send a `buildTarget/didChange` notification to
     // SourceKit-LSP to discard cached information.
     self.messagesToSourceKitLSPHandler.handle(OnBuildTargetDidChangeNotification(changes: nil))
+  }
+
+  /// If the build server is still running after `duration`, terminate it. Otherwise a no-op.
+  package func terminateIfRunning(after duration: Duration) async throws {
+    try await process?.terminateIfRunning(after: duration)
   }
 }
 
