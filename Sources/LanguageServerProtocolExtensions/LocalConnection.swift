@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Dispatch
+import Foundation
 package import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKLogging
@@ -126,12 +127,14 @@ package final class LocalConnection: Connection, Sendable {
     }
 
     precondition(self.state == .started)
+    let startDate = Date()
     handler.handle(request, id: id) { result in
       switch result {
       case .success(let response):
         logger.info(
           """
-          Received reply for request \(id, privacy: .public) from \(self.name, privacy: .public)
+          Received reply for request \(id, privacy: .public) from \(self.name, privacy: .public) \
+          (took \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms)
           \(Request.method, privacy: .public)
           \(response.forLogging)
           """
@@ -139,7 +142,8 @@ package final class LocalConnection: Connection, Sendable {
       case .failure(let error):
         logger.error(
           """
-          Received error for request \(id, privacy: .public) from \(self.name, privacy: .public)
+          Received error for request \(id, privacy: .public) from \(self.name, privacy: .public) \
+          (took \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms)
           \(Request.method, privacy: .public)
           \(error.forLogging)
           """
