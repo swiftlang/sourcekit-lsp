@@ -559,8 +559,18 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       return
     }
     await orLog("Sending shutdown request to build server") {
-      _ = try await buildSystemAdapter.send(BuildShutdownRequest())
-      await buildSystemAdapter.send(OnBuildExitNotification())
+      // Give the build server 2 seconds to shut down by itself. If it doesn't shut down within that time, terminate it.
+      try await withTimeout(.seconds(2)) {
+        _ = try await buildSystemAdapter.send(BuildShutdownRequest())
+        await buildSystemAdapter.send(OnBuildExitNotification())
+      }
+    }
+    if case .external(let externalBuildSystemAdapter) = buildSystemAdapter {
+      await orLog("Terminating external build server") {
+        // Give the build server 1 second to exit after receiving the `build/exit` notification. If it doesn't exit
+        // within that time, terminate it.
+        try await externalBuildSystemAdapter.terminateIfRunning(after: .seconds(1))
+      }
     }
     self.buildSystemAdapter = nil
   }
