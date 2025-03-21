@@ -2585,6 +2585,48 @@ final class BackgroundIndexingTests: XCTestCase {
     let symbols = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTestFu"))
     XCTAssertEqual(symbols?.compactMap(\.symbolInformation?.name), ["myTestFunc()"])
   }
+
+  func testEnsureSymbolsLoadedIntoIndexstoreDbWhenIndexingHasFinished() async throws {
+    let testSetupComplete = AtomicBool(initialValue: false)
+    let updateIndexStoreStarted = self.expectation(description: "Update index store started")
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": ""
+      ],
+      options: .testDefault(experimentalFeatures: [.isIndexingRequest]),
+      hooks: Hooks(
+        indexHooks: IndexHooks(updateIndexStoreTaskDidStart: { _ in
+          guard testSetupComplete.value else {
+            return
+          }
+          updateIndexStoreStarted.fulfill()
+        })
+      ),
+      enableBackgroundIndexing: true,
+      pollIndex: false
+    )
+
+    try await project.changeFileOnDisk("Test.swift", newMarkedContents: "")
+    try await project.testClient.send(SynchronizeRequest(index: true))
+    let symbolsBeforeUpdate = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTestFu"))
+    XCTAssertEqual(symbolsBeforeUpdate, [])
+
+    testSetupComplete.value = true
+    try await project.changeFileOnDisk(
+      "Test.swift",
+      newMarkedContents: """
+        func myTestFunc() {}
+        """
+    )
+    try await fulfillmentOfOrThrow([updateIndexStoreStarted])
+    try await repeatUntilExpectedResult(sleepInterval: .milliseconds(2)) {
+      try await !project.testClient.send(IsIndexingRequest()).indexing
+    }
+    // Check that the newly added function has been registered in indexstore-db once indexing is done and that there is
+    // no time gap in which indexing has finished but the new unit has not been loaded into indexstore-db yet.
+    let symbols = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTestFu"))
+    XCTAssertEqual(symbols?.count, 1)
+  }
 }
 
 extension HoverResponseContents {

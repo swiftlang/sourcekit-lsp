@@ -188,6 +188,17 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
           outputPath: fileIndexInfo.outputPath
         )
       }
+      // If we know the output paths, make sure that we load their units into indexstore-db. We would eventually also
+      // pick the units up through file watching but that would leave a short time period in which we think that
+      // indexing has finished (because the index process has terminated) but when the new symbols aren't present in
+      // indexstore-db.
+      let outputPaths = filesToIndex.compactMap { fileToIndex in
+        switch fileToIndex.outputPath {
+        case .path(let string): return string
+        case .notSupported: return nil
+        }
+      }
+      index.processUnitsForOutputPathsAndWait(outputPaths)
       await hooks.updateIndexStoreTaskDidFinish?(self)
       logger.log(
         "Finished updating index store in \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms: \(filesToIndexDescription)"
