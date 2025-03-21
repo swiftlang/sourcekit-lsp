@@ -178,7 +178,11 @@ package final actor SemanticIndexManager {
 
   /// The tasks to generate the build graph (resolving package dependencies, generating the build description,
   /// ...) and to schedule indexing of modified tasks.
-  private var scheduleIndexingTasks: [UUID: Task<Void, Never>] = [:]
+  private var buildGraphGenerationTasks: [UUID: Task<Void, Never>] = [:]
+
+  /// Tasks that were  created from `workspace/didChangeWatchedFiles` or `buildTarget/didChange` notifications. Needed
+  /// so that we can wait for these tasks to be handled in the poll index request.
+  private var fileOrBuildTargetChangedTasks: [UUID: Task<Void, Never>] = [:]
 
   private let preparationUpToDateTracker = UpToDateTracker<BuildTargetIdentifier, DummySecondaryKey>()
 
@@ -245,7 +249,7 @@ package final actor SemanticIndexManager {
     // Only report the `schedulingIndexing` status when we don't have any in-progress indexing tasks. This way we avoid
     // flickering between indexing progress and `Scheduling indexing` if we trigger an index schedule task while
     // indexing is already in progress
-    if !scheduleIndexingTasks.isEmpty {
+    if !buildGraphGenerationTasks.isEmpty {
       return .schedulingIndexing
     }
     return .upToDate
@@ -276,46 +280,37 @@ package final actor SemanticIndexManager {
   /// Regenerate the build graph (also resolving package dependencies) and then index all the source files known to the
   /// build system that don't currently have a unit with a timestamp that matches the mtime of the file.
   ///
-  /// If `filesToIndex` is `nil`, all files in the build system with out-of-date units are indexed.
-  ///
-  /// If `ensureAllUnitsRegisteredInIndex` is `true`, ensure that all units are registered in the index before
-  /// triggering the indexing. This is a costly operation since it iterates through all the unit files on the file
+  /// This is a costly operation since it iterates through all the unit files on the file
   /// system but if existing unit files are not known to the index, we might re-index those files even if they are
   /// up-to-date. Generally this should be set to `true` during the initial indexing (in which case we might be need to
   /// build the indexstore-db) and `false` for all subsequent indexing.
-  package func scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
-    filesToIndex: [DocumentURI]?,
-    ensureAllUnitsRegisteredInIndex: Bool,
-    indexFilesWithUpToDateUnit: Bool
-  ) async {
+  package func scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(indexFilesWithUpToDateUnit: Bool) async {
     let taskId = UUID()
     let generateBuildGraphTask = Task(priority: .low) {
       await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "build-graph-generation") {
         await hooks.buildGraphGenerationDidStart?()
         await self.buildSystemManager.waitForUpToDateBuildGraph()
-        if ensureAllUnitsRegisteredInIndex {
-          index.pollForUnitChangesAndWait()
-        }
+        // Polling for unit changes is a costly operation since it iterates through all the unit files on the file
+        // system but if existing unit files are not known to the index, we might re-index those files even if they are
+        // up-to-date. This operation is worth the cost during initial indexing and during the manual re-index command.
+        index.pollForUnitChangesAndWait()
         await hooks.buildGraphGenerationDidFinish?()
         // TODO: Ideally this would be a type like any Collection<DocumentURI> & Sendable but that doesn't work due to
         // https://github.com/swiftlang/swift/issues/75602
         let filesToIndex: [DocumentURI] =
-          if let filesToIndex {
-            filesToIndex
-          } else {
-            await orLog("Getting files to index") {
-              try await self.buildSystemManager.buildableSourceFiles().sorted { $0.stringValue < $1.stringValue }
-            } ?? []
-          }
-        _ = await self.scheduleIndexing(
+          await orLog("Getting files to index") {
+            try await self.buildSystemManager.buildableSourceFiles().sorted { $0.stringValue < $1.stringValue }
+          } ?? []
+        await self.scheduleIndexing(
           of: filesToIndex,
+          waitForBuildGraphGenerationTasks: false,
           indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit,
           priority: .low
         )
-        scheduleIndexingTasks[taskId] = nil
+        buildGraphGenerationTasks[taskId] = nil
       }
     }
-    scheduleIndexingTasks[taskId] = generateBuildGraphTask
+    buildGraphGenerationTasks[taskId] = generateBuildGraphTask
     indexProgressStatusDidChange()
   }
 
@@ -324,15 +319,11 @@ package final actor SemanticIndexManager {
   package func scheduleReindex() async {
     await indexStoreUpToDateTracker.markAllKnownOutOfDate()
     await preparationUpToDateTracker.markAllKnownOutOfDate()
-    await scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
-      filesToIndex: nil,
-      ensureAllUnitsRegisteredInIndex: false,
-      indexFilesWithUpToDateUnit: true
-    )
+    await scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(indexFilesWithUpToDateUnit: true)
   }
 
   private func waitForBuildGraphGenerationTasks() async {
-    await scheduleIndexingTasks.values.concurrentForEach { await $0.value }
+    await buildGraphGenerationTasks.values.concurrentForEach { await $0.value }
   }
 
   /// Wait for all in-progress index tasks to finish.
@@ -341,6 +332,8 @@ package final actor SemanticIndexManager {
     // Wait for a build graph update first, if one is in progress. This will add all index tasks to `indexStatus`, so we
     // can await the index tasks below.
     await waitForBuildGraphGenerationTasks()
+
+    await fileOrBuildTargetChangedTasks.concurrentForEach { await $0.value.value }
 
     await inProgressIndexTasks.concurrentForEach { (_, inProgress) in
       switch inProgress.state {
@@ -364,14 +357,16 @@ package final actor SemanticIndexManager {
     logger.info(
       "Waiting for up-to-date index for \(uris.map { $0.fileURL?.lastPathComponent ?? $0.stringValue }.joined(separator: ", "))"
     )
-    // If there's a build graph update in progress wait for that to finish so we can discover new files in the build
-    // system.
-    await waitForBuildGraphGenerationTasks()
 
     // Create a new index task for the files that aren't up-to-date. The newly scheduled index tasks will
     // - Wait for the existing index operations to finish if they have the same number of files.
     // - Reschedule the background index task in favor of an index task with fewer source files.
-    await self.scheduleIndexing(of: uris, indexFilesWithUpToDateUnit: false, priority: nil).value
+    await self.scheduleIndexing(
+      of: uris,
+      waitForBuildGraphGenerationTasks: true,
+      indexFilesWithUpToDateUnit: false,
+      priority: nil
+    ).value
     index.pollForUnitChangesAndWait()
     logger.debug("Done waiting for up-to-date index")
   }
@@ -405,11 +400,19 @@ package final actor SemanticIndexManager {
       await preparationUpToDateTracker.markOutOfDate(outOfDateTargets)
     }
 
-    await scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
-      filesToIndex: changedFiles,
-      ensureAllUnitsRegisteredInIndex: false,
-      indexFilesWithUpToDateUnit: false
-    )
+    // We need to invalidate the preparation status of the changed files immediately so that we re-prepare its target
+    // eg. on a `workspace/sourceKitOptions` request. But the actual indexing can happen using a background task.
+    // We don't need a queue here because we don't care about the order in which we schedule re-indexing of files.
+    let uuid = UUID()
+    fileOrBuildTargetChangedTasks[uuid] = Task {
+      defer { fileOrBuildTargetChangedTasks[uuid] = nil }
+      await scheduleIndexing(
+        of: changedFiles,
+        waitForBuildGraphGenerationTasks: true,
+        indexFilesWithUpToDateUnit: false,
+        priority: .low
+      )
+    }
   }
 
   package func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {
@@ -436,16 +439,24 @@ package final actor SemanticIndexManager {
       await preparationUpToDateTracker.markAllKnownOutOfDate()
     }
 
-    await orLog("Scheduling re-indexing of changed targets") {
-      var sourceFiles = try await self.buildSystemManager.sourceFiles(includeNonBuildableFiles: false)
-      if let targets {
-        sourceFiles = sourceFiles.filter { !targets.isDisjoint(with: $0.value.targets) }
+    // We need to invalidate the preparation status of the changed files immediately so that we re-prepare its target
+    // eg. on a `workspace/sourceKitOptions` request. But the actual indexing can happen using a background task.
+    // We don't need a queue here because we don't care about the order in which we schedule re-indexing of files.
+    let uuid = UUID()
+    fileOrBuildTargetChangedTasks[uuid] = Task {
+      await orLog("Scheduling re-indexing of changed targets") {
+        defer { fileOrBuildTargetChangedTasks[uuid] = nil }
+        var sourceFiles = try await self.buildSystemManager.sourceFiles(includeNonBuildableFiles: false)
+        if let targets {
+          sourceFiles = sourceFiles.filter { !targets.isDisjoint(with: $0.value.targets) }
+        }
+        _ = await scheduleIndexing(
+          of: sourceFiles.keys,
+          waitForBuildGraphGenerationTasks: true,
+          indexFilesWithUpToDateUnit: false,
+          priority: .low
+        )
       }
-      _ = await scheduleIndexing(
-        of: sourceFiles.keys,
-        indexFilesWithUpToDateUnit: false,
-        priority: .low
-      )
     }
   }
 
@@ -748,12 +759,23 @@ package final actor SemanticIndexManager {
   /// known to be up-to-date based on `indexStoreUpToDateTracker` or the unit timestamp will not be re-indexed unless
   /// `indexFilesWithUpToDateUnit` is `true`.
   ///
+  /// If `waitForBuildGraphGenerationTasks` is `true` and there are any tasks in progress that wait for an up-to-date
+  /// build graph, wait for those to finish. This is helpful so to avoid the following: We receive a build target change
+  /// notification before the initial background indexing has finished. If indexstore-db hasn't been initialized with
+  /// `pollForUnitChangesAndWait` yet, we might not know that the changed targets' files' index is actually up-to-date
+  /// and would thus schedule an unnecessary re-index of the file.
+  ///
   /// The returned task finishes when all files are indexed.
+  @discardableResult
   package func scheduleIndexing(
     of files: some Collection<DocumentURI> & Sendable,
+    waitForBuildGraphGenerationTasks: Bool,
     indexFilesWithUpToDateUnit: Bool,
     priority: TaskPriority?
   ) async -> Task<Void, Never> {
+    if waitForBuildGraphGenerationTasks {
+      await self.waitForBuildGraphGenerationTasks()
+    }
     // Perform a quick initial check to whether the files is up-to-date, in which case we don't need to schedule a
     // prepare and index operation at all.
     // We will check the up-to-date status again in `IndexTaskDescription.execute`. This ensures that if we schedule
