@@ -354,7 +354,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
     receivedInitialDiagnosticsReply.signal()
     try await Task.sleep(for: .seconds(1))
 
-    try await fulfillmentOfOrThrow([diagnosticRefreshRequestReceived])
+    try await fulfillmentOfOrThrow(diagnosticRefreshRequestReceived)
     let diagnosticsAfterPackageLoading = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )

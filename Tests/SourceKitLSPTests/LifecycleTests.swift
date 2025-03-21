@@ -114,7 +114,7 @@ final class LifecycleTests: XCTestCase {
     }
     testClient.send(CancelRequestNotification(id: requestID))
 
-    try await fulfillmentOfOrThrow([completionRequestReplied])
+    try await fulfillmentOfOrThrow(completionRequestReplied)
 
     let fastStartDate = Date()
     let fastReply = try await testClient.send(

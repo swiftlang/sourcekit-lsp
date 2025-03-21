@@ -144,7 +144,7 @@ package struct ExpectationNotFulfilledError: Error, CustomStringConvertible {
 /// Wait for the given expectations to be fulfilled. If the expectations aren't
 /// fulfilled within `timeout`, throw an error, aborting the test execution.
 package nonisolated func fulfillmentOfOrThrow(
-  _ expectations: [XCTestExpectation],
+  _ expectations: XCTestExpectation...,
   timeout: TimeInterval = defaultTimeout,
   enforceOrder enforceOrderOfFulfillment: Bool = false
 ) async throws {
