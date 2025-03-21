@@ -121,7 +121,7 @@ final class ExpandMacroTests: XCTestCase {
 
         _ = try await project.testClient.send(request)
 
-        try await fulfillmentOfOrThrow([expectation])
+        try await fulfillmentOfOrThrow(expectation)
 
         let uris = try XCTUnwrap(
           peekDocumentsRequestURIs.value,
@@ -160,7 +160,7 @@ final class ExpandMacroTests: XCTestCase {
 
         _ = try await project.testClient.send(request)
 
-        try await fulfillmentOfOrThrow([expectation])
+        try await fulfillmentOfOrThrow(expectation)
 
         let url = try XCTUnwrap(
           showDocumentRequestURI.value?.fileURL,
@@ -311,7 +311,7 @@ final class ExpandMacroTests: XCTestCase {
 
         _ = try await project.testClient.send(request)
 
-        try await fulfillmentOfOrThrow([expectation])
+        try await fulfillmentOfOrThrow(expectation)
 
         let uris = try XCTUnwrap(
           peekDocumentsRequestURIs.value,
@@ -358,7 +358,7 @@ final class ExpandMacroTests: XCTestCase {
 
         _ = try await project.testClient.send(request)
 
-        try await fulfillmentOfOrThrow([expectation])
+        try await fulfillmentOfOrThrow(expectation)
 
         let url = try XCTUnwrap(
           showDocumentRequestURI.value?.fileURL,
@@ -498,7 +498,7 @@ final class ExpandMacroTests: XCTestCase {
     }
 
     _ = try await project.testClient.send(outerExpandMacroRequest)
-    try await fulfillmentOfOrThrow([outerPeekDocumentRequestReceived])
+    try await fulfillmentOfOrThrow(outerPeekDocumentRequestReceived)
 
     let outerPeekDocumentURI = try XCTUnwrap(outerPeekDocumentsRequestURIs.value?.only)
     let outerMacroExpansion = try await project.testClient.send(GetReferenceDocumentRequest(uri: outerPeekDocumentURI))
@@ -533,7 +533,7 @@ final class ExpandMacroTests: XCTestCase {
     }
 
     _ = try await project.testClient.send(intermediateExpandMacroRequest)
-    try await fulfillmentOfOrThrow([intermediatePeekDocumentRequestReceived])
+    try await fulfillmentOfOrThrow(intermediatePeekDocumentRequestReceived)
 
     let intermediatePeekDocumentURI = try XCTUnwrap(intermediatePeekDocumentsRequestURIs.value?.only)
     let intermediateMacroExpansion = try await project.testClient.send(
@@ -570,7 +570,7 @@ final class ExpandMacroTests: XCTestCase {
     }
 
     _ = try await project.testClient.send(innerExpandMacroRequest)
-    try await fulfillmentOfOrThrow([innerPeekDocumentRequestReceived])
+    try await fulfillmentOfOrThrow(innerPeekDocumentRequestReceived)
 
     let innerPeekDocumentURI = try XCTUnwrap(innerPeekDocumentsRequestURIs.value?.only)
     let innerMacroExpansion = try await project.testClient.send(GetReferenceDocumentRequest(uri: innerPeekDocumentURI))

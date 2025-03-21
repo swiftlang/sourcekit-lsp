@@ -200,7 +200,7 @@ final class PullDiagnosticsTests: XCTestCase {
     }
 
     try await project.changeFileOnDisk("FileA.swift", newMarkedContents: "func sayHello() {}")
-    try await fulfillmentOfOrThrow([diagnosticsRefreshRequestReceived])
+    try await fulfillmentOfOrThrow(diagnosticsRefreshRequestReceived)
 
     let afterChangingFileA = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
@@ -270,7 +270,7 @@ final class PullDiagnosticsTests: XCTestCase {
       )
     )
 
-    try await fulfillmentOfOrThrow([diagnosticsRefreshRequestReceived])
+    try await fulfillmentOfOrThrow(diagnosticsRefreshRequestReceived)
 
     let afterChangingFileA = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
@@ -325,7 +325,7 @@ final class PullDiagnosticsTests: XCTestCase {
       receivedDiagnostics.fulfill()
     }
     diagnosticRequestSent.signal()
-    try await fulfillmentOfOrThrow([receivedDiagnostics])
+    try await fulfillmentOfOrThrow(receivedDiagnostics)
   }
 
   func testDontReturnEmptyDiagnosticsIfDiagnosticRequestIsCancelled() async throws {
@@ -357,7 +357,7 @@ final class PullDiagnosticsTests: XCTestCase {
       enableBackgroundIndexing: true,
       pollIndex: false
     )
-    try await fulfillmentOfOrThrow([packageLoadingDidFinish])
+    try await fulfillmentOfOrThrow(packageLoadingDidFinish)
     let (uri, _) = try project.openDocument("Lib.swift")
 
     let diagnosticResponseReceived = self.expectation(description: "Received diagnostic response")
@@ -369,7 +369,7 @@ final class PullDiagnosticsTests: XCTestCase {
     }
     project.testClient.send(CancelRequestNotification(id: requestID))
     diagnosticRequestCancelled.fulfill()
-    try await fulfillmentOfOrThrow([diagnosticResponseReceived])
+    try await fulfillmentOfOrThrow(diagnosticResponseReceived)
   }
 
   func testNoteInSecondaryFile() async throws {

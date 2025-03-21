@@ -52,7 +52,7 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
   }
 
   func testMessageBuffer() async throws {
@@ -81,7 +81,7 @@ class ConnectionTests: XCTestCase {
       _rawData: [notification1Str.utf8.last!, notfication2Str.utf8.first!].withUnsafeBytes { DispatchData(bytes: $0) }
     )
 
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
 
     let expectation2 = self.expectation(description: "notification received")
 
@@ -94,7 +94,7 @@ class ConnectionTests: XCTestCase {
       clientConnection.send(_rawData: [b].withUnsafeBytes { DispatchData(bytes: $0) })
     }
 
-    try await fulfillmentOfOrThrow([expectation2])
+    try await fulfillmentOfOrThrow(expectation2)
 
     // Close the connection before accessing requestBuffer, which ensures we don't race.
     connection.serverToClientConnection.close()
@@ -120,7 +120,7 @@ class ConnectionTests: XCTestCase {
       expectation2.fulfill()
     }
 
-    try await fulfillmentOfOrThrow([expectation, expectation2])
+    try await fulfillmentOfOrThrow(expectation, expectation2)
   }
 
   func testEchoNotification() async throws {
@@ -134,7 +134,7 @@ class ConnectionTests: XCTestCase {
 
     client.send(EchoNotification(string: "hello!"))
 
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
   }
 
   func testUnknownRequest() async throws {
@@ -151,7 +151,7 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
   }
 
   func testUnknownNotification() async throws {
@@ -173,7 +173,7 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
   }
 
   func testUnexpectedResponse() async throws {
@@ -192,7 +192,7 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
   }
 
   func testSendAfterClose() async throws {
@@ -212,7 +212,7 @@ class ConnectionTests: XCTestCase {
     connection.clientToServerConnection.close()
     connection.clientToServerConnection.close()
 
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
   }
 
   func testSendBeforeClose() async throws {
@@ -227,7 +227,7 @@ class ConnectionTests: XCTestCase {
     server.client.send(EchoNotification(string: "about to close!"))
     connection.serverToClientConnection.close()
 
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
   }
 
   /// We can explicitly close a connection, but the connection also
@@ -279,7 +279,7 @@ class ConnectionTests: XCTestCase {
       #endif
       conn.close()
 
-      try await fulfillmentOfOrThrow([expectation])
+      try await fulfillmentOfOrThrow(expectation)
       withExtendedLifetime(conn) {}
     }
   }
@@ -300,7 +300,7 @@ class ConnectionTests: XCTestCase {
       """
     connection.clientToServerConnection.send(message: messageContents)
 
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
   }
 }
 

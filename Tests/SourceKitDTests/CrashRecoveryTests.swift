@@ -139,8 +139,8 @@ final class CrashRecoveryTests: XCTestCase {
 
     await clangdServer.crash()
 
-    try await fulfillmentOfOrThrow([clangdCrashed])
-    try await fulfillmentOfOrThrow([clangdRestarted])
+    try await fulfillmentOfOrThrow(clangdCrashed)
+    try await fulfillmentOfOrThrow(clangdRestarted)
   }
 
   func testClangdCrashRecovery() async throws {
@@ -298,15 +298,15 @@ final class CrashRecoveryTests: XCTestCase {
 
     await clangdServer.crash()
 
-    try await fulfillmentOfOrThrow([clangdCrashed], timeout: 5)
-    try await fulfillmentOfOrThrow([clangdRestartedFirstTime], timeout: 30)
+    try await fulfillmentOfOrThrow(clangdCrashed, timeout: 5)
+    try await fulfillmentOfOrThrow(clangdRestartedFirstTime, timeout: 30)
     // Clangd has restarted. Note the date so we can check that the second restart doesn't happen too quickly.
     let firstRestartDate = Date()
 
     // Crash clangd again. This time, it should only restart after a delay.
     await clangdServer.crash()
 
-    try await fulfillmentOfOrThrow([clangdRestartedSecondTime], timeout: 30)
+    try await fulfillmentOfOrThrow(clangdRestartedSecondTime, timeout: 30)
     XCTAssert(
       Date().timeIntervalSince(firstRestartDate) > 5,
       "Clangd restarted too quickly after crashing twice in a row. We are not preventing crash loops."

@@ -326,7 +326,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
       slowCompletionResultReceived.fulfill()
     }
     slowCompletionTask.cancel()
-    try await fulfillmentOfOrThrow([slowCompletionResultReceived], timeout: 30)
+    try await fulfillmentOfOrThrow(slowCompletionResultReceived, timeout: 30)
 
     let fastCompletionStarted = Date()
     let result = try await sourcekitd.completeOpen(

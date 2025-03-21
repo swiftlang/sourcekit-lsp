@@ -83,7 +83,7 @@ final class LoggingTests: XCTestCase {
       }
     )
     logger.log(level: .error, "my message")
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
     XCTAssert(
       message.starts(with: "[org.swift.sourcekit-lsp:test] error"),
       "Message did not have expected header. Received \n\(message)"

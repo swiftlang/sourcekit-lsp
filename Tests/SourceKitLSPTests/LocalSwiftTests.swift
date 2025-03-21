@@ -1380,7 +1380,7 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    try await fulfillmentOfOrThrow([reusedNodeCallback])
+    try await fulfillmentOfOrThrow(reusedNodeCallback)
 
     XCTAssertEqual(reusedNodes.value.count, 1)
     let firstNode = try XCTUnwrap(reusedNodes.value.first)
