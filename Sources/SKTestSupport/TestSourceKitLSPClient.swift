@@ -216,11 +216,11 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   deinit {
     // It's really unfortunate that there are no async deinits. If we had async
     // deinits, we could await the sending of a ShutdownRequest.
-    let sema = DispatchSemaphore(value: 0)
+    let sema = WrappedSemaphore(name: "Shutdown")
     server.handle(ShutdownRequest(), id: .number(Int(nextRequestID.fetchAndIncrement()))) { result in
       sema.signal()
     }
-    sema.wait()
+    sema.waitOrXCTFail()
     self.send(ExitNotification())
 
     cleanUp()
