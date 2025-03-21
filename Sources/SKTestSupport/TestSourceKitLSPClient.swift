@@ -261,6 +261,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
           .failure(ResponseError.unknown("\(R.method) request timed out after \(defaultTimeoutDuration)"))
         )
       }
+      await server.handle(notification: CancelRequestNotification(id: requestID))
     }
     server.handle(request, id: requestID) { result in
       if replyOutstanding.takeValue() ?? false {
