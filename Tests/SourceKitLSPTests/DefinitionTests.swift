@@ -366,7 +366,7 @@ class DefinitionTests: XCTestCase {
       diagnosticRefreshRequestReceived.fulfill()
       return VoidResponse()
     }
-    try await fulfillmentOfOrThrow([diagnosticRefreshRequestReceived])
+    try await fulfillmentOfOrThrow(diagnosticRefreshRequestReceived)
 
     let afterChangingFileA = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(bUri), position: bPositions["1️⃣"])
@@ -438,7 +438,7 @@ class DefinitionTests: XCTestCase {
       diagnosticRefreshRequestReceived.fulfill()
       return VoidResponse()
     }
-    try await fulfillmentOfOrThrow([diagnosticRefreshRequestReceived])
+    try await fulfillmentOfOrThrow(diagnosticRefreshRequestReceived)
 
     let afterBuilding = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(bUri), position: bPositions["2️⃣"])

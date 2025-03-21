@@ -173,7 +173,7 @@ final class BuildSystemManagerTests: XCTestCase {
       (a, .swift, fallbackBuildSettings(for: a, language: .swift, options: .init()), changed)
     ])
     await buildSystem.setBuildSettings(for: a, to: nil)
-    try await fulfillmentOfOrThrow([changed])
+    try await fulfillmentOfOrThrow(changed)
   }
 
   func testSettingsMainFileInitialNil() async throws {
@@ -187,7 +187,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let changed = expectation(description: "changed settings")
     await del.setExpected([(a, .swift, FileBuildSettings(compilerArguments: ["x"], language: .swift), changed)])
     await buildSystem.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
-    try await fulfillmentOfOrThrow([changed])
+    try await fulfillmentOfOrThrow(changed)
   }
 
   func testSettingsMainFileWithFallback() async throws {
@@ -211,12 +211,12 @@ final class BuildSystemManagerTests: XCTestCase {
       for: a,
       to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["non-fallback", "args"])
     )
-    try await fulfillmentOfOrThrow([changed])
+    try await fulfillmentOfOrThrow(changed)
 
     let revert = expectation(description: "revert to fallback settings")
     await del.setExpected([(a, .swift, fallbackSettings, revert)])
     await buildSystem.setBuildSettings(for: a, to: nil)
-    try await fulfillmentOfOrThrow([revert])
+    try await fulfillmentOfOrThrow(revert)
   }
 
   func testSettingsHeaderChangeMainFile() async throws {
@@ -257,20 +257,20 @@ final class BuildSystemManagerTests: XCTestCase {
     let changed = expectation(description: "changed settings to cpp2")
     await del.setExpected([(h, .c, FileBuildSettings(compilerArguments: ["C++ 2"], language: .c), changed)])
     await manager.mainFilesChanged()
-    try await fulfillmentOfOrThrow([changed])
+    try await fulfillmentOfOrThrow(changed)
 
     let changed2 = expectation(description: "still cpp2, no update")
     changed2.isInverted = true
     await del.setExpected([(h, .c, nil, changed2)])
     await manager.mainFilesChanged()
-    try await fulfillmentOfOrThrow([changed2], timeout: 1)
+    try await fulfillmentOfOrThrow(changed2, timeout: 1)
 
     await mainFiles.updateMainFiles(for: h, to: [cpp1, cpp2])
 
     let changed3 = expectation(description: "added lexicographically earlier main file")
     await del.setExpected([(h, .c, FileBuildSettings(compilerArguments: ["C++ 1"], language: .c), changed3)])
     await manager.mainFilesChanged()
-    try await fulfillmentOfOrThrow([changed3], timeout: 1)
+    try await fulfillmentOfOrThrow(changed3, timeout: 1)
 
     await mainFiles.updateMainFiles(for: h, to: [])
 
@@ -279,7 +279,7 @@ final class BuildSystemManagerTests: XCTestCase {
       (h, .c, fallbackBuildSettings(for: h, language: .cpp, options: .init()), changed4)
     ])
     await manager.mainFilesChanged()
-    try await fulfillmentOfOrThrow([changed4])
+    try await fulfillmentOfOrThrow(changed4)
   }
 
   func testSettingsOneMainTwoHeader() async throws {
@@ -332,7 +332,7 @@ final class BuildSystemManagerTests: XCTestCase {
       for: cpp,
       to: TextDocumentSourceKitOptionsResponse(compilerArguments: [newCppArg, cpp.pseudoPath])
     )
-    try await fulfillmentOfOrThrow([changed1, changed2])
+    try await fulfillmentOfOrThrow(changed1, changed2)
   }
 }
 

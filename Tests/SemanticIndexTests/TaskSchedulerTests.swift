@@ -226,17 +226,17 @@ final class TaskSchedulerTests: XCTestCase {
     }
 
     // The high priority task should be able to finish because we have an execution slot for it.
-    try await fulfillmentOfOrThrow([highPriorityTaskFinished])
+    try await fulfillmentOfOrThrow(highPriorityTaskFinished)
 
     // But we shouldn't be able to execute the low priority task because it doesn't have an execution slot.
-    await assertThrowsError(try await fulfillmentOfOrThrow([lowPriorityTaskFinished1], timeout: 1)) { error in
+    await assertThrowsError(try await fulfillmentOfOrThrow(lowPriorityTaskFinished1, timeout: 1)) { error in
       XCTAssert(error is ExpectationNotFulfilledError)
     }
 
     await taskScheduler.setMaxConcurrentTasksByPriority([(.high, 1), (.low, 1)])
 
     // After increasing the number of execution slots, we should be able to execute the low-priority task
-    try await fulfillmentOfOrThrow([lowPriorityTaskFinished2])
+    try await fulfillmentOfOrThrow(lowPriorityTaskFinished2)
   }
 
   func testDecreaseNumberOfExecutionSlots() async throws {
@@ -261,7 +261,7 @@ final class TaskSchedulerTests: XCTestCase {
       taskStartedExecuting.fulfill()
 
       do {
-        try await fulfillmentOfOrThrow([executionSlotsReduced])
+        try await fulfillmentOfOrThrow(executionSlotsReduced)
 
         try await repeatUntilExpectedResult {
           try Task.checkCancellation()
@@ -276,14 +276,14 @@ final class TaskSchedulerTests: XCTestCase {
     }
 
     // Check that we cancel the in-progress task when reducing the number of execution slots
-    try await fulfillmentOfOrThrow([taskStartedExecuting])
+    try await fulfillmentOfOrThrow(taskStartedExecuting)
     await taskScheduler.setMaxConcurrentTasksByPriority([(.low, 0)])
     executionSlotsReduced.fulfill()
-    try await fulfillmentOfOrThrow([taskCancelled])
+    try await fulfillmentOfOrThrow(taskCancelled)
 
     // And check that we execute it again when increasing the number of execution slots again
     await taskScheduler.setMaxConcurrentTasksByPriority([(.low, 1)])
-    try await fulfillmentOfOrThrow([taskExecutedAgain])
+    try await fulfillmentOfOrThrow(taskExecutedAgain)
   }
 
   func testUseAllExecutionSlotsWithHighAndLowPriorityTasks() async throws {

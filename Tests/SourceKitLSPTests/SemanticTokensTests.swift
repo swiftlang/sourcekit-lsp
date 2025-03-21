@@ -917,7 +917,7 @@ final class SemanticTokensTests: XCTestCase {
         contentChanges: [TextDocumentContentChangeEvent(range: Range(positions["1️⃣"]), text: "let x = 1")]
       )
     )
-    try await fulfillmentOfOrThrow([receivedSemanticTokensResponse])
+    try await fulfillmentOfOrThrow(receivedSemanticTokensResponse)
   }
 
   func testNoImplicitCancellationOnEditIfImplicitCancellationIsDisabled() async throws {
@@ -946,7 +946,7 @@ final class SemanticTokensTests: XCTestCase {
         contentChanges: [TextDocumentContentChangeEvent(range: Range(positions["1️⃣"]), text: "let x = 1")]
       )
     )
-    try await fulfillmentOfOrThrow([receivedSemanticTokensResponse])
+    try await fulfillmentOfOrThrow(receivedSemanticTokensResponse)
   }
 }
 

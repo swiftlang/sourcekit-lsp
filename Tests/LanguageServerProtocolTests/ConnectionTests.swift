@@ -37,7 +37,7 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
   }
 
   func testEchoError() async throws {
@@ -57,7 +57,7 @@ class ConnectionTests: XCTestCase {
       expectation2.fulfill()
     }
 
-    try await fulfillmentOfOrThrow([expectation, expectation2])
+    try await fulfillmentOfOrThrow(expectation, expectation2)
   }
 
   func testEchoNotification() async throws {
@@ -71,6 +71,6 @@ class ConnectionTests: XCTestCase {
 
     client.send(EchoNotification(string: "hello!"))
 
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
   }
 }

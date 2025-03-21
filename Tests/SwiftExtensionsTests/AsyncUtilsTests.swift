@@ -33,7 +33,7 @@ final class AsyncUtilsTests: XCTestCase {
     ) { error in
       XCTAssert(error is TimeoutError, "Received unexpected error \(error)")
     }
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
   }
 
   func testWithTimeoutReturnsImmediatelyEvenIfBodyDoesntCooperateInCancellation() async throws {
@@ -64,7 +64,7 @@ final class AsyncUtilsTests: XCTestCase {
         }
       }
     }
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
     try await Task(priority: .high) {
       try await task.value
     }.value

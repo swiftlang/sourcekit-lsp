@@ -1161,7 +1161,7 @@ final class WorkspaceTests: XCTestCase {
     project.testClient.send(
       DidChangeActiveDocumentNotification(textDocument: TextDocumentIdentifier(libBUri))
     )
-    try await fulfillmentOfOrThrow([didPrepareLibBAfterChangingBaseLib])
+    try await fulfillmentOfOrThrow(didPrepareLibBAfterChangingBaseLib)
 
     withExtendedLifetime(project) {}
   }
@@ -1287,7 +1287,7 @@ final class WorkspaceTests: XCTestCase {
     try XCTAssertEqual(XCTUnwrap(triggerPrepare).didPrepareTarget, true)
 
     // Check that we did actually run a preparation
-    try await fulfillmentOfOrThrow([didPrepareAfterChangingBaseLib])
+    try await fulfillmentOfOrThrow(didPrepareAfterChangingBaseLib)
 
     let prepareUpToDateAgain = try await project.testClient.send(
       SourceKitOptionsRequest(

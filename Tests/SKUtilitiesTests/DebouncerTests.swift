@@ -23,7 +23,7 @@ final class DebouncerTests: XCTestCase {
     }
     await debouncer.scheduleCall()
     await debouncer.scheduleCall()
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
     // Sleep for 0.2s to make sure the debouncer actually debounces and doesn't fulfill the expectation twice.
     try await Task.sleep(for: .seconds(0.2))
   }
@@ -37,6 +37,6 @@ final class DebouncerTests: XCTestCase {
     }
     await debouncer.scheduleCall(1)
     await debouncer.scheduleCall(2)
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
   }
 }

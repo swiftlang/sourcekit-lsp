@@ -505,7 +505,7 @@ final class CodeActionTests: XCTestCase {
     }
     _ = try await testClient.send(ExecuteCommandRequest(command: command.command, arguments: command.arguments))
 
-    try await fulfillmentOfOrThrow([editReceived])
+    try await fulfillmentOfOrThrow(editReceived)
   }
 
   func testAddDocumentationCodeActionResult() async throws {
