@@ -166,6 +166,7 @@ package protocol LanguageService: AnyObject, Sendable {
   func completion(_ req: CompletionRequest) async throws -> CompletionList
   func completionItemResolve(_ req: CompletionItemResolveRequest) async throws -> CompletionItem
   func hover(_ req: HoverRequest) async throws -> HoverResponse?
+  func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse
   func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails]
 
   /// Request a generated interface of a module to display in the IDE.

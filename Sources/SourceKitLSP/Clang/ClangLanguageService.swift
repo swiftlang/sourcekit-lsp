@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import BuildSystemIntegration
+import DocCDocumentation
 import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
@@ -502,6 +503,10 @@ extension ClangLanguageService {
 
   func hover(_ req: HoverRequest) async throws -> HoverResponse? {
     return try await forwardRequestToClangd(req)
+  }
+
+  func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
+    throw ResponseError.requestFailed(doccDocumentationError: .noDocumentation)
   }
 
   func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
