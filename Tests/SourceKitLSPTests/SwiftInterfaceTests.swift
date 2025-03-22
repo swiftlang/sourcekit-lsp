@@ -288,6 +288,37 @@ final class SwiftInterfaceTests: XCTestCase {
       linePrefix: "@inlinable public func filter(_ isIncluded: (Element) throws -> Bool) rethrows -> [Element]"
     )
   }
+
+  func testNoDiagnosticsInGeneratedInterface() async throws {
+    let testClient = try await TestSourceKitLSPClient(
+      capabilities: ClientCapabilities(experimental: [
+        "workspace/getReferenceDocument": .bool(true)
+      ])
+    )
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      func test(x: 1️⃣String) {}
+      """,
+      uri: uri
+    )
+
+    let definition = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let interfaceUri = try XCTUnwrap(definition?.locations?.only?.uri)
+    let interfaceContents = try await testClient.send(GetReferenceDocumentRequest(uri: interfaceUri))
+    testClient.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(uri: interfaceUri, language: .swift, version: 0, text: interfaceContents.content)
+      )
+    )
+    let diagnostics = try await testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(interfaceUri))
+    )
+    XCTAssertEqual(diagnostics.fullReport?.items, [])
+  }
 }
 
 private func assertSystemSwiftInterface(
