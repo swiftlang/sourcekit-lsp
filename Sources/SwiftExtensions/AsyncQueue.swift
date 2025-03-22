@@ -27,28 +27,22 @@ extension Task: AnyTask {
 }
 
 /// A type that is able to track dependencies between tasks.
-package protocol DependencyTracker: Sendable {
-  /// Which tasks need to finish before a task described by `self` may start executing.
-  /// `pendingTasks` is sorted in the order in which the tasks were enqueued to `AsyncQueue`.
-  func dependencies(in pendingTasks: [PendingTask<Self>]) -> [PendingTask<Self>]
+package protocol DependencyTracker: Sendable, Hashable {
+  /// Whether the task described by `self` needs to finish executing before `other` can start executing.
+  func isDependency(of other: Self) -> Bool
 }
 
 /// A dependency tracker where each task depends on every other, i.e. a serial
 /// queue.
 package struct Serial: DependencyTracker {
-  package func dependencies(in pendingTasks: [PendingTask<Self>]) -> [PendingTask<Self>] {
-    if let lastTask = pendingTasks.last {
-      return [lastTask]
-    }
-    return []
+  package func isDependency(of other: Serial) -> Bool {
+    return true
   }
 }
 
-package struct PendingTask<TaskMetadata: Sendable>: Sendable {
+package struct PendingTask<TaskMetadata: Sendable & Hashable>: Sendable {
   /// The task that is pending.
   fileprivate let task: any AnyTask
-
-  package let metadata: TaskMetadata
 
   /// A unique value used to identify the task. This allows tasks to get
   /// removed from `pendingTasks` again after they finished executing.
@@ -58,23 +52,25 @@ package struct PendingTask<TaskMetadata: Sendable>: Sendable {
 /// A list of pending tasks that can be sent across actor boundaries and is guarded by a lock.
 ///
 /// - Note: Unchecked sendable because the tasks are being protected by a lock.
-private class PendingTasks<TaskMetadata: Sendable>: @unchecked Sendable {
+private final class PendingTasks<TaskMetadata: Sendable & Hashable>: Sendable {
   ///  Lock guarding `pendingTasks`.
   private let lock = NSLock()
 
   /// Pending tasks that have not finished execution yet.
   ///
   /// - Important: This must only be accessed while `lock` has been acquired.
-  private var tasks: [PendingTask<TaskMetadata>] = []
+  private nonisolated(unsafe) var tasksByMetadata: [TaskMetadata: [PendingTask<TaskMetadata>]] = [:]
 
   init() {
     self.lock.name = "AsyncQueue"
   }
 
   /// Capture a lock and execute the closure, which may modify the pending tasks.
-  func withLock<T>(_ body: (_ pendingTasks: inout [PendingTask<TaskMetadata>]) throws -> T) rethrows -> T {
+  func withLock<T>(
+    _ body: (_ tasksByMetadata: inout [TaskMetadata: [PendingTask<TaskMetadata>]]) throws -> T
+  ) rethrows -> T {
     try lock.withLock {
-      try body(&tasks)
+      try body(&tasksByMetadata)
     }
   }
 }
@@ -122,10 +118,29 @@ package final class AsyncQueue<TaskMetadata: DependencyTracker>: Sendable {
   ) -> Task<Success, any Error> {
     let id = UUID()
 
-    return pendingTasks.withLock { tasks in
+    return pendingTasks.withLock { tasksByMetadata in
       // Build the list of tasks that need to finished execution before this one
       // can be executed
-      let dependencies = metadata.dependencies(in: tasks)
+      var dependencies: [PendingTask<TaskMetadata>] = []
+      for (pendingMetadata, pendingTasks) in tasksByMetadata {
+        guard pendingMetadata.isDependency(of: metadata) else {
+          // No dependency
+          continue
+        }
+        if metadata.isDependency(of: metadata), let lastPendingTask = pendingTasks.last {
+          // This kind of task depends on all other tasks of the same kind finishing. It is sufficient to just wait on
+          // the last task with this metadata, it will have all the other tasks with the same metadata as transitive
+          // dependencies.
+          dependencies.append(lastPendingTask)
+        } else {
+          // We depend on tasks with this metadata, but they don't have any dependencies between them, eg.
+          // `documentUpdate` depends on all `documentRequest` but `documentRequest` don't have dependencies between
+          // them. We need to depend on all of them unless we knew that we depended on some other task that already
+          // depends on all of these. But determining that would also require knowledge about the entire dependency
+          // graph, which is likely as expensive as depending on all of these tasks.
+          dependencies += pendingTasks
+        }
+      }
 
       // Schedule the task.
       let task = Task(priority: priority) { [pendingTasks] in
@@ -139,14 +154,17 @@ package final class AsyncQueue<TaskMetadata: DependencyTracker>: Sendable {
 
         let result = try await operation()
 
-        pendingTasks.withLock { tasks in
-          tasks.removeAll(where: { $0.id == id })
+        pendingTasks.withLock { tasksByMetadata in
+          tasksByMetadata[metadata, default: []].removeAll(where: { $0.id == id })
+          if tasksByMetadata[metadata]?.isEmpty ?? false {
+            tasksByMetadata[metadata] = nil
+          }
         }
 
         return result
       }
 
-      tasks.append(PendingTask(task: task, metadata: metadata, id: id))
+      tasksByMetadata[metadata, default: []].append(PendingTask(task: task, id: id))
 
       return task
     }

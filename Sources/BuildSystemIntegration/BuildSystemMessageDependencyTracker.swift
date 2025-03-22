@@ -74,10 +74,6 @@ package enum BuildSystemMessageDependencyTracker: QueueBasedMessageHandlerDepend
     }
   }
 
-  package func dependencies(in pendingTasks: [PendingTask<Self>]) -> [PendingTask<Self>] {
-    return pendingTasks.filter { $0.metadata.isDependency(of: self) }
-  }
-
   package init(_ request: some RequestType) {
     switch request {
     case is BuildShutdownRequest:
