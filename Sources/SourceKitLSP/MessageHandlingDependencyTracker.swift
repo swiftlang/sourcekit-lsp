@@ -13,7 +13,7 @@
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
-package import SwiftExtensions
+import SwiftExtensions
 
 /// A lightweight way of describing tasks that are created from handling LSP
 /// requests or notifications for the purpose of dependency tracking.
@@ -81,10 +81,6 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
     case (_, .freestanding):
       return false
     }
-  }
-
-  package func dependencies(in pendingTasks: [PendingTask<Self>]) -> [PendingTask<Self>] {
-    return pendingTasks.filter { $0.metadata.isDependency(of: self) }
   }
 
   package init(_ notification: some NotificationType) {

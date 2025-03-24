@@ -61,10 +61,6 @@ fileprivate enum TaskMetadata: DependencyTracker, Equatable {
       return !lhsUris.intersection(rhsUris).isEmpty
     }
   }
-
-  package func dependencies(in pendingTasks: [PendingTask<Self>]) -> [PendingTask<Self>] {
-    return pendingTasks.filter { $0.metadata.isDependency(of: self) }
-  }
 }
 
 /// Data from a syntactic scan of a source file for tests.
