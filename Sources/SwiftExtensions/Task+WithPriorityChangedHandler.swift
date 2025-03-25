@@ -29,10 +29,7 @@ package func withTaskPriorityChangedHandler<T: Sendable>(
       // want to make sure that we don't leave the body task or the priority watching task running.
       taskGroup.cancelAll()
     }
-    // Run the task priority watcher with high priority instead of inheriting the initial priority. Otherwise a
-    // `.background` task might not get its priority elevated because the priority watching task also runs at
-    // `.background` priority and might not actually get executed in time.
-    taskGroup.addTask(priority: .high) {
+    taskGroup.addTask(priority: initialPriority) {
       while true {
         if Task.isCancelled {
           break
