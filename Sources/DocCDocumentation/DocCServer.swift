@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(SwiftDocC)
 import Foundation
 @preconcurrency import SwiftDocC
 
@@ -200,4 +199,3 @@ enum DocCServerError: LocalizedError {
     }
   }
 }
-#endif
