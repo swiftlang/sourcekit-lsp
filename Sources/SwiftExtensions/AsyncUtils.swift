@@ -215,16 +215,23 @@ package func withTimeout<T: Sendable>(
 
   let tasks = mutableTasks
 
+  defer {
+    // Be extra careful and ensure that we don't leave `bodyTask` or `timeoutTask` running when `withTimeout` finishes,
+    // eg. if `withTaskPriorityChangedHandler` adds some behavior that never executes `body` if the task gets cancelled.
+    for task in tasks {
+      task.cancel()
+    }
+  }
+
   return try await withTaskPriorityChangedHandler(initialPriority: priority) {
     for try await value in stream {
       return value
     }
-    // The only reason for the loop above to terminate is if the Task got cancelled or if the continuation finishes
+    // The only reason for the loop above to terminate is if the Task got cancelled or if the stream finishes
     // (which it never does).
     if Task.isCancelled {
-      for task in tasks {
-        task.cancel()
-      }
+      // Throwing a `CancellationError` will make us return from `withTimeout`. We will cancel the `bodyTask` from the
+      // `defer` method above.
       throw CancellationError()
     } else {
       preconditionFailure("Continuation never finishes")
