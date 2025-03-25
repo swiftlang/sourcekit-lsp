@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(SwiftDocC)
+#if canImport(DocCDocumentation)
 import DocCDocumentation
 import Foundation
 import LanguageServerProtocol
@@ -683,7 +683,7 @@ final class DoccDocumentationTests: XCTestCase {
 
 fileprivate enum PartialConvertResponse {
   case renderNode(kind: RenderNode.Kind, path: String? = nil, containing: String? = nil)
-  case error(DoccDocumentationError)
+  case error(DocCDocumentationError)
 }
 
 fileprivate func renderDocumentation(

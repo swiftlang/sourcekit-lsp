@@ -13,7 +13,7 @@
 import Foundation
 package import LanguageServerProtocol
 
-package enum DoccDocumentationError {
+package enum DocCDocumentationError {
   case noDocumentation
   case indexNotAvailable
   case symbolNotFound(String)
@@ -31,7 +31,7 @@ package enum DoccDocumentationError {
 }
 
 package extension ResponseError {
-  static func requestFailed(doccDocumentationError: DoccDocumentationError) -> ResponseError {
+  static func requestFailed(doccDocumentationError: DocCDocumentationError) -> ResponseError {
     return ResponseError.requestFailed(doccDocumentationError.message)
   }
 }

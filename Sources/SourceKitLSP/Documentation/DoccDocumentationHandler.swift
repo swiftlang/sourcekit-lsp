@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if canImport(DocCDocumentation)
 import DocCDocumentation
 import Foundation
 @preconcurrency import IndexStoreDB
@@ -24,9 +25,7 @@ extension DocumentationLanguageService {
     guard let sourceKitLSPServer else {
       throw ResponseError.internalError("SourceKit-LSP is shutting down")
     }
-    guard let documentationManager = await sourceKitLSPServer.documentationManager.getRenderingSupport() else {
-      throw ResponseError.requestFailed("Documentation rendering is not supported in this version of SourceKit-LSP")
-    }
+    let documentationManager = sourceKitLSPServer.documentationManager
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
     guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: req.textDocument.uri) else {
       throw ResponseError.workspaceNotOpen(req.textDocument.uri)
@@ -164,3 +163,4 @@ struct MarkdownTitleFinder: MarkupVisitor {
     return .plainText(heading.plainText)
   }
 }
+#endif

@@ -11,17 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 package import Foundation
-
-package protocol DocCCatalogIndex: Sendable {
-  func documentationExtension(for symbolLink: any DocCSymbolLink) -> URL?
-}
-
-#if canImport(SwiftDocC)
 @preconcurrency import SwiftDocC
 
 final actor DocCCatalogIndexManager {
   private let server: DocCServer
-  private var catalogToIndexMap = [URL: Result<DocCCatalogIndexImpl, DocCIndexError>]()
+  private var catalogToIndexMap = [URL: Result<DocCCatalogIndex, DocCIndexError>]()
 
   init(server: DocCServer) {
     self.server = server
@@ -36,11 +30,11 @@ final actor DocCCatalogIndexManager {
     }
   }
 
-  func index(for catalogURL: URL) async throws(DocCIndexError) -> DocCCatalogIndexImpl {
+  func index(for catalogURL: URL) async throws(DocCIndexError) -> DocCCatalogIndex {
     if let existingCatalog = catalogToIndexMap[catalogURL] {
       return try existingCatalog.get()
     }
-    let catalogIndexResult: Result<DocCCatalogIndexImpl, DocCIndexError>
+    let catalogIndexResult: Result<DocCCatalogIndex, DocCIndexError>
     do {
       let convertResponse = try await server.convert(
         externalIDsToConvert: [],
@@ -66,7 +60,7 @@ final actor DocCCatalogIndexManager {
           Result { try JSONDecoder().decode(RenderReferenceStore.self, from: renderReferenceStoreData) }
             .flatMapError { .failure(.decodingFailure($0)) }
         }
-        .map { DocCCatalogIndexImpl(from: $0) }
+        .map { DocCCatalogIndex(from: $0) }
     } catch {
       catalogIndexResult = .failure(.internalError(error))
     }
@@ -93,10 +87,10 @@ package enum DocCIndexError: LocalizedError {
   }
 }
 
-package struct DocCCatalogIndexImpl: DocCCatalogIndex {
+package struct DocCCatalogIndex: Sendable {
   private let assetReferenceToDataAsset: [String: DataAsset]
   private let fuzzyAssetReferenceToDataAsset: [String: DataAsset]
-  private let documentationExtensionToSourceURL: [DocCSymbolLinkImpl: URL]
+  private let documentationExtensionToSourceURL: [DocCSymbolLink: URL]
   let articlePathToSourceURLAndReference: [String: (URL, TopicRenderReference)]
   let tutorialPathToSourceURLAndReference: [String: (URL, TopicRenderReference)]
   let tutorialOverviewPathToSourceURLAndReference: [String: (URL, TopicRenderReference)]
@@ -105,10 +99,7 @@ package struct DocCCatalogIndexImpl: DocCCatalogIndex {
     assetReferenceToDataAsset[assetReference.assetName] ?? fuzzyAssetReferenceToDataAsset[assetReference.assetName]
   }
 
-  package func documentationExtension(for symbolLink: any DocCSymbolLink) -> URL? {
-    guard let symbolLink = symbolLink as? DocCSymbolLinkImpl else {
-      return nil
-    }
+  package func documentationExtension(for symbolLink: DocCSymbolLink) -> URL? {
     return documentationExtensionToSourceURL[symbolLink]
   }
 
@@ -128,7 +119,7 @@ package struct DocCCatalogIndexImpl: DocCCatalogIndex {
     self.assetReferenceToDataAsset = assetReferenceToDataAsset
     self.fuzzyAssetReferenceToDataAsset = fuzzyAssetReferenceToDataAsset
     // Markdown and Tutorial content
-    var documentationExtensionToSourceURL = [DocCSymbolLinkImpl: URL]()
+    var documentationExtensionToSourceURL = [DocCSymbolLink: URL]()
     var articlePathToSourceURLAndReference = [String: (URL, TopicRenderReference)]()
     var tutorialPathToSourceURLAndReference = [String: (URL, TopicRenderReference)]()
     var tutorialOverviewPathToSourceURLAndReference = [String: (URL, TopicRenderReference)]()
@@ -145,7 +136,7 @@ package struct DocCCatalogIndexImpl: DocCCatalogIndex {
         else {
           continue
         }
-        let doccSymbolLink = DocCSymbolLinkImpl(absoluteSymbolLink: absoluteSymbolLink)
+        let doccSymbolLink = DocCSymbolLink(absoluteSymbolLink: absoluteSymbolLink)
         documentationExtensionToSourceURL[doccSymbolLink] = topicContentValue.source
       } else if topicRenderReference.kind == .article {
         articlePathToSourceURLAndReference[renderReferenceKey.url.lastPathComponent] = (
@@ -175,4 +166,3 @@ fileprivate extension URL {
     return components?.url ?? self
   }
 }
-#endif

@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(SwiftDocC)
 import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
@@ -190,7 +189,7 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
 
 struct DocCReferenceResolutionContext {
   let catalogURL: URL?
-  let catalogIndex: DocCCatalogIndexImpl?
+  let catalogIndex: DocCCatalogIndex?
 }
 
 fileprivate extension AbsoluteSymbolLink {
@@ -275,4 +274,3 @@ enum ReferenceResolutionError: LocalizedError {
     }
   }
 }
-#endif
