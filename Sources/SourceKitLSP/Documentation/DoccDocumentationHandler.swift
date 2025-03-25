@@ -30,11 +30,12 @@ extension DocumentationLanguageService {
     }
     let documentationManager = workspace.doccDocumentationManager
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
-    guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: req.textDocument.uri) else {
-      throw ResponseError.workspaceNotOpen(req.textDocument.uri)
+    var moduleName: String? = nil
+    var catalogURL: URL? = nil
+    if let target = await workspace.buildSystemManager.canonicalTarget(for: req.textDocument.uri) {
+      moduleName = await workspace.buildSystemManager.moduleName(for: target)
+      catalogURL = await workspace.buildSystemManager.doccCatalog(for: target)
     }
-    let moduleName = await workspace.buildSystemManager.moduleName(for: req.textDocument.uri)
-    let catalogURL = await workspace.buildSystemManager.doccCatalog(for: req.textDocument.uri)
 
     switch snapshot.language {
     case .tutorial:
@@ -74,8 +75,8 @@ extension DocumentationLanguageService {
         guard let index = workspace.index(checkedFor: .deletedFiles) else {
           throw ResponseError.requestFailed(doccDocumentationError: .indexNotAvailable)
         }
-        guard let symbolLink = await documentationManager.symbolLink(string: symbolName),
-          let symbolOccurrence = await documentationManager.primaryDefinitionOrDeclarationOccurrence(
+        guard let symbolLink = documentationManager.symbolLink(string: symbolName),
+          let symbolOccurrence = documentationManager.primaryDefinitionOrDeclarationOccurrence(
             ofDocCSymbolLink: symbolLink,
             in: index
           )
@@ -158,8 +159,14 @@ struct MarkdownTitleFinder: MarkupVisitor {
     if let symbolLink = heading.child(at: 0) as? SymbolLink {
       // Remove the surrounding backticks to find the symbol name
       let plainText = symbolLink.plainText
-      let startIndex = plainText.index(plainText.startIndex, offsetBy: 2)
-      let endIndex = plainText.index(plainText.endIndex, offsetBy: -2)
+      var startIndex = plainText.startIndex
+      if plainText.hasPrefix("``") {
+        startIndex = plainText.index(plainText.startIndex, offsetBy: 2)
+      }
+      var endIndex = plainText.endIndex
+      if plainText.hasSuffix("``") {
+        endIndex = plainText.index(plainText.endIndex, offsetBy: -2)
+      }
       return .symbol(String(plainText[startIndex..<endIndex]))
     }
     return .plainText(heading.plainText)

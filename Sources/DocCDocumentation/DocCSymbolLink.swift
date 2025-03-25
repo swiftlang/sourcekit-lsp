@@ -9,6 +9,7 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
+
 import Foundation
 @preconcurrency import SwiftDocC
 
@@ -17,7 +18,7 @@ import Foundation
 /// Symbol links are always of the form `<ModuleName>/<SymbolName>` or simply `<ModuleName>`
 /// if they refer to the module itself.
 package struct DocCSymbolLink: Sendable {
-  public let moduleName: String
+  let moduleName: String
   let components: [AbsoluteSymbolLink.LinkComponent]
 
   var absoluteString: String {

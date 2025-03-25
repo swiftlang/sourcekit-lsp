@@ -31,11 +31,12 @@ extension SwiftLanguageService {
       throw ResponseError.invalidParams("A position must be provided for Swift files")
     }
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
-    guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: req.textDocument.uri) else {
-      throw ResponseError.workspaceNotOpen(req.textDocument.uri)
+    var moduleName: String? = nil
+    var catalogURL: URL? = nil
+    if let target = await workspace.buildSystemManager.canonicalTarget(for: req.textDocument.uri) {
+      moduleName = await workspace.buildSystemManager.moduleName(for: target)
+      catalogURL = await workspace.buildSystemManager.doccCatalog(for: target)
     }
-    let moduleName = await workspace.buildSystemManager.moduleName(for: req.textDocument.uri)
-    let catalogURL = await workspace.buildSystemManager.doccCatalog(for: req.textDocument.uri)
 
     // Search for the nearest documentable symbol at this location
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
@@ -92,7 +93,7 @@ extension SwiftLanguageService {
     }
     let catalogIndex = try await documentationManager.catalogIndex(for: catalogURL)
     guard let index = workspace.index(checkedFor: .deletedFiles),
-      let symbolLink = await documentationManager.symbolLink(forUSR: symbolUSR, in: index),
+      let symbolLink = documentationManager.symbolLink(forUSR: symbolUSR, in: index),
       let markupExtensionFileURL = catalogIndex.documentationExtension(for: symbolLink)
     else {
       return nil
