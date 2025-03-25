@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if canImport(DocCDocumentation)
 import DocCDocumentation
 import Foundation
 package import LanguageServerProtocol
@@ -18,22 +19,11 @@ import SwiftExtensions
 import SwiftSyntax
 
 extension SwiftLanguageService {
-  private var documentationManager: DocumentationManager {
-    get throws {
-      guard let sourceKitLSPServer else {
-        throw ResponseError.unknown("Connection to the editor closed")
-      }
-      return sourceKitLSPServer.documentationManager
-    }
-  }
-
   package func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
     guard let sourceKitLSPServer else {
       throw ResponseError.internalError("SourceKit-LSP is shutting down")
     }
-    guard let documentationManager = await sourceKitLSPServer.documentationManager.getRenderingSupport() else {
-      throw ResponseError.requestFailed("Documentation rendering is not supported in this version of SourceKit-LSP")
-    }
+    let documentationManager = sourceKitLSPServer.documentationManager
     guard let position = req.position else {
       throw ResponseError.invalidParams("A position must be provided for Swift files")
     }
@@ -90,7 +80,7 @@ extension SwiftLanguageService {
 
   private func findMarkupExtensionFile(
     workspace: Workspace,
-    documentationManager: DocCDocumentationManagerWithRendering,
+    documentationManager: DocCDocumentationManager,
     catalogURL: URL?,
     for symbolUSR: String
   ) async throws -> String? {
@@ -160,3 +150,4 @@ fileprivate extension DocumentableSymbol {
     }
   }
 }
+#endif

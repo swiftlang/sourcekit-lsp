@@ -46,7 +46,6 @@ target_sources(SourceKitLSP PRIVATE
   Swift/CursorInfo.swift
   Swift/Diagnostic.swift
   Swift/DiagnosticReportManager.swift
-  Swift/DocCDocumentation.swift
   Swift/DocumentFormatting.swift
   Swift/DocumentSymbols.swift
   Swift/ExpandMacroCommand.swift
@@ -102,9 +101,7 @@ target_link_libraries(SourceKitLSP PUBLIC
   SwiftSyntax::SwiftRefactor
   SwiftSyntax::SwiftSyntax)
 target_link_libraries(SourceKitLSP PRIVATE
-  Markdown
   PackageModelSyntax
   TSCExtensions
-  SymbolGraph
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
 
