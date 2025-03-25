@@ -108,6 +108,9 @@ package actor DynamicallyLoadedSourceKitD: SourceKitD {
   /// List of notification handlers that will be called for each notification.
   private var notificationHandlers: [WeakSKDNotificationHandler] = []
 
+  /// List of hooks that should be executed for every request sent to sourcekitd.
+  private var requestHandlingHooks: [UUID: (SKDRequestDictionary) -> Void] = [:]
+
   package static func getOrCreate(
     dylibPath: URL,
     pluginPaths: PluginPaths?
@@ -202,6 +205,29 @@ package actor DynamicallyLoadedSourceKitD: SourceKitD {
   /// Removes a previously registered notification handler.
   package func removeNotificationHandler(_ handler: SKDNotificationHandler) {
     notificationHandlers.removeAll(where: { $0.value == nil || $0.value === handler })
+  }
+
+  /// Execute `body` and invoke `hook` for every sourcekitd request that is sent during the execution time of `body`.
+  ///
+  /// Note that `hook` will not only be executed for requests sent *by* body but this may also include sourcekitd
+  /// requests that were sent by other clients of the same `DynamicallyLoadedSourceKitD` instance that just happen to
+  /// send a request during that time.
+  ///
+  /// This is intended for testing only.
+  package func withRequestHandlingHook(
+    body: () async throws -> Void,
+    hook: @escaping (SKDRequestDictionary) -> Void
+  ) async rethrows {
+    let id = UUID()
+    requestHandlingHooks[id] = hook
+    defer { requestHandlingHooks[id] = nil }
+    try await body()
+  }
+
+  package func didSend(request: SKDRequestDictionary) {
+    for hook in requestHandlingHooks.values {
+      hook(request)
+    }
   }
 
   package nonisolated func log(request: SKDRequestDictionary) {

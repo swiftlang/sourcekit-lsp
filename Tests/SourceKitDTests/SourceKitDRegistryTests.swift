@@ -74,6 +74,7 @@ final class FakeSourceKitD: SourceKitD {
   var values: sourcekitd_api_values { fatalError() }
   func addNotificationHandler(_ handler: SKDNotificationHandler) { fatalError() }
   func removeNotificationHandler(_ handler: SKDNotificationHandler) { fatalError() }
+  func didSend(request: SKDRequestDictionary) {}
   private init() {
     token = nextToken.fetchAndIncrement()
   }

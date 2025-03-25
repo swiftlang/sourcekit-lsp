@@ -83,6 +83,10 @@ package protocol SourceKitD: AnyObject, Sendable {
   /// Removes a previously registered notification handler.
   func removeNotificationHandler(_ handler: SKDNotificationHandler) async
 
+  /// A function that gets called after the request has been sent to sourcekitd but but does not wait for results to be
+  /// received. This can be used by clients to implement hooks that should be executed for every sourcekitd request.
+  func didSend(request: SKDRequestDictionary) async
+
   /// Log the given request.
   ///
   /// This log call is issued during normal operation. It is acceptable for the logger to truncate the log message
@@ -145,6 +149,9 @@ extension SourceKitD {
         var handle: sourcekitd_api_request_handle_t? = nil
         self.api.send_request(request.dict, &handle) { response in
           continuation.resume(returning: SKDResponse(response!, sourcekitd: self))
+        }
+        Task {
+          await self.didSend(request: request)
         }
         if let handle {
           return SourceKitDRequestHandle(handle: handle)

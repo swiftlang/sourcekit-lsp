@@ -311,22 +311,27 @@ final class SwiftSourceKitPluginTests: XCTestCase {
       compilerArguments: [path]
     )
 
+    let slowCompletionRequestSent = self.expectation(description: "slow completion result sent")
     let slowCompletionResultReceived = self.expectation(description: "slow completion")
-    let slowCompletionTask = Task {
-      do {
-        _ = try await sourcekitd.completeOpen(
-          path: path,
-          position: positions["1️⃣"],
-          filter: ""
-        )
-        XCTFail("Expected completion to be cancelled")
-      } catch {
-        XCTAssert(error is CancellationError, "Expected completion to be cancelled, failed with \(error)")
+    let dynamicallyLoadedSourceKitd = try XCTUnwrap(sourcekitd as? DynamicallyLoadedSourceKitD)
+    try await dynamicallyLoadedSourceKitd.withRequestHandlingHook {
+      let slowCompletionTask = Task {
+        await assertThrowsError(try await sourcekitd.completeOpen(path: path, position: positions["1️⃣"], filter: "")) {
+          XCTAssert($0 is CancellationError, "Expected completion to be cancelled, failed with \($0)")
+        }
+        slowCompletionResultReceived.fulfill()
       }
-      slowCompletionResultReceived.fulfill()
+      // Wait for the slow completion request to actually be sent to sourcekitd. Otherwise, we might hit a cancellation
+      // check somewhere during request sending and we aren't actually sending the completion request to sourcekitd.
+      try await fulfillmentOfOrThrow(slowCompletionRequestSent)
+
+      slowCompletionTask.cancel()
+      try await fulfillmentOfOrThrow(slowCompletionResultReceived, timeout: 30)
+    } hook: { request in
+      // Check that we aren't matching against a request sent by something else that has handle to the same sourcekitd.
+      XCTAssert(request.description.contains(path), "Received unexpected request: \(request)")
+      slowCompletionRequestSent.fulfill()
     }
-    slowCompletionTask.cancel()
-    try await fulfillmentOfOrThrow(slowCompletionResultReceived, timeout: 30)
 
     let fastCompletionStarted = Date()
     let result = try await sourcekitd.completeOpen(
