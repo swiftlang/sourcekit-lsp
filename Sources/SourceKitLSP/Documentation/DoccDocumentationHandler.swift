@@ -25,7 +25,10 @@ extension DocumentationLanguageService {
     guard let sourceKitLSPServer else {
       throw ResponseError.internalError("SourceKit-LSP is shutting down")
     }
-    let documentationManager = sourceKitLSPServer.documentationManager
+    guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: req.textDocument.uri) else {
+      throw ResponseError.workspaceNotOpen(req.textDocument.uri)
+    }
+    let documentationManager = workspace.doccDocumentationManager
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
     guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: req.textDocument.uri) else {
       throw ResponseError.workspaceNotOpen(req.textDocument.uri)
@@ -42,7 +45,7 @@ extension DocumentationLanguageService {
       )
     case .markdown:
       if case let .symbol(symbolName) = MarkdownTitleFinder.find(parsing: snapshot.text) {
-        if let moduleName = moduleName, symbolName == moduleName {
+        if let moduleName, symbolName == moduleName {
           // This is a page representing the module itself.
           // Create a dummy symbol graph and tell SwiftDocC to convert the module name.
           let emptySymbolGraph = String(
@@ -66,53 +69,52 @@ extension DocumentationLanguageService {
             moduleName: moduleName,
             catalogURL: catalogURL
           )
-        } else {
-          // This is a symbol extension page. Find the symbol so that we can include it in the request.
-          guard let index = workspace.index(checkedFor: .deletedFiles) else {
-            throw ResponseError.requestFailed(doccDocumentationError: .indexNotAvailable)
-          }
-          guard let symbolLink = await documentationManager.symbolLink(string: symbolName),
-            let symbolOccurrence = await documentationManager.primaryDefinitionOrDeclarationOccurrence(
-              ofDocCSymbolLink: symbolLink,
-              in: index
-            )
-          else {
-            throw ResponseError.requestFailed(doccDocumentationError: .symbolNotFound(symbolName))
-          }
-          guard
-            let symbolWorkspace = try await workspaceForDocument(uri: symbolOccurrence.location.documentUri),
-            let languageService = try await languageService(
-              for: symbolOccurrence.location.documentUri,
-              .swift,
-              in: symbolWorkspace
-            ) as? SwiftLanguageService,
-            let symbolSnapshot = try documentManager.latestSnapshotOrDisk(
-              symbolOccurrence.location.documentUri,
-              language: .swift
-            )
-          else {
-            throw ResponseError.internalError(
-              "Unable to find Swift language service for \(symbolOccurrence.location.documentUri)"
-            )
-          }
-          let position = symbolSnapshot.position(of: symbolOccurrence.location)
-          let cursorInfo = try await languageService.cursorInfo(
-            symbolOccurrence.location.documentUri,
-            position..<position,
-            includeSymbolGraph: true,
-            fallbackSettingsAfterTimeout: false
+        }
+        // This is a symbol extension page. Find the symbol so that we can include it in the request.
+        guard let index = workspace.index(checkedFor: .deletedFiles) else {
+          throw ResponseError.requestFailed(doccDocumentationError: .indexNotAvailable)
+        }
+        guard let symbolLink = await documentationManager.symbolLink(string: symbolName),
+          let symbolOccurrence = await documentationManager.primaryDefinitionOrDeclarationOccurrence(
+            ofDocCSymbolLink: symbolLink,
+            in: index
           )
-          guard let symbolGraph = cursorInfo.symbolGraph else {
-            throw ResponseError.internalError("Unable to retrieve symbol graph for \(symbolOccurrence.symbol.name)")
-          }
-          return try await documentationManager.renderDocCDocumentation(
-            symbolUSR: symbolOccurrence.symbol.usr,
-            symbolGraph: symbolGraph,
-            markupFile: snapshot.text,
-            moduleName: moduleName,
-            catalogURL: catalogURL
+        else {
+          throw ResponseError.requestFailed(doccDocumentationError: .symbolNotFound(symbolName))
+        }
+        guard
+          let symbolWorkspace = try await workspaceForDocument(uri: symbolOccurrence.location.documentUri),
+          let languageService = try await languageService(
+            for: symbolOccurrence.location.documentUri,
+            .swift,
+            in: symbolWorkspace
+          ) as? SwiftLanguageService,
+          let symbolSnapshot = try documentManager.latestSnapshotOrDisk(
+            symbolOccurrence.location.documentUri,
+            language: .swift
+          )
+        else {
+          throw ResponseError.internalError(
+            "Unable to find Swift language service for \(symbolOccurrence.location.documentUri)"
           )
         }
+        let position = symbolSnapshot.position(of: symbolOccurrence.location)
+        let cursorInfo = try await languageService.cursorInfo(
+          symbolOccurrence.location.documentUri,
+          position..<position,
+          includeSymbolGraph: true,
+          fallbackSettingsAfterTimeout: false
+        )
+        guard let symbolGraph = cursorInfo.symbolGraph else {
+          throw ResponseError.internalError("Unable to retrieve symbol graph for \(symbolOccurrence.symbol.name)")
+        }
+        return try await documentationManager.renderDocCDocumentation(
+          symbolUSR: symbolOccurrence.symbol.usr,
+          symbolGraph: symbolGraph,
+          markupFile: snapshot.text,
+          moduleName: moduleName,
+          catalogURL: catalogURL
+        )
       }
       // This is an article that can be rendered on its own
       return try await documentationManager.renderDocCDocumentation(

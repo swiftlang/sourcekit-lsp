@@ -1,5 +1,5 @@
 import BuildServerProtocol
-import BuildSystemIntegration
+package import BuildSystemIntegration
 package import Foundation
 package import IndexStoreDB
 package import LanguageServerProtocol
@@ -11,7 +11,9 @@ package struct DocCDocumentationManager: Sendable {
   private let referenceResolutionService: DocCReferenceResolutionService
   private let catalogIndexManager: DocCCatalogIndexManager
 
-  package init() {
+  private let buildSystemManager: BuildSystemManager
+
+  package init(buildSystemManager: BuildSystemManager) {
     let symbolResolutionServer = DocumentationServer(qualityOfService: .unspecified)
     doccServer = DocCServer(
       peer: symbolResolutionServer,
@@ -20,16 +22,16 @@ package struct DocCDocumentationManager: Sendable {
     catalogIndexManager = DocCCatalogIndexManager(server: doccServer)
     referenceResolutionService = DocCReferenceResolutionService()
     symbolResolutionServer.register(service: referenceResolutionService)
+    self.buildSystemManager = buildSystemManager
   }
 
   package func filesDidChange(_ events: [FileEvent]) async {
-    let affectedCatalogURLs = events.reduce(into: Set<URL>()) { affectedCatalogURLs, event in
-      guard let catalogURL = event.uri.fileURL?.doccCatalogURL else {
-        return
+    for event in events {
+      guard let catalogURL = await buildSystemManager.doccCatalog(for: event.uri) else {
+        continue
       }
-      affectedCatalogURLs.insert(catalogURL)
+      await catalogIndexManager.invalidate(catalogURL)
     }
-    await catalogIndexManager.invalidate(catalogURLs: affectedCatalogURLs)
   }
 
   package func catalogIndex(for catalogURL: URL) async throws(DocCIndexError) -> DocCCatalogIndex {
