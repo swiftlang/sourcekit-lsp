@@ -119,6 +119,26 @@ public struct SourceItemDataKind: RawRepresentable, Codable, Hashable, Sendable 
 }
 
 /// **(BSP Extension)**
+
+public enum SourceKitSourceItemKind: String, Codable {
+  /// A source file that belongs to the target
+  case source = "source"
+
+  /// A header file that is clearly associated with one target.
+  ///
+  /// For example header files in SwiftPM projects are always associated to one target and SwiftPM can provide build
+  /// settings for that header file.
+  ///
+  /// In general, build systems don't need to list all header files in the `buildTarget/sources` request: Semantic
+  /// functionality for header files is usually provided by finding a main file that includes the header file and
+  /// inferring build settings from it. Listing header files in `buildTarget/sources` allows SourceKit-LSP to provide
+  /// semantic functionality for header files if they haven't been included by any main file.
+  case header = "header"
+
+  /// A SwiftDocC documentation catalog usually ending in the ".docc" extension.
+  case doccCatalog = "doccCatalog"
+}
+
 public struct SourceKitSourceItemData: LSPAnyCodable, Codable {
   /// The language of the source file. If `nil`, the language is inferred from the file extension.
   public var language: Language?
@@ -132,7 +152,14 @@ public struct SourceKitSourceItemData: LSPAnyCodable, Codable {
   /// functionality for header files is usually provided by finding a main file that includes the header file and
   /// inferring build settings from it. Listing header files in `buildTarget/sources` allows SourceKit-LSP to provide
   /// semantic functionality for header files if they haven't been included by any main file.
-  public var isHeader: Bool?
+  public var isHeader: Bool? {
+    guard let kind else {
+      return nil
+    }
+    return kind == .header
+  }
+
+  public var kind: SourceKitSourceItemKind?
 
   /// The output path that is used during indexing for this file, ie. the `-index-unit-output-path`, if it is specified
   /// in the compiler arguments or the file that is passed as `-o`, if `-index-unit-output-path` is not specified.
@@ -144,9 +171,9 @@ public struct SourceKitSourceItemData: LSPAnyCodable, Codable {
   /// `outputPathsProvider: true` in `SourceKitInitializeBuildResponseData`.
   public var outputPath: String?
 
-  public init(language: Language? = nil, isHeader: Bool? = nil, outputPath: String? = nil) {
+  public init(language: Language? = nil, kind: SourceKitSourceItemKind? = nil, outputPath: String? = nil) {
     self.language = language
-    self.isHeader = isHeader
+    self.kind = kind
     self.outputPath = outputPath
   }
 
@@ -154,8 +181,12 @@ public struct SourceKitSourceItemData: LSPAnyCodable, Codable {
     if case .string(let language) = dictionary[CodingKeys.language.stringValue] {
       self.language = Language(rawValue: language)
     }
-    if case .bool(let isHeader) = dictionary[CodingKeys.isHeader.stringValue] {
-      self.isHeader = isHeader
+    if case .string(let rawKind) = dictionary[CodingKeys.kind.stringValue] {
+      self.kind = SourceKitSourceItemKind(rawValue: rawKind)
+    }
+    // Backwards compatibility for isHeader
+    if case .bool(let isHeader) = dictionary["isHeader"], isHeader {
+      self.kind = .header
     }
     if case .string(let outputFilePath) = dictionary[CodingKeys.outputPath.stringValue] {
       self.outputPath = outputFilePath
@@ -167,8 +198,12 @@ public struct SourceKitSourceItemData: LSPAnyCodable, Codable {
     if let language {
       result[CodingKeys.language.stringValue] = .string(language.rawValue)
     }
+    if let kind {
+      result[CodingKeys.kind.stringValue] = .string(kind.rawValue)
+    }
+    // Backwards compatibility for isHeader
     if let isHeader {
-      result[CodingKeys.isHeader.stringValue] = .bool(isHeader)
+      result["isHeader"] = .bool(isHeader)
     }
     if let outputPath {
       result[CodingKeys.outputPath.stringValue] = .string(outputPath)

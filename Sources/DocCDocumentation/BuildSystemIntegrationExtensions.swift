@@ -38,21 +38,15 @@ package extension BuildSystemManager {
       return nil
     }
     let sourceFiles = (try? await sourceFiles(in: [target]).flatMap(\.sources)) ?? []
-    return sourceFiles.compactMap(\.uri.fileURL?.doccCatalogURL).first
-  }
-}
-
-package extension URL {
-  var doccCatalogURL: URL? {
-    var pathComponents = self.pathComponents
-    var result = self
-    while let lastPathComponent = pathComponents.last {
-      if lastPathComponent.hasSuffix(".docc") {
-        return result
+    let catalogURLs = sourceFiles.compactMap { sourceItem -> URL? in
+      guard sourceItem.dataKind == .sourceKit,
+        let data = SourceKitSourceItemData(fromLSPAny: sourceItem.data),
+        data.kind == .doccCatalog
+      else {
+        return nil
       }
-      pathComponents.removeLast()
-      result.deleteLastPathComponent()
-    }
-    return nil
+      return sourceItem.uri.fileURL
+    }.sorted(by: { $0.absoluteString >= $1.absoluteString })
+    return catalogURLs.first
   }
 }

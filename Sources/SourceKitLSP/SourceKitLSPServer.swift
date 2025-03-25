@@ -79,10 +79,6 @@ package actor SourceKitLSPServer {
 
   package let documentManager = DocumentManager()
 
-  #if canImport(DocCDocumentation)
-  package let documentationManager = DocCDocumentationManager()
-  #endif
-
   /// The `TaskScheduler` that schedules all background indexing tasks.
   ///
   /// Shared process-wide to ensure the scheduled index operations across multiple workspaces don't exceed the maximum
@@ -1476,9 +1472,6 @@ extension SourceKitLSPServer {
     // (e.g. Package.swift doesn't have build settings but affects build
     // settings). Inform the build system about all file changes.
     await workspaces.concurrentForEach { await $0.filesDidChange(notification.changes) }
-    #if canImport(DocCDocumentation)
-    await documentationManager.filesDidChange(notification.changes)
-    #endif
   }
 
   func setBackgroundIndexingPaused(_ request: SetOptionsRequest) async throws -> VoidResponse {
