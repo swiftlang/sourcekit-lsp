@@ -1058,6 +1058,13 @@ extension SwiftLanguageService {
 
   package func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
     do {
+      switch try? ReferenceDocumentURL(from: req.textDocument.uri) {
+      case .generatedInterface:
+        // Generated interfaces don't have diagnostics associated with them.
+        return .full(RelatedFullDocumentDiagnosticReport(items: []))
+      case .macroExpansion, nil: break
+      }
+
       await semanticIndexManager?.prepareFileForEditorFunctionality(
         req.textDocument.uri.buildSettingsFile
       )
