@@ -59,7 +59,7 @@ final class ExecuteCommandTests: XCTestCase {
 
     let _ = try await testClient.send(request)
 
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
 
     let label = try XCTUnwrap(applyEditTitle.value)
     let edit = try XCTUnwrap(applyEditWorkspaceEdit.value)
@@ -124,7 +124,7 @@ final class ExecuteCommandTests: XCTestCase {
 
     let _ = try await testClient.send(request)
 
-    try await fulfillmentOfOrThrow([expectation])
+    try await fulfillmentOfOrThrow(expectation)
 
     let label = try XCTUnwrap(applyEditTitle.value)
     let edit = try XCTUnwrap(applyEditWorkspaceEdit.value)

@@ -604,7 +604,7 @@ final class BackgroundIndexingTests: XCTestCase {
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
 
-    try await fulfillmentOfOrThrow([receivedEmptyDiagnostics])
+    try await fulfillmentOfOrThrow(receivedEmptyDiagnostics)
 
     // Check that we received a work done progress for the re-preparation of the target
     _ = try await project.testClient.nextNotification(
@@ -2618,7 +2618,7 @@ final class BackgroundIndexingTests: XCTestCase {
         func myTestFunc() {}
         """
     )
-    try await fulfillmentOfOrThrow([updateIndexStoreStarted])
+    try await fulfillmentOfOrThrow(updateIndexStoreStarted)
     try await repeatUntilExpectedResult(sleepInterval: .milliseconds(2)) {
       try await !project.testClient.send(IsIndexingRequest()).indexing
     }

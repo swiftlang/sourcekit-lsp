@@ -212,7 +212,7 @@ final class LocalClangTests: XCTestCase {
     )
     _ = try await testClient.send(executeCommand)
 
-    try await fulfillmentOfOrThrow([applyEdit])
+    try await fulfillmentOfOrThrow(applyEdit)
   }
 
   func testClangStdHeaderCanary() async throws {

@@ -86,7 +86,7 @@ final class SourceKitDTests: XCTestCase {
 
     _ = try await sourcekitd.send(req, timeout: defaultTimeoutDuration, fileContents: nil)
 
-    try await fulfillmentOfOrThrow([expectation1, expectation2])
+    try await fulfillmentOfOrThrow(expectation1, expectation2)
 
     let close = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.editorClose,
