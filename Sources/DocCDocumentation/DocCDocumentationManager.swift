@@ -3,6 +3,7 @@ package import BuildSystemIntegration
 package import Foundation
 package import IndexStoreDB
 package import LanguageServerProtocol
+import SKLogging
 package import SemanticIndex
 import SwiftDocC
 
@@ -27,7 +28,9 @@ package struct DocCDocumentationManager: Sendable {
 
   package func filesDidChange(_ events: [FileEvent]) async {
     for event in events {
-      guard let catalogURL = await buildSystemManager.doccCatalog(for: event.uri) else {
+      guard let target = await buildSystemManager.canonicalTarget(for: event.uri),
+        let catalogURL = await buildSystemManager.doccCatalog(for: target)
+      else {
         continue
       }
       await catalogIndexManager.invalidate(catalogURL)
@@ -42,27 +45,38 @@ package struct DocCDocumentationManager: Sendable {
     DocCSymbolLink(string: string)
   }
 
+  private func parentSymbol(of symbol: SymbolOccurrence, in index: CheckedIndex) -> SymbolOccurrence? {
+    let allParentRelations = symbol.relations
+      .filter { $0.roles.contains(.childOf) }
+      .sorted()
+    if allParentRelations.count > 1 {
+      logger.debug("Symbol \(symbol.symbol.usr) has multiple parent symbols")
+    }
+    guard let parentRelation = allParentRelations.first else {
+      return nil
+    }
+    if parentRelation.symbol.kind == .extension {
+      let allSymbolOccurrences = index.occurrences(relatedToUSR: parentRelation.symbol.usr, roles: .extendedBy)
+        .sorted()
+      if allSymbolOccurrences.count > 1 {
+        logger.debug("Extension \(parentRelation.symbol.usr) extends multiple symbols")
+      }
+      return allSymbolOccurrences.first
+    }
+    return index.primaryDefinitionOrDeclarationOccurrence(ofUSR: parentRelation.symbol.usr)
+  }
+
   package func symbolLink(forUSR usr: String, in index: CheckedIndex) -> DocCSymbolLink? {
     guard let topLevelSymbolOccurrence = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
       return nil
     }
     let module = topLevelSymbolOccurrence.location.moduleName
     var components = [topLevelSymbolOccurrence.symbol.name]
-    // Find any child symbols
-    var symbolOccurrence: SymbolOccurrence? = topLevelSymbolOccurrence
-    while let currentSymbolOccurrence = symbolOccurrence, components.count > 0 {
-      let parentRelation = currentSymbolOccurrence.relations.first { $0.roles.contains(.childOf) }
-      guard let parentRelation else {
-        break
-      }
-      if parentRelation.symbol.kind == .extension {
-        symbolOccurrence = index.occurrences(relatedToUSR: parentRelation.symbol.usr, roles: .extendedBy).first
-      } else {
-        symbolOccurrence = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: parentRelation.symbol.usr)
-      }
-      if let symbolOccurrence {
-        components.insert(symbolOccurrence.symbol.name, at: 0)
-      }
+    // Find any parent symbols
+    var symbolOccurrence: SymbolOccurrence = topLevelSymbolOccurrence
+    while let parentSymbolOccurrence = parentSymbol(of: symbolOccurrence, in: index) {
+      components.insert(parentSymbolOccurrence.symbol.name, at: 0)
+      symbolOccurrence = parentSymbolOccurrence
     }
     return DocCSymbolLink(string: module)?.appending(components: components)
   }
@@ -81,39 +95,47 @@ package struct DocCDocumentationManager: Sendable {
     }
     // Do a lookup to find the top level symbol
     let topLevelSymbolName = components.removeLast().name
-    var topLevelSymbolOccurrences = [SymbolOccurrence]()
+    var topLevelSymbolOccurrences: [SymbolOccurrence] = []
     index.forEachCanonicalSymbolOccurrence(byName: topLevelSymbolName) { symbolOccurrence in
       guard symbolOccurrence.location.moduleName == symbolLink.moduleName else {
-        return true
+        return true  // continue
       }
       topLevelSymbolOccurrences.append(symbolOccurrence)
+      return true  // continue
+    }
+    // Search each potential symbol's parents to find an exact match
+    let symbolOccurences = topLevelSymbolOccurrences.filter { topLevelSymbolOccurrence in
+      var components = components
+      var symbolOccurrence = topLevelSymbolOccurrence
+      while let parentSymbolOccurrence = parentSymbol(of: symbolOccurrence, in: index), !components.isEmpty {
+        let nextComponent = components.removeLast()
+        guard parentSymbolOccurrence.symbol.name == nextComponent.name else {
+          return false
+        }
+        symbolOccurrence = parentSymbolOccurrence
+      }
+      guard components.isEmpty else {
+        return false
+      }
       return true
+    }.sorted()
+    if symbolOccurences.count > 1 {
+      logger.debug("Multiple symbols found for DocC symbol link '\(symbolLink.absoluteString)'")
     }
-    guard let topLevelSymbolOccurrence = topLevelSymbolOccurrences.first else {
-      return nil
-    }
-    // Find any child symbols
-    var symbolOccurrence: SymbolOccurrence? = topLevelSymbolOccurrence
-    while let currentSymbolOccurrence = symbolOccurrence, components.count > 0 {
-      let nextComponent = components.removeLast()
-      let parentRelation = currentSymbolOccurrence.relations.first {
-        $0.roles.contains(.childOf) && $0.symbol.name == nextComponent.name
-      }
-      guard let parentRelation else {
-        break
-      }
-      if parentRelation.symbol.kind == .extension {
-        symbolOccurrence = index.occurrences(relatedToUSR: parentRelation.symbol.usr, roles: .extendedBy).first
-      } else {
-        symbolOccurrence = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: parentRelation.symbol.usr)
-      }
-    }
-    guard symbolOccurrence != nil else {
-      return nil
-    }
-    return topLevelSymbolOccurrence
+    return symbolOccurences.first
   }
 
+  /// Generates the SwiftDocC RenderNode for a given symbol, tutorial, or markdown file.
+  ///
+  /// - Parameters:
+  ///   - symbolUSR: The USR of the symbol to render
+  ///   - symbolGraph: The symbol graph that includes the given symbol USR
+  ///   - markupFile: The markdown article or symbol extension to render
+  ///   - tutorialFile: The tutorial file to render
+  ///   - moduleName: The name of the Swift module that will be rendered
+  ///   - catalogURL: The URL pointing to the docc catalog that this symbol, tutorial, or markdown file is a part of
+  /// - Throws: A ResponseError if something went wrong
+  /// - Returns: The DoccDocumentationResponse containing the RenderNode if successful
   package func renderDocCDocumentation(
     symbolUSR: String? = nil,
     symbolGraph: String? = nil,
@@ -132,15 +154,15 @@ package struct DocCDocumentationManager: Sendable {
         overridingDocumentationComments[symbolUSR] = overrideDocComments
       }
     }
-    var symbolGraphs = [Data]()
+    var symbolGraphs: [Data] = []
     if let symbolGraphData = symbolGraph?.data(using: .utf8) {
       symbolGraphs.append(symbolGraphData)
     }
-    var markupFiles = [Data]()
+    var markupFiles: [Data] = []
     if let markupFile = markupFile?.data(using: .utf8) {
       markupFiles.append(markupFile)
     }
-    var tutorialFiles = [Data]()
+    var tutorialFiles: [Data] = []
     if let tutorialFile = tutorialFile?.data(using: .utf8) {
       tutorialFiles.append(tutorialFile)
     }
