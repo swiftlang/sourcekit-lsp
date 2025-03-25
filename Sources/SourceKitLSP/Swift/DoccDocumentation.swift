@@ -23,7 +23,10 @@ extension SwiftLanguageService {
     guard let sourceKitLSPServer else {
       throw ResponseError.internalError("SourceKit-LSP is shutting down")
     }
-    let documentationManager = sourceKitLSPServer.documentationManager
+    guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: req.textDocument.uri) else {
+      throw ResponseError.workspaceNotOpen(req.textDocument.uri)
+    }
+    let documentationManager = workspace.doccDocumentationManager
     guard let position = req.position else {
       throw ResponseError.invalidParams("A position must be provided for Swift files")
     }
