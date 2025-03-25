@@ -223,6 +223,7 @@ var targets: [Target] = [
       "BuildSystemIntegration",
       "LanguageServerProtocol",
       "SemanticIndex",
+      "SKLogging",
       "SwiftExtensions",
       .product(name: "IndexStoreDB", package: "indexstore-db"),
       .product(name: "SwiftDocC", package: "swift-docc"),

@@ -19,12 +19,12 @@ import SwiftExtensions
 
 final class DocCReferenceResolutionService: DocumentationService, Sendable {
   /// The message type that this service accepts.
-  public static let symbolResolutionMessageType: DocumentationServer.MessageType = "resolve-reference"
+  static let symbolResolutionMessageType: DocumentationServer.MessageType = "resolve-reference"
 
   /// The message type that this service responds with when the requested symbol resolution was successful.
-  public static let symbolResolutionResponseMessageType: DocumentationServer.MessageType = "resolve-reference-response"
+  static let symbolResolutionResponseMessageType: DocumentationServer.MessageType = "resolve-reference-response"
 
-  public static let handlingTypes = [symbolResolutionMessageType]
+  static let handlingTypes = [symbolResolutionMessageType]
 
   private let contextMap = ThreadSafeBox<[String: DocCReferenceResolutionContext]>(initialValue: [:])
 
@@ -46,88 +46,49 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
     _ message: DocumentationServer.Message,
     completion: @escaping (DocumentationServer.Message) -> ()
   ) {
-    guard let payload = message.payload else {
-      completion(createResponseWithErrorMessage("Nil message payload provided."))
-      return
-    }
-
-    let decodedRequest = Result {
-      try JSONDecoder().decode(
-        ConvertRequestContextWrapper<OutOfProcessReferenceResolver.Request>.self,
-        from: payload
-      )
-    }
-    .mapError { error -> ReferenceResolutionError in
-      return .decodingFailure(error.localizedDescription)
-    }
-    switch decodedRequest {
-    case let .success(request):
-      resolveReference(request: request) { response in
-        let symbolResolutionRequestResult = response.flatMap { response in
-          Result {
-            try JSONEncoder().encode(response)
-          }
-          .mapError { error -> ReferenceResolutionError in
-            return .encodingFailure(error.localizedDescription)
-          }
-        }
-        .flatMapError { error -> Result<Data, ReferenceResolutionError> in
-          // This is a catch all for any errors we've encountered along the way. We want
-          // to catch them here and convert them to reference resolver responses so
-          // DocC knows why we were unable to resolve the link.
-
-          let errorResponse = OutOfProcessReferenceResolver.Response.errorMessage(
-            error.localizedDescription
-          )
-
-          return Result {
-            return try JSONEncoder().encode(errorResponse)
-          }
-          .mapError { error -> ReferenceResolutionError in
-            return .encodingFailure(error.localizedDescription)
-          }
-        }
-        switch symbolResolutionRequestResult {
-        case .success(let responsePayload):
-          completion(
-            self.createResponse(payload: responsePayload)
-          )
-        case .failure(let error):
-          completion(
-            self.createResponseWithErrorMessage(error.localizedDescription)
-          )
-        }
-      }
-    case .failure(let error):
+    do {
+      let response = try process(message)
+      completion(response);
+    } catch {
       completion(createResponseWithErrorMessage(error.localizedDescription))
     }
   }
 
+  private func process(
+    _ message: DocumentationServer.Message
+  ) throws(ReferenceResolutionError) -> DocumentationServer.Message {
+    // Decode the message payload
+    guard let payload = message.payload else {
+      throw ReferenceResolutionError.nilMessagePayload
+    }
+    let request = try decode(ConvertRequestContextWrapper<OutOfProcessReferenceResolver.Request>.self, from: payload)
+    // Attempt to resolve the reference in the request
+    let resolvedReference = try resolveReference(request: request);
+    // Encode the response payload
+    let encodedResolvedReference = try encode(resolvedReference)
+    return createResponse(payload: encodedResolvedReference)
+  }
+
   private func resolveReference(
-    request: ConvertRequestContextWrapper<OutOfProcessReferenceResolver.Request>,
-    completion: @escaping (_: Result<OutOfProcessReferenceResolver.Response, ReferenceResolutionError>) -> Void
-  ) {
+    request: ConvertRequestContextWrapper<OutOfProcessReferenceResolver.Request>
+  ) throws(ReferenceResolutionError) -> OutOfProcessReferenceResolver.Response {
     guard let convertRequestIdentifier = request.convertRequestIdentifier else {
-      completion(.failure(.missingConvertRequestIdentifier))
-      return
+      throw .missingConvertRequestIdentifier
     }
     guard let context = context(forKey: convertRequestIdentifier) else {
-      completion(.failure(.missingContext))
-      return
+      throw .missingContext
     }
     switch request.payload {
     case .symbol(let symbolUSR):
-      completion(.failure(.symbolNotFound(symbolUSR)))
+      throw .symbolNotFound(symbolUSR)
     case .asset(let assetReference):
       guard let catalog = context.catalogIndex else {
-        completion(.failure(.indexNotAvailable))
-        break
+        throw .indexNotAvailable
       }
       guard let dataAsset = catalog.asset(for: assetReference) else {
-        completion(.failure(.assetNotFound))
-        break
+        throw .assetNotFound
       }
-      completion(.success(.asset(dataAsset)))
+      return .asset(dataAsset)
     case .topic(let topicURL):
       // Check if this is a link to another documentation article
       let relevantPathComponents = topicURL.pathComponents.filter { $0 != "/" }
@@ -141,31 +102,37 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
           nil
         }
       if let resolvedReference {
-        completion(
-          .success(
-            .resolvedInformation(OutOfProcessReferenceResolver.ResolvedInformation(resolvedReference, url: topicURL))
-          )
-        )
-        return
+        return .resolvedInformation(OutOfProcessReferenceResolver.ResolvedInformation(resolvedReference, url: topicURL))
       }
       // Otherwise this must be a link to a symbol
       let urlString = topicURL.absoluteString
       guard let absoluteSymbolLink = AbsoluteSymbolLink(string: urlString) else {
-        completion(Result.failure(.invalidURLInRequest))
-        break
+        throw .invalidURLInRequest
       }
       // Don't bother checking to see if the symbol actually exists in the index. This can be time consuming and
       // it would be better to report errors/warnings for unresolved symbols directly within the document, anyway.
-      completion(
-        Result.success(
-          .resolvedInformation(
-            OutOfProcessReferenceResolver.ResolvedInformation(
-              symbolURL: topicURL,
-              symbolName: absoluteSymbolLink.symbolName
-            )
-          )
+      return .resolvedInformation(
+        OutOfProcessReferenceResolver.ResolvedInformation(
+          symbolURL: topicURL,
+          symbolName: absoluteSymbolLink.symbolName
         )
       )
+    }
+  }
+
+  private func decode<T>(_ type: T.Type, from data: Data) throws(ReferenceResolutionError) -> T where T: Decodable {
+    do {
+      return try JSONDecoder().decode(T.self, from: data)
+    } catch {
+      throw .decodingFailure(error.localizedDescription)
+    }
+  }
+
+  private func encode<T: Encodable>(_ value: T) throws(ReferenceResolutionError) -> Data {
+    do {
+      return try JSONEncoder().encode(value)
+    } catch {
+      throw .decodingFailure(error.localizedDescription)
     }
   }
 
@@ -244,6 +211,7 @@ fileprivate extension OutOfProcessReferenceResolver.ResolvedInformation {
 }
 
 enum ReferenceResolutionError: LocalizedError {
+  case nilMessagePayload
   case invalidURLInRequest
   case decodingFailure(String)
   case encodingFailure(String)
@@ -255,6 +223,8 @@ enum ReferenceResolutionError: LocalizedError {
 
   var errorDescription: String? {
     switch self {
+    case .nilMessagePayload:
+      return "Nil message payload provided."
     case .decodingFailure(let error):
       return "The service was unable to decode the given symbol resolution request: '\(error)'."
     case .encodingFailure(let error):

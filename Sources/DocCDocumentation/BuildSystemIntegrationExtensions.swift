@@ -10,16 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildServerProtocol
+package import BuildServerProtocol
 package import BuildSystemIntegration
 package import Foundation
-package import LanguageServerProtocol
+import LanguageServerProtocol
 
 package extension BuildSystemManager {
-  func moduleName(for document: DocumentURI) async -> String? {
-    guard let target = await canonicalTarget(for: document) else {
-      return nil
-    }
+  /// Retrieves the name of the Swift module for a given target.
+  ///
+  /// - Parameter target: The build target identifier
+  /// - Returns: The name of the Swift module or nil if it could not be determined
+  func moduleName(for target: BuildTargetIdentifier) async -> String? {
     let sourceFiles = (try? await sourceFiles(in: [target]).flatMap(\.sources)) ?? []
     for sourceFile in sourceFiles {
       let language = await defaultLanguage(for: sourceFile.uri, in: target)
@@ -33,10 +34,11 @@ package extension BuildSystemManager {
     return nil
   }
 
-  func doccCatalog(for document: DocumentURI) async -> URL? {
-    guard let target = await canonicalTarget(for: document) else {
-      return nil
-    }
+  /// Finds the SwiftDocC documentation catalog associated with a target, if any.
+  ///
+  /// - Parameter target: The build target identifier
+  /// - Returns: The URL of the documentation catalog or nil if one could not be found
+  func doccCatalog(for target: BuildTargetIdentifier) async -> URL? {
     let sourceFiles = (try? await sourceFiles(in: [target]).flatMap(\.sources)) ?? []
     let catalogURLs = sourceFiles.compactMap { sourceItem -> URL? in
       guard sourceItem.dataKind == .sourceKit,
