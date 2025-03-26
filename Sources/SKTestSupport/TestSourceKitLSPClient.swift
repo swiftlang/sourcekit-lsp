@@ -36,7 +36,7 @@ extension SourceKitLSPOptions {
         servicePlugin: try pluginPaths.servicePlugin.filePath
       ),
       backgroundIndexing: backgroundIndexing,
-      experimentalFeatures: experimentalFeatures.union([.synchronizeRequest]),
+      experimentalFeatures: experimentalFeatures,
       swiftPublishDiagnosticsDebounceDuration: 0,
       workDoneProgressDebounceDuration: 0
     )

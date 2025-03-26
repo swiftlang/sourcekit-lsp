@@ -2540,8 +2540,8 @@ extension SourceKitLSPServer {
   }
 
   func synchronize(_ req: SynchronizeRequest) async throws -> VoidResponse {
-    guard self.options.hasExperimentalFeature(.synchronizeRequest) else {
-      throw ResponseError.unknown("\(SynchronizeRequest.method) indexing is an experimental request")
+    if req.buildServerUpdates != nil, !self.options.hasExperimentalFeature(.synchronizeForBuildSystemUpdates) {
+      throw ResponseError.unknown("\(SynchronizeRequest.method).buildServerUpdates is an experimental request option")
     }
     for workspace in workspaces {
       await workspace.synchronize(req)
