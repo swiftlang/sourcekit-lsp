@@ -151,7 +151,7 @@ final class CompilationDatabaseTests: XCTestCase {
         XCTFail("Expected ResponseError, got \(error)")
         return
       }
-      XCTAssert(error.message.contains("No language service"))
+      assertContains(error.message, "No language service")
     }
   }
 
@@ -217,7 +217,7 @@ final class CompilationDatabaseTests: XCTestCase {
       )
     )
     let hoverContent = try XCTUnwrap(hover?.contents.markupContent?.value)
-    XCTAssert(hoverContent.contains("void main()"))
+    assertContains(hoverContent, "void main()")
 
     // But for `testFromDummyToolchain.swift`, we can't launch sourcekitd (because it doesn't exist, we just provided a
     // dummy), so we should receive an error. The exact error here is not super relevant, the important part is that we
@@ -235,7 +235,7 @@ final class CompilationDatabaseTests: XCTestCase {
         XCTFail("Expected ResponseError, got \(error)")
         return
       }
-      XCTAssert(error.message.contains("No language service"))
+      assertContains(error.message, "No language service")
     }
   }
 }

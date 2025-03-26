@@ -329,7 +329,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
       try await fulfillmentOfOrThrow(slowCompletionResultReceived, timeout: 30)
     } hook: { request in
       // Check that we aren't matching against a request sent by something else that has handle to the same sourcekitd.
-      XCTAssert(request.description.contains(path), "Received unexpected request: \(request)")
+      assertContains(request.description, path)
       slowCompletionRequestSent.fulfill()
     }
 

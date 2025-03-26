@@ -1181,7 +1181,7 @@ final class WorkspaceTests: XCTestCase {
       )
     )
     let options = try XCTUnwrap(optionsOptional)
-    XCTAssert(options.compilerArguments.contains("-module-name"))
+    assertContains(options.compilerArguments, "-module-name")
     XCTAssertEqual(options.kind, .normal)
     XCTAssertNil(options.didPrepareTarget)
   }
@@ -1366,7 +1366,7 @@ final class WorkspaceTests: XCTestCase {
         allowFallbackSettings: false
       )
     )
-    XCTAssert(options.compilerArguments.contains("-DHAVE_SETTINGS"))
+    assertContains(options.compilerArguments, "-DHAVE_SETTINGS")
   }
 
   func testOutputPaths() async throws {
