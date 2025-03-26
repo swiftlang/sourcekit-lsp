@@ -221,10 +221,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
       logger.fault("Failed to find SourceKit plugin for toolchain at \(toolchain.path.path)")
       pluginPaths = nil
     }
-    self.sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
-      dylibPath: sourcekitd,
-      pluginPaths: pluginPaths
-    )
+    self.sourcekitd = try await SourceKitD.getOrCreate(dylibPath: sourcekitd, pluginPaths: pluginPaths)
     self.capabilityRegistry = workspace.capabilityRegistry
     self.semanticIndexManager = workspace.semanticIndexManager
     self.hooks = hooks

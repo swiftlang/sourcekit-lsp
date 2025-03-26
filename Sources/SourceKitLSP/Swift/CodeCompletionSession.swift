@@ -142,7 +142,7 @@ class CodeCompletionSession {
   ///     getting updated results after updating the filter text.
   /// - Returns: The code completion results for those parameters.
   static func completionList(
-    sourcekitd: any SourceKitD,
+    sourcekitd: SourceKitD,
     snapshot: DocumentSnapshot,
     options: SourceKitLSPOptions,
     indentationWidth: Trivia?,
@@ -211,7 +211,7 @@ class CodeCompletionSession {
   ///
   /// This should only be necessary to do if the dependencies have updated. In all other cases `completionList` will
   /// decide whether an existing code completion session can be reused.
-  static func close(sourcekitd: any SourceKitD, uris: Set<DocumentURI>) {
+  static func close(sourcekitd: SourceKitD, uris: Set<DocumentURI>) {
     completionQueue.async {
       if let session = completionSessions[ObjectIdentifier(sourcekitd)], uris.contains(session.uri),
         session.state == .open
@@ -224,7 +224,7 @@ class CodeCompletionSession {
   // MARK: - Implementation
 
   private let id: CompletionSessionID
-  private let sourcekitd: any SourceKitD
+  private let sourcekitd: SourceKitD
   private let snapshot: DocumentSnapshot
   private let options: SourceKitLSPOptions
   /// The inferred indentation width of the source file the completion is being performed in
@@ -244,7 +244,7 @@ class CodeCompletionSession {
   private nonisolated var keys: sourcekitd_api_keys { return sourcekitd.keys }
 
   private init(
-    sourcekitd: any SourceKitD,
+    sourcekitd: SourceKitD,
     snapshot: DocumentSnapshot,
     options: SourceKitLSPOptions,
     indentationWidth: Trivia?,

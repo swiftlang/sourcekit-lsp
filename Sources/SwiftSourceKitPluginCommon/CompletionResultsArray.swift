@@ -121,7 +121,7 @@ package struct CompletionResultsArray {
   }
 
   package static let arrayFuncs: VariantFunctions = {
-    let sourcekitd = DynamicallyLoadedSourceKitD.forPlugin
+    let sourcekitd = SourceKitD.forPlugin
     let funcs = sourcekitd.pluginApi.variant_functions_create()!
     sourcekitd.pluginApi.variant_functions_set_get_type(funcs, { _ in SOURCEKITD_API_VARIANT_TYPE_ARRAY })
     sourcekitd.pluginApi.variant_functions_set_array_get_count(funcs, { arrayGetCount($0) })
@@ -151,7 +151,7 @@ package struct CompletionResultsArray {
       }
     }
 
-    let sourcekitd = DynamicallyLoadedSourceKitD.forPlugin
+    let sourcekitd = SourceKitD.forPlugin
     let keys = sourcekitd.keys
 
     let results = CompletionResultsArray(dict)
@@ -194,7 +194,7 @@ package struct CompletionResultsArray {
   }
 
   static let dictionaryFuncs: VariantFunctions = {
-    let sourcekitd = DynamicallyLoadedSourceKitD.forPlugin
+    let sourcekitd = SourceKitD.forPlugin
     let funcs = sourcekitd.pluginApi.variant_functions_create()!
     sourcekitd.pluginApi.variant_functions_set_get_type(funcs, { _ in SOURCEKITD_API_VARIANT_TYPE_DICTIONARY })
     sourcekitd.pluginApi.variant_functions_set_dictionary_apply(funcs, { dictionaryApply($0, $1, $2) })

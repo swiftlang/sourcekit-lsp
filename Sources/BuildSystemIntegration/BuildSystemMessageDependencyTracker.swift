@@ -14,7 +14,7 @@ import BuildServerProtocol
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
-package import SwiftExtensions
+import SwiftExtensions
 
 /// A lightweight way of describing tasks that are created from handling BSP
 /// requests or notifications for the purpose of dependency tracking.

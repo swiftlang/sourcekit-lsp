@@ -176,7 +176,7 @@ final class ASTCompletionItem {
     filterName: UnsafePointer<CChar>?,
     completionKind: CompletionContext.Kind,
     index: UInt32,
-    sourcekitd: any SourceKitD
+    sourcekitd: SourceKitD
   ) {
     self.impl = cresult
     self.filterNameCString = filterName

@@ -15,7 +15,9 @@ import SourceKitD
 import SwiftSourceKitPluginCommon
 
 extension SourceKitD {
-  func responseDictionary(_ dict: [sourcekitd_api_uid_t: SKDResponseValue]) -> SKDResponseDictionaryBuilder {
+  nonisolated func responseDictionary(
+    _ dict: [sourcekitd_api_uid_t: SKDResponseValue]
+  ) -> SKDResponseDictionaryBuilder {
     let result = SKDResponseDictionaryBuilder(sourcekitd: self)
     for (key, value) in dict {
       result.set(key, to: value)

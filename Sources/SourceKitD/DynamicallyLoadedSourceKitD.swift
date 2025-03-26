@@ -55,7 +55,7 @@ fileprivate func setenv(name: String, value: String, override: Bool) throws {
 ///
 /// Users of this class should not call the api functions `initialize`, `shutdown`, or
 /// `set_notification_handler`, which are global state managed internally by this class.
-package actor DynamicallyLoadedSourceKitD: SourceKitD {
+package actor SourceKitD {
   /// The path to the sourcekitd dylib.
   package let path: URL
 
@@ -63,18 +63,29 @@ package actor DynamicallyLoadedSourceKitD: SourceKitD {
   let dylib: DLHandle
 
   /// The sourcekitd API functions.
-  package let api: sourcekitd_api_functions_t
+  nonisolated package let api: sourcekitd_api_functions_t
 
-  private let pluginApiResult: Result<sourcekitd_plugin_api_functions_t, Error>
+  /// General API for the SourceKit service and client framework, eg. for plugin initialization and to set up custom
+  /// variant functions.
+  ///
+  /// This must not be referenced outside of `SwiftSourceKitPlugin`, `SwiftSourceKitPluginCommon`, or
+  /// `SwiftSourceKitClientPlugin`.
   package nonisolated var pluginApi: sourcekitd_plugin_api_functions_t { try! pluginApiResult.get() }
+  private let pluginApiResult: Result<sourcekitd_plugin_api_functions_t, Error>
 
-  private let servicePluginApiResult: Result<sourcekitd_service_plugin_api_functions_t, Error>
+  /// The API with which the SourceKit plugin handles requests.
+  ///
+  /// This must not be referenced outside of `SwiftSourceKitPlugin`.
   package nonisolated var servicePluginApi: sourcekitd_service_plugin_api_functions_t {
     try! servicePluginApiResult.get()
   }
+  private let servicePluginApiResult: Result<sourcekitd_service_plugin_api_functions_t, Error>
 
-  private let ideApiResult: Result<sourcekitd_ide_api_functions_t, Error>
+  /// The API with which the SourceKit plugin communicates with the type-checker in-process.
+  ///
+  /// This must not be referenced outside of `SwiftSourceKitPlugin`.
   package nonisolated var ideApi: sourcekitd_ide_api_functions_t { try! ideApiResult.get() }
+  private let ideApiResult: Result<sourcekitd_ide_api_functions_t, Error>
 
   /// Convenience for accessing known keys.
   ///
@@ -128,7 +139,7 @@ package actor DynamicallyLoadedSourceKitD: SourceKitD {
         )
       }
       #endif
-      return try DynamicallyLoadedSourceKitD(dylib: dylibPath, pluginPaths: pluginPaths)
+      return try SourceKitD(dylib: dylibPath, pluginPaths: pluginPaths)
     }
   }
 
@@ -224,59 +235,10 @@ package actor DynamicallyLoadedSourceKitD: SourceKitD {
     try await body()
   }
 
-  package func didSend(request: SKDRequestDictionary) {
+  func didSend(request: SKDRequestDictionary) {
     for hook in requestHandlingHooks.values {
       hook(request)
     }
-  }
-
-  package nonisolated func log(request: SKDRequestDictionary) {
-    logger.info(
-      """
-      Sending sourcekitd request:
-      \(request.forLogging)
-      """
-    )
-  }
-
-  package nonisolated func log(response: SKDResponse) {
-    logger.log(
-      level: (response.error == nil || response.error == .requestCancelled) ? .debug : .error,
-      """
-      Received sourcekitd response:
-      \(response.forLogging)
-      """
-    )
-  }
-
-  package nonisolated func log(crashedRequest req: SKDRequestDictionary, fileContents: String?) {
-    let log = """
-      Request:
-      \(req.description)
-
-      File contents:
-      \(fileContents ?? "<nil>")
-      """
-    let chunks = splitLongMultilineMessage(message: log)
-    for (index, chunk) in chunks.enumerated() {
-      logger.fault(
-        """
-        sourcekitd crashed (\(index + 1)/\(chunks.count))
-        \(chunk)
-        """
-      )
-    }
-  }
-
-  package nonisolated func logRequestCancellation(request: SKDRequestDictionary) {
-    // We don't need to log which request has been cancelled because we can associate the cancellation log message with
-    // the send message via the log
-    logger.info(
-      """
-      Cancelling sourcekitd request:
-      \(request.forLogging)
-      """
-    )
   }
 }
 

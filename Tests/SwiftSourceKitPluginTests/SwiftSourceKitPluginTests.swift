@@ -38,7 +38,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
       }
       throw NoSourceKitdFound()
     }
-    return try await DynamicallyLoadedSourceKitD.getOrCreate(
+    return try await SourceKitD.getOrCreate(
       dylibPath: sourcekitd,
       pluginPaths: try sourceKitPluginPaths
     )
@@ -313,8 +313,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
 
     let slowCompletionRequestSent = self.expectation(description: "slow completion result sent")
     let slowCompletionResultReceived = self.expectation(description: "slow completion")
-    let dynamicallyLoadedSourceKitd = try XCTUnwrap(sourcekitd as? DynamicallyLoadedSourceKitD)
-    try await dynamicallyLoadedSourceKitd.withRequestHandlingHook {
+    try await sourcekitd.withRequestHandlingHook {
       let slowCompletionTask = Task {
         await assertThrowsError(try await sourcekitd.completeOpen(path: path, position: positions["1️⃣"], filter: "")) {
           XCTAssert($0 is CancellationError, "Expected completion to be cancelled, failed with \($0)")
@@ -1814,7 +1813,7 @@ struct CompletionRequestFlags: OptionSet {
 
 fileprivate extension SourceKitD {
   @discardableResult
-  func openDocument(
+  nonisolated func openDocument(
     _ name: String,
     contents markedSource: String,
     compilerArguments: [String]? = nil
@@ -1835,7 +1834,7 @@ fileprivate extension SourceKitD {
     return DocumentPositions(markers: markers, textWithoutMarkers: textWithoutMarkers)
   }
 
-  func editDocument(_ name: String, fromOffset offset: Int, length: Int, newContents: String) async throws {
+  nonisolated func editDocument(_ name: String, fromOffset offset: Int, length: Int, newContents: String) async throws {
     let req = dictionary([
       keys.request: requests.editorReplaceText,
       keys.name: name,
@@ -1848,7 +1847,7 @@ fileprivate extension SourceKitD {
     _ = try await send(req, timeout: defaultTimeoutDuration, fileContents: nil)
   }
 
-  func closeDocument(_ name: String) async throws {
+  nonisolated func closeDocument(_ name: String) async throws {
     let req = dictionary([
       keys.request: requests.editorClose,
       keys.name: name,
@@ -1857,7 +1856,7 @@ fileprivate extension SourceKitD {
     _ = try await send(req, timeout: defaultTimeoutDuration, fileContents: nil)
   }
 
-  func completeImpl(
+  nonisolated func completeImpl(
     requestUID: sourcekitd_api_uid_t,
     path: String,
     position: Position,
@@ -1893,7 +1892,7 @@ fileprivate extension SourceKitD {
     return try CompletionResultSet(res)
   }
 
-  func completeOpen(
+  nonisolated func completeOpen(
     path: String,
     position: Position,
     filter: String,
@@ -1916,7 +1915,7 @@ fileprivate extension SourceKitD {
     )
   }
 
-  func completeUpdate(
+  nonisolated func completeUpdate(
     path: String,
     position: Position,
     filter: String,
@@ -1937,7 +1936,7 @@ fileprivate extension SourceKitD {
     )
   }
 
-  func completeClose(path: String, position: Position) async throws {
+  nonisolated func completeClose(path: String, position: Position) async throws {
     let req = dictionary([
       keys.request: requests.codeCompleteClose,
       keys.line: position.line + 1,
@@ -1950,7 +1949,7 @@ fileprivate extension SourceKitD {
     _ = try await send(req, timeout: defaultTimeoutDuration, fileContents: nil)
   }
 
-  func completeDocumentation(id: Int) async throws -> CompletionDocumentation {
+  nonisolated func completeDocumentation(id: Int) async throws -> CompletionDocumentation {
     let req = dictionary([
       keys.request: requests.codeCompleteDocumentation,
       keys.identifier: id,
@@ -1960,7 +1959,7 @@ fileprivate extension SourceKitD {
     return CompletionDocumentation(resp)
   }
 
-  func completeDiagnostic(id: Int) async throws -> CompletionDiagnostic? {
+  nonisolated func completeDiagnostic(id: Int) async throws -> CompletionDiagnostic? {
     let req = dictionary([
       keys.request: requests.codeCompleteDiagnostic,
       keys.identifier: id,
@@ -1970,14 +1969,14 @@ fileprivate extension SourceKitD {
     return CompletionDiagnostic(resp)
   }
 
-  func dependencyUpdated() async throws {
+  nonisolated func dependencyUpdated() async throws {
     let req = dictionary([
       keys.request: requests.dependencyUpdated
     ])
     _ = try await send(req, timeout: defaultTimeoutDuration, fileContents: nil)
   }
 
-  func setPopularAPI(popular: [String], unpopular: [String]) async throws {
+  nonisolated func setPopularAPI(popular: [String], unpopular: [String]) async throws {
     let req = dictionary([
       keys.request: requests.codeCompleteSetPopularAPI,
       keys.codeCompleteOptions: dictionary([keys.useNewAPI: 1]),
@@ -1989,7 +1988,7 @@ fileprivate extension SourceKitD {
     XCTAssertEqual(resp[keys.useNewAPI], 1)
   }
 
-  func setPopularityIndex(
+  nonisolated func setPopularityIndex(
     scopedPopularityDataPath: String,
     popularModules: [String],
     notoriousModules: [String]

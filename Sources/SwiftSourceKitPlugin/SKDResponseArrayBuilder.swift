@@ -14,7 +14,7 @@ import Csourcekitd
 import SourceKitD
 
 extension SourceKitD {
-  func responseArray(_ array: [SKDResponseValue]) -> SKDResponseArrayBuilder {
+  nonisolated func responseArray(_ array: [SKDResponseValue]) -> SKDResponseArrayBuilder {
     let result = SKDResponseArrayBuilder(sourcekitd: self)
     for element in array {
       result.append(element)

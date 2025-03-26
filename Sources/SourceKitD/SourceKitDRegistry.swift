@@ -22,26 +22,25 @@ import SKLogging
 /// * To remove an existing instance, use `remove("path")`, but be aware that if there are any other
 ///   references to the instances in the program, it can be resurrected if `getOrAdd` is called with
 ///   the same path. See note on `remove(_:)`
-package actor SourceKitDRegistry {
+///
+/// `SourceKitDType` is usually `SourceKitD` but can be substituted for a different type for testing purposes.
+package actor SourceKitDRegistry<SourceKitDType: AnyObject> {
 
   /// Mapping from path to active SourceKitD instance.
-  private var active: [URL: (pluginPaths: PluginPaths?, sourcekitd: SourceKitD)] = [:]
+  private var active: [URL: (pluginPaths: PluginPaths?, sourcekitd: SourceKitDType)] = [:]
 
   /// Instances that have been unregistered, but may be resurrected if accessed before destruction.
-  private var cemetary: [URL: (pluginPaths: PluginPaths?, sourcekitd: WeakSourceKitD)] = [:]
+  private var cemetary: [URL: (pluginPaths: PluginPaths?, sourcekitd: WeakSourceKitD<SourceKitDType>)] = [:]
 
   /// Initialize an empty registry.
   package init() {}
-
-  /// The global shared SourceKitD registry.
-  package static let shared: SourceKitDRegistry = SourceKitDRegistry()
 
   /// Returns the existing SourceKitD for the given path, or creates it and registers it.
   package func getOrAdd(
     _ key: URL,
     pluginPaths: PluginPaths?,
-    create: () throws -> SourceKitD
-  ) async rethrows -> SourceKitD {
+    create: () throws -> SourceKitDType
+  ) async rethrows -> SourceKitDType {
     if let existing = active[key] {
       if existing.pluginPaths != pluginPaths {
         logger.fault(
@@ -72,7 +71,7 @@ package actor SourceKitDRegistry {
   /// is converted to a weak reference until it is no longer referenced anywhere by the program. If
   /// the same path is looked up again before the original service is deinitialized, the original
   /// service is resurrected rather than creating a new instance.
-  package func remove(_ key: URL) -> SourceKitD? {
+  package func remove(_ key: URL) -> SourceKitDType? {
     let existing = active.removeValue(forKey: key)
     if let existing = existing {
       assert(self.cemetary[key]?.sourcekitd.value == nil)
@@ -82,6 +81,11 @@ package actor SourceKitDRegistry {
   }
 }
 
-fileprivate struct WeakSourceKitD {
-  weak var value: SourceKitD?
+extension SourceKitDRegistry<SourceKitD> {
+  /// The global shared SourceKitD registry.
+  package static let shared: SourceKitDRegistry = SourceKitDRegistry()
+}
+
+fileprivate struct WeakSourceKitD<SourceKitDType: AnyObject> {
+  weak var value: SourceKitDType?
 }

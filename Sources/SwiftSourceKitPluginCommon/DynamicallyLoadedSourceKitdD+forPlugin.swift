@@ -15,7 +15,7 @@ import SKLogging
 package import SourceKitD
 import SwiftExtensions
 
-extension DynamicallyLoadedSourceKitD {
+extension SourceKitD {
   private static nonisolated(unsafe) var _forPlugin: SourceKitD?
   package static var forPlugin: SourceKitD {
     get {
@@ -25,7 +25,7 @@ extension DynamicallyLoadedSourceKitD {
       return _forPlugin
     }
     set {
-      precondition(_forPlugin == nil, "DynamicallyLoadedSourceKitD.forPlugin must not be set twice")
+      precondition(_forPlugin == nil, "SourceKitD.forPlugin must not be set twice")
       _forPlugin = newValue
     }
   }

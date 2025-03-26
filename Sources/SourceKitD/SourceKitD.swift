@@ -10,8 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import Csourcekitd
-import Dispatch
+import Csourcekitd
 package import Foundation
 import SKLogging
 import SwiftExtensions
@@ -39,76 +38,6 @@ package struct PluginPaths: Equatable, CustomLogStringConvertible {
   }
 }
 
-/// Access to sourcekitd API, taking care of initialization, shutdown, and notification handler
-/// multiplexing.
-///
-/// *Users* of this protocol should not call the api functions `initialize`, `shutdown`, or
-/// `set_notification_handler`, which are global state managed internally by this class.
-///
-/// *Implementors* are expected to handle initialization and shutdown, e.g. during `init` and
-/// `deinit` or by wrapping an existing sourcekitd session that outlives this object.
-package protocol SourceKitD: AnyObject, Sendable {
-  /// The sourcekitd API functions.
-  var api: sourcekitd_api_functions_t { get }
-
-  /// General API for the SourceKit service and client framework, eg. for plugin initialization and to set up custom
-  /// variant functions.
-  ///
-  /// This must not be referenced outside of `SwiftSourceKitPlugin`, `SwiftSourceKitPluginCommon`, or
-  /// `SwiftSourceKitClientPlugin`.
-  var pluginApi: sourcekitd_plugin_api_functions_t { get }
-
-  /// The API with which the SourceKit plugin handles requests.
-  ///
-  /// This must not be referenced outside of `SwiftSourceKitPlugin`.
-  var servicePluginApi: sourcekitd_service_plugin_api_functions_t { get }
-
-  /// The API with which the SourceKit plugin communicates with the type-checker in-process.
-  ///
-  /// This must not be referenced outside of `SwiftSourceKitPlugin`.
-  var ideApi: sourcekitd_ide_api_functions_t { get }
-
-  /// Convenience for accessing known keys.
-  var keys: sourcekitd_api_keys { get }
-
-  /// Convenience for accessing known keys.
-  var requests: sourcekitd_api_requests { get }
-
-  /// Convenience for accessing known keys.
-  var values: sourcekitd_api_values { get }
-
-  /// Adds a new notification handler, which will be weakly referenced.
-  func addNotificationHandler(_ handler: SKDNotificationHandler) async
-
-  /// Removes a previously registered notification handler.
-  func removeNotificationHandler(_ handler: SKDNotificationHandler) async
-
-  /// A function that gets called after the request has been sent to sourcekitd but but does not wait for results to be
-  /// received. This can be used by clients to implement hooks that should be executed for every sourcekitd request.
-  func didSend(request: SKDRequestDictionary) async
-
-  /// Log the given request.
-  ///
-  /// This log call is issued during normal operation. It is acceptable for the logger to truncate the log message
-  /// to achieve good performance.
-  func log(request: SKDRequestDictionary)
-
-  /// Log the given request and file contents, ensuring they do not get truncated.
-  ///
-  /// This log call is used when a request has crashed. In this case we want the log to contain the entire request to be
-  /// able to reproduce it.
-  func log(crashedRequest: SKDRequestDictionary, fileContents: String?)
-
-  /// Log the given response.
-  ///
-  /// This log call is issued during normal operation. It is acceptable for the logger to truncate the log message
-  /// to achieve good performance.
-  func log(response: SKDResponse)
-
-  /// Log that the given request has been cancelled.
-  func logRequestCancellation(request: SKDRequestDictionary)
-}
-
 package enum SKDError: Error, Equatable {
   /// The service has crashed.
   case connectionInterrupted
@@ -130,8 +59,6 @@ package enum SKDError: Error, Equatable {
 }
 
 extension SourceKitD {
-  // MARK: - Convenience API for requests.
-
   /// - Parameters:
   ///   - request: The request to send to sourcekitd.
   ///   - timeout: The maximum duration how long to wait for a response. If no response is returned within this time,
@@ -145,7 +72,12 @@ extension SourceKitD {
   ) async throws -> SKDResponseDictionary {
     let sourcekitdResponse = try await withTimeout(timeout) {
       return try await withCancellableCheckedThrowingContinuation { (continuation) -> SourceKitDRequestHandle? in
-        self.log(request: request)
+        logger.info(
+          """
+          Sending sourcekitd request:
+          \(request.forLogging)
+          """
+        )
         var handle: sourcekitd_api_request_handle_t? = nil
         self.api.send_request(request.dict, &handle) { response in
           continuation.resume(returning: SKDResponse(response!, sourcekitd: self))
@@ -159,17 +91,43 @@ extension SourceKitD {
         return nil
       } cancel: { (handle: SourceKitDRequestHandle?) in
         if let handle {
-          self.logRequestCancellation(request: request)
+          logger.info(
+            """
+            Cancelling sourcekitd request:
+            \(request.forLogging)
+            """
+          )
           self.api.cancel_request(handle.handle)
         }
       }
     }
 
-    log(response: sourcekitdResponse)
+    logger.log(
+      level: (sourcekitdResponse.error == nil || sourcekitdResponse.error == .requestCancelled) ? .debug : .error,
+      """
+      Received sourcekitd response:
+      \(sourcekitdResponse.forLogging)
+      """
+    )
 
     guard let dict = sourcekitdResponse.value else {
       if sourcekitdResponse.error == .connectionInterrupted {
-        log(crashedRequest: request, fileContents: fileContents)
+        let log = """
+          Request:
+          \(request.description)
+
+          File contents:
+          \(fileContents ?? "<nil>")
+          """
+        let chunks = splitLongMultilineMessage(message: log)
+        for (index, chunk) in chunks.enumerated() {
+          logger.fault(
+            """
+            sourcekitd crashed (\(index + 1)/\(chunks.count))
+            \(chunk)
+            """
+          )
+        }
       }
       if sourcekitdResponse.error == .requestCancelled && !Task.isCancelled {
         throw SKDError.timedOut
