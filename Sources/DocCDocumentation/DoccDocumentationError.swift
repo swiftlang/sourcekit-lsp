@@ -13,12 +13,12 @@
 import Foundation
 package import LanguageServerProtocol
 
-package enum DocCDocumentationError {
+package enum DocCDocumentationError: LocalizedError {
   case noDocumentation
   case indexNotAvailable
   case symbolNotFound(String)
 
-  public var message: String {
+  var errorDescription: String? {
     switch self {
     case .noDocumentation:
       return "No documentation could be rendered for the position in this document"
@@ -32,6 +32,6 @@ package enum DocCDocumentationError {
 
 package extension ResponseError {
   static func requestFailed(doccDocumentationError: DocCDocumentationError) -> ResponseError {
-    return ResponseError.requestFailed(doccDocumentationError.message)
+    return ResponseError.requestFailed(doccDocumentationError.localizedDescription)
   }
 }
