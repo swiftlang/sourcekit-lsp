@@ -561,4 +561,90 @@ final class BuildServerBuildSystemTests: XCTestCase {
       buildServer: UnresponsiveBuildServer.self
     )
   }
+
+  func testShutdownHangs() async throws {
+    let startTime = Date()
+    do {
+      _ = try await ExternalBuildServerTestProject(
+        files: [
+          "Test.swift": ""
+        ],
+        buildServer: """
+          import time
+
+          class BuildServer(AbstractBuildServer):
+            def workspace_build_targets(self, request: Dict[str, object]) -> Dict[str, object]:
+              return { "targets": [] }
+
+            def buildtarget_sources(self, request: Dict[str, object]) -> Dict[str, object]:
+              return { "items": [] }
+
+            def shutdown(self, request: Dict[str, object]) -> Dict[str, object]:
+              time.sleep(60)
+              assert False
+          """,
+        options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest])
+      )
+    }
+    // Check that we didn't wait the full 60 seconds for the build server to shut down and instead terminated it.
+    XCTAssert(Date().timeIntervalSince(startTime) < 50)
+  }
+
+  func testCancelPreparationOnLspShutdown() async throws {
+    actor BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+      private let projectRoot: URL
+      let preparationStarted: XCTestExpectation
+      let preparationFinished: XCTestExpectation
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {
+        self.projectRoot = projectRoot
+        self.preparationStarted = XCTestExpectation(description: "Preparation started")
+        self.preparationFinished = XCTestExpectation(description: "Preparation finished")
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: false
+        )
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) -> BuildTargetSourcesResponse {
+        return dummyTargetSourcesResponse(files: [DocumentURI(projectRoot.appendingPathComponent("Test.swift"))])
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) -> TextDocumentSourceKitOptionsResponse? {
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: [request.textDocument.uri.pseudoPath])
+      }
+
+      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+        preparationStarted.fulfill()
+        await assertThrowsError(try await Task.sleep(for: .seconds(defaultTimeout))) { error in
+          XCTAssert(error is CancellationError)
+        }
+        preparationFinished.fulfill()
+        return VoidResponse()
+      }
+    }
+
+    let preparationFinished: XCTestExpectation
+    do {
+      let project = try await CustomBuildServerTestProject(
+        files: [
+          "Test.swift": """
+          func 1️⃣myTestFunc() {}
+          """
+        ],
+        buildServer: BuildServer.self,
+        enableBackgroundIndexing: true,
+        pollIndex: false
+      )
+      try await fulfillmentOfOrThrow(project.buildServer().preparationStarted)
+      preparationFinished = try project.buildServer().preparationFinished
+    }
+    try await fulfillmentOfOrThrow(preparationFinished)
+  }
 }

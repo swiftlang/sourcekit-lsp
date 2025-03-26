@@ -329,15 +329,17 @@ final class PullDiagnosticsTests: XCTestCase {
   }
 
   func testDontReturnEmptyDiagnosticsIfDiagnosticRequestIsCancelled() async throws {
-    let diagnosticRequestCancelled = self.expectation(description: "diagnostic request cancelled")
+    let diagnosticRequestCancelled = MultiEntrySemaphore(name: "diagnostic request cancelled")
     let packageLoadingDidFinish = self.expectation(description: "Package loading did finish")
     var testHooks = Hooks()
     testHooks.buildSystemHooks.swiftPMTestHooks.reloadPackageDidFinish = {
       packageLoadingDidFinish.fulfill()
     }
     testHooks.indexHooks.preparationTaskDidStart = { _ in
-      _ = await XCTWaiter.fulfillment(of: [diagnosticRequestCancelled], timeout: defaultTimeout)
+      await diagnosticRequestCancelled.waitOrXCTFail()
       // Poll until the `CancelRequestNotification` has been propagated to the request handling.
+      // We can't use `repeatUntilExpectedResult` here because that throws a `CancellationError` when the preparation is
+      // cancelled.
       for _ in 0..<Int(defaultTimeout * 100) {
         if Task.isCancelled {
           break
@@ -368,7 +370,7 @@ final class PullDiagnosticsTests: XCTestCase {
       diagnosticResponseReceived.fulfill()
     }
     project.testClient.send(CancelRequestNotification(id: requestID))
-    diagnosticRequestCancelled.fulfill()
+    diagnosticRequestCancelled.signal()
     try await fulfillmentOfOrThrow(diagnosticResponseReceived)
   }
 

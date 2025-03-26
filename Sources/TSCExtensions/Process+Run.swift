@@ -43,6 +43,7 @@ extension Process {
         // Give the process 2 seconds to react to a SIGINT. If that doesn't work, terminate the process.
         try await Task.sleep(for: .seconds(2))
         if !hasExited.value {
+          // TODO: We should also terminate all child processes (https://github.com/swiftlang/sourcekit-lsp/issues/2080)
           #if os(Windows)
           // Windows does not define SIGKILL. Process.signal sends a `terminate` to the underlying Foundation process
           // for any signal that is not SIGINT. Use `SIGABRT` to terminate the process.

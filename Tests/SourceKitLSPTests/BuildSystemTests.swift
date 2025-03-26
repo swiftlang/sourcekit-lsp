@@ -38,7 +38,7 @@ fileprivate actor TestBuildSystem: CustomBuildServer {
   }
 
   func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) -> BuildTargetSourcesResponse {
-    return dummyTargetSourcesResponse(buildSettingsByFile.keys)
+    return dummyTargetSourcesResponse(files: buildSettingsByFile.keys)
   }
 
   func textDocumentSourceKitOptionsRequest(

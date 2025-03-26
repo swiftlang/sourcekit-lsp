@@ -100,12 +100,8 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   /// Type to map `clangd`'s semantic token legend to SourceKit-LSP's.
   private var semanticTokensTranslator: SemanticTokensLegendTranslator? = nil
 
-  /// While `clangd` is running, its PID.
-  #if os(Windows)
-  private var hClangd: HANDLE = INVALID_HANDLE_VALUE
-  #else
-  private var clangdPid: Int32?
-  #endif
+  /// While `clangd` is running, its `Process` object.
+  private var clangdProcess: Process?
 
   /// Creates a language server for the given client referencing the clang binary specified in `toolchain`.
   /// Returns `nil` if `clangd` can't be found.
@@ -159,11 +155,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   ///
   /// - Parameter terminationStatus: The exit code of `clangd`.
   private func handleClangdTermination(terminationStatus: Int32) {
-    #if os(Windows)
-    self.hClangd = INVALID_HANDLE_VALUE
-    #else
-    self.clangdPid = nil
-    #endif
+    self.clangdProcess = nil
     if terminationStatus != 0 {
       self.state = .connectionInterrupted
       self.restartClangd()
@@ -196,11 +188,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     )
     self.clangd = connectionToClangd
 
-    #if os(Windows)
-    self.hClangd = process.processHandle
-    #else
-    self.clangdPid = process.processIdentifier
-    #endif
+    self.clangdProcess = process
   }
 
   /// Restart `clangd` after it has crashed.
@@ -318,21 +306,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   }
 
   func crash() {
-    // Since `clangd` doesn't have a method to crash it, terminate it.
-    #if os(Windows)
-    if self.hClangd != INVALID_HANDLE_VALUE {
-      // We can potentially deadlock the process if a kobject is a pending state.
-      // Unfortunately, the `OpenProcess(PROCESS_TERMINATE, ...)`, `CreateRemoteThread`, `ExitProcess` dance, while
-      // safer, can also indefinitely spin as `CreateRemoteThread` may not be serviced depending on the state of
-      // the process. This just attempts to terminate the process, risking a deadlock and resource leaks, which is fine
-      // since we only use `crash` from tests.
-      _ = TerminateProcess(self.hClangd, 255)
-    }
-    #else
-    if let pid = self.clangdPid {
-      kill(pid, SIGKILL)  // ignore-unacceptable-language
-    }
-    #endif
+    clangdProcess?.terminateImmediately()
   }
 }
 
@@ -401,14 +375,18 @@ extension ClangLanguageService {
   }
 
   package func shutdown() async {
-    let clangd = clangd!
-    await withCheckedContinuation { continuation in
-      _ = clangd.send(ShutdownRequest()) { _ in
-        Task {
-          clangd.send(ExitNotification())
-          continuation.resume()
-        }
+    _ = await orLog("Shutting down clangd") {
+      guard let clangd else { return }
+      // Give clangd 2 seconds to shut down by itself. If it doesn't shut down within that time, terminate it.
+      try await withTimeout(.seconds(2)) {
+        _ = try await clangd.send(ShutdownRequest())
+        clangd.send(ExitNotification())
       }
+    }
+    await orLog("Terminating clangd") {
+      // Give clangd 1 second to exit after receiving the `exit` notification. If it doesn't exit within that time,
+      // terminate it.
+      try await clangdProcess?.terminateIfRunning(after: .seconds(1))
     }
   }
 

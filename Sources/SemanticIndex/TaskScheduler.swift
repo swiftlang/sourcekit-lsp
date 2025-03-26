@@ -324,6 +324,9 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   /// The queue of pending tasks that haven't been scheduled for execution yet.
   private var pendingTasks: [QueuedTask<TaskDescription>] = []
 
+  /// Whether `shutDown` has been called on the `TaskScheduler` and it should thus schedule any new tasks.
+  private var isShutDown: Bool = false
+
   /// An ordered list of task priorities to the number of tasks that might execute concurrently at that or a lower
   /// priority. As the task priority is decreased, the number of current tasks becomes more restricted.
   ///
@@ -438,6 +441,18 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
       await self.poke()
     }
     return queuedTask
+  }
+
+  /// Cancel all in-progress tasks and wait for them to finish, either by honoring the cancellation or finishing their
+  /// work.
+  ///
+  /// After `shutDown` has been called, no more tasks will be executed on this `TaskScheduler`.
+  package func shutDown() async {
+    self.isShutDown = true
+    await self.currentlyExecutingTasks.concurrentForEach { task in
+      task.cancel()
+      await task.waitToFinish()
+    }
   }
 
   private static func normalize(

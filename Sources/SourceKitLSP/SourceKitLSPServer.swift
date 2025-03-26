@@ -1189,26 +1189,27 @@ extension SourceKitLSPServer {
   /// The server shall not be used to handle more requests (other than possibly
   /// `shutdown` and `exit`) and should attempt to flush any buffered state
   /// immediately, such as sending index changes to disk.
+  ///
+  ///  - Note: this method should be safe to call multiple times, since we want to be resilient against multiple
+  //     possible shutdown sequences, including pipe failure.
   package func prepareForExit() async {
-    // Note: this method should be safe to call multiple times, since we want to
-    // be resilient against multiple possible shutdown sequences, including
-    // pipe failure.
+    // We are shutting down / closing all workspaces and language services, so clear the arrays caching them.
+    let languageServices = self.languageServices
+    self.languageServices = [:]
 
-    // Theoretically, new workspaces could be added while we are awaiting inside
-    // the loop. But since we are currently exiting, it doesn't make sense for
-    // the client to open new workspaces.
-    for workspace in self.workspaces {
-      await workspace.buildSystemManager.setMainFilesProvider(nil)
-      workspace.closeIndex()
-    }
-    // Make sure we emit all pending log messages. When we're not using `NonDarwinLogger` this is a no-op.
-    await NonDarwinLogger.flush()
-  }
+    let workspaces = await self.workspaceQueue.async {
+      let workspaces = self.workspaces
+      self.workspacesAndIsImplicit = []
+      return workspaces
+    }.valuePropagatingCancellation
 
-  func shutdown(_ request: ShutdownRequest) async throws -> ShutdownRequest.Response {
-    await prepareForExit()
-
+    // Concurrently shut all things down.
     await withTaskGroup(of: Void.self) { taskGroup in
+      taskGroup.addTask {
+        await orLog("Shutting down index scheduler") {
+          await self.indexTaskScheduler.shutDown()
+        }
+      }
       for service in languageServices.values.flatMap({ $0 }) {
         taskGroup.addTask {
           await service.shutdown()
@@ -1217,20 +1218,20 @@ extension SourceKitLSPServer {
       for workspace in workspaces {
         taskGroup.addTask {
           await orLog("Shutting down build server") {
-            // If the build server doesn't shut down in 1 second, don't delay SourceKit-LSP's shutdown because of it.
-            try await withTimeout(.seconds(2)) {
-              await workspace.buildSystemManager.shutdown()
-            }
+            await workspace.buildSystemManager.shutdown()
+            await workspace.buildSystemManager.setMainFilesProvider(nil)
+            workspace.closeIndex()
           }
         }
       }
     }
 
-    // We have a semantic guarantee that no request or notification should be
-    // sent to an LSP server after the shutdown request. Thus, there's no chance
-    // that a new language service has been started during the above 'await'
-    // call.
-    languageServices = [:]
+    // Make sure we emit all pending log messages. When we're not using `NonDarwinLogger` this is a no-op.
+    await NonDarwinLogger.flush()
+  }
+
+  func shutdown(_ request: ShutdownRequest) async throws -> ShutdownRequest.Response {
+    await prepareForExit()
 
     // Wait for all services to shut down before sending the shutdown response.
     // Otherwise we might terminate sourcekit-lsp while it still has open
