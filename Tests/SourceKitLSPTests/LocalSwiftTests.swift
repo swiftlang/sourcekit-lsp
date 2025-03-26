@@ -730,7 +730,7 @@ final class LocalSwiftTests: XCTestCase {
 
     XCTAssertEqual(fixit.title, "Use 'new(_:hotness:)' instead")
     XCTAssertEqual(fixit.diagnostics?.count, 1)
-    XCTAssert(fixit.diagnostics?.first?.message.contains("is deprecated") == true)
+    assertContains(try XCTUnwrap(fixit.diagnostics?.first?.message), "is deprecated")
     XCTAssertEqual(
       fixit.edit?.changes?[uri],
       [

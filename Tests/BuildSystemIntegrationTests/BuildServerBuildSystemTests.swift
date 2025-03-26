@@ -501,7 +501,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
         allowFallbackSettings: false
       )
     )
-    XCTAssert(try XCTUnwrap(firstOptions).compilerArguments.contains("-DFIRST"))
+    assertContains(try XCTUnwrap(firstOptions).compilerArguments, "-DFIRST")
 
     let secondOptions = try await project.testClient.send(
       SourceKitOptionsRequest(
@@ -511,7 +511,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
         allowFallbackSettings: false
       )
     )
-    XCTAssert(try XCTUnwrap(secondOptions).compilerArguments.contains("-DSECOND"))
+    assertContains(try XCTUnwrap(secondOptions).compilerArguments, "-DSECOND")
 
     let optionsWithoutTarget = try await project.testClient.send(
       SourceKitOptionsRequest(
@@ -521,7 +521,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
       )
     )
     // We currently pick the canonical target alphabetically, which means that `bsp://first` wins over `bsp://second`
-    XCTAssert(try XCTUnwrap(optionsWithoutTarget).compilerArguments.contains("-DFIRST"))
+    assertContains(try XCTUnwrap(optionsWithoutTarget).compilerArguments, "-DFIRST")
   }
 
   func testDontBlockBuildServerInitializationIfBuildSystemIsUnresponsive() async throws {

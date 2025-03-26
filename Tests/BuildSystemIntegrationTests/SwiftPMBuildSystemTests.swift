@@ -1118,8 +1118,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         fallbackAfterTimeout: false
       )
       let compilerArgs = try XCTUnwrap(settings?.compilerArguments)
-      XCTAssert(compilerArgs.contains("-package-description-version"))
-      XCTAssert(compilerArgs.contains(try versionSpecificManifestURL.filePath))
+      assertContains(compilerArgs, "-package-description-version")
+      assertContains(compilerArgs, try versionSpecificManifestURL.filePath)
     }
   }
 
@@ -1152,7 +1152,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let compilerArgs = try XCTUnwrap(settings?.compilerArguments)
       assertArgumentsContain("-package-description-version", "5.1.0", arguments: compilerArgs)
-      XCTAssert(compilerArgs.contains(try manifestURL.filePath))
+      assertContains(compilerArgs, try manifestURL.filePath)
     }
   }
 }

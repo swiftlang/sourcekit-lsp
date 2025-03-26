@@ -116,7 +116,7 @@ final class BuildSystemManagerTests: XCTestCase {
     await manager.registerForChangeNotifications(for: d, language: .c)
     await assertEqual(manager.cachedMainFile(for: a), c)
     let bMain = await manager.cachedMainFile(for: b)
-    XCTAssert(Set([c, d]).contains(bMain))
+    assertContains([c, d], bMain)
     await assertEqual(manager.cachedMainFile(for: c), c)
     await assertEqual(manager.cachedMainFile(for: d), d)
 

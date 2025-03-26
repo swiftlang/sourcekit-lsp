@@ -119,6 +119,26 @@ package func assertNotNil<T>(
   XCTAssertNotNil(expression, message(), file: file, line: line)
 }
 
+/// Check that the string contains the given substring.
+package func assertContains(
+  _ string: some StringProtocol,
+  _ substring: some StringProtocol,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) {
+  XCTAssert(string.contains(substring), "Expected to contain '\(substring)': \(string)", file: file, line: line)
+}
+
+/// Check that the sequence contains the given element.
+package func assertContains<Element: Equatable>(
+  _ sequence: some Sequence<Element>,
+  _ element: Element,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) {
+  XCTAssert(sequence.contains(element), "Expected to contain '\(element)': \(sequence)", file: file, line: line)
+}
+
 /// Same as `XCTUnwrap` but doesn't take autoclosures and thus `expression`
 /// can contain `await`.
 package func unwrap<T>(
