@@ -780,7 +780,7 @@ fileprivate func renderDocumentation(
         }
       case .error(let error):
         XCTFail(
-          "expected error \(error.message), but received a render node at position \(marker)",
+          "expected error \(error.localizedDescription), but received a render node at position \(marker)",
           file: file,
           line: line
         )
@@ -803,8 +803,8 @@ fileprivate func renderDocumentation(
         )
         XCTAssertEqual(
           error.message,
-          expectedError.message,
-          "expected an error with message \(expectedError.message) at position \(marker)",
+          expectedError.localizedDescription,
+          "expected an error with message \(expectedError.localizedDescription) at position \(marker)",
           file: file,
           line: line
         )

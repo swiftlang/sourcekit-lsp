@@ -79,7 +79,7 @@ package struct DocCSymbolLink: Sendable {
 }
 
 extension DocCSymbolLink: Equatable {
-  public static func == (lhs: DocCSymbolLink, rhs: DocCSymbolLink) -> Bool {
+  package static func == (lhs: DocCSymbolLink, rhs: DocCSymbolLink) -> Bool {
     guard lhs.components.count == rhs.components.count else {
       return false
     }
@@ -100,7 +100,7 @@ extension DocCSymbolLink: Equatable {
 }
 
 extension DocCSymbolLink: Hashable {
-  public func hash(into hasher: inout Hasher) {
+  package func hash(into hasher: inout Hasher) {
     for component in components {
       component.asLinkComponentString.hash(into: &hasher)
     }
