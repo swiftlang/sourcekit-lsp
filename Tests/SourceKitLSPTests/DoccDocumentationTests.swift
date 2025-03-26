@@ -508,31 +508,31 @@ final class DoccDocumentationTests: XCTestCase {
         }
         """,
         "MyLibrary/MyLibrary.docc/Module.md": """
-        1️⃣# ``MyLibrary``
+        4️⃣# ``MyLibrary``
         """,
         "MyLibrary/MyLibrary.docc/foo().md": """
-        1️⃣# ``MyLibrary/foo()``
+        5️⃣# ``MyLibrary/foo()``
 
         # Additional information for foo()
 
         This will be appended to the end of foo()'s documentation page
         """,
         "MyLibrary/MyLibrary.docc/bar().md": """
-        1️⃣# ``MyLibrary/bar()``
+        6️⃣# ``MyLibrary/bar()``
 
         # Additional information for bar()
 
         This will be appended to the end of bar()'s documentation page
         """,
         "MyLibrary/MyLibrary.docc/Foo.bar.md": """
-        1️⃣# ``MyLibrary/Foo/bar``
+        7️⃣# ``MyLibrary/Foo/bar``
 
         # Additional information for Foo.bar
 
         This will be appended to the end of Foo.bar's documentation page
         """,
         "MyLibrary/MyLibrary.docc/SymbolNotFound.md": """
-        1️⃣# ``MyLibrary/thisIsNotAValidSymbol``
+        8️⃣# ``MyLibrary/thisIsNotAValidSymbol``
         """,
       ],
       enableBackgroundIndexing: true
@@ -549,33 +549,33 @@ final class DoccDocumentationTests: XCTestCase {
     try await renderDocumentation(
       fileName: "Module.md",
       project: project,
-      expectedResponses: ["1️⃣": .renderNode(kind: .symbol, path: "MyLibrary")]
+      expectedResponses: ["4️⃣": .renderNode(kind: .symbol, path: "MyLibrary")]
     )
     try await renderDocumentation(
       fileName: "foo().md",
       project: project,
       expectedResponses: [
-        "1️⃣": .renderNode(kind: .symbol, path: "MyLibrary/foo()", containing: "Documentation for foo()")
+        "5️⃣": .renderNode(kind: .symbol, path: "MyLibrary/foo()", containing: "Documentation for foo()")
       ]
     )
     try await renderDocumentation(
       fileName: "bar().md",
       project: project,
       expectedResponses: [
-        "1️⃣": .renderNode(kind: .symbol, path: "MyLibrary/bar()", containing: "Documentation for bar()")
+        "6️⃣": .renderNode(kind: .symbol, path: "MyLibrary/bar()", containing: "Documentation for bar()")
       ]
     )
     try await renderDocumentation(
       fileName: "Foo.bar.md",
       project: project,
       expectedResponses: [
-        "1️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Foo/bar", containing: "Documentation for Foo.bar")
+        "7️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Foo/bar", containing: "Documentation for Foo.bar")
       ]
     )
     try await renderDocumentation(
       fileName: "SymbolNotFound.md",
       project: project,
-      expectedResponses: ["1️⃣": .error(.symbolNotFound("MyLibrary/thisIsNotAValidSymbol"))]
+      expectedResponses: ["8️⃣": .error(.symbolNotFound("MyLibrary/thisIsNotAValidSymbol"))]
     )
   }
 
@@ -603,7 +603,7 @@ final class DoccDocumentationTests: XCTestCase {
         }
         """,
         "MyLibrary/MyLibrary.docc/Color.md": """
-        1️⃣# ``MyLibrary/Foo/Color-swift.enum``
+        2️⃣# ``MyLibrary/Foo/Color-swift.enum``
 
         # Additional information for the Color enum
 
@@ -627,7 +627,7 @@ final class DoccDocumentationTests: XCTestCase {
       fileName: "Color.md",
       project: project,
       expectedResponses: [
-        "1️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Foo/Color", containing: "The color of Foo")
+        "2️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Foo/Color", containing: "The color of Foo")
       ]
     )
   }
