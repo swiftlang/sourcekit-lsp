@@ -103,7 +103,7 @@ package actor SourceKitD {
   package let path: URL
 
   /// The handle to the dylib.
-  let dylib: DLHandle
+  private let dylib: DLHandle
 
   /// The sourcekitd API functions.
   nonisolated package let api: sourcekitd_api_functions_t
