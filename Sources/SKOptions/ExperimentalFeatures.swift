@@ -40,8 +40,8 @@ public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
   /// - Note: Internal option
   case outputPathsRequest = "output-paths-request"
 
-  /// Enable the `workspace/_synchronize` request.
+  /// Enable the `buildServerUpdates` option in the `workspace/synchronize` request.
   ///
   /// - Note: Internal option, for testing only
-  case synchronizeRequest = "synchronize-request"
+  case synchronizeForBuildSystemUpdates = "synchronize-for-build-system-updates"
 }

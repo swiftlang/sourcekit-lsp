@@ -1633,10 +1633,7 @@ final class BackgroundIndexingTests: XCTestCase {
           ]
         )
         """,
-      options: SourceKitLSPOptions(
-        backgroundPreparationMode: .enabled,
-        experimentalFeatures: [.synchronizeRequest]
-      ),
+      options: SourceKitLSPOptions(backgroundPreparationMode: .enabled),
       enableBackgroundIndexing: true
     )
 

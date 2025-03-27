@@ -10,20 +10,35 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Wait for SourceKit-LSP to handle all ongoing requests and, optionally, wait for background activity to finish.
+/// Request from the client to the server to wait for SourceKit-LSP to handle all ongoing requests and, optionally, wait
+/// for background activity to finish.
 ///
-/// **LSP Extension, For Testing**.
+/// This method is intended to be used in automated environments which need to wait for background activity to finish
+/// before executing requests that rely on that background activity to finish. Examples of such cases are:
+/// - Automated tests that need to wait for background indexing to finish and then checking the result of request
+///   results
+/// - Automated tests that need to wait for requests like file changes to be handled and checking behavior after those
+///   have been processed
+/// - Code analysis tools that want to use SourceKit-LSP to gather information about the project but can only do so
+///   after the index has been loaded
+///
+/// Because this request waits for all other SourceKit-LSP requests to finish, it limits parallel request handling and
+/// is ill-suited for any kind of interactive environment. In those environments, it is preferable to quickly give the
+/// user a result based on the data that is available and (let the user) re-perform the action if the underlying index
+/// data has changed.
 public struct SynchronizeRequest: RequestType {
-  public static let method: String = "workspace/_synchronize"
+  public static let method: String = "workspace/synchronize"
   public typealias Response = VoidResponse
 
   /// Wait for the build server to have an up-to-date build graph by sending a `workspace/waitForBuildSystemUpdates` to
   /// it.
+  /// This is implied by `index = true`.
+  ///
+  /// This option is experimental, guarded behind the `synchronize-for-build-system-updates` experimental feature, and
+  /// may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
   public var buildServerUpdates: Bool?
 
   /// Wait for background indexing to finish and all index unit files to be loaded into indexstore-db.
-  ///
-  /// Implies `buildServerUpdates = true`.
   public var index: Bool?
 
   public init(buildServerUpdates: Bool? = nil, index: Bool? = nil) {
