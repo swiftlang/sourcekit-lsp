@@ -113,7 +113,6 @@ actor DiagnosticReportManager {
     let keys = self.keys
 
     let skreq = sourcekitd.dictionary([
-      keys.request: requests.diagnostics,
       keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
       keys.compilerArgs: compilerArgs as [SKDRequestValue],
@@ -122,8 +121,10 @@ actor DiagnosticReportManager {
     let dict: SKDResponseDictionary
     do {
       dict = try await self.sourcekitd.send(
+        \.diagnostics,
         skreq,
         timeout: options.sourcekitdRequestTimeoutOrDefault,
+        documentUrl: snapshot.uri.arbitrarySchemeURL,
         fileContents: snapshot.text
       )
     } catch SKDError.requestFailed(let sourcekitdError) {
