@@ -269,6 +269,7 @@ fileprivate class SourceReducer {
 
     let reducedRequestInfo = RequestInfo(
       requestTemplate: requestInfo.requestTemplate,
+      contextualRequestTemplates: requestInfo.contextualRequestTemplates,
       offset: adjustedOffset,
       compilerArgs: requestInfo.compilerArgs,
       fileContents: reducedSource
@@ -632,6 +633,7 @@ fileprivate func getSwiftInterface(
     """
   let requestInfo = RequestInfo(
     requestTemplate: requestTemplate,
+    contextualRequestTemplates: [],
     offset: 0,
     compilerArgs: compilerArgs,
     fileContents: ""

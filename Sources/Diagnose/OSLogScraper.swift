@@ -12,6 +12,8 @@
 
 #if canImport(OSLog)
 import OSLog
+import SKLogging
+import RegexBuilder
 
 /// Reads oslog messages to find recent sourcekitd crashes.
 struct OSLogScraper {
@@ -45,34 +47,90 @@ struct OSLogScraper {
         #"subsystem CONTAINS "sourcekit-lsp" AND composedMessage CONTAINS "sourcekitd crashed" AND category = %@"#,
       logCategory
     )
-    var isInFileContentSection = false
+    enum LogSection {
+      case request
+      case fileContents
+      case contextualRequest
+    }
+    var section = LogSection.request
     var request = ""
     var fileContents = ""
+    var contextualRequests: [String] = []
+    let sourcekitdCrashedRegex = Regex {
+      "sourcekitd crashed ("
+      OneOrMore(.digit)
+      "/"
+      OneOrMore(.digit)
+      ")"
+    }
+    let contextualRequestRegex = Regex {
+      "Contextual request "
+      OneOrMore(.digit)
+      " / "
+      OneOrMore(.digit)
+      ":"
+    }
+
     for entry in try getLogEntries(matching: predicate) {
       for line in entry.composedMessage.components(separatedBy: "\n") {
-        if line.starts(with: "sourcekitd crashed (") {
+        if try sourcekitdCrashedRegex.wholeMatch(in: line) != nil {
           continue
         }
         if line == "Request:" {
           continue
         }
         if line == "File contents:" {
-          isInFileContentSection = true
+          section = .fileContents
+          continue
+        }
+        if line == "File contents:" {
+          section = .fileContents
+          continue
+        }
+        if try contextualRequestRegex.wholeMatch(in: line) != nil {
+          section = .contextualRequest
+          contextualRequests.append("")
           continue
         }
         if line == "--- End Chunk" {
           continue
         }
-        if isInFileContentSection {
-          fileContents += line + "\n"
-        } else {
+        switch section {
+        case .request:
           request += line + "\n"
+        case .fileContents:
+          fileContents += line + "\n"
+        case .contextualRequest:
+          if !contextualRequests.isEmpty {
+            contextualRequests[contextualRequests.count - 1] += line + "\n"
+          } else {
+            // Should never happen because we have appended at least one element to `contextualRequests` when switching
+            // to the `contextualRequest` section.
+            logger.fault("Dropping contextual request line: \(line)")
+          }
         }
       }
     }
 
     var requestInfo = try RequestInfo(request: request)
+
+    let contextualRequestInfos = contextualRequests.compactMap { contextualRequest in
+      orLog("Processsing contextual request") {
+        try RequestInfo(request: contextualRequest)
+      }
+    }.filter { contextualRequest in
+      if contextualRequest.fileContents != requestInfo.fileContents {
+        logger.error("Contextual request concerns a different file than the crashed request. Ignoring it")
+        return false
+      }
+      return true
+    }
+    requestInfo.contextualRequestTemplates = contextualRequestInfos.map(\.requestTemplate)
+    if requestInfo.compilerArgs.isEmpty {
+      requestInfo.compilerArgs = contextualRequestInfos.last(where: { !$0.compilerArgs.isEmpty })?.compilerArgs ?? []
+    }
     requestInfo.fileContents = fileContents
+
     return requestInfo
   }
 

@@ -307,6 +307,7 @@ private class InProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
   func runSwiftFrontend(request: RequestInfo) async throws -> SourceKitDRequestResult {
     return try await OutOfProcessSourceKitRequestExecutor(
       sourcekitd: sourcekitd,
+      pluginPaths: sourceKitPluginPaths,
       swiftFrontend: swiftFrontend,
       reproducerPredicate: reproducerPredicate
     ).runSwiftFrontend(request: request)
@@ -314,14 +315,21 @@ private class InProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
 
   func runSourceKitD(request: RequestInfo) async throws -> SourceKitDRequestResult {
     try request.fileContents.write(to: temporarySourceFile, atomically: true, encoding: .utf8)
-    let requestString = try request.request(for: temporarySourceFile)
-    logger.info("Sending request: \(requestString)")
+    let requestStrings = try request.requests(for: temporarySourceFile)
+    logger.info("Sending request: \(requestStrings.joined(separator: "\n\n\n\n"))")
 
     let sourcekitd = try await SourceKitD.getOrCreate(
       dylibPath: sourcekitd,
       pluginPaths: sourceKitPluginPaths
     )
-    let response = try await sourcekitd.run(requestYaml: requestString)
+    var response: SKDResponse? = nil
+    for requestString in requestStrings {
+      response = try await sourcekitd.run(requestYaml: requestString)
+    }
+    guard let response else {
+      logger.error("No request executed")
+      return .error
+    }
 
     logger.info("Received response: \(response.description)")
 
