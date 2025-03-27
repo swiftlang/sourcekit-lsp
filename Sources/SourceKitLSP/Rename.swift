@@ -353,7 +353,6 @@ extension SwiftLanguageService {
     }
 
     let req = sourcekitd.dictionary([
-      keys.request: sourcekitd.requests.nameTranslation,
       keys.sourceFile: snapshot.uri.pseudoPath,
       keys.compilerArgs: await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: false)?.compilerArgs
         as [SKDRequestValue]?,
@@ -363,7 +362,7 @@ extension SwiftLanguageService {
       keys.argNames: sourcekitd.array(name.parameters.map { $0.stringOrWildcard }),
     ])
 
-    let response = try await sendSourcekitdRequest(req, fileContents: snapshot.text)
+    let response = try await send(sourcekitdRequest: \.nameTranslation, req, snapshot: snapshot)
 
     guard let isZeroArgSelector: Int = response[keys.isZeroArgSelector],
       let selectorPieces: SKDResponseArray = response[keys.selectorPieces]
@@ -405,7 +404,6 @@ extension SwiftLanguageService {
     name: String
   ) async throws -> String {
     let req = sourcekitd.dictionary([
-      keys.request: sourcekitd.requests.nameTranslation,
       keys.sourceFile: snapshot.uri.pseudoPath,
       keys.compilerArgs: await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: false)?.compilerArgs
         as [SKDRequestValue]?,
@@ -421,7 +419,7 @@ extension SwiftLanguageService {
       req.set(keys.baseName, to: name)
     }
 
-    let response = try await sendSourcekitdRequest(req, fileContents: snapshot.text)
+    let response = try await send(sourcekitdRequest: \.nameTranslation, req, snapshot: snapshot)
 
     guard let baseName: String = response[keys.baseName] else {
       throw NameTranslationError.malformedClangToSwiftTranslateNameResponse(response)
@@ -886,7 +884,6 @@ extension SwiftLanguageService {
     )
 
     let skreq = sourcekitd.dictionary([
-      keys.request: requests.findRenameRanges,
       keys.sourceFile: snapshot.uri.pseudoPath,
       // find-syntactic-rename-ranges is a syntactic sourcekitd request that doesn't use the in-memory file snapshot.
       // We need to send the source text again.
@@ -894,7 +891,7 @@ extension SwiftLanguageService {
       keys.renameLocations: locations,
     ])
 
-    let syntacticRenameRangesResponse = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
+    let syntacticRenameRangesResponse = try await send(sourcekitdRequest: \.findRenameRanges, skreq, snapshot: snapshot)
     guard let categorizedRanges: SKDResponseArray = syntacticRenameRangesResponse[keys.categorizedRanges] else {
       throw ResponseError.internalError("sourcekitd did not return categorized ranges")
     }

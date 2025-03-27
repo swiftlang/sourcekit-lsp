@@ -315,6 +315,43 @@ package actor SourceKitD {
     }
   }
 
+  private struct ContextualRequest {
+    enum Kind {
+      case editorOpen
+      case codeCompleteOpen
+    }
+    let kind: Kind
+    let request: SKDRequestDictionary
+  }
+
+  private var contextualRequests: [URL: [ContextualRequest]] = [:]
+
+  private func recordContextualRequest(
+    requestUid: sourcekitd_api_uid_t,
+    request: SKDRequestDictionary,
+    documentUrl: URL?
+  ) {
+    guard let documentUrl else {
+      return
+    }
+    switch requestUid {
+    case requests.editorOpen:
+      contextualRequests[documentUrl] = [ContextualRequest(kind: .editorOpen, request: request)]
+    case requests.editorClose:
+      contextualRequests[documentUrl] = nil
+    case requests.codeCompleteOpen:
+      contextualRequests[documentUrl, default: []].removeAll(where: { $0.kind == .codeCompleteOpen })
+      contextualRequests[documentUrl, default: []].append(ContextualRequest(kind: .codeCompleteOpen, request: request))
+    case requests.codeCompleteClose:
+      contextualRequests[documentUrl, default: []].removeAll(where: { $0.kind == .codeCompleteOpen })
+      if contextualRequests[documentUrl]?.isEmpty ?? false {
+        contextualRequests[documentUrl] = nil
+      }
+    default:
+      break
+    }
+  }
+
   /// - Parameters:
   ///   - request: The request to send to sourcekitd.
   ///   - timeout: The maximum duration how long to wait for a response. If no response is returned within this time,
@@ -322,11 +359,16 @@ package actor SourceKitD {
   ///   - fileContents: The contents of the file that the request operates on. If sourcekitd crashes, the file contents
   ///     will be logged.
   package func send(
+    _ requestUid: KeyPath<sourcekitd_api_requests, sourcekitd_api_uid_t>,
     _ request: SKDRequestDictionary,
     timeout: Duration,
     restartTimeout: Duration,
+    documentUrl: URL?,
     fileContents: String?
   ) async throws -> SKDResponseDictionary {
+    request.set(keys.request, to: requests[keyPath: requestUid])
+    recordContextualRequest(requestUid: requests[keyPath: requestUid], request: request, documentUrl: documentUrl)
+
     let sourcekitdResponse = try await withTimeout(timeout) {
       let restartTimeoutHandle = TimeoutHandle()
       do {
@@ -387,13 +429,24 @@ package actor SourceKitD {
 
     guard let dict = sourcekitdResponse.value else {
       if sourcekitdResponse.error == .connectionInterrupted {
-        let log = """
+        var log = """
           Request:
           \(request.description)
 
           File contents:
           \(fileContents ?? "<nil>")
           """
+
+        if let documentUrl {
+          let contextualRequests = (contextualRequests[documentUrl] ?? []).filter { $0.request !== request }
+          for (index, contextualRequest) in contextualRequests.enumerated() {
+            log += """
+
+              Contextual request \(index + 1) / \(contextualRequests.count):
+              \(contextualRequest.request.description)
+              """
+          }
+        }
         let chunks = splitLongMultilineMessage(message: log)
         for (index, chunk) in chunks.enumerated() {
           logger.fault(
@@ -414,10 +467,14 @@ package actor SourceKitD {
   }
 
   package func crash() async {
-    let req = dictionary([
-      keys.request: requests.crashWithExit
-    ])
-    _ = try? await send(req, timeout: .seconds(60), restartTimeout: .seconds(24 * 60 * 60), fileContents: nil)
+    _ = try? await send(
+      \.crashWithExit,
+      dictionary([:]),
+      timeout: .seconds(60),
+      restartTimeout: .seconds(24 * 60 * 60),
+      documentUrl: nil,
+      fileContents: nil
+    )
   }
 }
 

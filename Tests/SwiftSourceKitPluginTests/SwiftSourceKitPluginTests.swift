@@ -1824,19 +1824,17 @@ fileprivate extension SourceKitD {
       compilerArguments += ["-sdk", defaultSDKPath]
     }
     let req = dictionary([
-      keys.request: requests.editorOpen,
       keys.name: name,
       keys.sourceText: textWithoutMarkers,
       keys.syntacticOnly: 1,
       keys.compilerArgs: compilerArguments as [SKDRequestValue],
     ])
-    _ = try await send(req, timeout: defaultTimeoutDuration)
+    _ = try await send(\.editorOpen, req)
     return DocumentPositions(markers: markers, textWithoutMarkers: textWithoutMarkers)
   }
 
   nonisolated func editDocument(_ name: String, fromOffset offset: Int, length: Int, newContents: String) async throws {
     let req = dictionary([
-      keys.request: requests.editorReplaceText,
       keys.name: name,
       keys.offset: offset,
       keys.length: length,
@@ -1844,20 +1842,19 @@ fileprivate extension SourceKitD {
       keys.syntacticOnly: 1,
     ])
 
-    _ = try await send(req, timeout: defaultTimeoutDuration)
+    _ = try await send(\.editorReplaceText, req)
   }
 
   nonisolated func closeDocument(_ name: String) async throws {
     let req = dictionary([
-      keys.request: requests.editorClose,
-      keys.name: name,
+      keys.name: name
     ])
 
-    _ = try await send(req, timeout: defaultTimeoutDuration)
+    _ = try await send(\.editorClose, req)
   }
 
   nonisolated func completeImpl(
-    requestUID: sourcekitd_api_uid_t,
+    requestUID: KeyPath<sourcekitd_api_requests, sourcekitd_api_uid_t> & Sendable,
     path: String,
     position: Position,
     filter: String,
@@ -1879,7 +1876,6 @@ fileprivate extension SourceKitD {
     ])
 
     let req = dictionary([
-      keys.request: requestUID,
       keys.line: position.line + 1,
       // Technically sourcekitd needs a UTF-8 index but we can assume there are no Unicode characters in the tests
       keys.column: position.utf16index + 1,
@@ -1888,7 +1884,7 @@ fileprivate extension SourceKitD {
       keys.compilerArgs: compilerArguments as [SKDRequestValue]?,
     ])
 
-    let res = try await send(req, timeout: defaultTimeoutDuration)
+    let res = try await send(requestUID, req)
     return try CompletionResultSet(res)
   }
 
@@ -1903,7 +1899,7 @@ fileprivate extension SourceKitD {
     compilerArguments: [String]? = nil
   ) async throws -> CompletionResultSet {
     return try await completeImpl(
-      requestUID: requests.codeCompleteOpen,
+      requestUID: \.codeCompleteOpen,
       path: path,
       position: position,
       filter: filter,
@@ -1924,7 +1920,7 @@ fileprivate extension SourceKitD {
     maxResults: Int? = nil
   ) async throws -> CompletionResultSet {
     return try await completeImpl(
-      requestUID: requests.codeCompleteUpdate,
+      requestUID: \.codeCompleteUpdate,
       path: path,
       position: position,
       filter: filter,
@@ -1938,7 +1934,6 @@ fileprivate extension SourceKitD {
 
   nonisolated func completeClose(path: String, position: Position) async throws {
     let req = dictionary([
-      keys.request: requests.codeCompleteClose,
       keys.line: position.line + 1,
       // Technically sourcekitd needs a UTF-8 index but we can assume there are no Unicode characters in the tests
       keys.column: position.utf16index + 1,
@@ -1946,45 +1941,32 @@ fileprivate extension SourceKitD {
       keys.codeCompleteOptions: dictionary([keys.useNewAPI: 1]),
     ])
 
-    _ = try await send(req, timeout: defaultTimeoutDuration)
+    _ = try await send(\.codeCompleteClose, req)
   }
 
   nonisolated func completeDocumentation(id: Int) async throws -> CompletionDocumentation {
-    let req = dictionary([
-      keys.request: requests.codeCompleteDocumentation,
-      keys.identifier: id,
-    ])
-
-    let resp = try await send(req, timeout: defaultTimeoutDuration)
+    let resp = try await send(\.codeCompleteDocumentation, dictionary([keys.identifier: id]))
     return CompletionDocumentation(resp)
   }
 
   nonisolated func completeDiagnostic(id: Int) async throws -> CompletionDiagnostic? {
-    let req = dictionary([
-      keys.request: requests.codeCompleteDiagnostic,
-      keys.identifier: id,
-    ])
-    let resp = try await send(req, timeout: defaultTimeoutDuration)
+    let resp = try await send(\.codeCompleteDiagnostic, dictionary([keys.identifier: id]))
 
     return CompletionDiagnostic(resp)
   }
 
   nonisolated func dependencyUpdated() async throws {
-    let req = dictionary([
-      keys.request: requests.dependencyUpdated
-    ])
-    _ = try await send(req, timeout: defaultTimeoutDuration)
+    _ = try await send(\.dependencyUpdated, dictionary([:]))
   }
 
   nonisolated func setPopularAPI(popular: [String], unpopular: [String]) async throws {
     let req = dictionary([
-      keys.request: requests.codeCompleteSetPopularAPI,
       keys.codeCompleteOptions: dictionary([keys.useNewAPI: 1]),
       keys.popular: popular as [SKDRequestValue],
       keys.unpopular: unpopular as [SKDRequestValue],
     ])
 
-    let resp = try await send(req, timeout: defaultTimeoutDuration)
+    let resp = try await send(\.codeCompleteSetPopularAPI, req)
     XCTAssertEqual(resp[keys.useNewAPI], 1)
   }
 
@@ -1994,14 +1976,13 @@ fileprivate extension SourceKitD {
     notoriousModules: [String]
   ) async throws {
     let req = dictionary([
-      keys.request: requests.codeCompleteSetPopularAPI,
       keys.codeCompleteOptions: dictionary([keys.useNewAPI: 1]),
       keys.scopedPopularityTablePath: scopedPopularityDataPath,
       keys.popularModules: popularModules as [SKDRequestValue],
       keys.notoriousModules: notoriousModules as [SKDRequestValue],
     ])
 
-    let resp = try await send(req, timeout: defaultTimeoutDuration)
+    let resp = try await send(\.codeCompleteSetPopularAPI, req)
     XCTAssertEqual(resp[keys.useNewAPI], 1)
   }
 
@@ -2019,13 +2000,12 @@ fileprivate extension SourceKitD {
       ])
     }
     let req = dictionary([
-      keys.request: requests.codeCompleteSetPopularAPI,
       keys.codeCompleteOptions: dictionary([keys.useNewAPI: 1]),
       keys.symbolPopularity: symbolPopularity as [SKDRequestValue],
       keys.modulePopularity: modulePopularity as [SKDRequestValue],
     ])
 
-    let resp = try await send(req, timeout: defaultTimeoutDuration)
+    let resp = try await send(\.codeCompleteSetPopularAPI, req)
     XCTAssertEqual(resp[keys.useNewAPI], 1)
   }
 
