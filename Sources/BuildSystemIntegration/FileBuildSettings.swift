@@ -55,7 +55,15 @@ package struct FileBuildSettings: Equatable, Sendable {
   ///
   /// This patches the arguments by searching for the argument corresponding to
   /// `originalFile` and replacing it.
-  func patching(newFile: DocumentURI, originalFile: DocumentURI) -> FileBuildSettings {
+  package func patching(newFile: DocumentURI, originalFile: DocumentURI) -> FileBuildSettings {
+    return patching(newFile: newFile.pseudoPath, originalFile: originalFile)
+  }
+
+  /// Return arguments suitable for use by `newFile`.
+  ///
+  /// This patches the arguments by searching for the argument corresponding to
+  /// `originalFile` and replacing it.
+  package func patching(newFile: String, originalFile: DocumentURI) -> FileBuildSettings {
     var arguments = self.compilerArguments
     // URL.lastPathComponent is only set for file URLs but we want to also infer a file extension for non-file URLs like
     // untitled:file.cpp
@@ -66,7 +74,7 @@ package struct FileBuildSettings: Equatable, Sendable {
       // the file system.
       $0.hasSuffix(basename) && originalFile.pseudoPath.hasSuffix($0)
     }) {
-      arguments[index] = newFile.pseudoPath
+      arguments[index] = newFile
       // The `-x<lang>` flag needs to be before the possible `-c <header file>`
       // argument in order for Clang to respect it. If there is a pre-existing `-x`
       // flag though, Clang will honor that one instead since it comes after.

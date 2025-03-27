@@ -20,8 +20,8 @@ import SwiftSyntax
 extension SwiftLanguageService {
   /// Requests the semantic highlighting tokens for the given snapshot from sourcekitd.
   private func semanticHighlightingTokens(for snapshot: DocumentSnapshot) async throws -> SyntaxHighlightingTokens? {
-    guard let buildSettings = await self.buildSettings(for: snapshot.uri, fallbackAfterTimeout: false),
-      !buildSettings.isFallback
+    guard let compileCommand = await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: false),
+      !compileCommand.isFallback
     else {
       return nil
     }
@@ -30,7 +30,7 @@ extension SwiftLanguageService {
       keys.request: requests.semanticTokens,
       keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
-      keys.compilerArgs: buildSettings.compilerArgs as [SKDRequestValue],
+      keys.compilerArgs: compileCommand.compilerArgs as [SKDRequestValue],
     ])
 
     let dict = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)

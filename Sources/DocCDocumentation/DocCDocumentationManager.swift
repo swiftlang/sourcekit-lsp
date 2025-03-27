@@ -151,7 +151,6 @@ package struct DocCDocumentationManager: Sendable {
   package func renderDocCDocumentation(
     symbolUSR: String? = nil,
     symbolGraph: String? = nil,
-    overrideDocComments: [String]? = nil,
     markupFile: String? = nil,
     tutorialFile: String? = nil,
     moduleName: String?,
@@ -159,12 +158,8 @@ package struct DocCDocumentationManager: Sendable {
   ) async throws -> DoccDocumentationResponse {
     // Make inputs consumable by DocC
     var externalIDsToConvert: [String]? = nil
-    var overridingDocumentationComments = [String: [String]]()
     if let symbolUSR {
       externalIDsToConvert = [symbolUSR]
-      if let overrideDocComments {
-        overridingDocumentationComments[symbolUSR] = overrideDocComments
-      }
     }
     var symbolGraphs: [Data] = []
     if let symbolGraphData = symbolGraph?.data(using: .utf8) {
@@ -200,7 +195,6 @@ package struct DocCDocumentationManager: Sendable {
       documentationBundleDisplayName: moduleName ?? "Unknown",
       documentationBundleIdentifier: "unknown",
       symbolGraphs: symbolGraphs,
-      overridingDocumentationComments: overridingDocumentationComments,
       emitSymbolSourceFileURIs: false,
       markupFiles: markupFiles,
       tutorialFiles: tutorialFiles,

@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import Csourcekitd
 import LanguageServerProtocol
 import SKLogging
@@ -121,6 +122,29 @@ extension CursorInfoError: CustomStringConvertible {
 }
 
 extension SwiftLanguageService {
+  fileprivate func openHelperDocument(_ snapshot: DocumentSnapshot) async throws -> String {
+    let helperDocumentName = "/CursorInfo/" + snapshot.uri.pseudoPath
+    let skreq = sourcekitd.dictionary([
+      keys.request: self.requests.editorOpen,
+      keys.name: helperDocumentName,
+      keys.sourceText: snapshot.text,
+      keys.syntacticOnly: 1,
+    ])
+    _ = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
+    return helperDocumentName
+  }
+
+  fileprivate func closeHelperDocument(_ helperDocumentName: String, _ snapshot: DocumentSnapshot) async {
+    let skreq = sourcekitd.dictionary([
+      keys.request: requests.editorClose,
+      keys.name: helperDocumentName,
+      keys.cancelBuilds: 0,
+    ])
+    _ = await orLog("Close helper document for cursor info") {
+      try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
+    }
+  }
+
   /// Provides detailed information about a symbol under the cursor, if any.
   ///
   /// Wraps the information returned by sourcekitd's `cursor_info` request, such as symbol name,
@@ -142,6 +166,20 @@ extension SwiftLanguageService {
     let documentManager = try self.documentManager
     let snapshot = try await self.latestSnapshotOrDisk(for: uri)
 
+    // Open a helper document so that we:
+    //  a) inform sourcekitd of the most recent contents of the file
+    //  b) don't have sourcekitd read from disk if the file isn't open in the client
+    let helperDocument = try await openHelperDocument(snapshot)
+    defer {
+      Task { await closeHelperDocument(helperDocument, snapshot) }
+    }
+    // We also need to adjust the compile command to build the helper file
+    var compilerArgs: [String]? = nil
+    let buildSettings = await self.buildSettings(for: uri, fallbackAfterTimeout: fallbackSettingsAfterTimeout)
+    if let buildSettings = buildSettings?.patching(newFile: helperDocument, originalFile: snapshot.uri) {
+      compilerArgs = SwiftCompileCommand(buildSettings).compilerArgs
+    }
+
     let offsetRange = snapshot.utf8OffsetRange(of: range)
 
     let keys = self.keys
@@ -151,11 +189,10 @@ extension SwiftLanguageService {
       keys.cancelOnSubsequentRequest: 0,
       keys.offset: offsetRange.lowerBound,
       keys.length: offsetRange.upperBound != offsetRange.lowerBound ? offsetRange.count : nil,
-      keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
+      keys.sourceFile: helperDocument,
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
       keys.retrieveSymbolGraph: includeSymbolGraph ? 1 : 0,
-      keys.compilerArgs: await self.buildSettings(for: uri, fallbackAfterTimeout: fallbackSettingsAfterTimeout)?
-        .compilerArgs as [SKDRequestValue]?,
+      keys.compilerArgs: compilerArgs as [SKDRequestValue]?,
     ])
 
     appendAdditionalParameters?(skreq)

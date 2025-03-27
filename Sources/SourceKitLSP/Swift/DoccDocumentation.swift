@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #if canImport(DocCDocumentation)
+import BuildSystemIntegration
 import DocCDocumentation
 import Foundation
 package import LanguageServerProtocol
@@ -75,7 +76,6 @@ extension SwiftLanguageService {
     return try await documentationManager.renderDocCDocumentation(
       symbolUSR: symbolUSR,
       symbolGraph: symbolGraph,
-      overrideDocComments: nearestDocumentableSymbol.documentationComments,
       markupFile: markupExtensionFile,
       moduleName: moduleName,
       catalogURL: catalogURL
