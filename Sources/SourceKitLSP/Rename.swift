@@ -355,7 +355,7 @@ extension SwiftLanguageService {
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.nameTranslation,
       keys.sourceFile: snapshot.uri.pseudoPath,
-      keys.compilerArgs: await self.buildSettings(for: snapshot.uri, fallbackAfterTimeout: false)?.compilerArgs
+      keys.compilerArgs: await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: false)?.compilerArgs
         as [SKDRequestValue]?,
       keys.offset: snapshot.utf8Offset(of: snapshot.position(of: symbolLocation)),
       keys.nameKind: sourcekitd.values.nameSwift,
@@ -407,7 +407,7 @@ extension SwiftLanguageService {
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.nameTranslation,
       keys.sourceFile: snapshot.uri.pseudoPath,
-      keys.compilerArgs: await self.buildSettings(for: snapshot.uri, fallbackAfterTimeout: false)?.compilerArgs
+      keys.compilerArgs: await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: false)?.compilerArgs
         as [SKDRequestValue]?,
       keys.offset: snapshot.utf8Offset(of: snapshot.position(of: symbolLocation)),
       keys.nameKind: sourcekitd.values.nameObjc,
