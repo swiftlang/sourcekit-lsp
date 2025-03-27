@@ -20,7 +20,7 @@ package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 @preconcurrency import PackageGraph
 import PackageLoading
-import PackageModel
+@preconcurrency import PackageModel
 import SKLogging
 package import SKOptions
 @preconcurrency package import SPMBuildCore
