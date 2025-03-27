@@ -14,7 +14,11 @@ import LanguageServerProtocol
 import SKLogging
 import SKTestSupport
 import SourceKitLSP
+import SwiftExtensions
+import ToolchainRegistry
 import XCTest
+
+import class TSCBasic.Process
 
 final class FormattingTests: XCTestCase {
   func testFormatting() async throws {
@@ -305,5 +309,58 @@ final class FormattingTests: XCTestCase {
         TextEdit(range: positions["9️⃣"]..<positions["🔟"], newText: ""),
       ]
     )
+  }
+
+  func testSwiftFormatCrashing() async throws {
+    try await withTestScratchDir { scratchDir in
+      let toolchain = try await unwrap(ToolchainRegistry.forTesting.default)
+
+      let crashingSwiftFilePath = scratchDir.appendingPathComponent("crashing-executable.swift")
+      let crashingExecutablePath = scratchDir.appendingPathComponent("crashing-executable")
+      try await "fatalError()".writeWithRetry(to: crashingSwiftFilePath)
+      var compilerArguments = try [
+        crashingSwiftFilePath.filePath,
+        "-o",
+        crashingExecutablePath.filePath,
+      ]
+      if let defaultSDKPath {
+        compilerArguments += ["-sdk", defaultSDKPath]
+      }
+      try await Process.checkNonZeroExit(arguments: [XCTUnwrap(toolchain.swiftc?.filePath)] + compilerArguments)
+
+      let toolchainRegistry = ToolchainRegistry(toolchains: [
+        Toolchain(
+          identifier: "\(toolchain.identifier)-crashing-swift-format",
+          displayName: "\(toolchain.identifier) with crashing swift-format",
+          path: toolchain.path,
+          clang: toolchain.clang,
+          swift: toolchain.swift,
+          swiftc: toolchain.swiftc,
+          swiftFormat: crashingExecutablePath,
+          clangd: toolchain.clangd,
+          sourcekitd: toolchain.sourcekitd,
+          sourceKitClientPlugin: toolchain.sourceKitClientPlugin,
+          sourceKitServicePlugin: toolchain.sourceKitServicePlugin,
+          libIndexStore: toolchain.libIndexStore
+        )
+      ])
+      let testClient = try await TestSourceKitLSPClient(toolchainRegistry: toolchainRegistry)
+      let uri = DocumentURI(for: .swift)
+      testClient.openDocument(
+        // Generate a large source file to increase the chance of the executable we substitute for swift-format
+        // crashing before the entire input file is sent to it.
+        String(repeating: "func foo() {}\n", count: 10_000),
+        uri: uri
+      )
+      await assertThrowsError(
+        try await testClient.send(
+          DocumentFormattingRequest(
+            textDocument: TextDocumentIdentifier(uri),
+            options: FormattingOptions(tabSize: 2, insertSpaces: true)
+          )
+        ),
+        expectedMessage: #/Running swift-format failed|Writing to swift-format stdin failed/#
+      )
+    }
   }
 }
