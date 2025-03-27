@@ -24,6 +24,11 @@ package func withTaskPriorityChangedHandler<T: Sendable>(
 ) async throws -> T {
   let lastPriority = ThreadSafeBox(initialValue: initialPriority)
   let result: T? = try await withThrowingTaskGroup(of: Optional<T>.self) { taskGroup in
+    defer {
+      // We leave this closure when either we have received a result or we registered cancellation. In either case, we
+      // want to make sure that we don't leave the body task or the priority watching task running.
+      taskGroup.cancelAll()
+    }
     // Run the task priority watcher with high priority instead of inheriting the initial priority. Otherwise a
     // `.background` task might not get its priority elevated because the priority watching task also runs at
     // `.background` priority and might not actually get executed in time.
@@ -54,11 +59,10 @@ package func withTaskPriorityChangedHandler<T: Sendable>(
     taskGroup.addTask {
       try await operation()
     }
-    // The first task that watches the priority never finishes, so we are effectively await the `operation` task here
-    // and cancelling the priority observation task once the operation task is done.
+    // The first task that watches the priority never finishes unless it is cancelled, so we are effectively await the
+    // `operation` task here.
     // We do need to await the observation task as well so that priority escalation also affects the observation task.
     for try await case let value? in taskGroup {
-      taskGroup.cancelAll()
       return value
     }
     return nil
