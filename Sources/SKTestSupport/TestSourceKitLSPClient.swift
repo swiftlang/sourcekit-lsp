@@ -425,6 +425,11 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
 
     return DocumentPositions(markers: markers, textWithoutMarkers: textWithoutMarkers)
   }
+
+  /// Closes the document with the given URI.
+  package func closeDocument(uri: DocumentURI) {
+    self.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
+  }
 }
 
 // MARK: - DocumentPositions

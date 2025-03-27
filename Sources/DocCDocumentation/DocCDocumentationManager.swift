@@ -159,7 +159,7 @@ package struct DocCDocumentationManager: Sendable {
   ) async throws -> DoccDocumentationResponse {
     // Make inputs consumable by DocC
     var externalIDsToConvert: [String]? = nil
-    var overridingDocumentationComments = [String: [String]]()
+    var overridingDocumentationComments: [String: [String]] = [:]
     if let symbolUSR {
       externalIDsToConvert = [symbolUSR]
       if let overrideDocComments {

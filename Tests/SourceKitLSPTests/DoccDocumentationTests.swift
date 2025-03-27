@@ -694,6 +694,9 @@ fileprivate func renderDocumentation(
   line: UInt = #line
 ) async throws {
   let (uri, positions) = try project.openDocument(fileName)
+  defer {
+    project.testClient.closeDocument(uri: uri)
+  }
 
   await renderDocumentation(
     testClient: project.testClient,

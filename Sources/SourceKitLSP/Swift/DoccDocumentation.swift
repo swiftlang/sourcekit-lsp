@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #if canImport(DocCDocumentation)
+import BuildSystemIntegration
 import DocCDocumentation
 import Foundation
 package import LanguageServerProtocol
@@ -125,9 +126,7 @@ fileprivate struct DocumentableSymbol {
       }
     }
   }
-}
 
-fileprivate extension DocumentableSymbol {
   static func findNearestSymbol(syntaxTree: SourceFileSyntax, position: AbsolutePosition) -> DocumentableSymbol? {
     guard let token = syntaxTree.token(at: position) else {
       return nil

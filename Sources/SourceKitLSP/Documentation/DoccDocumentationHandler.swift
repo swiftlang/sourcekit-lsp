@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #if canImport(DocCDocumentation)
+import BuildSystemIntegration
 import DocCDocumentation
 import Foundation
 @preconcurrency import IndexStoreDB

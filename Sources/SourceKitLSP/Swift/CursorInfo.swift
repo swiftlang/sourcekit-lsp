@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildSystemIntegration
 import Csourcekitd
 import LanguageServerProtocol
 import SKLogging
@@ -121,13 +122,62 @@ extension CursorInfoError: CustomStringConvertible {
 }
 
 extension SwiftLanguageService {
+  fileprivate func openHelperDocument(_ snapshot: DocumentSnapshot) async throws {
+    let skreq = sourcekitd.dictionary([
+      keys.request: self.requests.editorOpen,
+      keys.name: snapshot.uri.pseudoPath,
+      keys.sourceText: snapshot.text,
+      keys.syntacticOnly: 1,
+    ])
+    _ = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
+  }
+
+  fileprivate func closeHelperDocument(_ snapshot: DocumentSnapshot) async {
+    let skreq = sourcekitd.dictionary([
+      keys.request: requests.editorClose,
+      keys.name: snapshot.uri.pseudoPath,
+      keys.cancelBuilds: 0,
+    ])
+    _ = await orLog("Close helper document for cursor info") {
+      try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
+    }
+  }
+
+  /// Ensures that the snapshot is open in sourcekitd before calling body(_:).
+  ///
+  /// - Parameters:
+  ///   - uri: The URI of the document to be opened.
+  ///   - body: A closure that accepts the DocumentSnapshot as a parameter.
+  fileprivate func withSnapshot<Result>(
+    uri: DocumentURI,
+    _ body: (_ snapshot: DocumentSnapshot) async throws -> Result
+  ) async throws -> Result where Result: Sendable {
+    let documentManager = try self.documentManager
+    let snapshot = try await self.latestSnapshotOrDisk(for: uri)
+
+    // If the document is not opened in the DocumentManager then send an open
+    // request to sourcekitd.
+    guard documentManager.openDocuments.contains(uri) else {
+      try await openHelperDocument(snapshot)
+      defer {
+        Task { await closeHelperDocument(snapshot) }
+      }
+      return try await body(snapshot)
+    }
+    return try await body(snapshot)
+  }
+
   /// Provides detailed information about a symbol under the cursor, if any.
   ///
   /// Wraps the information returned by sourcekitd's `cursor_info` request, such as symbol name,
   /// USR, and declaration location. This request does minimal processing of the result.
   ///
+  /// Ensures that the document is actually open in sourcekitd before sending the request. If not,
+  /// then the document will be opened for the duration of the request so that sourcekitd does not
+  /// have to read from disk.
+  ///
   /// - Parameters:
-  ///   - url: Document URI in which to perform the request. Must be an open document.
+  ///   - url: Document URI in which to perform the request.
   ///   - range: The position range within the document to lookup the symbol at.
   ///   - includeSymbolGraph: Whether or not to ask sourcekitd for the complete symbol graph.
   ///   - fallbackSettingsAfterTimeout: Whether fallback build settings should be used for the cursor info request if no
@@ -139,46 +189,46 @@ extension SwiftLanguageService {
     fallbackSettingsAfterTimeout: Bool,
     additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil
   ) async throws -> (cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand], symbolGraph: String?) {
-    let documentManager = try self.documentManager
-    let snapshot = try await self.latestSnapshotOrDisk(for: uri)
+    try await withSnapshot(uri: uri) { snapshot in
+      let documentManager = try self.documentManager
+      let offsetRange = snapshot.utf8OffsetRange(of: range)
 
-    let offsetRange = snapshot.utf8OffsetRange(of: range)
+      let keys = self.keys
 
-    let keys = self.keys
+      let skreq = sourcekitd.dictionary([
+        keys.request: requests.cursorInfo,
+        keys.cancelOnSubsequentRequest: 0,
+        keys.offset: offsetRange.lowerBound,
+        keys.length: offsetRange.upperBound != offsetRange.lowerBound ? offsetRange.count : nil,
+        keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
+        keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
+        keys.retrieveSymbolGraph: includeSymbolGraph ? 1 : 0,
+        keys.compilerArgs: await self.compileCommand(for: uri, fallbackAfterTimeout: fallbackSettingsAfterTimeout)?
+          .compilerArgs as [SKDRequestValue]?,
+      ])
 
-    let skreq = sourcekitd.dictionary([
-      keys.request: requests.cursorInfo,
-      keys.cancelOnSubsequentRequest: 0,
-      keys.offset: offsetRange.lowerBound,
-      keys.length: offsetRange.upperBound != offsetRange.lowerBound ? offsetRange.count : nil,
-      keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
-      keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
-      keys.retrieveSymbolGraph: includeSymbolGraph ? 1 : 0,
-      keys.compilerArgs: await self.buildSettings(for: uri, fallbackAfterTimeout: fallbackSettingsAfterTimeout)?
-        .compilerArgs as [SKDRequestValue]?,
-    ])
+      appendAdditionalParameters?(skreq)
 
-    appendAdditionalParameters?(skreq)
+      let dict = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
 
-    let dict = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
+      var cursorInfoResults: [CursorInfo] = []
+      if let cursorInfo = CursorInfo(dict, documentManager: documentManager, sourcekitd: sourcekitd) {
+        cursorInfoResults.append(cursorInfo)
+      }
+      cursorInfoResults +=
+        dict[keys.secondarySymbols]?
+        .compactMap { CursorInfo($0, documentManager: documentManager, sourcekitd: sourcekitd) } ?? []
+      let refactorActions =
+        [SemanticRefactorCommand](
+          array: dict[keys.refactorActions],
+          range: range,
+          textDocument: TextDocumentIdentifier(uri),
+          keys,
+          self.sourcekitd.api
+        ) ?? []
+      let symbolGraph: String? = dict[keys.symbolGraph]
 
-    var cursorInfoResults: [CursorInfo] = []
-    if let cursorInfo = CursorInfo(dict, documentManager: documentManager, sourcekitd: sourcekitd) {
-      cursorInfoResults.append(cursorInfo)
+      return (cursorInfoResults, refactorActions, symbolGraph)
     }
-    cursorInfoResults +=
-      dict[keys.secondarySymbols]?
-      .compactMap { CursorInfo($0, documentManager: documentManager, sourcekitd: sourcekitd) } ?? []
-    let refactorActions =
-      [SemanticRefactorCommand](
-        array: dict[keys.refactorActions],
-        range: range,
-        textDocument: TextDocumentIdentifier(uri),
-        keys,
-        self.sourcekitd.api
-      ) ?? []
-    let symbolGraph: String? = dict[keys.symbolGraph]
-
-    return (cursorInfoResults, refactorActions, symbolGraph)
   }
 }
