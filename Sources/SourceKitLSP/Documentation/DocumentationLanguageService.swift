@@ -11,10 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import SwiftExtensions
-
 package import LanguageServerProtocol
 package import SKOptions
+import SwiftExtensions
 package import SwiftSyntax
 package import ToolchainRegistry
 
