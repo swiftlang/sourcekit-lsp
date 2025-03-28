@@ -13,6 +13,7 @@
 import Foundation
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
+import LanguageServerProtocolJSONRPC
 import SKLogging
 import SKUtilities
 import SwiftExtensions
@@ -21,7 +22,9 @@ import SwiftSyntax
 import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
+import class TSCBasic.LocalFileOutputByteStream
 import class TSCBasic.Process
+import protocol TSCBasic.WritableByteStream
 
 fileprivate extension String {
   init?(bytes: [UInt8], encoding: Encoding) {
@@ -190,11 +193,44 @@ extension SwiftLanguageService {
       ]
     }
     let process = TSCBasic.Process(arguments: args)
-    let writeStream = try process.launch()
+    let writeStream: any WritableByteStream
+    do {
+      writeStream = try process.launch()
+    } catch {
+      throw ResponseError.unknown("Launching swift-format failed: \(error)")
+    }
+    #if canImport(Darwin)
+    // On Darwin, we can disable SIGPIPE for a single pipe. This is not available on all platforms, in which case we
+    // resort to disabling SIGPIPE globally to avoid crashing SourceKit-LSP with SIGPIPE if swift-format crashes before
+    // we could send all data to its stdin.
+    if let byteStream = writeStream as? LocalFileOutputByteStream {
+      orLog("Disable SIGPIPE for swift-format stdin") {
+        try byteStream.disableSigpipe()
+      }
+    } else {
+      logger.fault("Expected write stream to process to be a LocalFileOutputByteStream")
+    }
+    #else
+    globallyDisableSigpipeIfNeeded()
+    #endif
 
-    // Send the file to format to swift-format's stdin. That way we don't have to write it to a file.
-    writeStream.send(snapshot.text)
-    try writeStream.close()
+    do {
+      // Send the file to format to swift-format's stdin. That way we don't have to write it to a file.
+      //
+      // If we are on Windows, `writeStream` is not a swift-tools-support-core type but a `FileHandle`. In that case,
+      // call the throwing `write(contentsOf:)` method on it so that we can catch a `ERROR_BROKEN_PIPE` error. The
+      // `send` method that we use on all other platforms ends up calling the non-throwing `FileHandle.write(_:)`, which
+      // calls `write(contentsOf:)` using `try!` and thus crashes SourceKit-LSP if the pipe to swift-format is closed,
+      // eg. because swift-format has crashed.
+      if let fileHandle = writeStream as? FileHandle {
+        try fileHandle.write(contentsOf: Data(snapshot.text.utf8))
+      } else {
+        writeStream.send(snapshot.text.utf8)
+      }
+      try writeStream.close()
+    } catch {
+      throw ResponseError.unknown("Writing to swift-format stdin failed: \(error)")
+    }
 
     let result = try await withTimeout(.seconds(60)) {
       try await process.waitUntilExitStoppingProcessOnTaskCancellation()

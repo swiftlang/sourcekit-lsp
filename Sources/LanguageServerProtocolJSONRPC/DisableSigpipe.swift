@@ -25,12 +25,23 @@ private let globallyIgnoredSIGPIPE: Bool = {
   _ = signal(SIGPIPE, SIG_IGN)
   return true
 }()
+#endif
 
-internal func globallyDisableSigpipe() {
+/// We receive a `SIGPIPE` if we write to a pipe that points to a crashed process. This in particular happens if the
+/// target of a `JSONRPCConnection` has crashed and we try to send it a message or if swift-format crashes and we try
+/// to send the source file to it.
+///
+/// On Darwin, `DispatchIO` ignores `SIGPIPE` for the pipes handled by it and swift-tools-support-core offers
+/// `LocalFileOutputByteStream.disableSigpipe`, but that features is not available on Linux.
+///
+/// Instead, globally ignore `SIGPIPE` on Linux to prevent us from crashing if the `JSONRPCConnection`'s target crashes.
+///
+/// On Darwin platforms and on Windows this is a no-op.
+package func globallyDisableSigpipeIfNeeded() {
+  #if !canImport(Darwin) && !os(Windows)
   let haveWeIgnoredSIGPIEThisIsHereToTriggerIgnoringIt = globallyIgnoredSIGPIPE
   guard haveWeIgnoredSIGPIEThisIsHereToTriggerIgnoringIt else {
     fatalError("globallyIgnoredSIGPIPE should always be true")
   }
+  #endif
 }
-
-#endif
