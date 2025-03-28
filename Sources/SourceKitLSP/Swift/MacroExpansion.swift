@@ -88,16 +88,16 @@ actor MacroExpansionManager {
     }
 
     let snapshot = try await swiftLanguageService.latestSnapshot(for: uri)
-    let buildSettings = await swiftLanguageService.buildSettings(for: uri, fallbackAfterTimeout: false)
+    let compileCommand = await swiftLanguageService.compileCommand(for: uri, fallbackAfterTimeout: false)
 
     if let cacheEntry = cache.first(where: {
-      $0.snapshotID == snapshot.id && $0.range == range && $0.buildSettings == buildSettings
+      $0.snapshotID == snapshot.id && $0.range == range && $0.buildSettings == compileCommand
     }) {
       return cacheEntry.value
     }
-    let macroExpansions = try await macroExpansionsImpl(in: snapshot, at: range, buildSettings: buildSettings)
+    let macroExpansions = try await macroExpansionsImpl(in: snapshot, at: range, buildSettings: compileCommand)
     cache.insert(
-      CacheEntry(snapshot: snapshot, range: range, buildSettings: buildSettings, value: macroExpansions),
+      CacheEntry(snapshot: snapshot, range: range, buildSettings: compileCommand, value: macroExpansions),
       at: 0
     )
 

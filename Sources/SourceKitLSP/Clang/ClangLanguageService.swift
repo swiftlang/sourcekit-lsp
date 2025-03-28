@@ -22,6 +22,10 @@ import SwiftSyntax
 import TSCExtensions
 import ToolchainRegistry
 
+#if canImport(DocCDocumentation)
+import DocCDocumentation
+#endif
+
 #if os(Windows)
 import WinSDK
 #endif
@@ -481,6 +485,12 @@ extension ClangLanguageService {
   func hover(_ req: HoverRequest) async throws -> HoverResponse? {
     return try await forwardRequestToClangd(req)
   }
+
+  #if canImport(DocCDocumentation)
+  func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
+    throw ResponseError.requestFailed(doccDocumentationError: .noDocumentation)
+  }
+  #endif
 
   func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
     return try await forwardRequestToClangd(req)
