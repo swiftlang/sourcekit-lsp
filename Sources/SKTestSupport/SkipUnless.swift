@@ -259,13 +259,14 @@ package actor SkipUnless {
       )
       do {
         let response = try await sourcekitd.send(
+          \.codeCompleteSetPopularAPI,
           sourcekitd.dictionary([
-            sourcekitd.keys.request: sourcekitd.requests.codeCompleteSetPopularAPI,
             sourcekitd.keys.codeCompleteOptions: [
               sourcekitd.keys.useNewAPI: 1
-            ],
+            ]
           ]),
           timeout: defaultTimeoutDuration,
+          documentUrl: nil,
           fileContents: nil
         )
         return response[sourcekitd.keys.useNewAPI] == 1
