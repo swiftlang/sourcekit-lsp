@@ -52,16 +52,16 @@ fileprivate struct NotificationTimeoutError: Error, CustomStringConvertible {
 /// We can't use an `AsyncStream` for this because an `AsyncStream` is cancelled if a task that calls
 /// `AsyncStream.Iterator.next` is cancelled and we want to be able to wait for new notifications even if waiting for a
 /// a previous notification timed out.
-actor PendingNotifications {
-  private var values: [any NotificationType] = []
+final class PendingNotifications: Sendable {
+  private let values = ThreadSafeBox<[any NotificationType]>(initialValue: [])
 
-  func add(_ value: any NotificationType) {
-    values.insert(value, at: 0)
+  nonisolated func add(_ value: any NotificationType) {
+    values.value.insert(value, at: 0)
   }
 
   func next(timeout: Duration, pollingInterval: Duration = .milliseconds(10)) async throws -> any NotificationType {
     for _ in 0..<Int(timeout.seconds / pollingInterval.seconds) {
-      if let value = values.popLast() {
+      if let value = values.value.popLast() {
         return value
       }
       try await Task.sleep(for: pollingInterval)
@@ -358,9 +358,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
 
   /// - Important: Implementation detail of `TestSourceKitLSPServer`. Do not call from tests.
   package func handle(_ notification: some NotificationType) {
-    Task {
-      await notifications.add(notification)
-    }
+    notifications.add(notification)
   }
 
   /// - Important: Implementation detail of `TestSourceKitLSPClient`. Do not call from tests.
