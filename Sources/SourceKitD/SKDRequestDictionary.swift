@@ -44,7 +44,7 @@ extension Optional: SKDRequestValue where Wrapped: SKDRequestValue {}
 
 extension SourceKitD {
   /// Create a `SKDRequestDictionary` from the given dictionary.
-  package func dictionary(_ dict: [sourcekitd_api_uid_t: SKDRequestValue]) -> SKDRequestDictionary {
+  nonisolated package func dictionary(_ dict: [sourcekitd_api_uid_t: SKDRequestValue]) -> SKDRequestDictionary {
     let result = SKDRequestDictionary(sourcekitd: self)
     for (key, value) in dict {
       result.set(key, to: value)

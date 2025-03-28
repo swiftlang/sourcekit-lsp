@@ -46,7 +46,7 @@ public func sourcekitd_plugin_initialize(_ params: sourcekitd_api_plugin_initial
   {
     // When using a SourceKit plugin from the build directory, we can't find sourcekitd relative to the plugin.
     // Respect the sourcekitd path that was passed to us via an environment variable from
-    // `DynamicallyLoadedSourceKitD.getOrCreate`.
+    // `SourceKitD.getOrCreate`.
     url = URL(fileURLWithPath: sourcekitdPath)
   }
   try! url.filePath.withCString { sourcekitdPath in
@@ -62,12 +62,12 @@ public func sourcekitd_plugin_initialize_2(
   _ params: sourcekitd_api_plugin_initialize_params_t,
   _ sourcekitdPath: UnsafePointer<CChar>
 ) {
-  DynamicallyLoadedSourceKitD.forPlugin = try! DynamicallyLoadedSourceKitD(
+  SourceKitD.forPlugin = try! SourceKitD(
     dylib: URL(fileURLWithPath: String(cString: sourcekitdPath)),
     pluginPaths: nil,
     initialize: false
   )
-  let sourcekitd = DynamicallyLoadedSourceKitD.forPlugin
+  let sourcekitd = SourceKitD.forPlugin
 
   let customBufferStart = sourcekitd.pluginApi.plugin_initialize_custom_buffer_start(params)
   let arrayBuffKind = customBufferStart

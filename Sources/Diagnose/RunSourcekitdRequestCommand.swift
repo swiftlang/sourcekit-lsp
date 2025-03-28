@@ -54,7 +54,7 @@ package struct RunSourceKitdRequestCommand: AsyncParsableCommand {
         print("Did not find sourcekitd in the toolchain. Specify path to sourcekitd manually by passing --sourcekitd")
         throw ExitCode(1)
       }
-    let sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
+    let sourcekitd = try await SourceKitD.getOrCreate(
       dylibPath: sourcekitdPath,
       pluginPaths: nil
     )

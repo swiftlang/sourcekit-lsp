@@ -195,13 +195,13 @@ public func sourcekitd_plugin_initialize(_ params: sourcekitd_api_plugin_initial
 }
 
 #if canImport(Darwin)
-private extension DynamicallyLoadedSourceKitD {
+private extension SourceKitD {
   /// When a plugin is initialized, it gets passed the library it was loaded from to `sourcekitd_plugin_initialize_2`.
   ///
   /// Since the plugin wants to interact with sourcekitd in-process, it needs to load `sourcekitdInProc`. This function
   /// loads `sourcekitdInProc` relative to the parent library path, if it exists, or `sourcekitd` if `sourcekitdInProc`
   /// doesn't exist (eg. on Linux where `sourcekitd` is already in-process).
-  static func inProcLibrary(relativeTo parentLibraryPath: URL) throws -> DynamicallyLoadedSourceKitD {
+  static func inProcLibrary(relativeTo parentLibraryPath: URL) throws -> SourceKitD {
     var frameworkUrl = parentLibraryPath
 
     // Remove path components until we reach the `sourcekitd.framework` directory. The plugin might have been loaded
@@ -224,22 +224,14 @@ private extension DynamicallyLoadedSourceKitD {
       .appendingPathComponent("sourcekitdInProc.framework")
       .appendingPathComponent("sourcekitdInProc")
     if FileManager.default.fileExists(at: inProcUrl) {
-      return try DynamicallyLoadedSourceKitD(
-        dylib: inProcUrl,
-        pluginPaths: nil,
-        initialize: false
-      )
+      return try SourceKitD(dylib: inProcUrl, pluginPaths: nil, initialize: false)
     }
 
     let sourcekitdUrl =
       frameworkUrl
       .appendingPathComponent("sourcekitd.framework")
       .appendingPathComponent("sourcekitd")
-    return try DynamicallyLoadedSourceKitD(
-      dylib: sourcekitdUrl,
-      pluginPaths: nil,
-      initialize: false
-    )
+    return try SourceKitD(dylib: sourcekitdUrl, pluginPaths: nil, initialize: false)
   }
 }
 #endif
@@ -252,26 +244,24 @@ public func sourcekitd_plugin_initialize_2(
   let parentLibraryPath = String(cString: parentLibraryPath)
   #if canImport(Darwin)
   if parentLibraryPath == "SOURCEKIT_LSP_PLUGIN_PARENT_LIBRARY_RTLD_DEFAULT" {
-    DynamicallyLoadedSourceKitD.forPlugin = try! DynamicallyLoadedSourceKitD(
+    SourceKitD.forPlugin = try! SourceKitD(
       dlhandle: .rtldDefault,
       path: URL(string: "rtld-default://")!,
       pluginPaths: nil,
       initialize: false
     )
   } else {
-    DynamicallyLoadedSourceKitD.forPlugin = try! DynamicallyLoadedSourceKitD.inProcLibrary(
-      relativeTo: URL(fileURLWithPath: parentLibraryPath)
-    )
+    SourceKitD.forPlugin = try! SourceKitD.inProcLibrary(relativeTo: URL(fileURLWithPath: parentLibraryPath))
   }
   #else
   // On other platforms, sourcekitd is always in process, so we can load it straight away.
-  DynamicallyLoadedSourceKitD.forPlugin = try! DynamicallyLoadedSourceKitD(
+  SourceKitD.forPlugin = try! SourceKitD(
     dylib: URL(fileURLWithPath: parentLibraryPath),
     pluginPaths: nil,
     initialize: false
   )
   #endif
-  let sourcekitd = DynamicallyLoadedSourceKitD.forPlugin
+  let sourcekitd = SourceKitD.forPlugin
 
   let completionResultsBufferKind = sourcekitd.pluginApi.plugin_initialize_custom_buffer_start(params)
   let isClientOnly = sourcekitd.pluginApi.plugin_initialize_is_client_only(params)

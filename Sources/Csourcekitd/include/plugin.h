@@ -114,7 +114,7 @@ typedef const void *_Null_unspecified (*sourcekitd_api_variant_functions_data_ge
 typedef bool (^sourcekitd_api_cancellable_request_handler_t)(
   _Null_unspecified sourcekitd_api_object_t,
   _Null_unspecified sourcekitd_api_request_handle_t,
-  void (^_Null_unspecified __attribute__((swift_attr("@Sendable"))))(_Null_unspecified sourcekitd_api_response_t)
+  void (^_Null_unspecified SWIFT_SENDABLE)(_Null_unspecified sourcekitd_api_response_t)
 );
 typedef void (^sourcekitd_api_cancellation_handler_t)(_Null_unspecified sourcekitd_api_request_handle_t);
 typedef _Null_unspecified sourcekitd_api_uid_t (*sourcekitd_api_uid_get_from_cstr_t)(const char *_Null_unspecified string);
@@ -233,11 +233,11 @@ typedef struct {
     _Null_unspecified sourcekitd_api_plugin_initialize_params_t
   );
 
-  _Null_unspecified sourcekitd_api_uid_get_from_cstr_t (*_Nonnull plugin_initialize_uid_get_from_cstr)(
+  _Null_unspecified SWIFT_SENDABLE sourcekitd_api_uid_get_from_cstr_t (*_Nonnull plugin_initialize_uid_get_from_cstr)(
     _Null_unspecified sourcekitd_api_plugin_initialize_params_t
   );
 
-  _Null_unspecified sourcekitd_api_uid_get_string_ptr_t (*_Nonnull plugin_initialize_uid_get_string_ptr)(
+  _Null_unspecified SWIFT_SENDABLE sourcekitd_api_uid_get_string_ptr_t (*_Nonnull plugin_initialize_uid_get_string_ptr)(
     _Null_unspecified sourcekitd_api_plugin_initialize_params_t
   );
 
@@ -251,7 +251,7 @@ typedef struct {
 typedef struct {
   void (*_Nonnull plugin_initialize_register_cancellable_request_handler)(
     _Nonnull sourcekitd_api_plugin_initialize_params_t,
-    _Nonnull sourcekitd_api_cancellable_request_handler_t
+    _Nonnull SWIFT_SENDABLE sourcekitd_api_cancellable_request_handler_t
   );
 
   /// Adds a function that will be called when a request is cancelled.
@@ -260,7 +260,7 @@ typedef struct {
   /// handle to be cancelled, it should ignore the cancellation request.
   void (*_Nonnull plugin_initialize_register_cancellation_handler)(
     _Nonnull sourcekitd_api_plugin_initialize_params_t,
-    _Nonnull sourcekitd_api_cancellation_handler_t
+    _Nonnull SWIFT_SENDABLE sourcekitd_api_cancellation_handler_t
   );
 
   void *_Null_unspecified(*_Nonnull plugin_initialize_get_swift_ide_inspection_instance)(

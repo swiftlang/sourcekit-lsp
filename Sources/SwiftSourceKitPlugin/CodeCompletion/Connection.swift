@@ -64,7 +64,7 @@ final class Connection {
       }
     }
 
-    func response(sourcekitd: any SourceKitD) -> SKDResponse {
+    func response(sourcekitd: SourceKitD) -> SKDResponse {
       switch self {
       case .openingFileFailed, .swiftIDEError:
         return SKDResponse(error: .failed, description: description, sourcekitd: sourcekitd)

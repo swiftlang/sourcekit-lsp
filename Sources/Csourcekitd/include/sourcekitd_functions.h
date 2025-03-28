@@ -17,6 +17,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define SWIFT_SENDABLE __attribute__((__swift_attr__("@Sendable")))
+
 // Avoid including <sourcekitd/sourcekitd.h> to make sure we don't call the
 // functions directly. But we need the types to form the function pointers.
 // These are supposed to stay stable across toolchains.
@@ -315,17 +317,17 @@ typedef struct {
   void (*_Nonnull send_request)(
     sourcekitd_api_object_t _Nonnull req,
     _Nullable sourcekitd_api_request_handle_t *_Nullable out_handle,
-    _Nullable sourcekitd_api_response_receiver_t receiver
+    _Nullable SWIFT_SENDABLE sourcekitd_api_response_receiver_t receiver
   );
   void (*_Nonnull cancel_request)(
     _Nullable sourcekitd_api_request_handle_t handle
   );
   void (*_Nonnull set_notification_handler)(
-    _Nullable sourcekitd_api_response_receiver_t receiver
+    _Nullable SWIFT_SENDABLE sourcekitd_api_response_receiver_t receiver
   );
   void (*_Nonnull set_uid_handlers)(
-    _Nullable sourcekitd_api_uid_from_str_handler_t uid_from_str,
-    _Nullable sourcekitd_api_str_from_uid_handler_t str_from_uid
+    _Nullable SWIFT_SENDABLE sourcekitd_api_uid_from_str_handler_t uid_from_str,
+    _Nullable SWIFT_SENDABLE sourcekitd_api_str_from_uid_handler_t str_from_uid
   );
 } sourcekitd_api_functions_t;
 

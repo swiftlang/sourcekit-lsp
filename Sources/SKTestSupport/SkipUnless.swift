@@ -253,7 +253,7 @@ package actor SkipUnless {
       guard let sourcekitdPath = await ToolchainRegistry.forTesting.default?.sourcekitd else {
         throw GenericError("Could not find SourceKitD")
       }
-      let sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
+      let sourcekitd = try await SourceKitD.getOrCreate(
         dylibPath: sourcekitdPath,
         pluginPaths: try sourceKitPluginPaths
       )

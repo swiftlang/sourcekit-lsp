@@ -26,7 +26,7 @@ import Bionic
 
 extension SourceKitD {
   /// Create a `SKDRequestArray` from the given array.
-  package func array(_ array: [SKDRequestValue]) -> SKDRequestArray {
+  nonisolated package func array(_ array: [SKDRequestValue]) -> SKDRequestArray {
     let result = SKDRequestArray(sourcekitd: self)
     for element in array {
       result.append(element)
