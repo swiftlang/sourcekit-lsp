@@ -136,9 +136,6 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace, suppress_verb
     if '-android' in build_target:
         swiftpm_args += [
             '-Xlinker', '-rpath', '-Xlinker', '$ORIGIN/../lib/swift/android',
-            # SwiftPM will otherwise try to compile against GNU strerror_r on
-            # Android and fail.
-            '-Xswiftc', '-Xcc', '-Xswiftc', '-U_GNU_SOURCE',
         ]
     elif not build_os.startswith('macosx'):
         # Library rpath for swift, dispatch, Foundation, etc. when installing
