@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 package import Foundation
-@preconcurrency import SwiftDocC
+@_spi(LinkCompletion) @preconcurrency import SwiftDocC
 
 final actor DocCCatalogIndexManager {
   private let server: DocCServer
@@ -74,63 +74,74 @@ package enum DocCIndexError: LocalizedError {
 }
 
 package struct DocCCatalogIndex: Sendable {
-  private let assetReferenceToDataAsset: [String: DataAsset]
-  private let documentationExtensionToSourceURL: [DocCSymbolLink: URL]
-  let articlePathToSourceURLAndReference: [String: (URL, TopicRenderReference)]
-  let tutorialPathToSourceURLAndReference: [String: (URL, TopicRenderReference)]
-  let tutorialOverviewPathToSourceURLAndReference: [String: (URL, TopicRenderReference)]
+  /// A map from an asset name to its DataAsset contents.
+  let assets: [String: DataAsset]
 
-  func asset(for assetReference: AssetReference) -> DataAsset? {
-    assetReferenceToDataAsset[assetReference.assetName]
-  }
+  /// An array of DocCSymbolLink and their associated document URLs.
+  let documentationExtensions: [(link: DocCSymbolLink, documentURL: URL?)]
 
-  package func documentationExtension(for symbolLink: DocCSymbolLink) -> URL? {
-    return documentationExtensionToSourceURL[symbolLink]
+  /// A map from article name to its TopicRenderReference.
+  let articles: [String: TopicRenderReference]
+
+  /// A map from tutorial name to its TopicRenderReference.
+  let tutorials: [String: TopicRenderReference]
+
+  // A map from tutorial overview name to its TopicRenderReference.
+  let tutorialOverviews: [String: TopicRenderReference]
+
+  /// Retrieves the documentation extension URL for the given symbol if one exists.
+  ///
+  /// - Parameter symbolInformation: The `DocCSymbolInformation` representing the symbol to search for.
+  package func documentationExtension(for symbolInformation: DocCSymbolInformation) -> URL? {
+    documentationExtensions.filter { symbolInformation.matches($0.link) }.first?.documentURL
   }
 
   init(from renderReferenceStore: RenderReferenceStore) {
     // Assets
-    var assetReferenceToDataAsset: [String: DataAsset] = [:]
+    var assets: [String: DataAsset] = [:]
     for (reference, asset) in renderReferenceStore.assets {
       var asset = asset
       asset.variants = asset.variants.compactMapValues { $0.withScheme("doc-asset") }
-      assetReferenceToDataAsset[reference.assetName] = asset
+      assets[reference.assetName] = asset
     }
-    self.assetReferenceToDataAsset = assetReferenceToDataAsset
+    self.assets = assets
     // Markdown and Tutorial content
-    var documentationExtensionToSourceURL: [DocCSymbolLink: URL] = [:]
-    var articlePathToSourceURLAndReference = [String: (URL, TopicRenderReference)]()
-    var tutorialPathToSourceURLAndReference = [String: (URL, TopicRenderReference)]()
-    var tutorialOverviewPathToSourceURLAndReference = [String: (URL, TopicRenderReference)]()
+    var documentationExtensionToSourceURL: [(link: DocCSymbolLink, documentURL: URL?)] = []
+    var articles: [String: TopicRenderReference] = [:]
+    var tutorials: [String: TopicRenderReference] = [:]
+    var tutorialOverviews: [String: TopicRenderReference] = [:]
     for (renderReferenceKey, topicContentValue) in renderReferenceStore.topics {
-      guard let topicRenderReference = topicContentValue.renderReference as? TopicRenderReference,
-        let topicContentSource = topicContentValue.source
-      else {
+      guard let topicRenderReference = topicContentValue.renderReference as? TopicRenderReference else {
         continue
       }
+      // Article and Tutorial URLs in SwiftDocC are always of the form `doc://<BundleID>/<Type>/<ModuleName>/<Filename>`.
+      // Therefore, we only really need to store the filename in these cases which will always be the last path component.
       let lastPathComponent = renderReferenceKey.url.lastPathComponent
 
       switch topicRenderReference.kind {
       case .article:
-        articlePathToSourceURLAndReference[lastPathComponent] = (topicContentSource, topicRenderReference)
+        articles[lastPathComponent] = topicRenderReference
       case .tutorial:
-        tutorialPathToSourceURLAndReference[lastPathComponent] = (topicContentSource, topicRenderReference)
+        tutorials[lastPathComponent] = topicRenderReference
       case .overview:
-        tutorialOverviewPathToSourceURLAndReference[lastPathComponent] = (topicContentSource, topicRenderReference)
+        tutorialOverviews[lastPathComponent] = topicRenderReference
       default:
-        guard topicContentValue.isDocumentationExtensionContent,
-          let absoluteSymbolLink = AbsoluteSymbolLink(string: topicContentValue.renderReference.identifier.identifier)
-        else {
+        guard topicContentValue.isDocumentationExtensionContent else {
           continue
         }
-        let doccSymbolLink = DocCSymbolLink(absoluteSymbolLink: absoluteSymbolLink)
-        documentationExtensionToSourceURL[doccSymbolLink] = topicContentValue.source
+        // Documentation extensions are always of the form `doc://<BundleID>/documentation/<SymbolPath>`.
+        // We want to parse the `SymbolPath` in this case and store it in the index for lookups later.
+        let linkString = renderReferenceKey.url.pathComponents[2...].joined(separator: "/")
+        guard let doccSymbolLink = DocCSymbolLink(linkString: linkString) else {
+          continue
+        }
+        documentationExtensionToSourceURL.append((link: doccSymbolLink, documentURL: topicContentValue.source))
       }
     }
-    self.documentationExtensionToSourceURL = documentationExtensionToSourceURL
-    self.articlePathToSourceURLAndReference = articlePathToSourceURLAndReference
-    self.tutorialPathToSourceURLAndReference = tutorialPathToSourceURLAndReference
-    self.tutorialOverviewPathToSourceURLAndReference = tutorialOverviewPathToSourceURLAndReference
+    self.documentationExtensions = documentationExtensionToSourceURL
+    self.articles = articles
+    self.tutorials = tutorials
+    self.tutorialOverviews = tutorialOverviews
   }
 }
 

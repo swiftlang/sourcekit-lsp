@@ -13,10 +13,8 @@
 import BuildServerProtocol
 package import BuildSystemIntegration
 package import Foundation
-package import IndexStoreDB
 package import LanguageServerProtocol
 import SKLogging
-package import SemanticIndex
 import SwiftDocC
 
 package struct DocCDocumentationManager: Sendable {
@@ -51,90 +49,6 @@ package struct DocCDocumentationManager: Sendable {
 
   package func catalogIndex(for catalogURL: URL) async throws(DocCIndexError) -> DocCCatalogIndex {
     try await catalogIndexManager.index(for: catalogURL)
-  }
-
-  package func symbolLink(string: String) -> DocCSymbolLink? {
-    DocCSymbolLink(string: string)
-  }
-
-  private func parentSymbol(of symbol: SymbolOccurrence, in index: CheckedIndex) -> SymbolOccurrence? {
-    let allParentRelations = symbol.relations
-      .filter { $0.roles.contains(.childOf) }
-      .sorted()
-    if allParentRelations.count > 1 {
-      logger.debug("Symbol \(symbol.symbol.usr) has multiple parent symbols")
-    }
-    guard let parentRelation = allParentRelations.first else {
-      return nil
-    }
-    if parentRelation.symbol.kind == .extension {
-      let allSymbolOccurrences = index.occurrences(relatedToUSR: parentRelation.symbol.usr, roles: .extendedBy)
-        .sorted()
-      if allSymbolOccurrences.count > 1 {
-        logger.debug("Extension \(parentRelation.symbol.usr) extends multiple symbols")
-      }
-      return allSymbolOccurrences.first
-    }
-    return index.primaryDefinitionOrDeclarationOccurrence(ofUSR: parentRelation.symbol.usr)
-  }
-
-  package func symbolLink(forUSR usr: String, in index: CheckedIndex) -> DocCSymbolLink? {
-    guard let topLevelSymbolOccurrence = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
-      return nil
-    }
-    let module = topLevelSymbolOccurrence.location.moduleName
-    var components = [topLevelSymbolOccurrence.symbol.name]
-    // Find any parent symbols
-    var symbolOccurrence: SymbolOccurrence = topLevelSymbolOccurrence
-    while let parentSymbolOccurrence = parentSymbol(of: symbolOccurrence, in: index) {
-      components.insert(parentSymbolOccurrence.symbol.name, at: 0)
-      symbolOccurrence = parentSymbolOccurrence
-    }
-    return DocCSymbolLink(string: module)?.appending(components: components)
-  }
-
-  /// Find a `SymbolOccurrence` that is considered the primary definition of the symbol with the given `DocCSymbolLink`.
-  ///
-  /// If the `DocCSymbolLink` has an ambiguous definition, the most important role of this function is to deterministically return
-  /// the same result every time.
-  package func primaryDefinitionOrDeclarationOccurrence(
-    ofDocCSymbolLink symbolLink: DocCSymbolLink,
-    in index: CheckedIndex
-  ) -> SymbolOccurrence? {
-    var components = symbolLink.components
-    guard components.count > 0 else {
-      return nil
-    }
-    // Do a lookup to find the top level symbol
-    let topLevelSymbolName = components.removeLast().name
-    var topLevelSymbolOccurrences: [SymbolOccurrence] = []
-    index.forEachCanonicalSymbolOccurrence(byName: topLevelSymbolName) { symbolOccurrence in
-      guard symbolOccurrence.location.moduleName == symbolLink.moduleName else {
-        return true  // continue
-      }
-      topLevelSymbolOccurrences.append(symbolOccurrence)
-      return true  // continue
-    }
-    // Search each potential symbol's parents to find an exact match
-    let symbolOccurences = topLevelSymbolOccurrences.filter { topLevelSymbolOccurrence in
-      var components = components
-      var symbolOccurrence = topLevelSymbolOccurrence
-      while let parentSymbolOccurrence = parentSymbol(of: symbolOccurrence, in: index), !components.isEmpty {
-        let nextComponent = components.removeLast()
-        guard parentSymbolOccurrence.symbol.name == nextComponent.name else {
-          return false
-        }
-        symbolOccurrence = parentSymbolOccurrence
-      }
-      guard components.isEmpty else {
-        return false
-      }
-      return true
-    }.sorted()
-    if symbolOccurences.count > 1 {
-      logger.debug("Multiple symbols found for DocC symbol link '\(symbolLink.absoluteString)'")
-    }
-    return symbolOccurences.first
   }
 
   /// Generates the SwiftDocC RenderNode for a given symbol, tutorial, or markdown file.

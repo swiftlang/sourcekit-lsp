@@ -76,11 +76,8 @@ extension DocumentationLanguageService {
         guard let index = workspace.index(checkedFor: .deletedFiles) else {
           throw ResponseError.requestFailed(doccDocumentationError: .indexNotAvailable)
         }
-        guard let symbolLink = documentationManager.symbolLink(string: symbolName),
-          let symbolOccurrence = documentationManager.primaryDefinitionOrDeclarationOccurrence(
-            ofDocCSymbolLink: symbolLink,
-            in: index
-          )
+        guard let symbolLink = DocCSymbolLink(linkString: symbolName),
+          let symbolOccurrence = index.primaryDefinitionOrDeclarationOccurrence(ofDocCSymbolLink: symbolLink)
         else {
           throw ResponseError.requestFailed(doccDocumentationError: .symbolNotFound(symbolName))
         }
