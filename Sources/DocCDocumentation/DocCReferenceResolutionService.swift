@@ -14,7 +14,7 @@ import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
 import SemanticIndex
-@preconcurrency import SwiftDocC
+@_spi(Linkcompletion) @preconcurrency import SwiftDocC
 import SwiftExtensions
 
 final class DocCReferenceResolutionService: DocumentationService, Sendable {
@@ -85,7 +85,7 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
       guard let catalog = context.catalogIndex else {
         throw .indexNotAvailable
       }
-      guard let dataAsset = catalog.asset(for: assetReference) else {
+      guard let dataAsset = catalog.assets[assetReference.assetName] else {
         throw .assetNotFound
       }
       return .asset(dataAsset)
@@ -95,9 +95,9 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
       let resolvedReference: TopicRenderReference? =
         switch relevantPathComponents.first {
         case NodeURLGenerator.Path.documentationFolderName:
-          context.catalogIndex?.articlePathToSourceURLAndReference[topicURL.lastPathComponent]?.1
+          context.catalogIndex?.articles[topicURL.lastPathComponent]
         case NodeURLGenerator.Path.tutorialsFolderName:
-          context.catalogIndex?.tutorialPathToSourceURLAndReference[topicURL.lastPathComponent]?.1
+          context.catalogIndex?.tutorials[topicURL.lastPathComponent]
         default:
           nil
         }
@@ -106,7 +106,7 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
       }
       // Otherwise this must be a link to a symbol
       let urlString = topicURL.absoluteString
-      guard let absoluteSymbolLink = AbsoluteSymbolLink(string: urlString) else {
+      guard let doccSymbolLink = DocCSymbolLink(linkString: urlString) else {
         throw .invalidURLInRequest
       }
       // Don't bother checking to see if the symbol actually exists in the index. This can be time consuming and
@@ -114,7 +114,7 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
       return .resolvedInformation(
         OutOfProcessReferenceResolver.ResolvedInformation(
           symbolURL: topicURL,
-          symbolName: absoluteSymbolLink.symbolName
+          symbolName: doccSymbolLink.symbolName
         )
       )
     }
@@ -157,18 +157,6 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
 struct DocCReferenceResolutionContext {
   let catalogURL: URL?
   let catalogIndex: DocCCatalogIndex?
-}
-
-fileprivate extension AbsoluteSymbolLink {
-  var symbolName: String {
-    guard !representsModule else {
-      return module
-    }
-    guard let lastComponent = basePathComponents.last else {
-      return topLevelSymbol.name
-    }
-    return lastComponent.name
-  }
 }
 
 fileprivate extension OutOfProcessReferenceResolver.ResolvedInformation {

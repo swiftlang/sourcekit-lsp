@@ -227,6 +227,7 @@ var targets: [Target] = [
       "SwiftExtensions",
       .product(name: "IndexStoreDB", package: "indexstore-db"),
       .product(name: "SwiftDocC", package: "swift-docc"),
+      .product(name: "SymbolKit", package: "swift-docc-symbolkit"),
     ],
     exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings

@@ -94,8 +94,8 @@ extension SwiftLanguageService {
     }
     let catalogIndex = try await documentationManager.catalogIndex(for: catalogURL)
     guard let index = workspace.index(checkedFor: .deletedFiles),
-      let symbolLink = documentationManager.symbolLink(forUSR: symbolUSR, in: index),
-      let markupExtensionFileURL = catalogIndex.documentationExtension(for: symbolLink)
+      let symbolInformation = DocCSymbolInformation(fromUSR: symbolUSR, in: index),
+      let markupExtensionFileURL = catalogIndex.documentationExtension(for: symbolInformation)
     else {
       return nil
     }
