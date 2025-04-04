@@ -26,6 +26,7 @@ target_sources(SourceKitLSP PRIVATE
   Clang/SemanticTokenTranslator.swift
 )
 target_sources(SourceKitLSP PRIVATE
+  Documentation/DocCDocumentationHandler.swift
   Documentation/DocumentationLanguageService.swift
 )
 target_sources(SourceKitLSP PRIVATE

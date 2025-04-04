@@ -127,7 +127,7 @@ extension SwiftLanguageService {
       keys.column: utf8Column + 1,
       keys.length: snapshot.utf8OffsetRange(of: refactorCommand.positionRange).count,
       keys.actionUID: self.sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!,
-      keys.compilerArgs: await self.buildSettings(for: snapshot.uri, fallbackAfterTimeout: true)?.compilerArgs
+      keys.compilerArgs: await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: true)?.compilerArgs
         as [SKDRequestValue]?,
     ])
 
