@@ -329,37 +329,34 @@ final class PullDiagnosticsTests: XCTestCase {
   }
 
   func testDontReturnEmptyDiagnosticsIfDiagnosticRequestIsCancelled() async throws {
-    let diagnosticRequestCancelled = MultiEntrySemaphore(name: "diagnostic request cancelled")
-    let packageLoadingDidFinish = self.expectation(description: "Package loading did finish")
-    var testHooks = Hooks()
-    testHooks.buildSystemHooks.swiftPMTestHooks.reloadPackageDidFinish = {
-      packageLoadingDidFinish.fulfill()
-    }
-    testHooks.indexHooks.preparationTaskDidStart = { _ in
-      await diagnosticRequestCancelled.waitOrXCTFail()
-      // Poll until the `CancelRequestNotification` has been propagated to the request handling.
-      // We can't use `repeatUntilExpectedResult` here because that throws a `CancellationError` when the preparation is
-      // cancelled.
-      for _ in 0..<Int(defaultTimeout * 100) {
-        if Task.isCancelled {
-          break
-        }
-        #if os(Windows)
-        Sleep(10 /*ms*/)
-        #else
-        usleep(10_000 /*µs*/)
-        #endif
-      }
-    }
+    // Use an example that is slow to type check to ensure that we don't get a diagnostic response from sourcekitd
+    // before the request cancellation gets handled.
     let project = try await SwiftPMTestProject(
       files: [
-        "Lib.swift": "let x: String = 1"
+        "Lib.swift": """
+        struct A: ExpressibleByIntegerLiteral { init(integerLiteral value: Int) {} }
+        struct B: ExpressibleByIntegerLiteral { init(integerLiteral value: Int) {} }
+        struct C: ExpressibleByIntegerLiteral { init(integerLiteral value: Int) {} }
+
+        func + (lhs: A, rhs: B) -> A { fatalError() }
+        func + (lhs: B, rhs: C) -> A { fatalError() }
+        func + (lhs: C, rhs: A) -> A { fatalError() }
+
+        func + (lhs: B, rhs: A) -> B { fatalError() }
+        func + (lhs: C, rhs: B) -> B { fatalError() }
+        func + (lhs: A, rhs: C) -> B { fatalError() }
+
+        func + (lhs: C, rhs: B) -> C { fatalError() }
+        func + (lhs: B, rhs: C) -> C { fatalError() }
+        func + (lhs: A, rhs: A) -> C { fatalError() }
+
+        func slow() {
+          let x: C = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10
+        }
+        """
       ],
-      hooks: testHooks,
-      enableBackgroundIndexing: true,
-      pollIndex: false
+      enableBackgroundIndexing: false
     )
-    try await fulfillmentOfOrThrow(packageLoadingDidFinish)
     let (uri, _) = try project.openDocument("Lib.swift")
 
     let diagnosticResponseReceived = self.expectation(description: "Received diagnostic response")
@@ -370,7 +367,6 @@ final class PullDiagnosticsTests: XCTestCase {
       diagnosticResponseReceived.fulfill()
     }
     project.testClient.send(CancelRequestNotification(id: requestID))
-    diagnosticRequestCancelled.signal()
     try await fulfillmentOfOrThrow(diagnosticResponseReceived)
   }
 
