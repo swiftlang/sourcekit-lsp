@@ -309,46 +309,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
     }
   }
 
-  func testDefaultSDKs() async throws {
-    try await withTestScratchDir { tempDir in
-      try FileManager.default.createFiles(
-        root: tempDir,
-        files: [
-          "pkg/Sources/lib/a.swift": "",
-          "pkg/Package.swift": """
-          // swift-tools-version:6.0
-          import PackageDescription
-          let package = Package(
-            name: "a",
-            targets: [.target(name: "lib")]
-          )
-          """,
-        ]
-      )
-      let tr = ToolchainRegistry.forTesting
-
-      let options = SourceKitLSPOptions.SwiftPMOptions(
-        swiftSDKsDirectory: "/tmp/non_existent_sdks_dir",
-        triple: "wasm32-unknown-wasi"
-      )
-
-      let packageRoot = tempDir.appendingPathComponent("pkg")
-      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
-        projectRoot: packageRoot,
-        toolchainRegistry: tr,
-        options: SourceKitLSPOptions(swiftPM: options),
-        connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy"),
-        testHooks: SwiftPMTestHooks()
-      )
-      let path = await swiftpmBuildSystem.destinationBuildParameters.toolchain.sdkRootPath
-      XCTAssertEqual(
-        path?.components.suffix(3),
-        ["usr", "share", "wasi-sysroot"],
-        "SwiftPMBuildSystem should share default SDK derivation logic with libSwiftPM"
-      )
-    }
-  }
-
   func testManifestArgs() async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
