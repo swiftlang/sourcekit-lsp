@@ -353,30 +353,6 @@ package actor SkipUnless {
       return .featureSupported
     }
   }
-
-  /// Checks that swift-format supports running as `swift-format format -` to indicate that the source file should be
-  /// read from stdin, ie. that swift-format contains https://github.com/swiftlang/swift-format/pull/914.
-  package static func swiftFormatSupportsDashToIndicateReadingFromStdin(
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
-    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 1), file: file, line: line) {
-      guard let swiftFormatPath = await ToolchainRegistry.forTesting.default?.swiftFormat else {
-        throw GenericError("Could not find swift-format")
-      }
-      let process = TSCBasic.Process(arguments: [try swiftFormatPath.filePath, "format", "-"])
-      let writeStream = try process.launch()
-      writeStream.send("let x = 1")
-      try writeStream.close()
-      let result = try await process.waitUntilExitStoppingProcessOnTaskCancellation()
-      let output = try result.utf8Output()
-      switch output {
-      case "": return false
-      case "let x = 1\n": return true
-      default: throw GenericError("Received unexpected formatting output: '\(output)'")
-      }
-    }
-  }
 }
 
 // MARK: - Parsing Swift compiler version

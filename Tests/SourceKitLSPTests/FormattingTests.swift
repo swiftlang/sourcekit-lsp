@@ -22,8 +22,6 @@ import class TSCBasic.Process
 
 final class FormattingTests: XCTestCase {
   func testFormatting() async throws {
-    try await SkipUnless.swiftFormatSupportsDashToIndicateReadingFromStdin()
-
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -57,8 +55,6 @@ final class FormattingTests: XCTestCase {
   }
 
   func testFormattingNoEdits() async throws {
-    try await SkipUnless.swiftFormatSupportsDashToIndicateReadingFromStdin()
-
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -84,8 +80,6 @@ final class FormattingTests: XCTestCase {
   }
 
   func testConfigFileOnDisk() async throws {
-    try await SkipUnless.swiftFormatSupportsDashToIndicateReadingFromStdin()
-
     // We pick up an invalid swift-format configuration file and thus don't set the user-provided options.
     let project = try await MultiFileTestProject(files: [
       ".swift-format": """
@@ -120,8 +114,6 @@ final class FormattingTests: XCTestCase {
   }
 
   func testConfigFileInParentDirectory() async throws {
-    try await SkipUnless.swiftFormatSupportsDashToIndicateReadingFromStdin()
-
     // We pick up an invalid swift-format configuration file and thus don't set the user-provided options.
     let project = try await MultiFileTestProject(files: [
       ".swift-format": """
@@ -156,8 +148,6 @@ final class FormattingTests: XCTestCase {
   }
 
   func testConfigFileInNestedDirectory() async throws {
-    try await SkipUnless.swiftFormatSupportsDashToIndicateReadingFromStdin()
-
     // We pick up an invalid swift-format configuration file and thus don't set the user-provided options.
     let project = try await MultiFileTestProject(files: [
       ".swift-format": """
@@ -200,8 +190,6 @@ final class FormattingTests: XCTestCase {
   }
 
   func testInvalidConfigurationFile() async throws {
-    try await SkipUnless.swiftFormatSupportsDashToIndicateReadingFromStdin()
-
     // We pick up an invalid swift-format configuration file and thus don't set the user-provided options.
     // The swift-format default is 2 spaces.
     let project = try await MultiFileTestProject(files: [
@@ -226,8 +214,6 @@ final class FormattingTests: XCTestCase {
   }
 
   func testInsertAndRemove() async throws {
-    try await SkipUnless.swiftFormatSupportsDashToIndicateReadingFromStdin()
-
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -259,8 +245,6 @@ final class FormattingTests: XCTestCase {
   }
 
   func testMultiLineStringInsertion() async throws {
-    try await SkipUnless.swiftFormatSupportsDashToIndicateReadingFromStdin()
-
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
