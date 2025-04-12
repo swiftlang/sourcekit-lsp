@@ -1,11 +1,15 @@
 {
-    "version": 1,
-    "lineLength": 120,
+    "fileScopedDeclarationPrivacy" : {
+        "accessLevel" : "private"
+    },
     "indentation": {
         "spaces": 2
     },
-    "lineBreakBeforeEachArgument": true,
     "indentConditionalCompilationBlocks": false,
+    "indentSwitchCaseLabels" : false,
+    "lineBreakBeforeEachArgument": true,
+    "lineLength": 120,
+    "maximumBlankLines" : 1,
     "prioritizeKeepingFunctionOutputTogether": true,
     "rules": {
         "AlwaysUseLowerCamelCase": false,
@@ -14,5 +18,7 @@
         "OrderedImports": true,
         "UseLetInEveryBoundCaseVariable": false,
         "UseSynthesizedInitializer": false
-    }
+    },
+    "tabWidth" : 2,
+    "version": 1
 }
