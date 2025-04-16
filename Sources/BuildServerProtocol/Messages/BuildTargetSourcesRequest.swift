@@ -143,22 +143,8 @@ public struct SourceKitSourceItemData: LSPAnyCodable, Codable {
   /// The language of the source file. If `nil`, the language is inferred from the file extension.
   public var language: Language?
 
-  /// Whether the file is a header file that is clearly associated with one target.
-  ///
-  /// For example header files in SwiftPM projects are always associated to one target and SwiftPM can provide build
-  /// settings for that header file.
-  ///
-  /// In general, build systems don't need to list all header files in the `buildTarget/sources` request: Semantic
-  /// functionality for header files is usually provided by finding a main file that includes the header file and
-  /// inferring build settings from it. Listing header files in `buildTarget/sources` allows SourceKit-LSP to provide
-  /// semantic functionality for header files if they haven't been included by any main file.
-  public var isHeader: Bool? {
-    guard let kind else {
-      return nil
-    }
-    return kind == .header
-  }
-
+  /// The kind of source file that this source item represents. If omitted, the item is assumed to be a normal source file,
+  /// ie. omitting this key is equivalent to specifying it as `source`.
   public var kind: SourceKitSourceItemKind?
 
   /// The output path that is used during indexing for this file, ie. the `-index-unit-output-path`, if it is specified
@@ -200,10 +186,6 @@ public struct SourceKitSourceItemData: LSPAnyCodable, Codable {
     }
     if let kind {
       result[CodingKeys.kind.stringValue] = .string(kind.rawValue)
-    }
-    // Backwards compatibility for isHeader
-    if let isHeader {
-      result["isHeader"] = .bool(isHeader)
     }
     if let outputPath {
       result[CodingKeys.outputPath.stringValue] = .string(outputPath)
