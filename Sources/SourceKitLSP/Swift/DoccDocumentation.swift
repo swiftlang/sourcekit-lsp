@@ -16,6 +16,7 @@ import DocCDocumentation
 import Foundation
 package import LanguageServerProtocol
 import SemanticIndex
+import SKLogging
 import SwiftExtensions
 import SwiftSyntax
 
@@ -67,12 +68,14 @@ extension SwiftLanguageService {
       throw ResponseError.internalError("Unable to retrieve symbol graph for the document")
     }
     // Locate the documentation extension and include it in the request if one exists
-    let markupExtensionFile = try? await findMarkupExtensionFile(
-      workspace: workspace,
-      documentationManager: documentationManager,
-      catalogURL: catalogURL,
-      for: symbolUSR
-    )
+    let markupExtensionFile = await orLog("Finding markup extension file for symbol \(symbolUSR)") {
+      try await findMarkupExtensionFile(
+        workspace: workspace,
+        documentationManager: documentationManager,
+        catalogURL: catalogURL,
+        for: symbolUSR
+      )
+    }
     return try await documentationManager.renderDocCDocumentation(
       symbolUSR: symbolUSR,
       symbolGraph: symbolGraph,
