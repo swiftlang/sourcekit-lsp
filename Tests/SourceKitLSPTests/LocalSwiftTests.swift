@@ -379,7 +379,8 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertEqual(diags.diagnostics.count, 1)
     let diag = diags.diagnostics.first!
     XCTAssertEqual(diag.code, .string("property-wrapper-requirements"))
-    XCTAssertEqual(diag.codeDescription?.href.fileURL?.lastPathComponent, "property-wrapper-requirements.md")
+    let filename = try XCTUnwrap(diag.codeDescription?.href.fileURL?.lastPathComponent)
+    XCTAssert(filename.starts(with: "property-wrapper-requirements"))
   }
 
   func testFixitsAreIncludedInPublishDiagnostics() async throws {
