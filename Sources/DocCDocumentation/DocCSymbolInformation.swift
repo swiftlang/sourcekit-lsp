@@ -44,18 +44,12 @@ package struct DocCSymbolInformation {
   }
 
   package func matches(_ link: DocCSymbolLink) -> Bool {
-    var linkComponents = link.components
-    var symbolComponents = components
-    while !linkComponents.isEmpty, !symbolComponents.isEmpty {
-      let nextLinkComponent = linkComponents.removeLast()
-      let nextSymbolComponent = symbolComponents.removeLast()
-      guard nextLinkComponent.name == nextSymbolComponent.name,
-        nextSymbolComponent.information.matches(nextLinkComponent.disambiguation)
-      else {
-        return false
-      }
+    guard link.components.count == components.count else {
+      return false
     }
-    return true
+    return zip(link.components, components).allSatisfy { linkComponent, symbolComponent in
+      linkComponent.name == symbolComponent.name && symbolComponent.information.matches(linkComponent.disambiguation)
+    }
   }
 }
 
