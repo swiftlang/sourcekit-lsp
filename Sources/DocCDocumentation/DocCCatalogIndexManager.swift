@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 package import Foundation
+import SKLogging
 @_spi(LinkCompletion) @preconcurrency import SwiftDocC
 
 final actor DocCCatalogIndexManager {
@@ -51,6 +52,10 @@ final actor DocCCatalogIndexManager {
       catalogToIndexMap[catalogURL] = .success(catalogIndex)
       return catalogIndex
     } catch {
+      // Don't cache cancellation errors
+      guard !(error is CancellationError) else {
+        throw .cancelled
+      }
       let internalError = error as? DocCIndexError ?? DocCIndexError.internalError(error)
       catalogToIndexMap[catalogURL] = .failure(internalError)
       throw internalError
@@ -62,6 +67,7 @@ final actor DocCCatalogIndexManager {
 package enum DocCIndexError: LocalizedError {
   case internalError(any Error)
   case unexpectedlyNilRenderReferenceStore
+  case cancelled
 
   package var errorDescription: String? {
     switch self {
@@ -69,6 +75,8 @@ package enum DocCIndexError: LocalizedError {
       return "An internal error occurred: \(internalError.localizedDescription)"
     case .unexpectedlyNilRenderReferenceStore:
       return "Did not receive a RenderReferenceStore from the DocC server"
+    case .cancelled:
+      return "The request was cancelled"
     }
   }
 }
@@ -101,7 +109,9 @@ package struct DocCCatalogIndex: Sendable {
     var assets: [String: DataAsset] = [:]
     for (reference, asset) in renderReferenceStore.assets {
       var asset = asset
-      asset.variants = asset.variants.compactMapValues { $0.withScheme("doc-asset") }
+      asset.variants = asset.variants.compactMapValues { url in
+        orLog("Failed to convert asset from RenderReferenceStore") { try url.withScheme("doc-asset") }
+      }
       assets[reference.assetName] = asset
     }
     self.assets = assets
@@ -126,7 +136,7 @@ package struct DocCCatalogIndex: Sendable {
       case .overview:
         tutorialOverviews[lastPathComponent] = topicRenderReference
       default:
-        guard topicContentValue.isDocumentationExtensionContent else {
+        guard topicContentValue.isDocumentationExtensionContent, renderReferenceKey.url.pathComponents.count > 2 else {
           continue
         }
         // Documentation extensions are always of the form `doc://<BundleID>/documentation/<SymbolPath>`.
@@ -145,10 +155,29 @@ package struct DocCCatalogIndex: Sendable {
   }
 }
 
+fileprivate enum WithSchemeError: LocalizedError {
+  case failedToRetrieveComponents(URL)
+  case failedToEncode(URLComponents)
+
+  var errorDescription: String? {
+    switch self {
+    case .failedToRetrieveComponents(let url):
+      "Failed to retrieve components for URL \(url.absoluteString)"
+    case .failedToEncode(let components):
+      "Failed to encode URL components \(String(reflecting: components))"
+    }
+  }
+}
+
 fileprivate extension URL {
-  func withScheme(_ scheme: String) -> URL {
-    var components = URLComponents(url: self, resolvingAgainstBaseURL: true)
-    components?.scheme = scheme
-    return components?.url ?? self
+  func withScheme(_ scheme: String) throws(WithSchemeError) -> URL {
+    guard var components = URLComponents(url: self, resolvingAgainstBaseURL: true) else {
+      throw WithSchemeError.failedToRetrieveComponents(self)
+    }
+    components.scheme = scheme
+    guard let result = components.url else {
+      throw WithSchemeError.failedToEncode(components)
+    }
+    return result
   }
 }
