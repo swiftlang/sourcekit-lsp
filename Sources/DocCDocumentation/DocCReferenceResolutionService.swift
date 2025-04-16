@@ -13,6 +13,7 @@
 import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
+import SKLogging
 import SemanticIndex
 @_spi(Linkcompletion) @preconcurrency import SwiftDocC
 import SwiftExtensions
@@ -48,7 +49,7 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
   ) {
     do {
       let response = try process(message)
-      completion(response);
+      completion(response)
     } catch {
       completion(createResponseWithErrorMessage(error.localizedDescription))
     }
@@ -120,7 +121,7 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
     }
   }
 
-  private func decode<T>(_ type: T.Type, from data: Data) throws(ReferenceResolutionError) -> T where T: Decodable {
+  private func decode<T: Decodable>(_ type: T.Type, from data: Data) throws(ReferenceResolutionError) -> T {
     do {
       return try JSONDecoder().decode(T.self, from: data)
     } catch {
@@ -138,12 +139,10 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
 
   private func createResponseWithErrorMessage(_ message: String) -> DocumentationServer.Message {
     let errorMessage = OutOfProcessReferenceResolver.Response.errorMessage(message)
-    do {
-      let encodedErrorMessage = try JSONEncoder().encode(errorMessage)
-      return createResponse(payload: encodedErrorMessage)
-    } catch {
-      return createResponse(payload: nil)
+    let encodedErrorMessage = orLog("Encoding error message for OutOfProcessReferenceResolver.Response") {
+      try JSONEncoder().encode(errorMessage)
     }
+    return createResponse(payload: encodedErrorMessage)
   }
 
   private func createResponse(payload: Data?) -> DocumentationServer.Message {
