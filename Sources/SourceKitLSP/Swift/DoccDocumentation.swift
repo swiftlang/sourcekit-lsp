@@ -122,7 +122,7 @@ fileprivate struct DocumentableSymbol {
       case .docBlockComment(let comment):
         return comment.dropFirst(3)
           .dropLast(2)
-          .split(separator: "\n")
+          .split(whereSeparator: \.isNewline)
           .map { String($0).trimmingCharacters(in: .whitespaces) }
       default:
         return []
