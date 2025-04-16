@@ -38,12 +38,12 @@ package struct DocCDocumentationManager: Sendable {
 
   package func filesDidChange(_ events: [FileEvent]) async {
     for event in events {
-      guard let target = await buildSystemManager.canonicalTarget(for: event.uri),
-        let catalogURL = await buildSystemManager.doccCatalog(for: target)
-      else {
-        continue
+      for target in await buildSystemManager.targets(for: event.uri) {
+        guard let catalogURL = await buildSystemManager.doccCatalog(for: target) else {
+          continue
+        }
+        await catalogIndexManager.invalidate(catalogURL)
       }
-      await catalogIndexManager.invalidate(catalogURL)
     }
   }
 
@@ -56,6 +56,7 @@ package struct DocCDocumentationManager: Sendable {
   /// - Parameters:
   ///   - symbolUSR: The USR of the symbol to render
   ///   - symbolGraph: The symbol graph that includes the given symbol USR
+  ///   - overrideDocComments: An array of documentation comment lines that will override the comments in the symbol graph
   ///   - markupFile: The markdown article or symbol extension to render
   ///   - tutorialFile: The tutorial file to render
   ///   - moduleName: The name of the Swift module that will be rendered
