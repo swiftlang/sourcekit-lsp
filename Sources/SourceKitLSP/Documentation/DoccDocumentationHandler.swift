@@ -46,32 +46,15 @@ extension DocumentationLanguageService {
         catalogURL: catalogURL
       )
     case .markdown:
-      if case let .symbol(symbolName) = MarkdownTitleFinder.find(parsing: snapshot.text) {
-        if let moduleName, symbolName == moduleName {
-          // This is a page representing the module itself.
-          // Create a dummy symbol graph and tell SwiftDocC to convert the module name.
-          let emptySymbolGraph = String(
-            data: try JSONEncoder().encode(
-              SymbolGraph(
-                metadata: SymbolGraph.Metadata(
-                  formatVersion: SymbolGraph.SemanticVersion(major: 0, minor: 5, patch: 0),
-                  generator: "SourceKit-LSP"
-                ),
-                module: SymbolGraph.Module(name: moduleName, platform: SymbolGraph.Platform()),
-                symbols: [],
-                relationships: []
-              )
-            ),
-            encoding: .utf8
-          )
-          return try await documentationManager.renderDocCDocumentation(
-            symbolUSR: moduleName,
-            symbolGraph: emptySymbolGraph,
-            markupFile: snapshot.text,
-            moduleName: moduleName,
-            catalogURL: catalogURL
-          )
-        }
+      guard case .symbol(let symbolName) = MarkdownTitleFinder.find(parsing: snapshot.text) else {
+        // This is an article that can be rendered on its own
+        return try await documentationManager.renderDocCDocumentation(
+          markupFile: snapshot.text,
+          moduleName: moduleName,
+          catalogURL: catalogURL
+        )
+      }
+      guard let moduleName, symbolName == moduleName else {
         // This is a symbol extension page. Find the symbol so that we can include it in the request.
         guard let index = workspace.index(checkedFor: .deletedFiles) else {
           throw ResponseError.requestFailed(doccDocumentationError: .indexNotAvailable)
@@ -115,8 +98,25 @@ extension DocumentationLanguageService {
           catalogURL: catalogURL
         )
       }
-      // This is an article that can be rendered on its own
+      // This is a page representing the module itself.
+      // Create a dummy symbol graph and tell SwiftDocC to convert the module name.
+      let emptySymbolGraph = String(
+        data: try JSONEncoder().encode(
+          SymbolGraph(
+            metadata: SymbolGraph.Metadata(
+              formatVersion: SymbolGraph.SemanticVersion(major: 0, minor: 5, patch: 0),
+              generator: "SourceKit-LSP"
+            ),
+            module: SymbolGraph.Module(name: moduleName, platform: SymbolGraph.Platform()),
+            symbols: [],
+            relationships: []
+          )
+        ),
+        encoding: .utf8
+      )
       return try await documentationManager.renderDocCDocumentation(
+        symbolUSR: moduleName,
+        symbolGraph: emptySymbolGraph,
         markupFile: snapshot.text,
         moduleName: moduleName,
         catalogURL: catalogURL
@@ -128,20 +128,18 @@ extension DocumentationLanguageService {
 }
 
 struct MarkdownTitleFinder: MarkupVisitor {
-  public typealias Result = Title?
-
   public enum Title {
     case plainText(String)
     case symbol(String)
   }
 
-  public static func find(parsing text: String) -> Result {
+  public static func find(parsing text: String) -> Title? {
     let document = Markdown.Document(parsing: text, options: [.parseSymbolLinks])
     var visitor = MarkdownTitleFinder()
     return visitor.visit(document)
   }
 
-  public mutating func defaultVisit(_ markup: any Markup) -> Result {
+  public mutating func defaultVisit(_ markup: any Markup) -> Title? {
     for child in markup.children {
       if let value = visit(child) {
         return value
@@ -150,7 +148,7 @@ struct MarkdownTitleFinder: MarkupVisitor {
     return nil
   }
 
-  public mutating func visitHeading(_ heading: Heading) -> Result {
+  public mutating func visitHeading(_ heading: Heading) -> Title? {
     guard heading.level == 1 else {
       return nil
     }
