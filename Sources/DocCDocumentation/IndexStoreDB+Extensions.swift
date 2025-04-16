@@ -42,8 +42,7 @@ extension CheckedIndex {
     let symbolOccurences = topLevelSymbolOccurrences.filter { topLevelSymbolOccurrence in
       var components = components
       var symbolOccurrence = topLevelSymbolOccurrence
-      while let parentSymbolOccurrence = symbolOccurrence.parent(self), !components.isEmpty {
-        let nextComponent = components.removeLast()
+      while let nextComponent = components.popLast(), let parentSymbolOccurrence = symbolOccurrence.parent(self) {
         let parentSymbolInformation = LinkCompletionTools.SymbolInformation(
           fromSymbolOccurrence: parentSymbolOccurrence
         )
