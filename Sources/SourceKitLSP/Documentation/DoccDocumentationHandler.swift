@@ -100,11 +100,13 @@ extension DocumentationLanguageService {
       }
       // This is a page representing the module itself.
       // Create a dummy symbol graph and tell SwiftDocC to convert the module name.
+      // The version information isn't really all that important since we're creating
+      // what is essentially an empty symbol graph.
       let emptySymbolGraph = String(
         data: try JSONEncoder().encode(
           SymbolGraph(
             metadata: SymbolGraph.Metadata(
-              formatVersion: SymbolGraph.SemanticVersion(major: 0, minor: 5, patch: 0),
+              formatVersion: SymbolGraph.SemanticVersion(major: 0, minor: 0, patch: 0),
               generator: "SourceKit-LSP"
             ),
             module: SymbolGraph.Module(name: moduleName, platform: SymbolGraph.Platform()),

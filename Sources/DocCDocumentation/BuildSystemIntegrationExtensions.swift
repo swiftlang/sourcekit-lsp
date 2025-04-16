@@ -19,6 +19,12 @@ import SKLogging
 package extension BuildSystemManager {
   /// Retrieves the name of the Swift module for a given target.
   ///
+  /// **Note:** prefer using ``module(for:in:)`` over ths function. This function
+  /// only exists for cases where you want the Swift module name of a target where
+  /// you don't know one of its Swift document URIs in advance. E.g. when handling
+  /// requests for Markdown/Tutorial files in DocC since they don't have compile
+  /// commands that could be used to find the module name.
+  ///
   /// - Parameter target: The build target identifier
   /// - Returns: The name of the Swift module or nil if it could not be determined
   func moduleName(for target: BuildTargetIdentifier) async -> String? {
