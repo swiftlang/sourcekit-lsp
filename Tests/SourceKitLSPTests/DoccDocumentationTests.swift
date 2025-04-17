@@ -695,7 +695,7 @@ fileprivate func renderDocumentation(
 ) async throws {
   let (uri, positions) = try project.openDocument(fileName)
   defer {
-    project.testClient.closeDocument(uri: uri)
+    project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
   }
 
   await renderDocumentation(
