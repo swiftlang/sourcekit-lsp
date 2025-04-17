@@ -119,7 +119,7 @@ actor GeneratedInterfaceManager {
       keys.groupName: document.groupName,
       keys.name: document.sourcekitdDocumentName,
       keys.synthesizedExtension: 1,
-      keys.compilerArgs: await swiftLanguageService.buildSettings(for: try document.uri, fallbackAfterTimeout: false)?
+      keys.compilerArgs: await swiftLanguageService.compileCommand(for: try document.uri, fallbackAfterTimeout: false)?
         .compilerArgs as [SKDRequestValue]?,
     ])
 

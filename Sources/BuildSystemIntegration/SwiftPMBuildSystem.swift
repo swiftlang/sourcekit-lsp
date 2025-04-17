@@ -593,16 +593,23 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
           kind: .file,
           generated: false,
           dataKind: .sourceKit,
-          data: SourceKitSourceItemData(isHeader: true).encodeToLSPAny()
+          data: SourceKitSourceItemData(kind: .header).encodeToLSPAny()
         )
       }
-      sources += (swiftPMTarget.resources + swiftPMTarget.ignored + swiftPMTarget.others).map {
-        SourceItem(
-          uri: DocumentURI($0),
-          kind: $0.isDirectory ? .directory : .file,
-          generated: false
-        )
-      }
+      sources += (swiftPMTarget.resources + swiftPMTarget.ignored + swiftPMTarget.others)
+        .map { (url: URL) -> SourceItem in
+          var data: SourceKitSourceItemData? = nil
+          if url.isDirectory, url.pathExtension == "docc" {
+            data = SourceKitSourceItemData(kind: .doccCatalog)
+          }
+          return SourceItem(
+            uri: DocumentURI(url),
+            kind: url.isDirectory ? .directory : .file,
+            generated: false,
+            dataKind: data != nil ? .sourceKit : nil,
+            data: data?.encodeToLSPAny()
+          )
+        }
       result.append(SourcesItem(target: target, sources: sources))
     }
     return BuildTargetSourcesResponse(items: result)
