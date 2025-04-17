@@ -22,26 +22,10 @@ import SwiftExtensions
 
 /// Caches the contents of macro expansions that were recently requested by the user.
 actor MacroExpansionManager {
-  private struct CacheEntry {
-    // Key
+  private struct CacheKey: Hashable {
     let snapshotID: DocumentSnapshot.ID
     let range: Range<Position>
     let buildSettings: SwiftCompileCommand?
-
-    // Value
-    let value: [RefactoringEdit]
-
-    fileprivate init(
-      snapshot: DocumentSnapshot,
-      range: Range<Position>,
-      buildSettings: SwiftCompileCommand?,
-      value: [RefactoringEdit]
-    ) {
-      self.snapshotID = snapshot.id
-      self.range = range
-      self.buildSettings = buildSettings
-      self.value = value
-    }
   }
 
   init(swiftLanguageService: SwiftLanguageService?) {
@@ -50,19 +34,12 @@ actor MacroExpansionManager {
 
   private weak var swiftLanguageService: SwiftLanguageService?
 
-  /// The number of macro expansions to cache.
-  ///
-  /// - Note: This should be bigger than the maximum expansion depth of macros a user might do to avoid re-generating
-  ///   all parent macros to a nested macro expansion's buffer. 10 seems to be big enough for that because it's
-  ///   unlikely that a macro will expand to more than 10 levels.
-  private let cacheSize = 10
-
   /// The cache that stores reportTasks for a combination of uri, range and build settings.
   ///
-  /// Conceptually, this is a dictionary. To prevent excessive memory usage we
-  /// only keep `cacheSize` entries within the array. Older entries are at the
-  /// end of the list, newer entries at the front.
-  private var cache: [CacheEntry] = []
+  /// - Note: The capacity of this cache should be bigger than the maximum expansion depth of macros a user might
+  ///   do to avoid re-generating all parent macros to a nested macro expansion's buffer. 10 seems to be big enough
+  ///   for that because it's unlikely that a macro will expand to more than 10 levels.
+  private var cache = LRUCache<CacheKey, [RefactoringEdit]>(capacity: 10)
 
   /// Return the text of the macro expansion referenced by `macroExpansionURLData`.
   func macroExpansion(
@@ -90,20 +67,12 @@ actor MacroExpansionManager {
     let snapshot = try await swiftLanguageService.latestSnapshot(for: uri)
     let compileCommand = await swiftLanguageService.compileCommand(for: uri, fallbackAfterTimeout: false)
 
-    if let cacheEntry = cache.first(where: {
-      $0.snapshotID == snapshot.id && $0.range == range && $0.buildSettings == compileCommand
-    }) {
-      return cacheEntry.value
+    let cacheKey = CacheKey(snapshotID: snapshot.id, range: range, buildSettings: compileCommand)
+    if let valueFromCache = cache[cacheKey] {
+      return valueFromCache
     }
     let macroExpansions = try await macroExpansionsImpl(in: snapshot, at: range, buildSettings: compileCommand)
-    cache.insert(
-      CacheEntry(snapshot: snapshot, range: range, buildSettings: compileCommand, value: macroExpansions),
-      at: 0
-    )
-
-    while cache.count > cacheSize {
-      cache.removeLast()
-    }
+    cache[cacheKey] = macroExpansions
 
     return macroExpansions
   }
@@ -151,7 +120,9 @@ actor MacroExpansionManager {
 
   /// Remove all cached macro expansions for the given primary file, eg. because the macro's plugin might have changed.
   func purge(primaryFile: DocumentURI) {
-    cache.removeAll { $0.snapshotID.uri.primaryFile ?? $0.snapshotID.uri == primaryFile }
+    cache.removeAll {
+      $0.key.snapshotID.uri.primaryFile ?? $0.key.snapshotID.uri == primaryFile
+    }
   }
 }
 

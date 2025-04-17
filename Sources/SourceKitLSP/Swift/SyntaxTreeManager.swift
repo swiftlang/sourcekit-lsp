@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKUtilities
 import SwiftParser
 import SwiftSyntax
 
@@ -23,21 +24,10 @@ actor SyntaxTreeManager {
 
   /// The tasks that compute syntax trees.
   ///
-  /// Conceptually, this is a dictionary. To prevent excessive memory usage we
-  /// only keep `cacheSize` entries within the array. Older entries are at the
-  /// end of the list, newer entries at the front.
-  private var syntaxTreeComputations:
-    [(
-      snapshotID: DocumentSnapshot.ID,
-      computation: SyntaxTreeComputation
-    )] = []
-
-  /// The number of syntax trees to keep.
-  ///
-  /// - Note: This has been chosen without scientific measurements. The feeling
-  ///   is that you rarely work on more than 5 files at once and 5 syntax trees
-  ///   don't take up too much memory.
-  private let cacheSize = 5
+  /// - Note: The capacity has been chosen without scientific measurements. The
+  ///   feeling is that you rarely work on more than 5 files at once and 5 syntax
+  ///   trees don't take up too much memory.
+  private var syntaxTreeComputations = LRUCache<DocumentSnapshot.ID, SyntaxTreeComputation>(capacity: 5)
 
   /// - Important: For testing only
   private var reusedNodeCallback: ReusedNodeCallback?
@@ -49,24 +39,14 @@ actor SyntaxTreeManager {
 
   /// The task that computes the syntax tree for the given document snapshot.
   private func computation(for snapshotID: DocumentSnapshot.ID) -> SyntaxTreeComputation? {
-    return syntaxTreeComputations.first(where: { $0.snapshotID == snapshotID })?.computation
+    return syntaxTreeComputations[snapshotID]
   }
 
   /// Set the task that computes the syntax tree for the given document snapshot.
-  ///
-  /// If we are already storing `cacheSize` many syntax trees, the oldest one
-  /// will get discarded.
   private func setComputation(for snapshotID: DocumentSnapshot.ID, computation: SyntaxTreeComputation) {
-    syntaxTreeComputations.insert((snapshotID, computation), at: 0)
-
     // Remove any syntax trees for old versions of this document.
-    syntaxTreeComputations.removeAll(where: { $0.snapshotID < snapshotID })
-
-    // If we still have more than `cacheSize` syntax trees, delete the ones that
-    // were produced last. We can always re-compute them on-demand.
-    while syntaxTreeComputations.count > cacheSize {
-      syntaxTreeComputations.removeLast()
-    }
+    syntaxTreeComputations.removeAll(where: { key, value in key < snapshotID })
+    syntaxTreeComputations[snapshotID] = computation
   }
 
   /// Get the SwiftSyntax tree for the given document snapshot.

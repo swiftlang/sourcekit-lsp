@@ -12,22 +12,29 @@
 
 package import Foundation
 import SKLogging
+import SKUtilities
 @_spi(LinkCompletion) @preconcurrency import SwiftDocC
 
 final actor DocCCatalogIndexManager {
   private let server: DocCServer
-  private var catalogToIndexMap: [URL: Result<DocCCatalogIndex, DocCIndexError>] = [:]
+
+  /// The cache of DocCCatalogIndex for a given SwiftDocC catalog URL
+  ///
+  /// - Note: The capacity has been chosen without scientific measurements. The
+  ///   feeling is that switching between SwiftDocC catalogs is rare and 5 catalog
+  ///   indexes won't take up much memory.
+  private var indexCache = LRUCache<URL, Result<DocCCatalogIndex, DocCIndexError>>(capacity: 5)
 
   init(server: DocCServer) {
     self.server = server
   }
 
   func invalidate(_ url: URL) {
-    catalogToIndexMap.removeValue(forKey: url)
+    indexCache.removeValue(forKey: url)
   }
 
   func index(for catalogURL: URL) async throws(DocCIndexError) -> DocCCatalogIndex {
-    if let existingCatalog = catalogToIndexMap[catalogURL] {
+    if let existingCatalog = indexCache[catalogURL] {
       return try existingCatalog.get()
     }
     do {
@@ -49,7 +56,7 @@ final actor DocCCatalogIndexManager {
       }
       let renderReferenceStore = try JSONDecoder().decode(RenderReferenceStore.self, from: renderReferenceStoreData)
       let catalogIndex = DocCCatalogIndex(from: renderReferenceStore)
-      catalogToIndexMap[catalogURL] = .success(catalogIndex)
+      indexCache[catalogURL] = .success(catalogIndex)
       return catalogIndex
     } catch {
       // Don't cache cancellation errors
@@ -57,7 +64,7 @@ final actor DocCCatalogIndexManager {
         throw .cancelled
       }
       let internalError = error as? DocCIndexError ?? DocCIndexError.internalError(error)
-      catalogToIndexMap[catalogURL] = .failure(internalError)
+      indexCache[catalogURL] = .failure(internalError)
       throw internalError
     }
   }

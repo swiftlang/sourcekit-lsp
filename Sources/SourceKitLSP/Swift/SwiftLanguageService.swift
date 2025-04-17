@@ -73,7 +73,7 @@ fileprivate func diagnosticsEnabled(for document: DocumentURI) -> Bool {
 }
 
 /// A swift compiler command derived from a `FileBuildSettingsChange`.
-package struct SwiftCompileCommand: Sendable, Equatable {
+package struct SwiftCompileCommand: Sendable, Equatable, Hashable {
 
   /// The compiler arguments, including working directory. This is required since sourcekitd only
   /// accepts the working directory via the compiler arguments.
