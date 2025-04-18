@@ -40,12 +40,14 @@ func makeReproducerBundle(for requestInfo: RequestInfo, toolchain: Toolchain, bu
       + requestInfo.compilerArgs.replacing(["$FILE"], with: ["./input.swift"]).joined(separator: " \\\n")
     try command.write(to: bundlePath.appendingPathComponent("command.sh"), atomically: true, encoding: .utf8)
   } else {
-    let request = try requestInfo.request(for: URL(fileURLWithPath: "/input.swift"))
-    try request.write(
-      to: bundlePath.appendingPathComponent("request.yml"),
-      atomically: true,
-      encoding: .utf8
-    )
+    let requests = try requestInfo.requests(for: bundlePath.appendingPathComponent("input.swift"))
+    for (index, request) in requests.enumerated() {
+      try request.write(
+        to: bundlePath.appendingPathComponent("request-\(index).yml"),
+        atomically: true,
+        encoding: .utf8
+      )
+    }
   }
   for compilerArg in requestInfo.compilerArgs {
     // Find the first slash so we are also able to copy files from eg.
