@@ -193,52 +193,56 @@ package actor SourceKitD {
     let dlopenModes: DLOpenFlags = [.lazy, .local, .first]
     #endif
     let dlhandle = try dlopen(path.filePath, mode: dlopenModes)
-    do {
-      try self.init(
-        dlhandle: dlhandle,
-        path: path,
-        pluginPaths: pluginPaths,
-        initialize: initialize
-      )
-    } catch {
-      try? dlhandle.close()
-      throw error
-    }
+    try self.init(
+      dlhandle: dlhandle,
+      path: path,
+      pluginPaths: pluginPaths,
+      initialize: initialize
+    )
   }
 
+  /// Create a `SourceKitD` instance from an existing `DLHandle`. `SourceKitD` takes over ownership of the `DLHandler`
+  /// and will close it when the `SourceKitD` instance gets deinitialized or if the initializer throws.
   package init(dlhandle: DLHandle, path: URL, pluginPaths: PluginPaths?, initialize: Bool) throws {
-    self.path = path
-    self.dylib = dlhandle
-    let api = try sourcekitd_api_functions_t(dlhandle)
-    self.api = api
+    do {
+      self.path = path
+      self.dylib = dlhandle
+      let api = try sourcekitd_api_functions_t(dlhandle)
+      self.api = api
 
-    // We load the plugin-related functions eagerly so the members are initialized and we don't have data races on first
-    // access to eg. `pluginApi`. But if one of the functions is missing, we will only emit that error when that family
-    // of functions is being used. For example, it is expected that the plugin functions are not available in
-    // SourceKit-LSP.
-    self.ideApiResult = Result(catching: { try sourcekitd_ide_api_functions_t(dlhandle) })
-    self.pluginApiResult = Result(catching: { try sourcekitd_plugin_api_functions_t(dlhandle) })
-    self.servicePluginApiResult = Result(catching: { try sourcekitd_service_plugin_api_functions_t(dlhandle) })
+      // We load the plugin-related functions eagerly so the members are initialized and we don't have data races on first
+      // access to eg. `pluginApi`. But if one of the functions is missing, we will only emit that error when that family
+      // of functions is being used. For example, it is expected that the plugin functions are not available in
+      // SourceKit-LSP.
+      self.ideApiResult = Result(catching: { try sourcekitd_ide_api_functions_t(dlhandle) })
+      self.pluginApiResult = Result(catching: { try sourcekitd_plugin_api_functions_t(dlhandle) })
+      self.servicePluginApiResult = Result(catching: { try sourcekitd_service_plugin_api_functions_t(dlhandle) })
 
-    if let pluginPaths {
-      api.register_plugin_path?(pluginPaths.clientPlugin.path, pluginPaths.servicePlugin.path)
-    }
-    if initialize {
-      self.api.initialize()
-    }
+      if let pluginPaths {
+        api.register_plugin_path?(pluginPaths.clientPlugin.path, pluginPaths.servicePlugin.path)
+      }
+      if initialize {
+        self.api.initialize()
+      }
 
-    if initialize {
-      self.api.set_notification_handler { [weak self] rawResponse in
-        guard let self, let rawResponse else { return }
-        let response = SKDResponse(rawResponse, sourcekitd: self)
-        self.notificationHandlingQueue.async {
-          let handlers = await self.notificationHandlers.compactMap(\.value)
+      if initialize {
+        self.api.set_notification_handler { [weak self] rawResponse in
+          guard let self, let rawResponse else { return }
+          let response = SKDResponse(rawResponse, sourcekitd: self)
+          self.notificationHandlingQueue.async {
+            let handlers = await self.notificationHandlers.compactMap(\.value)
 
-          for handler in handlers {
-            handler.notification(response)
+            for handler in handlers {
+              handler.notification(response)
+            }
           }
         }
       }
+    } catch {
+      orLog("Closing dlhandle after opening sourcekitd failed") {
+        try? dlhandle.close()
+      }
+      throw error
     }
   }
 
