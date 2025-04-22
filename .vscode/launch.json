@@ -1,31 +1,28 @@
 {
     "configurations": [
         {
-            "type": "lldb",
+            "type": "swift",
             "request": "launch",
             "name": "Debug sourcekit-lsp",
             "program": "${workspaceFolder:sourcekit-lsp}/.build/debug/sourcekit-lsp",
             "args": [],
             "cwd": "${workspaceFolder:sourcekit-lsp}",
             "preLaunchTask": "swift: Build Debug sourcekit-lsp",
-            "sourceLanguages": ["swift"]
         },
         {
-            "type": "lldb",
+            "type": "swift",
             "request": "launch",
             "name": "Release sourcekit-lsp",
             "program": "${workspaceFolder:sourcekit-lsp}/.build/release/sourcekit-lsp",
             "args": [],
             "cwd": "${workspaceFolder:sourcekit-lsp}",
             "preLaunchTask": "swift: Build Release sourcekit-lsp",
-            "sourceLanguages": ["swift"]
         },
         {
-            "type": "lldb",
+            "type": "swift",
             "request": "attach",
             "name": "Attach sourcekit-lsp (debug)",
             "program": "${workspaceFolder:sourcekit-lsp}/.build/debug/sourcekit-lsp",
-            "sourceLanguages": ["swift"],
             "waitFor": true
         }
     ]
