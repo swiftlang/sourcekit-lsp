@@ -44,6 +44,7 @@ target_sources(SourceKitLSP PRIVATE
   Swift/CodeCompletionSession.swift
   Swift/CommentXML.swift
   Swift/CursorInfo.swift
+  Swift/CursorInfoFromDisk.swift
   Swift/Diagnostic.swift
   Swift/DiagnosticReportManager.swift
   Swift/DocumentFormatting.swift

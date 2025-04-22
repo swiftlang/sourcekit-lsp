@@ -81,7 +81,7 @@ extension DocumentationLanguageService {
           )
         }
         let position = symbolSnapshot.position(of: symbolOccurrence.location)
-        let cursorInfo = try await languageService.cursorInfo(
+        let cursorInfo = try await languageService.cursorInfoFromDisk(
           symbolOccurrence.location.documentUri,
           position..<position,
           includeSymbolGraph: true,

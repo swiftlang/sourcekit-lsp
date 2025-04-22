@@ -279,7 +279,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     }
   }
 
-  func latestSnapshotOrDisk(for uri: DocumentURI) async throws -> DocumentSnapshot {
+  func snapshotFromDisk(for uri: DocumentURI) async throws -> DocumentSnapshot {
     switch try? ReferenceDocumentURL(from: uri) {
     case .macroExpansion(let data):
       let content = try await self.macroExpansionManager.macroExpansion(for: data)
@@ -287,7 +287,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     case .generatedInterface(let data):
       return try await self.generatedInterfaceManager.snapshot(of: data)
     case nil:
-      guard let snapshot = try documentManager.latestSnapshotOrDisk(uri, language: .swift) else {
+      guard let snapshot = try DocumentSnapshot(withContentsFromDisk: uri, language: .swift) else {
         throw ResponseError.unknown("Failed to find snapshot for '\(uri)'")
       }
       return snapshot
