@@ -121,7 +121,7 @@ actor MacroExpansionManager {
   /// Remove all cached macro expansions for the given primary file, eg. because the macro's plugin might have changed.
   func purge(primaryFile: DocumentURI) {
     cache.removeAll {
-      $0.key.snapshotID.uri.primaryFile ?? $0.key.snapshotID.uri == primaryFile
+      $0.snapshotID.uri.primaryFile ?? $0.snapshotID.uri == primaryFile
     }
   }
 }

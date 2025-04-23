@@ -45,7 +45,7 @@ actor SyntaxTreeManager {
   /// Set the task that computes the syntax tree for the given document snapshot.
   private func setComputation(for snapshotID: DocumentSnapshot.ID, computation: SyntaxTreeComputation) {
     // Remove any syntax trees for old versions of this document.
-    syntaxTreeComputations.removeAll(where: { key, value in key < snapshotID })
+    syntaxTreeComputations.removeAll(where: { $0 < snapshotID })
     syntaxTreeComputations[snapshotID] = computation
   }
 

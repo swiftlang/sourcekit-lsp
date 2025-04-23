@@ -81,7 +81,7 @@ final class LRUCacheTests: XCTestCase {
     }
 
     // Remove all even keys
-    lruCache.removeAll(where: { $0.key % 2 == 0 })
+    lruCache.removeAll(where: { $0 % 2 == 0 })
     assertLRUCacheKeys(lruCache, expectedKeys: [1, 3, 5, 7, 9, 11, 13, 15, 17, 19])
 
     // Remove all key-value pairs

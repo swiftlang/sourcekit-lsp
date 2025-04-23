@@ -41,15 +41,15 @@ package struct LRUCache<Key: Hashable, Value> {
   /// A collection containing just the keys of the cache.
   ///
   /// - Note: Keys will **not** be in the same order that they were added to the cache.
-  package var keys: any Collection<Key> { cache.keys }
+  package var keys: some Collection<Key> { cache.keys }
 
   /// A collection containing just the values of the cache.
   ///
   /// - Note: Values will **not** be in the same order that they were added to the cache.
-  package var values: any Collection<Value> { cache.values }
+  package var values: some Collection<Value> { cache.values }
 
   package init(capacity: Int) {
-    assert(capacity > 0, "LRUCache capacity must be greater than 0")
+    precondition(capacity > 0, "LRUCache capacity must be greater than 0")
     self.capacity = capacity
     self.cache = Dictionary(minimumCapacity: capacity)
     self.priorities = Dictionary(minimumCapacity: capacity)
@@ -101,9 +101,9 @@ package struct LRUCache<Key: Hashable, Value> {
   }
 
   /// Removes all the elements that satisfy the given predicate.
-  package mutating func removeAll(where shouldBeRemoved: (_: ((key: Key, value: Value)) throws -> Bool)) rethrows {
+  package mutating func removeAll(where shouldBeRemoved: (_ key: Key) throws -> Bool) rethrows {
     cache = try cache.filter { entry in
-      guard try shouldBeRemoved(entry) else {
+      guard try shouldBeRemoved(entry.key) else {
         return true
       }
       removePriority(forKey: entry.key)

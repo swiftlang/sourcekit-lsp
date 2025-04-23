@@ -95,7 +95,7 @@ actor DiagnosticReportManager {
   }
 
   func removeItemsFromCache(with uri: DocumentURI) async {
-    reportTaskCache.removeAll(where: { $0.key.snapshotID.uri == uri })
+    reportTaskCache.removeAll(where: { $0.snapshotID.uri == uri })
   }
 
   private func requestReport(
@@ -193,7 +193,7 @@ actor DiagnosticReportManager {
     reportTask: ReportTask
   ) {
     // Remove any reportTasks for old versions of this document.
-    reportTaskCache.removeAll(where: { $0.key.snapshotID <= snapshotID })
+    reportTaskCache.removeAll(where: { $0.snapshotID <= snapshotID })
     reportTaskCache[CacheKey(snapshotID: snapshotID, buildSettings: buildSettings)] = reportTask
   }
 }
