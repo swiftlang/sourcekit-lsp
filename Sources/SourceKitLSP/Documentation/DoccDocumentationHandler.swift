@@ -63,31 +63,22 @@ extension DocumentationLanguageService {
         else {
           throw ResponseError.requestFailed(doccDocumentationError: .symbolNotFound(symbolName))
         }
+        let symbolDocumentUri = symbolOccurrence.location.documentUri
         guard
-          let symbolWorkspace = try await workspaceForDocument(uri: symbolOccurrence.location.documentUri),
-          let languageService = try await languageService(
-            for: symbolOccurrence.location.documentUri,
-            .swift,
-            in: symbolWorkspace
-          ) as? SwiftLanguageService,
-          let symbolSnapshot = try documentManager.latestSnapshotOrDisk(
-            symbolOccurrence.location.documentUri,
-            language: .swift
-          )
+          let symbolWorkspace = try await workspaceForDocument(uri: symbolDocumentUri),
+          let languageService = try await languageService(for: symbolDocumentUri, .swift, in: symbolWorkspace)
+            as? SwiftLanguageService
         else {
-          throw ResponseError.internalError(
-            "Unable to find Swift language service for \(symbolOccurrence.location.documentUri)"
-          )
+          throw ResponseError.internalError("Unable to find Swift language service for \(symbolDocumentUri)")
         }
-        let position = symbolSnapshot.position(of: symbolOccurrence.location)
         let symbolGraph = try await languageService.withSnapshotFromDiskOpenedInSourcekitd(
-          uri: symbolOccurrence.location.documentUri,
+          uri: symbolDocumentUri,
           fallbackSettingsAfterTimeout: false
         ) { snapshot, compileCommand in
           try await languageService.cursorInfo(
             snapshot,
             compileCommand: compileCommand,
-            Range(position),
+            Range(snapshot.position(of: symbolOccurrence.location)),
             includeSymbolGraph: true
           ).symbolGraph
         }
