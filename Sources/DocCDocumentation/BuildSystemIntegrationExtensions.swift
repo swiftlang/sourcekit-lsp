@@ -63,7 +63,7 @@ package extension BuildSystemManager {
         return nil
       }
       return sourceItem.uri.fileURL
-    }.sorted(by: { $0.absoluteString >= $1.absoluteString })
+    }.sorted(by: { $0.absoluteString < $1.absoluteString })
     if catalogURLs.count > 1 {
       logger.error("Multiple SwiftDocC catalogs found in build target \(target.uri)")
     }
