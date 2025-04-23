@@ -182,8 +182,7 @@ actor DiagnosticReportManager {
     for snapshotID: DocumentSnapshot.ID,
     buildSettings: SwiftCompileCommand?
   ) -> ReportTask? {
-    let key = CacheKey(snapshotID: snapshotID, buildSettings: buildSettings)
-    return reportTaskCache[key]
+    return reportTaskCache[CacheKey(snapshotID: snapshotID, buildSettings: buildSettings)]
   }
 
   /// Set the reportTask for the given document snapshot and buildSettings.

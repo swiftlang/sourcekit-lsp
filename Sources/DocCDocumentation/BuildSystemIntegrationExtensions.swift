@@ -52,7 +52,7 @@ package extension BuildSystemManager {
   func doccCatalog(for target: BuildTargetIdentifier) async -> URL? {
     let sourceFiles =
       await orLog(
-        "Failed to retreive source files from target \(target.uri)",
+        "Failed to retrieve source files from target \(target.uri)",
         { try await self.sourceFiles(in: [target]).flatMap(\.sources) }
       ) ?? []
     let catalogURLs = sourceFiles.compactMap { sourceItem -> URL? in

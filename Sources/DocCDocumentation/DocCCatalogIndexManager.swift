@@ -59,8 +59,8 @@ final actor DocCCatalogIndexManager {
       indexCache[catalogURL] = .success(catalogIndex)
       return catalogIndex
     } catch {
-      // Don't cache cancellation errors
-      guard !(error is CancellationError) else {
+      if error is CancellationError {
+        // Don't cache cancellation errors
         throw .cancelled
       }
       let internalError = error as? DocCIndexError ?? DocCIndexError.internalError(error)

@@ -18,7 +18,7 @@ package import SwiftSyntax
 package import ToolchainRegistry
 
 package actor DocumentationLanguageService: LanguageService, Sendable {
-  /// The ``SourceKitLSPServer`` instance that created this `SwiftLanguageService`.
+  /// The ``SourceKitLSPServer`` instance that created this `DocumentationLanguageService`.
   private(set) weak var sourceKitLSPServer: SourceKitLSPServer?
 
   var documentManager: DocumentManager {
