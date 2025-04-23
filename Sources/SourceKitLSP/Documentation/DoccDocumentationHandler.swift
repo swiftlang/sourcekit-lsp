@@ -111,18 +111,18 @@ extension DocumentationLanguageService {
 }
 
 struct MarkdownTitleFinder: MarkupVisitor {
-  public enum Title {
+  enum Title {
     case plainText(String)
     case symbol(String)
   }
 
-  public static func find(parsing text: String) -> Title? {
+  static func find(parsing text: String) -> Title? {
     let document = Markdown.Document(parsing: text, options: [.parseSymbolLinks])
     var visitor = MarkdownTitleFinder()
     return visitor.visit(document)
   }
 
-  public mutating func defaultVisit(_ markup: any Markup) -> Title? {
+  mutating func defaultVisit(_ markup: any Markup) -> Title? {
     for child in markup.children {
       if let value = visit(child) {
         return value
@@ -131,7 +131,7 @@ struct MarkdownTitleFinder: MarkupVisitor {
     return nil
   }
 
-  public mutating func visitHeading(_ heading: Heading) -> Title? {
+  mutating func visitHeading(_ heading: Heading) -> Title? {
     guard heading.level == 1 else {
       return nil
     }
