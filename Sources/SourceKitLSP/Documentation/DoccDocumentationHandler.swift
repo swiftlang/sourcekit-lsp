@@ -19,7 +19,6 @@ package import LanguageServerProtocol
 import Markdown
 import SKUtilities
 import SemanticIndex
-import SymbolKit
 
 extension DocumentationLanguageService {
   package func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
@@ -107,23 +106,9 @@ extension DocumentationLanguageService {
       // Create a dummy symbol graph and tell SwiftDocC to convert the module name.
       // The version information isn't really all that important since we're creating
       // what is essentially an empty symbol graph.
-      let emptySymbolGraph = String(
-        data: try JSONEncoder().encode(
-          SymbolGraph(
-            metadata: SymbolGraph.Metadata(
-              formatVersion: SymbolGraph.SemanticVersion(major: 0, minor: 0, patch: 0),
-              generator: "SourceKit-LSP"
-            ),
-            module: SymbolGraph.Module(name: moduleName, platform: SymbolGraph.Platform()),
-            symbols: [],
-            relationships: []
-          )
-        ),
-        encoding: .utf8
-      )
       return try await documentationManager.renderDocCDocumentation(
         symbolUSR: moduleName,
-        symbolGraph: emptySymbolGraph,
+        symbolGraph: emptySymbolGraph(forModule: moduleName),
         markupFile: snapshot.text,
         moduleName: moduleName,
         catalogURL: catalogURL

@@ -509,7 +509,6 @@ var targets: [Target] = [
       .product(name: "Crypto", package: "swift-crypto"),
       .product(name: "Markdown", package: "swift-markdown"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-      .product(name: "SymbolKit", package: "swift-docc-symbolkit"),
     ]
       + swiftPMDependency([
         .product(name: "SwiftPM-auto", package: "swift-package-manager")
