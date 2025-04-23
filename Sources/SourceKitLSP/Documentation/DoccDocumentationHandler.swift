@@ -81,13 +81,18 @@ extension DocumentationLanguageService {
           )
         }
         let position = symbolSnapshot.position(of: symbolOccurrence.location)
-        let cursorInfo = try await languageService.cursorInfoFromDisk(
-          symbolOccurrence.location.documentUri,
-          position..<position,
-          includeSymbolGraph: true,
+        let symbolGraph = try await languageService.withSnapshotFromDiskOpenedInSourcekitd(
+          uri: symbolOccurrence.location.documentUri,
           fallbackSettingsAfterTimeout: false
-        )
-        guard let symbolGraph = cursorInfo.symbolGraph else {
+        ) { snapshot, compileCommand in
+          try await languageService.cursorInfo(
+            snapshot,
+            compileCommand: compileCommand,
+            Range(position),
+            includeSymbolGraph: true
+          ).symbolGraph
+        }
+        guard let symbolGraph else {
           throw ResponseError.internalError("Unable to retrieve symbol graph for \(symbolOccurrence.symbol.name)")
         }
         return try await documentationManager.renderDocCDocumentation(

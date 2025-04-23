@@ -528,7 +528,7 @@ extension SwiftLanguageService {
 
   // MARK: - Text synchronization
 
-  private func openDocumentSourcekitdRequest(
+  func openDocumentSourcekitdRequest(
     snapshot: DocumentSnapshot,
     compileCommand: SwiftCompileCommand?
   ) -> SKDRequestDictionary {
@@ -568,7 +568,9 @@ extension SwiftLanguageService {
       buildSettingsForOpenFiles[snapshot.uri] = buildSettings
 
       let req = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: buildSettings)
-      _ = try? await self.sendSourcekitdRequest(req, fileContents: snapshot.text)
+      await orLog("Opening sourcekitd document") {
+        _ = try await self.sendSourcekitdRequest(req, fileContents: snapshot.text)
+      }
       await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
     }
   }
@@ -585,7 +587,9 @@ extension SwiftLanguageService {
       await generatedInterfaceManager.close(document: data)
     case nil:
       let req = closeDocumentSourcekitdRequest(uri: notification.textDocument.uri)
-      _ = try? await self.sendSourcekitdRequest(req, fileContents: nil)
+      await orLog("Closing sourcekitd document") {
+        _ = try await self.sendSourcekitdRequest(req, fileContents: nil)
+      }
     }
   }
 

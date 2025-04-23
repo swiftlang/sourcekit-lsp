@@ -29,7 +29,7 @@ import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 
 #if canImport(DocCDocumentation)
-package import DocCDocumentation
+import DocCDocumentation
 #endif
 
 /// Disambiguate LanguageServerProtocol.Language and IndexstoreDB.Language
