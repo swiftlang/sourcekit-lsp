@@ -31,4 +31,4 @@ SourceKit-LSP has fairly extensive logging to help diagnose issues. The way logg
 
 On macOS, SourceKit-LSP logs to the system log. [CONTRIBUTING.md](../CONTRIBUTING.md#logging) contains some information about how to read the system logs. Since [OSLog](https://developer.apple.com/documentation/os/logging) cannot be wrapped, the decision to log to macOS’s system log is done at build time and cannot be modified at runtime.
 
-On other platforms, the `NonDarwinLogger` types are used to log messages. These types are API-compatible with OSLog. Log messages are written to stderr by default. When possible, `SourceKitLSP.run` will redirect the log messages to log files in `/var/log/sourcekit-lsp` on launch.
+On other platforms, the `NonDarwinLogger` types are used to log messages. These types are API-compatible with OSLog. Log messages are written to stderr by default. When possible, `SourceKitLSP.run` will redirect the log messages to log files in `~/.sourcekit-lsp` on launch.
