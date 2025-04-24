@@ -292,8 +292,10 @@ var targets: [Target] = [
   .target(
     name: "SemanticIndex",
     dependencies: [
+      "BuildServerProtocol",
       "BuildSystemIntegration",
       "LanguageServerProtocol",
+      "LanguageServerProtocolExtensions",
       "SKLogging",
       "SwiftExtensions",
       "ToolchainRegistry",
