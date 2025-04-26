@@ -55,7 +55,7 @@ package struct FileBuildSettings: Equatable, Sendable {
   ///
   /// This patches the arguments by searching for the argument corresponding to
   /// `originalFile` and replacing it.
-  func patching(newFile: DocumentURI, originalFile: DocumentURI) -> FileBuildSettings {
+  package func patching(newFile: DocumentURI, originalFile: DocumentURI) -> FileBuildSettings {
     var arguments = self.compilerArguments
     // URL.lastPathComponent is only set for file URLs but we want to also infer a file extension for non-file URLs like
     // untitled:file.cpp

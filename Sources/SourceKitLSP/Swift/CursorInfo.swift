@@ -46,8 +46,14 @@ struct CursorInfo {
     self.documentation = documentation
   }
 
+  /// `snapshot` is the snapshot from which the cursor info was invoked. It is necessary to pass that snapshot in here
+  /// because snapshot might not be open in `documentManager` if cursor info was invoked using file contents from disk
+  /// using `cursorInfoFromDisk` and thus we couldn't convert positions if the snapshot wasn't passed in explicitly.
+  /// For all document other than `snapshot`, `documentManager` is used to find the latest snapshot of a document to
+  /// convert positions.
   init?(
     _ dict: SKDResponseDictionary,
+    snapshot: DocumentSnapshot,
     documentManager: DocumentManager,
     sourcekitd: some SourceKitD
   ) {
@@ -63,7 +69,13 @@ struct CursorInfo {
       let column: Int = dict[keys.column]
     {
       let uri = DocumentURI(filePath: filepath, isDirectory: false)
-      if let snapshot = documentManager.latestSnapshotOrDisk(uri, language: .swift) {
+      let snapshot: DocumentSnapshot? =
+        if snapshot.uri.sourcekitdSourceFile == filepath {
+          snapshot
+        } else {
+          documentManager.latestSnapshotOrDisk(uri, language: .swift)
+        }
+      if let snapshot {
         let position = snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: column - 1)
         location = Location(uri: uri, range: Range(position))
       } else {
@@ -133,14 +145,13 @@ extension SwiftLanguageService {
   ///   - fallbackSettingsAfterTimeout: Whether fallback build settings should be used for the cursor info request if no
   ///     build settings can be retrieved within a timeout.
   func cursorInfo(
-    _ uri: DocumentURI,
+    _ snapshot: DocumentSnapshot,
+    compileCommand: SwiftCompileCommand?,
     _ range: Range<Position>,
     includeSymbolGraph: Bool = false,
-    fallbackSettingsAfterTimeout: Bool,
     additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil
   ) async throws -> (cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand], symbolGraph: String?) {
     let documentManager = try self.documentManager
-    let snapshot = try await self.latestSnapshot(for: uri)
 
     let offsetRange = snapshot.utf8OffsetRange(of: range)
 
@@ -154,8 +165,7 @@ extension SwiftLanguageService {
       keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
       keys.retrieveSymbolGraph: includeSymbolGraph ? 1 : 0,
-      keys.compilerArgs: await self.buildSettings(for: uri, fallbackAfterTimeout: fallbackSettingsAfterTimeout)?
-        .compilerArgs as [SKDRequestValue]?,
+      keys.compilerArgs: compileCommand?.compilerArgs as [SKDRequestValue]?,
     ])
 
     appendAdditionalParameters?(skreq)
@@ -163,22 +173,38 @@ extension SwiftLanguageService {
     let dict = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
 
     var cursorInfoResults: [CursorInfo] = []
-    if let cursorInfo = CursorInfo(dict, documentManager: documentManager, sourcekitd: sourcekitd) {
+    if let cursorInfo = CursorInfo(dict, snapshot: snapshot, documentManager: documentManager, sourcekitd: sourcekitd) {
       cursorInfoResults.append(cursorInfo)
     }
     cursorInfoResults +=
       dict[keys.secondarySymbols]?
-      .compactMap { CursorInfo($0, documentManager: documentManager, sourcekitd: sourcekitd) } ?? []
+      .compactMap { CursorInfo($0, snapshot: snapshot, documentManager: documentManager, sourcekitd: sourcekitd) } ?? []
     let refactorActions =
       [SemanticRefactorCommand](
         array: dict[keys.refactorActions],
         range: range,
-        textDocument: TextDocumentIdentifier(uri),
+        textDocument: TextDocumentIdentifier(snapshot.uri),
         keys,
         self.sourcekitd.api
       ) ?? []
     let symbolGraph: String? = dict[keys.symbolGraph]
 
     return (cursorInfoResults, refactorActions, symbolGraph)
+  }
+
+  func cursorInfo(
+    _ uri: DocumentURI,
+    _ range: Range<Position>,
+    includeSymbolGraph: Bool = false,
+    fallbackSettingsAfterTimeout: Bool,
+    additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil
+  ) async throws -> (cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand], symbolGraph: String?) {
+    return try await self.cursorInfo(
+      self.latestSnapshot(for: uri),
+      compileCommand: await self.compileCommand(for: uri, fallbackAfterTimeout: fallbackSettingsAfterTimeout),
+      range,
+      includeSymbolGraph: includeSymbolGraph,
+      additionalParameters: appendAdditionalParameters
+    )
   }
 }
