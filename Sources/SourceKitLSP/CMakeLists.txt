@@ -26,6 +26,7 @@ target_sources(SourceKitLSP PRIVATE
   Clang/SemanticTokenTranslator.swift
 )
 target_sources(SourceKitLSP PRIVATE
+  Documentation/DocCDocumentationHandler.swift
   Documentation/DocumentationLanguageService.swift
 )
 target_sources(SourceKitLSP PRIVATE
@@ -75,6 +76,7 @@ target_sources(SourceKitLSP PRIVATE
   Swift/SyntaxHighlightingTokens.swift
   Swift/SyntaxTreeManager.swift
   Swift/VariableTypeInfo.swift
+  Swift/WithSnapshotFromDiskOpenedInSourcekitd.swift
 )
 set_target_properties(SourceKitLSP PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})

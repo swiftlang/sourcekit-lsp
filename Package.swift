@@ -214,6 +214,25 @@ var targets: [Target] = [
     swiftSettings: globalSwiftSettings
   ),
 
+  // MARK: DocCDocumentation
+
+  .target(
+    name: "DocCDocumentation",
+    dependencies: [
+      "BuildServerProtocol",
+      "BuildSystemIntegration",
+      "LanguageServerProtocol",
+      "SemanticIndex",
+      "SKLogging",
+      "SwiftExtensions",
+      .product(name: "IndexStoreDB", package: "indexstore-db"),
+      .product(name: "SwiftDocC", package: "swift-docc"),
+      .product(name: "SymbolKit", package: "swift-docc-symbolkit"),
+    ],
+    exclude: ["CMakeLists.txt"],
+    swiftSettings: globalSwiftSettings
+  ),
+
   // MARK: InProcessClient
 
   .target(
@@ -474,6 +493,7 @@ var targets: [Target] = [
     dependencies: [
       "BuildServerProtocol",
       "BuildSystemIntegration",
+      "DocCDocumentation",
       "LanguageServerProtocol",
       "LanguageServerProtocolExtensions",
       "LanguageServerProtocolJSONRPC",
@@ -485,9 +505,9 @@ var targets: [Target] = [
       "SwiftExtensions",
       "ToolchainRegistry",
       "TSCExtensions",
-      .product(name: "SwiftDocC", package: "swift-docc"),
       .product(name: "IndexStoreDB", package: "indexstore-db"),
       .product(name: "Crypto", package: "swift-crypto"),
+      .product(name: "Markdown", package: "swift-markdown"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ]
       + swiftPMDependency([
@@ -770,6 +790,8 @@ var dependencies: [Package.Dependency] {
     return [
       .package(path: "../indexstore-db"),
       .package(path: "../swift-docc"),
+      .package(path: "../swift-docc-symbolkit"),
+      .package(path: "../swift-markdown"),
       .package(path: "../swift-tools-support-core"),
       .package(path: "../swift-argument-parser"),
       .package(path: "../swift-syntax"),
@@ -781,6 +803,8 @@ var dependencies: [Package.Dependency] {
     return [
       .package(url: "https://github.com/swiftlang/indexstore-db.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/swiftlang/swift-docc.git", branch: relatedDependenciesBranch),
+      .package(url: "https://github.com/swiftlang/swift-docc-symbolkit.git", branch: relatedDependenciesBranch),
+      .package(url: "https://github.com/swiftlang/swift-markdown.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/apple/swift-tools-support-core.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.4.0"),
       .package(url: "https://github.com/swiftlang/swift-syntax.git", branch: relatedDependenciesBranch),
