@@ -44,4 +44,29 @@ public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
   ///
   /// - Note: Internal option, for testing only
   case synchronizeForBuildSystemUpdates = "synchronize-for-build-system-updates"
+
+  /// All non-internal experimental features.
+  public static var allNonInternalCases: [ExperimentalFeature] {
+    allCases.filter { !$0.isInternal }
+  }
+
+  /// Whether the feature is internal.
+  var isInternal: Bool {
+    switch self {
+    case .onTypeFormatting:
+      return false
+    case .setOptionsRequest:
+      return true
+    case .sourceKitOptionsRequest:
+      return true
+    case .isIndexingRequest:
+      return true
+    case .structuredLogs:
+      return false
+    case .outputPathsRequest:
+      return true
+    case .synchronizeForBuildSystemUpdates:
+      return true
+    }
+  }
 }
