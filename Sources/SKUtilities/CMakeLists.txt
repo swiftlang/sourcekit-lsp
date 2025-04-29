@@ -2,6 +2,7 @@ set(sources
   Debouncer.swift
   Dictionary+InitWithElementsKeyedBy.swift
   LineTable.swift
+  LRUCache.swift
 )
 
 add_library(SKUtilities STATIC ${sources})

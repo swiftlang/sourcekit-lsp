@@ -129,6 +129,18 @@ package final class CheckedIndex {
     }
   }
 
+  @discardableResult package func forEachCanonicalSymbolOccurrence(
+    byName name: String,
+    body: (SymbolOccurrence) -> Bool
+  ) -> Bool {
+    index.forEachCanonicalSymbolOccurrence(byName: name) { occurrence in
+      guard self.checker.isUpToDate(occurrence.location) else {
+        return true  // continue
+      }
+      return body(occurrence)
+    }
+  }
+
   package func symbols(inFilePath path: String) -> [Symbol] {
     guard self.hasAnyUpToDateUnit(for: DocumentURI(filePath: path, isDirectory: false)) else {
       return []

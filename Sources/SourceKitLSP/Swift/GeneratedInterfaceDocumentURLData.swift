@@ -14,7 +14,6 @@ import Foundation
 import LanguageServerProtocol
 
 /// Represents url of generated interface reference document.
-
 package struct GeneratedInterfaceDocumentURLData: Hashable, ReferenceURLData {
   package static let documentType = "generated-swift-interface"
 

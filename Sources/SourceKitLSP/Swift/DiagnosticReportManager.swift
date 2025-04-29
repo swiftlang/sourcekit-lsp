@@ -14,6 +14,7 @@ import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
 import SKOptions
+import SKUtilities
 import SourceKitD
 import SwiftDiagnostics
 import SwiftExtensions
@@ -24,6 +25,11 @@ actor DiagnosticReportManager {
   private typealias ReportTask = RefCountedCancellableTask<
     (report: RelatedFullDocumentDiagnosticReport, cachable: Bool)
   >
+
+  private struct CacheKey: Hashable {
+    let snapshotID: DocumentSnapshot.ID
+    let buildSettings: SwiftCompileCommand?
+  }
 
   private let sourcekitd: SourceKitD
   private let options: SourceKitLSPOptions
@@ -36,20 +42,8 @@ actor DiagnosticReportManager {
 
   /// The cache that stores reportTasks for snapshot id and buildSettings
   ///
-  /// Conceptually, this is a dictionary. To prevent excessive memory usage we
-  /// only keep `cacheSize` entries within the array. Older entries are at the
-  /// end of the list, newer entries at the front.
-  private var reportTaskCache:
-    [(
-      snapshotID: DocumentSnapshot.ID,
-      buildSettings: SwiftCompileCommand?,
-      reportTask: ReportTask
-    )] = []
-
-  /// The number of reportTasks to keep
-  ///
-  /// - Note: This has been chosen without scientific measurements.
-  private let cacheSize = 5
+  /// - Note: The capacity has been chosen without scientific measurements.
+  private var reportTaskCache = LRUCache<CacheKey, ReportTask>(capacity: 5)
 
   init(
     sourcekitd: SourceKitD,
@@ -188,14 +182,10 @@ actor DiagnosticReportManager {
     for snapshotID: DocumentSnapshot.ID,
     buildSettings: SwiftCompileCommand?
   ) -> ReportTask? {
-    return reportTaskCache.first(where: { $0.snapshotID == snapshotID && $0.buildSettings == buildSettings })?
-      .reportTask
+    return reportTaskCache[CacheKey(snapshotID: snapshotID, buildSettings: buildSettings)]
   }
 
   /// Set the reportTask for the given document snapshot and buildSettings.
-  ///
-  /// If we are already storing `cacheSize` many reports, the oldest one
-  /// will get discarded.
   private func setReportTask(
     for snapshotID: DocumentSnapshot.ID,
     buildSettings: SwiftCompileCommand?,
@@ -203,13 +193,6 @@ actor DiagnosticReportManager {
   ) {
     // Remove any reportTasks for old versions of this document.
     reportTaskCache.removeAll(where: { $0.snapshotID <= snapshotID })
-
-    reportTaskCache.insert((snapshotID, buildSettings, reportTask), at: 0)
-
-    // If we still have more than `cacheSize` reportTasks, delete the ones that
-    // were produced last. We can always re-request them on-demand.
-    while reportTaskCache.count > cacheSize {
-      reportTaskCache.removeLast()
-    }
+    reportTaskCache[CacheKey(snapshotID: snapshotID, buildSettings: buildSettings)] = reportTask
   }
 }

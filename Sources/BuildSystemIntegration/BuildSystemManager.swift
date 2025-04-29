@@ -1266,7 +1266,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
             isPartOfRootProject: isPartOfRootProject,
             mayContainTests: mayContainTests,
             isBuildable: !(target?.tags.contains(.notBuildable) ?? false)
-              && !(sourceKitData?.isHeader ?? false)
+              && (sourceKitData?.kind ?? .source) == .source
           )
           switch sourceItem.kind {
           case .file:
