@@ -388,8 +388,8 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
           arguments: processArguments,
           workingDirectory: workingDirectory,
           outputRedirection: .stream(
-            stdout: { stdoutHandler.handleDataFromPipe(Data($0)) },
-            stderr: { stderrHandler.handleDataFromPipe(Data($0)) }
+            stdout: { @Sendable bytes in stdoutHandler.handleDataFromPipe(Data(bytes)) },
+            stderr: { @Sendable bytes in stderrHandler.handleDataFromPipe(Data(bytes)) }
           )
         )
       }
