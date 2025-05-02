@@ -69,10 +69,10 @@ package struct IndexCommand: AsyncParsableCommand {
   var toolchainOverride: String?
 
   @Option(
-    name: .customLong("experimental-index-feature"),
+    name: .customLong("experimental-feature"),
     help: """
       Enable an experimental sourcekit-lsp feature.
-      Available features are: \(ExperimentalFeature.allCases.map(\.rawValue).joined(separator: ", "))
+      Available features are: \(ExperimentalFeature.allNonInternalCases.map(\.rawValue).joined(separator: ", "))
       """
   )
   var experimentalFeatures: [ExperimentalFeature] = []

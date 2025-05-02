@@ -90,7 +90,7 @@ To adjust the toolchain that should be used by SourceKit-LSP (eg. because you wa
 
 ## Logging
 
-SourceKit-LSP has extensive logging to the system log on macOS and to `/var/logs/sourcekit-lsp` or stderr on other platforms.
+SourceKit-LSP has extensive logging to the system log on macOS and to `~/.sourcekit-lsp/logs/` or stderr on other platforms.
 
 To show the logs on macOS, run
 ```sh
@@ -99,6 +99,10 @@ log show --last 1h --predicate 'subsystem CONTAINS "org.swift.sourcekit-lsp"' --
 Or to stream the logs as they are produced:
 ```
 log stream --predicate 'subsystem CONTAINS "org.swift.sourcekit-lsp"'  --level debug
+```
+On non-Apple platforms, you can use common commands like `tail` to read the logs or stream them as they are produced:
+```
+tail -F ~/.sourcekit-lsp/logs/*
 ```
 
 SourceKit-LSP masks data that may contain private information such as source file names and contents by default. To enable logging of this information, follow the instructions in [Diagnose Bundle.md](Documentation/Diagnose%20Bundle.md).

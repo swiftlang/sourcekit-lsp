@@ -73,7 +73,7 @@ fileprivate func diagnosticsEnabled(for document: DocumentURI) -> Bool {
 }
 
 /// A swift compiler command derived from a `FileBuildSettingsChange`.
-package struct SwiftCompileCommand: Sendable, Equatable {
+package struct SwiftCompileCommand: Sendable, Equatable, Hashable {
 
   /// The compiler arguments, including working directory. This is required since sourcekitd only
   /// accepts the working directory via the compiler arguments.
@@ -279,7 +279,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     }
   }
 
-  func buildSettings(for document: DocumentURI, fallbackAfterTimeout: Bool) async -> SwiftCompileCommand? {
+  func buildSettings(for document: DocumentURI, fallbackAfterTimeout: Bool) async -> FileBuildSettings? {
     let buildSettingsFile = document.buildSettingsFile
 
     guard let sourceKitLSPServer else {
@@ -289,11 +289,15 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: buildSettingsFile) else {
       return nil
     }
-    if let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
+    return await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
       for: buildSettingsFile,
       language: .swift,
       fallbackAfterTimeout: fallbackAfterTimeout
-    ) {
+    )
+  }
+
+  func compileCommand(for document: DocumentURI, fallbackAfterTimeout: Bool) async -> SwiftCompileCommand? {
+    if let settings = await self.buildSettings(for: document, fallbackAfterTimeout: fallbackAfterTimeout) {
       return SwiftCompileCommand(settings)
     } else {
       return nil
@@ -453,7 +457,7 @@ extension SwiftLanguageService {
         try await self.sendSourcekitdRequest(closeReq, fileContents: nil)
       }
 
-      let buildSettings = await buildSettings(for: snapshot.uri, fallbackAfterTimeout: true)
+      let buildSettings = await compileCommand(for: snapshot.uri, fallbackAfterTimeout: true)
       let openReq = openDocumentSourcekitdRequest(
         snapshot: snapshot,
         compileCommand: buildSettings
@@ -475,7 +479,7 @@ extension SwiftLanguageService {
     guard (try? documentManager.openDocuments.contains(uri)) ?? false else {
       return
     }
-    let newBuildSettings = await self.buildSettings(for: uri, fallbackAfterTimeout: false)
+    let newBuildSettings = await self.compileCommand(for: uri, fallbackAfterTimeout: false)
     if newBuildSettings != buildSettingsForOpenFiles[uri] {
       // Close and re-open the document internally to inform sourcekitd to update the compile command. At the moment
       // there's no better way to do this.
@@ -509,7 +513,7 @@ extension SwiftLanguageService {
 
   // MARK: - Text synchronization
 
-  private func openDocumentSourcekitdRequest(
+  func openDocumentSourcekitdRequest(
     snapshot: DocumentSnapshot,
     compileCommand: SwiftCompileCommand?
   ) -> SKDRequestDictionary {
@@ -545,11 +549,13 @@ extension SwiftLanguageService {
       cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
       await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
 
-      let buildSettings = await self.buildSettings(for: snapshot.uri, fallbackAfterTimeout: true)
+      let buildSettings = await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: true)
       buildSettingsForOpenFiles[snapshot.uri] = buildSettings
 
       let req = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: buildSettings)
-      _ = try? await self.sendSourcekitdRequest(req, fileContents: snapshot.text)
+      await orLog("Opening sourcekitd document") {
+        _ = try await self.sendSourcekitdRequest(req, fileContents: snapshot.text)
+      }
       await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
     }
   }
@@ -566,7 +572,9 @@ extension SwiftLanguageService {
       await generatedInterfaceManager.close(document: data)
     case nil:
       let req = closeDocumentSourcekitdRequest(uri: notification.textDocument.uri)
-      _ = try? await self.sendSourcekitdRequest(req, fileContents: nil)
+      await orLog("Closing sourcekitd document") {
+        _ = try await self.sendSourcekitdRequest(req, fileContents: nil)
+      }
     }
   }
 
@@ -608,7 +616,7 @@ extension SwiftLanguageService {
       }
       do {
         let snapshot = try await self.latestSnapshot(for: document)
-        let buildSettings = await self.buildSettings(for: document, fallbackAfterTimeout: false)
+        let buildSettings = await self.compileCommand(for: document, fallbackAfterTimeout: false)
         let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
           for: snapshot,
           buildSettings: buildSettings
@@ -958,7 +966,7 @@ extension SwiftLanguageService {
 
   func retrieveQuickFixCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
     let snapshot = try await self.latestSnapshot(for: params.textDocument.uri)
-    let buildSettings = await self.buildSettings(for: params.textDocument.uri, fallbackAfterTimeout: true)
+    let buildSettings = await self.compileCommand(for: params.textDocument.uri, fallbackAfterTimeout: true)
     let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
       for: snapshot,
       buildSettings: buildSettings
@@ -1066,7 +1074,7 @@ extension SwiftLanguageService {
         req.textDocument.uri.buildSettingsFile
       )
       let snapshot = try await self.latestSnapshot(for: req.textDocument.uri)
-      let buildSettings = await self.buildSettings(for: req.textDocument.uri, fallbackAfterTimeout: false)
+      let buildSettings = await self.compileCommand(for: req.textDocument.uri, fallbackAfterTimeout: false)
       try Task.checkCancellation()
       let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
         for: snapshot,
