@@ -237,6 +237,8 @@ struct SourceKitLSP: AsyncParsableCommand {
       fatalError("failed to redirect stdout -> stderr: \(strerror(errno)!)")
     }
 
+    logger.log("sourcekit-lsp launched from \(ProcessInfo.processInfo.arguments.first ?? "<nil>")")
+
     let globalConfigurationOptions = globalConfigurationOptions
     if let logLevelStr = globalConfigurationOptions.loggingOrDefault.level,
       let logLevel = NonDarwinLogLevel(logLevelStr)
