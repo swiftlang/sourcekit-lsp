@@ -25,8 +25,23 @@ fileprivate extension CompilationDatabaseCompileCommand {
   /// without specifying a path.
   ///
   /// The absence of a compiler means we have an empty command line, which should never happen.
-  var compiler: String? {
-    return commandLine.first
+  ///
+  /// If the compiler is a symlink to `swiftly`, it uses `swiftlyResolver` to find the corresponding executable in a
+  /// real toolchain and returns that executable.
+  func compiler(swiftlyResolver: SwiftlyResolver) async -> String? {
+    guard let compiler = commandLine.first else {
+      return nil
+    }
+    let swiftlyResolved = await orLog("Resolving swiftly") {
+      try await swiftlyResolver.resolve(
+        compiler: URL(fileURLWithPath: compiler),
+        workingDirectory: URL(fileURLWithPath: directory)
+      )?.filePath
+    }
+    if let swiftlyResolved {
+      return swiftlyResolved
+    }
+    return compiler
   }
 }
 
@@ -49,6 +64,8 @@ package actor JSONCompilationDatabaseBuildSystem: BuiltInBuildSystem {
 
   package let configPath: URL
 
+  private let swiftlyResolver = SwiftlyResolver()
+
   // Watch for all all changes to `compile_commands.json` and `compile_flags.txt` instead of just the one at
   // `configPath` so that we cover the following semi-common scenario:
   // The user has a build that stores `compile_commands.json` in `mybuild`. In order to pick it  up, they create a
@@ -56,7 +73,8 @@ package actor JSONCompilationDatabaseBuildSystem: BuiltInBuildSystem {
   // about the change to `mybuild/compile_commands.json` because it effectively changes the contents of
   // `<project root>/compile_commands.json`.
   package let fileWatchers: [FileSystemWatcher] = [
-    FileSystemWatcher(globPattern: "**/compile_commands.json", kind: [.create, .change, .delete])
+    FileSystemWatcher(globPattern: "**/compile_commands.json", kind: [.create, .change, .delete]),
+    FileSystemWatcher(globPattern: "**/.swift-version", kind: [.create, .change, .delete]),
   ]
 
   private var _indexStorePath: LazyValue<URL?> = .uninitialized
@@ -92,7 +110,11 @@ package actor JSONCompilationDatabaseBuildSystem: BuiltInBuildSystem {
   }
 
   package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
-    let compilers = Set(compdb.commands.compactMap(\.compiler)).sorted { $0 < $1 }
+    let compilers = Set(
+      await compdb.commands.asyncCompactMap { (command) -> String? in
+        await command.compiler(swiftlyResolver: swiftlyResolver)
+      }
+    ).sorted { $0 < $1 }
     let targets = try await compilers.asyncMap { compiler in
       let toolchainUri: URI? =
         if let toolchainPath = await toolchainRegistry.toolchain(withCompiler: URL(fileURLWithPath: compiler))?.path {
@@ -115,12 +137,12 @@ package actor JSONCompilationDatabaseBuildSystem: BuiltInBuildSystem {
   }
 
   package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
-    let items = request.targets.compactMap { (target) -> SourcesItem? in
+    let items = await request.targets.asyncCompactMap { (target) -> SourcesItem? in
       guard let targetCompiler = orLog("Compiler for target", { try target.compileCommandsCompiler }) else {
         return nil
       }
-      let commandsWithRequestedCompilers = compdb.commands.lazy.filter { command in
-        return targetCompiler == command.compiler
+      let commandsWithRequestedCompilers = await compdb.commands.lazy.asyncFilter { command in
+        return await targetCompiler == command.compiler(swiftlyResolver: swiftlyResolver)
       }
       let sources = commandsWithRequestedCompilers.map {
         SourceItem(uri: $0.uri, kind: .file, generated: false)
@@ -131,9 +153,13 @@ package actor JSONCompilationDatabaseBuildSystem: BuiltInBuildSystem {
     return BuildTargetSourcesResponse(items: items)
   }
 
-  package func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) {
+  package func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) async {
     if notification.changes.contains(where: { $0.uri.fileURL?.lastPathComponent == Self.dbName }) {
       self.reloadCompilationDatabase()
+    }
+    if notification.changes.contains(where: { $0.uri.fileURL?.lastPathComponent == ".swift-version" }) {
+      await swiftlyResolver.clearCache()
+      connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
     }
   }
 
@@ -145,8 +171,8 @@ package actor JSONCompilationDatabaseBuildSystem: BuiltInBuildSystem {
     request: TextDocumentSourceKitOptionsRequest
   ) async throws -> TextDocumentSourceKitOptionsResponse? {
     let targetCompiler = try request.target.compileCommandsCompiler
-    let command = compdb[request.textDocument.uri].filter {
-      $0.compiler == targetCompiler
+    let command = await compdb[request.textDocument.uri].asyncFilter {
+      return await $0.compiler(swiftlyResolver: swiftlyResolver) == targetCompiler
     }.first
     guard let command else {
       return nil

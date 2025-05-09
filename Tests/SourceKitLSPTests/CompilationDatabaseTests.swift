@@ -11,10 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 import BuildSystemIntegration
-import Foundation
 import LanguageServerProtocol
 import SKTestSupport
+import SwiftExtensions
 import TSCBasic
+import TSCExtensions
 import ToolchainRegistry
 import XCTest
 
@@ -236,6 +237,121 @@ final class CompilationDatabaseTests: XCTestCase {
         return
       }
       assertContains(error.message, "No language service")
+    }
+  }
+
+  func testLookThroughSwiftly() async throws {
+    try await withTestScratchDir { scratchDirectory in
+      let defaultToolchain = try await unwrap(ToolchainRegistry.forTesting.default)
+
+      // We create a toolchain registry with the default toolchain, which is able to provide semantic functionality and
+      // a dummy toolchain that can't provide semantic functionality.
+      let fakeToolchainURL = scratchDirectory.appending(components: "fakeToolchain")
+      let fakeToolchain = Toolchain(
+        identifier: "fake",
+        displayName: "fake",
+        path: fakeToolchainURL,
+        clang: nil,
+        swift: fakeToolchainURL.appending(components: "usr", "bin", "swift"),
+        swiftc: fakeToolchainURL.appending(components: "usr", "bin", "swiftc"),
+        swiftFormat: nil,
+        clangd: nil,
+        sourcekitd: fakeToolchainURL.appending(components: "usr", "lib", "sourcekitd.framework", "sourcekitd"),
+        libIndexStore: nil
+      )
+      let toolchainRegistry = ToolchainRegistry(toolchains: [
+        try await unwrap(ToolchainRegistry.forTesting.default), fakeToolchain,
+      ])
+
+      // We need to create a file for the swift executable because `SwiftlyResolver` checks for its presence.
+      try FileManager.default.createDirectory(
+        at: XCTUnwrap(fakeToolchain.swift).deletingLastPathComponent(),
+        withIntermediateDirectories: true
+      )
+      try await "".writeWithRetry(to: XCTUnwrap(fakeToolchain.swift))
+
+      // Create a dummy swiftly executable that picks the default toolchain for all file unless `fakeToolchain` is in
+      // the source file's path.
+      let dummySwiftlyExecutableUrl = scratchDirectory.appendingPathComponent("swiftly")
+      let dummySwiftExecutableUrl = scratchDirectory.appendingPathComponent("swift")
+      try FileManager.default.createSymbolicLink(
+        at: dummySwiftExecutableUrl,
+        withDestinationURL: dummySwiftlyExecutableUrl
+      )
+      try await createBinary(
+        """
+        import Foundation
+
+        if FileManager.default.currentDirectoryPath.contains("fakeToolchain") {
+          print(#"\(fakeToolchain.path.filePath)"#)
+        } else {
+          print(#"\(defaultToolchain.path.filePath)"#)
+        }
+        """,
+        at: dummySwiftlyExecutableUrl
+      )
+
+      // Now create a project in which we have one file in a `realToolchain` directory for which our fake swiftly will
+      // pick the default toolchain and one in `fakeToolchain` for which swiftly will pick the fake toolchain. We should
+      // be able to get semantic functionality for the file in `realToolchain` but not for `fakeToolchain` because
+      // sourcekitd can't be launched for that toolchain (since it doesn't exist).
+      let dummySwiftExecutablePathForJSON = try dummySwiftExecutableUrl.filePath.replacing(#"\"#, with: #"\\"#)
+
+      let project = try await MultiFileTestProject(
+        files: [
+          "realToolchain/realToolchain.swift": """
+          #warning("Test warning")
+          """,
+          "fakeToolchain/fakeToolchain.swift": """
+          #warning("Test warning")
+          """,
+          "compile_commands.json": """
+          [
+            {
+              "directory": "$TEST_DIR_BACKSLASH_ESCAPED/realToolchain",
+              "arguments": [
+                "\(dummySwiftExecutablePathForJSON)",
+                "$TEST_DIR_BACKSLASH_ESCAPED/realToolchain/realToolchain.swift",
+                \(defaultSDKArgs)
+              ],
+              "file": "realToolchain.swift",
+              "output": "$TEST_DIR_BACKSLASH_ESCAPED/realToolchain/test.swift.o"
+            },
+            {
+              "directory": "$TEST_DIR_BACKSLASH_ESCAPED/fakeToolchain",
+              "arguments": [
+                "\(dummySwiftExecutablePathForJSON)",
+                "$TEST_DIR_BACKSLASH_ESCAPED/fakeToolchain/fakeToolchain.swift",
+                \(defaultSDKArgs)
+              ],
+              "file": "fakeToolchain.swift",
+              "output": "$TEST_DIR_BACKSLASH_ESCAPED/fakeToolchain/test.swift.o"
+            }
+          ]
+          """,
+        ],
+        toolchainRegistry: toolchainRegistry
+      )
+
+      let (forRealToolchainUri, _) = try project.openDocument("realToolchain.swift")
+      let diagnostics = try await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(forRealToolchainUri))
+      )
+      XCTAssertEqual(diagnostics.fullReport?.items.map(\.message), ["Test warning"])
+
+      let (forDummyToolchainUri, _) = try project.openDocument("fakeToolchain.swift")
+      await assertThrowsError(
+        try await project.testClient.send(
+          DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(forDummyToolchainUri))
+        )
+      ) { error in
+        guard let error = error as? ResponseError else {
+          XCTFail("Expected ResponseError, got \(error)")
+          return
+        }
+        // The actual error message here doesn't matter too much, we just need to check that we don't get diagnostics.
+        assertContains(error.message, "No language service")
+      }
     }
   }
 }

@@ -99,7 +99,6 @@ extension BuildTargetIdentifier {
 // MARK: BuildTargetIdentifier for CompileCommands
 
 extension BuildTargetIdentifier {
-  /// - Important: *For testing only*
   package static func createCompileCommands(compiler: String) throws -> BuildTargetIdentifier {
     var components = URLComponents()
     components.scheme = "compilecommands"
