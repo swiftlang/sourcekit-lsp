@@ -31,6 +31,7 @@ extension RequestInfo {
     let compilerArgs = compilerArgs.filter { $0 != "-primary-file" && !$0.hasSuffix(".swift") } + ["$FILE"]
     let mergedRequestInfo = RequestInfo(
       requestTemplate: requestTemplate,
+      contextualRequestTemplates: contextualRequestTemplates,
       offset: offset,
       compilerArgs: compilerArgs,
       fileContents: mergedFile

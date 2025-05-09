@@ -46,9 +46,10 @@ extension SwiftLanguageService {
         nil
       }
 
-    _ = try await sendSourcekitdRequest(
+    _ = try await send(
+      sourcekitdRequest: \.editorOpen,
       self.openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: patchedCompileCommand),
-      fileContents: snapshot.text
+      snapshot: snapshot
     )
     let result: Swift.Result<Result, Error>
     do {
@@ -57,9 +58,10 @@ extension SwiftLanguageService {
       result = .failure(error)
     }
     await orLog("Close helper document '\(snapshot.uri)' for cursorInfoFromDisk") {
-      _ = try await sendSourcekitdRequest(
+      _ = try await send(
+        sourcekitdRequest: \.editorClose,
         self.closeDocumentSourcekitdRequest(uri: snapshot.uri),
-        fileContents: snapshot.text
+        snapshot: snapshot
       )
     }
     return try result.get()

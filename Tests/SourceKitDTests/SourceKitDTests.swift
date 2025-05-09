@@ -76,7 +76,6 @@ final class SourceKitDTests: XCTestCase {
     args.append(path)
 
     let req = sourcekitd.dictionary([
-      keys.request: sourcekitd.requests.editorOpen,
       keys.name: path,
       keys.sourceText: """
       func foo() {}
@@ -84,15 +83,26 @@ final class SourceKitDTests: XCTestCase {
       keys.compilerArgs: args,
     ])
 
-    _ = try await sourcekitd.send(req, timeout: defaultTimeoutDuration, fileContents: nil)
+    _ = try await sourcekitd.send(
+      \.editorOpen,
+      req,
+      timeout: defaultTimeoutDuration,
+      documentUrl: nil,
+      fileContents: nil
+    )
 
     try await fulfillmentOfOrThrow(expectation1, expectation2)
 
     let close = sourcekitd.dictionary([
-      keys.request: sourcekitd.requests.editorClose,
-      keys.name: path,
+      keys.name: path
     ])
-    _ = try await sourcekitd.send(close, timeout: defaultTimeoutDuration, fileContents: nil)
+    _ = try await sourcekitd.send(
+      \.editorClose,
+      close,
+      timeout: defaultTimeoutDuration,
+      documentUrl: nil,
+      fileContents: nil
+    )
   }
 }
 

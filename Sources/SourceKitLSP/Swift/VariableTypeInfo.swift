@@ -86,7 +86,6 @@ extension SwiftLanguageService {
     let snapshot = try await self.latestSnapshot(for: uri)
 
     let skreq = sourcekitd.dictionary([
-      keys.request: requests.collectVariableType,
       keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
       keys.compilerArgs: await self.compileCommand(for: uri, fallbackAfterTimeout: false)?.compilerArgs
@@ -100,7 +99,7 @@ extension SwiftLanguageService {
       skreq.set(keys.length, to: end - start)
     }
 
-    let dict = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
+    let dict = try await send(sourcekitdRequest: \.collectVariableType, skreq, snapshot: snapshot)
     guard let skVariableTypeInfos: SKDResponseArray = dict[keys.variableTypeList] else {
       return []
     }
