@@ -181,12 +181,30 @@ extension Collection where Element: Sendable {
 package struct TimeoutError: Error, CustomStringConvertible {
   package var description: String { "Timed out" }
 
-  package init() {}
+  package let handle: TimeoutHandle?
+
+  package init(handle: TimeoutHandle?) {
+    self.handle = handle
+  }
 }
 
-/// Executes `body`. If it doesn't finish after `duration`, throws a `TimeoutError`.
+package final class TimeoutHandle: Equatable, Sendable {
+  package init() {}
+
+  static package func == (_ lhs: TimeoutHandle, _ rhs: TimeoutHandle) -> Bool {
+    return lhs === rhs
+  }
+}
+
+/// Executes `body`. If it doesn't finish after `duration`, throws a `TimeoutError` and cancels `body`.
+///
+/// `TimeoutError` is thrown immediately an the function does not wait for `body` to honor the cancellation.
+///
+/// If a `handle` is passed in and this `withTimeout` call times out, the thrown `TimeoutError` contains this handle.
+/// This way a caller can identify whether this call to `withTimeout` timed out or if a nested call timed out.
 package func withTimeout<T: Sendable>(
   _ duration: Duration,
+  handle: TimeoutHandle? = nil,
   _ body: @escaping @Sendable () async throws -> T
 ) async throws -> T {
   // Get the priority with which to launch the body task here so that we can pass the same priority as the initial
@@ -207,7 +225,7 @@ package func withTimeout<T: Sendable>(
 
     let timeoutTask = Task(priority: priority) {
       try await Task.sleep(for: duration)
-      continuation.yield(with: .failure(TimeoutError()))
+      continuation.yield(with: .failure(TimeoutError(handle: handle)))
       bodyTask.cancel()
     }
     mutableTasks = [bodyTask, timeoutTask]

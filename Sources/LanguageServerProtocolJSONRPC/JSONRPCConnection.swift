@@ -31,6 +31,14 @@ import struct CDispatch.dispatch_fd_t
 /// For example, inside a language server, the `JSONRPCConnection` takes the language service implementation as its
 // `receiveHandler` and itself provides the client connection for sending notifications and callbacks.
 public final class JSONRPCConnection: Connection {
+  public enum TerminationReason: Sendable, Equatable {
+    /// The process on the other end of the `JSONRPCConnection` terminated with the given exit code.
+    case exited(exitCode: Int32)
+
+    /// The process on the other end of the `JSONRPCConnection` terminated with a signal. The signal that it terminated
+    /// with is not known.
+    case uncaughtSignal
+  }
 
   /// A name of the endpoint for this connection, used for logging, e.g. `clangd`.
   private let name: String
@@ -198,7 +206,7 @@ public final class JSONRPCConnection: Connection {
     protocol messageRegistry: MessageRegistry,
     stderrLoggingCategory: String,
     client: MessageHandler,
-    terminationHandler: @Sendable @escaping (_ terminationStatus: Int32) -> Void
+    terminationHandler: @Sendable @escaping (_ terminationReason: TerminationReason) -> Void
   ) throws -> (connection: JSONRPCConnection, process: Process) {
     let clientToServer = Pipe()
     let serverToClient = Pipe()
@@ -238,10 +246,22 @@ public final class JSONRPCConnection: Connection {
     process.terminationHandler = { process in
       logger.log(
         level: process.terminationReason == .exit ? .default : .error,
-        "\(name) exited: \(String(reflecting: process.terminationReason)) \(process.terminationStatus)"
+        "\(name) exited: \(process.terminationReason.rawValue) \(process.terminationStatus)"
       )
       connection.close()
-      terminationHandler(process.terminationStatus)
+      let terminationReason: TerminationReason
+      switch process.terminationReason {
+      case .exit:
+        terminationReason = .exited(exitCode: process.terminationStatus)
+      case .uncaughtSignal:
+        terminationReason = .uncaughtSignal
+      @unknown default:
+        logger.fault(
+          "Process terminated with unknown termination reason: \(process.terminationReason.rawValue, privacy: .public)"
+        )
+        terminationReason = .exited(exitCode: 0)
+      }
+      terminationHandler(terminationReason)
     }
     try process.run()
 
