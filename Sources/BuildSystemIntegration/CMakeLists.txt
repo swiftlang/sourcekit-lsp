@@ -35,7 +35,8 @@ target_link_libraries(BuildSystemIntegration PUBLIC
   PackageModel
   TSCBasic
   Build
-  SourceKitLSPAPI)
+  SourceKitLSPAPI
+  SwiftASN1)
 
 target_link_libraries(BuildSystemIntegration PRIVATE
   SKUtilities
