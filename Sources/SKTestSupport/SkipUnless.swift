@@ -265,8 +265,7 @@ package actor SkipUnless {
               sourcekitd.keys.useNewAPI: 1
             ],
           ]),
-          timeout: defaultTimeoutDuration,
-          fileContents: nil
+          timeout: defaultTimeoutDuration
         )
         return response[sourcekitd.keys.useNewAPI] == 1
       } catch {

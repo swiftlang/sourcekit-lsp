@@ -101,7 +101,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
 
   private let sourcekitdPath: URL
 
-  let sourcekitd: SourceKitD
+  package let sourcekitd: SourceKitD
 
   /// Path to the swift-format executable if it exists in the toolchain.
   let swiftFormat: URL?
@@ -183,14 +183,14 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   ///    `buildSettings(for:)` returns `nil` are not included.
   private var buildSettingsForOpenFiles: [DocumentURI: SwiftCompileCommand] = [:]
 
-  /// Calling `scheduleCall` on `refreshDiagnosticsDebouncer` schedules a `DiagnosticsRefreshRequest` to be sent to
-  /// to the client.
+  /// Calling `scheduleCall` on `refreshDiagnosticsAndSemanticTokensDebouncer` schedules a `DiagnosticsRefreshRequest`
+  /// and `WorkspaceSemanticTokensRefreshRequest` to be sent to to the client.
   ///
   /// We debounce these calls because the `DiagnosticsRefreshRequest` is a workspace-wide request. If we discover that
   /// the client should update diagnostics for file A and then discover that it should also update diagnostics for file
   /// B, we don't want to send two `DiagnosticsRefreshRequest`s. Instead, the two should be unified into a single
   /// request.
-  private let refreshDiagnosticsDebouncer: Debouncer<Void>
+  private let refreshDiagnosticsAndSemanticTokensDebouncer: Debouncer<Void>
 
   /// Creates a language server for the given client using the sourcekitd dylib specified in `toolchain`.
   /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the `SwiftLanguageService` asks its
@@ -229,19 +229,29 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     self.options = options
 
     // The debounce duration of 500ms was chosen arbitrarily without scientific research.
-    self.refreshDiagnosticsDebouncer = Debouncer(debounceDuration: .milliseconds(500)) { [weak sourceKitLSPServer] in
+    self.refreshDiagnosticsAndSemanticTokensDebouncer = Debouncer(debounceDuration: .milliseconds(500)) {
+      [weak sourceKitLSPServer] in
       guard let sourceKitLSPServer else {
-        logger.fault("Not sending DiagnosticRefreshRequest to client because sourceKitLSPServer has been deallocated")
+        logger.fault(
+          "Not sending diagnostic and semantic token refresh request to client because sourceKitLSPServer has been deallocated"
+        )
         return
       }
-      guard
-        await sourceKitLSPServer.capabilityRegistry?.clientCapabilities.workspace?.diagnostics?.refreshSupport ?? false
-      else {
+      let clientCapabilities = await sourceKitLSPServer.capabilityRegistry?.clientCapabilities
+      if clientCapabilities?.workspace?.diagnostics?.refreshSupport ?? false {
+        _ = await orLog("Sending DiagnosticRefreshRequest to client after document dependencies updated") {
+          try await sourceKitLSPServer.sendRequestToClient(DiagnosticsRefreshRequest())
+        }
+      } else {
         logger.debug("Not sending DiagnosticRefreshRequest because the client doesn't support it")
-        return
       }
-      _ = await orLog("Sending DiagnosticRefreshRequest to client after document dependencies updated") {
-        try await sourceKitLSPServer.sendRequestToClient(DiagnosticsRefreshRequest())
+
+      if clientCapabilities?.workspace?.semanticTokens?.refreshSupport ?? false {
+        _ = await orLog("Sending WorkspaceSemanticTokensRefreshRequest to client after document dependencies updated") {
+          try await sourceKitLSPServer.sendRequestToClient(WorkspaceSemanticTokensRefreshRequest())
+        }
+      } else {
+        logger.debug("Not sending WorkspaceSemanticTokensRefreshRequest because the client doesn't support it")
       }
     }
 
@@ -311,6 +321,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     try await sourcekitd.send(
       request,
       timeout: options.sourcekitdRequestTimeoutOrDefault,
+      restartTimeout: options.semanticServiceRestartTimeoutOrDefault,
       fileContents: fileContents
     )
   }
@@ -336,7 +347,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
       await sourceKitLSPServer.sourcekitdCrashedWorkDoneProgress.end()
       // We can provide diagnostics again now. Send a diagnostic refresh request to prompt the editor to reload
       // diagnostics.
-      await refreshDiagnosticsDebouncer.scheduleCall()
+      await refreshDiagnosticsAndSemanticTokensDebouncer.scheduleCall()
     case (.connected, .connected),
       (.connectionInterrupted, .connectionInterrupted),
       (.connectionInterrupted, .semanticFunctionalityDisabled),
@@ -468,7 +479,7 @@ extension SwiftLanguageService {
       }
 
       if await capabilityRegistry.clientSupportsPullDiagnostics(for: .swift) {
-        await self.refreshDiagnosticsDebouncer.scheduleCall()
+        await self.refreshDiagnosticsAndSemanticTokensDebouncer.scheduleCall()
       } else {
         await publishDiagnosticsIfNeeded(for: snapshot.uri)
       }

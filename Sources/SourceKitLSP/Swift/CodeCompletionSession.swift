@@ -201,6 +201,7 @@ class CodeCompletionSession {
       return await Self.resolveDocumentation(
         in: item,
         timeout: session.options.sourcekitdRequestTimeoutOrDefault,
+        restartTimeout: session.options.semanticServiceRestartTimeoutOrDefault,
         sourcekitd: sourcekitd
       )
     }
@@ -287,11 +288,7 @@ class CodeCompletionSession {
       keys.codeCompleteOptions: optionsDictionary(filterText: filterText),
     ])
 
-    let dict = try await sourcekitd.send(
-      req,
-      timeout: options.sourcekitdRequestTimeoutOrDefault,
-      fileContents: snapshot.text
-    )
+    let dict = try await sendSourceKitdRequest(req, snapshot: snapshot)
     self.state = .open
 
     guard let completions: SKDResponseArray = dict[keys.results] else {
@@ -325,11 +322,7 @@ class CodeCompletionSession {
       keys.codeCompleteOptions: optionsDictionary(filterText: filterText),
     ])
 
-    let dict = try await sourcekitd.send(
-      req,
-      timeout: options.sourcekitdRequestTimeoutOrDefault,
-      fileContents: snapshot.text
-    )
+    let dict = try await sendSourceKitdRequest(req, snapshot: snapshot)
     guard let completions: SKDResponseArray = dict[keys.results] else {
       return CompletionList(isIncomplete: false, items: [])
     }
@@ -378,12 +371,24 @@ class CodeCompletionSession {
         keys.codeCompleteOptions: [keys.useNewAPI: 1],
       ])
       logger.info("Closing code completion session: \(self.description)")
-      _ = try? await sourcekitd.send(req, timeout: options.sourcekitdRequestTimeoutOrDefault, fileContents: nil)
+      _ = try? await sendSourceKitdRequest(req, snapshot: nil)
       self.state = .closed
     }
   }
 
   // MARK: - Helpers
+
+  private func sendSourceKitdRequest(
+    _ request: SKDRequestDictionary,
+    snapshot: DocumentSnapshot?
+  ) async throws -> SKDResponseDictionary {
+    try await sourcekitd.send(
+      request,
+      timeout: options.sourcekitdRequestTimeoutOrDefault,
+      restartTimeout: options.semanticServiceRestartTimeoutOrDefault,
+      fileContents: snapshot?.text
+    )
+  }
 
   private func expandClosurePlaceholders(insertText: String) -> String? {
     guard insertText.contains("<#") && insertText.contains("->") else {
@@ -532,8 +537,14 @@ class CodeCompletionSession {
     }
 
     if !clientSupportsDocumentationResolve {
+      let semanticServiceRestartTimeoutOrDefault = self.options.semanticServiceRestartTimeoutOrDefault
       completionItems = await completionItems.asyncMap { item in
-        return await Self.resolveDocumentation(in: item, timeout: .seconds(1), sourcekitd: sourcekitd)
+        return await Self.resolveDocumentation(
+          in: item,
+          timeout: .seconds(1),
+          restartTimeout: semanticServiceRestartTimeoutOrDefault,
+          sourcekitd: sourcekitd
+        )
       }
     }
 
@@ -543,6 +554,7 @@ class CodeCompletionSession {
   private static func resolveDocumentation(
     in item: CompletionItem,
     timeout: Duration,
+    restartTimeout: Duration,
     sourcekitd: SourceKitD
   ) async -> CompletionItem {
     var item = item
@@ -552,7 +564,7 @@ class CodeCompletionSession {
         sourcekitd.keys.identifier: itemId,
       ])
       let documentationResponse = await orLog("Retrieving documentation for completion item") {
-        try await sourcekitd.send(req, timeout: timeout, fileContents: nil)
+        try await sourcekitd.send(req, timeout: timeout, restartTimeout: restartTimeout, fileContents: nil)
       }
       if let docString: String = documentationResponse?[sourcekitd.keys.docBrief] {
         item.documentation = .markupContent(MarkupContent(kind: .markdown, value: docString))

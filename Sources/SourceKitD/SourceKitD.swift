@@ -162,7 +162,10 @@ package actor SourceKitD {
   /// List of notification handlers that will be called for each notification.
   private var notificationHandlers: [WeakSKDNotificationHandler] = []
 
-  /// List of hooks that should be executed for every request sent to sourcekitd.
+  /// List of hooks that should be executed and that need to finish executing before a request is sent to sourcekitd.
+  private var preRequestHandlingHooks: [UUID: @Sendable (SKDRequestDictionary) async -> Void] = [:]
+
+  /// List of hooks that should be executed after a request sent to sourcekitd.
   private var requestHandlingHooks: [UUID: (SKDRequestDictionary) -> Void] = [:]
 
   package static func getOrCreate(
@@ -193,52 +196,56 @@ package actor SourceKitD {
     let dlopenModes: DLOpenFlags = [.lazy, .local, .first]
     #endif
     let dlhandle = try dlopen(path.filePath, mode: dlopenModes)
-    do {
-      try self.init(
-        dlhandle: dlhandle,
-        path: path,
-        pluginPaths: pluginPaths,
-        initialize: initialize
-      )
-    } catch {
-      try? dlhandle.close()
-      throw error
-    }
+    try self.init(
+      dlhandle: dlhandle,
+      path: path,
+      pluginPaths: pluginPaths,
+      initialize: initialize
+    )
   }
 
+  /// Create a `SourceKitD` instance from an existing `DLHandle`. `SourceKitD` takes over ownership of the `DLHandler`
+  /// and will close it when the `SourceKitD` instance gets deinitialized or if the initializer throws.
   package init(dlhandle: DLHandle, path: URL, pluginPaths: PluginPaths?, initialize: Bool) throws {
-    self.path = path
-    self.dylib = dlhandle
-    let api = try sourcekitd_api_functions_t(dlhandle)
-    self.api = api
+    do {
+      self.path = path
+      self.dylib = dlhandle
+      let api = try sourcekitd_api_functions_t(dlhandle)
+      self.api = api
 
-    // We load the plugin-related functions eagerly so the members are initialized and we don't have data races on first
-    // access to eg. `pluginApi`. But if one of the functions is missing, we will only emit that error when that family
-    // of functions is being used. For example, it is expected that the plugin functions are not available in
-    // SourceKit-LSP.
-    self.ideApiResult = Result(catching: { try sourcekitd_ide_api_functions_t(dlhandle) })
-    self.pluginApiResult = Result(catching: { try sourcekitd_plugin_api_functions_t(dlhandle) })
-    self.servicePluginApiResult = Result(catching: { try sourcekitd_service_plugin_api_functions_t(dlhandle) })
+      // We load the plugin-related functions eagerly so the members are initialized and we don't have data races on first
+      // access to eg. `pluginApi`. But if one of the functions is missing, we will only emit that error when that family
+      // of functions is being used. For example, it is expected that the plugin functions are not available in
+      // SourceKit-LSP.
+      self.ideApiResult = Result(catching: { try sourcekitd_ide_api_functions_t(dlhandle) })
+      self.pluginApiResult = Result(catching: { try sourcekitd_plugin_api_functions_t(dlhandle) })
+      self.servicePluginApiResult = Result(catching: { try sourcekitd_service_plugin_api_functions_t(dlhandle) })
 
-    if let pluginPaths {
-      api.register_plugin_path?(pluginPaths.clientPlugin.path, pluginPaths.servicePlugin.path)
-    }
-    if initialize {
-      self.api.initialize()
-    }
+      if let pluginPaths {
+        api.register_plugin_path?(pluginPaths.clientPlugin.path, pluginPaths.servicePlugin.path)
+      }
+      if initialize {
+        self.api.initialize()
+      }
 
-    if initialize {
-      self.api.set_notification_handler { [weak self] rawResponse in
-        guard let self, let rawResponse else { return }
-        let response = SKDResponse(rawResponse, sourcekitd: self)
-        self.notificationHandlingQueue.async {
-          let handlers = await self.notificationHandlers.compactMap(\.value)
+      if initialize {
+        self.api.set_notification_handler { [weak self] rawResponse in
+          guard let self, let rawResponse else { return }
+          let response = SKDResponse(rawResponse, sourcekitd: self)
+          self.notificationHandlingQueue.async {
+            let handlers = await self.notificationHandlers.compactMap(\.value)
 
-          for handler in handlers {
-            handler.notification(response)
+            for handler in handlers {
+              handler.notification(response)
+            }
           }
         }
       }
+    } catch {
+      orLog("Closing dlhandle after opening sourcekitd failed") {
+        try? dlhandle.close()
+      }
+      throw error
     }
   }
 
@@ -259,6 +266,30 @@ package actor SourceKitD {
   /// Removes a previously registered notification handler.
   package func removeNotificationHandler(_ handler: SKDNotificationHandler) {
     notificationHandlers.removeAll(where: { $0.value == nil || $0.value === handler })
+  }
+
+  /// Execute `body` and invoke `hook` for every sourcekitd request that is sent during the execution time of `body`.
+  ///
+  /// Note that `hook` will not only be executed for requests sent *by* body but this may also include sourcekitd
+  /// requests that were sent by other clients of the same `DynamicallyLoadedSourceKitD` instance that just happen to
+  /// send a request during that time.
+  ///
+  /// This is intended for testing only.
+  package func withPreRequestHandlingHook(
+    body: () async throws -> Void,
+    hook: @escaping @Sendable (SKDRequestDictionary) async -> Void
+  ) async rethrows {
+    let id = UUID()
+    preRequestHandlingHooks[id] = hook
+    defer { preRequestHandlingHooks[id] = nil }
+    try await body()
+  }
+
+  func willSend(request: SKDRequestDictionary) async {
+    let request = request
+    for hook in preRequestHandlingHooks.values {
+      await hook(request)
+    }
   }
 
   /// Execute `body` and invoke `hook` for every sourcekitd request that is sent during the execution time of `body`.
@@ -293,37 +324,56 @@ package actor SourceKitD {
   package func send(
     _ request: SKDRequestDictionary,
     timeout: Duration,
+    restartTimeout: Duration,
     fileContents: String?
   ) async throws -> SKDResponseDictionary {
     let sourcekitdResponse = try await withTimeout(timeout) {
-      return try await withCancellableCheckedThrowingContinuation { (continuation) -> SourceKitDRequestHandle? in
-        logger.info(
-          """
-          Sending sourcekitd request:
-          \(request.forLogging)
-          """
-        )
-        var handle: sourcekitd_api_request_handle_t? = nil
-        self.api.send_request(request.dict, &handle) { response in
-          continuation.resume(returning: SKDResponse(response!, sourcekitd: self))
+      let restartTimeoutHandle = TimeoutHandle()
+      do {
+        return try await withTimeout(restartTimeout, handle: restartTimeoutHandle) {
+          await self.willSend(request: request)
+          return try await withCancellableCheckedThrowingContinuation { (continuation) -> SourceKitDRequestHandle? in
+            logger.info(
+              """
+              Sending sourcekitd request:
+              \(request.forLogging)
+              """
+            )
+            var handle: sourcekitd_api_request_handle_t? = nil
+            self.api.send_request(request.dict, &handle) { response in
+              continuation.resume(returning: SKDResponse(response!, sourcekitd: self))
+            }
+            Task {
+              await self.didSend(request: request)
+            }
+            if let handle {
+              return SourceKitDRequestHandle(handle: handle)
+            }
+            return nil
+          } cancel: { (handle: SourceKitDRequestHandle?) in
+            if let handle {
+              logger.info(
+                """
+                Cancelling sourcekitd request:
+                \(request.forLogging)
+                """
+              )
+              self.api.cancel_request(handle.handle)
+            }
+          }
         }
-        Task {
-          await self.didSend(request: request)
-        }
-        if let handle {
-          return SourceKitDRequestHandle(handle: handle)
-        }
-        return nil
-      } cancel: { (handle: SourceKitDRequestHandle?) in
-        if let handle {
-          logger.info(
-            """
-            Cancelling sourcekitd request:
-            \(request.forLogging)
-            """
+      } catch let error as TimeoutError where error.handle == restartTimeoutHandle {
+        if !self.path.lastPathComponent.contains("InProc") {
+          logger.fault(
+            "Did not receive reply from sourcekitd after \(restartTimeout, privacy: .public). Terminating and restarting sourcekitd."
           )
-          self.api.cancel_request(handle.handle)
+          await self.crash()
+        } else {
+          logger.fault(
+            "Did not receive reply from sourcekitd after \(restartTimeout, privacy: .public). Not terminating sourcekitd because it is run in-process."
+          )
         }
+        throw error
       }
     }
 
@@ -361,6 +411,13 @@ package actor SourceKitD {
     }
 
     return dict
+  }
+
+  package func crash() async {
+    let req = dictionary([
+      keys.request: requests.crashWithExit
+    ])
+    _ = try? await send(req, timeout: .seconds(60), restartTimeout: .seconds(24 * 60 * 60), fileContents: nil)
   }
 }
 

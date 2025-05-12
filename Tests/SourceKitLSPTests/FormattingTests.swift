@@ -299,18 +299,13 @@ final class FormattingTests: XCTestCase {
     try await withTestScratchDir { scratchDir in
       let toolchain = try await unwrap(ToolchainRegistry.forTesting.default)
 
-      let crashingSwiftFilePath = scratchDir.appendingPathComponent("crashing-executable.swift")
       let crashingExecutablePath = scratchDir.appendingPathComponent("crashing-executable")
-      try await "fatalError()".writeWithRetry(to: crashingSwiftFilePath)
-      var compilerArguments = try [
-        crashingSwiftFilePath.filePath,
-        "-o",
-        crashingExecutablePath.filePath,
-      ]
-      if let defaultSDKPath {
-        compilerArguments += ["-sdk", defaultSDKPath]
-      }
-      try await Process.checkNonZeroExit(arguments: [XCTUnwrap(toolchain.swiftc?.filePath)] + compilerArguments)
+      try await createBinary(
+        """
+        fatalError()
+        """,
+        at: crashingExecutablePath
+      )
 
       let toolchainRegistry = ToolchainRegistry(toolchains: [
         Toolchain(
