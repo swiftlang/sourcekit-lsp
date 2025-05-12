@@ -101,7 +101,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
 
   private let sourcekitdPath: URL
 
-  let sourcekitd: SourceKitD
+  package let sourcekitd: SourceKitD
 
   /// Path to the swift-format executable if it exists in the toolchain.
   let swiftFormat: URL?
@@ -311,6 +311,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     try await sourcekitd.send(
       request,
       timeout: options.sourcekitdRequestTimeoutOrDefault,
+      restartTimeout: options.semanticServiceRestartTimeoutOrDefault,
       fileContents: fileContents
     )
   }
