@@ -30,7 +30,7 @@ package actor SourceKitDRegistry<SourceKitDType: AnyObject> {
   private var active: [URL: (pluginPaths: PluginPaths?, sourcekitd: SourceKitDType)] = [:]
 
   /// Instances that have been unregistered, but may be resurrected if accessed before destruction.
-  private var cemetery: [URL: (pluginPaths: PluginPaths?, sourcekitd: WeakSourceKitD<SourceKitDType>)] = [:]
+  private var cemetary: [URL: (pluginPaths: PluginPaths?, sourcekitd: WeakSourceKitD<SourceKitDType>)] = [:]
 
   /// Initialize an empty registry.
   package init() {}
@@ -49,8 +49,8 @@ package actor SourceKitDRegistry<SourceKitDType: AnyObject> {
       }
       return existing.sourcekitd
     }
-    if let resurrected = cemetery[key], let resurrectedSourcekitD = resurrected.sourcekitd.value {
-      cemetery[key] = nil
+    if let resurrected = cemetary[key], let resurrectedSourcekitD = resurrected.sourcekitd.value {
+      cemetary[key] = nil
       if resurrected.pluginPaths != pluginPaths {
         logger.fault(
           "Already created SourceKitD with plugin paths \(resurrected.pluginPaths?.forLogging), now requesting incompatible plugin paths \(pluginPaths.forLogging)"
@@ -74,8 +74,8 @@ package actor SourceKitDRegistry<SourceKitDType: AnyObject> {
   package func remove(_ key: URL) -> SourceKitDType? {
     let existing = active.removeValue(forKey: key)
     if let existing = existing {
-      assert(self.cemetery[key]?.sourcekitd.value == nil)
-      cemetery[key] = (existing.pluginPaths, WeakSourceKitD(value: existing.sourcekitd))
+      assert(self.cemetary[key]?.sourcekitd.value == nil)
+      cemetary[key] = (existing.pluginPaths, WeakSourceKitD(value: existing.sourcekitd))
     }
     return existing?.sourcekitd
   }

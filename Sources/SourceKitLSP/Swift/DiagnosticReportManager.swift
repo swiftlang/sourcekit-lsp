@@ -118,7 +118,6 @@ actor DiagnosticReportManager {
       dict = try await self.sourcekitd.send(
         skreq,
         timeout: options.sourcekitdRequestTimeoutOrDefault,
-        restartTimeout: options.semanticServiceRestartTimeoutOrDefault,
         fileContents: snapshot.text
       )
     } catch SKDError.requestFailed(let sourcekitdError) {

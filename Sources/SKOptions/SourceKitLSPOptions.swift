@@ -422,17 +422,6 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     return .seconds(120)
   }
 
-  /// If a request to sourcekitd or clangd exceeds this timeout, we assume that the semantic service provider is hanging
-  /// for some reason and won't recover. To restore semantic functionality, we terminate and restart it.
-  public var semanticServiceRestartTimeout: Double? = nil
-
-  public var semanticServiceRestartTimeoutOrDefault: Duration {
-    if let semanticServiceRestartTimeout {
-      return .seconds(semanticServiceRestartTimeout)
-    }
-    return .seconds(300)
-  }
-
   public init(
     swiftPM: SwiftPMOptions? = .init(),
     fallbackBuildSystem: FallbackBuildSystemOptions? = .init(),
@@ -450,8 +439,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     experimentalFeatures: Set<ExperimentalFeature>? = nil,
     swiftPublishDiagnosticsDebounceDuration: Double? = nil,
     workDoneProgressDebounceDuration: Double? = nil,
-    sourcekitdRequestTimeout: Double? = nil,
-    semanticServiceRestartTimeout: Double? = nil
+    sourcekitdRequestTimeout: Double? = nil
   ) {
     self.swiftPM = swiftPM
     self.fallbackBuildSystem = fallbackBuildSystem
@@ -470,7 +458,6 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     self.swiftPublishDiagnosticsDebounceDuration = swiftPublishDiagnosticsDebounceDuration
     self.workDoneProgressDebounceDuration = workDoneProgressDebounceDuration
     self.sourcekitdRequestTimeout = sourcekitdRequestTimeout
-    self.semanticServiceRestartTimeout = semanticServiceRestartTimeout
   }
 
   public init?(fromLSPAny lspAny: LSPAny?) throws {
@@ -530,8 +517,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
         ?? base.swiftPublishDiagnosticsDebounceDuration,
       workDoneProgressDebounceDuration: override?.workDoneProgressDebounceDuration
         ?? base.workDoneProgressDebounceDuration,
-      sourcekitdRequestTimeout: override?.sourcekitdRequestTimeout ?? base.sourcekitdRequestTimeout,
-      semanticServiceRestartTimeout: override?.semanticServiceRestartTimeout ?? base.semanticServiceRestartTimeout
+      sourcekitdRequestTimeout: override?.sourcekitdRequestTimeout ?? base.sourcekitdRequestTimeout
     )
   }
 

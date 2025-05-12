@@ -66,7 +66,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   /// Path to the `clangd` binary.
   let clangdPath: URL
 
-  let options: SourceKitLSPOptions
+  let clangdOptions: [String]
 
   /// The current state of the `clangd` language server.
   /// Changing the property automatically notified the state change handlers.
@@ -121,7 +121,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     }
     self.clangPath = toolchain.clang
     self.clangdPath = clangdPath
-    self.options = options
+    self.clangdOptions = options.clangdOptions ?? []
     self.workspace = WeakWorkspace(workspace)
     self.state = .connected
     self.sourceKitLSPServer = sourceKitLSPServer
@@ -158,11 +158,10 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   /// Restarts `clangd` if it has crashed.
   ///
   /// - Parameter terminationStatus: The exit code of `clangd`.
-  private func handleClangdTermination(terminationReason: JSONRPCConnection.TerminationReason) {
+  private func handleClangdTermination(terminationStatus: Int32) {
     self.clangdProcess = nil
-    if terminationReason != .exited(exitCode: 0) {
+    if terminationStatus != 0 {
       self.state = .connectionInterrupted
-      logger.info("clangd crashed. Restarting it.")
       self.restartClangd()
     }
   }
@@ -178,15 +177,15 @@ actor ClangLanguageService: LanguageService, MessageHandler {
         "-compile_args_from=lsp",  // Provide compiler args programmatically.
         "-background-index=false",  // Disable clangd indexing, we use the build
         "-index=false",  // system index store instead.
-      ] + (options.clangdOptions ?? []),
+      ] + clangdOptions,
       name: "clangd",
       protocol: MessageRegistry.lspProtocol,
       stderrLoggingCategory: "clangd-stderr",
       client: self,
-      terminationHandler: { [weak self] terminationReason in
+      terminationHandler: { [weak self] terminationStatus in
         guard let self = self else { return }
         Task {
-          await self.handleClangdTermination(terminationReason: terminationReason)
+          await self.handleClangdTermination(terminationStatus: terminationStatus)
         }
 
       }
@@ -296,20 +295,14 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   }
 
   /// Forward the given request to `clangd`.
+  ///
+  /// This method calls `readyToHandleNextRequest` once the request has been
+  /// transmitted to `clangd` and another request can be safely transmitted to
+  /// `clangd` while guaranteeing ordering.
+  ///
+  /// The response of the request is  returned asynchronously as the return value.
   func forwardRequestToClangd<R: RequestType>(_ request: R) async throws -> R.Response {
-    let timeoutHandle = TimeoutHandle()
-    do {
-      return try await withTimeout(options.semanticServiceRestartTimeoutOrDefault, handle: timeoutHandle) {
-        await self.sourceKitLSPServer?.hooks.preForwardRequestToClangd?(request)
-        return try await self.clangd.send(request)
-      }
-    } catch let error as TimeoutError where error.handle == timeoutHandle {
-      logger.fault(
-        "Did not receive reply from clangd after \(self.options.semanticServiceRestartTimeoutOrDefault, privacy: .public). Terminating and restarting clangd."
-      )
-      self.crash()
-      throw error
-    }
+    return try await clangd.send(request)
   }
 
   package func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {

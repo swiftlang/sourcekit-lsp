@@ -13,7 +13,6 @@
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
-import SKOptions
 import SKTestSupport
 import SourceKitD
 @_spi(Testing) import SourceKitLSP
@@ -348,72 +347,6 @@ final class CrashRecoveryTests: XCTestCase {
       let item = try XCTUnwrap(diagnostics.fullReport?.items.only)
       XCTAssertEqual(item.message, "Cannot convert value of type 'Int' to specified type 'String'")
       return true
-    }
-  }
-
-  func testRestartSourceKitDIfItDoesntReply() async throws {
-    try SkipUnless.longTestsEnabled()
-    try SkipUnless.platformIsDarwin("Linux and Windows use in-process sourcekitd")
-
-    let sourcekitdTerminatedExpectation = self.expectation(description: "sourcekitd terminated")
-
-    let testClient = try await TestSourceKitLSPClient(options: SourceKitLSPOptions(semanticServiceRestartTimeout: 2))
-    let uri = DocumentURI(for: .swift)
-    let positions = testClient.openDocument(
-      """
-      func test() {
-        let 1️⃣x = 1
-      }
-      """,
-      uri: uri
-    )
-
-    // Monitor sourcekitd to notice when it gets terminated
-    let swiftService = try await unwrap(
-      testClient.server.languageService(for: uri, .swift, in: unwrap(testClient.server.workspaceForDocument(uri: uri)))
-        as? SwiftLanguageService
-    )
-    await swiftService.addStateChangeHandler { oldState, newState in
-      logger.debug("sourcekitd changed state: \(String(describing: oldState)) -> \(String(describing: newState))")
-      if newState == .connectionInterrupted {
-        sourcekitdTerminatedExpectation.fulfill()
-      }
-    }
-
-    try await swiftService.sourcekitd.withPreRequestHandlingHook {
-      // The first hover request should get cancelled by `semanticServiceRestartTimeout`
-      await assertThrowsError(
-        try await testClient.send(HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"]))
-      ) { error in
-        XCTAssert(
-          (error as? ResponseError)?.message.contains("Timed out") ?? false,
-          "Received unexpected error: \(error)"
-        )
-      }
-    } hook: { request in
-      // Simulate a stuck sourcekitd that only gets unstuck when sourcekitd is terminated.
-      if request.description.contains("cursorinfo") {
-        // Use a detached task here so that a cancellation of the Task that runs this doesn't cancel the await of
-        // sourcekitdTerminatedExpectation. We want to simulate a sourecekitd that is stuck and doesn't listen to
-        // cancellation.
-        await Task.detached {
-          await orLog("awaiting sourcekitdTerminatedExpectation") {
-            try await fulfillmentOfOrThrow(sourcekitdTerminatedExpectation)
-          }
-        }.value
-      }
-    }
-
-    // After sourcekitd is restarted, we should get a hover result once the semantic editor is enabled again.
-    try await repeatUntilExpectedResult {
-      do {
-        let hover = try await testClient.send(
-          HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
-        )
-        return hover?.contents.markupContent?.value != nil
-      } catch {
-        return false
-      }
     }
   }
 }

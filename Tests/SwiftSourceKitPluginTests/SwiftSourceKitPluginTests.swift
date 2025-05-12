@@ -1830,7 +1830,7 @@ fileprivate extension SourceKitD {
       keys.syntacticOnly: 1,
       keys.compilerArgs: compilerArguments as [SKDRequestValue],
     ])
-    _ = try await send(req, timeout: defaultTimeoutDuration)
+    _ = try await send(req, timeout: defaultTimeoutDuration, fileContents: nil)
     return DocumentPositions(markers: markers, textWithoutMarkers: textWithoutMarkers)
   }
 
@@ -1844,7 +1844,7 @@ fileprivate extension SourceKitD {
       keys.syntacticOnly: 1,
     ])
 
-    _ = try await send(req, timeout: defaultTimeoutDuration)
+    _ = try await send(req, timeout: defaultTimeoutDuration, fileContents: nil)
   }
 
   nonisolated func closeDocument(_ name: String) async throws {
@@ -1853,7 +1853,7 @@ fileprivate extension SourceKitD {
       keys.name: name,
     ])
 
-    _ = try await send(req, timeout: defaultTimeoutDuration)
+    _ = try await send(req, timeout: defaultTimeoutDuration, fileContents: nil)
   }
 
   nonisolated func completeImpl(
@@ -1888,7 +1888,7 @@ fileprivate extension SourceKitD {
       keys.compilerArgs: compilerArguments as [SKDRequestValue]?,
     ])
 
-    let res = try await send(req, timeout: defaultTimeoutDuration)
+    let res = try await send(req, timeout: defaultTimeoutDuration, fileContents: nil)
     return try CompletionResultSet(res)
   }
 
@@ -1946,7 +1946,7 @@ fileprivate extension SourceKitD {
       keys.codeCompleteOptions: dictionary([keys.useNewAPI: 1]),
     ])
 
-    _ = try await send(req, timeout: defaultTimeoutDuration)
+    _ = try await send(req, timeout: defaultTimeoutDuration, fileContents: nil)
   }
 
   nonisolated func completeDocumentation(id: Int) async throws -> CompletionDocumentation {
@@ -1955,7 +1955,7 @@ fileprivate extension SourceKitD {
       keys.identifier: id,
     ])
 
-    let resp = try await send(req, timeout: defaultTimeoutDuration)
+    let resp = try await send(req, timeout: defaultTimeoutDuration, fileContents: nil)
     return CompletionDocumentation(resp)
   }
 
@@ -1964,7 +1964,7 @@ fileprivate extension SourceKitD {
       keys.request: requests.codeCompleteDiagnostic,
       keys.identifier: id,
     ])
-    let resp = try await send(req, timeout: defaultTimeoutDuration)
+    let resp = try await send(req, timeout: defaultTimeoutDuration, fileContents: nil)
 
     return CompletionDiagnostic(resp)
   }
@@ -1973,7 +1973,7 @@ fileprivate extension SourceKitD {
     let req = dictionary([
       keys.request: requests.dependencyUpdated
     ])
-    _ = try await send(req, timeout: defaultTimeoutDuration)
+    _ = try await send(req, timeout: defaultTimeoutDuration, fileContents: nil)
   }
 
   nonisolated func setPopularAPI(popular: [String], unpopular: [String]) async throws {
@@ -1984,7 +1984,7 @@ fileprivate extension SourceKitD {
       keys.unpopular: unpopular as [SKDRequestValue],
     ])
 
-    let resp = try await send(req, timeout: defaultTimeoutDuration)
+    let resp = try await send(req, timeout: defaultTimeoutDuration, fileContents: nil)
     XCTAssertEqual(resp[keys.useNewAPI], 1)
   }
 
@@ -2001,7 +2001,7 @@ fileprivate extension SourceKitD {
       keys.notoriousModules: notoriousModules as [SKDRequestValue],
     ])
 
-    let resp = try await send(req, timeout: defaultTimeoutDuration)
+    let resp = try await send(req, timeout: defaultTimeoutDuration, fileContents: nil)
     XCTAssertEqual(resp[keys.useNewAPI], 1)
   }
 
@@ -2025,7 +2025,7 @@ fileprivate extension SourceKitD {
       keys.modulePopularity: modulePopularity as [SKDRequestValue],
     ])
 
-    let resp = try await send(req, timeout: defaultTimeoutDuration)
+    let resp = try await send(req, timeout: defaultTimeoutDuration, fileContents: nil)
     XCTAssertEqual(resp[keys.useNewAPI], 1)
   }
 

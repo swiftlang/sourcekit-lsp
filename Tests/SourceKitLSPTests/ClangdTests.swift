@@ -11,12 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import SKLogging
-import SKOptions
 import SKTestSupport
-import SourceKitLSP
-import SwiftExtensions
-import TSCBasic
 import XCTest
 
 final class ClangdTests: XCTestCase {
@@ -131,59 +126,5 @@ final class ClangdTests: XCTestCase {
         XCTAssertEqual(link.targetUri, headerUri)
       }
     }
-  }
-
-  func testRestartClangdIfItDoesntReply() async throws {
-    // We simulate clangd not replying until it is restarted using a hook.
-    let clangdRestarted = AtomicBool(initialValue: false)
-    let clangdRestartedExpectation = self.expectation(description: "clangd restarted")
-    let hooks = Hooks(preForwardRequestToClangd: { request in
-      if !clangdRestarted.value {
-        try? await Task.sleep(for: .seconds(60 * 60))
-      }
-    })
-
-    let testClient = try await TestSourceKitLSPClient(
-      options: SourceKitLSPOptions(semanticServiceRestartTimeout: 1),
-      hooks: hooks
-    )
-    let uri = DocumentURI(for: .c)
-    let positions = testClient.openDocument(
-      """
-      void test() {
-        int x1️⃣;
-      }
-      """,
-      uri: uri
-    )
-
-    // Monitor clangd to notice when it gets restarted
-    let clangdServer = try await unwrap(
-      testClient.server.languageService(for: uri, .c, in: unwrap(testClient.server.workspaceForDocument(uri: uri)))
-    )
-    await clangdServer.addStateChangeHandler { oldState, newState in
-      if oldState == .connectionInterrupted, newState == .connected {
-        clangdRestarted.value = true
-        clangdRestartedExpectation.fulfill()
-      }
-    }
-
-    // The first hover request should get cancelled by `semanticServiceRestartTimeout`
-    await assertThrowsError(
-      try await testClient.send(HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"]))
-    ) { error in
-      XCTAssert(
-        (error as? ResponseError)?.message.contains("Timed out") ?? false,
-        "Received unexpected error: \(error)"
-      )
-    }
-
-    try await fulfillmentOfOrThrow(clangdRestartedExpectation)
-
-    // After clangd gets restarted
-    let hover = try await testClient.send(
-      HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
-    )
-    assertContains(hover?.contents.markupContent?.value ?? "", "Type: int")
   }
 }

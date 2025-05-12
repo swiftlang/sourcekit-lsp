@@ -30,11 +30,6 @@ public struct Hooks: Sendable {
   /// This allows requests to be artificially delayed.
   package var preHandleRequest: (@Sendable (any RequestType) async -> Void)?
 
-  /// Closure that is executed before a request is forwarded to clangd.
-  ///
-  /// This allows tests to simulate a `clangd` process that's unresponsive.
-  package var preForwardRequestToClangd: (@Sendable (any RequestType) async -> Void)?
-
   public init() {
     self.init(indexHooks: IndexHooks(), buildSystemHooks: BuildSystemHooks())
   }
@@ -42,12 +37,10 @@ public struct Hooks: Sendable {
   package init(
     indexHooks: IndexHooks = IndexHooks(),
     buildSystemHooks: BuildSystemHooks = BuildSystemHooks(),
-    preHandleRequest: (@Sendable (any RequestType) async -> Void)? = nil,
-    preForwardRequestToClangd: (@Sendable (any RequestType) async -> Void)? = nil
+    preHandleRequest: (@Sendable (any RequestType) async -> Void)? = nil
   ) {
     self.indexHooks = indexHooks
     self.buildSystemHooks = buildSystemHooks
     self.preHandleRequest = preHandleRequest
-    self.preForwardRequestToClangd = preForwardRequestToClangd
   }
 }

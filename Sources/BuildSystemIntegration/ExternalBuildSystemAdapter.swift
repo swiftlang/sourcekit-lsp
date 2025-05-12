@@ -185,11 +185,11 @@ actor ExternalBuildSystemAdapter {
       protocol: bspRegistry,
       stderrLoggingCategory: "bsp-server-stderr",
       client: messagesToSourceKitLSPHandler,
-      terminationHandler: { [weak self] terminationReason in
+      terminationHandler: { [weak self] terminationStatus in
         guard let self else {
           return
         }
-        if terminationReason != .exited(exitCode: 0) {
+        if terminationStatus != 0 {
           Task {
             await orLog("Restarting BSP server") {
               try await self.handleBspServerCrash()
