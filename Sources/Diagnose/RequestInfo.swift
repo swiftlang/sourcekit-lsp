@@ -89,8 +89,6 @@ package struct RequestInfo: Sendable {
   package init(request: String) throws {
     var requestTemplate = request
 
-    // If the request contained source text, remove it. We want to pick it up from the file on disk and most (possibly
-    // all) sourcekitd requests use key.sourcefile if key.sourcetext is missing.
     requestTemplate.replace(#/ *key.sourcetext: .*\n/#, with: #"key.sourcetext: $FILE_CONTENTS\#n"#)
 
     let sourceFilePath: URL
@@ -188,7 +186,7 @@ private func extractSourceFile(from requestTemplate: String) throws -> (template
   switch (sourceFilePath, namePath) {
   case (let sourceFilePath?, let namePath?):
     if sourceFilePath != namePath {
-      throw GenericError("Mismatching find key.sourcefile and key.name in the request")
+      throw GenericError("Mismatching key.sourcefile and key.name in the request: \(sourceFilePath) vs. \(namePath)")
     }
     return (requestTemplate, URL(fileURLWithPath: sourceFilePath))
   case (let sourceFilePath?, nil):

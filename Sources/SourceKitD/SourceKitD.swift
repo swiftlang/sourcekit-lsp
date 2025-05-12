@@ -345,6 +345,8 @@ package actor SourceKitD {
     case requests.codeCompleteClose:
       contextualRequests[documentUrl, default: []].removeAll(where: { $0.kind == .codeCompleteOpen })
       if contextualRequests[documentUrl]?.isEmpty ?? false {
+        // This should never happen because we should still have an active `.editorOpen` contextual request but just be
+        // safe in case we don't.
         contextualRequests[documentUrl] = nil
       }
     default:
