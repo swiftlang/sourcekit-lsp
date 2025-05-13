@@ -116,6 +116,10 @@ private func logToFile(message: String, logDirectory: URL, logFileMaxBytes: Int,
 private func setUpGlobalLogFileHandlerImpl(logFileDirectory: URL, logFileMaxBytes: Int, logRotateCount: Int) {
   logHandler = { @LogHandlerActor message in
     do {
+      // In addition to writing to the log file, also log to stderr, so LSP output is visible in the editor
+      // (e.g. VS Code's Output panel).
+      fputs(message + "\n", stderr)
+
       try logToFile(
         message: message,
         logDirectory: logFileDirectory,
@@ -123,14 +127,7 @@ private func setUpGlobalLogFileHandlerImpl(logFileDirectory: URL, logFileMaxByte
         logRotateCount: logRotateCount
       )
     } catch {
-      fputs(
-        """
-        Failed to write message to log file: \(error)
-        \(message)
-
-        """,
-        stderr
-      )
+      fputs("Failed to write message to log file: \(error)", stderr)
     }
   }
 }
