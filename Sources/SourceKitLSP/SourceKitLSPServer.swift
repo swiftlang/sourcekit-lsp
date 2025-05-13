@@ -1146,7 +1146,7 @@ extension SourceKitLSPServer {
     if let semanticTokensOptions = server.semanticTokensProvider {
       await registry.registerSemanticTokensIfNeeded(options: semanticTokensOptions, for: languages, server: self)
     }
-    if let inlayHintProvider = server.inlayHintProvider, inlayHintProvider.isSupported {
+    if let inlayHintProvider = server.inlayHintProvider, inlayHintProvider.isSupported, options.enableInlayHints ?? true {
       let options: InlayHintOptions
       switch inlayHintProvider {
       case .bool(true):

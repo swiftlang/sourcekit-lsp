@@ -433,6 +433,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     return .seconds(300)
   }
 
+  /// Enable or disable registering inlay hints for the inlayHintProvider
+  public var enableInlayHints: Bool? = nil
+
   public init(
     swiftPM: SwiftPMOptions? = .init(),
     fallbackBuildSystem: FallbackBuildSystemOptions? = .init(),
@@ -451,7 +454,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     swiftPublishDiagnosticsDebounceDuration: Double? = nil,
     workDoneProgressDebounceDuration: Double? = nil,
     sourcekitdRequestTimeout: Double? = nil,
-    semanticServiceRestartTimeout: Double? = nil
+    semanticServiceRestartTimeout: Double? = nil,
+    enableInlayHints: Bool? = nil
   ) {
     self.swiftPM = swiftPM
     self.fallbackBuildSystem = fallbackBuildSystem
@@ -471,6 +475,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     self.workDoneProgressDebounceDuration = workDoneProgressDebounceDuration
     self.sourcekitdRequestTimeout = sourcekitdRequestTimeout
     self.semanticServiceRestartTimeout = semanticServiceRestartTimeout
+    self.enableInlayHints = enableInlayHints
   }
 
   public init?(fromLSPAny lspAny: LSPAny?) throws {
@@ -531,7 +536,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       workDoneProgressDebounceDuration: override?.workDoneProgressDebounceDuration
         ?? base.workDoneProgressDebounceDuration,
       sourcekitdRequestTimeout: override?.sourcekitdRequestTimeout ?? base.sourcekitdRequestTimeout,
-      semanticServiceRestartTimeout: override?.semanticServiceRestartTimeout ?? base.semanticServiceRestartTimeout
+      semanticServiceRestartTimeout: override?.semanticServiceRestartTimeout ?? base.semanticServiceRestartTimeout,
+      enableInlayHints: base.enableInlayHints
     )
   }
 

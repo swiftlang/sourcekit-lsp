@@ -141,6 +141,14 @@ struct SourceKitLSP: AsyncParsableCommand {
   )
   var experimentalFeatures: [String] = []
 
+  @Option(
+    name: .customLong("enable-inlay-hints"),
+    help: """
+      Enable or disable inlay hint responses
+      """
+  )
+  var enableInlayHints: Bool = true
+
   /// Maps The options passed on the command line to a `SourceKitLSPOptions` struct.
   func commandLineOptions() -> SourceKitLSPOptions {
     return SourceKitLSPOptions(
@@ -170,7 +178,8 @@ struct SourceKitLSP: AsyncParsableCommand {
       defaultWorkspaceType: defaultWorkspaceType,
       generatedFilesPath: generatedFilesPath,
       backgroundIndexing: experimentalFeatures.contains("background-indexing"),
-      experimentalFeatures: Set(experimentalFeatures.compactMap(ExperimentalFeature.init))
+      experimentalFeatures: Set(experimentalFeatures.compactMap(ExperimentalFeature.init)),
+      enableInlayHints: enableInlayHints
     )
   }
 
