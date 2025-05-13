@@ -10,7 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+// NSObject is defined in Foundation on non-darwin platforms. On
+// darwin, NSObject is package-visible.
+#if canImport(ObjectiveC)
+import Foundation
+#else
 package import Foundation
+#endif
 
 #if !NO_CRYPTO_DEPENDENCY
 import Crypto
