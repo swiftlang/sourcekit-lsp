@@ -249,6 +249,14 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
     _isExecuting.value = true
     executionTask = task
     executionTaskCreatedContinuation.yield(task)
+    if self.resultTaskCancelled.value {
+      // The queued task might have been cancelled after the execution ask was started but before the task was yielded
+      // to `executionTaskCreatedContinuation`. In that case the result task will simply cancel the await on the
+      // `executionTaskCreatedStream` and hence not call `valuePropagatingCancellation` on the execution task. This
+      // means that the queued task cancellation wouldn't be propagated to the execution task. To address this, check if
+      // `resultTaskCancelled` was  set and, if so, explicitly cancel the execution task here.
+      task.cancel()
+    }
     await executionStateChangedCallback?(self, .executing)
     return await task.value
   }

@@ -105,9 +105,7 @@ package struct PreparationTaskDescription: IndexTaskDescription {
       do {
         try await buildSystemManager.prepare(targets: Set(targetsToPrepare))
       } catch {
-        logger.error(
-          "Preparation failed: \(error.forLogging)"
-        )
+        logger.error("Preparation failed: \(error.forLogging)")
       }
       await hooks.preparationTaskDidFinish?(self)
       if !Task.isCancelled {
