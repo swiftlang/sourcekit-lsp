@@ -521,6 +521,9 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   ///
   /// This will continue calling itself until the queue is empty.
   private func poke() {
+    if isShutDown {
+      return
+    }
     pendingTasks.sort(by: { $0.priority > $1.priority })
     for task in pendingTasks {
       guard
