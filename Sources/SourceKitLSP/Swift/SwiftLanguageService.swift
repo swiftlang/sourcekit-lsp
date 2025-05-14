@@ -314,15 +314,18 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     }
   }
 
-  func sendSourcekitdRequest(
+  func send(
+    sourcekitdRequest requestUid: KeyPath<sourcekitd_api_requests, sourcekitd_api_uid_t> & Sendable,
     _ request: SKDRequestDictionary,
-    fileContents: String?
+    snapshot: DocumentSnapshot?
   ) async throws -> SKDResponseDictionary {
     try await sourcekitd.send(
+      requestUid,
       request,
       timeout: options.sourcekitdRequestTimeoutOrDefault,
       restartTimeout: options.semanticServiceRestartTimeoutOrDefault,
-      fileContents: fileContents
+      documentUrl: snapshot?.uri.arbitrarySchemeURL,
+      fileContents: snapshot?.text
     )
   }
 
@@ -439,10 +442,7 @@ extension SwiftLanguageService {
 
   /// Tell sourcekitd to crash itself. For testing purposes only.
   package func crash() async {
-    let req = sourcekitd.dictionary([
-      keys.request: sourcekitd.requests.crashWithExit
-    ])
-    _ = try? await sendSourcekitdRequest(req, fileContents: nil)
+    _ = try? await send(sourcekitdRequest: \.crashWithExit, sourcekitd.dictionary([:]), snapshot: nil)
   }
 
   // MARK: - Build System Integration
@@ -465,7 +465,7 @@ extension SwiftLanguageService {
 
       let closeReq = closeDocumentSourcekitdRequest(uri: snapshot.uri)
       _ = await orLog("Closing document to re-open it") {
-        try await self.sendSourcekitdRequest(closeReq, fileContents: nil)
+        try await self.send(sourcekitdRequest: \.editorClose, closeReq, snapshot: nil)
       }
 
       let buildSettings = await compileCommand(for: snapshot.uri, fallbackAfterTimeout: true)
@@ -475,7 +475,7 @@ extension SwiftLanguageService {
       )
       self.buildSettingsForOpenFiles[snapshot.uri] = buildSettings
       _ = await orLog("Re-opening document") {
-        try await self.sendSourcekitdRequest(openReq, fileContents: snapshot.text)
+        try await self.send(sourcekitdRequest: \.editorOpen, openReq, snapshot: snapshot)
       }
 
       if await capabilityRegistry.clientSupportsPullDiagnostics(for: .swift) {
@@ -507,10 +507,7 @@ extension SwiftLanguageService {
     }
 
     await orLog("Sending dependencyUpdated request to sourcekitd") {
-      let req = sourcekitd.dictionary([
-        keys.request: requests.dependencyUpdated
-      ])
-      _ = try await self.sendSourcekitdRequest(req, fileContents: nil)
+      _ = try await self.send(sourcekitdRequest: \.dependencyUpdated, sourcekitd.dictionary([:]), snapshot: nil)
     }
     // Even after sending the `dependencyUpdated` request to sourcekitd, the code completion session has state from
     // before the AST update. Close it and open a new code completion session on the next completion request.
@@ -529,7 +526,6 @@ extension SwiftLanguageService {
     compileCommand: SwiftCompileCommand?
   ) -> SKDRequestDictionary {
     return sourcekitd.dictionary([
-      keys.request: self.requests.editorOpen,
       keys.name: snapshot.uri.pseudoPath,
       keys.sourceText: snapshot.text,
       keys.enableSyntaxMap: 0,
@@ -542,7 +538,6 @@ extension SwiftLanguageService {
 
   func closeDocumentSourcekitdRequest(uri: DocumentURI) -> SKDRequestDictionary {
     return sourcekitd.dictionary([
-      keys.request: requests.editorClose,
       keys.name: uri.pseudoPath,
       keys.cancelBuilds: 0,
     ])
@@ -565,7 +560,7 @@ extension SwiftLanguageService {
 
       let req = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: buildSettings)
       await orLog("Opening sourcekitd document") {
-        _ = try await self.sendSourcekitdRequest(req, fileContents: snapshot.text)
+        _ = try await self.send(sourcekitdRequest: \.editorOpen, req, snapshot: snapshot)
       }
       await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
     }
@@ -584,7 +579,7 @@ extension SwiftLanguageService {
     case nil:
       let req = closeDocumentSourcekitdRequest(uri: notification.textDocument.uri)
       await orLog("Closing sourcekitd document") {
-        _ = try await self.sendSourcekitdRequest(req, fileContents: nil)
+        _ = try await self.send(sourcekitdRequest: \.editorClose, req, snapshot: nil)
       }
     }
   }
@@ -682,7 +677,6 @@ extension SwiftLanguageService {
 
     for edit in edits {
       let req = sourcekitd.dictionary([
-        keys.request: self.requests.editorReplaceText,
         keys.name: notification.textDocument.uri.pseudoPath,
         keys.enableSyntaxMap: 0,
         keys.enableStructure: 0,
@@ -693,7 +687,7 @@ extension SwiftLanguageService {
         keys.sourceText: edit.replacement,
       ])
       do {
-        _ = try await self.sendSourcekitdRequest(req, fileContents: nil)
+        _ = try await self.send(sourcekitdRequest: \.editorReplaceText, req, snapshot: nil)
       } catch {
         logger.fault(
           """

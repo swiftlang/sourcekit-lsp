@@ -13,6 +13,7 @@
 package import ArgumentParser
 import Foundation
 import LanguageServerProtocolExtensions
+import SKLogging
 import SwiftExtensions
 import TSCExtensions
 import ToolchainRegistry
@@ -136,6 +137,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
         break
       } catch {
         // Reducing this request failed. Continue reducing the next one, maybe that one succeeds.
+        logger.info("Reducing sourcekitd crash failed: \(error.forLogging)")
       }
     }
   }
@@ -173,6 +175,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
 
       let executor = OutOfProcessSourceKitRequestExecutor(
         sourcekitd: sourcekitd,
+        pluginPaths: toolchain.pluginPaths,
         swiftFrontend: crashInfo.swiftFrontend,
         reproducerPredicate: nil
       )
@@ -457,6 +460,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     let requestInfo = requestInfo
     let executor = OutOfProcessSourceKitRequestExecutor(
       sourcekitd: sourcekitd,
+      pluginPaths: toolchain.pluginPaths,
       swiftFrontend: swiftFrontend,
       reproducerPredicate: nil
     )
