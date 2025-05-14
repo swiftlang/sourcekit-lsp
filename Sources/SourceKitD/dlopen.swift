@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKLogging
 import SwiftExtensions
 
 #if os(Windows)
@@ -45,7 +46,9 @@ package final class DLHandle: Sendable {
   }
 
   deinit {
-    precondition(rawValue.value == nil, "DLHandle must be closed or explicitly leaked before destroying")
+    if rawValue.value != nil {
+      logger.fault("DLHandle must be closed or explicitly leaked before destroying")
+    }
   }
 
   /// The handle must not be used anymore after calling `close`.

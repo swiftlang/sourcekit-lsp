@@ -19,6 +19,7 @@ add_library(BuildSystemIntegration STATIC
   LegacyBuildServerBuildSystem.swift
   MainFilesProvider.swift
   SplitShellCommand.swift
+  SwiftlyResolver.swift
   SwiftPMBuildSystem.swift)
 set_target_properties(BuildSystemIntegration PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
@@ -35,7 +36,8 @@ target_link_libraries(BuildSystemIntegration PUBLIC
   PackageModel
   TSCBasic
   Build
-  SourceKitLSPAPI)
+  SourceKitLSPAPI
+  SwiftASN1)
 
 target_link_libraries(BuildSystemIntegration PRIVATE
   SKUtilities
