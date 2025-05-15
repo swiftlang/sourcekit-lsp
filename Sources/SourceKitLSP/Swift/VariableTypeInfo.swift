@@ -86,6 +86,7 @@ extension SwiftLanguageService {
     let snapshot = try await self.latestSnapshot(for: uri)
 
     let skreq = sourcekitd.dictionary([
+      keys.cancelOnSubsequentRequest: 0,
       keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
       keys.compilerArgs: await self.compileCommand(for: uri, fallbackAfterTimeout: false)?.compilerArgs
