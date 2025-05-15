@@ -221,6 +221,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
             try AbsolutePath(validating: $0, relativeTo: absProjectRoot)
           }
         ),
+        hostToolchainBinDir: hostSwiftPMToolchain.swiftCompilerPath.parentDirectory,
         fileSystem: localFileSystem,
         observabilityScope: observabilitySystem.topScope.makeChildScope(description: "SwiftPM Bundle Store"),
         outputHandler: { _ in }
