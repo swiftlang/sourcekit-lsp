@@ -10,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if os(OSX)
+import Foundation
+#else
 package import Foundation
+#endif
 
 #if !NO_CRYPTO_DEPENDENCY
 import Crypto
