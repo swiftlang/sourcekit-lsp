@@ -90,7 +90,6 @@ package struct ReduceFrontendCommand: AsyncParsableCommand {
 
     let executor = OutOfProcessSourceKitRequestExecutor(
       sourcekitd: sourcekitd,
-      pluginPaths: nil,
       swiftFrontend: swiftFrontend,
       reproducerPredicate: nsPredicate
     )

@@ -12,7 +12,6 @@
 
 package import ArgumentParser
 import Foundation
-import SourceKitD
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
@@ -69,16 +68,12 @@ package struct ReduceCommand: AsyncParsableCommand {
 
   @MainActor
   package func run() async throws {
-    guard let toolchain = try await toolchain else {
-      throw GenericError("Unable to find toolchain")
-    }
-    guard let sourcekitd = toolchain.sourcekitd else {
+    guard let sourcekitd = try await toolchain?.sourcekitd else {
       throw GenericError("Unable to find sourcekitd.framework")
     }
-    guard let swiftFrontend = toolchain.swiftFrontend else {
+    guard let swiftFrontend = try await toolchain?.swiftFrontend else {
       throw GenericError("Unable to find sourcekitd.framework")
     }
-    let pluginPaths = toolchain.pluginPaths
 
     let progressBar = PercentProgressAnimation(stream: stderrStreamConcurrencySafe, header: "Reducing sourcekitd issue")
 
@@ -87,7 +82,6 @@ package struct ReduceCommand: AsyncParsableCommand {
 
     let executor = OutOfProcessSourceKitRequestExecutor(
       sourcekitd: sourcekitd,
-      pluginPaths: pluginPaths,
       swiftFrontend: swiftFrontend,
       reproducerPredicate: nsPredicate
     )
@@ -102,6 +96,6 @@ package struct ReduceCommand: AsyncParsableCommand {
     try reduceRequestInfo.fileContents.write(to: reducedSourceFile, atomically: true, encoding: .utf8)
 
     print("Reduced Request:")
-    print(try reduceRequestInfo.requests(for: reducedSourceFile).joined(separator: "\n\n\n\n"))
+    print(try reduceRequestInfo.request(for: reducedSourceFile))
   }
 }

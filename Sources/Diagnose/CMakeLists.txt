@@ -19,7 +19,6 @@ add_library(Diagnose STATIC
   StderrStreamConcurrencySafe.swift
   SwiftFrontendCrashScraper.swift
   Toolchain+SwiftFrontend.swift
-  Toolchain+PluginPaths.swift
   TraceFromSignpostsCommand.swift)
 
 set_target_properties(Diagnose PROPERTIES

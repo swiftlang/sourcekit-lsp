@@ -95,6 +95,7 @@ actor MacroExpansionManager {
 
     let skreq = swiftLanguageService.sourcekitd.dictionary([
       keys.cancelOnSubsequentRequest: 0,
+      keys.request: swiftLanguageService.requests.semanticRefactoring,
       // Preferred name for e.g. an extracted variable.
       // Empty string means sourcekitd chooses a name automatically.
       keys.name: "",
@@ -108,7 +109,10 @@ actor MacroExpansionManager {
       keys.compilerArgs: buildSettings?.compilerArgs as [SKDRequestValue]?,
     ])
 
-    let dict = try await swiftLanguageService.send(sourcekitdRequest: \.semanticRefactoring, skreq, snapshot: snapshot)
+    let dict = try await swiftLanguageService.sendSourcekitdRequest(
+      skreq,
+      fileContents: snapshot.text
+    )
     guard let expansions = [RefactoringEdit](dict, snapshot, keys) else {
       throw SemanticRefactoringError.noEditsNeeded(snapshot.uri)
     }

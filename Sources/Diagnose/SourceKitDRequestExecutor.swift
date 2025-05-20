@@ -11,9 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 package import Foundation
-package import SourceKitD
+import SourceKitD
 import SwiftExtensions
-import TSCExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
@@ -65,33 +64,31 @@ extension SourceKitRequestExecutor {
 package class OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
   /// The path to `sourcekitd.framework/sourcekitd`.
   private let sourcekitd: URL
-  private let pluginPaths: PluginPaths?
 
   /// The path to `swift-frontend`.
   private let swiftFrontend: URL
 
-  private let temporaryDirectory: URL
-
   /// The file to which we write the reduce source file.
-  private var temporarySourceFile: URL {
-    temporaryDirectory.appendingPathComponent("reduce.swift")
-  }
+  private let temporarySourceFile: URL
+
+  /// The file to which we write the YAML request that we want to run.
+  private let temporaryRequestFile: URL
 
   /// If this predicate evaluates to true on the sourcekitd response, the request is
   /// considered to reproduce the issue.
   private let reproducerPredicate: NSPredicate?
 
-  package init(sourcekitd: URL, pluginPaths: PluginPaths?, swiftFrontend: URL, reproducerPredicate: NSPredicate?) {
+  package init(sourcekitd: URL, swiftFrontend: URL, reproducerPredicate: NSPredicate?) {
     self.sourcekitd = sourcekitd
-    self.pluginPaths = pluginPaths
     self.swiftFrontend = swiftFrontend
     self.reproducerPredicate = reproducerPredicate
-    temporaryDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("sourcekitd-execute-\(UUID())")
-    try? FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+    temporaryRequestFile = FileManager.default.temporaryDirectory.appendingPathComponent("request-\(UUID()).yml")
+    temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("recude-\(UUID()).swift")
   }
 
   deinit {
-    try? FileManager.default.removeItem(at: temporaryDirectory)
+    try? FileManager.default.removeItem(at: temporaryRequestFile)
+    try? FileManager.default.removeItem(at: temporarySourceFile)
   }
 
   /// The `SourceKitDRequestResult` for the given process result, evaluating the reproducer predicate, if it was
@@ -152,38 +149,24 @@ package class OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
   }
 
   package func runSourceKitD(request: RequestInfo) async throws -> SourceKitDRequestResult {
-    var arguments = [
-      ProcessInfo.processInfo.arguments[0],
-      "debug",
-      "run-sourcekitd-request",
-      "--sourcekitd",
-      try sourcekitd.filePath,
-    ]
-    if let pluginPaths {
-      arguments += [
-        "--sourcekit-plugin-path",
-        try pluginPaths.servicePlugin.filePath,
-        "--sourcekit-client-plugin-path",
-        try pluginPaths.clientPlugin.filePath,
-      ]
-    }
-
     try request.fileContents.write(to: temporarySourceFile, atomically: true, encoding: .utf8)
-    let requestStrings = try request.requests(for: temporarySourceFile)
-    for (index, requestString) in requestStrings.enumerated() {
-      let temporaryRequestFile = temporaryDirectory.appendingPathComponent("request-\(index).yml")
-      try requestString.write(
-        to: temporaryRequestFile,
-        atomically: true,
-        encoding: .utf8
-      )
-      arguments += [
+    let requestString = try request.request(for: temporarySourceFile)
+    try requestString.write(to: temporaryRequestFile, atomically: true, encoding: .utf8)
+
+    let process = Process(
+      arguments: [
+        ProcessInfo.processInfo.arguments[0],
+        "debug",
+        "run-sourcekitd-request",
+        "--sourcekitd",
+        try sourcekitd.filePath,
         "--request-file",
         try temporaryRequestFile.filePath,
       ]
-    }
+    )
+    try process.launch()
+    let result = try await process.waitUntilExit()
 
-    let result = try await Process.run(arguments: arguments, workingDirectory: nil)
     return requestResult(for: result)
   }
 }

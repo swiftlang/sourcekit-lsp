@@ -264,6 +264,7 @@ class CodeCompletionSession {
     self.clientSupportsDocumentationResolve =
       clientCapabilities.textDocument?.completion?.completionItem?.resolveSupport?.properties.contains("documentation")
       ?? false
+
   }
 
   private func open(
@@ -278,6 +279,7 @@ class CodeCompletionSession {
 
     let sourcekitdPosition = snapshot.sourcekitdPosition(of: self.position)
     let req = sourcekitd.dictionary([
+      keys.request: sourcekitd.requests.codeCompleteOpen,
       keys.line: sourcekitdPosition.line,
       keys.column: sourcekitdPosition.utf8Column,
       keys.name: uri.pseudoPath,
@@ -286,7 +288,7 @@ class CodeCompletionSession {
       keys.codeCompleteOptions: optionsDictionary(filterText: filterText),
     ])
 
-    let dict = try await send(sourceKitDRequest: \.codeCompleteOpen, req, snapshot: snapshot)
+    let dict = try await sendSourceKitdRequest(req, snapshot: snapshot)
     self.state = .open
 
     guard let completions: SKDResponseArray = dict[keys.results] else {
@@ -312,6 +314,7 @@ class CodeCompletionSession {
     logger.info("Updating code completion session: \(self.description) filter=\(filterText)")
     let sourcekitdPosition = snapshot.sourcekitdPosition(of: self.position)
     let req = sourcekitd.dictionary([
+      keys.request: sourcekitd.requests.codeCompleteUpdate,
       keys.line: sourcekitdPosition.line,
       keys.column: sourcekitdPosition.utf8Column,
       keys.name: uri.pseudoPath,
@@ -319,7 +322,7 @@ class CodeCompletionSession {
       keys.codeCompleteOptions: optionsDictionary(filterText: filterText),
     ])
 
-    let dict = try await send(sourceKitDRequest: \.codeCompleteUpdate, req, snapshot: snapshot)
+    let dict = try await sendSourceKitdRequest(req, snapshot: snapshot)
     guard let completions: SKDResponseArray = dict[keys.results] else {
       return CompletionList(isIncomplete: false, items: [])
     }
@@ -360,6 +363,7 @@ class CodeCompletionSession {
     case .open:
       let sourcekitdPosition = snapshot.sourcekitdPosition(of: self.position)
       let req = sourcekitd.dictionary([
+        keys.request: sourcekitd.requests.codeCompleteClose,
         keys.line: sourcekitdPosition.line,
         keys.column: sourcekitdPosition.utf8Column,
         keys.sourceFile: snapshot.uri.pseudoPath,
@@ -367,24 +371,21 @@ class CodeCompletionSession {
         keys.codeCompleteOptions: [keys.useNewAPI: 1],
       ])
       logger.info("Closing code completion session: \(self.description)")
-      _ = try? await send(sourceKitDRequest: \.codeCompleteClose, req, snapshot: nil)
+      _ = try? await sendSourceKitdRequest(req, snapshot: nil)
       self.state = .closed
     }
   }
 
   // MARK: - Helpers
 
-  private func send(
-    sourceKitDRequest requestUid: KeyPath<sourcekitd_api_requests, sourcekitd_api_uid_t> & Sendable,
+  private func sendSourceKitdRequest(
     _ request: SKDRequestDictionary,
     snapshot: DocumentSnapshot?
   ) async throws -> SKDResponseDictionary {
     try await sourcekitd.send(
-      requestUid,
       request,
       timeout: options.sourcekitdRequestTimeoutOrDefault,
       restartTimeout: options.semanticServiceRestartTimeoutOrDefault,
-      documentUrl: snapshot?.uri.arbitrarySchemeURL,
       fileContents: snapshot?.text
     )
   }
@@ -559,17 +560,11 @@ class CodeCompletionSession {
     var item = item
     if let itemId = CompletionItemData(fromLSPAny: item.data)?.itemId {
       let req = sourcekitd.dictionary([
-        sourcekitd.keys.identifier: itemId
+        sourcekitd.keys.request: sourcekitd.requests.codeCompleteDocumentation,
+        sourcekitd.keys.identifier: itemId,
       ])
       let documentationResponse = await orLog("Retrieving documentation for completion item") {
-        try await sourcekitd.send(
-          \.codeCompleteDocumentation,
-          req,
-          timeout: timeout,
-          restartTimeout: restartTimeout,
-          documentUrl: nil,
-          fileContents: nil
-        )
+        try await sourcekitd.send(req, timeout: timeout, restartTimeout: restartTimeout, fileContents: nil)
       }
       if let docString: String = documentationResponse?[sourcekitd.keys.docBrief] {
         item.documentation = .markupContent(MarkupContent(kind: .markdown, value: docString))

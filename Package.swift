@@ -429,7 +429,6 @@ var targets: [Target] = [
     dependencies: [
       "BuildSystemIntegration",
       "CSKTestSupport",
-      "Csourcekitd",
       "InProcessClient",
       "LanguageServerProtocol",
       "LanguageServerProtocolExtensions",

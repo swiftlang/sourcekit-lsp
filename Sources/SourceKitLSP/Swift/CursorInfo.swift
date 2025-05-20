@@ -158,6 +158,7 @@ extension SwiftLanguageService {
     let keys = self.keys
 
     let skreq = sourcekitd.dictionary([
+      keys.request: requests.cursorInfo,
       keys.cancelOnSubsequentRequest: 0,
       keys.offset: offsetRange.lowerBound,
       keys.length: offsetRange.upperBound != offsetRange.lowerBound ? offsetRange.count : nil,
@@ -169,7 +170,7 @@ extension SwiftLanguageService {
 
     appendAdditionalParameters?(skreq)
 
-    let dict = try await send(sourcekitdRequest: \.cursorInfo, skreq, snapshot: snapshot)
+    let dict = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
 
     var cursorInfoResults: [CursorInfo] = []
     if let cursorInfo = CursorInfo(dict, snapshot: snapshot, documentManager: documentManager, sourcekitd: sourcekitd) {

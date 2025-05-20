@@ -27,12 +27,13 @@ extension SwiftLanguageService {
     }
 
     let skreq = sourcekitd.dictionary([
+      keys.request: requests.semanticTokens,
       keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
       keys.compilerArgs: compileCommand.compilerArgs as [SKDRequestValue],
     ])
 
-    let dict = try await send(sourcekitdRequest: \.semanticTokens, skreq, snapshot: snapshot)
+    let dict = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
 
     guard let skTokens: SKDResponseArray = dict[keys.semanticTokens] else {
       return nil

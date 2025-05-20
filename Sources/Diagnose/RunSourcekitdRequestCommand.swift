@@ -13,7 +13,6 @@
 package import ArgumentParser
 import Csourcekitd
 import Foundation
-import SKLogging
 import SKUtilities
 import SourceKitD
 import SwiftExtensions
@@ -29,45 +28,9 @@ package struct RunSourceKitdRequestCommand: AsyncParsableCommand {
 
   @Option(
     name: .customLong("sourcekitd"),
-    help: """
-      Instead of using sourcekitd from the default toolchain, use this path to sourcekitd.framework/sourcekitd instead
-      """
+    help: "Path to sourcekitd.framework/sourcekitd"
   )
   var sourcekitdPath: String?
-  private var sourcekitdUrl: URL? {
-    guard let sourcekitdPath else {
-      return nil
-    }
-    return URL(fileURLWithPath: sourcekitdPath)
-  }
-
-  @Option(
-    name: .customLong("sourcekit-plugin-path"),
-    help: """
-      Instead of using the SourceKit plugin from from the default toolchain, use this plugin instead
-      """
-  )
-  var sourcekitPluginPath: String?
-  private var sourcekitPluginUrl: URL? {
-    guard let sourcekitPluginPath else {
-      return nil
-    }
-    return URL(fileURLWithPath: sourcekitPluginPath)
-  }
-
-  @Option(
-    name: .customLong("sourcekit-client-plugin-path"),
-    help: """
-      Instead of using the SourceKit client plugin from from the default toolchain, use this plugin instead.
-      """
-  )
-  var sourcekitClientPluginPath: String?
-  private var sourcekitClientPluginUrl: URL? {
-    guard let sourcekitClientPluginPath else {
-      return nil
-    }
-    return URL(fileURLWithPath: sourcekitClientPluginPath)
-  }
 
   @Option(
     name: .customLong("request-file"),
@@ -82,26 +45,18 @@ package struct RunSourceKitdRequestCommand: AsyncParsableCommand {
   package init() {}
 
   package func run() async throws {
-    let toolchain = await ToolchainRegistry(installPath: Bundle.main.bundleURL).default
-
-    let pluginPaths: PluginPaths?
-    if let clientPlugin = sourcekitClientPluginUrl ?? toolchain?.sourceKitClientPlugin,
-      let servicePlugin = sourcekitPluginUrl ?? toolchain?.sourceKitServicePlugin
-    {
-      pluginPaths = PluginPaths(clientPlugin: clientPlugin, servicePlugin: servicePlugin)
-    } else {
-      print("Not loading SourceKit plugin")
-      pluginPaths = nil
-    }
-
-    guard let sourcekitdPath = sourcekitdUrl ?? toolchain?.sourcekitd else {
-      print("Did not find sourcekitd in the toolchain. Specify path to sourcekitd manually by passing --sourcekitd")
-      throw ExitCode(1)
-    }
-
+    let sourcekitdPath =
+      if let sourcekitdPath {
+        URL(fileURLWithPath: sourcekitdPath)
+      } else if let path = await ToolchainRegistry(installPath: Bundle.main.bundleURL).default?.sourcekitd {
+        path
+      } else {
+        print("Did not find sourcekitd in the toolchain. Specify path to sourcekitd manually by passing --sourcekitd")
+        throw ExitCode(1)
+      }
     let sourcekitd = try await SourceKitD.getOrCreate(
       dylibPath: sourcekitdPath,
-      pluginPaths: pluginPaths
+      pluginPaths: nil
     )
 
     var lastResponse: SKDResponse?

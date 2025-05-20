@@ -67,6 +67,7 @@ extension SwiftLanguageService {
     includeNonEditableBaseNames: Bool
   ) async throws -> RelatedIdentifiersResponse {
     let skreq = sourcekitd.dictionary([
+      keys.request: requests.relatedIdents,
       keys.cancelOnSubsequentRequest: 0,
       keys.offset: snapshot.utf8Offset(of: position),
       keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
@@ -76,7 +77,7 @@ extension SwiftLanguageService {
         as [SKDRequestValue]?,
     ])
 
-    let dict = try await send(sourcekitdRequest: \.relatedIdents, skreq, snapshot: snapshot)
+    let dict = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
 
     guard let results: SKDResponseArray = dict[self.keys.results] else {
       throw ResponseError.internalError("sourcekitd response did not contain results")

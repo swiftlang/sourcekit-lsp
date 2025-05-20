@@ -118,6 +118,7 @@ extension SwiftLanguageService {
 
     let skreq = sourcekitd.dictionary([
       keys.cancelOnSubsequentRequest: 0,
+      keys.request: self.requests.semanticRefactoring,
       // Preferred name for e.g. an extracted variable.
       // Empty string means sourcekitd chooses a name automatically.
       keys.name: "",
@@ -131,7 +132,7 @@ extension SwiftLanguageService {
         as [SKDRequestValue]?,
     ])
 
-    let dict = try await send(sourcekitdRequest: \.semanticRefactoring, skreq, snapshot: snapshot)
+    let dict = try await sendSourcekitdRequest(skreq, fileContents: snapshot.text)
     guard let refactor = SemanticRefactoring(refactorCommand.title, dict, snapshot, self.keys) else {
       throw SemanticRefactoringError.noEditsNeeded(uri)
     }

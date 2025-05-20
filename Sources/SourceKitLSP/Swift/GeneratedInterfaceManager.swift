@@ -67,13 +67,13 @@ actor GeneratedInterfaceManager {
         let sourcekitd = swiftLanguageService.sourcekitd
         for documentToClose in documentsToClose {
           await orLog("Closing generated interface") {
-            _ = try await swiftLanguageService.send(
-              sourcekitdRequest: \.editorClose,
+            _ = try await swiftLanguageService.sendSourcekitdRequest(
               sourcekitd.dictionary([
+                sourcekitd.keys.request: sourcekitd.requests.editorClose,
                 sourcekitd.keys.name: documentToClose,
                 sourcekitd.keys.cancelBuilds: 0,
               ]),
-              snapshot: nil
+              fileContents: nil
             )
           }
         }
@@ -114,6 +114,7 @@ actor GeneratedInterfaceManager {
 
     let keys = sourcekitd.keys
     let skreq = sourcekitd.dictionary([
+      keys.request: sourcekitd.requests.editorOpenInterface,
       keys.moduleName: document.moduleName,
       keys.groupName: document.groupName,
       keys.name: document.sourcekitdDocumentName,
@@ -122,7 +123,7 @@ actor GeneratedInterfaceManager {
         .compilerArgs as [SKDRequestValue]?,
     ])
 
-    let dict = try await swiftLanguageService.send(sourcekitdRequest: \.editorOpenInterface, skreq, snapshot: nil)
+    let dict = try await swiftLanguageService.sendSourcekitdRequest(skreq, fileContents: nil)
 
     guard let contents: String = dict[keys.sourceText] else {
       throw ResponseError.unknown("sourcekitd response is missing sourceText")
@@ -132,13 +133,13 @@ actor GeneratedInterfaceManager {
       // Another request raced us to create the generated interface. Discard what we computed here and return the cached
       // value.
       await orLog("Closing generated interface created during race") {
-        _ = try await swiftLanguageService.send(
-          sourcekitdRequest: \.editorClose,
+        _ = try await swiftLanguageService.sendSourcekitdRequest(
           sourcekitd.dictionary([
+            keys.request: sourcekitd.requests.editorClose,
             keys.name: document.sourcekitdDocumentName,
             keys.cancelBuilds: 0,
           ]),
-          snapshot: nil
+          fileContents: nil
         )
       }
       return cached
@@ -190,15 +191,12 @@ actor GeneratedInterfaceManager {
     let sourcekitd = swiftLanguageService.sourcekitd
     let keys = sourcekitd.keys
     let skreq = sourcekitd.dictionary([
+      keys.request: sourcekitd.requests.editorFindUSR,
       keys.sourceFile: document.sourcekitdDocumentName,
       keys.usr: usr,
     ])
 
-    let dict = try await swiftLanguageService.send(
-      sourcekitdRequest: \.editorFindUSR,
-      skreq,
-      snapshot: details.snapshot
-    )
+    let dict = try await swiftLanguageService.sendSourcekitdRequest(skreq, fileContents: details.snapshot.text)
     guard let offset: Int = dict[keys.offset] else {
       throw ResponseError.unknown("Missing key 'offset'")
     }
