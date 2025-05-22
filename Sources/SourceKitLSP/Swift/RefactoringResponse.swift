@@ -117,6 +117,7 @@ extension SwiftLanguageService {
     let utf8Column = snapshot.lineTable.utf8ColumnAt(line: line, utf16Column: utf16Column)
 
     let skreq = sourcekitd.dictionary([
+      keys.cancelOnSubsequentRequest: 0,
       keys.request: self.requests.semanticRefactoring,
       // Preferred name for e.g. an extracted variable.
       // Empty string means sourcekitd chooses a name automatically.

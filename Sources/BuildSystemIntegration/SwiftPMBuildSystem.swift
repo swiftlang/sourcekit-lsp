@@ -203,19 +203,25 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       throw Error.cannotDetermineHostToolchain
     }
 
+    var absProjectRoot = try AbsolutePath(validating: projectRoot.filePath)
     let hostSDK = try SwiftSDK.hostSwiftSDK(AbsolutePath(validating: destinationToolchainBinDir.filePath))
     let hostSwiftPMToolchain = try UserToolchain(swiftSDK: hostSDK)
 
     let destinationSDK = try SwiftSDK.deriveTargetSwiftSDK(
       hostSwiftSDK: hostSDK,
       hostTriple: hostSwiftPMToolchain.targetTriple,
-      customToolsets: options.swiftPMOrDefault.toolsets?.map { try AbsolutePath(validating: $0) } ?? [],
+      customToolsets: options.swiftPMOrDefault.toolsets?.map {
+        try AbsolutePath(validating: $0, relativeTo: absProjectRoot)
+      } ?? [],
       customCompileTriple: options.swiftPMOrDefault.triple.map { try Triple($0) },
       swiftSDKSelector: options.swiftPMOrDefault.swiftSDK,
       store: SwiftSDKBundleStore(
         swiftSDKsDirectory: localFileSystem.getSharedSwiftSDKsDirectory(
-          explicitDirectory: options.swiftPMOrDefault.swiftSDKsDirectory.map { try AbsolutePath(validating: $0) }
+          explicitDirectory: options.swiftPMOrDefault.swiftSDKsDirectory.map {
+            try AbsolutePath(validating: $0, relativeTo: absProjectRoot)
+          }
         ),
+        hostToolchainBinDir: hostSwiftPMToolchain.swiftCompilerPath.parentDirectory,
         fileSystem: localFileSystem,
         observabilityScope: observabilitySystem.topScope.makeChildScope(description: "SwiftPM Bundle Store"),
         outputHandler: { _ in }
@@ -227,20 +233,14 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     let destinationSwiftPMToolchain = try UserToolchain(swiftSDK: destinationSDK)
 
     var location = try Workspace.Location(
-      forRootPackage: try AbsolutePath(validating: projectRoot.filePath),
+      forRootPackage: absProjectRoot,
       fileSystem: localFileSystem
     )
+
     if options.backgroundIndexingOrDefault {
-      location.scratchDirectory = try AbsolutePath(
-        validating: projectRoot.appendingPathComponent(".build").appendingPathComponent("index-build").filePath
-      )
-    } else if let scratchDirectory = options.swiftPMOrDefault.scratchPath,
-      let scratchDirectoryPath = try? AbsolutePath(
-        validating: scratchDirectory,
-        relativeTo: AbsolutePath(validating: projectRoot.filePath)
-      )
-    {
-      location.scratchDirectory = scratchDirectoryPath
+      location.scratchDirectory = absProjectRoot.appending(components: ".build", "index-build")
+    } else if let scratchDirectory = options.swiftPMOrDefault.scratchPath {
+      location.scratchDirectory = try AbsolutePath(validating: scratchDirectory, relativeTo: absProjectRoot)
     }
 
     var configuration = WorkspaceConfiguration.default

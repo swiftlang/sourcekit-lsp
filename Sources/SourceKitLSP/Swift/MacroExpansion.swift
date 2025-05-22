@@ -94,6 +94,7 @@ actor MacroExpansionManager {
     let length = snapshot.utf8OffsetRange(of: range).count
 
     let skreq = swiftLanguageService.sourcekitd.dictionary([
+      keys.cancelOnSubsequentRequest: 0,
       keys.request: swiftLanguageService.requests.semanticRefactoring,
       // Preferred name for e.g. an extracted variable.
       // Empty string means sourcekitd chooses a name automatically.
