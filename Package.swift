@@ -18,6 +18,7 @@ var globalSwiftSettings: [SwiftSetting] {
 var products: [Product] = [
   .executable(name: "sourcekit-lsp", targets: ["sourcekit-lsp"]),
   .library(name: "_SourceKitLSP", targets: ["SourceKitLSP"]),
+  .library(name: "BuildServerProtocol", targets: ["BuildServerProtocol"]),
   .library(name: "LSPBindings", targets: ["LanguageServerProtocol", "LanguageServerProtocolJSONRPC"]),
   .library(name: "InProcessClient", targets: ["InProcessClient"]),
   .library(name: "SwiftSourceKitPlugin", type: .dynamic, targets: ["SwiftSourceKitPlugin"]),
