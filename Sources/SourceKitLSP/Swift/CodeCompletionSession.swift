@@ -401,11 +401,14 @@ class CodeCompletionSession {
       exprToExpand = insertText
     }
 
+    // Note we don't need special handling for macro expansions since
+    // their insertion text doesn't include the '#', so are parsed as
+    // function calls here.
     var parser = Parser(exprToExpand)
     let expr = ExprSyntax.parse(from: &parser)
     guard let call = OutermostFunctionCallFinder.findOutermostFunctionCall(in: expr),
       let expandedCall = ExpandEditorPlaceholdersToLiteralClosures.refactor(
-        syntax: call,
+        syntax: Syntax(call),
         in: ExpandEditorPlaceholdersToLiteralClosures.Context(
           format: .custom(
             ClosureCompletionFormat(indentationWidth: indentationWidth),
