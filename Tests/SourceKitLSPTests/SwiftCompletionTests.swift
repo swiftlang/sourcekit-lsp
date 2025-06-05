@@ -1058,6 +1058,73 @@ final class SwiftCompletionTests: XCTestCase {
     )
   }
 
+  func testExpandMacroClosurePlaceholder() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
+    let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      @freestanding(expression)
+      macro myMacroExpr(fn: (Int) -> String) = #externalMacro(module: "", type: "")
+
+      @freestanding(declaration)
+      macro myMacroDecl(fn1: (Int) -> String, fn2: () -> Void) = #externalMacro(module: "", type: "")
+
+      func test() {
+          #1️⃣
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertEqual(
+      completions.items.clearingUnstableValues.filter { $0.label.contains("myMacro") },
+      [
+        CompletionItem(
+          label: "myMacroDecl(fn1: (Int) -> String, fn2: () -> Void)",
+          kind: .value,
+          detail: "Declaration Macro",
+          deprecated: false,
+          filterText: "myMacroDecl(fn1:fn2:)",
+          insertText: #"""
+            myMacroDecl(fn1: ${1:{ ${2:Int} in ${3:String} \}}, fn2: ${4:{ ${5:Void} \}})
+            """#,
+          insertTextFormat: .snippet,
+          textEdit: .textEdit(
+            TextEdit(
+              range: Range(positions["1️⃣"]),
+              newText: #"""
+                myMacroDecl(fn1: ${1:{ ${2:Int} in ${3:String} \}}, fn2: ${4:{ ${5:Void} \}})
+                """#
+            )
+          )
+        ),
+        CompletionItem(
+          label: "myMacroExpr(fn: (Int) -> String)",
+          kind: .value,
+          detail: "Void",
+          deprecated: false,
+          filterText: "myMacroExpr(fn:)",
+          insertText: #"""
+            myMacroExpr(fn: ${1:{ ${2:Int} in ${3:String} \}})
+            """#,
+          insertTextFormat: .snippet,
+          textEdit: .textEdit(
+            TextEdit(
+              range: Range(positions["1️⃣"]),
+              newText: #"""
+                myMacroExpr(fn: ${1:{ ${2:Int} in ${3:String} \}})
+                """#
+            )
+          )
+        ),
+      ]
+    )
+  }
+
   func testCompletionScoring() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()
 
