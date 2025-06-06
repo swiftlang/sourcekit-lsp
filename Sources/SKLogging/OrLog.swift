@@ -23,14 +23,14 @@ private func logError(prefix: String, error: Error, level: LogLevel = .error) {
 
 /// Like `try?`, but logs the error on failure.
 package func orLog<R>(
-  _ prefix: String,
+  _ prefix: @autoclosure () -> String,
   level: LogLevel = .error,
   _ block: () throws -> R?
 ) -> R? {
   do {
     return try block()
   } catch {
-    logError(prefix: prefix, error: error, level: level)
+    logError(prefix: prefix(), error: error, level: level)
     return nil
   }
 }
@@ -39,14 +39,14 @@ package func orLog<R>(
 ///
 /// - SeeAlso: ``orLog(_:level:_:)-66i2z``
 package func orLog<R>(
-  _ prefix: String,
+  _ prefix: @autoclosure () -> String,
   level: LogLevel = .error,
   @_inheritActorContext _ block: @Sendable () async throws -> R?
 ) async -> R? {
   do {
     return try await block()
   } catch {
-    logError(prefix: prefix, error: error, level: level)
+    logError(prefix: prefix(), error: error, level: level)
     return nil
   }
 }
