@@ -810,7 +810,7 @@ var dependencies: [Package.Dependency] {
       .package(url: "https://github.com/swiftlang/swift-docc-symbolkit.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/swiftlang/swift-markdown.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/swiftlang/swift-tools-support-core.git", branch: relatedDependenciesBranch),
-      .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.4.0"),
+      .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.1"),
       .package(url: "https://github.com/swiftlang/swift-syntax.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
       // Not a build dependency. Used so the "Format Source Code" command plugin can be used to format sourcekit-lsp
