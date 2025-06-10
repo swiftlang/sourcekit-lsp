@@ -14,10 +14,17 @@ import Foundation
 package import SourceKitD
 import ToolchainRegistry
 
+// Anchor class to lookup the testing bundle when swiftpm-testing-helper is used.
+private final class TestingAnchor {}
+
 /// The path to the `SwiftSourceKitPluginTests` test bundle. This gives us a hook into the the build directory.
 private let xctestBundle: URL = {
   #if canImport(Darwin)
   for bundle in Bundle.allBundles where bundle.bundlePath.hasSuffix(".xctest") {
+    return bundle.bundleURL
+  }
+  let bundle = Bundle(for: TestingAnchor.self)
+  if bundle.bundlePath.hasSuffix(".xctest") {
     return bundle.bundleURL
   }
   preconditionFailure("Failed to find xctest bundle")
