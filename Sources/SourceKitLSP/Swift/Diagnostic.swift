@@ -248,10 +248,19 @@ extension Diagnostic {
       educationalNotePaths.count > 0,
       let primaryPath = educationalNotePaths[0]
     {
-      let url = URL(fileURLWithPath: primaryPath)
-      let name = url.deletingPathExtension().lastPathComponent
-      code = .string(name)
-      codeDescription = .init(href: DocumentURI(url))
+      // Swift >= 6.2 returns a URL rather than a file path
+      let url: URL? =
+        if primaryPath.starts(with: "http") {
+          URL(string: primaryPath)
+        } else {
+          URL(fileURLWithPath: primaryPath)
+        }
+
+      if let url {
+        let name = url.deletingPathExtension().lastPathComponent
+        code = .string(name)
+        codeDescription = .init(href: DocumentURI(url))
+      }
     }
 
     var actions: [CodeAction]? = nil
