@@ -306,6 +306,16 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
         indexDelegate = SourceKitIndexDelegate()
         let prefixMappings =
           (indexOptions.indexPrefixMap ?? [:])
+          .sorted {
+            // Fixes an issue where remapPath might match the shortest path first when multiple common prefixes exist
+            // Sort by path length descending to prioritize more specific paths;
+            // when lengths are equal, sort lexicographically in ascending order
+            if $0.original.count != $1.original.count {
+              return $0.original.count > $1.original.count  // Prefer longer paths (more specific)
+            } else {
+              return $0.original < $1.original  // Alphabetical sort when lengths are equal, ensures stable ordering
+            }
+          }
           .map { PathMapping(original: $0.key, replacement: $0.value) }
         if let indexInjector = hooks.indexHooks.indexInjector {
           let indexStoreDB = try await indexInjector.createIndex(
