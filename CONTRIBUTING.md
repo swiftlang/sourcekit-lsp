@@ -113,7 +113,7 @@ SourceKit-LSP is formatted using [swift-format](http://github.com/swiftlang/swif
 
 To format your changes run the formatter using the following command
 ```bash
-swift package format-source-code
+swift format -ipr .
 ```
 
 If you are developing SourceKit-LSP in VS Code, you can also run the *Run swift-format* task from *Tasks: Run tasks* in the command palette.
