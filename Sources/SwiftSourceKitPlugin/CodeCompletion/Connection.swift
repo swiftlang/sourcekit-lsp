@@ -145,23 +145,6 @@ final class Connection {
     sourcekitd.ideApi.set_file_contents(impl, path, document.lineTable.content)
   }
 
-  func editDocument(path: String, edit: TextEdit) {
-    guard let document = documents[path] else {
-      logger.error("Document at '\(path)' is not open")
-      return
-    }
-
-    document.lineTable.replace(
-      fromLine: edit.range.lowerBound.line - 1,
-      utf8Offset: edit.range.lowerBound.utf8Column - 1,
-      toLine: edit.range.upperBound.line - 1,
-      utf8Offset: edit.range.upperBound.utf8Column - 1,
-      with: edit.newText
-    )
-
-    sourcekitd.ideApi.set_file_contents(impl, path, document.lineTable.content)
-  }
-
   func closeDocument(path: String) {
     if documents[path] == nil {
       logger.error("Document at '\(path)' was not open")
