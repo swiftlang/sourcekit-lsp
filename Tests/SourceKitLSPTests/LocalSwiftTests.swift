@@ -379,8 +379,13 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertEqual(diags.diagnostics.count, 1)
     let diag = diags.diagnostics.first!
     XCTAssertEqual(diag.code, .string("property-wrapper-requirements"))
-    let filename = try XCTUnwrap(diag.codeDescription?.href.fileURL?.lastPathComponent)
-    XCTAssert(filename.starts(with: "property-wrapper-requirements"))
+
+    let noteUri = try XCTUnwrap(diag.codeDescription?.href)
+    if noteUri.fileURL != nil {
+      // Check we're not creating an absolute path out of a URL
+      XCTAssertFalse(noteUri.stringValue.contains("https://"))
+    }
+    XCTAssert(noteUri.arbitrarySchemeURL.lastPathComponent.starts(with: "property-wrapper-requirements"))
   }
 
   func testFixitsAreIncludedInPublishDiagnostics() async throws {
