@@ -36,7 +36,7 @@ class TopKTests: XCTestCase {
   }
 
   func testSelectTopKExhaustively() throws {
-    func allCombinations(count: Int, body: ([Int]) -> ()) {
+    func allCombinations(count: Int, body: ([Int]) -> Void) {
       var array = [Int](repeating: 0, count: count)
       func enumerate(slot: Int) {
         if slot == array.count {

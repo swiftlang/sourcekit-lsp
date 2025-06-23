@@ -18,7 +18,7 @@ import XCTest
 @inline(never)
 package func drain<T>(_ value: T) {}
 
-func duration(of body: () -> ()) -> TimeInterval {
+func duration(of body: () -> Void) -> TimeInterval {
   let start = ProcessInfo.processInfo.systemUptime
   body()
   return ProcessInfo.processInfo.systemUptime - start
@@ -30,7 +30,7 @@ extension RandomNumberGenerator {
   }
 }
 
-package func withEachPermutation<T>(_ a: T, _ b: T, body: (T, T) -> ()) {
+package func withEachPermutation<T>(_ a: T, _ b: T, body: (T, T) -> Void) {
   body(a, b)
   body(b, a)
 }
@@ -134,7 +134,7 @@ extension XCTestCase {
   /// Run `body()` `iterations`, gathering timing stats, and print them.
   /// In between runs, coax for the machine into an arbitrary but consistent thermal state by either sleeping or doing
   /// pointless work so that results are more comparable run to run, no matter else is happening on the machine.
-  package func gaugeTiming(iterations: Int = 1, testName: String = #function, _ body: () -> ()) {
+  package func gaugeTiming(iterations: Int = 1, testName: String = #function, _ body: () -> Void) {
     let logFD = tryOrFailTest(try Self.openPerformanceLog(), message: "Failed to open performance log")
     var timings = Timings()
     for iteration in 0..<iterations {

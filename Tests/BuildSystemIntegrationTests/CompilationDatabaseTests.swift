@@ -433,7 +433,7 @@ fileprivate var pathSeparator: String {
 
 private func checkCompilationDatabaseBuildSystem(
   _ compdb: String,
-  block: @Sendable (JSONCompilationDatabaseBuildSystem) async throws -> ()
+  block: @Sendable (JSONCompilationDatabaseBuildSystem) async throws -> Void
 ) async throws {
   try await withTestScratchDir { tempDir in
     let configPath = tempDir.appendingPathComponent(JSONCompilationDatabaseBuildSystem.dbName)

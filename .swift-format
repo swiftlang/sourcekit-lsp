@@ -13,6 +13,7 @@
         "NoBlockComments": false,
         "OrderedImports": true,
         "UseLetInEveryBoundCaseVariable": false,
-        "UseSynthesizedInitializer": false
+        "UseSynthesizedInitializer": false,
+        "ReturnVoidInsteadOfEmptyTuple": true,
     }
 }

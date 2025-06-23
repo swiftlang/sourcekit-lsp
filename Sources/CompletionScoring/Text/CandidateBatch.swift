@@ -99,13 +99,13 @@ package struct CandidateBatch: Sendable {
     /// Don't add a method that returns a candidate, the candidates have unsafe pointers back into the batch, and
     /// must not outlive it.
     @inline(__always)
-    func enumerate(body: (Candidate) throws -> ()) rethrows {
+    func enumerate(body: (Candidate) throws -> Void) rethrows {
       for idx in 0..<count {
         try body(candidate(at: idx))
       }
     }
 
-    func enumerate(_ range: Range<Int>, body: (Int, Candidate) throws -> ()) rethrows {
+    func enumerate(_ range: Range<Int>, body: (Int, Candidate) throws -> Void) rethrows {
       precondition(range.lowerBound >= 0)
       precondition(range.upperBound <= count)
       for idx in range {
@@ -224,15 +224,15 @@ package struct CandidateBatch: Sendable {
     append(contentsOf: candidates, contentType: contentType)
   }
 
-  package func enumerate(body: (Candidate) throws -> ()) rethrows {
+  package func enumerate(body: (Candidate) throws -> Void) rethrows {
     try readonlyStorage.enumerate(body: body)
   }
 
-  package func enumerate(body: (Int, Candidate) throws -> ()) rethrows {
+  package func enumerate(body: (Int, Candidate) throws -> Void) rethrows {
     try readonlyStorage.enumerate(0..<count, body: body)
   }
 
-  internal func enumerate(_ range: Range<Int>, body: (Int, Candidate) throws -> ()) rethrows {
+  internal func enumerate(_ range: Range<Int>, body: (Int, Candidate) throws -> Void) rethrows {
     try readonlyStorage.enumerate(range, body: body)
   }
 
@@ -283,7 +283,7 @@ package struct CandidateBatch: Sendable {
     count > 0
   }
 
-  private mutating func mutate(body: (inout UnsafeStorage) -> ()) {
+  private mutating func mutate(body: (inout UnsafeStorage) -> Void) {
     if !isKnownUniquelyReferenced(&__storageBox_useAccessor) {
       __storageBox_useAccessor = __storageBox_useAccessor.copy()
     }
@@ -524,7 +524,7 @@ package struct Candidate {
 // Creates a buffer of `capacity` elements of type `T?`, each initially set to nil.
 ///
 /// After running `initialize`, returns all elements that were set to non-`nil` values.
-private func compactScratchArea<T>(capacity: Int, initialize: (UnsafeMutablePointer<T?>) -> ()) -> [T] {
+private func compactScratchArea<T>(capacity: Int, initialize: (UnsafeMutablePointer<T?>) -> Void) -> [T] {
   let scratchArea = UnsafeMutablePointer<T?>.allocate(capacity: capacity)
   scratchArea.initialize(repeating: nil, count: capacity)
   defer {
