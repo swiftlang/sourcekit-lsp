@@ -15,5 +15,6 @@
         "UseLetInEveryBoundCaseVariable": false,
         "UseSynthesizedInitializer": false,
         "ReturnVoidInsteadOfEmptyTuple": true,
+        "NoVoidReturnOnFunctionSignature": true,
     }
 }
