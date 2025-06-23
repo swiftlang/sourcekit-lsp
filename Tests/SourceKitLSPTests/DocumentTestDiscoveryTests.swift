@@ -621,6 +621,11 @@ final class DocumentTestDiscoveryTests: XCTestCase {
       func oneIsTwo() {
         #expect(1 == 2)
       }2️⃣
+
+      3️⃣@Test("One is two")
+      func `one is two`() {
+        #expect(1 == 2)
+      }4️⃣
       """,
       uri: uri
     )
@@ -634,7 +639,13 @@ final class DocumentTestDiscoveryTests: XCTestCase {
           label: "One is two",
           style: TestStyle.swiftTesting,
           location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"])
-        )
+        ),
+        TestItem(
+          id: "`one is two`()",
+          label: "One is two",
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["3️⃣"]..<positions["4️⃣"])
+        ),
       ]
     )
   }
@@ -686,6 +697,126 @@ final class DocumentTestDiscoveryTests: XCTestCase {
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["6️⃣"]..<positions["7️⃣"])
             ),
+          ]
+        )
+      ]
+    )
+  }
+
+  func testSwiftTestingTestWithRawIdentifiers() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      1️⃣struct MyTests {
+        2️⃣@Test
+        func `one two`(`a b`: Int, c: Int, `3`: Int, `$`: Int, `+1`: Int) {
+          #expect(1 == 2)
+        }3️⃣
+      }4️⃣
+
+      extension MyTests {
+        5️⃣@Test
+        func `3four`() {
+          #expect(2 == 3)
+        }6️⃣
+        // Don't include operators
+        @Test
+        func +() {
+          #expect(2 == 3)
+        }
+        // This is invalid, but we'll pick it up as identifier.
+        7️⃣@Test
+        func `+`() {
+          #expect(2 == 3)
+        }8️⃣
+        // Also invalid.
+        9️⃣@Test
+        func ``() {
+          #expect(2 == 3)
+        }🔟
+      }
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/`one two`(`a b`:c:`3`:`$`:`+1`:)",
+              label: "one two",
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
+            ),
+            TestItem(
+              id: "MyTests/`3four`()",
+              label: "3four",
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["5️⃣"]..<positions["6️⃣"])
+            ),
+            TestItem(
+              id: "MyTests/`+`()",
+              label: "+",
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["7️⃣"]..<positions["8️⃣"])
+            ),
+            TestItem(
+              id: "MyTests/``()",
+              label: "``",
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["9️⃣"]..<positions["🔟"])
+            ),
+          ]
+        )
+      ]
+    )
+  }
+
+  func testSwiftTestingTestWithSlashRawIdentifiers() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      1️⃣struct MyTests {
+        2️⃣@Test
+        func `x/y`() {
+          #expect(1 == 2)
+        }3️⃣
+      }4️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/`x/y`()",
+              label: "x/y",
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
+            )
           ]
         )
       ]
