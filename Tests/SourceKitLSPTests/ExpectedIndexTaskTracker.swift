@@ -142,7 +142,7 @@ actor ExpectedIndexTaskTracker {
     )
   }
 
-  func preparationTaskDidStart(taskDescription: PreparationTaskDescription) -> Void {
+  func preparationTaskDidStart(taskDescription: PreparationTaskDescription) {
     guard let expectedPreparations else {
       return
     }
@@ -160,7 +160,7 @@ actor ExpectedIndexTaskTracker {
     }
   }
 
-  func preparationTaskDidFinish(taskDescription: PreparationTaskDescription) -> Void {
+  func preparationTaskDidFinish(taskDescription: PreparationTaskDescription) {
     guard let expectedPreparations else {
       return
     }
@@ -191,7 +191,7 @@ actor ExpectedIndexTaskTracker {
     }
   }
 
-  func updateIndexStoreTaskDidStart(taskDescription: UpdateIndexStoreTaskDescription) -> Void {
+  func updateIndexStoreTaskDidStart(taskDescription: UpdateIndexStoreTaskDescription) {
     if Task.isCancelled {
       logger.debug(
         """
@@ -212,7 +212,7 @@ actor ExpectedIndexTaskTracker {
     }
   }
 
-  func updateIndexStoreTaskDidFinish(taskDescription: UpdateIndexStoreTaskDescription) -> Void {
+  func updateIndexStoreTaskDidFinish(taskDescription: UpdateIndexStoreTaskDescription) {
     guard let expectedIndexStoreUpdates else {
       return
     }

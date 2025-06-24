@@ -29,7 +29,7 @@ package struct BinaryEncoder {
   ///   - body: a closure accepting a `BinaryEncoder` that you can make `write(_:)` calls against to populate the
   ///   archive.
   /// - Returns: a byte array that can be used with `BinaryDecoder`
-  static func encode(contentVersion: Int, _ body: (inout Self) -> ()) -> [UInt8] {
+  static func encode(contentVersion: Int, _ body: (inout Self) -> Void) -> [UInt8] {
     var encoder = BinaryEncoder(contentVersion: contentVersion)
     body(&encoder)
     return encoder.stream

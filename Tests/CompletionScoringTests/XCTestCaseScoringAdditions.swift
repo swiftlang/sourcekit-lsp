@@ -92,7 +92,7 @@ extension XCTestCase {
 }
 
 extension String {
-  func enumeratePrefixes(includeLowercased: Bool, body: (String) -> ()) {
+  func enumeratePrefixes(includeLowercased: Bool, body: (String) -> Void) {
     for length in 1..<count {
       body(String(prefix(length)))
       if includeLowercased {

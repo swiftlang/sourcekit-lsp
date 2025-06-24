@@ -107,7 +107,7 @@ package struct Timings {
 }
 
 extension Optional {
-  mutating func mutateWrappedValue(mutator: (inout Wrapped) -> ()) {
+  mutating func mutateWrappedValue(mutator: (inout Wrapped) -> Void) {
     if var wrapped = self {
       self = nil  // Avoid COW for clients.
       mutator(&wrapped)

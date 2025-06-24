@@ -290,7 +290,7 @@ protocol ContiguousZeroBasedIndexedCollection: Collection where Index == Int {
 }
 
 extension ContiguousZeroBasedIndexedCollection {
-  func slicedConcurrentForEachSliceRange(body: @Sendable (Range<Index>) -> ()) {
+  func slicedConcurrentForEachSliceRange(body: @Sendable (Range<Index>) -> Void) {
     // We want to use `DispatchQueue.concurrentPerform`, but we want to be called only a few times. So that we
     // can amortize per-callback work. We also want to oversubscribe so that we can efficiently use
     // heterogeneous CPUs. If we had 4 efficiency cores, and 4 performance cores, and we dispatched 8 work items
@@ -336,7 +336,7 @@ extension Array {
   ///     }
   ///     ```
   package func unsafeSlicedConcurrentMap<T>(
-    writer: @Sendable (ArraySlice<Element>, _ destination: UnsafeMutablePointer<T>) -> ()
+    writer: @Sendable (ArraySlice<Element>, _ destination: UnsafeMutablePointer<T>) -> Void
   ) -> [T] where Self: Sendable {
     return Array<T>(unsafeUninitializedCapacity: count) { buffer, initializedCount in
       if let bufferBase = buffer.baseAddress {
@@ -353,13 +353,13 @@ extension Array {
   }
 
   /// Concurrent for-each on self, but slice based to allow the body to amortize work across callbacks
-  func slicedConcurrentForEach(body: @Sendable (ArraySlice<Element>) -> ()) where Self: Sendable {
+  func slicedConcurrentForEach(body: @Sendable (ArraySlice<Element>) -> Void) where Self: Sendable {
     slicedConcurrentForEachSliceRange { sliceRange in
       body(self[sliceRange])
     }
   }
 
-  func concurrentForEach(body: @Sendable (Element) -> ()) where Self: Sendable {
+  func concurrentForEach(body: @Sendable (Element) -> Void) where Self: Sendable {
     DispatchQueue.concurrentPerform(iterations: count) { index in
       body(self[index])
     }

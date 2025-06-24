@@ -752,7 +752,7 @@ extension Pattern {
       self.baseNameLength = baseNameLength ?? byteCount
     }
 
-    func enumerate(body: (Range<Int>) -> ()) {
+    func enumerate(body: (Range<Int>) -> Void) {
       var position = 0
       for token in tokens {
         body(position ..+ token.length)

@@ -482,7 +482,7 @@ package actor SourceKitD {
 
 /// A sourcekitd notification handler in a class to allow it to be uniquely referenced.
 package protocol SKDNotificationHandler: AnyObject, Sendable {
-  func notification(_: SKDResponse) -> Void
+  func notification(_: SKDResponse)
 }
 
 struct WeakSKDNotificationHandler: Sendable {

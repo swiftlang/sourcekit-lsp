@@ -45,7 +45,7 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
 
   func process(
     _ message: DocumentationServer.Message,
-    completion: @escaping (DocumentationServer.Message) -> ()
+    completion: @escaping (DocumentationServer.Message) -> Void
   ) {
     do {
       let response = try process(message)

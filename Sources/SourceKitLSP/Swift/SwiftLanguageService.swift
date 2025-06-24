@@ -272,7 +272,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   }
 
   /// - Important: For testing only
-  package func setReusedNodeCallback(_ callback: (@Sendable (_ node: Syntax) -> ())?) async {
+  package func setReusedNodeCallback(_ callback: (@Sendable (_ node: Syntax) -> Void)?) async {
     await self.syntaxTreeManager.setReusedNodeCallback(callback)
   }
 

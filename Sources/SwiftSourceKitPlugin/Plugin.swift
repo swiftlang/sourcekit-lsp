@@ -85,7 +85,7 @@ final class RequestHandler: Sendable {
       }
     }
 
-    func sourcekitdProducesResult(body: @escaping @Sendable () async -> ()) -> HandleRequestResult {
+    func sourcekitdProducesResult(body: @escaping @Sendable () async -> Void) -> HandleRequestResult {
       requestHandlingQueue.async {
         await body()
       }
