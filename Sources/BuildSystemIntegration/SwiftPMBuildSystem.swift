@@ -282,7 +282,8 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       ),
       configuration: buildConfiguration,
       toolchain: hostSwiftPMToolchain,
-      flags: buildFlags
+      flags: buildFlags,
+      buildSystemKind: .native,
     )
 
     self.destinationBuildParameters = try BuildParameters(
@@ -294,6 +295,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       toolchain: destinationSwiftPMToolchain,
       triple: destinationSDK.targetTriple,
       flags: buildFlags,
+      buildSystemKind: .native,
       prepareForIndexing: options.backgroundPreparationModeOrDefault.toSwiftPMPreparation
     )
 
