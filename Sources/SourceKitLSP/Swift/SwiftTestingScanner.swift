@@ -305,6 +305,20 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     return visitTypeOrExtensionDecl(node, typeNames: [identifier.name])
   }
 
+  /// If the given identifier requires backticks to be a valid decl identifier,
+  /// applies backticks and returns `true` along with the new name. Otherwise
+  /// returns `false` with the original name.
+  func backtickIfNeeded(_ ident: Identifier) -> (backticked: Bool, name: String) {
+    let name = ident.name
+    if name == "``" {
+      // Special case: `` stays as ``. Any other backticked name will have
+      // been stripped by Identifier.
+      return (true, name)
+    }
+    let needsBackticks = !name.isValidSwiftIdentifier(for: .variableName)
+    return (needsBackticks, needsBackticks ? "`\(name)`" : name)
+  }
+
   override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
     let testAttribute = node.attributes
       .compactMap { $0.as(AttributeSyntax.self) }
@@ -318,18 +332,28 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
       return .skipChildren
     }
 
-    let parameters = node.signature.parameterClause.parameters.map {
-      "\($0.firstName.identifier?.name ?? $0.firstName.text):"
+    let parameters = node.signature.parameterClause.parameters.map { param in
+      let result =
+        if let identifier = param.firstName.identifier {
+          backtickIfNeeded(identifier).name
+        } else {
+          // Something like `_`, leave as-is.
+          param.firstName.text
+        }
+      return "\(result):"
     }.joined()
-    let name = "\(identifier.name)(\(parameters))"
+
+    let (hasBackticks, baseName) = backtickIfNeeded(identifier)
+    let fullName = "\(baseName)(\(parameters))"
+    let displayName = attributeData.displayName ?? (hasBackticks ? identifier.name : fullName)
 
     let range = snapshot.absolutePositionRange(
       of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia
     )
     let testItem = AnnotatedTestItem(
       testItem: TestItem(
-        id: (parentTypeNames + [name]).joined(separator: "/"),
-        label: attributeData.displayName ?? name,
+        id: (parentTypeNames + [fullName]).joined(separator: "/"),
+        label: displayName,
         disabled: attributeData.isDisabled || allTestsDisabled,
         style: TestStyle.swiftTesting,
         location: Location(uri: snapshot.uri, range: range),
