@@ -345,6 +345,20 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
 
     let (hasBackticks, baseName) = backtickIfNeeded(identifier)
     let fullName = "\(baseName)(\(parameters))"
+
+    // If we have a display name provided by the attribute, use it, otherwise
+    // we can infer the display name from a raw identifier if we have one.
+    //
+    // A raw identifier is considered an alternative way of spelling the display
+    // name, so e.g these have the same display name:
+    //
+    // ```
+    // @Test("foo bar") func foo() {}
+    // @Test func `foo bar`() {}
+    // ```
+    //
+    // as such it shouldn't include any parameters. If we just have a regular
+    // name then we use the full name as the display name.
     let displayName = attributeData.displayName ?? (hasBackticks ? identifier.name : fullName)
 
     let range = snapshot.absolutePositionRange(
