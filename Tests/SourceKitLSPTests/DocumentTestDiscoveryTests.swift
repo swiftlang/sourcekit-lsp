@@ -783,6 +783,131 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
+  func testSwiftTestingTestWithNestedRawIdentifiers() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      1️⃣struct `A B` {
+        2️⃣struct `C` {
+          3️⃣struct `D.E` {
+            4️⃣@Test
+            func `foo bar`() {
+              #expect(1 == 2)
+            }5️⃣
+          }6️⃣
+        }7️⃣
+      }8️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "`A B`",
+          label: "A B",
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["8️⃣"]),
+          children: [
+            TestItem(
+              id: "`A B`/C",
+              label: "C",
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["7️⃣"]),
+              children: [
+                TestItem(
+                  id: "`A B`/C/`D.E`",
+                  label: "D.E",
+                  style: TestStyle.swiftTesting,
+                  location: Location(uri: uri, range: positions["3️⃣"]..<positions["6️⃣"]),
+                  children: [
+                    TestItem(
+                      id: "`A B`/C/`D.E`/`foo bar`()",
+                      label: "foo bar",
+                      style: TestStyle.swiftTesting,
+                      location: Location(uri: uri, range: positions["4️⃣"]..<positions["5️⃣"])
+                    )
+                  ]
+                )
+              ]
+            )
+          ]
+        )
+      ]
+    )
+  }
+
+  func testSwiftTestingTestWithNestedRawIdentifiersExtension() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      struct `A.B` {
+        struct `C` {
+          struct `D E` {}
+        }
+      }
+      1️⃣extension `A.B`.`C`.`D E` {
+        2️⃣@Test
+        func `foo bar`() {
+          #expect(1 == 2)
+        }3️⃣
+      }4️⃣
+      5️⃣extension `A.B` {
+        6️⃣@Test
+        func `bar baz`() {
+          #expect(1 == 2)
+        }7️⃣
+      }8️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "`A.B`/C/`D E`",
+          label: "D E",
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "`A.B`/C/`D E`/`foo bar`()",
+              label: "foo bar",
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
+            )
+          ]
+        ),
+        TestItem(
+          id: "`A.B`",
+          label: "A.B",
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["5️⃣"]..<positions["8️⃣"]),
+          children: [
+            TestItem(
+              id: "`A.B`/`bar baz`()",
+              label: "bar baz",
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["6️⃣"]..<positions["7️⃣"])
+            )
+          ]
+        ),
+      ]
+    )
+  }
+
   func testSwiftTestingTestWithSlashRawIdentifiers() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)

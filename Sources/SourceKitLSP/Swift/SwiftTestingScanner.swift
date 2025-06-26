@@ -237,6 +237,9 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
       return .skipChildren
     }
 
+    let displayName = attributeData?.displayName ?? typeNames.last!
+    let typeNames = typeNames.map { backtickIfNeeded($0).name }
+
     let memberScanner = SyntacticSwiftTestingTestScanner(
       snapshot: snapshot,
       allTestsDisabled: attributeData?.isDisabled ?? false,
@@ -256,7 +259,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     let testItem = AnnotatedTestItem(
       testItem: TestItem(
         id: (parentTypeNames + typeNames).joined(separator: "/"),
-        label: attributeData?.displayName ?? typeNames.last!,
+        label: displayName,
         disabled: (attributeData?.isDisabled ?? false) || allTestsDisabled,
         style: TestStyle.swiftTesting,
         location: Location(uri: snapshot.uri, range: range),
@@ -305,15 +308,13 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     return visitTypeOrExtensionDecl(node, typeNames: [identifier.name])
   }
 
-  /// If the given identifier requires backticks to be a valid decl identifier,
+  /// If the given name requires backticks to be a valid decl identifier,
   /// applies backticks and returns `true` along with the new name. Otherwise
-  /// returns `false` with the original name.
-  func backtickIfNeeded(_ ident: Identifier) -> (backticked: Bool, name: String) {
-    let name = ident.name
-    if name == "``" {
-      // Special case: `` stays as ``. Any other backticked name will have
-      // been stripped by Identifier.
-      return (true, name)
+  /// returns `false` with the name.
+  func backtickIfNeeded(_ name: String) -> (backticked: Bool, name: String) {
+    var name = name
+    if name.first == "`" && name.last == "`" {
+      name = String(name.dropFirst().dropLast())
     }
     let needsBackticks = !name.isValidSwiftIdentifier(for: .variableName)
     return (needsBackticks, needsBackticks ? "`\(name)`" : name)
@@ -335,7 +336,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     let parameters = node.signature.parameterClause.parameters.map { param in
       let result =
         if let identifier = param.firstName.identifier {
-          backtickIfNeeded(identifier).name
+          backtickIfNeeded(identifier.name).name
         } else {
           // Something like `_`, leave as-is.
           param.firstName.text
@@ -343,8 +344,22 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
       return "\(result):"
     }.joined()
 
-    let (hasBackticks, baseName) = backtickIfNeeded(identifier)
+    let (hasBackticks, baseName) = backtickIfNeeded(identifier.name)
     let fullName = "\(baseName)(\(parameters))"
+
+    // If we have a display name provided by the attribute, use it, otherwise
+    // we can infer the display name from a raw identifier if we have one.
+    //
+    // A raw identifier is considered an alternative way of spelling the display
+    // name, so e.g these have the same display name:
+    //
+    // ```
+    // @Test("foo bar") func foo() {}
+    // @Test func `foo bar`() {}
+    // ```
+    //
+    // as such it shouldn't include any parameters. If we just have a regular
+    // name then we use the full name as the display name.
     let displayName = attributeData.displayName ?? (hasBackticks ? identifier.name : fullName)
 
     let range = snapshot.absolutePositionRange(
