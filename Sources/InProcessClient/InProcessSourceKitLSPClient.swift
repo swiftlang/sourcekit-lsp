@@ -15,7 +15,7 @@ public import Foundation
 public import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
-package import SKOptions
+public import SKOptions
 package import SourceKitLSP
 import SwiftExtensions
 import TSCExtensions
@@ -31,13 +31,14 @@ public final class InProcessSourceKitLSPClient: Sendable {
 
   public convenience init(
     toolchainPath: URL?,
+    options: SourceKitLSPOptions = SourceKitLSPOptions(),
     capabilities: ClientCapabilities = ClientCapabilities(),
     workspaceFolders: [WorkspaceFolder],
     messageHandler: any MessageHandler
   ) async throws {
     try await self.init(
       toolchainRegistry: ToolchainRegistry(installPath: toolchainPath),
-      options: SourceKitLSPOptions(),
+      options: options,
       capabilities: capabilities,
       workspaceFolders: workspaceFolders,
       messageHandler: messageHandler
