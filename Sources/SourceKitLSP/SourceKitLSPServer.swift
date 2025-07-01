@@ -390,9 +390,10 @@ package actor SourceKitLSPServer {
 
   private func handleRequest<RequestType: TextDocumentRequest>(
     for request: RequestAndReply<RequestType>,
-    requestHandler: @Sendable @escaping (
-      RequestType, Workspace, LanguageService
-    ) async throws ->
+    requestHandler:
+      @Sendable @escaping (
+        RequestType, Workspace, LanguageService
+      ) async throws ->
       RequestType.Response
   ) async {
     await request.reply {

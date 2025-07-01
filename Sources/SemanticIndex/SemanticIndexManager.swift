@@ -261,9 +261,10 @@ package final actor SemanticIndexManager {
     updateIndexStoreTimeout: Duration,
     hooks: IndexHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
-    logMessageToIndexLog: @escaping @Sendable (
-      _ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind
-    ) -> Void,
+    logMessageToIndexLog:
+      @escaping @Sendable (
+        _ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind
+      ) -> Void,
     indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
     indexProgressStatusDidChange: @escaping @Sendable () -> Void
   ) {
