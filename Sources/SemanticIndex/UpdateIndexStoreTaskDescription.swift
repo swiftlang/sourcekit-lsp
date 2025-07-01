@@ -146,9 +146,10 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     index: UncheckedIndex,
     indexStoreUpToDateTracker: UpToDateTracker<DocumentURI, BuildTargetIdentifier>,
     indexFilesWithUpToDateUnit: Bool,
-    logMessageToIndexLog: @escaping @Sendable (
-      _ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind
-    ) -> Void,
+    logMessageToIndexLog:
+      @escaping @Sendable (
+        _ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind
+      ) -> Void,
     timeout: Duration,
     hooks: IndexHooks
   ) {
