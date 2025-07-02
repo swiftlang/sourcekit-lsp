@@ -203,7 +203,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       throw Error.cannotDetermineHostToolchain
     }
 
-    var absProjectRoot = try AbsolutePath(validating: projectRoot.filePath)
+    let absProjectRoot = try AbsolutePath(validating: projectRoot.filePath)
     let hostSDK = try SwiftSDK.hostSwiftSDK(AbsolutePath(validating: destinationToolchainBinDir.filePath))
     let hostSwiftPMToolchain = try UserToolchain(swiftSDK: hostSDK)
 
@@ -237,10 +237,10 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       fileSystem: localFileSystem
     )
 
-    if options.backgroundIndexingOrDefault {
-      location.scratchDirectory = absProjectRoot.appending(components: ".build", "index-build")
-    } else if let scratchDirectory = options.swiftPMOrDefault.scratchPath {
+    if let scratchDirectory = options.swiftPMOrDefault.scratchPath {
       location.scratchDirectory = try AbsolutePath(validating: scratchDirectory, relativeTo: absProjectRoot)
+    } else if options.backgroundIndexingOrDefault {
+      location.scratchDirectory = absProjectRoot.appending(components: ".build", "index-build")
     }
 
     var configuration = WorkspaceConfiguration.default

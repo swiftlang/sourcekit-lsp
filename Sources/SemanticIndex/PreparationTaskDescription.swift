@@ -63,9 +63,10 @@ package struct PreparationTaskDescription: IndexTaskDescription {
     targetsToPrepare: [BuildTargetIdentifier],
     buildSystemManager: BuildSystemManager,
     preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier, DummySecondaryKey>,
-    logMessageToIndexLog: @escaping @Sendable (
-      _ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind
-    ) -> Void,
+    logMessageToIndexLog:
+      @escaping @Sendable (
+        _ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind
+      ) -> Void,
     hooks: IndexHooks
   ) {
     self.targetsToPrepare = targetsToPrepare
