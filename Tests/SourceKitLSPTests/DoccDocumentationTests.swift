@@ -350,8 +350,8 @@ final class DoccDocumentationTests: XCTestCase {
             case first
             /// The se5️⃣cond kind
             case second
-          }
-        }6️⃣
+          }6️⃣
+        }7️⃣
         """,
       ],
       enableBackgroundIndexing: true
@@ -365,7 +365,8 @@ final class DoccDocumentationTests: XCTestCase {
         "3️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/Kind"),
         "4️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/Kind/first"),
         "5️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/Kind/second"),
-        "6️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/numberPlusOne"),
+        "6️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/Kind"),
+        "7️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/Kind"),
       ]
     )
   }

@@ -46,7 +46,7 @@ extension SwiftLanguageService {
       let nearestDocumentableSymbol = DocumentableSymbol.findNearestSymbol(
         syntaxTree: syntaxTree,
         position: snapshot.absolutePosition(of: position)
-      ) ?? DocumentableSymbol.findTopLevelSymbol(syntaxTree: syntaxTree)
+      )
     else {
       throw ResponseError.requestFailed(doccDocumentationError: .noDocumentableSymbols)
     }
@@ -152,34 +152,31 @@ fileprivate struct DocumentableSymbol {
     }
   }
 
-  static func findTopLevelSymbol(syntaxTree: SourceFileSyntax) -> DocumentableSymbol? {
-    class Visitor: SyntaxAnyVisitor {
-      var topLevelSymbol: DocumentableSymbol? = nil
-
-      override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
-        guard topLevelSymbol == nil else {
-          return .skipChildren
-        }
-
-        if let symbol = DocumentableSymbol(node: node) {
-          topLevelSymbol = symbol
-          return .skipChildren
-        }
-        return .visitChildren
-      }
-    }
-
-    let visitor = Visitor(viewMode: .all)
-    visitor.walk(syntaxTree)
-    return visitor.topLevelSymbol
-  }
-
   static func findNearestSymbol(syntaxTree: SourceFileSyntax, position: AbsolutePosition) -> DocumentableSymbol? {
-    guard let token = syntaxTree.token(at: position) else {
-      return nil
+    // token(at:) can return nil if the position is at the end of the document. Fall back to using the last token in this case.
+    let token = syntaxTree.token(at: position) ?? syntaxTree.lastToken(viewMode: .all)
+    // Check if the current token is within a valid documentable symbol
+    if let token, let symbol = token.ancestorOrSelf(mapping: { DocumentableSymbol(node: $0) }) {
+      return symbol
     }
-    // Walk up the tree until we find a documentable symbol
-    return token.ancestorOrSelf { DocumentableSymbol(node: $0) }
+    // Walk forward through the tokens until we find a documentable symbol
+    var previousToken = token
+    while let nextToken = previousToken?.nextToken(viewMode: .all) {
+      if let symbol = nextToken.ancestorOrSelf(mapping: { DocumentableSymbol(node: $0) }) {
+        return symbol
+      }
+      previousToken = nextToken
+    }
+    // Walk backwards through the tokens until we find a documentable symbol
+    previousToken = token
+    while let nextToken = previousToken?.previousToken(viewMode: .all) {
+      if let symbol = nextToken.ancestorOrSelf(mapping: { DocumentableSymbol(node: $0) }) {
+        return symbol
+      }
+      previousToken = nextToken
+    }
+    // We couldn't find anything
+    return nil
   }
 }
 #endif
