@@ -21,11 +21,30 @@ import SwiftDocC
 import XCTest
 
 final class DoccDocumentationTests: XCTestCase {
+
+  func testUnsupportedLanguage() async throws {
+    try await renderDocumentation(
+      markedText: "1️⃣",
+      language: .c,
+      expectedResponses: ["1️⃣": .error(.unsupportedLanguage("C"))]
+    )
+    try await renderDocumentation(
+      markedText: "2️⃣",
+      language: .cpp,
+      expectedResponses: ["2️⃣": .error(.unsupportedLanguage("C++"))]
+    )
+    try await renderDocumentation(
+      markedText: "3️⃣",
+      language: .objective_c,
+      expectedResponses: ["3️⃣": .error(.unsupportedLanguage("Objective-C"))]
+    )
+  }
+
   // MARK: Swift Documentation
 
   func testEmptySwiftFile() async throws {
     try await renderDocumentation(
-      swiftFile: "1️⃣",
+      markedText: "1️⃣",
       expectedResponses: [
         "1️⃣": .error(.noDocumentableSymbols)
       ]
@@ -34,7 +53,7 @@ final class DoccDocumentationTests: XCTestCase {
 
   func testFunction() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         /// A function that do1️⃣es some important stuff.
         func func2️⃣tion() {
           // Some import3️⃣ant function contents.
@@ -51,7 +70,7 @@ final class DoccDocumentationTests: XCTestCase {
 
   func testStructure() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         /// A structure contain1️⃣ing important information.
         public struct Struc2️⃣ture {
           /// The inte3️⃣ger `foo`
@@ -83,7 +102,7 @@ final class DoccDocumentationTests: XCTestCase {
 
   func testEmptyStructure() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         pub1️⃣lic struct Struc2️⃣ture {
           3️⃣
         }4️⃣
@@ -99,7 +118,7 @@ final class DoccDocumentationTests: XCTestCase {
 
   func testClass() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         /// A class contain1️⃣ing important information.
         public class Cla2️⃣ss {
           /// The inte3️⃣ger `foo`
@@ -132,7 +151,7 @@ final class DoccDocumentationTests: XCTestCase {
 
   func testEmptyClass() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         pub1️⃣lic class Cla2️⃣ss {
           3️⃣
         }4️⃣
@@ -148,7 +167,7 @@ final class DoccDocumentationTests: XCTestCase {
 
   func testActor() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         /// An actor contain1️⃣ing important information.
         public actor Ac2️⃣tor {
           /// The inte3️⃣ger `foo`
@@ -180,7 +199,7 @@ final class DoccDocumentationTests: XCTestCase {
 
   func testEmptyActor() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         pub1️⃣lic class Act2️⃣or {
           3️⃣
         }4️⃣
@@ -196,7 +215,7 @@ final class DoccDocumentationTests: XCTestCase {
 
   func testEnumeration() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         /// An enumeration contain1️⃣ing important information.
         public enum En2️⃣um {
           /// The 3️⃣first case.
@@ -272,7 +291,7 @@ final class DoccDocumentationTests: XCTestCase {
 
   func testProtocol() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         /// A protocol contain1️⃣ing important information.
         public protocol Proto2️⃣col {
           /// The inte3️⃣ger `foo`
@@ -296,7 +315,7 @@ final class DoccDocumentationTests: XCTestCase {
 
   func testEmptyProtocol() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         /// A protocol containing important information
         pub1️⃣lic struct Prot2️⃣ocol {
           3️⃣
@@ -353,7 +372,7 @@ final class DoccDocumentationTests: XCTestCase {
 
   func testCursorInImport() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         import Found1️⃣ation
 
         /// A structure containing important information
@@ -733,13 +752,14 @@ fileprivate func renderDocumentation(
 }
 
 fileprivate func renderDocumentation(
-  swiftFile markedText: String,
+  markedText: String,
+  language: Language = .swift,
   expectedResponses: [String: PartialConvertResponse],
   file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
   let testClient = try await TestSourceKitLSPClient()
-  let uri = DocumentURI(for: .swift)
+  let uri = DocumentURI(for: language)
   let positions = testClient.openDocument(markedText, uri: uri)
 
   await renderDocumentation(

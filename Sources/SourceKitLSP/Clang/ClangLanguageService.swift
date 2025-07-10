@@ -495,7 +495,12 @@ extension ClangLanguageService {
 
   #if canImport(DocCDocumentation)
   func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
-    throw ResponseError.requestFailed(doccDocumentationError: .noDocumentation)
+    guard let sourceKitLSPServer else {
+      throw ResponseError.unknown("Connection to the editor closed")
+    }
+
+    let snapshot = try sourceKitLSPServer.documentManager.latestSnapshot(req.textDocument.uri)
+    throw ResponseError.requestFailed(doccDocumentationError: .unsupportedLanguage(snapshot.language.description))
   }
   #endif
 
