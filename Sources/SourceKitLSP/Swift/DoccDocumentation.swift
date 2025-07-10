@@ -46,9 +46,9 @@ extension SwiftLanguageService {
       let nearestDocumentableSymbol = DocumentableSymbol.findNearestSymbol(
         syntaxTree: syntaxTree,
         position: snapshot.absolutePosition(of: position)
-      )
+      ) ?? DocumentableSymbol.findTopLevelSymbol(syntaxTree: syntaxTree)
     else {
-      throw ResponseError.requestFailed(doccDocumentationError: .noDocumentation)
+      throw ResponseError.requestFailed(doccDocumentationError: .noDocumentableSymbols)
     }
     // Retrieve the symbol graph as well as information about the symbol
     let symbolPosition = await adjustPositionToStartOfIdentifier(
@@ -130,30 +130,56 @@ fileprivate struct DocumentableSymbol {
     }
   }
 
+  init?(node: any SyntaxProtocol) {
+    if let namedDecl = node.asProtocol(NamedDeclSyntax.self) {
+      self = DocumentableSymbol(node: namedDecl, position: namedDecl.name.positionAfterSkippingLeadingTrivia)
+    } else if let initDecl = node.as(InitializerDeclSyntax.self) {
+      self = DocumentableSymbol(node: initDecl, position: initDecl.initKeyword.positionAfterSkippingLeadingTrivia)
+    } else if let functionDecl = node.as(FunctionDeclSyntax.self) {
+      self = DocumentableSymbol(node: functionDecl, position: functionDecl.name.positionAfterSkippingLeadingTrivia)
+    } else if let variableDecl = node.as(VariableDeclSyntax.self) {
+      guard let identifier = variableDecl.bindings.only?.pattern.as(IdentifierPatternSyntax.self) else {
+        return nil
+      }
+      self = DocumentableSymbol(node: variableDecl, position: identifier.positionAfterSkippingLeadingTrivia)
+    } else if let enumCaseDecl = node.as(EnumCaseDeclSyntax.self) {
+      guard let name = enumCaseDecl.elements.only?.name else {
+        return nil
+      }
+      self = DocumentableSymbol(node: enumCaseDecl, position: name.positionAfterSkippingLeadingTrivia)
+    } else {
+      return nil
+    }
+  }
+
+  static func findTopLevelSymbol(syntaxTree: SourceFileSyntax) -> DocumentableSymbol? {
+    class Visitor: SyntaxAnyVisitor {
+      var topLevelSymbol: DocumentableSymbol? = nil
+
+      override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
+        guard topLevelSymbol == nil else {
+          return .skipChildren
+        }
+
+        if let symbol = DocumentableSymbol(node: node) {
+          topLevelSymbol = symbol
+          return .skipChildren
+        }
+        return .visitChildren
+      }
+    }
+
+    let visitor = Visitor(viewMode: .all)
+    visitor.walk(syntaxTree)
+    return visitor.topLevelSymbol
+  }
+
   static func findNearestSymbol(syntaxTree: SourceFileSyntax, position: AbsolutePosition) -> DocumentableSymbol? {
     guard let token = syntaxTree.token(at: position) else {
       return nil
     }
-    return token.ancestorOrSelf { node in
-      if let namedDecl = node.asProtocol(NamedDeclSyntax.self) {
-        return DocumentableSymbol(node: namedDecl, position: namedDecl.name.positionAfterSkippingLeadingTrivia)
-      } else if let initDecl = node.as(InitializerDeclSyntax.self) {
-        return DocumentableSymbol(node: initDecl, position: initDecl.initKeyword.positionAfterSkippingLeadingTrivia)
-      } else if let functionDecl = node.as(FunctionDeclSyntax.self) {
-        return DocumentableSymbol(node: functionDecl, position: functionDecl.name.positionAfterSkippingLeadingTrivia)
-      } else if let variableDecl = node.as(VariableDeclSyntax.self) {
-        guard let identifier = variableDecl.bindings.only?.pattern.as(IdentifierPatternSyntax.self) else {
-          return nil
-        }
-        return DocumentableSymbol(node: variableDecl, position: identifier.positionAfterSkippingLeadingTrivia)
-      } else if let enumCaseDecl = node.as(EnumCaseDeclSyntax.self) {
-        guard let name = enumCaseDecl.elements.only?.name else {
-          return nil
-        }
-        return DocumentableSymbol(node: enumCaseDecl, position: name.positionAfterSkippingLeadingTrivia)
-      }
-      return nil
-    }
+    // Walk up the tree until we find a documentable symbol
+    return token.ancestorOrSelf { DocumentableSymbol(node: $0) }
   }
 }
 #endif

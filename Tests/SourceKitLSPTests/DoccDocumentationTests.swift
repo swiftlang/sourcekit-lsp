@@ -27,7 +27,7 @@ final class DoccDocumentationTests: XCTestCase {
     try await renderDocumentation(
       swiftFile: "1️⃣",
       expectedResponses: [
-        "1️⃣": .error(.noDocumentation)
+        "1️⃣": .error(.noDocumentableSymbols)
       ]
     )
   }
@@ -44,7 +44,7 @@ final class DoccDocumentationTests: XCTestCase {
         "1️⃣": .renderNode(kind: .symbol, path: "test/function()"),
         "2️⃣": .renderNode(kind: .symbol, path: "test/function()"),
         "3️⃣": .renderNode(kind: .symbol, path: "test/function()"),
-        "4️⃣": .error(.noDocumentation),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/function()"),
       ]
     )
   }
@@ -76,7 +76,7 @@ final class DoccDocumentationTests: XCTestCase {
         "6️⃣": .renderNode(kind: .symbol, path: "test/Structure/bar"),
         "7️⃣": .renderNode(kind: .symbol, path: "test/Structure/init(_:bar:)"),
         "8️⃣": .renderNode(kind: .symbol, path: "test/Structure/init(_:bar:)"),
-        "9️⃣": .error(.noDocumentation),
+        "9️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
       ]
     )
   }
@@ -92,7 +92,7 @@ final class DoccDocumentationTests: XCTestCase {
         "1️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
         "2️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
         "3️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
-        "4️⃣": .error(.noDocumentation),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
       ]
     )
   }
@@ -125,7 +125,7 @@ final class DoccDocumentationTests: XCTestCase {
         "7️⃣": .renderNode(kind: .symbol, path: "test/Class/init(_:bar:)"),
         "8️⃣": .renderNode(kind: .symbol, path: "test/Class/init(_:bar:)"),
         "9️⃣": .renderNode(kind: .symbol, path: "test/Class"),
-        "0️⃣": .error(.noDocumentation),
+        "0️⃣": .renderNode(kind: .symbol, path: "test/Class"),
       ]
     )
   }
@@ -141,7 +141,7 @@ final class DoccDocumentationTests: XCTestCase {
         "1️⃣": .renderNode(kind: .symbol, path: "test/Class"),
         "2️⃣": .renderNode(kind: .symbol, path: "test/Class"),
         "3️⃣": .renderNode(kind: .symbol, path: "test/Class"),
-        "4️⃣": .error(.noDocumentation),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Class"),
       ]
     )
   }
@@ -173,7 +173,7 @@ final class DoccDocumentationTests: XCTestCase {
         "6️⃣": .renderNode(kind: .symbol, path: "test/Actor/bar"),
         "7️⃣": .renderNode(kind: .symbol, path: "test/Actor/init(_:bar:)"),
         "8️⃣": .renderNode(kind: .symbol, path: "test/Actor/init(_:bar:)"),
-        "9️⃣": .error(.noDocumentation),
+        "9️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
       ]
     )
   }
@@ -189,7 +189,7 @@ final class DoccDocumentationTests: XCTestCase {
         "1️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
         "2️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
         "3️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
-        "4️⃣": .error(.noDocumentation),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
       ]
     )
   }
@@ -218,7 +218,7 @@ final class DoccDocumentationTests: XCTestCase {
         "6️⃣": .renderNode(kind: .symbol, path: "test/Enum/second"),
         "7️⃣": .renderNode(kind: .symbol, path: "test/Enum/third(_:)"),
         "8️⃣": .renderNode(kind: .symbol, path: "test/Enum/third(_:)"),
-        "9️⃣": .error(.noDocumentation),
+        "9️⃣": .renderNode(kind: .symbol, path: "test/Enum"),
       ]
     )
   }
@@ -289,7 +289,7 @@ final class DoccDocumentationTests: XCTestCase {
         "4️⃣": .renderNode(kind: .symbol, path: "test/Protocol/foo"),
         "5️⃣": .renderNode(kind: .symbol, path: "test/Protocol/bar"),
         "6️⃣": .renderNode(kind: .symbol, path: "test/Protocol/bar"),
-        "7️⃣": .error(.noDocumentation),
+        "7️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
       ]
     )
   }
@@ -306,19 +306,21 @@ final class DoccDocumentationTests: XCTestCase {
         "1️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
         "2️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
         "3️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
-        "4️⃣": .error(.noDocumentation),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
       ]
     )
   }
 
   func testExtension() async throws {
-    try await renderDocumentation(
-      swiftFile: """
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/Structure.swift": """
         /// A structure containing important information
         public struct Structure {
           let number: Int
         }
-
+        """,
+        "MyLibrary/Extension.swift": """
         extension Stru1️⃣cture {
           /// One more than the number
           var numberPlusOne: Int {2️⃣ number + 1 }
@@ -332,13 +334,35 @@ final class DoccDocumentationTests: XCTestCase {
           }
         }6️⃣
         """,
+      ],
+      enableBackgroundIndexing: true
+    )
+    try await renderDocumentation(
+      fileName: "Extension.swift",
+      project: project,
       expectedResponses: [
-        "1️⃣": .error(.noDocumentation),
-        "2️⃣": .renderNode(kind: .symbol, path: "test/Structure/numberPlusOne"),
-        "3️⃣": .renderNode(kind: .symbol, path: "test/Structure/Kind"),
-        "4️⃣": .renderNode(kind: .symbol, path: "test/Structure/Kind/first"),
-        "5️⃣": .renderNode(kind: .symbol, path: "test/Structure/Kind/second"),
-        "6️⃣": .error(.noDocumentation),
+        "1️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/numberPlusOne"),
+        "2️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/numberPlusOne"),
+        "3️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/Kind"),
+        "4️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/Kind/first"),
+        "5️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/Kind/second"),
+        "6️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/numberPlusOne"),
+      ]
+    )
+  }
+
+  func testCursorInImport() async throws {
+    try await renderDocumentation(
+      swiftFile: """
+        import Found1️⃣ation
+
+        /// A structure containing important information
+        public struct Structure {
+          let number: Int
+        }
+        """,
+      expectedResponses: [
+        "1️⃣": .renderNode(kind: .symbol, path: "test/Structure")
       ]
     )
   }
