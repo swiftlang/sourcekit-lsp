@@ -116,6 +116,25 @@ final class DoccDocumentationTests: XCTestCase {
     )
   }
 
+  func testSubscriptDeclaration() async throws {
+    try await renderDocumentation(
+      markedText: """
+        /// A structure containing important information.
+        public struct Structure {
+          // Get the 1️⃣subscript at index
+          subscript(in2️⃣dex: Int) -> Int {
+            return i3️⃣ndex
+          }
+        }
+        """,
+      expectedResponses: [
+        "1️⃣": .renderNode(kind: .symbol, path: "test/Structure/subscript(_:)"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Structure/subscript(_:)"),
+        "3️⃣": .renderNode(kind: .symbol, path: "test/Structure/subscript(_:)"),
+      ]
+    )
+  }
+
   func testClass() async throws {
     try await renderDocumentation(
       markedText: """
@@ -145,6 +164,25 @@ final class DoccDocumentationTests: XCTestCase {
         "8️⃣": .renderNode(kind: .symbol, path: "test/Class/init(_:bar:)"),
         "9️⃣": .renderNode(kind: .symbol, path: "test/Class"),
         "0️⃣": .renderNode(kind: .symbol, path: "test/Class"),
+      ]
+    )
+  }
+
+  func testClassDeInitializer() async throws {
+    try await renderDocumentation(
+      markedText: """
+        /// A class containing important information.
+        public class Class {
+          /// Initi1️⃣alize the class.
+          dein2️⃣it {
+            // De-initi3️⃣alize stuff
+          }
+        }
+        """,
+      expectedResponses: [
+        "1️⃣": .renderNode(kind: .symbol, path: "test/Class/deinit"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Class/deinit"),
+        "3️⃣": .renderNode(kind: .symbol, path: "test/Class/deinit"),
       ]
     )
   }

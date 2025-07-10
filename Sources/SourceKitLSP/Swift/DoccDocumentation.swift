@@ -135,8 +135,12 @@ fileprivate struct DocumentableSymbol {
       self = DocumentableSymbol(node: namedDecl, position: namedDecl.name.positionAfterSkippingLeadingTrivia)
     } else if let initDecl = node.as(InitializerDeclSyntax.self) {
       self = DocumentableSymbol(node: initDecl, position: initDecl.initKeyword.positionAfterSkippingLeadingTrivia)
+    } else if let deinitDecl = node.as(DeinitializerDeclSyntax.self) {
+      self = DocumentableSymbol(node: deinitDecl, position: deinitDecl.deinitKeyword.positionAfterSkippingLeadingTrivia)
     } else if let functionDecl = node.as(FunctionDeclSyntax.self) {
       self = DocumentableSymbol(node: functionDecl, position: functionDecl.name.positionAfterSkippingLeadingTrivia)
+    } else if let subscriptDecl = node.as(SubscriptDeclSyntax.self) {
+      self = DocumentableSymbol(node: subscriptDecl, position: subscriptDecl.positionAfterSkippingLeadingTrivia)
     } else if let variableDecl = node.as(VariableDeclSyntax.self) {
       guard let identifier = variableDecl.bindings.only?.pattern.as(IdentifierPatternSyntax.self) else {
         return nil
