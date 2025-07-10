@@ -500,7 +500,7 @@ extension ClangLanguageService {
     }
 
     let snapshot = try sourceKitLSPServer.documentManager.latestSnapshot(req.textDocument.uri)
-    throw ResponseError.requestFailed(doccDocumentationError: .unsupportedLanguage(snapshot.language.description))
+    throw ResponseError.requestFailed(doccDocumentationError: .unsupportedLanguage(snapshot.language))
   }
   #endif
 

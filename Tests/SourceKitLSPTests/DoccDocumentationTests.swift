@@ -26,17 +26,17 @@ final class DoccDocumentationTests: XCTestCase {
     try await renderDocumentation(
       markedText: "1️⃣",
       language: .c,
-      expectedResponses: ["1️⃣": .error(.unsupportedLanguage("C"))]
+      expectedResponses: ["1️⃣": .error(.unsupportedLanguage(.c))]
     )
     try await renderDocumentation(
       markedText: "2️⃣",
       language: .cpp,
-      expectedResponses: ["2️⃣": .error(.unsupportedLanguage("C++"))]
+      expectedResponses: ["2️⃣": .error(.unsupportedLanguage(.cpp))]
     )
     try await renderDocumentation(
       markedText: "3️⃣",
       language: .objective_c,
-      expectedResponses: ["3️⃣": .error(.unsupportedLanguage("Objective-C"))]
+      expectedResponses: ["3️⃣": .error(.unsupportedLanguage(.objective_c))]
     )
   }
 

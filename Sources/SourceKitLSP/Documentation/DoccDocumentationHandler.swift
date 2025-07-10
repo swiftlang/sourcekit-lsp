@@ -105,7 +105,7 @@ extension DocumentationLanguageService {
         catalogURL: catalogURL
       )
     default:
-      throw ResponseError.requestFailed(doccDocumentationError: .unsupportedLanguage(snapshot.language.description))
+      throw ResponseError.requestFailed(doccDocumentationError: .unsupportedLanguage(snapshot.language))
     }
   }
 }
