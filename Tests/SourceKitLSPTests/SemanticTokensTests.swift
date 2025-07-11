@@ -881,6 +881,38 @@ final class SemanticTokensTests: XCTestCase {
     )
   }
 
+  func testRawIdentifier() async throws {
+    try await assertSemanticTokens(
+      markedContents: """
+        1️⃣func 2️⃣`square returns x * x`() {}
+        3️⃣`square returns x * x`()
+        """,
+      expected: [
+        TokenSpec(marker: "1️⃣", length: 4, kind: .keyword),
+        TokenSpec(marker: "2️⃣", length: 22, kind: .identifier),
+        TokenSpec(marker: "3️⃣", length: 22, kind: .function),
+      ]
+    )
+    try await assertSemanticTokens(
+      markedContents: """
+        1️⃣struct 2️⃣S {
+          3️⃣static 4️⃣var 5️⃣`foo bar` = 6️⃣0
+        }
+        7️⃣S.8️⃣`foo bar`
+        """,
+      expected: [
+        TokenSpec(marker: "1️⃣", length: 6, kind: .keyword),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "3️⃣", length: 6, kind: .keyword),
+        TokenSpec(marker: "4️⃣", length: 3, kind: .keyword),
+        TokenSpec(marker: "5️⃣", length: 9, kind: .identifier),
+        TokenSpec(marker: "6️⃣", length: 1, kind: .number),
+        TokenSpec(marker: "7️⃣", length: 1, kind: .struct),
+        TokenSpec(marker: "8️⃣", length: 9, kind: .property),
+      ]
+    )
+  }
+
   func testClang() async throws {
     try await assertSemanticTokens(
       markedContents: """
