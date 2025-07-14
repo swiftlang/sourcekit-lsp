@@ -2,6 +2,14 @@
 
 SourceKit-LSP extends the LSP protocol in the following ways.
 
+To enable some of these extensions, the client needs to communicate that it can support them. To do so, it should pass a dictionary for the `capabilities.experimental` field in the `initialize` request. For each capability to enable, it should pass an entry as follows.
+
+```json
+"<capabilityName>": {
+  "supported": true
+}
+```
+
 ## `PublishDiagnosticsClientCapabilities`
 
 Added field (this is an extension from clangd that SourceKit-LSP re-exposes):

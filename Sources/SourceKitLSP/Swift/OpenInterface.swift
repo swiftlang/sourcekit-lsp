@@ -36,9 +36,7 @@ extension SwiftLanguageService {
         nil
       }
 
-    if case .dictionary(let experimentalCapabilities) = self.capabilityRegistry.clientCapabilities.experimental,
-      case .bool(true) = experimentalCapabilities["workspace/getReferenceDocument"]
-    {
+    if self.capabilityRegistry.clientHasExperimentalCapability(GetReferenceDocumentRequest.method) {
       return GeneratedInterfaceDetails(uri: try urlData.uri, position: position)
     }
     let interfaceFilePath = self.generatedInterfacesPath.appendingPathComponent(urlData.displayName)
