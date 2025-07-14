@@ -45,7 +45,7 @@ final class SwiftInterfaceTests: XCTestCase {
   func testSystemModuleInterfaceReferenceDocument() async throws {
     let testClient = try await TestSourceKitLSPClient(
       capabilities: ClientCapabilities(experimental: [
-        "workspace/getReferenceDocument": .bool(true)
+        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
       ])
     )
     let uri = DocumentURI(for: .swift)
@@ -117,7 +117,7 @@ final class SwiftInterfaceTests: XCTestCase {
       }
       """,
       capabilities: ClientCapabilities(experimental: [
-        "workspace/getReferenceDocument": .bool(true)
+        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
       ]),
       indexSystemModules: true
     )
@@ -210,7 +210,7 @@ final class SwiftInterfaceTests: XCTestCase {
         )
         """,
       capabilities: ClientCapabilities(experimental: [
-        "workspace/getReferenceDocument": .bool(true)
+        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
       ]),
       enableBackgroundIndexing: true
     )
@@ -292,7 +292,7 @@ final class SwiftInterfaceTests: XCTestCase {
   func testNoDiagnosticsInGeneratedInterface() async throws {
     let testClient = try await TestSourceKitLSPClient(
       capabilities: ClientCapabilities(experimental: [
-        "workspace/getReferenceDocument": .bool(true)
+        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
       ])
     )
     let uri = DocumentURI(for: .swift)

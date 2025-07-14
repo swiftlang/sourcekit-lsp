@@ -938,12 +938,14 @@ extension SourceKitLSPServer {
         guard let experimentalCapability = initializationOptions[capabilityName] else {
           continue
         }
-        if case .dictionary(var experimentalCapabilities) = clientCapabilities.experimental {
-          experimentalCapabilities[capabilityName] = experimentalCapability
-          clientCapabilities.experimental = .dictionary(experimentalCapabilities)
-        } else {
-          clientCapabilities.experimental = .dictionary([capabilityName: experimentalCapability])
-        }
+        var experimentalCapabilities: [String: LSPAny] =
+          if case .dictionary(let experimentalCapabilities) = clientCapabilities.experimental {
+            experimentalCapabilities
+          } else {
+            [:]
+          }
+        experimentalCapabilities[capabilityName] = experimentalCapability
+        clientCapabilities.experimental = .dictionary(experimentalCapabilities)
       }
 
       // The client announces what CodeLenses it supports, and the LSP will only return
