@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerIntegration
 package import BuildServerProtocol
-import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
@@ -34,8 +34,8 @@ package struct PreparationTaskDescription: IndexTaskDescription {
   /// The targets that should be prepared.
   package let targetsToPrepare: [BuildTargetIdentifier]
 
-  /// The build system manager that is used to get the toolchain and build settings for the files to index.
-  private let buildSystemManager: BuildSystemManager
+  /// The build server manager that is used to get the toolchain and build settings for the files to index.
+  private let buildServerManager: BuildServerManager
 
   private let preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier, DummySecondaryKey>
 
@@ -61,7 +61,7 @@ package struct PreparationTaskDescription: IndexTaskDescription {
 
   init(
     targetsToPrepare: [BuildTargetIdentifier],
-    buildSystemManager: BuildSystemManager,
+    buildServerManager: BuildServerManager,
     preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier, DummySecondaryKey>,
     logMessageToIndexLog:
       @escaping @Sendable (
@@ -70,7 +70,7 @@ package struct PreparationTaskDescription: IndexTaskDescription {
     hooks: IndexHooks
   ) {
     self.targetsToPrepare = targetsToPrepare
-    self.buildSystemManager = buildSystemManager
+    self.buildServerManager = buildServerManager
     self.preparationUpToDateTracker = preparationUpToDateTracker
     self.logMessageToIndexLog = logMessageToIndexLog
     self.hooks = hooks
@@ -104,7 +104,7 @@ package struct PreparationTaskDescription: IndexTaskDescription {
         signposter.endInterval("Preparing", state)
       }
       do {
-        try await buildSystemManager.prepare(targets: Set(targetsToPrepare))
+        try await buildServerManager.prepare(targets: Set(targetsToPrepare))
       } catch {
         logger.error("Preparation failed: \(error.forLogging)")
       }

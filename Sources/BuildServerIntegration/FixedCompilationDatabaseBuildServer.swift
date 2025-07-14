@@ -25,8 +25,8 @@ func lastIndexStorePathArgument(in compilerArgs: [String]) -> String? {
   return nil
 }
 
-/// A `BuildSystem` that provides compiler arguments from a `compile_flags.txt` file.
-package actor FixedCompilationDatabaseBuildSystem: BuiltInBuildSystem {
+/// A `BuiltInBuildServer` that provides compiler arguments from a `compile_flags.txt` file.
+package actor FixedCompilationDatabaseBuildServer: BuiltInBuildServer {
   package static let dbName = "compile_flags.txt"
 
   private let connectionToSourceKitLSP: any Connection

@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 public import ArgumentParser
-import BuildSystemIntegration
+import BuildServerIntegration
 import Csourcekitd  // Not needed here, but fixes debugging...
 import Diagnose
 import Dispatch

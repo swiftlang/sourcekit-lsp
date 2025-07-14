@@ -13,9 +13,9 @@
 package import BuildServerProtocol
 package import LanguageServerProtocol
 
-/// Handles build system events, such as file build settings changes.
-package protocol BuildSystemManagerDelegate: AnyObject, Sendable {
-  /// Notify the delegate that the result of `BuildSystemManager.buildSettingsInferredFromMainFile` might have changed
+/// Handles build server events, such as file build settings changes.
+package protocol BuildServerManagerDelegate: AnyObject, Sendable {
+  /// Notify the delegate that the result of `BuildServerManager.buildSettingsInferredFromMainFile` might have changed
   /// for the given files.
   func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async
 
@@ -32,12 +32,12 @@ package protocol BuildSystemManagerDelegate: AnyObject, Sendable {
   func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async
 }
 
-/// Methods with which the `BuildSystemManager` can send messages to the client (aka. editor).
+/// Methods with which the `BuildServerManager` can send messages to the client (aka. editor).
 ///
-/// This is distinct from `BuildSystemManagerDelegate` because the delegate only gets set on the build system after the
-/// workspace that created it has been initialized (see `BuildSystemManager.setDelegate`). But the `BuildSystemManager`
+/// This is distinct from `BuildServerManagerDelegate` because the delegate only gets set on the build server after the
+/// workspace that created it has been initialized (see `BuildServerManager.setDelegate`). But the `BuildServerManager`
 /// can send notifications to the client immediately.
-package protocol BuildSystemManagerConnectionToClient: Sendable, Connection {
+package protocol BuildServerManagerConnectionToClient: Sendable, Connection {
   /// Whether the client can handle `WorkDoneProgress` requests.
   var clientSupportsWorkDoneProgress: Bool { get async }
 

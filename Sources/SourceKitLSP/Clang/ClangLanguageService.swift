@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildSystemIntegration
+import BuildServerIntegration
 import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
@@ -133,7 +133,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
       return nil
     }
     guard
-      let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
+      let settings = await workspace.buildServerManager.buildSettingsInferredFromMainFile(
         for: document,
         language: language,
         fallbackAfterTimeout: fallbackAfterTimeout
@@ -436,7 +436,7 @@ extension ClangLanguageService {
     clangd.send(notification)
   }
 
-  // MARK: - Build System Integration
+  // MARK: - Build Server Integration
 
   package func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
     guard let url = uri.fileURL else {

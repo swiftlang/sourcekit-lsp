@@ -10,13 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+package import BuildServerIntegration
 package import BuildServerProtocol
-package import BuildSystemIntegration
 package import Foundation
 import LanguageServerProtocol
 import SKLogging
 
-package extension BuildSystemManager {
+package extension BuildServerManager {
   /// Retrieves the name of the Swift module for a given target.
   ///
   /// **Note:** prefer using ``module(for:in:)`` over ths function. This function

@@ -17,7 +17,7 @@ import SKLogging
 import SKOptions
 import ToolchainRegistry
 
-/// An error build systems can throw from `prepare` if they don't support preparation of targets.
+/// An error build servers can throw from `prepare` if they don't support preparation of targets.
 package struct PrepareNotSupportedError: Error, CustomStringConvertible {
   package init() {}
 
@@ -25,7 +25,7 @@ package struct PrepareNotSupportedError: Error, CustomStringConvertible {
 }
 
 /// Provider of FileBuildSettings and other build-related information.
-package protocol BuiltInBuildSystem: AnyObject, Sendable {
+package protocol BuiltInBuildServer: AnyObject, Sendable {
   /// The files to watch for changes.
   var fileWatchers: [FileSystemWatcher] { get async }
 
@@ -35,12 +35,12 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// The path to put the index database, if any.
   var indexDatabasePath: URL? { get async }
 
-  /// Whether the build system is capable of preparing a target for indexing and determining the output paths for the
+  /// Whether the build server is capable of preparing a target for indexing and determining the output paths for the
   /// target, ie. whether the `prepare` method has been implemented and this build server populates the `outputPath`
   /// property in the `buildTarget/sources` request.
   var supportsPreparationAndOutputPaths: Bool { get }
 
-  /// Returns all targets in the build system
+  /// Returns all targets in the build server
   func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse
 
   /// Returns all the source files in the given targets
@@ -55,7 +55,7 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
 
   /// Retrieve build settings for the given document.
   ///
-  /// Returns `nil` if the build system can't provide build settings for this file.
+  /// Returns `nil` if the build server can't provide build settings for this file.
   func sourceKitOptions(
     request: TextDocumentSourceKitOptionsRequest
   ) async throws -> TextDocumentSourceKitOptionsResponse?

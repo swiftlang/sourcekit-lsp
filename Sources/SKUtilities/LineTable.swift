@@ -130,8 +130,8 @@ extension LineTable {
     utf8Offset toOff: Int,
     with replacement: String
   ) {
-    let start = content.utf8.index(impl[fromLine], offsetBy: fromOff)
-    let end = content.utf8.index(impl[toLine], offsetBy: toOff)
+    let start = self.stringIndexOf(line: fromLine, utf8Column: fromOff)
+    let end = self.stringIndexOf(line: toLine, utf8Column: toOff)
 
     var newText = self.content
     newText.replaceSubrange(start..<end, with: replacement)

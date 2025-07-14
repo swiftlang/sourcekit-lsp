@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildSystemIntegration
+import BuildServerIntegration
 import Foundation
 
 struct SwiftFrontendCrashScraper {

@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildSystemIntegration
+import BuildServerIntegration
 import Foundation
 import LanguageServerProtocol
 import SKTestSupport
@@ -307,7 +307,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
         "Test.swift": ""
       ],
       hooks: Hooks(
-        buildSystemHooks: BuildSystemHooks(
+        buildServerHooks: BuildServerHooks(
           swiftPMTestHooks: SwiftPMTestHooks(reloadPackageDidStart: {
             receivedDocumentSymbolsReply.waitOrXCTFail()
           })
@@ -332,7 +332,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
         workspace: WorkspaceClientCapabilities(diagnostics: RefreshRegistrationCapability(refreshSupport: true))
       ),
       hooks: Hooks(
-        buildSystemHooks: BuildSystemHooks(
+        buildServerHooks: BuildServerHooks(
           swiftPMTestHooks: SwiftPMTestHooks(reloadPackageDidStart: {
             receivedInitialDiagnosticsReply.waitOrXCTFail()
           })

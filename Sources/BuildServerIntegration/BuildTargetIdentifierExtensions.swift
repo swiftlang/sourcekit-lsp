@@ -25,7 +25,7 @@ package enum BuildDestinationIdentifier {
 
   /// A string that can be used to identify the build triple in a `BuildTargetIdentifier`.
   ///
-  /// `BuildSystemManager.canonicalBuildTargetIdentifier` picks the canonical target based on alphabetical
+  /// `BuildServerManager.canonicalBuildTargetIdentifier` picks the canonical target based on alphabetical
   /// ordering. We rely on the string "destination" being ordered before "tools" so that we prefer a
   /// `destination` (or "target") target over a `tools` (or "host") target.
   var id: String {

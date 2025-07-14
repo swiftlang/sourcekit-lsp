@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerIntegration
 import BuildServerProtocol
-import BuildSystemIntegration
 import Dispatch
 import Foundation
 import IndexStoreDB
@@ -199,8 +199,8 @@ package actor SourceKitLSPServer {
     }
   }
 
-  /// Search through all the parent directories of `uri` and check if any of these directories contain a workspace with
-  /// a build system.
+  /// Search through all the parent directories of `uri` and check if any of these directories contain a workspace that
+  /// can be handled by with a build server.
   ///
   /// The search will not consider any directory that is not a child of any of the directories in `rootUris`. This
   /// prevents us from picking up a workspace that is outside of the folders that the user opened.
@@ -214,10 +214,10 @@ package actor SourceKitLSPServer {
     let workspaceRoots = workspacesAndIsImplicit.filter { !$0.isImplicit }.compactMap { $0.workspace.rootUri?.fileURL }
 
     // We want to skip creating another workspace if any existing already has the same config path. This could happen if
-    // an existing workspace hasn't realoaded after a new file was added to it (and thus that build system needs to be
+    // an existing workspace hasn't reloaded after a new file was added to it (and thus that build server needs to be
     // reloaded).
     let configPaths = await workspacesAndIsImplicit.asyncCompactMap {
-      await $0.workspace.buildSystemManager.configPath
+      await $0.workspace.buildServerManager.configPath
     }
 
     while url.pathComponents.count > 1 && workspaceRoots.contains(where: { $0.isPrefix(of: url) }) {
@@ -228,20 +228,20 @@ package actor SourceKitLSPServer {
       let uri = DocumentURI(url)
       let options = SourceKitLSPOptions.merging(base: self.options, workspaceFolder: uri)
 
-      // Some build systems consider paths outside of the folder (eg. BSP has settings in the home directory). If we
-      // allowed those paths, then the very first folder that the file is in would always be its own build system - so
+      // Some build servers consider paths outside of the folder (eg. BSP has settings in the home directory). If we
+      // allowed those paths, then the very first folder that the file is in would always be its own build server - so
       // skip them in that case.
       guard
-        let buildSystemSpec = determineBuildSystem(
+        let buildServerSpec = determineBuildServer(
           forWorkspaceFolder: uri,
           onlyConsiderRoot: true,
           options: options,
-          hooks: hooks.buildSystemHooks
+          hooks: hooks.buildServerHooks
         )
       else {
         continue
       }
-      if configPaths.contains(buildSystemSpec.configPath) {
+      if configPaths.contains(buildServerSpec.configPath) {
         continue
       }
 
@@ -249,7 +249,7 @@ package actor SourceKitLSPServer {
       guard
         let workspace = await orLog(
           "Creating implicit workspace",
-          { try await createWorkspace(workspaceFolder: uri, options: options, buildSystemSpec: buildSystemSpec) }
+          { try await createWorkspace(workspaceFolder: uri, options: options, buildServerSpec: buildServerSpec) }
         )
       else {
         continue
@@ -297,7 +297,7 @@ package actor SourceKitLSPServer {
     // Pick the workspace with the best FileHandlingCapability for this file.
     // If there is a tie, use the workspace that occurred first in the list.
     var bestWorkspace = await self.workspaces.asyncFirst {
-      await !$0.buildSystemManager.targets(for: uri).isEmpty
+      await !$0.buildServerManager.targets(for: uri).isEmpty
     }
     if bestWorkspace == nil {
       // We weren't able to handle the document with any of the known workspaces. See if any of the document's parent
@@ -433,7 +433,7 @@ package actor SourceKitLSPServer {
         continue
       }
 
-      // Close the document properly in the document manager and build system manager to start with a clean sheet when re-opening it.
+      // Close the document properly in the document manager and build server manager to start with a clean sheet when re-opening it.
       let closeNotification = DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(documentUri))
       await self.closeDocument(closeNotification, workspace: workspace)
 
@@ -552,9 +552,9 @@ package actor SourceKitLSPServer {
       return service
     }
 
-    let toolchain = await workspace.buildSystemManager.toolchain(
+    let toolchain = await workspace.buildServerManager.toolchain(
       for: uri,
-      in: workspace.buildSystemManager.canonicalTarget(for: uri),
+      in: workspace.buildServerManager.canonicalTarget(for: uri),
       language: language
     )
     guard let toolchain else {
@@ -866,12 +866,12 @@ extension SourceKitLSPServer {
 
   /// Creates a workspace at the given `uri`.
   ///
-  /// A workspace does not necessarily have any build system attached to it, in which case `buildSystemSpec` may be
+  /// A workspace does not necessarily have any build server attached to it, in which case `buildServerSpec` may be
   /// `nil` - consider eg. a top level workspace folder with multiple SwiftPM projects inside it.
   private func createWorkspace(
     workspaceFolder: DocumentURI,
     options: SourceKitLSPOptions,
-    buildSystemSpec: BuildSystemSpec?
+    buildServerSpec: BuildServerSpec?
   ) async throws -> Workspace {
     guard let capabilityRegistry = capabilityRegistry else {
       struct NoCapabilityRegistryError: Error {}
@@ -894,7 +894,7 @@ extension SourceKitLSPServer {
       documentManager: self.documentManager,
       rootUri: workspaceFolder,
       capabilityRegistry: capabilityRegistry,
-      buildSystemSpec: buildSystemSpec,
+      buildServerSpec: buildServerSpec,
       toolchainRegistry: self.toolchainRegistry,
       options: options,
       hooks: hooks,
@@ -903,20 +903,20 @@ extension SourceKitLSPServer {
     return workspace
   }
 
-  /// Determines the build system for the given workspace folder and creates a `Workspace` that uses this inferred build
+  /// Determines the build server for the given workspace folder and creates a `Workspace` that uses this inferred build
   /// system.
-  private func createWorkspaceWithInferredBuildSystem(workspaceFolder: DocumentURI) async throws -> Workspace {
+  private func createWorkspaceWithInferredBuildServer(workspaceFolder: DocumentURI) async throws -> Workspace {
     let options = SourceKitLSPOptions.merging(base: self.options, workspaceFolder: workspaceFolder)
-    let buildSystemSpec = determineBuildSystem(
+    let buildServerSpec = determineBuildServer(
       forWorkspaceFolder: workspaceFolder,
       onlyConsiderRoot: false,
       options: options,
-      hooks: hooks.buildSystemHooks
+      hooks: hooks.buildServerHooks
     )
     return try await self.createWorkspace(
       workspaceFolder: workspaceFolder,
       options: options,
-      buildSystemSpec: buildSystemSpec
+      buildServerSpec: buildServerSpec
     )
   }
 
@@ -978,7 +978,7 @@ extension SourceKitLSPServer {
         self.workspacesAndIsImplicit += await workspaceFolders.asyncCompactMap { workspaceFolder in
           await orLog("Creating workspace from workspaceFolders") {
             return (
-              workspace: try await self.createWorkspaceWithInferredBuildSystem(workspaceFolder: workspaceFolder.uri),
+              workspace: try await self.createWorkspaceWithInferredBuildServer(workspaceFolder: workspaceFolder.uri),
               isImplicit: false
             )
           }
@@ -986,14 +986,14 @@ extension SourceKitLSPServer {
       } else if let uri = req.rootURI {
         await orLog("Creating workspace from rootURI") {
           self.workspacesAndIsImplicit.append(
-            (workspace: try await self.createWorkspaceWithInferredBuildSystem(workspaceFolder: uri), isImplicit: false)
+            (workspace: try await self.createWorkspaceWithInferredBuildServer(workspaceFolder: uri), isImplicit: false)
           )
         }
       } else if let path = req.rootPath {
         let uri = DocumentURI(URL(fileURLWithPath: path))
         await orLog("Creating workspace from rootPath") {
           self.workspacesAndIsImplicit.append(
-            (workspace: try await self.createWorkspaceWithInferredBuildSystem(workspaceFolder: uri), isImplicit: false)
+            (workspace: try await self.createWorkspaceWithInferredBuildServer(workspaceFolder: uri), isImplicit: false)
           )
         }
       }
@@ -1007,7 +1007,7 @@ extension SourceKitLSPServer {
           documentManager: self.documentManager,
           rootUri: req.rootURI,
           capabilityRegistry: self.capabilityRegistry!,
-          buildSystemSpec: nil,
+          buildServerSpec: nil,
           toolchainRegistry: self.toolchainRegistry,
           options: options,
           hooks: hooks,
@@ -1209,8 +1209,8 @@ extension SourceKitLSPServer {
       for workspace in workspaces {
         taskGroup.addTask {
           await orLog("Shutting down build server") {
-            await workspace.buildSystemManager.shutdown()
-            await workspace.buildSystemManager.setMainFilesProvider(nil)
+            await workspace.buildServerManager.shutdown()
+            await workspace.buildServerManager.setMainFilesProvider(nil)
             workspace.closeIndex()
           }
         }
@@ -1279,8 +1279,8 @@ extension SourceKitLSPServer {
   }
 
   private func openDocument(_ notification: DidOpenTextDocumentNotification, workspace: Workspace) async {
-    // Immediately open the document even if the build system isn't ready. This is important since
-    // we check that the document is open when we receive messages from the build system.
+    // Immediately open the document even if the build server isn't ready. This is important since
+    // we check that the document is open when we receive messages from the build server.
     let snapshot = orLog("Opening document") {
       try documentManager.open(
         notification.textDocument.uri,
@@ -1303,7 +1303,7 @@ extension SourceKitLSPServer {
       return
     }
 
-    await workspace.buildSystemManager.registerForChangeNotifications(for: uri, language: language)
+    await workspace.buildServerManager.registerForChangeNotifications(for: uri, language: language)
 
     // If the document is ready, we can immediately send the notification.
     await service.openDocument(notification, snapshot: snapshot)
@@ -1333,14 +1333,14 @@ extension SourceKitLSPServer {
 
   func closeDocument(_ notification: DidCloseTextDocumentNotification, workspace: Workspace) async {
     // Immediately close the document. We need to be sure to clear our pending work queue in case
-    // the build system still isn't ready.
+    // the build server still isn't ready.
     orLog("failed to close document", level: .error) {
       try documentManager.close(notification.textDocument.uri)
     }
 
     let uri = notification.textDocument.uri
 
-    await workspace.buildSystemManager.unregisterForChangeNotifications(for: uri)
+    await workspace.buildServerManager.unregisterForChangeNotifications(for: uri)
 
     await workspace.documentService(for: uri)?.closeDocument(notification)
 
@@ -1458,7 +1458,7 @@ extension SourceKitLSPServer {
       if let added = notification.event.added {
         let newWorkspaces = await added.asyncCompactMap { workspaceFolder in
           await orLog("Creating workspace after workspace folder change") {
-            try await self.createWorkspaceWithInferredBuildSystem(workspaceFolder: workspaceFolder.uri)
+            try await self.createWorkspaceWithInferredBuildServer(workspaceFolder: workspaceFolder.uri)
           }
         }
         self.workspacesAndIsImplicit += newWorkspaces.map { (workspace: $0, isImplicit: false) }
@@ -1469,9 +1469,9 @@ extension SourceKitLSPServer {
   func didChangeWatchedFiles(_ notification: DidChangeWatchedFilesNotification) async {
     // We can't make any assumptions about which file changes a particular build
     // system is interested in. Just because it doesn't have build settings for
-    // a file doesn't mean a file can't affect the build system's build settings
+    // a file doesn't mean a file can't affect the build server's build settings
     // (e.g. Package.swift doesn't have build settings but affects build
-    // settings). Inform the build system about all file changes.
+    // settings). Inform the build server about all file changes.
     await workspaces.concurrentForEach { await $0.filesDidChange(notification.changes) }
   }
 
@@ -1500,7 +1500,7 @@ extension SourceKitLSPServer {
     let target: BuildTargetIdentifier?
     if let requestedTarget = request.target {
       target = BuildTargetIdentifier(uri: requestedTarget)
-    } else if let canonicalTarget = await workspace.buildSystemManager.canonicalTarget(for: uri) {
+    } else if let canonicalTarget = await workspace.buildServerManager.canonicalTarget(for: uri) {
       target = canonicalTarget
     } else {
       target = nil
@@ -1511,7 +1511,7 @@ extension SourceKitLSPServer {
     } else {
       didPrepareTarget = nil
     }
-    let buildSettings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
+    let buildSettings = await workspace.buildServerManager.buildSettingsInferredFromMainFile(
       for: request.textDocument.uri,
       target: target,
       language: nil,
@@ -1536,10 +1536,10 @@ extension SourceKitLSPServer {
     guard let workspace = self.workspaces.first(where: { $0.rootUri == request.workspace }) else {
       throw ResponseError.unknown("No workspace with URI \(request.workspace.forLogging) found")
     }
-    guard await workspace.buildSystemManager.initializationData?.outputPathsProvider ?? false else {
+    guard await workspace.buildServerManager.initializationData?.outputPathsProvider ?? false else {
       throw ResponseError.unknown("Build server for \(request.workspace.forLogging) does not support output paths")
     }
-    let outputPaths = try await workspace.buildSystemManager.outputPaths(in: [
+    let outputPaths = try await workspace.buildServerManager.outputPaths(in: [
       BuildTargetIdentifier(uri: request.target)
     ])
     return OutputPathsResponse(outputPaths: outputPaths)
@@ -2657,7 +2657,7 @@ fileprivate struct NotificationRequestOperation {
 }
 
 /// Used to queue up notifications and requests for documents which are blocked
-/// on `BuildSystem` operations such as fetching build settings.
+/// on build server operations such as fetching build settings.
 ///
 /// Note: This is not thread safe. Must be called from the `SourceKitLSPServer.queue`.
 fileprivate struct DocumentNotificationRequestQueue {
