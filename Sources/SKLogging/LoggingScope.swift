@@ -43,7 +43,7 @@ package final class LoggingScope {
 package func withLoggingSubsystemAndScope<Result>(
   subsystem: String,
   scope: String?,
-  @_inheritActorContext _ operation: @Sendable () throws -> Result
+  _ operation: @Sendable () throws -> Result
 ) rethrows -> Result {
   return try LoggingScope.$_subsystem.withValue(subsystem) {
     return try LoggingScope.$_scope.withValue(scope, operation: operation)
