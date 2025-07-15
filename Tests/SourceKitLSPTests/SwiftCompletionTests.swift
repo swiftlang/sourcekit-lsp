@@ -1214,6 +1214,33 @@ final class SwiftCompletionTests: XCTestCase {
     )
   }
 
+  func testCompletionBriefDocumentationFallback() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    // We test completion for result builder build functions since they don't have full documentation
+    // but still have brief documentation.
+    let positions = testClient.openDocument(
+      """
+      @resultBuilder
+      struct AnyBuilder {
+        static func 1️⃣
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let item = try XCTUnwrap(completions.items.filter { $0.label.contains("buildBlock") }.only)
+    assertMarkdown(
+      documentation: item.documentation,
+      expected: "Required by every result builder to build combined results from statement blocks"
+    )
+  }
+
   func testCallDefaultedArguments() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
