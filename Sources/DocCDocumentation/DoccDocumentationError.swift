@@ -14,14 +14,17 @@ import Foundation
 package import LanguageServerProtocol
 
 package enum DocCDocumentationError: LocalizedError {
-  case noDocumentation
+  case unsupportedLanguage(Language)
+  case noDocumentableSymbols
   case indexNotAvailable
   case symbolNotFound(String)
 
   var errorDescription: String? {
     switch self {
-    case .noDocumentation:
-      return "No documentation could be rendered for the position in this document"
+    case .unsupportedLanguage(let language):
+      return "Documentation preview is not available for \(language.description) files"
+    case .noDocumentableSymbols:
+      return "No documentable symbols were found in this Swift file"
     case .indexNotAvailable:
       return "The index is not availble to complete the request"
     case .symbolNotFound(let symbolName):
