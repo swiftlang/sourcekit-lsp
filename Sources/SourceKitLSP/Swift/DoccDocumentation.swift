@@ -48,7 +48,7 @@ extension SwiftLanguageService {
         position: snapshot.absolutePosition(of: position)
       )
     else {
-      throw ResponseError.requestFailed(doccDocumentationError: .noDocumentation)
+      throw ResponseError.requestFailed(doccDocumentationError: .noDocumentableSymbols)
     }
     // Retrieve the symbol graph as well as information about the symbol
     let symbolPosition = await adjustPositionToStartOfIdentifier(
@@ -130,30 +130,67 @@ fileprivate struct DocumentableSymbol {
     }
   }
 
-  static func findNearestSymbol(syntaxTree: SourceFileSyntax, position: AbsolutePosition) -> DocumentableSymbol? {
-    guard let token = syntaxTree.token(at: position) else {
-      return nil
-    }
-    return token.ancestorOrSelf { node in
-      if let namedDecl = node.asProtocol(NamedDeclSyntax.self) {
-        return DocumentableSymbol(node: namedDecl, position: namedDecl.name.positionAfterSkippingLeadingTrivia)
-      } else if let initDecl = node.as(InitializerDeclSyntax.self) {
-        return DocumentableSymbol(node: initDecl, position: initDecl.initKeyword.positionAfterSkippingLeadingTrivia)
-      } else if let functionDecl = node.as(FunctionDeclSyntax.self) {
-        return DocumentableSymbol(node: functionDecl, position: functionDecl.name.positionAfterSkippingLeadingTrivia)
-      } else if let variableDecl = node.as(VariableDeclSyntax.self) {
-        guard let identifier = variableDecl.bindings.only?.pattern.as(IdentifierPatternSyntax.self) else {
-          return nil
-        }
-        return DocumentableSymbol(node: variableDecl, position: identifier.positionAfterSkippingLeadingTrivia)
-      } else if let enumCaseDecl = node.as(EnumCaseDeclSyntax.self) {
-        guard let name = enumCaseDecl.elements.only?.name else {
-          return nil
-        }
-        return DocumentableSymbol(node: enumCaseDecl, position: name.positionAfterSkippingLeadingTrivia)
+  init?(node: any SyntaxProtocol) {
+    if let namedDecl = node.asProtocol(NamedDeclSyntax.self) {
+      self = DocumentableSymbol(node: namedDecl, position: namedDecl.name.positionAfterSkippingLeadingTrivia)
+    } else if let initDecl = node.as(InitializerDeclSyntax.self) {
+      self = DocumentableSymbol(node: initDecl, position: initDecl.initKeyword.positionAfterSkippingLeadingTrivia)
+    } else if let deinitDecl = node.as(DeinitializerDeclSyntax.self) {
+      self = DocumentableSymbol(node: deinitDecl, position: deinitDecl.deinitKeyword.positionAfterSkippingLeadingTrivia)
+    } else if let functionDecl = node.as(FunctionDeclSyntax.self) {
+      self = DocumentableSymbol(node: functionDecl, position: functionDecl.name.positionAfterSkippingLeadingTrivia)
+    } else if let subscriptDecl = node.as(SubscriptDeclSyntax.self) {
+      self = DocumentableSymbol(node: subscriptDecl, position: subscriptDecl.positionAfterSkippingLeadingTrivia)
+    } else if let variableDecl = node.as(VariableDeclSyntax.self) {
+      guard let identifier = variableDecl.bindings.only?.pattern.as(IdentifierPatternSyntax.self) else {
+        return nil
       }
+      self = DocumentableSymbol(node: variableDecl, position: identifier.positionAfterSkippingLeadingTrivia)
+    } else if let enumCaseDecl = node.as(EnumCaseDeclSyntax.self) {
+      guard let name = enumCaseDecl.elements.only?.name else {
+        return nil
+      }
+      self = DocumentableSymbol(node: enumCaseDecl, position: name.positionAfterSkippingLeadingTrivia)
+    } else {
       return nil
     }
+  }
+
+  static func findNearestSymbol(syntaxTree: SourceFileSyntax, position: AbsolutePosition) -> DocumentableSymbol? {
+    let token: TokenSyntax
+    if let tokenAtPosition = syntaxTree.token(at: position) {
+      token = tokenAtPosition
+    } else if position >= syntaxTree.endPosition, let lastToken = syntaxTree.lastToken(viewMode: .sourceAccurate) {
+      // token(at:) returns nil if position is at the end of the document.
+      token = lastToken
+    } else if position < syntaxTree.position, let firstToken = syntaxTree.firstToken(viewMode: .sourceAccurate) {
+      // No case in practice where this happens but good to cover anyway
+      token = firstToken
+    } else {
+      return nil
+    }
+    // Check if the current token is within a valid documentable symbol
+    if let symbol = token.ancestorOrSelf(mapping: { DocumentableSymbol(node: $0) }) {
+      return symbol
+    }
+    // Walk forward through the tokens until we find a documentable symbol
+    var previousToken: TokenSyntax? = token
+    while let nextToken = previousToken?.nextToken(viewMode: .sourceAccurate) {
+      if let symbol = nextToken.ancestorOrSelf(mapping: { DocumentableSymbol(node: $0) }) {
+        return symbol
+      }
+      previousToken = nextToken
+    }
+    // Walk backwards through the tokens until we find a documentable symbol
+    previousToken = token
+    while let nextToken = previousToken?.previousToken(viewMode: .sourceAccurate) {
+      if let symbol = nextToken.ancestorOrSelf(mapping: { DocumentableSymbol(node: $0) }) {
+        return symbol
+      }
+      previousToken = nextToken
+    }
+    // We couldn't find anything
+    return nil
   }
 }
 #endif

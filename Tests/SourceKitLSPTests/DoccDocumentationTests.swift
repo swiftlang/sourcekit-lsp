@@ -21,20 +21,39 @@ import SwiftDocC
 import XCTest
 
 final class DoccDocumentationTests: XCTestCase {
+
+  func testUnsupportedLanguage() async throws {
+    try await renderDocumentation(
+      markedText: "1️⃣",
+      language: .c,
+      expectedResponses: ["1️⃣": .error(.unsupportedLanguage(.c))]
+    )
+    try await renderDocumentation(
+      markedText: "2️⃣",
+      language: .cpp,
+      expectedResponses: ["2️⃣": .error(.unsupportedLanguage(.cpp))]
+    )
+    try await renderDocumentation(
+      markedText: "3️⃣",
+      language: .objective_c,
+      expectedResponses: ["3️⃣": .error(.unsupportedLanguage(.objective_c))]
+    )
+  }
+
   // MARK: Swift Documentation
 
   func testEmptySwiftFile() async throws {
     try await renderDocumentation(
-      swiftFile: "1️⃣",
+      markedText: "1️⃣",
       expectedResponses: [
-        "1️⃣": .error(.noDocumentation)
+        "1️⃣": .error(.noDocumentableSymbols)
       ]
     )
   }
 
   func testFunction() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         /// A function that do1️⃣es some important stuff.
         func func2️⃣tion() {
           // Some import3️⃣ant function contents.
@@ -44,14 +63,14 @@ final class DoccDocumentationTests: XCTestCase {
         "1️⃣": .renderNode(kind: .symbol, path: "test/function()"),
         "2️⃣": .renderNode(kind: .symbol, path: "test/function()"),
         "3️⃣": .renderNode(kind: .symbol, path: "test/function()"),
-        "4️⃣": .error(.noDocumentation),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/function()"),
       ]
     )
   }
 
   func testStructure() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         /// A structure contain1️⃣ing important information.
         public struct Struc2️⃣ture {
           /// The inte3️⃣ger `foo`
@@ -76,14 +95,14 @@ final class DoccDocumentationTests: XCTestCase {
         "6️⃣": .renderNode(kind: .symbol, path: "test/Structure/bar"),
         "7️⃣": .renderNode(kind: .symbol, path: "test/Structure/init(_:bar:)"),
         "8️⃣": .renderNode(kind: .symbol, path: "test/Structure/init(_:bar:)"),
-        "9️⃣": .error(.noDocumentation),
+        "9️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
       ]
     )
   }
 
   func testEmptyStructure() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         pub1️⃣lic struct Struc2️⃣ture {
           3️⃣
         }4️⃣
@@ -92,14 +111,33 @@ final class DoccDocumentationTests: XCTestCase {
         "1️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
         "2️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
         "3️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
-        "4️⃣": .error(.noDocumentation),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Structure"),
+      ]
+    )
+  }
+
+  func testSubscriptDeclaration() async throws {
+    try await renderDocumentation(
+      markedText: """
+        /// A structure containing important information.
+        public struct Structure {
+          // Get the 1️⃣subscript at index
+          subscript(in2️⃣dex: Int) -> Int {
+            return i3️⃣ndex
+          }
+        }
+        """,
+      expectedResponses: [
+        "1️⃣": .renderNode(kind: .symbol, path: "test/Structure/subscript(_:)"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Structure/subscript(_:)"),
+        "3️⃣": .renderNode(kind: .symbol, path: "test/Structure/subscript(_:)"),
       ]
     )
   }
 
   func testClass() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         /// A class contain1️⃣ing important information.
         public class Cla2️⃣ss {
           /// The inte3️⃣ger `foo`
@@ -125,14 +163,33 @@ final class DoccDocumentationTests: XCTestCase {
         "7️⃣": .renderNode(kind: .symbol, path: "test/Class/init(_:bar:)"),
         "8️⃣": .renderNode(kind: .symbol, path: "test/Class/init(_:bar:)"),
         "9️⃣": .renderNode(kind: .symbol, path: "test/Class"),
-        "0️⃣": .error(.noDocumentation),
+        "0️⃣": .renderNode(kind: .symbol, path: "test/Class"),
+      ]
+    )
+  }
+
+  func testClassDeInitializer() async throws {
+    try await renderDocumentation(
+      markedText: """
+        /// A class containing important information.
+        public class Class {
+          /// Initi1️⃣alize the class.
+          dein2️⃣it {
+            // De-initi3️⃣alize stuff
+          }
+        }
+        """,
+      expectedResponses: [
+        "1️⃣": .renderNode(kind: .symbol, path: "test/Class/deinit"),
+        "2️⃣": .renderNode(kind: .symbol, path: "test/Class/deinit"),
+        "3️⃣": .renderNode(kind: .symbol, path: "test/Class/deinit"),
       ]
     )
   }
 
   func testEmptyClass() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         pub1️⃣lic class Cla2️⃣ss {
           3️⃣
         }4️⃣
@@ -141,14 +198,14 @@ final class DoccDocumentationTests: XCTestCase {
         "1️⃣": .renderNode(kind: .symbol, path: "test/Class"),
         "2️⃣": .renderNode(kind: .symbol, path: "test/Class"),
         "3️⃣": .renderNode(kind: .symbol, path: "test/Class"),
-        "4️⃣": .error(.noDocumentation),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Class"),
       ]
     )
   }
 
   func testActor() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         /// An actor contain1️⃣ing important information.
         public actor Ac2️⃣tor {
           /// The inte3️⃣ger `foo`
@@ -173,14 +230,14 @@ final class DoccDocumentationTests: XCTestCase {
         "6️⃣": .renderNode(kind: .symbol, path: "test/Actor/bar"),
         "7️⃣": .renderNode(kind: .symbol, path: "test/Actor/init(_:bar:)"),
         "8️⃣": .renderNode(kind: .symbol, path: "test/Actor/init(_:bar:)"),
-        "9️⃣": .error(.noDocumentation),
+        "9️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
       ]
     )
   }
 
   func testEmptyActor() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         pub1️⃣lic class Act2️⃣or {
           3️⃣
         }4️⃣
@@ -189,14 +246,14 @@ final class DoccDocumentationTests: XCTestCase {
         "1️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
         "2️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
         "3️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
-        "4️⃣": .error(.noDocumentation),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Actor"),
       ]
     )
   }
 
   func testEnumeration() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         /// An enumeration contain1️⃣ing important information.
         public enum En2️⃣um {
           /// The 3️⃣first case.
@@ -218,7 +275,7 @@ final class DoccDocumentationTests: XCTestCase {
         "6️⃣": .renderNode(kind: .symbol, path: "test/Enum/second"),
         "7️⃣": .renderNode(kind: .symbol, path: "test/Enum/third(_:)"),
         "8️⃣": .renderNode(kind: .symbol, path: "test/Enum/third(_:)"),
-        "9️⃣": .error(.noDocumentation),
+        "9️⃣": .renderNode(kind: .symbol, path: "test/Enum"),
       ]
     )
   }
@@ -272,7 +329,7 @@ final class DoccDocumentationTests: XCTestCase {
 
   func testProtocol() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         /// A protocol contain1️⃣ing important information.
         public protocol Proto2️⃣col {
           /// The inte3️⃣ger `foo`
@@ -289,14 +346,14 @@ final class DoccDocumentationTests: XCTestCase {
         "4️⃣": .renderNode(kind: .symbol, path: "test/Protocol/foo"),
         "5️⃣": .renderNode(kind: .symbol, path: "test/Protocol/bar"),
         "6️⃣": .renderNode(kind: .symbol, path: "test/Protocol/bar"),
-        "7️⃣": .error(.noDocumentation),
+        "7️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
       ]
     )
   }
 
   func testEmptyProtocol() async throws {
     try await renderDocumentation(
-      swiftFile: """
+      markedText: """
         /// A protocol containing important information
         pub1️⃣lic struct Prot2️⃣ocol {
           3️⃣
@@ -306,19 +363,21 @@ final class DoccDocumentationTests: XCTestCase {
         "1️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
         "2️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
         "3️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
-        "4️⃣": .error(.noDocumentation),
+        "4️⃣": .renderNode(kind: .symbol, path: "test/Protocol"),
       ]
     )
   }
 
   func testExtension() async throws {
-    try await renderDocumentation(
-      swiftFile: """
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/Structure.swift": """
         /// A structure containing important information
         public struct Structure {
           let number: Int
         }
-
+        """,
+        "MyLibrary/Extension.swift": """
         extension Stru1️⃣cture {
           /// One more than the number
           var numberPlusOne: Int {2️⃣ number + 1 }
@@ -329,16 +388,39 @@ final class DoccDocumentationTests: XCTestCase {
             case first
             /// The se5️⃣cond kind
             case second
-          }
-        }6️⃣
+          }6️⃣
+        }7️⃣
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+    try await renderDocumentation(
+      fileName: "Extension.swift",
+      project: project,
+      expectedResponses: [
+        "1️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/numberPlusOne"),
+        "2️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/numberPlusOne"),
+        "3️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/Kind"),
+        "4️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/Kind/first"),
+        "5️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/Kind/second"),
+        "6️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/Kind"),
+        "7️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Structure/Kind"),
+      ]
+    )
+  }
+
+  func testCursorInImport() async throws {
+    try await renderDocumentation(
+      markedText: """
+        import Found1️⃣ation
+
+        /// A structure containing important information
+        public struct Structure {
+          let number: Int
+        }
         """,
       expectedResponses: [
-        "1️⃣": .error(.noDocumentation),
-        "2️⃣": .renderNode(kind: .symbol, path: "test/Structure/numberPlusOne"),
-        "3️⃣": .renderNode(kind: .symbol, path: "test/Structure/Kind"),
-        "4️⃣": .renderNode(kind: .symbol, path: "test/Structure/Kind/first"),
-        "5️⃣": .renderNode(kind: .symbol, path: "test/Structure/Kind/second"),
-        "6️⃣": .error(.noDocumentation),
+        "1️⃣": .renderNode(kind: .symbol, path: "test/Structure")
       ]
     )
   }
@@ -709,13 +791,14 @@ fileprivate func renderDocumentation(
 }
 
 fileprivate func renderDocumentation(
-  swiftFile markedText: String,
+  markedText: String,
+  language: Language = .swift,
   expectedResponses: [String: PartialConvertResponse],
   file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
   let testClient = try await TestSourceKitLSPClient()
-  let uri = DocumentURI(for: .swift)
+  let uri = DocumentURI(for: language)
   let positions = testClient.openDocument(markedText, uri: uri)
 
   await renderDocumentation(
