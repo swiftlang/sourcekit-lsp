@@ -324,6 +324,12 @@ typedef struct {
     void (^_Null_unspecified handler)(const char *_Null_unspecified)
   );
 
+  void (*_Nonnull completion_item_get_doc_full_copy)(
+    _Null_unspecified swiftide_api_completion_response_t,
+    _Null_unspecified swiftide_api_completion_item_t,
+    void (^_Null_unspecified handler)(char *_Null_unspecified)
+  );
+
   void (*_Nonnull completion_item_get_associated_usrs)(
     _Null_unspecified swiftide_api_completion_response_t,
     _Null_unspecified swiftide_api_completion_item_t,
