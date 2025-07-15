@@ -67,7 +67,15 @@ final class SwiftCompletionTests: XCTestCase {
     if let abc = abc {
       XCTAssertEqual(abc.kind, .property)
       XCTAssertEqual(abc.detail, "Int")
-      XCTAssertEqual(abc.documentation, .markupContent(MarkupContent(kind: .markdown, value: "Documentation for abc.")))
+      assertMarkdown(
+        documentation: abc.documentation,
+        expected: """
+          ```swift
+          var abc: Int
+          ```
+          Documentation for `abc`.
+          """
+      )
       XCTAssertEqual(abc.filterText, "abc")
       XCTAssertEqual(abc.textEdit, .textEdit(TextEdit(range: Range(positions["1️⃣"]), newText: "abc")))
       XCTAssertEqual(abc.insertText, "abc")
@@ -87,7 +95,15 @@ final class SwiftCompletionTests: XCTestCase {
       // If we switch to server-side filtering this will change.
       XCTAssertEqual(abc.kind, .property)
       XCTAssertEqual(abc.detail, "Int")
-      XCTAssertEqual(abc.documentation, .markupContent(MarkupContent(kind: .markdown, value: "Documentation for abc.")))
+      assertMarkdown(
+        documentation: abc.documentation,
+        expected: """
+          ```swift
+          var abc: Int
+          ```
+          Documentation for `abc`.
+          """
+      )
       XCTAssertEqual(abc.filterText, "abc")
       XCTAssertEqual(abc.textEdit, .textEdit(TextEdit(range: positions["1️⃣"]..<offsetPosition, newText: "abc")))
       XCTAssertEqual(abc.insertText, "abc")
@@ -1187,9 +1203,14 @@ final class SwiftCompletionTests: XCTestCase {
     let item = try XCTUnwrap(completions.items.only)
     XCTAssertNil(item.documentation)
     let resolvedItem = try await testClient.send(CompletionItemResolveRequest(item: item))
-    XCTAssertEqual(
-      resolvedItem.documentation,
-      .markupContent(MarkupContent(kind: .markdown, value: "Creates a true value"))
+    assertMarkdown(
+      documentation: resolvedItem.documentation,
+      expected: """
+        ```swift
+        func makeBool() -> Bool
+        ```
+        Creates a true value
+        """
     )
   }
 
@@ -1251,6 +1272,15 @@ final class SwiftCompletionTests: XCTestCase {
 
 private func countFs(_ response: CompletionList) -> Int {
   return response.items.filter { $0.label.hasPrefix("f") }.count
+}
+
+private func assertMarkdown(
+  documentation: StringOrMarkupContent?,
+  expected: String,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) {
+  XCTAssertEqual(documentation, .markupContent(MarkupContent(kind: .markdown, value: expected)))
 }
 
 fileprivate extension Position {

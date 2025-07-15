@@ -203,7 +203,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
     XCTAssertEqual(result2.items.count, 1)
     XCTAssertEqual(result2.items[0].name, "")
     let doc = try await sourcekitd.completeDocumentation(id: result2.items[0].id)
-    XCTAssertEqual(doc.docBrief, nil)
+    XCTAssertEqual(doc.docFullAsXML, nil)
   }
 
   func testMultipleFiles() async throws {
@@ -436,15 +436,34 @@ final class SwiftSourceKitPluginTests: XCTestCase {
     let sym3 = try unwrap(result.items.first(where: { $0.name == "foo3()" }), "did not find foo3; got \(result.items)")
 
     let sym1Doc = try await sourcekitd.completeDocumentation(id: sym1.id)
-    XCTAssertEqual(sym1Doc.docBrief, "Protocol P foo1")
+    XCTAssertEqual(sym1Doc.docFullAsXML,
+                   "<Function file=\"\(path)\" line=\"3\" column=\"8\">"
+                   + "<Name>foo1()</Name>"
+                   + "<USR>s:1a1PP4foo1yyF</USR>"
+                   + "<Declaration>func foo1()</Declaration>"
+                   + "<CommentParts>"
+                   + "<Abstract><Para>Protocol P foo1</Para></Abstract>"
+                   + "<Discussion><Note>"
+                   + "<Para>This documentation comment was inherited from <codeVoice>P</codeVoice>.</Para>"
+                   + "</Note></Discussion>"
+                   + "</CommentParts>"
+                   + "</Function>")
     XCTAssertEqual(sym1Doc.associatedUSRs, ["s:1a1SV4foo1yyF", "s:1a1PP4foo1yyF"])
 
     let sym2Doc = try await sourcekitd.completeDocumentation(id: sym2.id)
-    XCTAssertEqual(sym2Doc.docBrief, "Struct S foo2")
+    XCTAssertEqual(sym2Doc.docFullAsXML,
+                   "<Function file=\"\(path)\" line=\"8\" column=\"8\">"
+                   + "<Name>foo2()</Name>"
+                   + "<USR>s:1a1SV4foo2yyF</USR>"
+                   + "<Declaration>func foo2()</Declaration>"
+                   + "<CommentParts>"
+                   + "<Abstract><Para>Struct S foo2</Para></Abstract>"
+                   + "</CommentParts>"
+                   + "</Function>")
     XCTAssertEqual(sym2Doc.associatedUSRs, ["s:1a1SV4foo2yyF"])
 
     let sym3Doc = try await sourcekitd.completeDocumentation(id: sym3.id)
-    XCTAssertNil(sym3Doc.docBrief)
+    XCTAssertNil(sym3Doc.docFullAsXML)
     XCTAssertEqual(sym3Doc.associatedUSRs, ["s:1a1SV4foo3yyF"])
   }
 
@@ -1766,12 +1785,12 @@ private struct CompletionResult: Equatable, Sendable {
 }
 
 private struct CompletionDocumentation {
-  var docBrief: String? = nil
+  var docFullAsXML: String? = nil
   var associatedUSRs: [String] = []
 
   init(_ dict: SKDResponseDictionary) {
     let keys = dict.sourcekitd.keys
-    self.docBrief = dict[keys.docBrief]
+    self.docFullAsXML = dict[keys.docFullAsXML]
     self.associatedUSRs = dict[keys.associatedUSRs]?.asStringArray ?? []
   }
 }
