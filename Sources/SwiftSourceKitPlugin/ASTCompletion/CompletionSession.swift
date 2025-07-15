@@ -241,6 +241,17 @@ struct ExtendedCompletionInfo {
     return result
   }
 
+  var fullDocumentation: String? {
+    var result: String? = nil
+    session.sourcekitd.ideApi.completion_item_get_doc_full_copy(session.response, rawItem) {
+      if let cstr = $0 {
+        result = String(cString: cstr)
+        free(cstr)
+      }
+    }
+    return result
+  }
+
   var associatedUSRs: [String] {
     var result: [String] = []
     session.sourcekitd.ideApi.completion_item_get_associated_usrs(session.response, rawItem) { ptr, len in
