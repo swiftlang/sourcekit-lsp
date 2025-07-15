@@ -38,11 +38,13 @@ extension Process {
       }
       return try await waitUntilExit()
     } onCancel: {
+      logger.debug("Terminating process using SIGINT because task was cancelled: \(self.arguments)")
       signal(SIGINT)
       Task {
         // Give the process 2 seconds to react to a SIGINT. If that doesn't work, terminate the process.
         try await Task.sleep(for: .seconds(2))
         if !hasExited.value {
+          logger.debug("Terminating process using SIGKILL because it did not honor SIGINT: \(self.arguments)")
           // TODO: We should also terminate all child processes (https://github.com/swiftlang/sourcekit-lsp/issues/2080)
           #if os(Windows)
           // Windows does not define SIGKILL. Process.signal sends a `terminate` to the underlying Foundation process
