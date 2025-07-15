@@ -634,6 +634,69 @@ extension ClangLanguageService {
   func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
     throw ResponseError.unknown("unsupported method")
   }
+
+  func rename(_ renameRequest: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
+    async let edits = forwardRequestToClangd(renameRequest)
+    let symbolInfoRequest = SymbolInfoRequest(
+      textDocument: renameRequest.textDocument,
+      position: renameRequest.position
+    )
+    let symbolDetail = try await forwardRequestToClangd(symbolInfoRequest).only
+    return (try await edits ?? WorkspaceEdit(), symbolDetail?.usr)
+  }
+
+  func editsToRename(
+    locations renameLocations: [RenameLocation],
+    in snapshot: DocumentSnapshot,
+    oldName oldCrossLanguageName: CrossLanguageName,
+    newName newCrossLanguageName: CrossLanguageName
+  ) async throws -> [TextEdit] {
+    let positions = [
+      snapshot.uri: renameLocations.compactMap { snapshot.position(of: $0) }
+    ]
+    guard
+      let oldName = oldCrossLanguageName.clangName,
+      let newName = newCrossLanguageName.clangName
+    else {
+      throw ResponseError.unknown(
+        "Failed to rename \(snapshot.uri.forLogging) because the clang name for rename is unknown"
+      )
+    }
+    let request = IndexedRenameRequest(
+      textDocument: TextDocumentIdentifier(snapshot.uri),
+      oldName: oldName,
+      newName: newName,
+      positions: positions
+    )
+    do {
+      let edits = try await forwardRequestToClangd(request)
+      return edits?.changes?[snapshot.uri] ?? []
+    } catch {
+      logger.error("Failed to get indexed rename edits: \(error.forLogging)")
+      return []
+    }
+  }
+
+  package func prepareRename(
+    _ request: PrepareRenameRequest
+  ) async throws -> (prepareRename: PrepareRenameResponse, usr: String?)? {
+    guard let prepareRename = try await forwardRequestToClangd(request) else {
+      return nil
+    }
+    let symbolInfo = try await forwardRequestToClangd(
+      SymbolInfoRequest(textDocument: request.textDocument, position: request.position)
+    )
+    return (prepareRename, symbolInfo.only?.usr)
+  }
+
+  package func editsToRenameParametersInFunctionBody(
+    snapshot: DocumentSnapshot,
+    renameLocation: RenameLocation,
+    newName: CrossLanguageName
+  ) async -> [TextEdit] {
+    // When renaming a clang function name, we don't need to rename any references to the arguments.
+    return []
+  }
 }
 
 /// Clang build settings derived from a `FileBuildSettingsChange`.
