@@ -264,7 +264,7 @@ actor CompletionProvider {
   func handleCompletionDocumentation(_ request: SKDRequestDictionaryReader) throws -> SKDResponseDictionaryBuilder {
     let info = try handleExtendedCompletionRequest(request)
 
-    var response = request.sourcekitd.responseDictionary([
+    let response = request.sourcekitd.responseDictionary([
       request.sourcekitd.keys.associatedUSRs: info.associatedUSRs as [SKDResponseValue]?
     ])
 
