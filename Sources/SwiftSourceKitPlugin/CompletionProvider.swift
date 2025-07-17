@@ -264,17 +264,11 @@ actor CompletionProvider {
   func handleCompletionDocumentation(_ request: SKDRequestDictionaryReader) throws -> SKDResponseDictionaryBuilder {
     let info = try handleExtendedCompletionRequest(request)
 
-    let response = request.sourcekitd.responseDictionary([
-      request.sourcekitd.keys.associatedUSRs: info.associatedUSRs as [SKDResponseValue]?
+    return request.sourcekitd.responseDictionary([
+      request.sourcekitd.keys.docBrief: info.briefDocumentation,
+      request.sourcekitd.keys.docFullAsXML: info.fullDocumentation,
+      request.sourcekitd.keys.associatedUSRs: info.associatedUSRs as [SKDResponseValue]?,
     ])
-
-    if let fullDocumentation = info.fullDocumentation {
-      response.set(request.sourcekitd.keys.docFullAsXML, to: fullDocumentation)
-    } else {
-      response.set(request.sourcekitd.keys.docBrief, to: info.briefDocumentation)
-    }
-
-    return response
   }
 
   func handleCompletionDiagnostic(_ dict: SKDRequestDictionaryReader) throws -> SKDResponseDictionaryBuilder {
