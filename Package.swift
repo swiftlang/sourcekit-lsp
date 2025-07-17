@@ -39,6 +39,7 @@ var targets: [Target] = [
     dependencies: [
       "BuildServerIntegration",
       "Diagnose",
+      "InProcessClient",
       "LanguageServerProtocol",
       "LanguageServerProtocolExtensions",
       "LanguageServerProtocolJSONRPC",

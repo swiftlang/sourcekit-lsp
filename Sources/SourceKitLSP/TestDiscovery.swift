@@ -623,9 +623,3 @@ extension SwiftLanguageService {
     return (xctestSymbols + swiftTestingSymbols).sorted { $0.testItem.location < $1.testItem.location }
   }
 }
-
-extension ClangLanguageService {
-  package func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async -> [AnnotatedTestItem]? {
-    return nil
-  }
-}

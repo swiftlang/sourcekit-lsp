@@ -164,7 +164,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     server = SourceKitLSPServer(
       client: serverToClientConnection,
       toolchainRegistry: toolchainRegistry,
-      languageServerRegistry: LanguageServiceRegistry(),
+      languageServerRegistry: .staticallyKnownServices,
       options: options,
       hooks: hooks,
       onExit: {

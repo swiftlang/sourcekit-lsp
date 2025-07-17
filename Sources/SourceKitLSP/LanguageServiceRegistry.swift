@@ -19,13 +19,9 @@ import SKLogging
 package struct LanguageServiceRegistry {
   private var byLanguage: [Language: LanguageService.Type] = [:]
 
-  package init() {
-    self.register(ClangLanguageService.self, for: [.c, .cpp, .objective_c, .objective_cpp])
-    self.register(SwiftLanguageService.self, for: [.swift])
-    self.register(DocumentationLanguageService.self, for: [.markdown, .tutorial])
-  }
+  package init() {}
 
-  private mutating func register(_ languageService: LanguageService.Type, for languages: [Language]) {
+  package mutating func register(_ languageService: LanguageService.Type, for languages: [Language]) {
     for language in languages {
       if let existingLanguageService = byLanguage[language] {
         logger.fault(

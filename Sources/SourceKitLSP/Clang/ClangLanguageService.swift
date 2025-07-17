@@ -12,15 +12,15 @@
 
 import BuildServerIntegration
 import Foundation
-import LanguageServerProtocol
+package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
 import SKLogging
-import SKOptions
-import SwiftExtensions
-import SwiftSyntax
+package import SKOptions
+package import SwiftExtensions
+package import SwiftSyntax
 import TSCExtensions
-import ToolchainRegistry
+package import ToolchainRegistry
 
 #if canImport(DocCDocumentation)
 import DocCDocumentation
@@ -38,7 +38,7 @@ import WinSDK
 /// ``ClangLanguageServerShim`` conforms to ``MessageHandler`` to receive
 /// requests and notifications **from** clangd, not from the editor, and it will
 /// forward these requests and notifications to the editor.
-actor ClangLanguageService: LanguageService, MessageHandler {
+package actor ClangLanguageService: LanguageService, MessageHandler {
   /// The queue on which all messages that originate from clangd are handled.
   ///
   /// These are requests and notifications sent *from* clangd, not replies from
@@ -144,12 +144,12 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     return ClangBuildSettings(settings, clangPath: clangPath)
   }
 
-  nonisolated func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool {
+  package nonisolated func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool {
     // We launch different clangd instance for each workspace because clangd doesn't have multi-root workspace support.
     return workspace === self.workspace.value && self.clangdPath == toolchain.clangd
   }
 
-  func addStateChangeHandler(handler: @escaping (LanguageServerState, LanguageServerState) -> Void) {
+  package func addStateChangeHandler(handler: @escaping (LanguageServerState, LanguageServerState) -> Void) {
     self.stateChangeHandlers.append(handler)
   }
 
@@ -244,7 +244,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   /// sending a notification that's intended for the editor.
   ///
   /// We should either handle it ourselves or forward it to the editor.
-  nonisolated func handle(_ params: some NotificationType) {
+  package nonisolated func handle(_ params: some NotificationType) {
     logger.info(
       """
       Received notification from clangd:
@@ -267,7 +267,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   /// sending a notification that's intended for the editor.
   ///
   /// We should either handle it ourselves or forward it to the client.
-  nonisolated func handle<R: RequestType>(
+  package nonisolated func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
     reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
@@ -316,7 +316,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     return nil
   }
 
-  func crash() {
+  package func crash() {
     clangdProcess?.terminateImmediately()
   }
 }
@@ -366,7 +366,7 @@ extension ClangLanguageService {
 
 extension ClangLanguageService {
 
-  func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult {
+  package func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult {
     // Store the initialize request so we can replay it in case clangd crashes
     self.initializeRequest = initialize
 
@@ -417,7 +417,7 @@ extension ClangLanguageService {
     clangd.send(notification)
   }
 
-  func reopenDocument(_ notification: ReopenTextDocumentNotification) {}
+  package func reopenDocument(_ notification: ReopenTextDocumentNotification) {}
 
   package func changeDocument(
     _ notification: DidChangeTextDocumentNotification,
@@ -481,20 +481,20 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
-  func completion(_ req: CompletionRequest) async throws -> CompletionList {
+  package func completion(_ req: CompletionRequest) async throws -> CompletionList {
     return try await forwardRequestToClangd(req)
   }
 
-  func completionItemResolve(_ req: CompletionItemResolveRequest) async throws -> CompletionItem {
+  package func completionItemResolve(_ req: CompletionItemResolveRequest) async throws -> CompletionItem {
     return try await forwardRequestToClangd(req)
   }
 
-  func hover(_ req: HoverRequest) async throws -> HoverResponse? {
+  package func hover(_ req: HoverRequest) async throws -> HoverResponse? {
     return try await forwardRequestToClangd(req)
   }
 
   #if canImport(DocCDocumentation)
-  func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
+  package func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
     guard let sourceKitLSPServer else {
       throw ResponseError.unknown("Connection to the editor closed")
     }
@@ -504,26 +504,28 @@ extension ClangLanguageService {
   }
   #endif
 
-  func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
+  package func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
     return try await forwardRequestToClangd(req)
   }
 
-  func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
+  package func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
     return try await forwardRequestToClangd(req)
   }
 
-  func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
+  package func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
     return try await forwardRequestToClangd(req)
   }
 
-  func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
+  package func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
     guard self.capabilities?.colorProvider?.isSupported ?? false else {
       return []
     }
     return try await forwardRequestToClangd(req)
   }
 
-  func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse? {
+  package func documentSemanticTokens(
+    _ req: DocumentSemanticTokensRequest
+  ) async throws -> DocumentSemanticTokensResponse? {
     guard var response = try await forwardRequestToClangd(req) else {
       return nil
     }
@@ -533,7 +535,7 @@ extension ClangLanguageService {
     return response
   }
 
-  func documentSemanticTokensDelta(
+  package func documentSemanticTokensDelta(
     _ req: DocumentSemanticTokensDeltaRequest
   ) async throws -> DocumentSemanticTokensDeltaResponse? {
     guard var response = try await forwardRequestToClangd(req) else {
@@ -558,7 +560,7 @@ extension ClangLanguageService {
     return response
   }
 
-  func documentSemanticTokensRange(
+  package func documentSemanticTokensRange(
     _ req: DocumentSemanticTokensRangeRequest
   ) async throws -> DocumentSemanticTokensResponse? {
     guard var response = try await forwardRequestToClangd(req) else {
@@ -570,49 +572,49 @@ extension ClangLanguageService {
     return response
   }
 
-  func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {
+  package func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {
     guard self.capabilities?.colorProvider?.isSupported ?? false else {
       return []
     }
     return try await forwardRequestToClangd(req)
   }
 
-  func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]? {
+  package func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]? {
     return try await forwardRequestToClangd(req)
   }
 
-  func documentRangeFormatting(_ req: DocumentRangeFormattingRequest) async throws -> [TextEdit]? {
+  package func documentRangeFormatting(_ req: DocumentRangeFormattingRequest) async throws -> [TextEdit]? {
     return try await forwardRequestToClangd(req)
   }
 
-  func documentOnTypeFormatting(_ req: DocumentOnTypeFormattingRequest) async throws -> [TextEdit]? {
+  package func documentOnTypeFormatting(_ req: DocumentOnTypeFormattingRequest) async throws -> [TextEdit]? {
     return try await forwardRequestToClangd(req)
   }
 
-  func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
+  package func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
     return try await forwardRequestToClangd(req)
   }
 
-  func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
+  package func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
     return try await forwardRequestToClangd(req)
   }
 
-  func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
+  package func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
     return try await forwardRequestToClangd(req)
   }
 
-  func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens] {
+  package func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens] {
     return try await forwardRequestToClangd(req) ?? []
   }
 
-  func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
+  package func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
     guard self.capabilities?.foldingRangeProvider?.isSupported ?? false else {
       return nil
     }
     return try await forwardRequestToClangd(req)
   }
 
-  func openGeneratedInterface(
+  package func openGeneratedInterface(
     document: DocumentURI,
     moduleName: String,
     groupName: String?,
@@ -621,21 +623,21 @@ extension ClangLanguageService {
     throw ResponseError.unknown("unsupported method")
   }
 
-  func indexedRename(_ request: IndexedRenameRequest) async throws -> WorkspaceEdit? {
+  package func indexedRename(_ request: IndexedRenameRequest) async throws -> WorkspaceEdit? {
     return try await forwardRequestToClangd(request)
   }
 
   // MARK: - Other
 
-  func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
+  package func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
     return try await forwardRequestToClangd(req)
   }
 
-  func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
+  package func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
     throw ResponseError.unknown("unsupported method")
   }
 
-  func rename(_ renameRequest: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
+  package func rename(_ renameRequest: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
     async let edits = forwardRequestToClangd(renameRequest)
     let symbolInfoRequest = SymbolInfoRequest(
       textDocument: renameRequest.textDocument,
@@ -645,7 +647,11 @@ extension ClangLanguageService {
     return (try await edits ?? WorkspaceEdit(), symbolDetail?.usr)
   }
 
-  func editsToRename(
+  package func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async -> [AnnotatedTestItem]? {
+    return nil
+  }
+
+  package func editsToRename(
     locations renameLocations: [RenameLocation],
     in snapshot: DocumentSnapshot,
     oldName oldCrossLanguageName: CrossLanguageName,

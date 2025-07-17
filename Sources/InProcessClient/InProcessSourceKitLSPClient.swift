@@ -60,7 +60,7 @@ public final class InProcessSourceKitLSPClient: Sendable {
     self.server = SourceKitLSPServer(
       client: serverToClientConnection,
       toolchainRegistry: toolchainRegistry,
-      languageServerRegistry: LanguageServiceRegistry(),
+      languageServerRegistry: .staticallyKnownServices,
       options: options,
       hooks: hooks,
       onExit: {

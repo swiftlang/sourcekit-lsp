@@ -1,5 +1,6 @@
 add_library(InProcessClient STATIC
-  InProcessSourceKitLSPClient.swift)
+  InProcessSourceKitLSPClient.swift
+  LanguageServiceRegistry+staticallyKnownServices.swift)
 
 set_target_properties(InProcessClient PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})

@@ -16,6 +16,7 @@ import Csourcekitd  // Not needed here, but fixes debugging...
 import Diagnose
 import Dispatch
 import Foundation
+import InProcessClient
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
@@ -294,7 +295,7 @@ struct SourceKitLSP: AsyncParsableCommand {
     let server = SourceKitLSPServer(
       client: clientConnection,
       toolchainRegistry: ToolchainRegistry(installPath: Bundle.main.bundleURL),
-      languageServerRegistry: LanguageServiceRegistry(),
+      languageServerRegistry: .staticallyKnownServices,
       options: globalConfigurationOptions,
       hooks: Hooks(),
       onExit: {
