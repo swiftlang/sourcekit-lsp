@@ -10,13 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Csourcekitd
 import LanguageServerProtocol
 import SKTestSupport
-import SourceKitD
 import SourceKitLSP
 import SwiftExtensions
-import ToolchainRegistry
 import XCTest
 
 final class SwiftCompletionTests: XCTestCase {
@@ -70,10 +67,9 @@ final class SwiftCompletionTests: XCTestCase {
     if let abc = abc {
       XCTAssertEqual(abc.kind, .property)
       XCTAssertEqual(abc.detail, "Int")
-      try await assertDocumentation(
+      assertMarkdown(
         documentation: abc.documentation,
-        expectedBrief: "Documentation for abc.",
-        expectedFull: """
+        expected: """
           ```swift
           var abc: Int
           ```
@@ -99,10 +95,9 @@ final class SwiftCompletionTests: XCTestCase {
       // If we switch to server-side filtering this will change.
       XCTAssertEqual(abc.kind, .property)
       XCTAssertEqual(abc.detail, "Int")
-      try await assertDocumentation(
+      assertMarkdown(
         documentation: abc.documentation,
-        expectedBrief: "Documentation for abc.",
-        expectedFull: """
+        expected: """
           ```swift
           var abc: Int
           ```
@@ -1208,10 +1203,9 @@ final class SwiftCompletionTests: XCTestCase {
     let item = try XCTUnwrap(completions.items.only)
     XCTAssertNil(item.documentation)
     let resolvedItem = try await testClient.send(CompletionItemResolveRequest(item: item))
-    try await assertDocumentation(
+    assertMarkdown(
       documentation: resolvedItem.documentation,
-      expectedBrief: "Creates a true value",
-      expectedFull: """
+      expected: """
         ```swift
         func makeBool() -> Bool
         ```
@@ -1222,9 +1216,6 @@ final class SwiftCompletionTests: XCTestCase {
 
   func testCompletionBriefDocumentationFallback() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()
-
-    let fullDocumentationSupported = try await sourcekitdSupportsFullDocumentation()
-    try XCTSkipUnless(fullDocumentationSupported)
 
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
@@ -1317,30 +1308,6 @@ private func assertMarkdown(
   line: UInt = #line
 ) {
   XCTAssertEqual(documentation, .markupContent(MarkupContent(kind: .markdown, value: expected)))
-}
-
-/// Asserts that documentation matches the expected values based on whether full documentation is supported in sourcekitd or not.
-private func assertDocumentation(
-  documentation: StringOrMarkupContent?,
-  expectedBrief: String,
-  expectedFull: String,
-  file: StaticString = #filePath,
-  line: UInt = #line
-) async throws {
-  let supportsFullDocumentation = try await sourcekitdSupportsFullDocumentation()
-  let expected = supportsFullDocumentation ? expectedFull : expectedBrief
-
-  assertMarkdown(documentation: documentation, expected: expected, file: file, line: line)
-}
-
-private func sourcekitdSupportsFullDocumentation() async throws -> Bool {
-  let sourcekitdPath = await ToolchainRegistry.forTesting.default!.sourcekitd!
-  let sourcekitd = try await SourceKitD.getOrCreate(
-    dylibPath: sourcekitdPath,
-    pluginPaths: sourceKitPluginPaths
-  )
-
-  return sourcekitd.ideApi.completion_item_get_doc_full != nil
 }
 
 fileprivate extension Position {
