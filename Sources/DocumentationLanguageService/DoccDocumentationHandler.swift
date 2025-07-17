@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
-import DocCDocumentation
 import Foundation
 @preconcurrency import IndexStoreDB
 package import LanguageServerProtocol

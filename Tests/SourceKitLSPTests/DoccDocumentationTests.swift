@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if canImport(SwiftDocC)
 import Foundation
 import LanguageServerProtocol
 import SKLogging
@@ -1069,3 +1070,6 @@ private func renderDocumentation(
     }
   }
 }
+#elseif !os(Windows)
+#error("DocC should be enabled on all platforms except Windows")
+#endif

@@ -2,7 +2,7 @@ import Foundation
 import SymbolKit
 
 /// Generates a JSON string that represents an empty symbol graph for the given module name.
-package func emptySymbolGraph(forModule moduleName: String) throws -> String? {
+func emptySymbolGraph(forModule moduleName: String) throws -> String? {
   let symbolGraph = SymbolGraph(
     metadata: SymbolGraph.Metadata(
       formatVersion: SymbolGraph.SemanticVersion(major: 0, minor: 0, patch: 0),

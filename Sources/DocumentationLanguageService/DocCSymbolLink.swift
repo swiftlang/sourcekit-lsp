@@ -16,7 +16,7 @@ import SemanticIndex
 @_spi(LinkCompletion) @preconcurrency import SwiftDocC
 import SymbolKit
 
-package struct DocCSymbolLink: Sendable {
+struct DocCSymbolLink: Sendable {
   let linkString: String
   let components: [(name: String, disambiguation: LinkCompletionTools.ParsedDisambiguation)]
 
@@ -24,7 +24,7 @@ package struct DocCSymbolLink: Sendable {
     components.last!.name
   }
 
-  package init?(linkString: String) {
+  init?(linkString: String) {
     let components = LinkCompletionTools.parse(linkString: linkString)
     guard !components.isEmpty else {
       return nil

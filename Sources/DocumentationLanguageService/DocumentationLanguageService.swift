@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import DocCDocumentation
 import Foundation
 package import IndexStoreDB
 package import LanguageServerProtocol

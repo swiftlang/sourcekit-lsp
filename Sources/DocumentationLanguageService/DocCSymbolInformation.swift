@@ -15,7 +15,7 @@ import Foundation
 import SwiftExtensions
 import SymbolKit
 
-package struct DocCSymbolInformation {
+struct DocCSymbolInformation {
   struct Component {
     let name: String
     let information: LinkCompletionTools.SymbolInformation
@@ -37,7 +37,7 @@ package struct DocCSymbolInformation {
     self.components = components
   }
 
-  package func matches(_ link: DocCSymbolLink) -> Bool {
+  func matches(_ link: DocCSymbolLink) -> Bool {
     guard link.components.count == components.count else {
       return false
     }

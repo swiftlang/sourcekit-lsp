@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-package import IndexStoreDB
+import IndexStoreDB
 import SKLogging
 import SemanticIndex
 @preconcurrency @_spi(LinkCompletion) import SwiftDocC
@@ -23,7 +23,7 @@ extension CheckedIndex {
   ///
   /// If the `DocCSymbolLink` has an ambiguous definition, the most important role of this function is to deterministically return
   /// the same result every time.
-  package func primaryDefinitionOrDeclarationOccurrence(
+  func primaryDefinitionOrDeclarationOccurrence(
     ofDocCSymbolLink symbolLink: DocCSymbolLink,
     fetchSymbolGraph: @Sendable (SymbolLocation) async throws -> String?
   ) async throws -> SymbolOccurrence? {
@@ -57,7 +57,7 @@ extension CheckedIndex {
   /// - Parameters:
   ///   - usr: The symbol USR to find in the index.
   ///   - fetchSymbolGraph: Callback that returns a SymbolGraph for a given SymbolLocation
-  package func doccSymbolInformation(
+  func doccSymbolInformation(
     ofUSR usr: String,
     fetchSymbolGraph: (SymbolLocation) async throws -> String?
   ) async throws -> DocCSymbolInformation? {

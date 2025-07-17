@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-package import LanguageServerProtocol
+import LanguageServerProtocol
 
-package enum DocCDocumentationError: LocalizedError {
+enum DocCDocumentationError: LocalizedError {
   case unsupportedLanguage(Language)
   case indexNotAvailable
   case symbolNotFound(String)
@@ -30,7 +30,7 @@ package enum DocCDocumentationError: LocalizedError {
   }
 }
 
-package extension ResponseError {
+extension ResponseError {
   static func requestFailed(doccDocumentationError: DocCDocumentationError) -> ResponseError {
     return ResponseError.requestFailed(doccDocumentationError.localizedDescription)
   }

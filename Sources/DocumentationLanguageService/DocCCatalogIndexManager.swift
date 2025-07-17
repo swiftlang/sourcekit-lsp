@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import Foundation
+import Foundation
 import SKLogging
 import SKUtilities
 @_spi(LinkCompletion) @preconcurrency import SwiftDocC
@@ -71,12 +71,12 @@ final actor DocCCatalogIndexManager {
 }
 
 /// Represents a potential error that the ``DocCCatalogIndexManager`` could encounter while indexing
-package enum DocCIndexError: LocalizedError {
+enum DocCIndexError: LocalizedError {
   case internalError(any Error)
   case unexpectedlyNilRenderReferenceStore
   case cancelled
 
-  package var errorDescription: String? {
+  var errorDescription: String? {
     switch self {
     case .internalError(let internalError):
       return "An internal error occurred: \(internalError.localizedDescription)"
@@ -88,7 +88,7 @@ package enum DocCIndexError: LocalizedError {
   }
 }
 
-package struct DocCCatalogIndex: Sendable {
+struct DocCCatalogIndex: Sendable {
   /// A map from an asset name to its DataAsset contents.
   let assets: [String: DataAsset]
 
@@ -107,7 +107,7 @@ package struct DocCCatalogIndex: Sendable {
   /// Retrieves the documentation extension URL for the given symbol if one exists.
   ///
   /// - Parameter symbolInformation: The `DocCSymbolInformation` representing the symbol to search for.
-  package func documentationExtension(for symbolInformation: DocCSymbolInformation) -> URL? {
+  func documentationExtension(for symbolInformation: DocCSymbolInformation) -> URL? {
     documentationExtensions.filter { symbolInformation.matches($0.link) }.first?.documentURL
   }
 
