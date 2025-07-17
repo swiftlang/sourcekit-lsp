@@ -457,6 +457,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
       </Function>
       """
     )
+    XCTAssertEqual(sym1Doc.docBrief, "Protocol P foo1")
     XCTAssertEqual(sym1Doc.associatedUSRs, ["s:1a1SV4foo1yyF", "s:1a1PP4foo1yyF"])
 
     let sym2Doc = try await sourcekitd.completeDocumentation(id: sym2.id)
@@ -473,10 +474,12 @@ final class SwiftSourceKitPluginTests: XCTestCase {
       </Function>
       """
     )
+    XCTAssertEqual(sym2Doc.docBrief, "Struct S foo2")
     XCTAssertEqual(sym2Doc.associatedUSRs, ["s:1a1SV4foo2yyF"])
 
     let sym3Doc = try await sourcekitd.completeDocumentation(id: sym3.id)
     XCTAssertNil(sym3Doc.docFullAsXML)
+    XCTAssertNil(sym3Doc.docBrief)
     XCTAssertEqual(sym3Doc.associatedUSRs, ["s:1a1SV4foo3yyF"])
   }
 
