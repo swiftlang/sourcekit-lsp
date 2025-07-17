@@ -203,8 +203,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
     XCTAssertEqual(result2.items.count, 1)
     XCTAssertEqual(result2.items[0].name, "")
     let doc = try await sourcekitd.completeDocumentation(id: result2.items[0].id)
-    XCTAssertNil(doc.docFullAsXML)
-    XCTAssertNil(doc.docBrief)
+    XCTAssertEqual(doc.docFullAsXML, nil)
   }
 
   func testMultipleFiles() async throws {
@@ -437,47 +436,38 @@ final class SwiftSourceKitPluginTests: XCTestCase {
     let sym3 = try unwrap(result.items.first(where: { $0.name == "foo3()" }), "did not find foo3; got \(result.items)")
 
     let sym1Doc = try await sourcekitd.completeDocumentation(id: sym1.id)
-    assertDocumentation(
-      full: sourcekitd.supportsFullDocumentationInCompletion,
-      documentation: sym1Doc,
-      expectedBrief: "Protocol P foo1",
-      expectedFull: """
-        <Function file="\(path)" line="3" column="8">\
-        <Name>foo1()</Name>\
-        <USR>s:1a1PP4foo1yyF</USR>\
-        <Declaration>func foo1()</Declaration>\
-        <CommentParts>\
-        <Abstract><Para>Protocol P foo1</Para></Abstract>\
-        <Discussion><Note>\
-        <Para>This documentation comment was inherited from <codeVoice>P</codeVoice>.</Para>\
-        </Note></Discussion>\
-        </CommentParts>\
-        </Function>
-        """
-    )
+    XCTAssertEqual(sym1Doc.docFullAsXML,
+                   """
+                   <Function file="\(path)" line="3" column="8">\
+                   <Name>foo1()</Name>\
+                   <USR>s:1a1PP4foo1yyF</USR>\
+                   <Declaration>func foo1()</Declaration>\
+                   <CommentParts>\
+                   <Abstract><Para>Protocol P foo1</Para></Abstract>\
+                   <Discussion><Note>\
+                   <Para>This documentation comment was inherited from <codeVoice>P</codeVoice>.</Para>\
+                   </Note></Discussion>\
+                   </CommentParts>\
+                   </Function>
+                   """)
     XCTAssertEqual(sym1Doc.associatedUSRs, ["s:1a1SV4foo1yyF", "s:1a1PP4foo1yyF"])
 
     let sym2Doc = try await sourcekitd.completeDocumentation(id: sym2.id)
-    assertDocumentation(
-      full: sourcekitd.supportsFullDocumentationInCompletion,
-      documentation: sym2Doc,
-      expectedBrief: "Struct S foo2",
-      expectedFull: """
-        <Function file="\(path)" line="8" column="8">\
-        <Name>foo2()</Name>\
-        <USR>s:1a1SV4foo2yyF</USR>\
-        <Declaration>func foo2()</Declaration>\
-        <CommentParts>\
-        <Abstract><Para>Struct S foo2</Para></Abstract>\
-        </CommentParts>\
-        </Function>
-        """
-    )
+    XCTAssertEqual(sym2Doc.docFullAsXML,
+                   """
+                   <Function file="\(path)" line="8" column="8">\
+                   <Name>foo2()</Name>\
+                   <USR>s:1a1SV4foo2yyF</USR>\
+                   <Declaration>func foo2()</Declaration>\
+                   <CommentParts>\
+                   <Abstract><Para>Struct S foo2</Para></Abstract>\
+                   </CommentParts>\
+                   </Function>
+                   """)
     XCTAssertEqual(sym2Doc.associatedUSRs, ["s:1a1SV4foo2yyF"])
 
     let sym3Doc = try await sourcekitd.completeDocumentation(id: sym3.id)
     XCTAssertNil(sym3Doc.docFullAsXML)
-    XCTAssertNil(sym3Doc.docBrief)
     XCTAssertEqual(sym3Doc.associatedUSRs, ["s:1a1SV4foo3yyF"])
   }
 
@@ -1799,13 +1789,11 @@ private struct CompletionResult: Equatable, Sendable {
 }
 
 private struct CompletionDocumentation {
-  var docBrief: String? = nil
   var docFullAsXML: String? = nil
   var associatedUSRs: [String] = []
 
   init(_ dict: SKDResponseDictionary) {
     let keys = dict.sourcekitd.keys
-    self.docBrief = dict[keys.docBrief]
     self.docFullAsXML = dict[keys.docFullAsXML]
     self.associatedUSRs = dict[keys.associatedUSRs]?.asStringArray ?? []
   }
@@ -2084,10 +2072,6 @@ fileprivate extension SourceKitD {
     try await openDocument(path, contents: textWithoutMarker, compilerArguments: [path])
     return (positions["1️⃣"], recent)
   }
-
-  nonisolated var supportsFullDocumentationInCompletion: Bool {
-    return ideApi.completion_item_get_doc_full != nil
-  }
 }
 
 private struct ExpectationNotFulfilledError: Error {}
@@ -2109,22 +2093,4 @@ private func runAsync<T: Sendable>(_ body: @escaping @Sendable () async throws -
     throw ExpectationNotFulfilledError()
   }
   return try result.get()
-}
-
-/// Asserts that documentation matches the expected values based on whether full documentation is supported in sourcekitd or not.
-private func assertDocumentation(
-  full: Bool,
-  documentation: CompletionDocumentation,
-  expectedBrief: String,
-  expectedFull: String,
-  file: StaticString = #filePath,
-  line: UInt = #line
-) {
-  if full {
-    XCTAssertEqual(documentation.docFullAsXML, expectedFull, file: file, line: line)
-    XCTAssertNil(documentation.docBrief, "Expected brief documentation to not be available", file: file, line: line)
-  } else {
-    XCTAssertEqual(documentation.docBrief, expectedBrief, file: file, line: line)
-    XCTAssertNil(documentation.docFullAsXML, "Expected full documentation to not be available", file: file, line: line)
-  }
 }
