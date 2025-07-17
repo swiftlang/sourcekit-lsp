@@ -576,7 +576,8 @@ class CodeCompletionSession {
       }
 
       if let response = documentationResponse,
-         let docString = documentationString(from: response, sourcekitd: sourcekitd) {
+        let docString = documentationString(from: response, sourcekitd: sourcekitd)
+      {
         item.documentation = .markupContent(MarkupContent(kind: .markdown, value: docString))
       }
     }
