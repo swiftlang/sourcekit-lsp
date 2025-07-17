@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Csourcekitd
 import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
@@ -251,13 +252,8 @@ package actor SkipUnless {
     line: UInt = #line
   ) async throws {
     return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 2), file: file, line: line) {
-      guard let sourcekitdPath = await ToolchainRegistry.forTesting.default?.sourcekitd else {
-        throw GenericError("Could not find SourceKitD")
-      }
-      let sourcekitd = try await SourceKitD.getOrCreate(
-        dylibPath: sourcekitdPath,
-        pluginPaths: try sourceKitPluginPaths
-      )
+      let sourcekitd = try await getSourceKitD()
+
       do {
         let response = try await sourcekitd.send(
           \.codeCompleteSetPopularAPI,
@@ -272,6 +268,17 @@ package actor SkipUnless {
       } catch {
         return false
       }
+    }
+  }
+
+  package static func sourcekitdSupportsFullDocumentationInCompletion(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 2), file: file, line: line) {
+      let sourcekitd = try await getSourceKitD()
+
+      return sourcekitd.ideApi.completion_item_get_doc_full != nil
     }
   }
 
@@ -385,6 +392,18 @@ package actor SkipUnless {
           modifiers: []
         )
     }
+  }
+
+  private static func getSourceKitD() async throws -> SourceKitD {
+    guard let sourcekitdPath = await ToolchainRegistry.forTesting.default?.sourcekitd else {
+      throw GenericError("Could not find SourceKitD")
+    }
+    let sourcekitd = try await SourceKitD.getOrCreate(
+      dylibPath: sourcekitdPath,
+      pluginPaths: try sourceKitPluginPaths
+    )
+
+    return sourcekitd
   }
 }
 
