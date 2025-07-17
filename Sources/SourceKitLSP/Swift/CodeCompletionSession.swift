@@ -587,7 +587,7 @@ class CodeCompletionSession {
   private static func documentationString(from response: SKDResponseDictionary, sourcekitd: SourceKitD) -> String? {
     if let docFullAsXML: String = response[sourcekitd.keys.docFullAsXML] {
       return orLog("Converting XML documentation to markdown") {
-        try xmlDocumentationToMarkdown(docFullAsXML)
+        try xmlDocumentationToMarkdown(docFullAsXML, includeDeclaration: false)
       }
     }
 
