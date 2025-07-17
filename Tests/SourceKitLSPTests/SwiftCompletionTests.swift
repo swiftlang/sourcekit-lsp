@@ -1340,7 +1340,7 @@ private func sourcekitdSupportsFullDocumentation() async throws -> Bool {
     pluginPaths: sourceKitPluginPaths
   )
 
-  return sourcekitd.ideApi.completion_item_get_doc_full_copy != nil
+  return sourcekitd.ideApi.completion_item_get_doc_full != nil
 }
 
 fileprivate extension Position {

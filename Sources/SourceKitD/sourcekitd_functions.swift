@@ -146,7 +146,7 @@ extension sourcekitd_ide_api_functions_t {
       completion_item_get_source_text: try loadRequired("swiftide_completion_item_get_source_text"),
       completion_item_get_type_name: try loadRequired("swiftide_completion_item_get_type_name"),
       completion_item_get_doc_brief: try loadRequired("swiftide_completion_item_get_doc_brief"),
-      completion_item_get_doc_full_copy: loadOptional("swiftide_completion_item_get_doc_full_copy"),
+      completion_item_get_doc_full: loadOptional("swiftide_completion_item_get_doc_full"),
       completion_item_get_associated_usrs: try loadRequired("swiftide_completion_item_get_associated_usrs"),
       completion_item_get_kind: try loadRequired("swiftide_completion_item_get_kind"),
       completion_item_get_associated_kind: try loadRequired("swiftide_completion_item_get_associated_kind"),
