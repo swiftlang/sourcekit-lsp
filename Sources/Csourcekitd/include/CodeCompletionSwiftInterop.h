@@ -324,10 +324,10 @@ typedef struct {
     void (^_Null_unspecified handler)(const char *_Null_unspecified)
   );
 
-  void (*_Nullable completion_item_get_doc_full_copy)(
+  void (*_Nullable completion_item_get_doc_full)(
     _Nonnull swiftide_api_completion_response_t,
     _Nonnull swiftide_api_completion_item_t,
-    void (^_Nonnull handler)(char *_Nullable)
+    void (^_Nonnull handler)(const char *_Nullable)
   );
 
   void (*_Nonnull completion_item_get_associated_usrs)(
