@@ -6,7 +6,7 @@ add_library(SourceKitLSP STATIC
   Hooks.swift
   IndexProgressManager.swift
   IndexStoreDB+MainFilesProvider.swift
-  LanguageServerType.swift
+  LanguageServiceRegistry.swift
   LanguageService.swift
   LogMessageNotification+representingStructureUsingEmojiPrefixIfNecessary.swift
   MessageHandlingDependencyTracker.swift

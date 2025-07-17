@@ -35,6 +35,14 @@ import DocCDocumentation
 /// Disambiguate LanguageServerProtocol.Language and IndexstoreDB.Language
 package typealias Language = LanguageServerProtocol.Language
 
+struct LanguageServiceIdentifier: Hashable {
+  private let identifier: String
+
+  init(type: LanguageService.Type) {
+    self.identifier = String(reflecting: type)
+  }
+}
+
 /// The SourceKit-LSP server.
 ///
 /// This is the client-facing language server implementation, providing indexing, multiple-toolchain
@@ -75,7 +83,9 @@ package actor SourceKitLSPServer {
 
   package var capabilityRegistry: CapabilityRegistry?
 
-  var languageServices: [LanguageServerType: [LanguageService]] = [:]
+  private let languageServiceRegistry: LanguageServiceRegistry
+
+  var languageServices: [LanguageServiceIdentifier: [LanguageService]] = [:]
 
   package let documentManager = DocumentManager()
 
@@ -160,11 +170,13 @@ package actor SourceKitLSPServer {
   package init(
     client: Connection,
     toolchainRegistry: ToolchainRegistry,
+    languageServerRegistry: LanguageServiceRegistry,
     options: SourceKitLSPOptions,
     hooks: Hooks,
     onExit: @escaping () -> Void = {}
   ) {
     self.toolchainRegistry = toolchainRegistry
+    self.languageServiceRegistry = languageServerRegistry
     self._options = ThreadSafeBox(initialValue: options)
     self.hooks = hooks
     self.onExit = onExit
@@ -450,11 +462,11 @@ package actor SourceKitLSPServer {
   /// If a language service of type `serverType` that can handle `workspace` using the given toolchain has already been
   /// started, return it, otherwise return `nil`.
   private func existingLanguageService(
-    _ serverType: LanguageServerType,
+    _ serverType: LanguageService.Type,
     toolchain: Toolchain,
     workspace: Workspace
   ) -> LanguageService? {
-    for languageService in languageServices[serverType, default: []] {
+    for languageService in languageServices[LanguageServiceIdentifier(type: serverType), default: []] {
       if languageService.canHandle(workspace: workspace, toolchain: toolchain) {
         return languageService
       }
@@ -467,7 +479,7 @@ package actor SourceKitLSPServer {
     _ language: Language,
     in workspace: Workspace
   ) async -> LanguageService? {
-    guard let serverType = LanguageServerType(language: language) else {
+    guard let serverType = languageServiceRegistry.languageService(for: language) else {
       logger.error("Unable to infer language server type for language '\(language)'")
       return nil
     }
@@ -478,7 +490,7 @@ package actor SourceKitLSPServer {
 
     // Start a new service.
     return await orLog("failed to start language service", level: .error) { [options = workspace.options, hooks] in
-      let service = try await serverType.serverType.init(
+      let service = try await serverType.init(
         sourceKitLSPServer: self,
         toolchain: toolchain,
         options: options,
@@ -538,7 +550,7 @@ package actor SourceKitLSPServer {
         return concurrentlyInitializedService
       }
 
-      languageServices[serverType, default: []].append(service)
+      languageServices[LanguageServiceIdentifier(type: serverType), default: []].append(service)
       return service
     }
   }
