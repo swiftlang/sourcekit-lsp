@@ -13,6 +13,7 @@
 import Foundation
 package import IndexStoreDB
 package import LanguageServerProtocol
+import SKLogging
 package import SKOptions
 package import SwiftSyntax
 package import ToolchainRegistry
@@ -318,8 +319,200 @@ package protocol LanguageService: AnyObject, Sendable {
   func crash() async
 }
 
+/// Default implementations for methods that satisfy the following criteria:
+///  - `SourceKitLSPServer` does not expect side effects to happen when they are called
+///  - The method can throw or there is a reasonable default value
+///  - It is reasonable to expect that not all language services need to implement it
 package extension LanguageService {
+  static var builtInCommands: [String] { [] }
+
   static var experimentalCapabilities: [String: LSPAny] { [:] }
 
+  func clientInitialized(_ initialized: LanguageServerProtocol.InitializedNotification) async {}
+
+  func willSaveDocument(_ notification: WillSaveTextDocumentNotification) async {}
+
+  func didSaveDocument(_ notification: DidSaveTextDocumentNotification) async {}
+
   func filesDidChange(_ events: [FileEvent]) async {}
+
+  func documentUpdatedBuildSettings(_ uri: DocumentURI) async {}
+
+  func documentDependenciesUpdated(_ uris: Set<DocumentURI>) async {}
+
+  func completion(_ req: CompletionRequest) async throws -> CompletionList {
+    throw ResponseError.requestNotImplemented(CompletionRequest.self)
+  }
+
+  func completionItemResolve(_ req: CompletionItemResolveRequest) async throws -> CompletionItem {
+    throw ResponseError.requestNotImplemented(CompletionItemResolveRequest.self)
+  }
+
+  func hover(_ req: HoverRequest) async throws -> HoverResponse? {
+    throw ResponseError.requestNotImplemented(HoverRequest.self)
+  }
+
+  func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
+    throw ResponseError.requestNotImplemented(DoccDocumentationRequest.self)
+  }
+
+  func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails] {
+    throw ResponseError.requestNotImplemented(SymbolInfoRequest.self)
+  }
+
+  func symbolGraph(
+    for snapshot: DocumentSnapshot,
+    at position: Position
+  ) async throws -> (symbolGraph: String, usr: String, overrideDocComments: [String]) {
+    throw ResponseError.internalError("\(#function) not implemented in \(Self.self)")
+  }
+
+  func symbolGraph(
+    forOnDiskContentsOf symbolDocumentUri: DocumentURI,
+    at location: SymbolLocation
+  ) async throws -> String {
+    throw ResponseError.internalError("\(#function) not implemented in \(Self.self)")
+  }
+
+  func openGeneratedInterface(
+    document: DocumentURI,
+    moduleName: String,
+    groupName: String?,
+    symbolUSR symbol: String?
+  ) async throws -> GeneratedInterfaceDetails? {
+    throw ResponseError.internalError("Generated interface not implemented in \(Self.self)")
+  }
+
+  func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
+    throw ResponseError.requestNotImplemented(DefinitionRequest.self)
+  }
+
+  func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse? {
+    throw ResponseError.requestNotImplemented(DeclarationRequest.self)
+  }
+
+  func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
+    throw ResponseError.requestNotImplemented(DocumentHighlightRequest.self)
+  }
+
+  func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
+    throw ResponseError.requestNotImplemented(FoldingRangeRequest.self)
+  }
+
+  func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
+    throw ResponseError.requestNotImplemented(DocumentSymbolRequest.self)
+  }
+
+  func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
+    throw ResponseError.requestNotImplemented(DocumentColorRequest.self)
+  }
+
+  func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse? {
+    throw ResponseError.requestNotImplemented(DocumentSemanticTokensRequest.self)
+  }
+
+  func documentSemanticTokensDelta(
+    _ req: DocumentSemanticTokensDeltaRequest
+  ) async throws -> DocumentSemanticTokensDeltaResponse? {
+    throw ResponseError.requestNotImplemented(DocumentSemanticTokensDeltaRequest.self)
+  }
+
+  func documentSemanticTokensRange(
+    _ req: DocumentSemanticTokensRangeRequest
+  ) async throws -> DocumentSemanticTokensResponse? {
+    throw ResponseError.requestNotImplemented(DocumentSemanticTokensRangeRequest.self)
+  }
+
+  func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {
+    throw ResponseError.requestNotImplemented(ColorPresentationRequest.self)
+  }
+
+  func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
+    throw ResponseError.requestNotImplemented(CodeActionRequest.self)
+  }
+
+  func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
+    throw ResponseError.requestNotImplemented(InlayHintRequest.self)
+  }
+
+  func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens] {
+    throw ResponseError.requestNotImplemented(CodeLensRequest.self)
+  }
+
+  func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
+    throw ResponseError.requestNotImplemented(DocumentDiagnosticsRequest.self)
+  }
+
+  func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]? {
+    throw ResponseError.requestNotImplemented(DocumentFormattingRequest.self)
+  }
+
+  func documentRangeFormatting(_ req: DocumentRangeFormattingRequest) async throws -> [TextEdit]? {
+    throw ResponseError.requestNotImplemented(DocumentRangeFormattingRequest.self)
+  }
+
+  func documentOnTypeFormatting(_ req: DocumentOnTypeFormattingRequest) async throws -> [TextEdit]? {
+    throw ResponseError.requestNotImplemented(DocumentOnTypeFormattingRequest.self)
+  }
+
+  func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
+    throw ResponseError.requestNotImplemented(RenameRequest.self)
+  }
+
+  func editsToRename(
+    locations renameLocations: [RenameLocation],
+    in snapshot: DocumentSnapshot,
+    oldName: CrossLanguageName,
+    newName: CrossLanguageName
+  ) async throws -> [TextEdit] {
+    throw ResponseError.internalError("\(#function) not implemented in \(Self.self)")
+  }
+
+  func prepareRename(
+    _ request: PrepareRenameRequest
+  ) async throws -> (prepareRename: PrepareRenameResponse, usr: String?)? {
+    throw ResponseError.requestNotImplemented(PrepareRenameRequest.self)
+  }
+
+  func indexedRename(_ request: IndexedRenameRequest) async throws -> WorkspaceEdit? {
+    throw ResponseError.requestNotImplemented(IndexedRenameRequest.self)
+  }
+
+  func editsToRenameParametersInFunctionBody(
+    snapshot: SourceKitLSP.DocumentSnapshot,
+    renameLocation: SourceKitLSP.RenameLocation,
+    newName: SourceKitLSP.CrossLanguageName
+  ) async -> [LanguageServerProtocol.TextEdit] {
+    logger.error("\(#function) not implemented in \(Self.self)")
+    return []
+  }
+
+  func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
+    throw ResponseError.requestNotImplemented(ExecuteCommandRequest.self)
+  }
+
+  func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
+    throw ResponseError.requestNotImplemented(GetReferenceDocumentRequest.self)
+  }
+
+  func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [AnnotatedTestItem]? {
+    throw ResponseError.internalError("syntacticDocumentTests not implemented in \(Self.self)")
+  }
+
+  static func syntacticTestItems(in uri: LanguageServerProtocol.DocumentURI) async -> [SourceKitLSP.AnnotatedTestItem] {
+    logger.error("\(#function) not implemented in \(Self.self)")
+    return []
+  }
+
+  func canonicalDeclarationPosition(
+    of position: LanguageServerProtocol.Position,
+    in uri: LanguageServerProtocol.DocumentURI
+  ) async -> LanguageServerProtocol.Position? {
+    logger.error("\(#function) not implemented in \(Self.self)")
+    return nil
+  }
+
+  func crash() async {
+    logger.error("\(Self.self) cannot be crashed")
+  }
 }

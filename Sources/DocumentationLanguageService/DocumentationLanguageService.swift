@@ -34,8 +34,6 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     }
   }
 
-  package static var builtInCommands: [String] { [] }
-
   package static var experimentalCapabilities: [String: LSPAny] {
     return [
       DoccDocumentationRequest.method: .dictionary(["version": .int(1)])
@@ -53,13 +51,6 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     self.documentationManager = DocCDocumentationManager(buildServerManager: workspace.buildServerManager)
   }
 
-  func workspaceForDocument(uri: DocumentURI) async throws -> Workspace? {
-    guard let sourceKitLSPServer else {
-      throw ResponseError.unknown("Connection to the editor closed")
-    }
-    return await sourceKitLSPServer.workspaceForDocument(uri: uri)
-  }
-
   package nonisolated func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool {
     return true
   }
@@ -70,10 +61,6 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     return InitializeResult(
       capabilities: ServerCapabilities()
     )
-  }
-
-  package func clientInitialized(_ initialized: InitializedNotification) async {
-    // Nothing to set up
   }
 
   package func shutdown() async {
@@ -108,201 +95,5 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     edits: [SwiftSyntax.SourceEdit]
   ) async {
     // The DocumentationLanguageService does not do anything with document events
-  }
-
-  package func willSaveDocument(_ notification: WillSaveTextDocumentNotification) async {
-    // The DocumentationLanguageService does not do anything with document events
-  }
-
-  package func didSaveDocument(_ notification: DidSaveTextDocumentNotification) async {
-    // The DocumentationLanguageService does not do anything with document events
-  }
-
-  package func filesDidChange(_ events: [FileEvent]) async {
-    await documentationManager.filesDidChange(events)
-  }
-
-  package func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
-    // The DocumentationLanguageService does not do anything with document events
-  }
-
-  package func documentDependenciesUpdated(_ uris: Set<DocumentURI>) async {
-    // The DocumentationLanguageService does not do anything with document events
-  }
-
-  package func completion(_ req: CompletionRequest) async throws -> CompletionList {
-    CompletionList(isIncomplete: false, items: [])
-  }
-
-  package func completionItemResolve(_ req: CompletionItemResolveRequest) async throws -> CompletionItem {
-    return req.item
-  }
-
-  package func hover(_ req: HoverRequest) async throws -> HoverResponse? {
-    nil
-  }
-
-  package func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails] {
-    []
-  }
-
-  package func symbolGraph(
-    forOnDiskContentsOf symbolDocumentUri: DocumentURI,
-    at location: SymbolLocation
-  ) async throws -> String {
-    throw ResponseError.internalError("Not applicable")
-  }
-
-  package func symbolGraph(
-    for snapshot: SourceKitLSP.DocumentSnapshot,
-    at position: LanguageServerProtocol.Position
-  ) async throws -> (symbolGraph: String, usr: String, overrideDocComments: [String]) {
-    throw ResponseError.internalError("Not applicable")
-  }
-
-  package func openGeneratedInterface(
-    document: DocumentURI,
-    moduleName: String,
-    groupName: String?,
-    symbolUSR symbol: String?
-  ) async throws -> GeneratedInterfaceDetails? {
-    nil
-  }
-
-  package func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
-    nil
-  }
-
-  package func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse? {
-    nil
-  }
-
-  package func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
-    nil
-  }
-
-  package func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
-    nil
-  }
-
-  package func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
-    nil
-  }
-
-  package func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
-    []
-  }
-
-  package func documentSemanticTokens(
-    _ req: DocumentSemanticTokensRequest
-  ) async throws -> DocumentSemanticTokensResponse? {
-    nil
-  }
-
-  package func documentSemanticTokensDelta(
-    _ req: DocumentSemanticTokensDeltaRequest
-  ) async throws -> DocumentSemanticTokensDeltaResponse? {
-    nil
-  }
-
-  package func documentSemanticTokensRange(
-    _ req: DocumentSemanticTokensRangeRequest
-  ) async throws -> DocumentSemanticTokensResponse? {
-    nil
-  }
-
-  package func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {
-    []
-  }
-
-  package func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
-    nil
-  }
-
-  package func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
-    []
-  }
-
-  package func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens] {
-    []
-  }
-
-  package func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
-    .full(RelatedFullDocumentDiagnosticReport(items: []))
-  }
-
-  package func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]? {
-    nil
-  }
-
-  package func documentRangeFormatting(
-    _ req: LanguageServerProtocol.DocumentRangeFormattingRequest
-  ) async throws -> [LanguageServerProtocol.TextEdit]? {
-    return nil
-  }
-
-  package func documentOnTypeFormatting(_ req: DocumentOnTypeFormattingRequest) async throws -> [TextEdit]? {
-    return nil
-  }
-
-  package func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
-    (edits: WorkspaceEdit(), usr: nil)
-  }
-
-  package func editsToRename(
-    locations renameLocations: [RenameLocation],
-    in snapshot: DocumentSnapshot,
-    oldName: CrossLanguageName,
-    newName: CrossLanguageName
-  ) async throws -> [TextEdit] {
-    []
-  }
-
-  package func prepareRename(
-    _ request: PrepareRenameRequest
-  ) async throws -> (prepareRename: PrepareRenameResponse, usr: String?)? {
-    nil
-  }
-
-  package func indexedRename(_ request: IndexedRenameRequest) async throws -> WorkspaceEdit? {
-    nil
-  }
-
-  package func editsToRenameParametersInFunctionBody(
-    snapshot: DocumentSnapshot,
-    renameLocation: RenameLocation,
-    newName: CrossLanguageName
-  ) async -> [TextEdit] {
-    []
-  }
-
-  package func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
-    nil
-  }
-
-  package func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
-    GetReferenceDocumentResponse(content: "")
-  }
-
-  package func syntacticDocumentTests(
-    for uri: DocumentURI,
-    in workspace: Workspace
-  ) async throws -> [AnnotatedTestItem]? {
-    nil
-  }
-
-  package static func syntacticTestItems(in uri: DocumentURI) async -> [AnnotatedTestItem] {
-    return []
-  }
-
-  package func canonicalDeclarationPosition(
-    of position: Position,
-    in uri: DocumentURI
-  ) async -> Position? {
-    nil
-  }
-
-  package func crash() async {
-    // There's no way to crash the DocumentationLanguageService
   }
 }

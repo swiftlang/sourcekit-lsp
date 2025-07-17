@@ -422,10 +422,6 @@ extension SwiftLanguageService {
     )
   }
 
-  package func clientInitialized(_: InitializedNotification) {
-    // Nothing to do.
-  }
-
   package func shutdown() async {
     await self.sourcekitd.removeNotificationHandler(self)
   }
@@ -716,14 +712,6 @@ extension SwiftLanguageService {
     await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
   }
 
-  package func willSaveDocument(_ notification: WillSaveTextDocumentNotification) {
-
-  }
-
-  package func didSaveDocument(_ notification: DidSaveTextDocumentNotification) {
-
-  }
-
   // MARK: - Language features
 
   package func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
@@ -800,10 +788,6 @@ extension SwiftLanguageService {
       contents: .markupContent(MarkupContent(kind: .markdown, value: joinedDocumentation)),
       range: tokenRange
     )
-  }
-
-  package func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
-    throw ResponseError.requestNotImplemented(DoccDocumentationRequest.self)
   }
 
   package func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
