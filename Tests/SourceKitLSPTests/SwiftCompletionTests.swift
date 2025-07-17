@@ -31,6 +31,7 @@ final class SwiftCompletionTests: XCTestCase {
 
   func testCompletionBasic() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()
+    try await SkipUnless.sourcekitdSupportsFullDocumentationInCompletion()
 
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
@@ -1170,6 +1171,7 @@ final class SwiftCompletionTests: XCTestCase {
 
   func testCompletionItemResolve() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()
+    try await SkipUnless.sourcekitdSupportsFullDocumentationInCompletion()
 
     let capabilities = ClientCapabilities(
       textDocument: TextDocumentClientCapabilities(
@@ -1216,6 +1218,7 @@ final class SwiftCompletionTests: XCTestCase {
 
   func testCompletionBriefDocumentationFallback() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()
+    try await SkipUnless.sourcekitdSupportsFullDocumentationInCompletion()
 
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)

@@ -46,6 +46,8 @@ final class SwiftSourceKitPluginTests: XCTestCase {
 
   func testBasicCompletion() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()
+    try await SkipUnless.sourcekitdSupportsFullDocumentationInCompletion()
+
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -203,7 +205,8 @@ final class SwiftSourceKitPluginTests: XCTestCase {
     XCTAssertEqual(result2.items.count, 1)
     XCTAssertEqual(result2.items[0].name, "")
     let doc = try await sourcekitd.completeDocumentation(id: result2.items[0].id)
-    XCTAssertEqual(doc.docFullAsXML, nil)
+    XCTAssertNil(doc.docFullAsXML)
+    XCTAssertNil(doc.docBrief)
   }
 
   func testMultipleFiles() async throws {
@@ -403,6 +406,8 @@ final class SwiftSourceKitPluginTests: XCTestCase {
 
   func testDocumentation() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()
+    try await SkipUnless.sourcekitdSupportsFullDocumentationInCompletion()
+
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()
     let positions = try await sourcekitd.openDocument(
@@ -1790,11 +1795,13 @@ private struct CompletionResult: Equatable, Sendable {
 
 private struct CompletionDocumentation {
   var docFullAsXML: String? = nil
+  var docBrief: String? = nil
   var associatedUSRs: [String] = []
 
   init(_ dict: SKDResponseDictionary) {
     let keys = dict.sourcekitd.keys
     self.docFullAsXML = dict[keys.docFullAsXML]
+    self.docBrief = dict[keys.docBrief]
     self.associatedUSRs = dict[keys.associatedUSRs]?.asStringArray ?? []
   }
 }
