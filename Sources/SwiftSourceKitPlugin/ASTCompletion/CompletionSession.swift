@@ -243,10 +243,9 @@ struct ExtendedCompletionInfo {
 
   var fullDocumentation: String? {
     var result: String? = nil
-    session.sourcekitd.ideApi.completion_item_get_doc_full_copy?(session.response, rawItem) {
+    session.sourcekitd.ideApi.completion_item_get_doc_full?(session.response, rawItem) {
       if let cstr = $0 {
         result = String(cString: cstr)
-        free(cstr)
       }
     }
     return result

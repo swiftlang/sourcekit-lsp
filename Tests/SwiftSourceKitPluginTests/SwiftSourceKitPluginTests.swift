@@ -2086,7 +2086,7 @@ fileprivate extension SourceKitD {
   }
 
   nonisolated var supportsFullDocumentationInCompletion: Bool {
-    return ideApi.completion_item_get_doc_full_copy != nil
+    return ideApi.completion_item_get_doc_full != nil
   }
 }
 
