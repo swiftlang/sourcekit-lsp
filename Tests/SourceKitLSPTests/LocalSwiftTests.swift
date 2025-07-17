@@ -1359,8 +1359,13 @@ final class LocalSwiftTests: XCTestCase {
     let reusedNodeCallback = self.expectation(description: "reused node callback called")
     let reusedNodes = ThreadSafeBox<[Syntax]>(initialValue: [])
     let swiftLanguageService =
-      await testClient.server.languageService(for: uri, .swift, in: testClient.server.workspaceForDocument(uri: uri)!)
-      as! SwiftLanguageService
+      try await unwrap(
+        testClient.server.primaryLanguageService(
+          for: uri,
+          .swift,
+          in: unwrap(testClient.server.workspaceForDocument(uri: uri))
+        ) as? SwiftLanguageService
+      )
     await swiftLanguageService.setReusedNodeCallback {
       reusedNodes.value.append($0)
       reusedNodeCallback.fulfill()

@@ -81,11 +81,13 @@ final class CrashRecoveryTests: XCTestCase {
     // Crash sourcekitd
 
     let swiftLanguageService =
-      await testClient.server.languageService(
-        for: uri,
-        .swift,
-        in: testClient.server.workspaceForDocument(uri: uri)!
-      ) as! SwiftLanguageService
+      try unwrap(
+        await testClient.server.primaryLanguageService(
+          for: uri,
+          .swift,
+          in: testClient.server.workspaceForDocument(uri: uri)!
+        ) as? SwiftLanguageService
+      )
 
     await swiftLanguageService.crash()
 
@@ -119,11 +121,11 @@ final class CrashRecoveryTests: XCTestCase {
   }
 
   private func crashClangd(for testClient: TestSourceKitLSPClient, document docUri: DocumentURI) async throws {
-    let clangdServer = await testClient.server.languageService(
+    let clangdServer = try await testClient.server.primaryLanguageService(
       for: docUri,
       .cpp,
       in: testClient.server.workspaceForDocument(uri: docUri)!
-    )!
+    )
 
     let clangdCrashed = self.expectation(description: "clangd crashed")
     let clangdRestarted = self.expectation(description: "clangd restarted")
@@ -266,11 +268,11 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Keep track of clangd crashes
 
-    let clangdServer = await testClient.server.languageService(
+    let clangdServer = try await testClient.server.primaryLanguageService(
       for: uri,
       .cpp,
       in: testClient.server.workspaceForDocument(uri: uri)!
-    )!
+    )
 
     let clangdCrashed = self.expectation(description: "clangd crashed")
     clangdCrashed.assertForOverFulfill = false
@@ -333,11 +335,13 @@ final class CrashRecoveryTests: XCTestCase {
     )
 
     let swiftLanguageService =
-      await testClient.server.languageService(
-        for: uri,
-        .swift,
-        in: testClient.server.workspaceForDocument(uri: uri)!
-      ) as! SwiftLanguageService
+      try unwrap(
+        await testClient.server.primaryLanguageService(
+          for: uri,
+          .swift,
+          in: testClient.server.workspaceForDocument(uri: uri)!
+        ) as? SwiftLanguageService
+      )
 
     await swiftLanguageService.crash()
 
@@ -371,8 +375,11 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Monitor sourcekitd to notice when it gets terminated
     let swiftService = try await unwrap(
-      testClient.server.languageService(for: uri, .swift, in: unwrap(testClient.server.workspaceForDocument(uri: uri)))
-        as? SwiftLanguageService
+      testClient.server.primaryLanguageService(
+        for: uri,
+        .swift,
+        in: unwrap(testClient.server.workspaceForDocument(uri: uri))
+      ) as? SwiftLanguageService
     )
     await swiftService.addStateChangeHandler { oldState, newState in
       logger.debug("sourcekitd changed state: \(String(describing: oldState)) -> \(String(describing: newState))")

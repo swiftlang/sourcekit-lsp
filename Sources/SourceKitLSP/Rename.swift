@@ -124,7 +124,9 @@ extension SourceKitLSPServer {
     guard let snapshot = self.documentManager.latestSnapshotOrDisk(uri, language: .swift) else {
       return nil
     }
-    let swiftLanguageService = await self.languageService(for: uri, .swift, in: workspace) as? NameTranslatorService
+    let swiftLanguageService = await orLog("Getting NameTranslatorService") {
+      try await self.primaryLanguageService(for: uri, .swift, in: workspace) as? NameTranslatorService
+    }
     guard let swiftLanguageService else {
       return nil
     }
@@ -210,7 +212,7 @@ extension SourceKitLSPServer {
       return CrossLanguageName(clangName: definitionName, swiftName: swiftName, definitionLanguage: definitionLanguage)
     case .swift:
       guard
-        let swiftLanguageService = await self.languageService(
+        let swiftLanguageService = try await self.primaryLanguageService(
           for: definitionDocumentUri,
           definitionLanguage,
           in: workspace
@@ -278,9 +280,7 @@ extension SourceKitLSPServer {
     guard let workspace = await workspaceForDocument(uri: uri) else {
       throw ResponseError.workspaceNotOpen(uri)
     }
-    guard let primaryFileLanguageService = workspace.documentService(for: uri) else {
-      return nil
-    }
+    let primaryFileLanguageService = try await primaryLanguageService(for: uri, snapshot.language, in: workspace)
 
     // Determine the local edits and the USR to rename
     let renameResult = try await primaryFileLanguageService.rename(request)
@@ -395,7 +395,10 @@ extension SourceKitLSPServer {
           logger.error("Failed to get document snapshot for \(uri.forLogging)")
           return nil
         }
-        guard let languageService = await self.languageService(for: uri, language, in: workspace) else {
+        let languageService = await orLog("Getting language service to compute edits in file") {
+          try await self.primaryLanguageService(for: uri, language, in: workspace)
+        }
+        guard let languageService else {
           return nil
         }
 

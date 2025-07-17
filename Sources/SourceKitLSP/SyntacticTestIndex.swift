@@ -239,13 +239,13 @@ actor SyntacticTestIndex {
     if Task.isCancelled {
       return
     }
-    guard let language = Language(inferredFromFileExtension: uri),
-      let languageServiceType = languageServiceRegistry.languageService(for: language)
-    else {
+    guard let language = Language(inferredFromFileExtension: uri) else {
       logger.log("Not indexing \(uri.forLogging) because the language service could not be inferred")
       return
     }
-    let testItems = await languageServiceType.syntacticTestItems(in: uri)
+    let testItems = await languageServiceRegistry.languageServices(for: language).asyncFlatMap {
+      await $0.syntacticTestItems(in: uri)
+    }
 
     guard !removedFiles.contains(uri) else {
       // Check whether the file got removed while we were scanning it for tests. If so, don't add it back to
