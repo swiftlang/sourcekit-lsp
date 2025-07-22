@@ -10,10 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 package import IndexStoreDB
 import SKLogging
 import SemanticIndex
-@_spi(LinkCompletion) import SwiftDocC
+@preconcurrency @_spi(LinkCompletion) import SwiftDocC
+import SwiftExtensions
+import SymbolKit
 
 extension CheckedIndex {
   /// Find a `SymbolOccurrence` that is considered the primary definition of the symbol with the given `DocCSymbolLink`.
@@ -21,54 +24,68 @@ extension CheckedIndex {
   /// If the `DocCSymbolLink` has an ambiguous definition, the most important role of this function is to deterministically return
   /// the same result every time.
   package func primaryDefinitionOrDeclarationOccurrence(
-    ofDocCSymbolLink symbolLink: DocCSymbolLink
-  ) -> SymbolOccurrence? {
-    var components = symbolLink.components
-    guard components.count > 0 else {
+    ofDocCSymbolLink symbolLink: DocCSymbolLink,
+    fetchSymbolGraph: @Sendable (_: SymbolLocation) async throws -> String?
+  ) async throws -> SymbolOccurrence? {
+    guard !symbolLink.components.isEmpty else {
       return nil
     }
-    // Do a lookup to find the top level symbol
-    let topLevelSymbol = components.removeLast()
+    // Find all occurrences of the symbol by name alone
+    let topLevelSymbolName = symbolLink.components.last!.name
     var topLevelSymbolOccurrences: [SymbolOccurrence] = []
-    forEachCanonicalSymbolOccurrence(byName: topLevelSymbol.name) { symbolOccurrence in
+    forEachCanonicalSymbolOccurrence(byName: topLevelSymbolName) { symbolOccurrence in
       topLevelSymbolOccurrences.append(symbolOccurrence)
       return true  // continue
     }
-    topLevelSymbolOccurrences = topLevelSymbolOccurrences.filter {
-      let symbolInformation = LinkCompletionTools.SymbolInformation(fromSymbolOccurrence: $0)
-      return symbolInformation.matches(topLevelSymbol.disambiguation)
+    // Determine which of the symbol occurrences actually matches the symbol link
+    var result: [SymbolOccurrence] = []
+    for occurrence in topLevelSymbolOccurrences {
+      let info = try await doccSymbolInformation(ofUSR: occurrence.symbol.usr, fetchSymbolGraph: fetchSymbolGraph)
+      if let info, info.matches(symbolLink) {
+        result.append(occurrence)
+      }
     }
-    // Search each potential symbol's parents to find an exact match
-    let symbolOccurences = topLevelSymbolOccurrences.filter { topLevelSymbolOccurrence in
-      var components = components
-      var symbolOccurrence = topLevelSymbolOccurrence
-      while let nextComponent = components.popLast(), let parentSymbolOccurrence = symbolOccurrence.parent(self) {
-        let parentSymbolInformation = LinkCompletionTools.SymbolInformation(
-          fromSymbolOccurrence: parentSymbolOccurrence
-        )
-        guard parentSymbolOccurrence.symbol.name == nextComponent.name,
-          parentSymbolInformation.matches(nextComponent.disambiguation)
-        else {
-          return false
-        }
-        symbolOccurrence = parentSymbolOccurrence
-      }
-      // If we have exactly one component left, check to see if it's the module name
-      if components.count == 1 {
-        let lastComponent = components.removeLast()
-        guard lastComponent.name == topLevelSymbolOccurrence.location.moduleName else {
-          return false
-        }
-      }
-      guard components.isEmpty else {
-        return false
-      }
-      return true
-    }.sorted()
-    if symbolOccurences.count > 1 {
+    // Ensure that this is deterministic by sorting the results
+    result.sort()
+    if result.count > 1 {
       logger.debug("Multiple symbols found for DocC symbol link '\(symbolLink.linkString)'")
     }
-    return symbolOccurences.first
+    return result.first
+  }
+
+  /// Find the DocCSymbolLink for a given symbol USR.
+  ///
+  /// - Parameters:
+  ///   - usr: The symbol USR to find in the index.
+  ///   - fetchSymbolGraph: Callback that returns a SymbolGraph for a given SymbolLocation
+  package func doccSymbolInformation(
+    ofUSR usr: String,
+    fetchSymbolGraph: (_: SymbolLocation) async throws -> String?
+  ) async throws -> DocCSymbolInformation? {
+    guard let topLevelSymbolOccurrence = primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
+      return nil
+    }
+    let moduleName = topLevelSymbolOccurrence.location.moduleName
+    var symbols = [topLevelSymbolOccurrence]
+    // Find any parent symbols
+    var symbolOccurrence: SymbolOccurrence = topLevelSymbolOccurrence
+    while let parentSymbolOccurrence = symbolOccurrence.parent(self) {
+      symbols.insert(parentSymbolOccurrence, at: 0)
+      symbolOccurrence = parentSymbolOccurrence
+    }
+    // Fetch symbol information from the symbol graph
+    var components = [DocCSymbolInformation.Component(fromModuleName: moduleName)]
+    for symbolOccurence in symbols {
+      guard let rawSymbolGraph = try await fetchSymbolGraph(symbolOccurence.location) else {
+        return nil
+      }
+      let symbolGraph = try JSONDecoder().decode(SymbolGraph.self, from: Data(rawSymbolGraph.utf8))
+      guard let symbol = symbolGraph.symbols[symbolOccurence.symbol.usr] else {
+        return nil
+      }
+      components.append(DocCSymbolInformation.Component(fromSymbol: symbol))
+    }
+    return DocCSymbolInformation(components: components)
   }
 }
 
