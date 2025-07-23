@@ -79,8 +79,7 @@ extension SwiftLanguageService {
           try await withSnapshotFromDiskOpenedInSourcekitd(
             uri: symbolLocation.documentUri,
             fallbackSettingsAfterTimeout: false
-          ) {
-            (snapshot, compileCommand) in
+          ) { (snapshot, compileCommand) in
             let (_, _, symbolGraph) = try await self.cursorInfo(
               snapshot,
               compileCommand: compileCommand,
@@ -107,7 +106,7 @@ extension SwiftLanguageService {
     documentationManager: DocCDocumentationManager,
     catalogURL: URL?,
     for symbolUSR: String,
-    fetchSymbolGraph: @Sendable (_: SymbolLocation) async throws -> String?
+    fetchSymbolGraph: @Sendable (SymbolLocation) async throws -> String?
   ) async throws -> String? {
     guard let catalogURL else {
       return nil

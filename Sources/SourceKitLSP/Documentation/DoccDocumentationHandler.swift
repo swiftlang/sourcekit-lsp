@@ -71,8 +71,7 @@ extension DocumentationLanguageService {
               return try await languageService.withSnapshotFromDiskOpenedInSourcekitd(
                 uri: location.documentUri,
                 fallbackSettingsAfterTimeout: false
-              ) {
-                (snapshot, compileCommand) in
+              ) { (snapshot, compileCommand) in
                 let (_, _, symbolGraph) = try await languageService.cursorInfo(
                   snapshot,
                   compileCommand: compileCommand,

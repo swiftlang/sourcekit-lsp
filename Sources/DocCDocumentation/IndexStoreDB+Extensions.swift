@@ -25,13 +25,12 @@ extension CheckedIndex {
   /// the same result every time.
   package func primaryDefinitionOrDeclarationOccurrence(
     ofDocCSymbolLink symbolLink: DocCSymbolLink,
-    fetchSymbolGraph: @Sendable (_: SymbolLocation) async throws -> String?
+    fetchSymbolGraph: @Sendable (SymbolLocation) async throws -> String?
   ) async throws -> SymbolOccurrence? {
-    guard !symbolLink.components.isEmpty else {
-      return nil
+    guard let topLevelSymbolName = symbolLink.components.last?.name else {
+      throw DocCCheckedIndexError.emptyDocCSymbolLink
     }
     // Find all occurrences of the symbol by name alone
-    let topLevelSymbolName = symbolLink.components.last!.name
     var topLevelSymbolOccurrences: [SymbolOccurrence] = []
     forEachCanonicalSymbolOccurrence(byName: topLevelSymbolName) { symbolOccurrence in
       topLevelSymbolOccurrences.append(symbolOccurrence)
@@ -60,7 +59,7 @@ extension CheckedIndex {
   ///   - fetchSymbolGraph: Callback that returns a SymbolGraph for a given SymbolLocation
   package func doccSymbolInformation(
     ofUSR usr: String,
-    fetchSymbolGraph: (_: SymbolLocation) async throws -> String?
+    fetchSymbolGraph: (SymbolLocation) async throws -> String?
   ) async throws -> DocCSymbolInformation? {
     guard let topLevelSymbolOccurrence = primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
       return nil
@@ -77,15 +76,32 @@ extension CheckedIndex {
     var components = [DocCSymbolInformation.Component(fromModuleName: moduleName)]
     for symbolOccurence in symbols {
       guard let rawSymbolGraph = try await fetchSymbolGraph(symbolOccurence.location) else {
-        return nil
+        throw DocCCheckedIndexError.noSymbolGraph(symbolOccurence.symbol.usr)
       }
       let symbolGraph = try JSONDecoder().decode(SymbolGraph.self, from: Data(rawSymbolGraph.utf8))
       guard let symbol = symbolGraph.symbols[symbolOccurence.symbol.usr] else {
-        return nil
+        throw DocCCheckedIndexError.symbolNotFound(symbolOccurence.symbol.usr)
       }
       components.append(DocCSymbolInformation.Component(fromSymbol: symbol))
     }
     return DocCSymbolInformation(components: components)
+  }
+}
+
+enum DocCCheckedIndexError: LocalizedError {
+  case emptyDocCSymbolLink
+  case noSymbolGraph(String)
+  case symbolNotFound(String)
+
+  var errorDescription: String? {
+    switch self {
+    case .emptyDocCSymbolLink:
+      "The provided DocCSymbolLink was empty and could not be resolved"
+    case .noSymbolGraph(let usr):
+      "Unable to locate symbol graph for \(usr)"
+    case .symbolNotFound(let usr):
+      "Symbol \(usr) was not found in its symbol graph"
+    }
   }
 }
 
