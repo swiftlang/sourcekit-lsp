@@ -1071,7 +1071,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         dependents[dependency, default: []].insert(target)
         // Check if we have already recorded this target with a greater depth, in which case visiting it again will
         // not increase its depth or any of its children.
-        if depths[target, default: 0] < depth + 1 {
+        if depths[dependency, default: 0] < depth + 1 {
           worksList.append((dependency, depth + 1))
         }
       }
