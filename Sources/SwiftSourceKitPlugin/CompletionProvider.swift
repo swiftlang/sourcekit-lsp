@@ -264,6 +264,7 @@ actor CompletionProvider {
 
     return request.sourcekitd.responseDictionary([
       request.sourcekitd.keys.docBrief: info.briefDocumentation,
+      request.sourcekitd.keys.docFullAsXML: info.fullDocumentation,
       request.sourcekitd.keys.associatedUSRs: info.associatedUSRs as [SKDResponseValue]?,
     ])
   }
