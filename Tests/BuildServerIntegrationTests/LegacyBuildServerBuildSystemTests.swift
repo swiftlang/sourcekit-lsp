@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerIntegration
 import BuildServerProtocol
-import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
@@ -19,7 +19,7 @@ import SKTestSupport
 import TSCBasic
 import XCTest
 
-final class LegacyBuildServerBuildSystemTests: XCTestCase {
+final class LegacyBuildServerTests: XCTestCase {
   func testBuildSettingsFromBuildServer() async throws {
     let project = try await ExternalBuildServerTestProject(
       files: [

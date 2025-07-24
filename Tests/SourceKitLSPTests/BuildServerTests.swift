@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+@_spi(Testing) import BuildServerIntegration
 import BuildServerProtocol
-@_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKOptions
@@ -23,7 +23,7 @@ import TSCBasic
 import ToolchainRegistry
 import XCTest
 
-fileprivate actor TestBuildSystem: CustomBuildServer {
+fileprivate actor TestBuildServer: CustomBuildServer {
   let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
   private let connectionToSourceKitLSP: any Connection
   private var buildSettingsByFile: [DocumentURI: TextDocumentSourceKitOptionsResponse] = [:]
@@ -48,7 +48,7 @@ fileprivate actor TestBuildSystem: CustomBuildServer {
   }
 }
 
-final class BuildSystemTests: XCTestCase {
+final class BuildServerTests: XCTestCase {
   /// The mock client used to communicate with the SourceKit-LSP server.p
   ///
   /// - Note: Set before each test run in `setUp`.
@@ -59,10 +59,10 @@ final class BuildSystemTests: XCTestCase {
   /// - Note: Set before each test run in `setUp`.
   private var workspace: Workspace! = nil
 
-  /// The build system that we use to verify SourceKitLSPServer behavior.
+  /// The build server that we use to verify SourceKitLSPServer behavior.
   ///
   /// - Note: Set before each test run in `setUp`.
-  private var buildSystem: TestBuildSystem! = nil
+  private var buildServer: TestBuildServer! = nil
 
   /// Whether clangd exists in the toolchain.
   ///
@@ -74,41 +74,41 @@ final class BuildSystemTests: XCTestCase {
 
     let server = testClient.server
 
-    let testBuildSystem = ThreadSafeBox<TestBuildSystem?>(initialValue: nil)
-    let buildSystemManager = await BuildSystemManager(
-      buildSystemSpec: BuildSystemSpec(
+    let testBuildServer = ThreadSafeBox<TestBuildServer?>(initialValue: nil)
+    let buildServerManager = await BuildServerManager(
+      buildServerSpec: BuildServerSpec(
         kind: .injected({ projectRoot, connectionToSourceKitLSP in
-          assert(testBuildSystem.value == nil, "Build system injector hook can only create a single TestBuildSystem")
-          let buildSystem = TestBuildSystem(
+          assert(testBuildServer.value == nil, "Build server injector hook can only create a single TestBuildServer")
+          let buildServer = TestBuildServer(
             projectRoot: projectRoot,
             connectionToSourceKitLSP: connectionToSourceKitLSP
           )
-          testBuildSystem.value = buildSystem
-          return LocalConnection(receiverName: "TestBuildSystem", handler: buildSystem)
+          testBuildServer.value = buildServer
+          return LocalConnection(receiverName: "TestBuildServer", handler: buildServer)
         }),
         projectRoot: URL(fileURLWithPath: "/"),
         configPath: URL(fileURLWithPath: "/")
       ),
       toolchainRegistry: .forTesting,
       options: try .testDefault(),
-      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-      buildSystemHooks: BuildSystemHooks()
+      connectionToClient: DummyBuildServerManagerConnectionToClient(),
+      buildServerHooks: BuildServerHooks()
     )
-    buildSystem = try unwrap(testBuildSystem.value)
+    buildServer = try unwrap(testBuildServer.value)
 
     self.workspace = await Workspace.forTesting(
       options: try .testDefault(),
       testHooks: Hooks(),
-      buildSystemManager: buildSystemManager,
+      buildServerManager: buildServerManager,
       indexTaskScheduler: .forTesting
     )
 
     await server.setWorkspaces([(workspace: workspace, isImplicit: false)])
-    await workspace.buildSystemManager.setDelegate(workspace)
+    await workspace.buildServerManager.setDelegate(workspace)
   }
 
   override func tearDown() {
-    buildSystem = nil
+    buildServer = nil
     workspace = nil
     testClient = nil
   }
@@ -131,7 +131,7 @@ final class BuildSystemTests: XCTestCase {
       }
       """
 
-    await buildSystem.setBuildSettings(for: doc, to: TextDocumentSourceKitOptionsResponse(compilerArguments: args))
+    await buildServer.setBuildSettings(for: doc, to: TextDocumentSourceKitOptionsResponse(compilerArguments: args))
 
     let documentManager = await self.testClient.server.documentManager
 
@@ -144,7 +144,7 @@ final class BuildSystemTests: XCTestCase {
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
     let newSettings = TextDocumentSourceKitOptionsResponse(compilerArguments: args + ["-DFOO"])
-    await buildSystem.setBuildSettings(for: doc, to: newSettings)
+    await buildServer.setBuildSettings(for: doc, to: newSettings)
 
     try await repeatUntilExpectedResult {
       guard let refreshedDiags = try? await testClient.nextDiagnosticsNotification(timeout: .seconds(1)) else {
@@ -162,7 +162,7 @@ final class BuildSystemTests: XCTestCase {
       options: SourceKitLSPOptions.FallbackBuildSystemOptions()
     )!.compilerArguments
 
-    await buildSystem.setBuildSettings(for: doc, to: TextDocumentSourceKitOptionsResponse(compilerArguments: args))
+    await buildServer.setBuildSettings(for: doc, to: TextDocumentSourceKitOptionsResponse(compilerArguments: args))
 
     let text = """
       #if FOO
@@ -182,7 +182,7 @@ final class BuildSystemTests: XCTestCase {
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
     let newSettings = TextDocumentSourceKitOptionsResponse(compilerArguments: args + ["-DFOO"])
-    await buildSystem.setBuildSettings(for: doc, to: newSettings)
+    await buildServer.setBuildSettings(for: doc, to: newSettings)
 
     // No expected errors here because we fixed the settings.
     let diags2 = try await testClient.nextDiagnosticsNotification()
@@ -214,7 +214,7 @@ final class BuildSystemTests: XCTestCase {
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should see a diagnostic.
     let newSettings = TextDocumentSourceKitOptionsResponse(compilerArguments: args)
-    await buildSystem.setBuildSettings(for: doc, to: newSettings)
+    await buildServer.setBuildSettings(for: doc, to: newSettings)
 
     let refreshedDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(refreshedDiags.diagnostics.count, 1)
@@ -251,8 +251,8 @@ final class BuildSystemTests: XCTestCase {
     XCTAssertEqual(openDiags.diagnostics.count, 1)
     XCTAssertEqual(text, try documentManager.latestSnapshot(doc).text)
 
-    // Swap from fallback settings to primary build system settings.
-    await buildSystem.setBuildSettings(for: doc, to: primarySettings)
+    // Swap from fallback settings to primary build server settings.
+    await buildServer.setBuildSettings(for: doc, to: primarySettings)
 
     // Two errors since `-DFOO` was not passed.
     let refreshedDiags = try await testClient.nextDiagnosticsNotification()

@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildSystemIntegration
+import BuildServerIntegration
 import LanguageServerProtocol
 import SourceKitLSP
 import XCTest

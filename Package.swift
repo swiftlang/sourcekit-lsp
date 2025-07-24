@@ -37,7 +37,7 @@ var targets: [Target] = [
   .executableTarget(
     name: "sourcekit-lsp",
     dependencies: [
-      "BuildSystemIntegration",
+      "BuildServerIntegration",
       "Diagnose",
       "LanguageServerProtocol",
       "LanguageServerProtocolExtensions",
@@ -74,10 +74,10 @@ var targets: [Target] = [
     swiftSettings: globalSwiftSettings
   ),
 
-  // MARK: BuildSystemIntegration
+  // MARK: BuildServerIntegration
 
   .target(
-    name: "BuildSystemIntegration",
+    name: "BuildServerIntegration",
     dependencies: [
       "BuildServerProtocol",
       "LanguageServerProtocol",
@@ -101,9 +101,9 @@ var targets: [Target] = [
   ),
 
   .testTarget(
-    name: "BuildSystemIntegrationTests",
+    name: "BuildServerIntegrationTests",
     dependencies: [
-      "BuildSystemIntegration",
+      "BuildServerIntegration",
       "LanguageServerProtocol",
       "SKOptions",
       "SKTestSupport",
@@ -183,7 +183,7 @@ var targets: [Target] = [
   .target(
     name: "Diagnose",
     dependencies: [
-      "BuildSystemIntegration",
+      "BuildServerIntegration",
       "InProcessClient",
       "LanguageServerProtocolExtensions",
       "SKLogging",
@@ -204,7 +204,7 @@ var targets: [Target] = [
   .testTarget(
     name: "DiagnoseTests",
     dependencies: [
-      "BuildSystemIntegration",
+      "BuildServerIntegration",
       "Diagnose",
       "SKLogging",
       "SKTestSupport",
@@ -221,7 +221,7 @@ var targets: [Target] = [
     name: "DocCDocumentation",
     dependencies: [
       "BuildServerProtocol",
-      "BuildSystemIntegration",
+      "BuildServerIntegration",
       "LanguageServerProtocol",
       "SemanticIndex",
       "SKLogging",
@@ -239,7 +239,7 @@ var targets: [Target] = [
   .target(
     name: "InProcessClient",
     dependencies: [
-      "BuildSystemIntegration",
+      "BuildServerIntegration",
       "LanguageServerProtocol",
       "SKLogging",
       "SKOptions",
@@ -313,7 +313,7 @@ var targets: [Target] = [
     name: "SemanticIndex",
     dependencies: [
       "BuildServerProtocol",
-      "BuildSystemIntegration",
+      "BuildServerIntegration",
       "LanguageServerProtocol",
       "LanguageServerProtocolExtensions",
       "SKLogging",
@@ -428,7 +428,7 @@ var targets: [Target] = [
   .target(
     name: "SKTestSupport",
     dependencies: [
-      "BuildSystemIntegration",
+      "BuildServerIntegration",
       "CSKTestSupport",
       "Csourcekitd",
       "InProcessClient",
@@ -481,7 +481,7 @@ var targets: [Target] = [
   .testTarget(
     name: "SourceKitDTests",
     dependencies: [
-      "BuildSystemIntegration",
+      "BuildServerIntegration",
       "SourceKitD",
       "SKTestSupport",
       "SwiftExtensions",
@@ -496,7 +496,7 @@ var targets: [Target] = [
     name: "SourceKitLSP",
     dependencies: [
       "BuildServerProtocol",
-      "BuildSystemIntegration",
+      "BuildServerIntegration",
       "DocCDocumentation",
       "LanguageServerProtocol",
       "LanguageServerProtocolExtensions",
@@ -529,7 +529,7 @@ var targets: [Target] = [
     name: "SourceKitLSPTests",
     dependencies: [
       "BuildServerProtocol",
-      "BuildSystemIntegration",
+      "BuildServerIntegration",
       "LanguageServerProtocol",
       "LanguageServerProtocolExtensions",
       "SemanticIndex",
@@ -643,7 +643,7 @@ var targets: [Target] = [
   .testTarget(
     name: "SwiftSourceKitPluginTests",
     dependencies: [
-      "BuildSystemIntegration",
+      "BuildServerIntegration",
       "CompletionScoring",
       "Csourcekitd",
       "LanguageServerProtocol",

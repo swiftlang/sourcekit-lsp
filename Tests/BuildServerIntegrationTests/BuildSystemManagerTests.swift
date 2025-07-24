@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+@_spi(Testing) import BuildServerIntegration
 import BuildServerProtocol
-@_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
@@ -22,7 +22,7 @@ import TSCBasic
 import ToolchainRegistry
 import XCTest
 
-fileprivate actor TestBuildSystem: CustomBuildServer {
+fileprivate actor TestBuildServer: CustomBuildServer {
   let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
   private let connectionToSourceKitLSP: any Connection
   private var buildSettingsByFile: [DocumentURI: TextDocumentSourceKitOptionsResponse] = [:]
@@ -47,45 +47,45 @@ fileprivate actor TestBuildSystem: CustomBuildServer {
   }
 }
 
-fileprivate extension BuildSystemManager {
+fileprivate extension BuildServerManager {
   func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
     handle(OnBuildTargetDidChangeNotification(changes: nil))
   }
 }
 
-final class BuildSystemManagerTests: XCTestCase {
-  /// The build system manager that we use to verify SourceKitLSPServer behavior.
+final class BuildServerManagerTests: XCTestCase {
+  /// The build server manager that we use to verify SourceKitLSPServer behavior.
   ///
   /// - Note: Set before each test run in `setUp`.
-  private var manager: BuildSystemManager! = nil
+  private var manager: BuildServerManager! = nil
 
-  /// The build system that we use to verify SourceKitLSPServer behavior.
+  /// The build server that we use to verify SourceKitLSPServer behavior.
   ///
   /// - Note: Set before each test run in `setUp`.
-  private var buildSystem: TestBuildSystem! = nil
+  private var buildServer: TestBuildServer! = nil
 
   override func setUp() async throws {
     let dummyPath = URL(fileURLWithPath: "/")
-    let testBuildSystem = ThreadSafeBox<TestBuildSystem?>(initialValue: nil)
-    let spec = BuildSystemSpec(
+    let testBuildServer = ThreadSafeBox<TestBuildServer?>(initialValue: nil)
+    let spec = BuildServerSpec(
       kind: .injected({ projectRoot, connectionToSourceKitLSP in
-        assert(testBuildSystem.value == nil, "Build system injector hook can only create a single TestBuildSystem")
-        let buildSystem = TestBuildSystem(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
-        testBuildSystem.value = buildSystem
-        return LocalConnection(receiverName: "TestBuildSystem", handler: buildSystem)
+        assert(testBuildServer.value == nil, "Build erver injector hook can only create a single TestBuildServer")
+        let buildServer = TestBuildServer(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
+        testBuildServer.value = buildServer
+        return LocalConnection(receiverName: "TestBuildServer", handler: buildServer)
       }),
       projectRoot: dummyPath,
       configPath: dummyPath
     )
 
-    self.manager = await BuildSystemManager(
-      buildSystemSpec: spec,
+    self.manager = await BuildServerManager(
+      buildServerSpec: spec,
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-      buildSystemHooks: BuildSystemHooks()
+      connectionToClient: DummyBuildServerManagerConnectionToClient(),
+      buildServerHooks: BuildServerHooks()
     )
-    self.buildSystem = try unwrap(testBuildSystem.value)
+    self.buildServer = try unwrap(testBuildServer.value)
   }
 
   func testMainFiles() async throws {
@@ -158,7 +158,7 @@ final class BuildSystemManagerTests: XCTestCase {
     await manager.setMainFilesProvider(mainFiles)
     let del = await BSMDelegate(manager)
 
-    await buildSystem.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
+    await buildServer.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
     // Wait for the new build settings to settle before registering for change notifications
     await manager.waitForUpToDateBuildGraph()
     await manager.registerForChangeNotifications(for: a, language: .swift)
@@ -172,7 +172,7 @@ final class BuildSystemManagerTests: XCTestCase {
     await del.setExpected([
       (a, .swift, fallbackBuildSettings(for: a, language: .swift, options: .init()), changed)
     ])
-    await buildSystem.setBuildSettings(for: a, to: nil)
+    await buildServer.setBuildSettings(for: a, to: nil)
     try await fulfillmentOfOrThrow(changed)
   }
 
@@ -186,7 +186,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let changed = expectation(description: "changed settings")
     await del.setExpected([(a, .swift, FileBuildSettings(compilerArguments: ["x"], language: .swift), changed)])
-    await buildSystem.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
+    await buildServer.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
     try await fulfillmentOfOrThrow(changed)
   }
 
@@ -207,7 +207,7 @@ final class BuildSystemManagerTests: XCTestCase {
     await del.setExpected([
       (a, .swift, FileBuildSettings(compilerArguments: ["non-fallback", "args"], language: .swift), changed)
     ])
-    await buildSystem.setBuildSettings(
+    await buildServer.setBuildSettings(
       for: a,
       to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["non-fallback", "args"])
     )
@@ -215,7 +215,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let revert = expectation(description: "revert to fallback settings")
     await del.setExpected([(a, .swift, fallbackSettings, revert)])
-    await buildSystem.setBuildSettings(for: a, to: nil)
+    await buildServer.setBuildSettings(for: a, to: nil)
     try await fulfillmentOfOrThrow(revert)
   }
 
@@ -234,11 +234,11 @@ final class BuildSystemManagerTests: XCTestCase {
     await manager.setMainFilesProvider(mainFiles)
     let del = await BSMDelegate(manager)
 
-    await buildSystem.setBuildSettings(
+    await buildServer.setBuildSettings(
       for: cpp1,
       to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["C++ 1"])
     )
-    await buildSystem.setBuildSettings(
+    await buildServer.setBuildSettings(
       for: cpp2,
       to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["C++ 2"])
     )
@@ -297,7 +297,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let del = await BSMDelegate(manager)
 
     let cppArg = "C++ Main File"
-    await buildSystem.setBuildSettings(
+    await buildServer.setBuildSettings(
       for: cpp,
       to: TextDocumentSourceKitOptionsResponse(compilerArguments: [cppArg, cpp.pseudoPath])
     )
@@ -328,7 +328,7 @@ final class BuildSystemManagerTests: XCTestCase {
       (h1, .c, newArgsH1, changed1),
       (h2, .c, newArgsH2, changed2),
     ])
-    await buildSystem.setBuildSettings(
+    await buildServer.setBuildSettings(
       for: cpp,
       to: TextDocumentSourceKitOptionsResponse(compilerArguments: [newCppArg, cpp.pseudoPath])
     )
@@ -358,8 +358,8 @@ private final actor ManualMainFilesProvider: MainFilesProvider {
   }
 }
 
-/// A `BuildSystemDelegate` setup for testing.
-private actor BSMDelegate: BuildSystemManagerDelegate {
+/// A `BuildServerMangerDelegate` setup for testing.
+private actor BSMDelegate: BuildServerManagerDelegate {
   func watchFiles(_ fileWatchers: [LanguageServerProtocol.FileSystemWatcher]) async {}
 
   fileprivate typealias ExpectedBuildSettingChangedCall = (
@@ -370,7 +370,7 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
     uri: DocumentURI, expectation: XCTestExpectation, file: StaticString, line: UInt
   )
 
-  unowned let manager: BuildSystemManager
+  unowned let manager: BuildServerManager
   var expected: [ExpectedBuildSettingChangedCall] = []
 
   /// - Note: Needed to set `expected` outside of the actor's isolation context.
@@ -382,7 +382,7 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
     self.expected = expected.map { ($0.uri, $0.language, $0.settings, $0.expectation, file, line) }
   }
 
-  init(_ manager: BuildSystemManager) async {
+  init(_ manager: BuildServerManager) async {
     self.manager = manager
     await manager.setDelegate(self)
   }

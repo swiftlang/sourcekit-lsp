@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(Testing) import BuildSystemIntegration
+@_spi(Testing) import BuildServerIntegration
 import XCTest
 
 final class CompilerCommandLineOptionMatchingTests: XCTestCase {

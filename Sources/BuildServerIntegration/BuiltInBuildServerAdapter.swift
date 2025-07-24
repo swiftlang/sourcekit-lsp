@@ -19,10 +19,10 @@ import SKOptions
 import SwiftExtensions
 import ToolchainRegistry
 
-/// The details necessary to create a `BuildSystemAdapter`.
-package struct BuildSystemSpec {
+/// The details necessary to create a `BuildServerAdapter`.
+package struct BuildServerSpec {
   package enum Kind {
-    case buildServer
+    case externalBuildServer
     case jsonCompilationDatabase
     case fixedCompilationDatabase
     case swiftPM
@@ -33,47 +33,47 @@ package struct BuildSystemSpec {
 
   package var kind: Kind
 
-  /// The folder that best describes the root of the project that this build system handles.
+  /// The folder that best describes the root of the project that this build server handles.
   package var projectRoot: URL
 
-  /// The main path that provides the build system configuration.
+  /// The main path that provides the build server configuration.
   package var configPath: URL
 
-  package init(kind: BuildSystemSpec.Kind, projectRoot: URL, configPath: URL) {
+  package init(kind: BuildServerSpec.Kind, projectRoot: URL, configPath: URL) {
     self.kind = kind
     self.projectRoot = projectRoot
     self.configPath = configPath
   }
 }
 
-/// A type that outwardly acts as a BSP build server and internally uses a `BuiltInBuildSystem` to satisfy the requests.
-actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
+/// A type that outwardly acts as a BSP build server and internally uses a `BuiltInBuildServer` to satisfy the requests.
+actor BuiltInBuildServerAdapter: QueueBasedMessageHandler {
   let messageHandlingHelper = QueueBasedMessageHandlerHelper(
-    signpostLoggingCategory: "build-system-message-handling",
+    signpostLoggingCategory: "build-server-message-handling",
     createLoggingScope: false
   )
 
-  /// The queue on which all messages from SourceKit-LSP (or more specifically `BuildSystemManager`) are handled.
-  package let messageHandlingQueue = AsyncQueue<BuildSystemMessageDependencyTracker>()
+  /// The queue on which all messages from SourceKit-LSP (or more specifically `BuildServerManager`) are handled.
+  package let messageHandlingQueue = AsyncQueue<BuildServerMessageDependencyTracker>()
 
-  /// The underlying build system
-  private var underlyingBuildSystem: BuiltInBuildSystem
+  /// The underlying build server
+  private var underlyingBuildServer: BuiltInBuildServer
 
-  /// The connection with which messages are sent to `BuildSystemManager`.
+  /// The connection with which messages are sent to `BuildServerManager`.
   private let connectionToSourceKitLSP: LocalConnection
 
-  private let buildSystemHooks: BuildSystemHooks
+  private let buildServerHooks: BuildServerHooks
 
-  /// Create a `BuiltInBuildSystemAdapter` form an existing `BuiltInBuildSystem` and connection to communicate messages
-  /// from the build system to SourceKit-LSP.
+  /// Create a `BuiltInBuildServerAdapter` form an existing `BuiltInBuildServer` and connection to communicate messages
+  /// from the build server to SourceKit-LSP.
   init(
-    underlyingBuildSystem: BuiltInBuildSystem,
+    underlyingBuildServer: BuiltInBuildServer,
     connectionToSourceKitLSP: LocalConnection,
-    buildSystemHooks: BuildSystemHooks
+    buildServerHooks: BuildServerHooks
   ) {
-    self.underlyingBuildSystem = underlyingBuildSystem
+    self.underlyingBuildServer = underlyingBuildServer
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
-    self.buildSystemHooks = buildSystemHooks
+    self.buildServerHooks = buildServerHooks
   }
 
   deinit {
@@ -82,22 +82,22 @@ actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
 
   private func initialize(request: InitializeBuildRequest) async -> InitializeBuildResponse {
     return InitializeBuildResponse(
-      displayName: "\(type(of: underlyingBuildSystem))",
+      displayName: "\(type(of: underlyingBuildServer))",
       version: "",
       bspVersion: "2.2.0",
       capabilities: BuildServerCapabilities(),
       dataKind: .sourceKit,
       data: SourceKitInitializeBuildResponseData(
         indexDatabasePath: await orLog("getting index database file path") {
-          try await underlyingBuildSystem.indexDatabasePath?.filePath
+          try await underlyingBuildServer.indexDatabasePath?.filePath
         },
         indexStorePath: await orLog("getting index store file path") {
-          try await underlyingBuildSystem.indexStorePath?.filePath
+          try await underlyingBuildServer.indexStorePath?.filePath
         },
-        outputPathsProvider: underlyingBuildSystem.supportsPreparationAndOutputPaths,
-        prepareProvider: underlyingBuildSystem.supportsPreparationAndOutputPaths,
+        outputPathsProvider: underlyingBuildServer.supportsPreparationAndOutputPaths,
+        prepareProvider: underlyingBuildServer.supportsPreparationAndOutputPaths,
         sourceKitOptionsProvider: true,
-        watchers: await underlyingBuildSystem.fileWatchers
+        watchers: await underlyingBuildServer.fileWatchers
       ).encodeToLSPAny()
     )
   }
@@ -109,7 +109,7 @@ actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
     case is OnBuildInitializedNotification:
       break
     case let notification as OnWatchedFilesDidChangeNotification:
-      await self.underlyingBuildSystem.didChangeWatchedFiles(notification: notification)
+      await self.underlyingBuildServer.didChangeWatchedFiles(notification: notification)
     default:
       logger.error("Ignoring unknown notification \(type(of: notification).method) from SourceKit-LSP")
     }
@@ -121,22 +121,22 @@ actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
     reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
   ) async {
     let request = RequestAndReply(request, reply: reply)
-    await buildSystemHooks.preHandleRequest?(request.params)
+    await buildServerHooks.preHandleRequest?(request.params)
     switch request {
     case let request as RequestAndReply<BuildShutdownRequest>:
       await request.reply { VoidResponse() }
     case let request as RequestAndReply<BuildTargetPrepareRequest>:
-      await request.reply { try await underlyingBuildSystem.prepare(request: request.params) }
+      await request.reply { try await underlyingBuildServer.prepare(request: request.params) }
     case let request as RequestAndReply<BuildTargetSourcesRequest>:
-      await request.reply { try await underlyingBuildSystem.buildTargetSources(request: request.params) }
+      await request.reply { try await underlyingBuildServer.buildTargetSources(request: request.params) }
     case let request as RequestAndReply<InitializeBuildRequest>:
       await request.reply { await self.initialize(request: request.params) }
     case let request as RequestAndReply<TextDocumentSourceKitOptionsRequest>:
-      await request.reply { try await underlyingBuildSystem.sourceKitOptions(request: request.params) }
+      await request.reply { try await underlyingBuildServer.sourceKitOptions(request: request.params) }
     case let request as RequestAndReply<WorkspaceBuildTargetsRequest>:
-      await request.reply { try await underlyingBuildSystem.buildTargets(request: request.params) }
+      await request.reply { try await underlyingBuildServer.buildTargets(request: request.params) }
     case let request as RequestAndReply<WorkspaceWaitForBuildSystemUpdatesRequest>:
-      await request.reply { await underlyingBuildSystem.waitForBuildSystemUpdates(request: request.params) }
+      await request.reply { await underlyingBuildServer.waitForBuildSystemUpdates(request: request.params) }
     default:
       await request.reply { throw ResponseError.methodNotFound(Request.method) }
     }

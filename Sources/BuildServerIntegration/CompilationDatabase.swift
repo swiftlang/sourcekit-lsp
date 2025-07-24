@@ -127,7 +127,7 @@ package struct JSONCompilationDatabase: Equatable, Codable {
   ///
   /// - Returns: `nil` if `compile_commands.json` was not found
   package init(directory: URL) throws {
-    let path = directory.appendingPathComponent(JSONCompilationDatabaseBuildSystem.dbName)
+    let path = directory.appendingPathComponent(JSONCompilationDatabaseBuildServer.dbName)
     try self.init(file: path)
   }
 

@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerIntegration
 package import BuildServerProtocol
-import BuildSystemIntegration
 package import Foundation
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
@@ -266,7 +266,7 @@ package extension CustomBuildServer {
 
 /// A test project that launches a custom build server in-process.
 ///
-/// In contrast to `ExternalBuildServerTestProject`, the custom build system runs in-process and is implemented in
+/// In contrast to `ExternalBuildServerTestProject`, the custom build server runs in-process and is implemented in
 /// Swift.
 package final class CustomBuildServerTestProject<BuildServer: CustomBuildServer>: MultiFileTestProject {
   private let buildServerBox = ThreadSafeBox<BuildServer?>(initialValue: nil)
@@ -282,11 +282,11 @@ package final class CustomBuildServerTestProject<BuildServer: CustomBuildServer>
     testName: String = #function
   ) async throws {
     var hooks = hooks
-    XCTAssertNil(hooks.buildSystemHooks.injectBuildServer)
-    hooks.buildSystemHooks.injectBuildServer = { [buildServerBox] projectRoot, connectionToSourceKitLSP in
+    XCTAssertNil(hooks.buildServerHooks.injectBuildServer)
+    hooks.buildServerHooks.injectBuildServer = { [buildServerBox] projectRoot, connectionToSourceKitLSP in
       let buildServer = BuildServer(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
       buildServerBox.value = buildServer
-      return LocalConnection(receiverName: "TestBuildSystem", handler: buildServer)
+      return LocalConnection(receiverName: "TestBuildServer", handler: buildServer)
     }
     try await super.init(
       files: files,
