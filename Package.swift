@@ -720,7 +720,7 @@ if buildOnlyTests {
 
 let package = Package(
   name: "SourceKitLSP",
-  platforms: [.macOS(.v13)],
+  platforms: [.macOS(.v14)],
   products: products,
   dependencies: dependencies,
   targets: targets,
