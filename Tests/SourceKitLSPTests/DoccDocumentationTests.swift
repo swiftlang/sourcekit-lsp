@@ -121,8 +121,8 @@ final class DoccDocumentationTests: XCTestCase {
       markedText: """
         /// A structure containing important information.
         public struct Structure {
-          // Get the 1️⃣subscript at index
-          subscript(in2️⃣dex: Int) -> Int {
+          /// Get the 1️⃣subscript at index
+          public subscript(in2️⃣dex: Int) -> Int {
             return i3️⃣ndex
           }
         }
@@ -173,7 +173,7 @@ final class DoccDocumentationTests: XCTestCase {
       markedText: """
         /// A class containing important information.
         public class Class {
-          /// Initi1️⃣alize the class.
+          /// De-initi1️⃣alize the class.
           dein2️⃣it {
             // De-initi3️⃣alize stuff
           }
@@ -710,6 +710,179 @@ final class DoccDocumentationTests: XCTestCase {
       project: project,
       expectedResponses: [
         "2️⃣": .renderNode(kind: .symbol, path: "MyLibrary/Foo/Color", containing: "The color of Foo")
+      ]
+    )
+  }
+
+  func testMarkdownExtensionForFunctionDisambiguatedByUSRHash() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/Foo.swift": """
+        /// 1️⃣The Int version of foo(_:)
+        public func foo(_ x: Int) -> Int {
+          x + 1
+        }
+
+        /// 2️⃣The String version of foo(_:)
+        public func foo(_ x: String) -> String {
+          x + "1"
+        }
+        """,
+        "MyLibrary/MyLibrary.docc/Foo-Int.md": """
+        3️⃣# ``MyLibrary/foo(_:)-7dlor``
+
+        # Additional information for the foo(_:)->Int function
+
+        This will be appended to the end of foo(_:)->Int's documentation page
+        """,
+        "MyLibrary/MyLibrary.docc/Foo-String.md": """
+        4️⃣# ``MyLibrary/foo(_:)-7dtuv``
+
+        # Additional information for the foo(_:)->String function
+
+        This will be appended to the end of foo(_:)->String's documentation page
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+    try await renderDocumentation(
+      fileName: "Foo.swift",
+      project: project,
+      expectedResponses: [
+        "1️⃣": .renderNode(
+          kind: .symbol,
+          path: "MyLibrary/foo(_:)",
+          containing: "Additional information for the foo(_:)->Int function"
+        ),
+        "2️⃣": .renderNode(
+          kind: .symbol,
+          path: "MyLibrary/foo(_:)",
+          containing: "Additional information for the foo(_:)->String function"
+        ),
+      ]
+    )
+    try await renderDocumentation(
+      fileName: "Foo-Int.md",
+      project: project,
+      expectedResponses: [
+        "3️⃣": .renderNode(kind: .symbol, path: "MyLibrary/foo(_:)", containing: "The Int version of foo(_:)")
+      ]
+    )
+    try await renderDocumentation(
+      fileName: "Foo-String.md",
+      project: project,
+      expectedResponses: [
+        "4️⃣": .renderNode(kind: .symbol, path: "MyLibrary/foo(_:)", containing: "The String version of foo(_:)")
+      ]
+    )
+  }
+
+  func testMarkdownExtensionForFunctionDisambiguatedByReturnType() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/Foo.swift": """
+        /// 1️⃣The Int version of foo(_:)
+        public func foo(_ x: Int) -> Int {
+          x + 1
+        }
+
+        /// 2️⃣The String version of foo(_:)
+        public func foo(_ x: String) -> String {
+          x + "1"
+        }
+        """,
+        "MyLibrary/MyLibrary.docc/Foo-Int.md": """
+        3️⃣# ``MyLibrary/foo(_:)->Int``
+
+        # Additional information for the foo(_:)->Int function
+
+        This will be appended to the end of foo(_:)->Int's documentation page
+        """,
+        "MyLibrary/MyLibrary.docc/Foo-String.md": """
+        4️⃣# ``MyLibrary/foo(_:)->String``
+
+        # Additional information for the foo(_:)->String function
+
+        This will be appended to the end of foo(_:)->String's documentation page
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+    try await renderDocumentation(
+      fileName: "Foo-Int.md",
+      project: project,
+      expectedResponses: [
+        "3️⃣": .renderNode(kind: .symbol, path: "MyLibrary/foo(_:)", containing: "The Int version of foo(_:)")
+      ]
+    )
+    try await renderDocumentation(
+      fileName: "Foo-String.md",
+      project: project,
+      expectedResponses: [
+        "4️⃣": .renderNode(kind: .symbol, path: "MyLibrary/foo(_:)", containing: "The String version of foo(_:)")
+      ]
+    )
+  }
+
+  func testMarkdownExtensionForFunctionDisambiguatedByParameterType() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/Foo.swift": """
+        /// 1️⃣The Int version of foo(_:)
+        public func foo(_ x: Int) -> Int {
+          x + 1
+        }
+
+        /// 2️⃣The String version of foo(_:)
+        public func foo(_ x: String) -> String {
+          x + "1"
+        }
+        """,
+        "MyLibrary/MyLibrary.docc/Foo-Int.md": """
+        3️⃣# ``MyLibrary/foo(_:)-(Int)``
+
+        # Additional information for the foo(_:)-(Int) function
+
+        This will be appended to the end of foo(_:)-(Int)'s documentation page
+        """,
+        "MyLibrary/MyLibrary.docc/Foo-String.md": """
+        4️⃣# ``MyLibrary/foo(_:)-(String)``
+
+        # Additional information for the foo(_:)-(String) function
+
+        This will be appended to the end of foo(_:)-(String)'s documentation page
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+    try await renderDocumentation(
+      fileName: "Foo.swift",
+      project: project,
+      expectedResponses: [
+        "1️⃣": .renderNode(
+          kind: .symbol,
+          path: "MyLibrary/foo(_:)",
+          containing: "Additional information for the foo(_:)-(Int) function"
+        ),
+        "2️⃣": .renderNode(
+          kind: .symbol,
+          path: "MyLibrary/foo(_:)",
+          containing: "Additional information for the foo(_:)-(String) function"
+        ),
+      ]
+    )
+    try await renderDocumentation(
+      fileName: "Foo-Int.md",
+      project: project,
+      expectedResponses: [
+        "3️⃣": .renderNode(kind: .symbol, path: "MyLibrary/foo(_:)", containing: "The Int version of foo(_:)")
+      ]
+    )
+    try await renderDocumentation(
+      fileName: "Foo-String.md",
+      project: project,
+      expectedResponses: [
+        "4️⃣": .renderNode(kind: .symbol, path: "MyLibrary/foo(_:)", containing: "The String version of foo(_:)")
       ]
     )
   }
