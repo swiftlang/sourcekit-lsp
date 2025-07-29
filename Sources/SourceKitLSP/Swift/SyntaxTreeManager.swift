@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LanguageServerProtocol
 import SKUtilities
 import SwiftParser
 import SwiftSyntax
@@ -93,5 +94,10 @@ actor SyntaxTreeManager {
       return Parser.parseIncrementally(source: postEditSnapshot.text, parseTransition: parseTransition)
     }
     self.setComputation(for: postEditSnapshot.id, computation: incrementalParseComputation)
+  }
+
+  /// Remove all cached syntax trees for the given document, eg. when the document is closed.
+  func clearSyntaxTrees(for uri: DocumentURI) {
+    syntaxTreeComputations.removeAll(where: { $0.uri == uri })
   }
 }
