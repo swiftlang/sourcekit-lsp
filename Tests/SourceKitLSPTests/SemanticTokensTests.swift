@@ -913,6 +913,55 @@ final class SemanticTokensTests: XCTestCase {
     )
   }
 
+  func testCloseAndReopenDocumentWithSameDocumentVersion() async throws {
+    // When neovim detects a change of the document on-disk (eg. caused by git operations). It closes the document and
+    // re-opens it with the same document version but different contents. Check that we don't re-use the syntax tree of
+    // the previously opened document.
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let initialPositions = testClient.openDocument(
+      """
+      1️⃣import 2️⃣Foo
+      3️⃣func 4️⃣bar() {}
+      """,
+      uri: uri
+    )
+    let initialTokens = try await testClient.send(
+      DocumentSemanticTokensRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+
+    XCTAssertEqual(
+      SyntaxHighlightingTokens(lspEncodedTokens: try unwrap(initialTokens).data).tokens,
+      [
+        Token(start: initialPositions["1️⃣"], utf16length: 6, kind: .keyword),
+        Token(start: initialPositions["2️⃣"], utf16length: 3, kind: .identifier),
+        Token(start: initialPositions["3️⃣"], utf16length: 4, kind: .keyword),
+        Token(start: initialPositions["4️⃣"], utf16length: 3, kind: .identifier),
+      ]
+    )
+
+    testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
+
+    let reopenedPositions = testClient.openDocument(
+      """
+      1️⃣func 2️⃣bar() {}
+      """,
+      uri: uri
+    )
+
+    let reopenedTokens = try await testClient.send(
+      DocumentSemanticTokensRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+
+    XCTAssertEqual(
+      SyntaxHighlightingTokens(lspEncodedTokens: try unwrap(reopenedTokens).data).tokens,
+      [
+        Token(start: reopenedPositions["1️⃣"], utf16length: 4, kind: .keyword),
+        Token(start: reopenedPositions["2️⃣"], utf16length: 3, kind: .identifier),
+      ]
+    )
+  }
+
   func testClang() async throws {
     try await assertSemanticTokens(
       markedContents: """
