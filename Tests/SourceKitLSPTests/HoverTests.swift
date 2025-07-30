@@ -32,7 +32,7 @@ final class HoverTests: XCTestCase {
 
         Details.
         """,
-      expectedRange: Position(line: 3, utf16index: 7)..<Position(line: 3, utf16index: 9)
+      expectedRange: Position(line: 3, utf16index: 7)..<Position(line: 3, utf16index: 8)
     )
   }
 
@@ -171,6 +171,24 @@ final class HoverTests: XCTestCase {
         - Precondition: Must have an apple
         """,
       expectedRange: Position(line: 3, utf16index: 5)..<Position(line: 3, utf16index: 13)
+    )
+  }
+
+  func testTrivia() async throws {
+    try await assertHover(
+      """
+      func foo() {}
+      func bar() {
+        /*some comment*/1️⃣foo/*more comment*/()
+      }
+      """,
+      expectedContent: """
+        ```swift
+        func foo()
+        ```
+
+        """,
+      expectedRange: Position(line: 2, utf16index: 18)..<Position(line: 2, utf16index: 21)
     )
   }
 }
