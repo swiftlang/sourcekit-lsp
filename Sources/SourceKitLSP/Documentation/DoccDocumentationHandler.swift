@@ -59,7 +59,29 @@ extension DocumentationLanguageService {
           throw ResponseError.requestFailed(doccDocumentationError: .indexNotAvailable)
         }
         guard let symbolLink = DocCSymbolLink(linkString: symbolName),
-          let symbolOccurrence = index.primaryDefinitionOrDeclarationOccurrence(ofDocCSymbolLink: symbolLink)
+          let symbolOccurrence = try await index.primaryDefinitionOrDeclarationOccurrence(
+            ofDocCSymbolLink: symbolLink,
+            fetchSymbolGraph: { location in
+              guard let symbolWorkspace = try await workspaceForDocument(uri: location.documentUri),
+                let languageService = try await languageService(for: location.documentUri, .swift, in: symbolWorkspace)
+                  as? SwiftLanguageService
+              else {
+                throw ResponseError.internalError("Unable to find Swift language service for \(location.documentUri)")
+              }
+              return try await languageService.withSnapshotFromDiskOpenedInSourcekitd(
+                uri: location.documentUri,
+                fallbackSettingsAfterTimeout: false
+              ) { (snapshot, compileCommand) in
+                let (_, _, symbolGraph) = try await languageService.cursorInfo(
+                  snapshot,
+                  compileCommand: compileCommand,
+                  Range(snapshot.position(of: location)),
+                  includeSymbolGraph: true
+                )
+                return symbolGraph
+              }
+            }
+          )
         else {
           throw ResponseError.requestFailed(doccDocumentationError: .symbolNotFound(symbolName))
         }

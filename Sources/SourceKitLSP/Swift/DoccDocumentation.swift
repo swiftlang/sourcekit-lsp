@@ -14,6 +14,7 @@
 import BuildSystemIntegration
 import DocCDocumentation
 import Foundation
+import IndexStoreDB
 package import LanguageServerProtocol
 import SemanticIndex
 import SKLogging
@@ -73,7 +74,21 @@ extension SwiftLanguageService {
         workspace: workspace,
         documentationManager: documentationManager,
         catalogURL: catalogURL,
-        for: symbolUSR
+        for: symbolUSR,
+        fetchSymbolGraph: { symbolLocation in
+          try await withSnapshotFromDiskOpenedInSourcekitd(
+            uri: symbolLocation.documentUri,
+            fallbackSettingsAfterTimeout: false
+          ) { (snapshot, compileCommand) in
+            let (_, _, symbolGraph) = try await self.cursorInfo(
+              snapshot,
+              compileCommand: compileCommand,
+              Range(snapshot.position(of: symbolLocation)),
+              includeSymbolGraph: true
+            )
+            return symbolGraph
+          }
+        }
       )
     }
     return try await documentationManager.renderDocCDocumentation(
@@ -90,14 +105,18 @@ extension SwiftLanguageService {
     workspace: Workspace,
     documentationManager: DocCDocumentationManager,
     catalogURL: URL?,
-    for symbolUSR: String
+    for symbolUSR: String,
+    fetchSymbolGraph: @Sendable (SymbolLocation) async throws -> String?
   ) async throws -> String? {
     guard let catalogURL else {
       return nil
     }
     let catalogIndex = try await documentationManager.catalogIndex(for: catalogURL)
     guard let index = workspace.index(checkedFor: .deletedFiles),
-      let symbolInformation = DocCSymbolInformation(fromUSR: symbolUSR, in: index),
+      let symbolInformation = try await index.doccSymbolInformation(
+        ofUSR: symbolUSR,
+        fetchSymbolGraph: fetchSymbolGraph
+      ),
       let markupExtensionFileURL = catalogIndex.documentationExtension(for: symbolInformation)
     else {
       return nil
@@ -140,7 +159,10 @@ fileprivate struct DocumentableSymbol {
     } else if let functionDecl = node.as(FunctionDeclSyntax.self) {
       self = DocumentableSymbol(node: functionDecl, position: functionDecl.name.positionAfterSkippingLeadingTrivia)
     } else if let subscriptDecl = node.as(SubscriptDeclSyntax.self) {
-      self = DocumentableSymbol(node: subscriptDecl, position: subscriptDecl.positionAfterSkippingLeadingTrivia)
+      self = DocumentableSymbol(
+        node: subscriptDecl.subscriptKeyword,
+        position: subscriptDecl.subscriptKeyword.positionAfterSkippingLeadingTrivia
+      )
     } else if let variableDecl = node.as(VariableDeclSyntax.self) {
       guard let identifier = variableDecl.bindings.only?.pattern.as(IdentifierPatternSyntax.self) else {
         return nil
