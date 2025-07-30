@@ -575,6 +575,7 @@ extension SwiftLanguageService {
     inFlightPublishDiagnosticsTasks[notification.textDocument.uri] = nil
     await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
     buildSettingsForOpenFiles[notification.textDocument.uri] = nil
+    await syntaxTreeManager.clearSyntaxTrees(for: notification.textDocument.uri)
     switch try? ReferenceDocumentURL(from: notification.textDocument.uri) {
     case .macroExpansion:
       break
