@@ -58,53 +58,16 @@ extension DocumentationLanguageService {
         guard let index = workspace.index(checkedFor: .deletedFiles) else {
           throw ResponseError.requestFailed(doccDocumentationError: .indexNotAvailable)
         }
+        let symbolGraphCache = SymbolGraphCache(sourceKitLSPServer: sourceKitLSPServer)
         guard let symbolLink = DocCSymbolLink(linkString: symbolName),
           let symbolOccurrence = try await index.primaryDefinitionOrDeclarationOccurrence(
             ofDocCSymbolLink: symbolLink,
-            fetchSymbolGraph: { location in
-              guard let symbolWorkspace = try await workspaceForDocument(uri: location.documentUri),
-                let languageService = try await languageService(for: location.documentUri, .swift, in: symbolWorkspace)
-                  as? SwiftLanguageService
-              else {
-                throw ResponseError.internalError("Unable to find Swift language service for \(location.documentUri)")
-              }
-              return try await languageService.withSnapshotFromDiskOpenedInSourcekitd(
-                uri: location.documentUri,
-                fallbackSettingsAfterTimeout: false
-              ) { (snapshot, compileCommand) in
-                let (_, _, symbolGraph) = try await languageService.cursorInfo(
-                  snapshot,
-                  compileCommand: compileCommand,
-                  Range(snapshot.position(of: location)),
-                  includeSymbolGraph: true
-                )
-                return symbolGraph
-              }
-            }
+            fetchSymbolGraph: symbolGraphCache.fetchSymbolGraph(at:)
           )
         else {
           throw ResponseError.requestFailed(doccDocumentationError: .symbolNotFound(symbolName))
         }
-        let symbolDocumentUri = symbolOccurrence.location.documentUri
-        guard
-          let symbolWorkspace = try await workspaceForDocument(uri: symbolDocumentUri),
-          let languageService = try await languageService(for: symbolDocumentUri, .swift, in: symbolWorkspace)
-            as? SwiftLanguageService
-        else {
-          throw ResponseError.internalError("Unable to find Swift language service for \(symbolDocumentUri)")
-        }
-        let symbolGraph = try await languageService.withSnapshotFromDiskOpenedInSourcekitd(
-          uri: symbolDocumentUri,
-          fallbackSettingsAfterTimeout: false
-        ) { snapshot, compileCommand in
-          try await languageService.cursorInfo(
-            snapshot,
-            compileCommand: compileCommand,
-            Range(snapshot.position(of: symbolOccurrence.location)),
-            includeSymbolGraph: true
-          ).symbolGraph
-        }
-        guard let symbolGraph else {
+        guard let symbolGraph = try await symbolGraphCache.fetchSymbolGraph(at: symbolOccurrence.location) else {
           throw ResponseError.internalError("Unable to retrieve symbol graph for \(symbolOccurrence.symbol.name)")
         }
         return try await documentationManager.renderDocCDocumentation(
