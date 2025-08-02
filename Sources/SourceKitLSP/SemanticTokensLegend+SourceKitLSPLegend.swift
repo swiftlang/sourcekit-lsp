@@ -24,7 +24,7 @@ extension SemanticTokenTypes {
 
 extension SemanticTokensLegend {
   /// The semantic tokens legend that is used between SourceKit-LSP and the editor.
-  static let sourceKitLSPLegend = SemanticTokensLegend(
+  package static let sourceKitLSPLegend = SemanticTokensLegend(
     tokenTypes: SemanticTokenTypes.all.map(\.name),
     tokenModifiers: SemanticTokenModifiers.all.compactMap(\.name)
   )

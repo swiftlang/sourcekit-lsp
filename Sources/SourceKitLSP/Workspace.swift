@@ -522,10 +522,10 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
 }
 
 /// Wrapper around a workspace that isn't being retained.
-struct WeakWorkspace {
-  weak var value: Workspace?
+package struct WeakWorkspace {
+  package weak var value: Workspace?
 
-  init(_ value: Workspace? = nil) {
+  package init(_ value: Workspace? = nil) {
     self.value = value
   }
 }
