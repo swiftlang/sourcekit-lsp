@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+@_spi(Testing) import BuildServerIntegration
 import BuildServerProtocol
-@_spi(Testing) import BuildSystemIntegration
 import LanguageServerProtocol
 import SKOptions
 import SKTestSupport
@@ -19,7 +19,7 @@ import SourceKitLSP
 import TSCBasic
 import XCTest
 
-final class FallbackBuildSystemTests: XCTestCase {
+final class FallbackBuildServerTests: XCTestCase {
 
   func testSwift() throws {
     let sdk = try AbsolutePath(validating: "/my/sdk").pathString
@@ -167,7 +167,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     XCTAssertNil(fallbackBuildSettings(for: source, language: Language(rawValue: "unknown"), options: .init()))
   }
 
-  func testFallbackBuildSettingsWhileBuildSystemIsComputingBuildSettings() async throws {
+  func testFallbackBuildSettingsWhileBuildServerIsComputingBuildSettings() async throws {
     let fallbackResultsReceived = WrappedSemaphore(name: "Fallback results received")
     let project = try await SwiftPMTestProject(
       files: [
@@ -176,7 +176,7 @@ final class FallbackBuildSystemTests: XCTestCase {
         """
       ],
       hooks: Hooks(
-        buildSystemHooks: BuildSystemHooks(
+        buildServerHooks: BuildServerHooks(
           preHandleRequest: { request in
             if request is TextDocumentSourceKitOptionsRequest {
               fallbackResultsReceived.waitOrXCTFail()

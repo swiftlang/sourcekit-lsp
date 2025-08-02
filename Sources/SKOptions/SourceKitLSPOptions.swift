@@ -311,14 +311,14 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     set { compilationDatabase = newValue }
   }
 
-  /// Dictionary with the following keys, defining options for files that aren't managed by any build system.
+  /// Dictionary with the following keys, defining options for files that aren't managed by any build server.
   private var fallbackBuildSystem: FallbackBuildSystemOptions?
   public var fallbackBuildSystemOrDefault: FallbackBuildSystemOptions {
     get { fallbackBuildSystem ?? .init() }
     set { fallbackBuildSystem = newValue }
   }
 
-  /// Number of milliseconds to wait for build settings from the build system before using fallback build settings.
+  /// Number of milliseconds to wait for build settings from the build server before using fallback build settings.
   public var buildSettingsTimeout: Int?
   public var buildSettingsTimeoutOrDefault: Duration {
     // The default timeout of 500ms was chosen arbitrarily without any measurements.

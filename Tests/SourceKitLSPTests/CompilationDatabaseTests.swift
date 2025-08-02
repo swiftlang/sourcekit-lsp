@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildSystemIntegration
+import BuildServerIntegration
 import LanguageServerProtocol
 import SKTestSupport
 import SwiftExtensions
@@ -57,7 +57,7 @@ final class CompilationDatabaseTests: XCTestCase {
 
     // Remove -DFOO from the compile commands.
 
-    try await project.changeFileOnDisk(FixedCompilationDatabaseBuildSystem.dbName, newMarkedContents: "")
+    try await project.changeFileOnDisk(FixedCompilationDatabaseBuildServer.dbName, newMarkedContents: "")
 
     // DocumentHighlight should now point to the definition in the `#else` block.
 

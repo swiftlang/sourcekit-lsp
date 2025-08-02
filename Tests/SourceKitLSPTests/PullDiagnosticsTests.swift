@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildSystemIntegration
+import BuildServerIntegration
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
@@ -147,7 +147,7 @@ final class PullDiagnosticsTests: XCTestCase {
   }
 
   func testNotesFromIntegratedSwiftSyntaxDiagnostics() async throws {
-    // Create a workspace that has compile_commands.json so that it has a build system but no compiler arguments
+    // Create a workspace that has compile_commands.json so that it has a build server but no compiler arguments
     // for test.swift so that we fall back to producing diagnostics from the built-in swift-syntax.
     let project = try await MultiFileTestProject(files: [
       "test.swift": "func foo() 1️⃣{2️⃣",

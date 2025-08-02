@@ -23,8 +23,8 @@
       "type" : "string"
     },
     "buildSettingsTimeout" : {
-      "description" : "Number of milliseconds to wait for build settings from the build system before using fallback build settings.",
-      "markdownDescription" : "Number of milliseconds to wait for build settings from the build system before using fallback build settings.",
+      "description" : "Number of milliseconds to wait for build settings from the build server before using fallback build settings.",
+      "markdownDescription" : "Number of milliseconds to wait for build settings from the build server before using fallback build settings.",
       "type" : "integer"
     },
     "cancelTextDocumentRequestsOnEditAndClose" : {
@@ -82,8 +82,8 @@
       "type" : "array"
     },
     "fallbackBuildSystem" : {
-      "description" : "Dictionary with the following keys, defining options for files that aren't managed by any build system.",
-      "markdownDescription" : "Dictionary with the following keys, defining options for files that aren't managed by any build system.",
+      "description" : "Dictionary with the following keys, defining options for files that aren't managed by any build server.",
+      "markdownDescription" : "Dictionary with the following keys, defining options for files that aren't managed by any build server.",
       "properties" : {
         "cCompilerFlags" : {
           "description" : "Extra arguments passed to the compiler for C files.",

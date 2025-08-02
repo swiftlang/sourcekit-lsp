@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+package import BuildServerIntegration
 import BuildServerProtocol
-package import BuildSystemIntegration
 package import Foundation
 package import LanguageServerProtocol
 import SKLogging
@@ -22,9 +22,9 @@ package struct DocCDocumentationManager: Sendable {
   private let referenceResolutionService: DocCReferenceResolutionService
   private let catalogIndexManager: DocCCatalogIndexManager
 
-  private let buildSystemManager: BuildSystemManager
+  private let buildServerManager: BuildServerManager
 
-  package init(buildSystemManager: BuildSystemManager) {
+  package init(buildServerManager: BuildServerManager) {
     let symbolResolutionServer = DocumentationServer(qualityOfService: .unspecified)
     doccServer = DocCServer(
       peer: symbolResolutionServer,
@@ -33,13 +33,13 @@ package struct DocCDocumentationManager: Sendable {
     catalogIndexManager = DocCCatalogIndexManager(server: doccServer)
     referenceResolutionService = DocCReferenceResolutionService()
     symbolResolutionServer.register(service: referenceResolutionService)
-    self.buildSystemManager = buildSystemManager
+    self.buildServerManager = buildServerManager
   }
 
   package func filesDidChange(_ events: [FileEvent]) async {
     for event in events {
-      for target in await buildSystemManager.targets(for: event.uri) {
-        guard let catalogURL = await buildSystemManager.doccCatalog(for: target) else {
+      for target in await buildServerManager.targets(for: event.uri) {
+        guard let catalogURL = await buildServerManager.doccCatalog(for: target) else {
           continue
         }
         await catalogIndexManager.invalidate(catalogURL)

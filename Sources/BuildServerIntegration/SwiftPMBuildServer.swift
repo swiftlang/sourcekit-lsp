@@ -80,12 +80,12 @@ fileprivate extension TSCBasic.AbsolutePath {
 
 fileprivate let preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
 
-/// Swift Package Manager build system and workspace support.
+/// Swift Package Manager build server and workspace support.
 ///
-/// This class implements the `BuiltInBuildSystem` interface to provide the build settings for a Swift
+/// This class implements the `BuiltInBuildServe` interface to provide the build settings for a Swift
 /// Package Manager (SwiftPM) package. The settings are determined by loading the Package.swift
 /// manifest using `libSwiftPM` and constructing a build plan using the default (debug) parameters.
-package actor SwiftPMBuildSystem: BuiltInBuildSystem {
+package actor SwiftPMBuildServer: BuiltInBuildServer {
   package enum Error: Swift.Error {
     /// Could not determine an appropriate toolchain for swiftpm to use for manifest loading.
     case cannotDetermineHostToolchain
@@ -104,11 +104,11 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
 
   package let connectionToSourceKitLSP: any Connection
 
-  /// Whether the `SwiftPMBuildSystem` is pointed at a `.build/index-build` directory that's independent of the
+  /// Whether the `SwiftPMBuildServer` is pointed at a `.build/index-build` directory that's independent of the
   /// user's build.
   private var isForIndexBuild: Bool { options.backgroundIndexingOrDefault }
 
-  // MARK: Build system options (set once and not modified)
+  // MARK: Build server options (set once and not modified)
 
   /// The directory containing `Package.swift`.
   private let projectRoot: URL
@@ -127,7 +127,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
   /// A `ObservabilitySystem` from `SwiftPM` that logs.
   private let observabilitySystem: ObservabilitySystem
 
-  // MARK: Build system state (modified on package reload)
+  // MARK: Build server state (modified on package reload)
 
   /// The entry point via with we can access the `SourceKitLSPAPI` provided by SwiftPM.
   private var buildDescription: SourceKitLSPAPI.BuildDescription?
@@ -137,17 +137,17 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
 
   private var targetDependencies: [BuildTargetIdentifier: Set<BuildTargetIdentifier>] = [:]
 
-  static package func searchForConfig(in path: URL, options: SourceKitLSPOptions) -> BuildSystemSpec? {
+  static package func searchForConfig(in path: URL, options: SourceKitLSPOptions) -> BuildServerSpec? {
 
     let packagePath = path.appendingPathComponent("Package.swift")
     if (try? String(contentsOf: packagePath, encoding: .utf8))?.contains("PackageDescription") ?? false {
-      return BuildSystemSpec(kind: .swiftPM, projectRoot: path, configPath: packagePath)
+      return BuildServerSpec(kind: .swiftPM, projectRoot: path, configPath: packagePath)
     }
 
     return nil
   }
 
-  /// Creates a build system using the Swift Package Manager, if this workspace is a package.
+  /// Creates a build server using the Swift Package Manager, if this workspace is a package.
   ///
   /// - Parameters:
   ///   - projectRoot: The directory containing `Package.swift`
@@ -318,9 +318,9 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
 
     packageLoadingQueue.async {
       await orLog("Initial package loading") {
-        // Schedule an initial generation of the build graph. Once the build graph is loaded, the build system will send
+        // Schedule an initial generation of the build graph. Once the build graph is loaded, the build server will send
         // call `fileHandlingCapabilityChanged`, which allows us to move documents to a workspace with this build
-        // system.
+        // server.
         try await self.reloadPackageAssumingOnPackageLoadingQueue()
       }
     }
@@ -539,7 +539,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
 
   package func buildTargetSources(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
     var result: [SourcesItem] = []
-    // TODO: Query The SwiftPM build system for the document's language and add it to SourceItem.data
+    // TODO: Query The SwiftPM build server for the document's language and add it to SourceItem.data
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1267)
     for target in request.targets {
       if target == .forPackageManifest {
@@ -641,7 +641,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
       // If `url` is not part of the target's source, it's most likely a header file. Fake compiler arguments for it
       // from a substitute file within the target.
       // Even if the file is not a header, this should give reasonable results: Say, there was a new `.cpp` file in a
-      // target and for some reason the `SwiftPMBuildSystem` doesn’t know about it. Then we would infer the target based
+      // target and for some reason the `SwiftPMBuildServer` doesn’t know about it. Then we would infer the target based
       // on the file's location on disk and generate compiler arguments for it by picking a source file in that target,
       // getting its compiler arguments and then patching up the compiler arguments by replacing the substitute file
       // with the `.cpp` file.

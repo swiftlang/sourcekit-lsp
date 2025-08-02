@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerIntegration
 import BuildServerProtocol
-import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
 import SKLogging
@@ -950,7 +950,7 @@ final class WorkspaceTests: XCTestCase {
     )
   }
 
-  func testWorkspaceOptionsOverrideBuildSystem() async throws {
+  func testWorkspaceOptionsOverrideBuildServer() async throws {
     let project = try await MultiFileTestProject(files: [
       ".sourcekit-lsp/config.json": """
       {
@@ -1001,7 +1001,7 @@ final class WorkspaceTests: XCTestCase {
     )
   }
 
-  func testImplicitWorkspaceOptionsOverrideBuildSystem() async throws {
+  func testImplicitWorkspaceOptionsOverrideBuildServer() async throws {
     let project = try await MultiFileTestProject(files: [
       "projA/.sourcekit-lsp/config.json": """
       {
@@ -1188,7 +1188,7 @@ final class WorkspaceTests: XCTestCase {
 
   func testSourceKitOptionsAllowingFallback() async throws {
     let hooks = Hooks(
-      buildSystemHooks: BuildSystemHooks(
+      buildServerHooks: BuildServerHooks(
         swiftPMTestHooks: SwiftPMTestHooks(
           reloadPackageDidStart: {
             // Essentially make sure that the package never loads, so we are forced to return fallback arguments.
@@ -1299,7 +1299,7 @@ final class WorkspaceTests: XCTestCase {
     try XCTAssertEqual(XCTUnwrap(prepareUpToDateAgain).didPrepareTarget, false)
   }
 
-  func testBuildSystemUsesStandardizedFileUrlsInsteadOfRealpath() async throws {
+  func testBuildServerUsesStandardizedFileUrlsInsteadOfRealpath() async throws {
     try SkipUnless.platformIsDarwin("The realpath vs standardized path difference only exists on macOS")
 
     // Explicitly create a directory at /tmp (which is a standardized path but whose realpath is /private/tmp)
@@ -1358,7 +1358,7 @@ final class WorkspaceTests: XCTestCase {
     try await testClient.send(SynchronizeRequest(index: true))
 
     // Check that we can infer build settings for the header from its main file. indexstore-db stores this main file
-    // path as `/private/tmp` while the build system only knows about it as `/tmp`.
+    // path as `/private/tmp` while the build server only knows about it as `/tmp`.
     let options = try await testClient.send(
       SourceKitOptionsRequest(
         textDocument: TextDocumentIdentifier(scratchDirectory.appendingPathComponent("test.h")),

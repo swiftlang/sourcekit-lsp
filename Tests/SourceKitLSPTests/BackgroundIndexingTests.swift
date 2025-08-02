@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerIntegration
 import BuildServerProtocol
-import BuildSystemIntegration
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
@@ -1382,7 +1382,7 @@ final class BackgroundIndexingTests: XCTestCase {
     let packageInitialized = AtomicBool(initialValue: false)
 
     var testHooks = Hooks()
-    testHooks.buildSystemHooks.swiftPMTestHooks.reloadPackageDidStart = {
+    testHooks.buildServerHooks.swiftPMTestHooks.reloadPackageDidStart = {
       if packageInitialized.value {
         XCTFail("Build graph should not get reloaded when random file gets added")
       }
@@ -1776,7 +1776,7 @@ final class BackgroundIndexingTests: XCTestCase {
     try SkipUnless.longTestsEnabled()
     let backgroundIndexingPaused = WrappedSemaphore(name: "Background indexing was paused")
     let hooks = Hooks(
-      buildSystemHooks: BuildSystemHooks(
+      buildServerHooks: BuildServerHooks(
         swiftPMTestHooks: SwiftPMTestHooks(
           reloadPackageDidFinish: {
             backgroundIndexingPaused.waitOrXCTFail()
@@ -1818,7 +1818,7 @@ final class BackgroundIndexingTests: XCTestCase {
   func testBackgroundIndexingRunsOnSynchronizeRequestEvenIfPaused() async throws {
     let backgroundIndexingPaused = WrappedSemaphore(name: "Background indexing was paused")
     let hooks = Hooks(
-      buildSystemHooks: BuildSystemHooks(
+      buildServerHooks: BuildServerHooks(
         swiftPMTestHooks: SwiftPMTestHooks(
           reloadPackageDidFinish: {
             backgroundIndexingPaused.waitOrXCTFail()
@@ -1854,7 +1854,7 @@ final class BackgroundIndexingTests: XCTestCase {
   func testPausingBackgroundIndexingDoesNotStopPreparation() async throws {
     let backgroundIndexingPaused = WrappedSemaphore(name: "Background indexing was paused")
     let hooks = Hooks(
-      buildSystemHooks: BuildSystemHooks(
+      buildServerHooks: BuildServerHooks(
         swiftPMTestHooks: SwiftPMTestHooks(
           reloadPackageDidFinish: {
             backgroundIndexingPaused.waitOrXCTFail()
@@ -2080,7 +2080,7 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testUseResponseFileIfTooManyArguments() async throws {
-    // The build system returns too many arguments to fit them into a command line invocation, so we need to use a
+    // The build server returns too many arguments to fit them into a command line invocation, so we need to use a
     // response file to invoke the indexer.
 
     final class BuildServer: CustomBuildServer {
@@ -2204,10 +2204,10 @@ final class BackgroundIndexingTests: XCTestCase {
     )
   }
 
-  func testBuildSystemUsesStandardizedFileUrlsInsteadOfRealpath() async throws {
+  func testBuildServerUsesStandardizedFileUrlsInsteadOfRealpath() async throws {
     try SkipUnless.platformIsDarwin("The realpath vs standardized path difference only exists on macOS")
 
-    final class BuildSystem: CustomBuildServer {
+    final class BuildServer: CustomBuildServer {
       let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
       private let projectRoot: URL
       private var testFileURL: URL { projectRoot.appendingPathComponent("test.c").standardized }
@@ -2244,7 +2244,7 @@ final class BackgroundIndexingTests: XCTestCase {
       files: [
         "test.c": "void x() {}"
       ],
-      buildServer: BuildSystem.self,
+      buildServer: BuildServer.self,
       hooks: Hooks(
         indexHooks: IndexHooks(
           updateIndexStoreTaskDidStart: { task in
@@ -2530,8 +2530,8 @@ final class BackgroundIndexingTests: XCTestCase {
     try await project.testClient.send(SynchronizeRequest(index: true))
   }
 
-  func testBuildSystemDoesNotReturnIndexUnitOutputPath() async throws {
-    final class BuildSystem: CustomBuildServer {
+  func testBuildServerDoesNotReturnIndexUnitOutputPath() async throws {
+    final class BuildServer: CustomBuildServer {
       let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
       private let projectRoot: URL
 
@@ -2575,7 +2575,7 @@ final class BackgroundIndexingTests: XCTestCase {
       files: [
         "test.swift": "func myTestFunc() {}"
       ],
-      buildServer: BuildSystem.self,
+      buildServer: BuildServer.self,
       enableBackgroundIndexing: true
     )
 

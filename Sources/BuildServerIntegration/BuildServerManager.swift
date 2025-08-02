@@ -70,7 +70,7 @@ package struct SourceFileInfo: Sendable {
   package var mayContainTests: Bool
 
   /// Source files returned here fall into two categories:
-  ///  - Buildable source files are files that can be built by the build system and that make sense to background index
+  ///  - Buildable source files are files that can be built by the build server and that make sense to background index
   ///  - Non-buildable source files include eg. the SwiftPM package manifest or header files. We have sufficient
   ///    compiler arguments for these files to provide semantic editor functionality but we can't build them.
   package var isBuildable: Bool
@@ -134,21 +134,21 @@ fileprivate extension InitializeBuildResponse {
   }
 }
 
-/// A build system adapter is responsible for receiving messages from the `BuildSystemManager` and forwarding them to
-/// the build system. For built-in build systems, this means that we need to translate the BSP messages to methods in
-/// the `BuiltInBuildSystem` protocol. For external (aka. out-of-process, aka. BSP servers) build systems, this means
-/// that we need to manage the external build system's lifetime.
-private enum BuildSystemAdapter {
-  case builtIn(BuiltInBuildSystemAdapter, connectionToBuildSystem: any Connection)
-  case external(ExternalBuildSystemAdapter)
+/// A build server adapter is responsible for receiving messages from the `BuildServerManager` and forwarding them to
+/// the build server. For built-in build servers, this means that we need to translate the BSP messages to methods in
+/// the `BuiltInBuildServer` protocol. For external (aka. out-of-process, aka. BSP servers) build servers, this means
+/// that we need to manage the external build server's lifetime.
+private enum BuildServerAdapter {
+  case builtIn(BuiltInBuildServerAdapter, connectionToBuildServer: any Connection)
+  case external(ExternalBuildServerAdapter)
   /// A message handler that was created by `injectBuildServer` and will handle all BSP messages.
   case injected(any Connection)
 
   /// Send a notification to the build server.
   func send(_ notification: some NotificationType) async {
     switch self {
-    case .builtIn(_, let connectionToBuildSystem):
-      connectionToBuildSystem.send(notification)
+    case .builtIn(_, let connectionToBuildServer):
+      connectionToBuildServer.send(notification)
     case .external(let external):
       await external.send(notification)
     case .injected(let connection):
@@ -159,8 +159,8 @@ private enum BuildSystemAdapter {
   /// Send a request to the build server.
   func send<Request: RequestType>(_ request: Request) async throws -> Request.Response {
     switch self {
-    case .builtIn(_, let connectionToBuildSystem):
-      return try await connectionToBuildSystem.send(request)
+    case .builtIn(_, let connectionToBuildServer):
+      return try await connectionToBuildServer.send(request)
     case .external(let external):
       return try await external.send(request)
     case .injected(let messageHandler):
@@ -194,93 +194,93 @@ private enum BuildSystemAdapter {
   }
 }
 
-private extension BuildSystemSpec {
-  private func createBuiltInBuildSystemAdapter(
+private extension BuildServerSpec {
+  private func createBuiltInBuildServerAdapter(
     messagesToSourceKitLSPHandler: any MessageHandler,
-    buildSystemHooks: BuildSystemHooks,
-    _ createBuildSystem: @Sendable (_ connectionToSourceKitLSP: any Connection) async throws -> BuiltInBuildSystem?
-  ) async -> BuildSystemAdapter? {
+    buildServerHooks: BuildServerHooks,
+    _ createBuildServer: @Sendable (_ connectionToSourceKitLSP: any Connection) async throws -> BuiltInBuildServer?
+  ) async -> BuildServerAdapter? {
     let connectionToSourceKitLSP = LocalConnection(
-      receiverName: "BuildSystemManager for \(projectRoot.lastPathComponent)",
+      receiverName: "BuildServerManager for \(projectRoot.lastPathComponent)",
       handler: messagesToSourceKitLSPHandler
     )
 
-    let buildSystem = await orLog("Creating build system") {
-      try await createBuildSystem(connectionToSourceKitLSP)
+    let buildServer = await orLog("Creating build server") {
+      try await createBuildServer(connectionToSourceKitLSP)
     }
-    guard let buildSystem else {
-      logger.log("Failed to create build system at \(projectRoot)")
+    guard let buildServer else {
+      logger.log("Failed to create build server at \(projectRoot)")
       return nil
     }
-    logger.log("Created \(type(of: buildSystem), privacy: .public) at \(projectRoot)")
-    let buildSystemAdapter = BuiltInBuildSystemAdapter(
-      underlyingBuildSystem: buildSystem,
+    logger.log("Created \(type(of: buildServer), privacy: .public) at \(projectRoot)")
+    let buildServerAdapter = BuiltInBuildServerAdapter(
+      underlyingBuildServer: buildServer,
       connectionToSourceKitLSP: connectionToSourceKitLSP,
-      buildSystemHooks: buildSystemHooks
+      buildServerHooks: buildServerHooks
     )
-    let connectionToBuildSystem = LocalConnection(
-      receiverName: "\(type(of: buildSystem)) for \(projectRoot.lastPathComponent)",
-      handler: buildSystemAdapter
+    let connectionToBuildServer = LocalConnection(
+      receiverName: "\(type(of: buildServer)) for \(projectRoot.lastPathComponent)",
+      handler: buildServerAdapter
     )
-    return .builtIn(buildSystemAdapter, connectionToBuildSystem: connectionToBuildSystem)
+    return .builtIn(buildServerAdapter, connectionToBuildServer: connectionToBuildServer)
   }
 
-  /// Create a `BuildSystemAdapter` that manages a build system of this kind and return a connection that can be used
-  /// to send messages to the build system.
-  func createBuildSystemAdapter(
+  /// Create a `BuildServerAdapter` that manages a build server of this kind and return a connection that can be used
+  /// to send messages to the build server.
+  func createBuildServerAdapter(
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
-    buildSystemHooks: BuildSystemHooks,
+    buildServerHooks: BuildServerHooks,
     messagesToSourceKitLSPHandler: any MessageHandler
-  ) async -> BuildSystemAdapter? {
+  ) async -> BuildServerAdapter? {
     switch self.kind {
-    case .buildServer:
-      let buildSystem = await orLog("Creating external build system") {
-        try await ExternalBuildSystemAdapter(
+    case .externalBuildServer:
+      let buildServer = await orLog("Creating external build server") {
+        try await ExternalBuildServerAdapter(
           projectRoot: projectRoot,
           configPath: configPath,
           messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
         )
       }
-      guard let buildSystem else {
-        logger.log("Failed to create external build system at \(projectRoot)")
+      guard let buildServer else {
+        logger.log("Failed to create external build server at \(projectRoot)")
         return nil
       }
       logger.log("Created external build server at \(projectRoot)")
-      return .external(buildSystem)
+      return .external(buildServer)
     case .jsonCompilationDatabase:
-      return await createBuiltInBuildSystemAdapter(
+      return await createBuiltInBuildServerAdapter(
         messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
-        buildSystemHooks: buildSystemHooks
+        buildServerHooks: buildServerHooks
       ) { connectionToSourceKitLSP in
-        try JSONCompilationDatabaseBuildSystem(
+        try JSONCompilationDatabaseBuildServer(
           configPath: configPath,
           toolchainRegistry: toolchainRegistry,
           connectionToSourceKitLSP: connectionToSourceKitLSP
         )
       }
     case .fixedCompilationDatabase:
-      return await createBuiltInBuildSystemAdapter(
+      return await createBuiltInBuildServerAdapter(
         messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
-        buildSystemHooks: buildSystemHooks
+        buildServerHooks: buildServerHooks
       ) { connectionToSourceKitLSP in
-        try FixedCompilationDatabaseBuildSystem(
+        try FixedCompilationDatabaseBuildServer(
           configPath: configPath,
           connectionToSourceKitLSP: connectionToSourceKitLSP
         )
       }
     case .swiftPM:
       #if !NO_SWIFTPM_DEPENDENCY
-      return await createBuiltInBuildSystemAdapter(
+      return await createBuiltInBuildServerAdapter(
         messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
-        buildSystemHooks: buildSystemHooks
+        buildServerHooks: buildServerHooks
       ) { connectionToSourceKitLSP in
-        try await SwiftPMBuildSystem(
+        try await SwiftPMBuildServer(
           projectRoot: projectRoot,
           toolchainRegistry: toolchainRegistry,
           options: options,
           connectionToSourceKitLSP: connectionToSourceKitLSP,
-          testHooks: buildSystemHooks.swiftPMTestHooks
+          testHooks: buildServerHooks.swiftPMTestHooks
         )
       }
       #else
@@ -288,7 +288,7 @@ private extension BuildSystemSpec {
       #endif
     case .injected(let injector):
       let connectionToSourceKitLSP = LocalConnection(
-        receiverName: "BuildSystemManager for \(projectRoot.lastPathComponent)",
+        receiverName: "BuildServerManager for \(projectRoot.lastPathComponent)",
         handler: messagesToSourceKitLSPHandler
       )
       return .injected(
@@ -298,48 +298,48 @@ private extension BuildSystemSpec {
   }
 }
 
-/// Entry point for all build system queries.
-package actor BuildSystemManager: QueueBasedMessageHandler {
+/// Entry point for all build server queries.
+package actor BuildServerManager: QueueBasedMessageHandler {
   package let messageHandlingHelper = QueueBasedMessageHandlerHelper(
-    signpostLoggingCategory: "build-system-manager-message-handling",
+    signpostLoggingCategory: "build-server-manager-message-handling",
     createLoggingScope: false
   )
 
-  package let messageHandlingQueue = AsyncQueue<BuildSystemMessageDependencyTracker>()
+  package let messageHandlingQueue = AsyncQueue<BuildServerMessageDependencyTracker>()
 
-  /// The path to the main configuration file (or directory) that this build system manages.
+  /// The path to the main configuration file (or directory) that this build server manages.
   ///
   /// Some examples:
   ///   - The path to `Package.swift` for SwiftPM packages
   ///   - The path to `compile_commands.json` for a JSON compilation database
   ///
-  /// `nil` if the `BuildSystemManager` does not have an underlying build system.
+  /// `nil` if the `BuildServerManager` does not have an underlying build server.
   package let configPath: URL?
 
   /// The files for which the delegate has requested change notifications, ie. the files for which the delegate wants to
   /// get `fileBuildSettingsChanged` and `filesDependenciesUpdated` callbacks.
   private var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
 
-  private var connectionToClient: BuildSystemManagerConnectionToClient
+  private var connectionToClient: BuildServerManagerConnectionToClient
 
-  /// The build system adapter that is used to answer build system queries.
-  private var buildSystemAdapter: BuildSystemAdapter?
+  /// The build serer adapter that is used to answer build server queries.
+  private var buildServerAdapter: BuildServerAdapter?
 
-  /// The build system adapter after initialization finishes. When sending messages to the BSP server, this should be
-  /// preferred over `buildSystemAdapter` because no messages must be sent to the build server before initialization
+  /// The build server adapter after initialization finishes. When sending messages to the BSP server, this should be
+  /// preferred over `buildServerAdapter` because no messages must be sent to the build server before initialization
   /// finishes.
-  private var buildSystemAdapterAfterInitialized: BuildSystemAdapter? {
+  private var buildServerAdapterAfterInitialized: BuildServerAdapter? {
     get async {
       _ = await initializeResult.value
-      return buildSystemAdapter
+      return buildServerAdapter
     }
   }
 
   /// Provider of file to main file mappings.
   private var mainFilesProvider: MainFilesProvider?
 
-  /// Build system delegate that will receive notifications about setting changes, etc.
-  private weak var delegate: BuildSystemManagerDelegate?
+  /// Build server delegate that will receive notifications about setting changes, etc.
+  private weak var delegate: BuildServerManagerDelegate?
 
   /// The list of toolchains that are available.
   ///
@@ -359,8 +359,8 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
   }
 
-  /// For tasks from the build system that should create a work done progress in the client, a mapping from the `TaskId`
-  /// in the build system to a `WorkDoneProgressManager` that manages that work done progress in the client.
+  /// For tasks from the build server that should create a work done progress in the client, a mapping from the `TaskId`
+  /// in the build server to a `WorkDoneProgressManager` that manages that work done progress in the client.
   private var workDoneProgressManagers: [TaskIdentifier: WorkDoneProgressManager] = [:]
 
   /// Debounces calls to `delegate.filesDependenciesUpdated`.
@@ -381,7 +381,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
 
   /// Debounces calls to `delegate.fileBuildSettingsChanged`.
   ///
-  /// This helps in the following situation: A build system takes 5s to return build settings for a file and we have 10
+  /// This helps in the following situation: A build server takes 5s to return build settings for a file and we have 10
   /// requests for those build settings coming in that time period. Once we get build settings, we get 10 calls to
   /// `resultReceivedAfterTimeout` in `buildSettings(for:in:language:fallbackAfterTimeout:)`, all for the same document.
   /// But calling `fileBuildSettingsChanged` once is totally sufficient.
@@ -440,20 +440,20 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   }
 
   package init(
-    buildSystemSpec: BuildSystemSpec?,
+    buildServerSpec: BuildServerSpec?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
-    connectionToClient: BuildSystemManagerConnectionToClient,
-    buildSystemHooks: BuildSystemHooks
+    connectionToClient: BuildServerManagerConnectionToClient,
+    buildServerHooks: BuildServerHooks
   ) async {
     self.toolchainRegistry = toolchainRegistry
     self.options = options
     self.connectionToClient = connectionToClient
-    self.configPath = buildSystemSpec?.configPath
-    self.buildSystemAdapter = await buildSystemSpec?.createBuildSystemAdapter(
+    self.configPath = buildServerSpec?.configPath
+    self.buildServerAdapter = await buildServerSpec?.createBuildServerAdapter(
       toolchainRegistry: toolchainRegistry,
       options: options,
-      buildSystemHooks: buildSystemHooks,
+      buildServerHooks: buildServerHooks,
       messagesToSourceKitLSPHandler: WeakMessageHandler(self)
     )
 
@@ -464,7 +464,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     ) {
       [weak self] (filesWithUpdatedDependencies) in
       guard let self, let delegate = await self.delegate else {
-        logger.fault("Not calling filesDependenciesUpdated because no delegate exists in SwiftPMBuildSystem")
+        logger.fault("Not calling filesDependenciesUpdated because no delegate exists in SwiftPMBuildServer")
         return
       }
       let changedWatchedFiles = await self.watchedFilesReferencing(mainFiles: filesWithUpdatedDependencies)
@@ -483,7 +483,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     ) {
       [weak self] (filesWithChangedBuildSettings) in
       guard let self, let delegate = await self.delegate else {
-        logger.fault("Not calling fileBuildSettingsChanged because no delegate exists in SwiftPMBuildSystem")
+        logger.fault("Not calling fileBuildSettingsChanged because no delegate exists in SwiftPMBuildServer")
         return
       }
       if !filesWithChangedBuildSettings.isEmpty {
@@ -494,44 +494,44 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     // TODO: Forward file watch patterns from this initialize request to the client
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1671)
     initializeResult = Task { () -> InitializeBuildResponse? in
-      guard let buildSystemAdapter else {
+      guard let buildServerAdapter else {
         return nil
       }
-      guard let buildSystemSpec else {
-        logger.fault("If we have a connectionToBuildSystem, we must have had a buildSystemSpec")
+      guard let buildServerSpec else {
+        logger.fault("If we have a connectionToBuildServer, we must have had a buildServerSpec")
         return nil
       }
-      let initializeResponse = await orLog("Initializing build system") {
-        try await buildSystemAdapter.send(
+      let initializeResponse = await orLog("Initializing build server") {
+        try await buildServerAdapter.send(
           InitializeBuildRequest(
             displayName: "SourceKit-LSP",
             version: "",
             bspVersion: "2.2.0",
-            rootUri: URI(buildSystemSpec.projectRoot),
+            rootUri: URI(buildServerSpec.projectRoot),
             capabilities: BuildClientCapabilities(languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift])
           )
         )
       }
       if let initializeResponse, !(initializeResponse.sourceKitData?.sourceKitOptionsProvider ?? false),
-        case .external(let externalBuildSystemAdapter) = buildSystemAdapter
+        case .external(let externalBuildServerAdapter) = buildServerAdapter
       {
-        // The BSP server does not support the pull-based settings model. Inject a `LegacyBuildServerBuildSystem` that
-        // offers the pull-based model to `BuildSystemManager` and uses the push-based model to get build settings from
+        // The BSP server does not support the pull-based settings model. Inject a `LegacyBuildServerBuildServer` that
+        // offers the pull-based model to `BuildServerManager` and uses the push-based model to get build settings from
         // the build server.
         logger.log("Launched a legacy BSP server. Using push-based build settings model.")
-        let legacyBuildServer = await LegacyBuildServerBuildSystem(
-          projectRoot: buildSystemSpec.projectRoot,
-          configPath: buildSystemSpec.configPath,
+        let legacyBuildServer = await LegacyBuildServer(
+          projectRoot: buildServerSpec.projectRoot,
+          configPath: buildServerSpec.configPath,
           initializationData: initializeResponse,
-          externalBuildSystemAdapter
+          externalBuildServerAdapter
         )
-        let adapter = BuiltInBuildSystemAdapter(
-          underlyingBuildSystem: legacyBuildServer,
+        let adapter = BuiltInBuildServerAdapter(
+          underlyingBuildServer: legacyBuildServer,
           connectionToSourceKitLSP: legacyBuildServer.connectionToSourceKitLSP,
-          buildSystemHooks: buildSystemHooks
+          buildServerHooks: buildServerHooks
         )
-        let connectionToBuildSystem = LocalConnection(receiverName: "Legacy BSP server", handler: adapter)
-        self.buildSystemAdapter = .builtIn(adapter, connectionToBuildSystem: connectionToBuildSystem)
+        let connectionToBuildSerer = LocalConnection(receiverName: "Legacy BSP server", handler: adapter)
+        self.buildServerAdapter = .builtIn(adapter, connectionToBuildServer: connectionToBuildSerer)
       }
       Task {
         var filesToWatch = initializeResponse?.sourceKitData?.watchers ?? []
@@ -541,68 +541,68 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         }
         await connectionToClient.watchFiles(filesToWatch)
       }
-      await buildSystemAdapter.send(OnBuildInitializedNotification())
+      await buildServerAdapter.send(OnBuildInitializedNotification())
       return initializeResponse
     }
   }
 
   /// Explicitly shut down the build server.
   ///
-  /// The build server is automatically shut down using a background task when `BuildSystemManager` is deallocated.
+  /// The build server is automatically shut down using a background task when `BuildServerManager` is deallocated.
   /// This, however, leads to possible race conditions where the shutdown task might not finish before the test is done,
   /// which could result in the connection being reported as a leak. To avoid this problem, we want to explicitly shut
   /// down the build server when the `SourceKitLSPServer` gets shut down.
   package func shutdown() async {
     // Clear any pending work done progresses from the build server.
     self.workDoneProgressManagers.removeAll()
-    guard let buildSystemAdapter = await self.buildSystemAdapterAfterInitialized else {
+    guard let buildServerAdapter = await self.buildServerAdapterAfterInitialized else {
       return
     }
     await orLog("Sending shutdown request to build server") {
       // Give the build server 2 seconds to shut down by itself. If it doesn't shut down within that time, terminate it.
       try await withTimeout(.seconds(2)) {
-        _ = try await buildSystemAdapter.send(BuildShutdownRequest())
-        await buildSystemAdapter.send(OnBuildExitNotification())
+        _ = try await buildServerAdapter.send(BuildShutdownRequest())
+        await buildServerAdapter.send(OnBuildExitNotification())
       }
     }
-    if case .external(let externalBuildSystemAdapter) = buildSystemAdapter {
+    if case .external(let externalBuildServerAdapter) = buildServerAdapter {
       await orLog("Terminating external build server") {
         // Give the build server 1 second to exit after receiving the `build/exit` notification. If it doesn't exit
         // within that time, terminate it.
-        try await externalBuildSystemAdapter.terminateIfRunning(after: .seconds(1))
+        try await externalBuildServerAdapter.terminateIfRunning(after: .seconds(1))
       }
     }
-    self.buildSystemAdapter = nil
+    self.buildServerAdapter = nil
   }
 
   deinit {
     // Shut down the build server before closing the connection to it
-    Task { [buildSystemAdapter, initializeResult] in
-      guard let buildSystemAdapter else {
+    Task { [buildServerAdapter, initializeResult] in
+      guard let buildServerAdapter else {
         return
       }
       // We are accessing the raw connection to the build server, so we need to ensure that it has been initialized here
       _ = await initializeResult?.value
       await orLog("Sending shutdown request to build server") {
-        _ = try await buildSystemAdapter.send(BuildShutdownRequest())
-        await buildSystemAdapter.send(OnBuildExitNotification())
+        _ = try await buildServerAdapter.send(BuildShutdownRequest())
+        await buildServerAdapter.send(OnBuildExitNotification())
       }
     }
   }
 
-  /// - Note: Needed because `BuildSystemManager` is created before `Workspace` is initialized and `Workspace` needs to
-  ///   create the `BuildSystemManager`, then initialize itself and then set itself as the delegate.
-  package func setDelegate(_ delegate: BuildSystemManagerDelegate?) {
+  /// - Note: Needed because `BuildSererManager` is created before `Workspace` is initialized and `Workspace` needs to
+  ///   create the `BuildServerManager`, then initialize itself and then set itself as the delegate.
+  package func setDelegate(_ delegate: BuildServerManagerDelegate?) {
     self.delegate = delegate
   }
 
-  /// - Note: Needed because we need the `indexStorePath` and `indexDatabasePath` from the build system to create an
+  /// - Note: Needed because we need the `indexStorePath` and `indexDatabasePath` from the build server to create an
   ///   IndexStoreDB, which serves as the `MainFilesProvider`. And thus this can't be set during initialization.
   package func setMainFilesProvider(_ mainFilesProvider: MainFilesProvider?) {
     self.mainFilesProvider = mainFilesProvider
   }
 
-  // MARK: Handling messages from the build system
+  // MARK: Handling messages from the build server
 
   package func handle(notification: some NotificationType) async {
     switch notification {
@@ -718,7 +718,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     workDoneProgressManagers[notification.taskId.id] = nil
   }
 
-  // MARK: Build System queries
+  // MARK: Build server queries
 
   /// Returns the toolchain that should be used to process the given document.
   package func toolchain(
@@ -761,8 +761,8 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
   }
 
-  /// Ask the build system if it explicitly specifies a language for this document. Return `nil` if it does not.
-  private func languageInferredFromBuildSystem(
+  /// Ask the build server if it explicitly specifies a language for this document. Return `nil` if it does not.
+  private func languageInferredFromBuildServer(
     for document: DocumentURI,
     in target: BuildTargetIdentifier
   ) async throws -> Language? {
@@ -785,10 +785,10 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// Returns the language that a document should be interpreted in for background tasks where the editor doesn't
   /// specify the document's language.
   package func defaultLanguage(for document: DocumentURI, in target: BuildTargetIdentifier) async -> Language? {
-    let languageFromBuildSystem = await orLog("Getting source files to determine default language") {
-      try await languageInferredFromBuildSystem(for: document, in: target)
+    let languageFromBuildServer = await orLog("Getting source files to determine default language") {
+      try await languageInferredFromBuildServer(for: document, in: target)
     }
-    return languageFromBuildSystem ?? Language(inferredFromFileExtension: document)
+    return languageFromBuildServer ?? Language(inferredFromFileExtension: document)
   }
 
   /// Retrieve information about the given source file within the build server.
@@ -864,15 +864,15 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
   }
 
-  /// Returns the build settings for `document` from `buildSystem`.
+  /// Returns the build settings for `document` from `buildServer`.
   ///
   /// Implementation detail of `buildSettings(for:language:)`.
-  private func buildSettingsFromBuildSystem(
+  private func buildSettingsFromBuildServer(
     for document: DocumentURI,
     in target: BuildTargetIdentifier,
     language: Language
   ) async throws -> FileBuildSettings? {
-    guard let buildSystemAdapter = await buildSystemAdapterAfterInitialized else {
+    guard let buildServerAdapter = await buildServerAdapterAfterInitialized else {
       return nil
     }
     let request = TextDocumentSourceKitOptionsRequest(
@@ -881,7 +881,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       language: language
     )
     let response = try await cachedAdjustedSourceKitOptions.get(request, isolation: self) { request in
-      let options = try await buildSystemAdapter.send(request)
+      let options = try await buildServerAdapter.send(request)
       switch language.semanticKind {
       case .swift:
         return options?.adjustArgsForSemanticSwiftFunctionality(fileToIndex: document)
@@ -922,19 +922,19 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     fallbackAfterTimeout: Bool
   ) async -> FileBuildSettings? {
     if let target {
-      let buildSettingsFromBuildSystem = await orLog("Getting build settings") {
+      let buildSettingsFromBuildServer = await orLog("Getting build settings") {
         if fallbackAfterTimeout {
           try await withTimeout(options.buildSettingsTimeoutOrDefault) {
-            return try await self.buildSettingsFromBuildSystem(for: document, in: target, language: language)
+            return try await self.buildSettingsFromBuildServer(for: document, in: target, language: language)
           } resultReceivedAfterTimeout: {
             await self.filesBuildSettingsChangedDebouncer.scheduleCall([document])
           }
         } else {
-          try await self.buildSettingsFromBuildSystem(for: document, in: target, language: language)
+          try await self.buildSettingsFromBuildServer(for: document, in: target, language: language)
         }
       }
-      if let buildSettingsFromBuildSystem {
-        return buildSettingsFromBuildSystem
+      if let buildSettingsFromBuildServer {
+        return buildSettingsFromBuildServer
       }
     }
 
@@ -947,8 +947,8 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     else {
       return nil
     }
-    if buildSystemAdapter == nil {
-      // If there is no build system and we only have the fallback build system, we will never get real build settings.
+    if buildServerAdapter == nil {
+      // If there is no build server and we only have the fallback build server, we will never get real build settings.
       // Consider the build settings non-fallback.
       settings.isFallback = false
     }
@@ -965,7 +965,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// When a target is passed in, the build settings for the document, interpreted as part of that target, are returned,
   /// otherwise a canonical target is inferred for the source file.
   ///
-  /// If no language is passed, this method tries to infer the language of the document from the build system. If that
+  /// If no language is passed, this method tries to infer the language of the document from the build server. If that
   /// fails, it returns `nil`.
   package func buildSettingsInferredFromMainFile(
     for document: DocumentURI,
@@ -996,7 +996,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         } else if let language = Language(inferredFromFileExtension: mainFile) {
           languageForFile = language
         } else {
-          // We don't know the language as which to interpret the document, so we can't ask the build system for its
+          // We don't know the language as which to interpret the document, so we can't ask the build server for its
           // settings.
           return nil
         }
@@ -1038,12 +1038,12 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   }
 
   package func waitForUpToDateBuildGraph() async {
-    await orLog("Waiting for build system updates") {
-      let _: VoidResponse? = try await buildSystemAdapterAfterInitialized?.send(
+    await orLog("Waiting for build server updates") {
+      let _: VoidResponse? = try await buildServerAdapterAfterInitialized?.send(
         WorkspaceWaitForBuildSystemUpdatesRequest()
       )
     }
-    // Handle any messages the build system might have sent us while updating.
+    // Handle any messages the build server might have sent us while updating.
     await messageHandlingQueue.async(metadata: .stateChange) {}.valuePropagatingCancellation
 
     // Ensure that we send out all delegate calls so that everybody is informed about the changes.
@@ -1113,7 +1113,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   }
 
   package func prepare(targets: Set<BuildTargetIdentifier>) async throws {
-    let _: VoidResponse? = try await buildSystemAdapterAfterInitialized?.send(
+    let _: VoidResponse? = try await buildServerAdapterAfterInitialized?.send(
       BuildTargetPrepareRequest(targets: targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
     )
     await orLog("Calling fileDependenciesUpdated") {
@@ -1132,13 +1132,13 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   }
 
   private func buildTargets() async throws -> [BuildTargetIdentifier: BuildTargetInfo] {
-    guard let buildSystemAdapter = await buildSystemAdapterAfterInitialized else {
+    guard let buildServerAdapter = await buildServerAdapterAfterInitialized else {
       return [:]
     }
 
     let request = WorkspaceBuildTargetsRequest()
     let result = try await cachedBuildTargets.get(request, isolation: self) { request in
-      let buildTargets = try await buildSystemAdapter.send(request).targets
+      let buildTargets = try await buildServerAdapter.send(request).targets
       let (depths, dependents) = await self.targetDepthsAndDependents(for: buildTargets)
       var result: [BuildTargetIdentifier: BuildTargetInfo] = [:]
       result.reserveCapacity(buildTargets.count)
@@ -1172,7 +1172,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   }
 
   package func sourceFiles(in targets: Set<BuildTargetIdentifier>) async throws -> [SourcesItem] {
-    guard let buildSystemAdapter = await buildSystemAdapterAfterInitialized, !targets.isEmpty else {
+    guard let buildServerAdapter = await buildServerAdapterAfterInitialized, !targets.isEmpty else {
       return []
     }
 
@@ -1192,7 +1192,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     }
 
     let response = try await cachedTargetSources.get(request, isolation: self) { request in
-      try await buildSystemAdapter.send(request)
+      try await buildServerAdapter.send(request)
     }
     return response.items
   }
@@ -1230,7 +1230,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     return try await sourceFilesAndDirectories().buildableSourceFiles
   }
 
-  /// Get all files and directories that are known to the build system, ie. that are returned by a `buildTarget/sources`
+  /// Get all files and directories that are known to the build server, ie. that are returned by a `buildTarget/sources`
   /// request for any target in the project.
   ///
   /// - Important: This method returns both buildable and non-buildable source files. Callers need to check
@@ -1337,8 +1337,8 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
   /// Returns all main files that include the given document.
   ///
   /// On Darwin platforms, this also performs the following normalization: indexstore-db by itself returns realpaths
-  /// but the build system might be using standardized Darwin paths (eg. realpath is `/private/tmp` but the standardized
-  /// path is `/tmp`). If the realpath that indexstore-db returns could not be found in the build system's source files
+  /// but the build server might be using standardized Darwin paths (eg. realpath is `/private/tmp` but the standardized
+  /// path is `/tmp`). If the realpath that indexstore-db returns could not be found in the build server's source files
   /// but the standardized path is part of the source files, return the standardized path instead.
   package func mainFiles(containing uri: DocumentURI) async -> [DocumentURI] {
     guard let mainFilesProvider else {
@@ -1351,7 +1351,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         if mainFile == uri {
           // Do not apply the standardized file normalization to the source file itself. Otherwise we would get the
           // following behavior:
-          //  - We have a build system that uses standardized file paths and index a file as /tmp/test.c
+          //  - We have a build server that uses standardized file paths and index a file as /tmp/test.c
           //  - We are asking for the main files of /private/tmp/test.c
           //  - Since indexstore-db uses realpath for everything, we find the unit for /tmp/test.c as a unit containg
           //    /private/tmp/test.c, which has /private/tmp/test.c as the main file.
@@ -1385,11 +1385,11 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     return self.watchedFiles[uri]?.mainFile
   }
 
-  // MARK: Informing BuildSystemManager about changes
+  // MARK: Informing BuildSererManager about changes
 
   package func filesDidChange(_ events: [FileEvent]) async {
-    if let buildSystemAdapter = await buildSystemAdapterAfterInitialized {
-      await buildSystemAdapter.send(OnWatchedFilesDidChangeNotification(changes: events))
+    if let buildServerAdapter = await buildServerAdapterAfterInitialized {
+      await buildServerAdapter.send(OnWatchedFilesDidChangeNotification(changes: events))
     }
 
     var targetsWithUpdatedDependencies: Set<BuildTargetIdentifier> = []
@@ -1451,7 +1451,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
       guard let language = watchedFiles[file]?.language else {
         continue
       }
-      // Re-register for notifications of this file within the build system.
+      // Re-register for notifications of this file within the build server.
       // This is the easiest way to make sure we are watching for build setting
       // changes of the new main file and stop watching for build setting
       // changes in the old main file if no other watched file depends on it.

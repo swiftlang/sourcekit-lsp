@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildSystemIntegration
+import BuildServerIntegration
 public import Foundation
 public import LanguageServerProtocol
 import LanguageServerProtocolExtensions
