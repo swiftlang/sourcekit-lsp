@@ -232,7 +232,7 @@ extension RandomAccessCollection {
     return body(scratchArea)
   }
 
-  package func concurrentCompactMap<T>(_ f: @Sendable (Element) -> T?) -> [T] where Self: Sendable {
+  package func concurrentCompactMap<T>(_ f: @Sendable (Element) -> T?) -> [T] where Self: Sendable, Index: Sendable {
     return withMapScratchArea { (results: UnsafeMutablePointer<T?>) -> [T] in
       // `nonisolated(unsafe)` is fine because we write to different offsets within the buffer on every concurrent
       // iteration.
@@ -245,7 +245,7 @@ extension RandomAccessCollection {
     }
   }
 
-  package func concurrentMap<T>(_ f: @Sendable (Element) -> T) -> [T] where Self: Sendable {
+  package func concurrentMap<T>(_ f: @Sendable (Element) -> T) -> [T] where Self: Sendable, Index: Sendable {
     return withMapScratchArea { (results: UnsafeMutablePointer<T>) -> [T] in
       // `nonisolated(unsafe)` is fine because we write to different offsets within the buffer on every concurrent
       // iteration.
@@ -290,7 +290,7 @@ protocol ContiguousZeroBasedIndexedCollection: Collection where Index == Int {
 }
 
 extension ContiguousZeroBasedIndexedCollection {
-  func slicedConcurrentForEachSliceRange(body: @Sendable (Range<Index>) -> Void) {
+  func slicedConcurrentForEachSliceRange(body: @Sendable (Range<Index>) -> Void) where Self: SendableMetatype {
     // We want to use `DispatchQueue.concurrentPerform`, but we want to be called only a few times. So that we
     // can amortize per-callback work. We also want to oversubscribe so that we can efficiently use
     // heterogeneous CPUs. If we had 4 efficiency cores, and 4 performance cores, and we dispatched 8 work items
