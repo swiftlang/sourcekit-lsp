@@ -246,6 +246,7 @@ var targets: [Target] = [
       "DocCDocumentation",
       "LanguageServerProtocol",
       "SKUtilities",
+      "SourceKitLSP",
       "SemanticIndex",
       .product(name: "Markdown", package: "swift-markdown"),
     ],

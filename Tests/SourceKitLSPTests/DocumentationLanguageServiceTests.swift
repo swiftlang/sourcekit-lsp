@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if canImport(DocCDocumentation)
 import LanguageServerProtocol
 import SKTestSupport
 import SourceKitLSP
@@ -39,3 +40,4 @@ private func assertHandles(language: Language) async throws {
   )
   XCTAssertEqual(completions, .init(isIncomplete: false, items: []))
 }
+#endif
