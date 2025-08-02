@@ -20,6 +20,7 @@ import Markdown
 import SKUtilities
 import SourceKitLSP
 import SemanticIndex
+import SKLogging
 
 extension DocumentationLanguageService {
   package func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
@@ -29,7 +30,6 @@ extension DocumentationLanguageService {
     guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: req.textDocument.uri) else {
       throw ResponseError.workspaceNotOpen(req.textDocument.uri)
     }
-    let documentationManager = workspace.doccDocumentationManager
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
     var moduleName: String? = nil
     var catalogURL: URL? = nil
@@ -40,81 +40,197 @@ extension DocumentationLanguageService {
 
     switch snapshot.language {
     case .tutorial:
-      return try await documentationManager.renderDocCDocumentation(
-        tutorialFile: snapshot.text,
+      return try await tutorialDocumentation(
+        for: snapshot,
+        in: workspace,
         moduleName: moduleName,
         catalogURL: catalogURL
       )
     case .markdown:
-      guard case .symbol(let symbolName) = MarkdownTitleFinder.find(parsing: snapshot.text) else {
-        // This is an article that can be rendered on its own
-        return try await documentationManager.renderDocCDocumentation(
-          markupFile: snapshot.text,
-          moduleName: moduleName,
-          catalogURL: catalogURL
-        )
+      return try await markdownDocumentation(
+        for: snapshot,
+        in: workspace,
+        moduleName: moduleName,
+        catalogURL: catalogURL
+      )
+    case .swift:
+      guard let position = req.position else {
+        throw ResponseError.invalidParams("A position must be provided for Swift files")
       }
-      guard let moduleName, symbolName == moduleName else {
-        // This is a symbol extension page. Find the symbol so that we can include it in the request.
-        guard let index = workspace.index(checkedFor: .deletedFiles) else {
-          throw ResponseError.requestFailed(doccDocumentationError: .indexNotAvailable)
-        }
-        guard let symbolLink = DocCSymbolLink(linkString: symbolName),
-          let symbolOccurrence = try await index.primaryDefinitionOrDeclarationOccurrence(
-            ofDocCSymbolLink: symbolLink,
-            fetchSymbolGraph: { location in
-              guard let symbolWorkspace = try await workspaceForDocument(uri: location.documentUri) else {
-                throw ResponseError.internalError("Unable to find language service for \(location.documentUri)")
-              }
-              let languageService = try await sourceKitLSPServer.primaryLanguageService(
-                for: location.documentUri,
-                .swift,
-                in: symbolWorkspace
-              )
-              return try await languageService.symbolGraph(forOnDiskContentsOf: location.documentUri, at: location)
-            }
-          )
-        else {
-          throw ResponseError.requestFailed(doccDocumentationError: .symbolNotFound(symbolName))
-        }
-        let symbolDocumentUri = symbolOccurrence.location.documentUri
-        guard let symbolWorkspace = try await workspaceForDocument(uri: symbolDocumentUri) else {
-          throw ResponseError.internalError("Unable to find language service for \(symbolDocumentUri)")
-        }
-        let languageService = try await sourceKitLSPServer.primaryLanguageService(
-          for: symbolDocumentUri,
-          .swift,
-          in: symbolWorkspace
-        )
-        let symbolGraph = try await languageService.symbolGraph(
-          forOnDiskContentsOf: symbolDocumentUri,
-          at: symbolOccurrence.location
-        )
-        guard let symbolGraph else {
-          throw ResponseError.internalError("Unable to retrieve symbol graph for \(symbolOccurrence.symbol.name)")
-        }
-        return try await documentationManager.renderDocCDocumentation(
-          symbolUSR: symbolOccurrence.symbol.usr,
-          symbolGraph: symbolGraph,
-          markupFile: snapshot.text,
-          moduleName: moduleName,
-          catalogURL: catalogURL
-        )
-      }
-      // This is a page representing the module itself.
-      // Create a dummy symbol graph and tell SwiftDocC to convert the module name.
-      // The version information isn't really all that important since we're creating
-      // what is essentially an empty symbol graph.
-      return try await documentationManager.renderDocCDocumentation(
-        symbolUSR: moduleName,
-        symbolGraph: emptySymbolGraph(forModule: moduleName),
-        markupFile: snapshot.text,
+
+      return try await swiftDocumentation(
+        for: snapshot,
+        at: position,
+        in: workspace,
         moduleName: moduleName,
         catalogURL: catalogURL
       )
     default:
       throw ResponseError.requestFailed(doccDocumentationError: .unsupportedLanguage(snapshot.language))
     }
+  }
+
+  private func tutorialDocumentation(
+    for snapshot: DocumentSnapshot,
+    in workspace: Workspace,
+    moduleName: String?,
+    catalogURL: URL?
+  ) async throws -> DoccDocumentationResponse {
+    return try await workspace.doccDocumentationManager.renderDocCDocumentation(
+      tutorialFile: snapshot.text,
+      moduleName: moduleName,
+      catalogURL: catalogURL
+    )
+  }
+
+  private func markdownDocumentation(
+    for snapshot: DocumentSnapshot,
+    in workspace: Workspace,
+    moduleName: String?,
+    catalogURL: URL?
+  ) async throws -> DoccDocumentationResponse {
+    guard let sourceKitLSPServer else {
+      throw ResponseError.internalError("SourceKit-LSP is shutting down")
+    }
+    let documentationManager = workspace.doccDocumentationManager
+    guard case .symbol(let symbolName) = MarkdownTitleFinder.find(parsing: snapshot.text) else {
+      // This is an article that can be rendered on its own
+      return try await documentationManager.renderDocCDocumentation(
+        markupFile: snapshot.text,
+        moduleName: moduleName,
+        catalogURL: catalogURL
+      )
+    }
+    guard let moduleName, symbolName == moduleName else {
+      // This is a symbol extension page. Find the symbol so that we can include it in the request.
+      guard let index = workspace.index(checkedFor: .deletedFiles) else {
+        throw ResponseError.requestFailed(doccDocumentationError: .indexNotAvailable)
+      }
+      guard let symbolLink = DocCSymbolLink(linkString: symbolName),
+        let symbolOccurrence = try await index.primaryDefinitionOrDeclarationOccurrence(
+          ofDocCSymbolLink: symbolLink,
+          fetchSymbolGraph: { location in
+            guard let symbolWorkspace = try await workspaceForDocument(uri: location.documentUri) else {
+              throw ResponseError.internalError("Unable to find language service for \(location.documentUri)")
+            }
+            let languageService = try await sourceKitLSPServer.primaryLanguageService(
+              for: location.documentUri,
+              .swift,
+              in: symbolWorkspace
+            )
+            return try await languageService.symbolGraph(
+              forOnDiskContentsOf: location.documentUri,
+              at: location
+            )
+          }
+        )
+      else {
+        throw ResponseError.requestFailed(doccDocumentationError: .symbolNotFound(symbolName))
+      }
+      let symbolDocumentUri = symbolOccurrence.location.documentUri
+      guard let symbolWorkspace = try await workspaceForDocument(uri: symbolDocumentUri) else {
+        throw ResponseError.internalError("Unable to find language service for \(symbolDocumentUri)")
+      }
+      let languageService = try await sourceKitLSPServer.primaryLanguageService(
+        for: symbolDocumentUri,
+        .swift,
+        in: symbolWorkspace
+      )
+      let symbolGraph = try await languageService.symbolGraph(
+        forOnDiskContentsOf: symbolDocumentUri,
+        at: symbolOccurrence.location
+      )
+      return try await documentationManager.renderDocCDocumentation(
+        symbolUSR: symbolOccurrence.symbol.usr,
+        symbolGraph: symbolGraph,
+        markupFile: snapshot.text,
+        moduleName: moduleName,
+        catalogURL: catalogURL
+      )
+    }
+    // This is a page representing the module itself.
+    // Create a dummy symbol graph and tell SwiftDocC to convert the module name.
+    // The version information isn't really all that important since we're creating
+    // what is essentially an empty symbol graph.
+    return try await documentationManager.renderDocCDocumentation(
+      symbolUSR: moduleName,
+      symbolGraph: emptySymbolGraph(forModule: moduleName),
+      markupFile: snapshot.text,
+      moduleName: moduleName,
+      catalogURL: catalogURL
+    )
+  }
+
+  private func swiftDocumentation(
+    for snapshot: DocumentSnapshot,
+    at position: Position,
+    in workspace: Workspace,
+    moduleName: String?,
+    catalogURL: URL?
+  ) async throws -> DoccDocumentationResponse {
+    guard let sourceKitLSPServer else {
+      throw ResponseError.internalError("SourceKit-LSP is shutting down")
+    }
+    let documentationManager = workspace.doccDocumentationManager
+    let (symbolGraph, symbolUSR, overrideDocComments) = try await sourceKitLSPServer.primaryLanguageService(
+      for: snapshot.uri,
+      snapshot.language,
+      in: workspace
+    ).symbolGraph(for: snapshot, at: position)
+    // Locate the documentation extension and include it in the request if one exists
+    let markupExtensionFile = await orLog("Finding markup extension file for symbol \(symbolUSR)") {
+      try await findMarkupExtensionFile(
+        workspace: workspace,
+        documentationManager: documentationManager,
+        catalogURL: catalogURL,
+        for: symbolUSR,
+        fetchSymbolGraph: { location in
+          guard let symbolWorkspace = try await workspaceForDocument(uri: location.documentUri) else {
+            throw ResponseError.internalError("Unable to find language service for \(location.documentUri)")
+          }
+          let languageService = try await sourceKitLSPServer.primaryLanguageService(
+            for: location.documentUri,
+            .swift,
+            in: symbolWorkspace
+          )
+          return try await languageService.symbolGraph(forOnDiskContentsOf: location.documentUri, at: location)
+        }
+      )
+    }
+    return try await documentationManager.renderDocCDocumentation(
+      symbolUSR: symbolUSR,
+      symbolGraph: symbolGraph,
+      overrideDocComments: overrideDocComments,
+      markupFile: markupExtensionFile,
+      moduleName: moduleName,
+      catalogURL: catalogURL
+    )
+  }
+
+  private func findMarkupExtensionFile(
+    workspace: Workspace,
+    documentationManager: DocCDocumentationManager,
+    catalogURL: URL?,
+    for symbolUSR: String,
+    fetchSymbolGraph: @Sendable (SymbolLocation) async throws -> String?
+  ) async throws -> String? {
+    guard let catalogURL else {
+      return nil
+    }
+    let catalogIndex = try await documentationManager.catalogIndex(for: catalogURL)
+    guard let index = workspace.index(checkedFor: .deletedFiles),
+      let symbolInformation = try await index.doccSymbolInformation(
+        ofUSR: symbolUSR,
+        fetchSymbolGraph: fetchSymbolGraph
+      ),
+      let markupExtensionFileURL = catalogIndex.documentationExtension(for: symbolInformation)
+    else {
+      return nil
+    }
+    return try? documentManager.latestSnapshotOrDisk(
+      DocumentURI(markupExtensionFileURL),
+      language: .markdown
+    )?.text
   }
 }
 

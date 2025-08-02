@@ -511,8 +511,15 @@ extension ClangLanguageService {
   package func symbolGraph(
     forOnDiskContentsOf symbolDocumentUri: DocumentURI,
     at location: SymbolLocation
-  ) async throws -> String? {
-    return nil
+  ) async throws -> String {
+    throw ResponseError.internalError("Symbol graph is currently not supported for clang files")
+  }
+
+  package func symbolGraph(
+    for snapshot: SourceKitLSP.DocumentSnapshot,
+    at position: LanguageServerProtocol.Position
+  ) async throws -> (symbolGraph: String, usr: String, overrideDocComments: [String]) {
+    throw ResponseError.internalError("Symbol graph is currently not supported for clang files")
   }
 
   package func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {

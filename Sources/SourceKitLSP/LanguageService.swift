@@ -179,12 +179,19 @@ package protocol LanguageService: AnyObject, Sendable {
   func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse
   func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails]
 
+  /// Retrieve the symbol graph for the given position in the given snapshot, including the USR of the symbol at the
+  /// given position and the doc comments of the symbol at that position.
+  func symbolGraph(
+    for snapshot: DocumentSnapshot,
+    at position: Position
+  ) async throws -> (symbolGraph: String, usr: String, overrideDocComments: [String])
+
   /// Return the symbol graph at the given location for the contents of the document as they are on-disk (opposed to the
   /// in-memory modified version of the document).
   func symbolGraph(
     forOnDiskContentsOf symbolDocumentUri: DocumentURI,
     at location: SymbolLocation
-  ) async throws -> String?
+  ) async throws -> String
 
   /// Request a generated interface of a module to display in the IDE.
   ///

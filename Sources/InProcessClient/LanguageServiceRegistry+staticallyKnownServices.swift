@@ -26,7 +26,7 @@ extension LanguageServiceRegistry {
     registry.register(ClangLanguageService.self, for: [.c, .cpp, .objective_c, .objective_cpp])
     registry.register(SwiftLanguageService.self, for: [.swift])
     #if canImport(DocumentationLanguageService)
-    registry.register(DocumentationLanguageService.self, for: [.markdown, .tutorial])
+    registry.register(DocumentationLanguageService.self, for: [.markdown, .tutorial, .swift])
     #endif
     return registry
   }()
