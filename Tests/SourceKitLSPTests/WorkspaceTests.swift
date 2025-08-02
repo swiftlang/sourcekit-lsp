@@ -1125,7 +1125,7 @@ final class WorkspaceTests: XCTestCase {
         )
         """,
       capabilities: ClientCapabilities(experimental: [
-        DidChangeActiveDocumentNotification.method: .bool(true)
+        DidChangeActiveDocumentNotification.method: .dictionary(["supported": .bool(true)])
       ]),
       hooks: Hooks(
         indexHooks: IndexHooks(preparationTaskDidStart: { task in

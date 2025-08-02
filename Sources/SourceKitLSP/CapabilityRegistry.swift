@@ -103,7 +103,18 @@ package final actor CapabilityRegistry {
     guard case .dictionary(let experimentalCapabilities) = clientCapabilities.experimental else {
       return false
     }
-    return experimentalCapabilities[name] == .bool(true)
+    // Before Swift 6.3 we expected experimental client capabilities to be passed as `"capabilityName": true`.
+    // This proved to be insufficient for experimental capabilities that evolved over time. Since 6.3 we encourage
+    // clients to pass experimental capabilities as `"capabilityName": { "supported": true }`, which allows the addition
+    // of more configuration parameters to the capability.
+    switch experimentalCapabilities[name] {
+    case .bool(true):
+      return true
+    case .dictionary(let dict):
+      return dict["supported"] == .bool(true)
+    default:
+      return false
+    }
   }
 
   // MARK: Initializer
