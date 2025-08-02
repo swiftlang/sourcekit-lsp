@@ -28,10 +28,6 @@ package import ToolchainRegistry
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 
-#if canImport(DocCDocumentation)
-import DocCDocumentation
-#endif
-
 /// Disambiguate LanguageServerProtocol.Language and IndexstoreDB.Language
 package typealias Language = LanguageServerProtocol.Language
 
@@ -1116,9 +1112,14 @@ extension SourceKitLSPServer {
       GetReferenceDocumentRequest.method: .dictionary(["version": .int(1)]),
       DidChangeActiveDocumentNotification.method: .dictionary(["version": .int(1)]),
     ]
-    #if canImport(DocCDocumentation)
-    experimentalCapabilities["textDocument/doccDocumentation"] = .dictionary(["version": .int(1)])
-    #endif
+    for (key, value) in languageServiceRegistry.languageServices.flatMap({ $0.type.experimentalCapabilities }) {
+      if let existingValue = experimentalCapabilities[key] {
+        logger.error(
+          "Conflicting experimental capabilities for \(key): \(existingValue.forLogging) vs \(value.forLogging)"
+        )
+      }
+      experimentalCapabilities[key] = value
+    }
 
     return ServerCapabilities(
       textDocumentSync: .options(
@@ -1520,6 +1521,10 @@ extension SourceKitLSPServer {
     // (e.g. Package.swift doesn't have build settings but affects build
     // settings). Inform the build server about all file changes.
     await workspaces.concurrentForEach { await $0.filesDidChange(notification.changes) }
+
+    for languageService in languageServices.values.flatMap(\.self) {
+      await languageService.filesDidChange(notification.changes)
+    }
   }
 
   func setBackgroundIndexingPaused(_ request: SetOptionsRequest) async throws -> VoidResponse {

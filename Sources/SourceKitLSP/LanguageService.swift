@@ -121,6 +121,9 @@ package protocol LanguageService: AnyObject, Sendable {
   /// Identifiers of the commands that this language service can handle.
   static var builtInCommands: [String] { get }
 
+  /// Experimental capabilities that should be reported to the client if this language service is enabled.
+  static var experimentalCapabilities: [String: LSPAny] { get }
+
   // MARK: - Lifetime
 
   func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult
@@ -159,6 +162,10 @@ package protocol LanguageService: AnyObject, Sendable {
   ) async
   func willSaveDocument(_ notification: WillSaveTextDocumentNotification) async
   func didSaveDocument(_ notification: DidSaveTextDocumentNotification) async
+
+  /// Called when files are changed on disk and the editor sends a `workspace/didChangeWatchedFiles` notification to
+  /// SourceKit-LSP.
+  func filesDidChange(_ events: [FileEvent]) async
 
   // MARK: - Build Server Integration
 
@@ -309,4 +316,10 @@ package protocol LanguageService: AnyObject, Sendable {
 
   /// Crash the language server. Should be used for crash recovery testing only.
   func crash() async
+}
+
+package extension LanguageService {
+  static var experimentalCapabilities: [String: LSPAny] { [:] }
+
+  func filesDidChange(_ events: [FileEvent]) async {}
 }

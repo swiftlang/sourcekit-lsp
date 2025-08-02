@@ -15,7 +15,6 @@ package import LanguageServerProtocol
 
 package enum DocCDocumentationError: LocalizedError {
   case unsupportedLanguage(Language)
-  case noDocumentableSymbols
   case indexNotAvailable
   case symbolNotFound(String)
 
@@ -23,8 +22,6 @@ package enum DocCDocumentationError: LocalizedError {
     switch self {
     case .unsupportedLanguage(let language):
       return "Documentation preview is not available for \(language.description) files"
-    case .noDocumentableSymbols:
-      return "No documentable symbols were found in this Swift file"
     case .indexNotAvailable:
       return "The index is not availble to complete the request"
     case .symbolNotFound(let symbolName):

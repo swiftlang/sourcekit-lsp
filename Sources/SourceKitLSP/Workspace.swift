@@ -26,10 +26,6 @@ import ToolchainRegistry
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 
-#if canImport(DocCDocumentation)
-package import DocCDocumentation
-#endif
-
 /// Actor that caches realpaths for `sourceFilesWithSameRealpath`.
 fileprivate actor SourceFilesWithSameRealpathInferrer {
   private let buildServerManager: BuildServerManager
@@ -101,10 +97,6 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   /// The build server manager to use for documents in this workspace.
   package let buildServerManager: BuildServerManager
 
-  #if canImport(DocCDocumentation)
-  package let doccDocumentationManager: DocCDocumentationManager
-  #endif
-
   private let sourceFilesWithSameRealpathInferrer: SourceFilesWithSameRealpathInferrer
 
   let options: SourceKitLSPOptions
@@ -153,9 +145,6 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     self.options = options
     self._uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
     self.buildServerManager = buildServerManager
-    #if canImport(DocCDocumentation)
-    self.doccDocumentationManager = DocCDocumentationManager(buildServerManager: buildServerManager)
-    #endif
     self.sourceFilesWithSameRealpathInferrer = SourceFilesWithSameRealpathInferrer(
       buildServerManager: buildServerManager
     )
@@ -417,9 +406,6 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
 
     // Notify all clients about the reported and inferred edits.
     await buildServerManager.filesDidChange(events)
-    #if canImport(DocCDocumentation)
-    await doccDocumentationManager.filesDidChange(events)
-    #endif
 
     async let updateSyntacticIndex: Void = await syntacticTestIndex.filesDidChange(events)
     async let updateSemanticIndex: Void? = await semanticIndexManager?.filesDidChange(events)

@@ -10,17 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(DocCDocumentation)
 import BuildServerIntegration
 import DocCDocumentation
 import Foundation
 @preconcurrency import IndexStoreDB
 package import LanguageServerProtocol
 import Markdown
-import SKUtilities
-import SourceKitLSP
-import SemanticIndex
 import SKLogging
+import SKUtilities
+import SemanticIndex
+import SourceKitLSP
 
 extension DocumentationLanguageService {
   package func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
@@ -76,7 +75,7 @@ extension DocumentationLanguageService {
     moduleName: String?,
     catalogURL: URL?
   ) async throws -> DoccDocumentationResponse {
-    return try await workspace.doccDocumentationManager.renderDocCDocumentation(
+    return try await documentationManager.renderDocCDocumentation(
       tutorialFile: snapshot.text,
       moduleName: moduleName,
       catalogURL: catalogURL
@@ -92,7 +91,7 @@ extension DocumentationLanguageService {
     guard let sourceKitLSPServer else {
       throw ResponseError.internalError("SourceKit-LSP is shutting down")
     }
-    let documentationManager = workspace.doccDocumentationManager
+    let documentationManager = documentationManager
     guard case .symbol(let symbolName) = MarkdownTitleFinder.find(parsing: snapshot.text) else {
       // This is an article that can be rendered on its own
       return try await documentationManager.renderDocCDocumentation(
@@ -171,7 +170,6 @@ extension DocumentationLanguageService {
     guard let sourceKitLSPServer else {
       throw ResponseError.internalError("SourceKit-LSP is shutting down")
     }
-    let documentationManager = workspace.doccDocumentationManager
     let (symbolGraph, symbolUSR, overrideDocComments) = try await sourceKitLSPServer.primaryLanguageService(
       for: snapshot.uri,
       snapshot.language,
@@ -275,4 +273,3 @@ struct MarkdownTitleFinder: MarkupVisitor {
     return .plainText(heading.plainText)
   }
 }
-#endif

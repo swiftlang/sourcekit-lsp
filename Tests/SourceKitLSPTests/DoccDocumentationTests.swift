@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(DocCDocumentation)
-import DocCDocumentation
 import Foundation
 import LanguageServerProtocol
 import SKLogging
@@ -25,17 +23,17 @@ final class DoccDocumentationTests: XCTestCase {
     try await renderDocumentation(
       markedText: "1️⃣",
       language: .c,
-      expectedResponses: ["1️⃣": .error(.unsupportedLanguage(.c))]
+      expectedResponses: ["1️⃣": .error("Documentation preview is not available for C files")]
     )
     try await renderDocumentation(
       markedText: "2️⃣",
       language: .cpp,
-      expectedResponses: ["2️⃣": .error(.unsupportedLanguage(.cpp))]
+      expectedResponses: ["2️⃣": .error("Documentation preview is not available for C++ files")]
     )
     try await renderDocumentation(
       markedText: "3️⃣",
       language: .objective_c,
-      expectedResponses: ["3️⃣": .error(.unsupportedLanguage(.objective_c))]
+      expectedResponses: ["3️⃣": .error("Documentation preview is not available for Objective-C files")]
     )
   }
 
@@ -45,7 +43,7 @@ final class DoccDocumentationTests: XCTestCase {
     try await renderDocumentation(
       markedText: "1️⃣",
       expectedResponses: [
-        "1️⃣": .error(.noDocumentableSymbols)
+        "1️⃣": .error("No documentable symbols were found in this Swift file")
       ]
     )
   }
@@ -656,7 +654,7 @@ final class DoccDocumentationTests: XCTestCase {
     try await renderDocumentation(
       fileName: "SymbolNotFound.md",
       project: project,
-      expectedResponses: ["8️⃣": .error(.symbolNotFound("MyLibrary/thisIsNotAValidSymbol"))]
+      expectedResponses: ["8️⃣": .error("Could not find symbol MyLibrary/thisIsNotAValidSymbol in the project")]
     )
   }
 
@@ -937,7 +935,7 @@ final class DoccDocumentationTests: XCTestCase {
 
 private enum PartialConvertResponse {
   case renderNode(kind: RenderNode.Kind, path: String? = nil, containing: String? = nil)
-  case error(DocCDocumentationError)
+  case error(String)
 }
 
 private func renderDocumentation(
@@ -969,6 +967,7 @@ private func renderDocumentation(
   file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
+  try await SkipUnless.doccSupported()
   let testClient = try await TestSourceKitLSPClient()
   let uri = DocumentURI(for: language)
   let positions = testClient.openDocument(markedText, uri: uri)
@@ -1038,7 +1037,7 @@ private func renderDocumentation(
         }
       case .error(let error):
         XCTFail(
-          "expected error \(error.localizedDescription), but received a render node at position \(marker)",
+          "expected error \(error), but received a render node at position \(marker)",
           file: file,
           line: line
         )
@@ -1061,8 +1060,8 @@ private func renderDocumentation(
         )
         XCTAssertEqual(
           error.message,
-          expectedError.localizedDescription,
-          "expected an error with message \(expectedError.localizedDescription) at position \(marker)",
+          expectedError,
+          "expected an error with message \(expectedError) at position \(marker)",
           file: file,
           line: line
         )
@@ -1070,4 +1069,3 @@ private func renderDocumentation(
     }
   }
 }
-#endif
