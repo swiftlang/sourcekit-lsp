@@ -474,15 +474,16 @@ package actor SourceKitLSPServer {
     _ language: Language,
     in workspace: Workspace
   ) async -> [LanguageService] {
-    let result = await languageServiceRegistry.languageServices(for: language).asyncCompactMap {
-      (serverType) -> LanguageService? in
-      // Pick the first language service that can handle this workspace.
+    var result: [any LanguageService] = []
+    for serverType in languageServiceRegistry.languageServices(for: language) {
       if let languageService = existingLanguageService(serverType, toolchain: toolchain, workspace: workspace) {
-        return languageService
+        result.append(languageService)
+        continue
       }
 
       // Start a new service.
-      return await orLog("failed to start language service", level: .error) { [options = workspace.options, hooks] in
+      let languageService: (any LanguageService)? = await orLog("failed to start language service") {
+        [options = workspace.options, hooks] in
         let service = try await serverType.init(
           sourceKitLSPServer: self,
           toolchain: toolchain,
@@ -546,6 +547,14 @@ package actor SourceKitLSPServer {
         languageServices[LanguageServiceType(serverType), default: []].append(service)
         return service
       }
+      guard let languageService else {
+        // If a language service fails to start, don't try starting language services with lower precedence. Otherwise
+        // we get into a situation where eg. `SwiftLanguageService`` fails to start (eg. because the toolchain doesn't
+        // contain sourcekitd) and the `DocumentationLanguageService` now becomes the primary language service for the
+        // document, trying to serve documentation, completion etc. which is not intended.
+        break
+      }
+      result.append(languageService)
     }
     if result.isEmpty {
       logger.error("Unable to infer language server type for language '\(language)'")
