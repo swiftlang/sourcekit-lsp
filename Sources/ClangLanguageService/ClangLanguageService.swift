@@ -109,7 +109,7 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
 
   /// Creates a language server for the given client referencing the clang binary specified in `toolchain`.
   /// Returns `nil` if `clangd` can't be found.
-  package init?(
+  package init(
     sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
     options: SourceKitLSPOptions,
@@ -117,7 +117,9 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
     workspace: Workspace
   ) async throws {
     guard let clangdPath = toolchain.clangd else {
-      return nil
+      throw ResponseError.unknown(
+        "Cannot create SwiftLanguage service because \(toolchain.identifier) does not contain clangd"
+      )
     }
     self.clangPath = toolchain.clang
     self.clangdPath = clangdPath

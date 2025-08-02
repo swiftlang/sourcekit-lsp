@@ -492,10 +492,6 @@ package actor SourceKitLSPServer {
           workspace: workspace
         )
 
-        guard let service else {
-          return nil
-        }
-
         let pid = Int(ProcessInfo.processInfo.processIdentifier)
         let resp = try await service.initialize(
           InitializeRequest(

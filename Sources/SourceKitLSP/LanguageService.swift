@@ -104,7 +104,7 @@ package protocol LanguageService: AnyObject, Sendable {
 
   // MARK: - Creation
 
-  init?(
+  init(
     sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
     options: SourceKitLSPOptions,
