@@ -11,7 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import SKTestSupport
-@_spi(Testing) import SourceKitLSP
+import SourceKitLSP
+@_spi(Testing) import SwiftLanguageService
 import XCTest
 
 final class RewriteSourceKitPlaceholdersTests: XCTestCase {

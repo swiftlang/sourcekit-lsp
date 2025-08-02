@@ -35,14 +35,6 @@ import DocCDocumentation
 /// Disambiguate LanguageServerProtocol.Language and IndexstoreDB.Language
 package typealias Language = LanguageServerProtocol.Language
 
-struct LanguageServiceIdentifier: Hashable {
-  private let identifier: String
-
-  init(type: LanguageService.Type) {
-    self.identifier = String(reflecting: type)
-  }
-}
-
 /// The SourceKit-LSP server.
 ///
 /// This is the client-facing language server implementation, providing indexing, multiple-toolchain
@@ -65,7 +57,7 @@ package actor SourceKitLSPServer {
   private let workspaceQueue = AsyncQueue<Serial>()
 
   /// The connection to the editor.
-  package let client: Connection
+  package nonisolated let client: Connection
 
   /// Set to `true` after the `SourceKitLSPServer` has send the reply to the `InitializeRequest`.
   ///
@@ -73,7 +65,7 @@ package actor SourceKitLSPServer {
   private var initialized: Bool = false
 
   private let _options: ThreadSafeBox<SourceKitLSPOptions>
-  nonisolated var options: SourceKitLSPOptions {
+  nonisolated package var options: SourceKitLSPOptions {
     _options.value
   }
 
@@ -83,11 +75,11 @@ package actor SourceKitLSPServer {
 
   package var capabilityRegistry: CapabilityRegistry?
 
-  private let languageServiceRegistry: LanguageServiceRegistry
+  let languageServiceRegistry: LanguageServiceRegistry
 
-  var languageServices: [LanguageServiceIdentifier: [LanguageService]] = [:]
+  var languageServices: [LanguageServiceType: [LanguageService]] = [:]
 
-  package let documentManager = DocumentManager()
+  package nonisolated let documentManager = DocumentManager()
 
   /// The `TaskScheduler` that schedules all background indexing tasks.
   ///
@@ -105,7 +97,7 @@ package actor SourceKitLSPServer {
   /// `SourceKitLSPServer`.
   /// `nonisolated(unsafe)` because `sourcekitdCrashedWorkDoneProgress` will not be modified after it is assigned from
   /// the initializer.
-  nonisolated(unsafe) var sourcekitdCrashedWorkDoneProgress: SharedWorkDoneProgressManager!
+  nonisolated(unsafe) package private(set) var sourcekitdCrashedWorkDoneProgress: SharedWorkDoneProgressManager!
 
   /// Stores which workspace the given URI has been opened in.
   ///
@@ -466,7 +458,7 @@ package actor SourceKitLSPServer {
     toolchain: Toolchain,
     workspace: Workspace
   ) -> LanguageService? {
-    for languageService in languageServices[LanguageServiceIdentifier(type: serverType), default: []] {
+    for languageService in languageServices[LanguageServiceType(serverType), default: []] {
       if languageService.canHandle(workspace: workspace, toolchain: toolchain) {
         return languageService
       }
@@ -550,7 +542,7 @@ package actor SourceKitLSPServer {
         return concurrentlyInitializedService
       }
 
-      languageServices[LanguageServiceIdentifier(type: serverType), default: []].append(service)
+      languageServices[LanguageServiceType(serverType), default: []].append(service)
       return service
     }
   }
@@ -1085,7 +1077,7 @@ extension SourceKitLSPServer {
     let executeCommandOptions =
       await registry.clientHasDynamicExecuteCommandRegistration
       ? nil
-      : ExecuteCommandOptions(commands: builtinSwiftCommands)
+      : ExecuteCommandOptions(commands: languageServiceRegistry.languageServices.flatMap { $0.type.builtInCommands })
 
     var experimentalCapabilities: [String: LSPAny] = [
       WorkspaceTestsRequest.method: .dictionary(["version": .int(2)]),
@@ -1572,10 +1564,13 @@ extension SourceKitLSPServer {
   func completionItemResolve(
     request: CompletionItemResolveRequest
   ) async throws -> CompletionItem {
-    guard let completionItemData = CompletionItemData(fromLSPAny: request.item.data) else {
+    // Swift completion items specify the URI of the item they originate from in the `data`
+    guard case .dictionary(let dict) = request.item.data, case .string(let uriString) = dict["uri"],
+      let uri = try? DocumentURI(string: uriString)
+    else {
       return request.item
     }
-    return try await documentService(for: completionItemData.uri).completionItemResolve(request)
+    return try await documentService(for: uri).completionItemResolve(request)
   }
 
   #if canImport(DocCDocumentation)

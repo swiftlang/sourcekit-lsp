@@ -18,6 +18,7 @@ import SKLogging
 import SourceKitD
 import SourceKitLSP
 import SwiftExtensions
+import SwiftLanguageService
 import TSCExtensions
 import ToolchainRegistry
 import XCTest
@@ -378,7 +379,7 @@ package actor SkipUnless {
 
       let tokens = SyntaxHighlightingTokens(lspEncodedTokens: response.data)
       return tokens.tokens.last
-        == SourceKitLSP.SyntaxHighlightingToken(
+        == SyntaxHighlightingToken(
           range: Position(line: 1, utf16index: 4)..<Position(line: 1, utf16index: 11),
           kind: .variable,
           modifiers: []

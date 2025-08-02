@@ -13,6 +13,7 @@
 import ClangLanguageService
 import LanguageServerProtocol
 package import SourceKitLSP
+import SwiftLanguageService
 
 extension LanguageServiceRegistry {
   /// All types conforming to `LanguageService` that are known at compile time.

@@ -10,9 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(Testing) import SourceKitLSP
+import SourceKitLSP
 import Swift
 import SwiftBasicFormat
+@_spi(Testing) import SwiftLanguageService
 import SwiftParser
 import SwiftSyntax
 import SwiftSyntaxBuilder

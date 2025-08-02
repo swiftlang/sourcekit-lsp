@@ -98,6 +98,7 @@ final class BuildServerTests: XCTestCase {
 
     self.workspace = await Workspace.forTesting(
       options: try .testDefault(),
+      sourceKitLSPServer: server,
       testHooks: Hooks(),
       buildServerManager: buildServerManager,
       indexTaskScheduler: .forTesting

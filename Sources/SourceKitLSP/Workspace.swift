@@ -128,7 +128,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   /// indexing and preparation tasks for files with out-of-date index.
   ///
   /// `nil` if background indexing is not enabled.
-  let semanticIndexManager: SemanticIndexManager?
+  package let semanticIndexManager: SemanticIndexManager?
 
   /// If the index uses explicit output paths, the queue on which we update the explicit output paths.
   ///
@@ -137,7 +137,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   private let indexUnitOutputPathsUpdateQueue = AsyncQueue<Serial>()
 
   private init(
-    sourceKitLSPServer: SourceKitLSPServer?,
+    sourceKitLSPServer: SourceKitLSPServer,
     rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
     options: SourceKitLSPOptions,
@@ -182,11 +182,14 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
       self.semanticIndexManager = nil
     }
     // Trigger an initial population of `syntacticTestIndex`.
-    self.syntacticTestIndex = SyntacticTestIndex(determineTestFiles: {
-      await orLog("Getting list of test files for initial syntactic index population") {
-        try await buildServerManager.testFiles()
-      } ?? []
-    })
+    self.syntacticTestIndex = SyntacticTestIndex(
+      languageServiceRegistry: sourceKitLSPServer.languageServiceRegistry,
+      determineTestFiles: {
+        await orLog("Getting list of test files for initial syntactic index population") {
+          try await buildServerManager.testFiles()
+        } ?? []
+      }
+    )
     await indexDelegate?.addMainFileChangedCallback { [weak self] in
       await self?.buildServerManager.mainFilesChanged()
     }
@@ -369,12 +372,13 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
 
   package static func forTesting(
     options: SourceKitLSPOptions,
+    sourceKitLSPServer: SourceKitLSPServer,
     testHooks: Hooks,
     buildServerManager: BuildServerManager,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async -> Workspace {
     return await Workspace(
-      sourceKitLSPServer: nil,
+      sourceKitLSPServer: sourceKitLSPServer,
       rootUri: nil,
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
       options: options,
@@ -388,7 +392,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
 
   /// Returns a `CheckedIndex` that verifies that all the returned entries are up-to-date with the given
   /// `IndexCheckLevel`.
-  func index(checkedFor checkLevel: IndexCheckLevel) -> CheckedIndex? {
+  package func index(checkedFor checkLevel: IndexCheckLevel) -> CheckedIndex? {
     return _uncheckedIndex.value?.checked(for: checkLevel)
   }
 

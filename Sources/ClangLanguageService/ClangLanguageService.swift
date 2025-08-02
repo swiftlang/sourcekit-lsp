@@ -12,6 +12,7 @@
 
 import BuildServerIntegration
 import Foundation
+package import IndexStoreDB
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
@@ -100,13 +101,15 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
 
   /// The documents that have been opened and which language they have been
   /// opened with.
-  private var openDocuments: [DocumentURI: Language] = [:]
+  private var openDocuments: [DocumentURI: LanguageServerProtocol.Language] = [:]
 
   /// Type to map `clangd`'s semantic token legend to SourceKit-LSP's.
   private var semanticTokensTranslator: SemanticTokensLegendTranslator? = nil
 
   /// While `clangd` is running, its `Process` object.
   private var clangdProcess: Process?
+
+  package static var builtInCommands: [String] { [] }
 
   /// Creates a language server for the given client referencing the clang binary specified in `toolchain`.
   /// Returns `nil` if `clangd` can't be found.
@@ -500,13 +503,20 @@ extension ClangLanguageService {
       throw ResponseError.unknown("Connection to the editor closed")
     }
 
-    let snapshot = try await sourceKitLSPServer.documentManager.latestSnapshot(req.textDocument.uri)
+    let snapshot = try sourceKitLSPServer.documentManager.latestSnapshot(req.textDocument.uri)
     throw ResponseError.requestFailed(doccDocumentationError: .unsupportedLanguage(snapshot.language))
   }
   #endif
 
   package func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
     return try await forwardRequestToClangd(req)
+  }
+
+  package func symbolGraph(
+    forOnDiskContentsOf symbolDocumentUri: DocumentURI,
+    at location: SymbolLocation
+  ) async throws -> String? {
+    return nil
   }
 
   package func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
@@ -650,6 +660,10 @@ extension ClangLanguageService {
 
   package func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async -> [AnnotatedTestItem]? {
     return nil
+  }
+
+  package static func syntacticTestItems(in uri: DocumentURI) async -> [AnnotatedTestItem] {
+    return []
   }
 
   package func editsToRename(

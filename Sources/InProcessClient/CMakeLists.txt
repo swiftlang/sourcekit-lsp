@@ -12,6 +12,7 @@ target_link_libraries(InProcessClient PUBLIC
   SKLogging
   SKOptions
   SourceKitLSP
+  SwiftLanguageService
   ToolchainRegistry
 )
 

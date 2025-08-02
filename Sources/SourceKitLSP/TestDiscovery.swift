@@ -11,14 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
-import BuildServerProtocol
 import Foundation
-import IndexStoreDB
-package import LanguageServerProtocol
+package import IndexStoreDB
+import LanguageServerProtocol
 import SKLogging
 import SemanticIndex
 import SwiftExtensions
-import SwiftSyntax
 
 package enum TestStyle {
   package static let xcTest = "XCTest"
@@ -404,7 +402,7 @@ extension AnnotatedTestItem {
   /// Use out-of-date semantic information to filter syntactic symbols.
   ///
   /// Delegates to the `TestItem`'s `filterUsing(semanticSymbols:)` method to perform the filtering.
-  fileprivate func filterUsing(semanticSymbols: [Symbol]?) -> AnnotatedTestItem? {
+  package func filterUsing(semanticSymbols: [Symbol]?) -> AnnotatedTestItem? {
     guard let testItem = self.testItem.filterUsing(semanticSymbols: semanticSymbols) else {
       return nil
     }
@@ -592,34 +590,5 @@ extension TestItem {
     newTest.id = "\(moduleName).\(newTest.id)"
     newTest.children = await newTest.children.asyncMap({ await $0.prefixIDWithModuleName(workspace: workspace) })
     return newTest
-  }
-}
-
-extension SwiftLanguageService {
-  package func syntacticDocumentTests(
-    for uri: DocumentURI,
-    in workspace: Workspace
-  ) async throws -> [AnnotatedTestItem]? {
-    let targetIdentifiers = await workspace.buildServerManager.targets(for: uri)
-    let isInTestTarget = await targetIdentifiers.asyncContains(where: {
-      await workspace.buildServerManager.buildTarget(named: $0)?.tags.contains(.test) ?? true
-    })
-    if !targetIdentifiers.isEmpty && !isInTestTarget {
-      // If we know the targets for the file and the file is not part of any test target, don't scan it for tests.
-      return nil
-    }
-    let snapshot = try documentManager.latestSnapshot(uri)
-    let semanticSymbols = workspace.index(checkedFor: .deletedFiles)?.symbols(inFilePath: snapshot.uri.pseudoPath)
-    let xctestSymbols = await SyntacticSwiftXCTestScanner.findTestSymbols(
-      in: snapshot,
-      syntaxTreeManager: syntaxTreeManager
-    )
-    .compactMap { $0.filterUsing(semanticSymbols: semanticSymbols) }
-
-    let swiftTestingSymbols = await SyntacticSwiftTestingTestScanner.findTestSymbols(
-      in: snapshot,
-      syntaxTreeManager: syntaxTreeManager
-    )
-    return (xctestSymbols + swiftTestingSymbols).sorted { $0.testItem.location < $1.testItem.location }
   }
 }

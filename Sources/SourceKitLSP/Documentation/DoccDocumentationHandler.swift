@@ -64,22 +64,10 @@ extension DocumentationLanguageService {
             fetchSymbolGraph: { location in
               guard let symbolWorkspace = try await workspaceForDocument(uri: location.documentUri),
                 let languageService = try await languageService(for: location.documentUri, .swift, in: symbolWorkspace)
-                  as? SwiftLanguageService
               else {
                 throw ResponseError.internalError("Unable to find Swift language service for \(location.documentUri)")
               }
-              return try await languageService.withSnapshotFromDiskOpenedInSourcekitd(
-                uri: location.documentUri,
-                fallbackSettingsAfterTimeout: false
-              ) { (snapshot, compileCommand) in
-                let (_, _, symbolGraph) = try await languageService.cursorInfo(
-                  snapshot,
-                  compileCommand: compileCommand,
-                  Range(snapshot.position(of: location)),
-                  includeSymbolGraph: true
-                )
-                return symbolGraph
-              }
+              return try await languageService.symbolGraph(forOnDiskContentsOf: location.documentUri, at: location)
             }
           )
         else {
@@ -89,21 +77,13 @@ extension DocumentationLanguageService {
         guard
           let symbolWorkspace = try await workspaceForDocument(uri: symbolDocumentUri),
           let languageService = try await languageService(for: symbolDocumentUri, .swift, in: symbolWorkspace)
-            as? SwiftLanguageService
         else {
           throw ResponseError.internalError("Unable to find Swift language service for \(symbolDocumentUri)")
         }
-        let symbolGraph = try await languageService.withSnapshotFromDiskOpenedInSourcekitd(
-          uri: symbolDocumentUri,
-          fallbackSettingsAfterTimeout: false
-        ) { snapshot, compileCommand in
-          try await languageService.cursorInfo(
-            snapshot,
-            compileCommand: compileCommand,
-            Range(snapshot.position(of: symbolOccurrence.location)),
-            includeSymbolGraph: true
-          ).symbolGraph
-        }
+        let symbolGraph = try await languageService.symbolGraph(
+          forOnDiskContentsOf: symbolDocumentUri,
+          at: symbolOccurrence.location
+        )
         guard let symbolGraph else {
           throw ResponseError.internalError("Unable to retrieve symbol graph for \(symbolOccurrence.symbol.name)")
         }
