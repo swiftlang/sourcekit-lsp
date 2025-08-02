@@ -10,20 +10,23 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(DocCDocumentation)
 import BuildServerIntegration
-import DocCDocumentation
 import Foundation
 import IndexStoreDB
 package import LanguageServerProtocol
-import SemanticIndex
 import SKLogging
+import SemanticIndex
+import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
-import SourceKitLSP
+
+#if canImport(DocCDocumentation)
+import DocCDocumentation
+#endif
 
 extension SwiftLanguageService {
   package func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
+    #if canImport(DocCDocumentation)
     guard let sourceKitLSPServer else {
       throw ResponseError.internalError("SourceKit-LSP is shutting down")
     }
@@ -100,8 +103,12 @@ extension SwiftLanguageService {
       moduleName: moduleName,
       catalogURL: catalogURL
     )
+    #else
+    throw ResponseError.requestFailed("Documentation preview is not available in this build of SourceKit-LSP")
+    #endif
   }
 
+  #if canImport(DocCDocumentation)
   private func findMarkupExtensionFile(
     workspace: Workspace,
     documentationManager: DocCDocumentationManager,
@@ -127,6 +134,7 @@ extension SwiftLanguageService {
       language: .markdown
     )?.text
   }
+  #endif
 }
 
 private struct DocumentableSymbol {
@@ -216,4 +224,3 @@ private struct DocumentableSymbol {
     return nil
   }
 }
-#endif
