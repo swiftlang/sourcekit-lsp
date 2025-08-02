@@ -77,7 +77,7 @@ package actor SourceKitLSPServer {
     _options.value
   }
 
-  let hooks: Hooks
+  package let hooks: Hooks
 
   let toolchainRegistry: ToolchainRegistry
 
@@ -432,7 +432,7 @@ package actor SourceKitLSPServer {
   }
 
   /// After the language service has crashed, send `DidOpenTextDocumentNotification`s to a newly instantiated language service for previously open documents.
-  func reopenDocuments(for languageService: LanguageService) async {
+  package func reopenDocuments(for languageService: LanguageService) async {
     for documentUri in self.documentManager.openDocuments {
       guard let workspace = await self.workspaceForDocument(uri: documentUri) else {
         continue

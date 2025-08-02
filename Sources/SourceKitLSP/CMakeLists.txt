@@ -3,6 +3,7 @@ add_library(SourceKitLSP STATIC
   CapabilityRegistry.swift
   DocumentManager.swift
   DocumentSnapshot+FromFileContents.swift
+  DocumentSnapshot+PositionConversions.swift
   Hooks.swift
   IndexProgressManager.swift
   IndexStoreDB+MainFilesProvider.swift
@@ -20,10 +21,6 @@ add_library(SourceKitLSP STATIC
   TestDiscovery.swift
   TextEdit+IsNoop.swift
   Workspace.swift
-)
-target_sources(SourceKitLSP PRIVATE
-  Clang/ClangLanguageService.swift
-  Clang/SemanticTokenTranslator.swift
 )
 target_sources(SourceKitLSP PRIVATE
   Documentation/DocCDocumentationHandler.swift

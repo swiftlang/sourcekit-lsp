@@ -7,6 +7,7 @@ set_target_properties(InProcessClient PROPERTIES
 
 target_link_libraries(InProcessClient PUBLIC
   BuildServerIntegration
+  ClangLanguageService
   LanguageServerProtocol
   SKLogging
   SKOptions

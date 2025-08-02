@@ -17,6 +17,7 @@ import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
 import SKLogging
 package import SKOptions
+package import SourceKitLSP
 package import SwiftExtensions
 package import SwiftSyntax
 import TSCExtensions
@@ -499,7 +500,7 @@ extension ClangLanguageService {
       throw ResponseError.unknown("Connection to the editor closed")
     }
 
-    let snapshot = try sourceKitLSPServer.documentManager.latestSnapshot(req.textDocument.uri)
+    let snapshot = try await sourceKitLSPServer.documentManager.latestSnapshot(req.textDocument.uri)
     throw ResponseError.requestFailed(doccDocumentationError: .unsupportedLanguage(snapshot.language))
   }
   #endif
