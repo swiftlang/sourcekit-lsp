@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+package import BuildServerIntegration
 package import BuildServerProtocol
-package import BuildSystemIntegration
 import Foundation
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
@@ -166,8 +166,8 @@ package final actor SemanticIndexManager {
   /// need to be indexed again.
   private let index: UncheckedIndex
 
-  /// The build system manager that is used to get compiler arguments for a file.
-  private let buildSystemManager: BuildSystemManager
+  /// The build server manager that is used to get compiler arguments for a file.
+  private let buildServerManager: BuildServerManager
 
   /// How long to wait until we cancel an update indexstore task. This timeout should be long enough that all
   /// `swift-frontend` tasks finish within it. It prevents us from blocking the index if the type checker gets stuck on
@@ -257,7 +257,7 @@ package final actor SemanticIndexManager {
 
   package init(
     index: UncheckedIndex,
-    buildSystemManager: BuildSystemManager,
+    buildServerManager: BuildServerManager,
     updateIndexStoreTimeout: Duration,
     hooks: IndexHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
@@ -269,7 +269,7 @@ package final actor SemanticIndexManager {
     indexProgressStatusDidChange: @escaping @Sendable () -> Void
   ) {
     self.index = index
-    self.buildSystemManager = buildSystemManager
+    self.buildServerManager = buildServerManager
     self.updateIndexStoreTimeout = updateIndexStoreTimeout
     self.hooks = hooks
     self.indexTaskScheduler = indexTaskScheduler
@@ -279,7 +279,7 @@ package final actor SemanticIndexManager {
   }
 
   /// Regenerate the build graph (also resolving package dependencies) and then index all the source files known to the
-  /// build system that don't currently have a unit with a timestamp that matches the mtime of the file.
+  /// build server that don't currently have a unit with a timestamp that matches the mtime of the file.
   ///
   /// This is a costly operation since it iterates through all the unit files on the file
   /// system but if existing unit files are not known to the index, we might re-index those files even if they are
@@ -290,7 +290,7 @@ package final actor SemanticIndexManager {
     let generateBuildGraphTask = Task(priority: .low) {
       await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "build-graph-generation") {
         await hooks.buildGraphGenerationDidStart?()
-        await self.buildSystemManager.waitForUpToDateBuildGraph()
+        await self.buildServerManager.waitForUpToDateBuildGraph()
         // Polling for unit changes is a costly operation since it iterates through all the unit files on the file
         // system but if existing unit files are not known to the index, we might re-index those files even if they are
         // up-to-date. This operation is worth the cost during initial indexing and during the manual re-index command.
@@ -300,7 +300,7 @@ package final actor SemanticIndexManager {
         // https://github.com/swiftlang/swift/issues/75602
         let filesToIndex: [DocumentURI] =
           await orLog("Getting files to index") {
-            try await self.buildSystemManager.buildableSourceFiles().sorted { $0.stringValue < $1.stringValue }
+            try await self.buildServerManager.buildableSourceFiles().sorted { $0.stringValue < $1.stringValue }
           } ?? []
         await self.scheduleIndexing(
           of: filesToIndex,
@@ -381,7 +381,7 @@ package final actor SemanticIndexManager {
     var outOfDateTargets = Set<BuildTargetIdentifier>()
     var targetsOfChangedFiles = Set<BuildTargetIdentifier>()
     for file in changedFiles {
-      let changedTargets = await buildSystemManager.targets(for: file)
+      let changedTargets = await buildServerManager.targets(for: file)
       targetsOfChangedFiles.formUnion(changedTargets)
       if Language(inferredFromFileExtension: file) == nil {
         // Preparation tracking should be per file. For now consider any non-known-language change as having to
@@ -390,7 +390,7 @@ package final actor SemanticIndexManager {
         outOfDateTargets.formUnion(changedTargets)
       }
     }
-    outOfDateTargets.formUnion(await buildSystemManager.targets(dependingOn: targetsOfChangedFiles))
+    outOfDateTargets.formUnion(await buildServerManager.targets(dependingOn: targetsOfChangedFiles))
     if !outOfDateTargets.isEmpty {
       logger.info(
         """
@@ -426,7 +426,7 @@ package final actor SemanticIndexManager {
 
     if let targets {
       var targetsAndDependencies = targets
-      targetsAndDependencies.formUnion(await buildSystemManager.targets(dependingOn: targets))
+      targetsAndDependencies.formUnion(await buildServerManager.targets(dependingOn: targets))
       if !targetsAndDependencies.isEmpty {
         logger.info(
           """
@@ -447,7 +447,7 @@ package final actor SemanticIndexManager {
     fileOrBuildTargetChangedTasks[uuid] = Task {
       await orLog("Scheduling re-indexing of changed targets") {
         defer { fileOrBuildTargetChangedTasks[uuid] = nil }
-        var sourceFiles = try await self.buildSystemManager.sourceFiles(includeNonBuildableFiles: false)
+        var sourceFiles = try await self.buildServerManager.sourceFiles(includeNonBuildableFiles: false)
         if let targets {
           sourceFiles = sourceFiles.filter { !targets.isDisjoint(with: $0.value.targets) }
         }
@@ -473,7 +473,7 @@ package final actor SemanticIndexManager {
     indexFilesWithUpToDateUnits: Bool
   ) async -> [(file: FileIndexInfo, fileModificationDate: Date?)] {
     let sourceFiles = await orLog("Getting source files in project") {
-      try await buildSystemManager.buildableSourceFiles()
+      try await buildServerManager.buildableSourceFiles()
     }
     guard let sourceFiles else {
       return []
@@ -483,7 +483,7 @@ package final actor SemanticIndexManager {
     var filesToReIndex: [(FileIndexInfo, Date?)] = []
     for uri in files {
       var didFindTargetToIndex = false
-      for (target, outputPath) in await buildSystemManager.sourceFileInfo(for: uri)?.targetsToOutputPath ?? [:] {
+      for (target, outputPath) in await buildServerManager.sourceFileInfo(for: uri)?.targetsToOutputPath ?? [:] {
         // First, check if we know that the file is up-to-date, in which case we don't need to hit the index or file
         // system at all
         if !indexFilesWithUpToDateUnits, await indexStoreUpToDateTracker.isUpToDate(uri, target) {
@@ -515,14 +515,14 @@ package final actor SemanticIndexManager {
       // Deterministically pick a main file. This ensures that we always pick the same main file for a header. This way,
       // if we request the same header to be indexed twice, we'll pick the same unit file the second time around,
       // realize that its timestamp is later than the modification date of the header and we don't need to re-index.
-      let mainFile = await buildSystemManager.mainFiles(containing: uri)
+      let mainFile = await buildServerManager.mainFiles(containing: uri)
         .filter { sourceFiles.contains($0) }
         .sorted(by: { $0.stringValue < $1.stringValue }).first
       guard let mainFile else {
         logger.info("Not indexing \(uri.forLogging) because its main file could not be inferred")
         continue
       }
-      let targetAndOutputPath = (await buildSystemManager.sourceFileInfo(for: mainFile)?.targetsToOutputPath ?? [:])
+      let targetAndOutputPath = (await buildServerManager.sourceFileInfo(for: mainFile)?.targetsToOutputPath ?? [:])
         .sorted(by: { $0.key.uri.stringValue < $1.key.uri.stringValue }).first
       guard let targetAndOutputPath else {
         logger.info(
@@ -603,7 +603,7 @@ package final actor SemanticIndexManager {
   ///
   /// If file's target is known to be up-to-date, this returns almost immediately.
   package func prepareFileForEditorFunctionality(_ uri: DocumentURI) async {
-    guard let target = await buildSystemManager.canonicalTarget(for: uri) else {
+    guard let target = await buildServerManager.canonicalTarget(for: uri) else {
       return
     }
     if Task.isCancelled {
@@ -653,7 +653,7 @@ package final actor SemanticIndexManager {
     let taskDescription = AnyIndexTaskDescription(
       PreparationTaskDescription(
         targetsToPrepare: targetsToPrepare,
-        buildSystemManager: self.buildSystemManager,
+        buildServerManager: self.buildServerManager,
         preparationUpToDateTracker: preparationUpToDateTracker,
         logMessageToIndexLog: logMessageToIndexLog,
         hooks: hooks
@@ -712,7 +712,7 @@ package final actor SemanticIndexManager {
     let taskDescription = AnyIndexTaskDescription(
       UpdateIndexStoreTaskDescription(
         filesToIndex: filesAndTargets,
-        buildSystemManager: self.buildSystemManager,
+        buildServerManager: self.buildServerManager,
         index: index,
         indexStoreUpToDateTracker: indexStoreUpToDateTracker,
         indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit,
@@ -834,7 +834,7 @@ package final actor SemanticIndexManager {
 
     for (fileIndexInfo, fileModificationDate) in filesToIndex {
       guard
-        let language = await buildSystemManager.defaultLanguage(
+        let language = await buildServerManager.defaultLanguage(
           for: fileIndexInfo.file.mainFile,
           in: fileIndexInfo.target
         ),
@@ -862,7 +862,7 @@ package final actor SemanticIndexManager {
     // The targets sorted in reverse topological order, low-level targets before high-level targets. If topological
     // sorting fails, sorted in another deterministic way where the actual order doesn't matter.
     var sortedTargets: [BuildTargetIdentifier] =
-      await orLog("Sorting targets") { try await buildSystemManager.topologicalSort(of: Array(filesByTarget.keys)) }
+      await orLog("Sorting targets") { try await buildServerManager.topologicalSort(of: Array(filesByTarget.keys)) }
       ?? Array(filesByTarget.keys).sorted { $0.uri.stringValue < $1.uri.stringValue }
 
     if Set(sortedTargets) != Set(filesByTarget.keys) {

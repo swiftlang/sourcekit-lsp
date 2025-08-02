@@ -26,13 +26,13 @@ import ToolchainRegistry
 
 /// Bridges the gap between the legacy push-based BSP settings model and the new pull based BSP settings model.
 ///
-/// On the one side, this type is a `BuiltInBuildSystem` that offers pull-based build settings. To serve these queries,
+/// On the one side, this type is a `BuiltInBuildServer` that offers pull-based build settings. To serve these queries,
 /// it communicates with an external BSP server that uses `build/sourceKitOptionsChanged` notifications to communicate
 /// build settings.
 ///
 /// This build server should be phased out in favor of the pull-based settings model described in
 /// https://forums.swift.org/t/extending-functionality-of-build-server-protocol-with-sourcekit-lsp/74400
-actor LegacyBuildServerBuildSystem: MessageHandler, BuiltInBuildSystem {
+actor LegacyBuildServer: MessageHandler, BuiltInBuildServer {
   private var buildServer: JSONRPCConnection?
 
   /// The queue on which all messages that originate from the build server are
@@ -67,18 +67,18 @@ actor LegacyBuildServerBuildSystem: MessageHandler, BuiltInBuildSystem {
     projectRoot: URL,
     configPath: URL,
     initializationData: InitializeBuildResponse,
-    _ externalBuildSystemAdapter: ExternalBuildSystemAdapter
+    _ externalBuildServerAdapter: ExternalBuildServerAdapter
   ) async {
     self.projectRoot = projectRoot
     self.configPath = configPath
     self.indexDatabasePath = nil
     self.indexStorePath = nil
     self.connectionToSourceKitLSP = LocalConnection(
-      receiverName: "BuildSystemManager",
-      handler: await externalBuildSystemAdapter.messagesToSourceKitLSPHandler
+      receiverName: "BuildServerManager",
+      handler: await externalBuildServerAdapter.messagesToSourceKitLSPHandler
     )
-    await externalBuildSystemAdapter.changeMessageToSourceKitLSPHandler(to: self)
-    self.buildServer = await externalBuildSystemAdapter.connectionToBuildServer
+    await externalBuildServerAdapter.changeMessageToSourceKitLSPHandler(to: self)
+    self.buildServer = await externalBuildServerAdapter.connectionToBuildServer
   }
 
   /// Handler for notifications received **from** the builder server, ie.

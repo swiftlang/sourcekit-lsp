@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerIntegration
 import BuildServerProtocol
-import BuildSystemIntegration
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKTestSupport
@@ -186,7 +186,7 @@ final class CompilationDatabaseTests: XCTestCase {
 
   func testJSONCompilationDatabaseFromDirectory() async throws {
     try await withTestScratchDir { tempDir in
-      let dbFile = tempDir.appendingPathComponent(JSONCompilationDatabaseBuildSystem.dbName)
+      let dbFile = tempDir.appendingPathComponent(JSONCompilationDatabaseBuildServer.dbName)
 
       XCTAssertThrowsError(try JSONCompilationDatabase(file: dbFile))
 
@@ -206,10 +206,10 @@ final class CompilationDatabaseTests: XCTestCase {
 
   func testFixedCompilationDatabase() async throws {
     try await withTestScratchDir { tempDir in
-      let dbFile = tempDir.appendingPathComponent(FixedCompilationDatabaseBuildSystem.dbName)
+      let dbFile = tempDir.appendingPathComponent(FixedCompilationDatabaseBuildServer.dbName)
 
       XCTAssertThrowsError(
-        try FixedCompilationDatabaseBuildSystem(
+        try FixedCompilationDatabaseBuildServer(
           configPath: dbFile,
           connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP")
         )
@@ -221,15 +221,15 @@ final class CompilationDatabaseTests: XCTestCase {
       libwidget/include/
       """.write(to: dbFile, atomically: true, encoding: .utf8)
 
-      let buildSystem = try XCTUnwrap(
-        try FixedCompilationDatabaseBuildSystem(
+      let buildServer = try XCTUnwrap(
+        try FixedCompilationDatabaseBuildServer(
           configPath: dbFile,
           connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP")
         )
       )
 
       let dummyFile = tempDir.appendingPathComponent("a.c")
-      let buildSettings = try await buildSystem.sourceKitOptions(
+      let buildSettings = try await buildServer.sourceKitOptions(
         request: TextDocumentSourceKitOptionsRequest(
           textDocument: TextDocumentIdentifier(URI(dummyFile)),
           target: .dummy,
@@ -248,15 +248,15 @@ final class CompilationDatabaseTests: XCTestCase {
 
   func testInvalidCompilationDatabase() async throws {
     try await withTestScratchDir { tempDir in
-      let dbFile = tempDir.appendingPathComponent(JSONCompilationDatabaseBuildSystem.dbName)
+      let dbFile = tempDir.appendingPathComponent(JSONCompilationDatabaseBuildServer.dbName)
 
       try "".write(to: dbFile, atomically: true, encoding: .utf8)
       XCTAssertThrowsError(try JSONCompilationDatabase(file: dbFile))
     }
   }
 
-  func testCompilationDatabaseBuildSystem() async throws {
-    try await checkCompilationDatabaseBuildSystem(
+  func testCompilationDatabaseBuildServer() async throws {
+    try await checkCompilationDatabaseBuildServer(
       """
       [
         {
@@ -266,8 +266,8 @@ final class CompilationDatabaseTests: XCTestCase {
         }
       ]
       """
-    ) { buildSystem in
-      let settings = try await buildSystem.sourceKitOptions(
+    ) { buildServer in
+      let settings = try await buildServer.sourceKitOptions(
         request: TextDocumentSourceKitOptionsRequest(
           textDocument: TextDocumentIdentifier(DocumentURI(URL(fileURLWithPath: "/a/a.swift"))),
           target: BuildTargetIdentifier.createCompileCommands(compiler: "swiftc"),
@@ -278,19 +278,19 @@ final class CompilationDatabaseTests: XCTestCase {
       XCTAssertNotNil(settings)
       XCTAssertEqual(settings?.workingDirectory, "/a")
       XCTAssertEqual(settings?.compilerArguments, ["-swift-version", "4", "/a/a.swift"])
-      assertNil(await buildSystem.indexStorePath)
-      assertNil(await buildSystem.indexDatabasePath)
+      assertNil(await buildServer.indexStorePath)
+      assertNil(await buildServer.indexDatabasePath)
     }
   }
 
-  func testCompilationDatabaseBuildSystemIndexStoreSwift0() async throws {
-    try await checkCompilationDatabaseBuildSystem("[]") { buildSystem in
-      assertNil(await buildSystem.indexStorePath)
+  func testCompilationDatabaseBuildServerIndexStoreSwift0() async throws {
+    try await checkCompilationDatabaseBuildServer("[]") { buildServer in
+      assertNil(await buildServer.indexStorePath)
     }
   }
 
-  func testCompilationDatabaseBuildSystemIndexStoreSwift1() async throws {
-    try await checkCompilationDatabaseBuildSystem(
+  func testCompilationDatabaseBuildServerIndexStoreSwift1() async throws {
+    try await checkCompilationDatabaseBuildServer(
       """
       [
         {
@@ -300,20 +300,20 @@ final class CompilationDatabaseTests: XCTestCase {
         }
       ]
       """
-    ) { buildSystem in
+    ) { buildServer in
       assertEqual(
-        try await buildSystem.indexStorePath?.filePath,
+        try await buildServer.indexStorePath?.filePath,
         "\(pathSeparator)b"
       )
       assertEqual(
-        try await buildSystem.indexDatabasePath?.filePath,
+        try await buildServer.indexDatabasePath?.filePath,
         "\(pathSeparator)IndexDatabase"
       )
     }
   }
 
-  func testCompilationDatabaseBuildSystemIndexStoreSwift2() async throws {
-    try await checkCompilationDatabaseBuildSystem(
+  func testCompilationDatabaseBuildServerIndexStoreSwift2() async throws {
+    try await checkCompilationDatabaseBuildServer(
       """
       [
         {
@@ -333,13 +333,13 @@ final class CompilationDatabaseTests: XCTestCase {
         }
       ]
       """
-    ) { buildSystem in
-      await assertEqual(buildSystem.indexStorePath, URL(fileURLWithPath: "/b"))
+    ) { buildServer in
+      await assertEqual(buildServer.indexStorePath, URL(fileURLWithPath: "/b"))
     }
   }
 
-  func testCompilationDatabaseBuildSystemIndexStoreSwift3() async throws {
-    try await checkCompilationDatabaseBuildSystem(
+  func testCompilationDatabaseBuildServerIndexStoreSwift3() async throws {
+    try await checkCompilationDatabaseBuildServer(
       """
       [
         {
@@ -349,13 +349,13 @@ final class CompilationDatabaseTests: XCTestCase {
         }
       ]
       """
-    ) { buildSystem in
-      assertEqual(await buildSystem.indexStorePath, URL(fileURLWithPath: "/b"))
+    ) { buildServer in
+      assertEqual(await buildServer.indexStorePath, URL(fileURLWithPath: "/b"))
     }
   }
 
-  func testCompilationDatabaseBuildSystemIndexStoreSwift4() async throws {
-    try await checkCompilationDatabaseBuildSystem(
+  func testCompilationDatabaseBuildServerIndexStoreSwift4() async throws {
+    try await checkCompilationDatabaseBuildServer(
       """
       [
         {
@@ -365,13 +365,13 @@ final class CompilationDatabaseTests: XCTestCase {
         }
       ]
       """
-    ) { buildSystem in
-      assertNil(await buildSystem.indexStorePath)
+    ) { buildServer in
+      assertNil(await buildServer.indexStorePath)
     }
   }
 
-  func testCompilationDatabaseBuildSystemIndexStoreClang() async throws {
-    try await checkCompilationDatabaseBuildSystem(
+  func testCompilationDatabaseBuildServerIndexStoreClang() async throws {
+    try await checkCompilationDatabaseBuildServer(
       """
       [
         {
@@ -391,20 +391,20 @@ final class CompilationDatabaseTests: XCTestCase {
         }
       ]
       """
-    ) { buildSystem in
+    ) { buildServer in
       assertEqual(
-        try await buildSystem.indexStorePath?.filePath,
+        try await buildServer.indexStorePath?.filePath,
         "\(pathSeparator)b"
       )
       assertEqual(
-        try await buildSystem.indexDatabasePath?.filePath,
+        try await buildServer.indexDatabasePath?.filePath,
         "\(pathSeparator)IndexDatabase"
       )
     }
   }
 
   func testIndexStorePathRelativeToWorkingDirectory() async throws {
-    try await checkCompilationDatabaseBuildSystem(
+    try await checkCompilationDatabaseBuildServer(
       """
       [
         {
@@ -414,9 +414,9 @@ final class CompilationDatabaseTests: XCTestCase {
         }
       ]
       """
-    ) { buildSystem in
+    ) { buildServer in
       assertEqual(
-        try await buildSystem.indexStorePath?.filePath,
+        try await buildServer.indexStorePath?.filePath,
         "\(pathSeparator)a\(pathSeparator)index-store"
       )
     }
@@ -431,18 +431,18 @@ fileprivate var pathSeparator: String {
   #endif
 }
 
-private func checkCompilationDatabaseBuildSystem(
+private func checkCompilationDatabaseBuildServer(
   _ compdb: String,
-  block: @Sendable (JSONCompilationDatabaseBuildSystem) async throws -> Void
+  block: @Sendable (JSONCompilationDatabaseBuildServer) async throws -> Void
 ) async throws {
   try await withTestScratchDir { tempDir in
-    let configPath = tempDir.appendingPathComponent(JSONCompilationDatabaseBuildSystem.dbName)
+    let configPath = tempDir.appendingPathComponent(JSONCompilationDatabaseBuildServer.dbName)
     try compdb.write(to: configPath, atomically: true, encoding: .utf8)
-    let buildSystem = try JSONCompilationDatabaseBuildSystem(
+    let buildServer = try JSONCompilationDatabaseBuildServer(
       configPath: configPath,
       toolchainRegistry: .forTesting,
       connectionToSourceKitLSP: LocalConnection(receiverName: "Dummy SourceKit-LSP")
     )
-    try await block(XCTUnwrap(buildSystem))
+    try await block(XCTUnwrap(buildServer))
   }
 }

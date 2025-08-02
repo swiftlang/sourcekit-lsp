@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import BuildSystemIntegration
+package import BuildServerIntegration
 import Foundation
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
@@ -23,7 +23,7 @@ import struct TSCBasic.RelativePath
 public struct Hooks: Sendable {
   package var indexHooks: IndexHooks
 
-  package var buildSystemHooks: BuildSystemHooks
+  package var buildServerHooks: BuildServerHooks
 
   /// A hook that will be executed before a request is handled.
   ///
@@ -36,17 +36,17 @@ public struct Hooks: Sendable {
   package var preForwardRequestToClangd: (@Sendable (any RequestType) async -> Void)?
 
   public init() {
-    self.init(indexHooks: IndexHooks(), buildSystemHooks: BuildSystemHooks())
+    self.init(indexHooks: IndexHooks(), buildServerHooks: BuildServerHooks())
   }
 
   package init(
     indexHooks: IndexHooks = IndexHooks(),
-    buildSystemHooks: BuildSystemHooks = BuildSystemHooks(),
+    buildServerHooks: BuildServerHooks = BuildServerHooks(),
     preHandleRequest: (@Sendable (any RequestType) async -> Void)? = nil,
     preForwardRequestToClangd: (@Sendable (any RequestType) async -> Void)? = nil
   ) {
     self.indexHooks = indexHooks
-    self.buildSystemHooks = buildSystemHooks
+    self.buildServerHooks = buildServerHooks
     self.preHandleRequest = preHandleRequest
     self.preForwardRequestToClangd = preForwardRequestToClangd
   }

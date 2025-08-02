@@ -45,8 +45,8 @@ fileprivate extension CompilationDatabaseCompileCommand {
   }
 }
 
-/// A `BuildSystem` that provides compiler arguments from a `compile_commands.json` file.
-package actor JSONCompilationDatabaseBuildSystem: BuiltInBuildSystem {
+/// A `BuiltInBuildServer` that provides compiler arguments from a `compile_commands.json` file.
+package actor JSONCompilationDatabaseBuildServer: BuiltInBuildServer {
   package static let dbName: String = "compile_commands.json"
 
   /// The compilation database.

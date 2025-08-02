@@ -18,7 +18,7 @@ import SwiftExtensions
 
 /// Task metadata for `SyntacticTestIndexer.indexingQueue`
 fileprivate enum TaskMetadata: DependencyTracker, Equatable {
-  /// Determine the list of test files from the build system and scan them for tests. Only created when the
+  /// Determine the list of test files from the build server and scan them for tests. Only created when the
   /// `SyntacticTestIndex` is created
   case initialPopulation
 
@@ -183,7 +183,7 @@ actor SyntacticTestIndex {
     removedFiles.subtract(uris)
 
     // If we already know that the file has an up-to-date index, avoid re-scheduling it to be indexed. This ensures
-    // that we don't bloat `indexingQueue` if the build system is sending us repeated `buildTarget/didChange`
+    // that we don't bloat `indexingQueue` if the build server is sending us repeated `buildTarget/didChange`
     // notifications.
     // This check does not need to be perfect and there might be an in-progress index operation that is about to index
     // the file. In that case we still schedule anothe rescan of that file and notice in `rescanFilesAssumingOnQueue`

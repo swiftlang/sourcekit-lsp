@@ -30,12 +30,12 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `disableSandbox: boolean`: Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option. Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.
 - `compilationDatabase`: Dictionary with the following keys, defining options for workspaces with a compilation database.
   - `searchPaths: string[]`: Additional paths to search for a compilation database, relative to a workspace root.
-- `fallbackBuildSystem`: Dictionary with the following keys, defining options for files that aren't managed by any build system.
+- `fallbackBuildSystem`: Dictionary with the following keys, defining options for files that aren't managed by any build server.
   - `cCompilerFlags: string[]`: Extra arguments passed to the compiler for C files.
   - `cxxCompilerFlags: string[]`: Extra arguments passed to the compiler for C++ files.
   - `swiftCompilerFlags: string[]`: Extra arguments passed to the compiler for Swift files.
   - `sdk: string`: The SDK to use for fallback arguments. Default is to infer the SDK using `xcrun`.
-- `buildSettingsTimeout: integer`: Number of milliseconds to wait for build settings from the build system before using fallback build settings.
+- `buildSettingsTimeout: integer`: Number of milliseconds to wait for build settings from the build server before using fallback build settings.
 - `clangdOptions: string[]`: Extra command line arguments passed to `clangd` when launching it.
 - `index`: Options related to indexing.
   - `indexPrefixMap: [string: string]`: Path remappings for remapping index data for local use.

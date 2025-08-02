@@ -6,9 +6,9 @@ The SourceKit-LSP package contains the following non-testing modules.
 
 Swift types to represent the [Build Server Protocol (BSP) specification](https://build-server-protocol.github.io/docs/specification). These types should also be usable when implementing a BSP client and thus this module should not have any dependencies other than the LanguageServerProtocol module, with which it shares some types.
 
-### BuildSystemIntegration
+### BuildServerIntegration
 
-Defines the queries SourceKit-LSP can ask of a build system, like getting compiler arguments for a file, finding a target’s dependencies or preparing a target.
+Defines the queries SourceKit-LSP can ask of a build server, like getting compiler arguments for a file, finding a target’s dependencies or preparing a target.
 
 ### CAtomics
 

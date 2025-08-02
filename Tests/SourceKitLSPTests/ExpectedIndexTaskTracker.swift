@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerIntegration
 import BuildServerProtocol
-import BuildSystemIntegration
 import LanguageServerProtocol
 import SKLogging
 import SemanticIndex
@@ -23,7 +23,7 @@ enum BuildDestination {
 
   /// A string that can be used to identify the build triple in a `BuildTargetIdentifier`.
   ///
-  /// `BuildSystemManager.canonicalBuildTargetIdentifier` picks the canonical target based on alphabetical
+  /// `BuildServerManager.canonicalBuildTargetIdentifier` picks the canonical target based on alphabetical
   /// ordering. We rely on the string "destination" being ordered before "tools" so that we prefer a
   /// `destination` (or "target") target over a `tools` (or "host") target.
   var id: String {
@@ -81,7 +81,7 @@ struct ExpectedPreparation {
     didStart: (@Sendable () -> Void)? = nil,
     didFinish: (@Sendable () -> Void)? = nil
   ) throws {
-    // This should match the format in `BuildTargetIdentifier(_: any SwiftBuildTarget)` inside SwiftPMBuildSystem.
+    // This should match the format in `BuildTargetIdentifier(_: any SwiftBuildTarget)` inside SwiftPMBuildServer.
     self.target = try BuildTargetIdentifier(target: target, destination: destination)
     self.didStart = didStart
     self.didFinish = didFinish

@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildSystemIntegration
+import BuildServerIntegration
 import Foundation
 import IndexStoreDB
 package import LanguageServerProtocol
@@ -18,9 +18,9 @@ import SKLogging
 import SemanticIndex
 import SwiftExtensions
 
-extension UncheckedIndex: BuildSystemIntegration.MainFilesProvider {
-  /// - Important: This may return realpaths when the build system might not be using realpaths. Use
-  ///   `BuildSystemManager.mainFiles(containing:)` to work around that problem.
+extension UncheckedIndex: BuildServerIntegration.MainFilesProvider {
+  /// - Important: This may return realpaths when the build server might not be using realpaths. Use
+  ///   `BuildServerManager.mainFiles(containing:)` to work around that problem.
   package func mainFiles(containing uri: DocumentURI, crossLanguage: Bool) -> Set<DocumentURI> {
     let mainFiles: Set<DocumentURI>
     if let filePath = orLog("File path to get main files", { try uri.fileURL?.filePath }) {

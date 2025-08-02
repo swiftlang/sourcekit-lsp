@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildSystemIntegration
+import BuildServerIntegration
 import Foundation
 import LanguageServerProtocol
 import SKTestSupport
@@ -26,25 +26,25 @@ final class PluginSwiftPMTestProject {
 
   private let fileData: [String: MultiFileTestProject.FileData]
 
-  private var _buildSystemManager: BuildSystemManager?
-  private var buildSystemManager: BuildSystemManager {
+  private var _buildServerManager: BuildServerManager?
+  private var buildServerManager: BuildServerManager {
     get async throws {
-      if let _buildSystemManager {
-        return _buildSystemManager
+      if let _buildServerManager {
+        return _buildServerManager
       }
-      let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: BuildSystemSpec(
+      let buildServerManager = await BuildServerManager(
+        buildServerSpec: BuildServerSpec(
           kind: .swiftPM,
           projectRoot: scratchDirectory,
           configPath: scratchDirectory.appendingPathComponent("Package.swift")
         ),
         toolchainRegistry: .forTesting,
         options: try .testDefault(backgroundIndexing: false),
-        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemHooks: BuildSystemHooks()
+        connectionToClient: DummyBuildServerManagerConnectionToClient(),
+        buildServerHooks: BuildServerHooks()
       )
-      _buildSystemManager = buildSystemManager
-      return buildSystemManager
+      _buildServerManager = buildServerManager
+      return buildServerManager
     }
   }
 
@@ -98,8 +98,8 @@ final class PluginSwiftPMTestProject {
   }
 
   package func compilerArguments(for fileName: String) async throws -> [String] {
-    try await buildSystemManager.waitForUpToDateBuildGraph()
-    let buildSettings = try await buildSystemManager.buildSettingsInferredFromMainFile(
+    try await buildServerManager.waitForUpToDateBuildGraph()
+    let buildSettings = try await buildServerManager.buildSettingsInferredFromMainFile(
       for: try uri(for: fileName),
       language: .swift,
       fallbackAfterTimeout: false

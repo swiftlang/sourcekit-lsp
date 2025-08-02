@@ -150,14 +150,14 @@ package protocol LanguageService: AnyObject, Sendable {
   func willSaveDocument(_ notification: WillSaveTextDocumentNotification) async
   func didSaveDocument(_ notification: DidSaveTextDocumentNotification) async
 
-  // MARK: - Build System Integration
+  // MARK: - Build Server Integration
 
-  /// Sent when the `BuildSystem` has resolved build settings, such as for the initial build settings
-  /// or when the settings have changed (e.g. modified build system files). This may be sent before
+  /// Sent when the build server has resolved build settings, such as for the initial build settings
+  /// or when the settings have changed (e.g. modified build server files). This may be sent before
   /// the respective `DocumentURI` has been opened.
   func documentUpdatedBuildSettings(_ uri: DocumentURI) async
 
-  /// Sent when the `BuildSystem` has detected that dependencies of the given files have changed
+  /// Sent when the build server has detected that dependencies of the given files have changed
   /// (e.g. header files, swiftmodule files, other compiler input files).
   func documentDependenciesUpdated(_ uris: Set<DocumentURI>) async
 

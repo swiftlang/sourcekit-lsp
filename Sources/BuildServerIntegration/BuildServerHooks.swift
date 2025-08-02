@@ -26,16 +26,16 @@ package struct SwiftPMTestHooks: Sendable {
   }
 }
 
-package struct BuildSystemHooks: Sendable {
+package struct BuildServerHooks: Sendable {
   package var swiftPMTestHooks: SwiftPMTestHooks
 
-  /// A hook that will be executed before a request is handled by a `BuiltInBuildSystem`.
+  /// A hook that will be executed before a request is handled by a `BuiltInBuildServer`.
   ///
   /// This allows requests to be artificially delayed.
   package var preHandleRequest: (@Sendable (any RequestType) async -> Void)?
 
   /// When running SourceKit-LSP in-process, allows the creator of `SourceKitLSPServer` to create a message handler that
-  /// handles BSP requests instead of SourceKit-LSP creating build systems as needed.
+  /// handles BSP requests instead of SourceKit-LSP creating build server as needed.
   package var injectBuildServer:
     (@Sendable (_ projectRoot: URL, _ connectionToSourceKitLSP: any Connection) async -> any Connection)?
 

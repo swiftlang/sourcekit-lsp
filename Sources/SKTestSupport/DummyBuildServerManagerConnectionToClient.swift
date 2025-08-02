@@ -10,11 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildSystemIntegration
+import BuildServerIntegration
 import Foundation
 package import LanguageServerProtocol
 
-package struct DummyBuildSystemManagerConnectionToClient: BuildSystemManagerConnectionToClient {
+package struct DummyBuildServerManagerConnectionToClient: BuildServerManagerConnectionToClient {
   package var clientSupportsWorkDoneProgress: Bool = false
 
   package init() {}

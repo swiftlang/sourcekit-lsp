@@ -12,9 +12,9 @@ Preparation of a target should perform the minimal amount of work to build all `
 
 ### Status tracking
 
-When SourceKit-LSP is launched, all targets are considered to be out-of-date. This needs to be done because source files might have changed since SourceKit-LSP was last started – if the module wasn’t modified since the last SourceKit-LSP launch, we re-prepare the target and rely on the build system to produce a fast null build.
+When SourceKit-LSP is launched, all targets are considered to be out-of-date. This needs to be done because source files might have changed since SourceKit-LSP was last started – if the module wasn’t modified since the last SourceKit-LSP launch, we re-prepare the target and rely on the build server to produce a fast null build.
 
-After we have prepared a target, we mark it as being up-to-date in `SemanticIndexManager.preparationUpToDateTracker`. That way we don’t need to invoke the build system every time we want to perform semantic functionality of a source file, which saves us the time of a null build (which can hundreds of milliseconds for SwiftPM). If a source file is changed (as noted through file watching), all of its target’s dependencies are marked as out-of-date. Note that the target that the source file belongs to is not marked as out-of-date – preparation of a target builds all dependencies but does not need to build the target’s module itself. The next operation that requires the target to be prepared will trigger a preparation job.
+After we have prepared a target, we mark it as being up-to-date in `SemanticIndexManager.preparationUpToDateTracker`. That way we don’t need to invoke the build server every time we want to perform semantic functionality of a source file, which saves us the time of a null build (which can hundreds of milliseconds for SwiftPM). If a source file is changed (as noted through file watching), all of its target’s dependencies are marked as out-of-date. Note that the target that the source file belongs to is not marked as out-of-date – preparation of a target builds all dependencies but does not need to build the target’s module itself. The next operation that requires the target to be prepared will trigger a preparation job.
 
 ## Updating the index store
 

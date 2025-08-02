@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import BuildSystemIntegration
+package import BuildServerIntegration
 package import Foundation
 @preconcurrency package import IndexStoreDB
 package import LanguageServerProtocol

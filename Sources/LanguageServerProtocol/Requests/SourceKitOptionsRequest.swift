@@ -43,7 +43,7 @@ public struct SourceKitOptionsRequest: RequestType, Hashable {
   /// If set to `true` and build settings could not be determined within a timeout (see `buildSettingsTimeout` in the
   /// SourceKit-LSP configuration file), this request returns fallback build settings.
   ///
-  /// If set to `false` the request only finishes when build settings were provided by the build system.
+  /// If set to `false` the request only finishes when build settings were provided by the build server.
   public var allowFallbackSettings: Bool
 
   public init(

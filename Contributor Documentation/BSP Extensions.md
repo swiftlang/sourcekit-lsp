@@ -78,7 +78,7 @@ export interface SourceKitSourceItemData {
   /** The language of the source file. If `nil`, the language is inferred from the file extension. */
   language?: LanguageId;
 
-  /** 
+  /**
    * The kind of source file that this source item represents. If omitted, the item is assumed to be a normal source
    * file, ie. omitting this key is equivalent to specifying it as `source`.
    */
@@ -172,7 +172,7 @@ export interface SourceKitBuildTarget {
 
 ## `workspace/didChangeWatchedFiles`
 
-Notification sent from SourceKit-LSP to the build system to indicate that files within the project have been modified.
+Notification sent from SourceKit-LSP to the build server to indicate that files within the project have been modified.
 
 SourceKit-LSP may send file change notifications for a superset of the files that the BSP server requested to watch in `watchers`. It is the BSP server’s responsibility to filter the file watch notifications for the ones it is actually interested in.
 
@@ -182,6 +182,6 @@ Definition is the same as in LSP.
 
 This request is a no-op and doesn't have any effects.
 
-If the build system is currently updating the build graph, this request should return after those updates have finished processing.
+If the build server is currently updating the build graph, this request should return after those updates have finished processing.
 
 - method: `workspace/waitForBuildSystemUpdates`

@@ -74,7 +74,7 @@ private struct BuildServerConfig: Codable {
   /// A collection of languages supported by this BSP server.
   let languages: [String]
 
-  /// Command arguments runnable via system processes to start a BSP server.
+  /// Command arguments runnable via server processes to start a BSP server.
   let argv: [String]
 
   static func load(from path: URL) throws -> BuildServerConfig {
@@ -85,14 +85,14 @@ private struct BuildServerConfig: Codable {
 }
 
 /// Launches a subprocess that is a BSP server and manages the process's lifetime.
-actor ExternalBuildSystemAdapter {
+actor ExternalBuildServerAdapter {
   /// The root folder of the project. Used to resolve relative server paths.
   private let projectRoot: URL
 
   /// The file that specifies the configuration for this build server.
   private let configPath: URL
 
-  /// The `BuildSystemManager` that handles messages from the BSP server to SourceKit-LSP.
+  /// The `BuildServerManager` that handles messages from the BSP server to SourceKit-LSP.
   var messagesToSourceKitLSPHandler: MessageHandler
 
   /// The JSON-RPC connection between SourceKit-LSP and the BSP server.
@@ -113,12 +113,12 @@ actor ExternalBuildSystemAdapter {
     in workspaceFolder: URL,
     onlyConsiderRoot: Bool,
     options: SourceKitLSPOptions
-  ) -> BuildSystemSpec? {
+  ) -> BuildServerSpec? {
     guard let configPath = getConfigPath(for: workspaceFolder, onlyConsiderRoot: onlyConsiderRoot) else {
       return nil
     }
 
-    return BuildSystemSpec(kind: .buildServer, projectRoot: workspaceFolder, configPath: configPath)
+    return BuildServerSpec(kind: .externalBuildServer, projectRoot: workspaceFolder, configPath: configPath)
   }
 
   init(
@@ -134,7 +134,7 @@ actor ExternalBuildSystemAdapter {
 
   /// Change the handler that handles messages from the build server.
   ///
-  /// The intended use of this is to intercept messages from the build server by `LegacyBuildServerBuildSystem`.
+  /// The intended use of this is to intercept messages from the build server by `LegacyBuildServer`.
   func changeMessageToSourceKitLSPHandler(to newHandler: MessageHandler) {
     messagesToSourceKitLSPHandler = newHandler
     connectionToBuildServer?.changeReceiveHandler(messagesToSourceKitLSPHandler)

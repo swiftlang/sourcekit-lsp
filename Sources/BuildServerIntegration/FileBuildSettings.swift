@@ -17,7 +17,7 @@ import LanguageServerProtocolExtensions
 /// Build settings for a single file.
 ///
 /// Encapsulates all the settings needed to compile a single file, including the compiler arguments
-/// and working directory. FileBuildSettings are typically the result of a BuildSystem query.
+/// and working directory. `FileBuildSettings`` are typically the result of a build server query.
 package struct FileBuildSettings: Equatable, Sendable {
 
   /// The compiler arguments to use for this file.
@@ -34,7 +34,8 @@ package struct FileBuildSettings: Equatable, Sendable {
   /// SourceKit-LSP but returned to clients in the `workspace/_sourceKitOptions` LSP request.
   package var data: LSPAny?
 
-  /// Whether the build settings were computed from a real build system or whether they are synthesized fallback arguments while the build system is still busy computing build settings.
+  /// Whether the build settings were computed from a real build server or whether they are synthesized fallback
+  /// arguments while the build server is still busy computing build settings.
   package var isFallback: Bool
 
   package init(

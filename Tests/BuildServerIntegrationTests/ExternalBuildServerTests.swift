@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerIntegration
 import BuildServerProtocol
-import BuildSystemIntegration
 import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
@@ -26,7 +26,7 @@ import XCTest
 import WinSDK
 #endif
 
-final class BuildServerBuildSystemTests: XCTestCase {
+final class ExternalBuildServerTests: XCTestCase {
   func testBuildSettingsFromBuildServer() async throws {
     let project = try await ExternalBuildServerTestProject(
       files: [
@@ -524,7 +524,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
     assertContains(try XCTUnwrap(optionsWithoutTarget).compilerArguments, "-DFIRST")
   }
 
-  func testDontBlockBuildServerInitializationIfBuildSystemIsUnresponsive() async throws {
+  func testDontBlockBuildServerInitializationIfBuildServerIsUnresponsive() async throws {
     // A build server that responds to the initialize request but not to any other requests.
     final class UnresponsiveBuildServer: CustomBuildServer {
       let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()

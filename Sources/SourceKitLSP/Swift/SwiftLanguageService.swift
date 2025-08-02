@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+package import BuildServerIntegration
 import BuildServerProtocol
-package import BuildSystemIntegration
 import Csourcekitd
 import Dispatch
 import Foundation
@@ -299,7 +299,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: buildSettingsFile) else {
       return nil
     }
-    return await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
+    return await workspace.buildServerManager.buildSettingsInferredFromMainFile(
       for: buildSettingsFile,
       language: .swift,
       fallbackAfterTimeout: fallbackAfterTimeout
@@ -445,7 +445,7 @@ extension SwiftLanguageService {
     _ = try? await send(sourcekitdRequest: \.crashWithExit, sourcekitd.dictionary([:]), snapshot: nil)
   }
 
-  // MARK: - Build System Integration
+  // MARK: - Build Server Integration
 
   package func reopenDocument(_ notification: ReopenTextDocumentNotification) async {
     switch try? ReferenceDocumentURL(from: notification.textDocument.uri) {
@@ -1054,8 +1054,8 @@ extension SwiftLanguageService {
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
     var targetDisplayName: String? = nil
     if let workspace = await sourceKitLSPServer?.workspaceForDocument(uri: req.textDocument.uri),
-      let target = await workspace.buildSystemManager.canonicalTarget(for: req.textDocument.uri),
-      let buildTarget = await workspace.buildSystemManager.buildTarget(named: target)
+      let target = await workspace.buildServerManager.canonicalTarget(for: req.textDocument.uri),
+      let buildTarget = await workspace.buildServerManager.buildTarget(named: target)
     {
       targetDisplayName = buildTarget.displayName
     }

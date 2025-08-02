@@ -12,7 +12,7 @@
 
 #if !NO_SWIFTPM_DEPENDENCY
 import BuildServerProtocol
-@_spi(Testing) import BuildSystemIntegration
+@_spi(Testing) import BuildServerIntegration
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import PackageModel
@@ -46,7 +46,7 @@ private var hostTriple: Triple {
 }
 
 @Suite(.serialized)
-struct SwiftPMBuildSystemTests {
+struct SwiftPMBuildServerTests {
   @Test
   func testNoPackage() async throws {
     try await withTestScratchDir { tempDir in
@@ -57,8 +57,8 @@ struct SwiftPMBuildSystemTests {
         ]
       )
       let packageRoot = tempDir.appendingPathComponent("pkg")
-      let buildSystemSpec = SwiftPMBuildSystem.searchForConfig(in: packageRoot, options: try await .testDefault())
-      #expect(buildSystemSpec == nil)
+      let buildServerSpec = SwiftPMBuildServer.searchForConfig(in: packageRoot, options: try await .testDefault())
+      #expect(buildServerSpec == nil)
     }
   }
 
@@ -81,7 +81,7 @@ struct SwiftPMBuildSystemTests {
       )
       let packageRoot = tempDir.appendingPathComponent("pkg")
       await expectThrowsError(
-        try await SwiftPMBuildSystem(
+        try await SwiftPMBuildServer(
           projectRoot: packageRoot,
           toolchainRegistry: ToolchainRegistry(toolchains: []),
           options: SourceKitLSPOptions(),
@@ -116,7 +116,7 @@ struct SwiftPMBuildSystemTests {
         ),
         backgroundIndexing: false
       )
-      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
+      let swiftpmBuildServer = try await SwiftPMBuildServer(
         projectRoot: packageRoot,
         toolchainRegistry: .forTesting,
         options: options,
@@ -124,7 +124,7 @@ struct SwiftPMBuildSystemTests {
         testHooks: SwiftPMTestHooks()
       )
 
-      let dataPath = await swiftpmBuildSystem.destinationBuildParameters.dataPath
+      let dataPath = await swiftpmBuildServer.destinationBuildParameters.dataPath
       let expectedScratchPath = packageRoot.appendingPathComponent(try #require(options.swiftPMOrDefault.scratchPath))
       #expect(dataPath.asURL.isDescendant(of: expectedScratchPath))
     }
@@ -148,14 +148,14 @@ struct SwiftPMBuildSystemTests {
         ]
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
-      let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: .swiftpmSpec(for: packageRoot),
+      let buildServerManager = await BuildServerManager(
+        buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
-        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemHooks: BuildSystemHooks()
+        connectionToClient: DummyBuildServerManagerConnectionToClient(),
+        buildServerHooks: BuildServerHooks()
       )
-      await buildSystemManager.waitForUpToDateBuildGraph()
+      await buildServerManager.waitForUpToDateBuildGraph()
 
       let aswift =
         packageRoot
@@ -164,10 +164,10 @@ struct SwiftPMBuildSystemTests {
         .appendingPathComponent("a.swift")
       let build = try await buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
-      _ = try #require(await buildSystemManager.initializationData?.indexDatabasePath)
-      _ = try #require(await buildSystemManager.initializationData?.indexStorePath)
+      _ = try #require(await buildServerManager.initializationData?.indexDatabasePath)
+      _ = try #require(await buildServerManager.initializationData?.indexStorePath)
       let arguments = try #require(
-        await buildSystemManager.buildSettingsInferredFromMainFile(
+        await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
@@ -216,14 +216,14 @@ struct SwiftPMBuildSystemTests {
         ]
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
-      let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: .swiftpmSpec(for: packageRoot),
+      let buildServerManager = await BuildServerManager(
+        buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
-        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemHooks: BuildSystemHooks()
+        connectionToClient: DummyBuildServerManagerConnectionToClient(),
+        buildServerHooks: BuildServerHooks()
       )
-      await buildSystemManager.waitForUpToDateBuildGraph()
+      await buildServerManager.waitForUpToDateBuildGraph()
 
       let aPlusSomething =
         packageRoot
@@ -231,7 +231,7 @@ struct SwiftPMBuildSystemTests {
         .appendingPathComponent("lib")
         .appendingPathComponent("a+something.swift")
 
-      _ = try #require(await buildSystemManager.initializationData?.indexStorePath)
+      _ = try #require(await buildServerManager.initializationData?.indexStorePath)
       let pathWithPlusEscaped = "\(try aPlusSomething.filePath.replacing("+", with: "%2B"))"
       #if os(Windows)
       let urlWithPlusEscaped = try #require(URL(string: "file:///\(pathWithPlusEscaped)"))
@@ -239,7 +239,7 @@ struct SwiftPMBuildSystemTests {
       let urlWithPlusEscaped = try #require(URL(string: "file://\(pathWithPlusEscaped)"))
       #endif
       let arguments = try #require(
-        await buildSystemManager.buildSettingsInferredFromMainFile(
+        await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(urlWithPlusEscaped),
           language: .swift,
           fallbackAfterTimeout: false
@@ -289,14 +289,14 @@ struct SwiftPMBuildSystemTests {
         swiftCompilerFlags: ["-typecheck"]
       )
 
-      let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: .swiftpmSpec(for: packageRoot),
+      let buildServerManager = await BuildServerManager(
+        buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(swiftPM: options),
-        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemHooks: BuildSystemHooks()
+        connectionToClient: DummyBuildServerManagerConnectionToClient(),
+        buildServerHooks: BuildServerHooks()
       )
-      await buildSystemManager.waitForUpToDateBuildGraph()
+      await buildServerManager.waitForUpToDateBuildGraph()
 
       let aswift =
         packageRoot
@@ -305,7 +305,7 @@ struct SwiftPMBuildSystemTests {
         .appendingPathComponent("a.swift")
 
       let arguments = try #require(
-        await buildSystemManager.buildSettingsInferredFromMainFile(
+        await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
@@ -336,18 +336,18 @@ struct SwiftPMBuildSystemTests {
         ]
       )
       let packageRoot = tempDir.appendingPathComponent("pkg")
-      let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: .swiftpmSpec(for: packageRoot),
+      let buildServerManager = await BuildServerManager(
+        buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
-        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemHooks: BuildSystemHooks()
+        connectionToClient: DummyBuildServerManagerConnectionToClient(),
+        buildServerHooks: BuildServerHooks()
       )
-      await buildSystemManager.waitForUpToDateBuildGraph()
+      await buildServerManager.waitForUpToDateBuildGraph()
 
       let source = try packageRoot.appendingPathComponent("Package.swift").realpath
       let arguments = try #require(
-        await buildSystemManager.buildSettingsInferredFromMainFile(
+        await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(source),
           language: .swift,
           fallbackAfterTimeout: false
@@ -377,14 +377,14 @@ struct SwiftPMBuildSystemTests {
         ]
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
-      let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: .swiftpmSpec(for: packageRoot),
+      let buildServerManager = await BuildServerManager(
+        buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
-        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemHooks: BuildSystemHooks()
+        connectionToClient: DummyBuildServerManagerConnectionToClient(),
+        buildServerHooks: BuildServerHooks()
       )
-      await buildSystemManager.waitForUpToDateBuildGraph()
+      await buildServerManager.waitForUpToDateBuildGraph()
 
       let aswift =
         packageRoot
@@ -398,7 +398,7 @@ struct SwiftPMBuildSystemTests {
         .appendingPathComponent("b.swift")
 
       let argumentsA = try #require(
-        await buildSystemManager.buildSettingsInferredFromMainFile(
+        await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
@@ -407,7 +407,7 @@ struct SwiftPMBuildSystemTests {
       expectArgumentsContain(try aswift.filePath, arguments: argumentsA)
       expectArgumentsContain(try bswift.filePath, arguments: argumentsA)
       let argumentsB = try #require(
-        await buildSystemManager.buildSettingsInferredFromMainFile(
+        await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
@@ -443,14 +443,14 @@ struct SwiftPMBuildSystemTests {
         ]
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
-      let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: .swiftpmSpec(for: packageRoot),
+      let buildServerManager = await BuildServerManager(
+        buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
-        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemHooks: BuildSystemHooks()
+        connectionToClient: DummyBuildServerManagerConnectionToClient(),
+        buildServerHooks: BuildServerHooks()
       )
-      await buildSystemManager.waitForUpToDateBuildGraph()
+      await buildServerManager.waitForUpToDateBuildGraph()
 
       let aswift =
         packageRoot
@@ -463,7 +463,7 @@ struct SwiftPMBuildSystemTests {
         .appendingPathComponent("libB")
         .appendingPathComponent("b.swift")
       let arguments = try #require(
-        await buildSystemManager.buildSettingsInferredFromMainFile(
+        await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
@@ -484,7 +484,7 @@ struct SwiftPMBuildSystemTests {
       )
 
       let argumentsB = try #require(
-        await buildSystemManager.buildSettingsInferredFromMainFile(
+        await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(bswift),
           language: .swift,
           fallbackAfterTimeout: false
@@ -523,14 +523,14 @@ struct SwiftPMBuildSystemTests {
         ]
       )
       let packageRoot = tempDir.appendingPathComponent("pkg")
-      let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: .swiftpmSpec(for: packageRoot),
+      let buildServerManager = await BuildServerManager(
+        buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
-        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemHooks: BuildSystemHooks()
+        connectionToClient: DummyBuildServerManagerConnectionToClient(),
+        buildServerHooks: BuildServerHooks()
       )
-      await buildSystemManager.waitForUpToDateBuildGraph()
+      await buildServerManager.waitForUpToDateBuildGraph()
 
       let aswift =
         packageRoot
@@ -543,21 +543,21 @@ struct SwiftPMBuildSystemTests {
         .appendingPathComponent("libB")
         .appendingPathComponent("b.swift")
       _ = try #require(
-        await buildSystemManager.buildSettingsInferredFromMainFile(
+        await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
         )
       )
       #expect(
-        await buildSystemManager.buildSettingsInferredFromMainFile(
+        await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(bswift),
           language: .swift,
           fallbackAfterTimeout: false
         )?.isFallback == true
       )
       #expect(
-        await buildSystemManager.buildSettingsInferredFromMainFile(
+        await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(URL(string: "https://www.apple.com")!),
           language: .swift,
           fallbackAfterTimeout: false
@@ -587,14 +587,14 @@ struct SwiftPMBuildSystemTests {
         ]
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
-      let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: .swiftpmSpec(for: packageRoot),
+      let buildServerManager = await BuildServerManager(
+        buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
-        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemHooks: BuildSystemHooks()
+        connectionToClient: DummyBuildServerManagerConnectionToClient(),
+        buildServerHooks: BuildServerHooks()
       )
-      await buildSystemManager.waitForUpToDateBuildGraph()
+      await buildServerManager.waitForUpToDateBuildGraph()
 
       let acxx =
         packageRoot
@@ -614,11 +614,11 @@ struct SwiftPMBuildSystemTests {
         .appendingPathComponent("a.h")
       let build = buildPath(root: packageRoot, platform: try await hostTriple.platformBuildPathComponent)
 
-      _ = try #require(await buildSystemManager.initializationData?.indexStorePath)
+      _ = try #require(await buildServerManager.initializationData?.indexStorePath)
 
       for file in [acxx, header] {
         let args = try #require(
-          await buildSystemManager.buildSettingsInferredFromMainFile(
+          await buildServerManager.buildSettingsInferredFromMainFile(
             for: DocumentURI(file),
             language: .cpp,
             fallbackAfterTimeout: false
@@ -680,14 +680,14 @@ struct SwiftPMBuildSystemTests {
         ]
       )
       let packageRoot = tempDir.appendingPathComponent("pkg")
-      let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: .swiftpmSpec(for: packageRoot),
+      let buildServerManager = await BuildServerManager(
+        buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
-        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemHooks: BuildSystemHooks()
+        connectionToClient: DummyBuildServerManagerConnectionToClient(),
+        buildServerHooks: BuildServerHooks()
       )
-      await buildSystemManager.waitForUpToDateBuildGraph()
+      await buildServerManager.waitForUpToDateBuildGraph()
 
       let aswift =
         packageRoot
@@ -695,7 +695,7 @@ struct SwiftPMBuildSystemTests {
         .appendingPathComponent("lib")
         .appendingPathComponent("a.swift")
       let arguments = try #require(
-        await buildSystemManager.buildSettingsInferredFromMainFile(
+        await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
@@ -739,17 +739,17 @@ struct SwiftPMBuildSystemTests {
         withDestinationURL: URL(fileURLWithPath: tempDir.appendingPathComponent("pkg_real").filePath)
       )
 
-      let buildSystemSpec = try #require(
-        SwiftPMBuildSystem.searchForConfig(in: packageRoot, options: await .testDefault())
+      let buildServerSpec = try #require(
+        SwiftPMBuildServer.searchForConfig(in: packageRoot, options: await .testDefault())
       )
-      let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: buildSystemSpec,
+      let buildServerManager = await BuildServerManager(
+        buildServerSpec: buildServerSpec,
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
-        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemHooks: BuildSystemHooks()
+        connectionToClient: DummyBuildServerManagerConnectionToClient(),
+        buildServerHooks: BuildServerHooks()
       )
-      await buildSystemManager.waitForUpToDateBuildGraph()
+      await buildServerManager.waitForUpToDateBuildGraph()
 
       let aswiftSymlink =
         packageRoot
@@ -760,7 +760,7 @@ struct SwiftPMBuildSystemTests {
       let manifest = packageRoot.appendingPathComponent("Package.swift")
 
       let argumentsFromSymlink = try #require(
-        await buildSystemManager.buildSettingsInferredFromMainFile(
+        await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(aswiftSymlink),
           language: .swift,
           fallbackAfterTimeout: false
@@ -771,7 +771,7 @@ struct SwiftPMBuildSystemTests {
       // build settings for it.
       #expect(
         try await #require(
-          await buildSystemManager.buildSettingsInferredFromMainFile(
+          await buildServerManager.buildSettingsInferredFromMainFile(
             for: DocumentURI(aswiftReal),
             language: .swift,
             fallbackAfterTimeout: false
@@ -782,7 +782,7 @@ struct SwiftPMBuildSystemTests {
       expectArgumentsDoNotContain(try aswiftReal.filePath, arguments: argumentsFromSymlink)
 
       let argsManifest = try #require(
-        await buildSystemManager.buildSettingsInferredFromMainFile(
+        await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(manifest),
           language: .swift,
           fallbackAfterTimeout: false
@@ -826,21 +826,21 @@ struct SwiftPMBuildSystemTests {
         withDestinationURL: URL(fileURLWithPath: tempDir.appendingPathComponent("pkg_real").filePath)
       )
 
-      let buildSystemSpec = try #require(
-        SwiftPMBuildSystem.searchForConfig(in: symlinkRoot, options: await .testDefault())
+      let buildServerSpec = try #require(
+        SwiftPMBuildServer.searchForConfig(in: symlinkRoot, options: await .testDefault())
       )
-      let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: buildSystemSpec,
+      let buildServerManager = await BuildServerManager(
+        buildServerSpec: buildServerSpec,
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
-        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemHooks: BuildSystemHooks()
+        connectionToClient: DummyBuildServerManagerConnectionToClient(),
+        buildServerHooks: BuildServerHooks()
       )
-      await buildSystemManager.waitForUpToDateBuildGraph()
+      await buildServerManager.waitForUpToDateBuildGraph()
 
       for file in [acpp, ah] {
         let args = try #require(
-          await buildSystemManager.buildSettingsInferredFromMainFile(
+          await buildServerManager.buildSettingsInferredFromMainFile(
             for: DocumentURI(symlinkRoot.appending(components: file)),
             language: .cpp,
             fallbackAfterTimeout: false
@@ -872,14 +872,14 @@ struct SwiftPMBuildSystemTests {
         ]
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
-      let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: .swiftpmSpec(for: packageRoot),
+      let buildServerManager = await BuildServerManager(
+        buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
-        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemHooks: BuildSystemHooks()
+        connectionToClient: DummyBuildServerManagerConnectionToClient(),
+        buildServerHooks: BuildServerHooks()
       )
-      await buildSystemManager.waitForUpToDateBuildGraph()
+      await buildServerManager.waitForUpToDateBuildGraph()
 
       let aswift =
         packageRoot
@@ -887,7 +887,7 @@ struct SwiftPMBuildSystemTests {
         .appendingPathComponent("lib")
         .appendingPathComponent("a.swift")
       let arguments = try #require(
-        await buildSystemManager.buildSettingsInferredFromMainFile(
+        await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
@@ -927,8 +927,8 @@ struct SwiftPMBuildSystemTests {
         .appendingPathComponent("Sources")
         .appendingPathComponent("lib")
 
-      let buildSystemSpec = SwiftPMBuildSystem.searchForConfig(in: workspaceRoot, options: try await .testDefault())
-      #expect(buildSystemSpec == nil)
+      let buildServerSpec = SwiftPMBuildServer.searchForConfig(in: workspaceRoot, options: try await .testDefault())
+      #expect(buildServerSpec == nil)
     }
   }
 
@@ -954,14 +954,14 @@ struct SwiftPMBuildSystemTests {
         ]
       )
       let packageRoot = tempDir.appendingPathComponent("pkg")
-      let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: .swiftpmSpec(for: packageRoot),
+      let buildServerManager = await BuildServerManager(
+        buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
-        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemHooks: BuildSystemHooks()
+        connectionToClient: DummyBuildServerManagerConnectionToClient(),
+        buildServerHooks: BuildServerHooks()
       )
-      await buildSystemManager.waitForUpToDateBuildGraph()
+      await buildServerManager.waitForUpToDateBuildGraph()
 
       let aswift =
         packageRoot
@@ -969,9 +969,9 @@ struct SwiftPMBuildSystemTests {
         .appendingPathComponent("MyPlugin")
         .appendingPathComponent("a.swift")
 
-      _ = try #require(await buildSystemManager.initializationData?.indexStorePath)
+      _ = try #require(await buildServerManager.initializationData?.indexStorePath)
       let arguments = try #require(
-        await buildSystemManager.buildSettingsInferredFromMainFile(
+        await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(aswift),
           language: .swift,
           fallbackAfterTimeout: false
@@ -988,7 +988,7 @@ struct SwiftPMBuildSystemTests {
   func testPackageWithDependencyWithoutResolving() async throws {
     // This package has a dependency but we haven't run `swift package resolve`. We don't want to resolve packages from
     // SourceKit-LSP because it has side-effects to the build directory.
-    // But even without the dependency checked out, we should be able to create a SwiftPMBuildSystem and retrieve the
+    // But even without the dependency checked out, we should be able to create a SwiftPMBuildServer and retrieve the
     // existing source files.
     let project = try await SwiftPMTestProject(
       files: [
@@ -1034,7 +1034,7 @@ struct SwiftPMBuildSystemTests {
       ],
       capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
       hooks: Hooks(
-        buildSystemHooks: BuildSystemHooks(
+        buildServerHooks: BuildServerHooks(
           swiftPMTestHooks: SwiftPMTestHooks(reloadPackageDidStart: {
             didReceiveWorkDoneProgressNotification.waitOrXCTFail()
           })
@@ -1083,15 +1083,15 @@ struct SwiftPMBuildSystemTests {
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let versionSpecificManifestURL = packageRoot.appendingPathComponent("Package@swift-5.8.swift")
-      let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: .swiftpmSpec(for: packageRoot),
+      let buildServerManager = await BuildServerManager(
+        buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
-        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemHooks: BuildSystemHooks()
+        connectionToClient: DummyBuildServerManagerConnectionToClient(),
+        buildServerHooks: BuildServerHooks()
       )
-      await buildSystemManager.waitForUpToDateBuildGraph()
-      let settings = await buildSystemManager.buildSettingsInferredFromMainFile(
+      await buildServerManager.waitForUpToDateBuildGraph()
+      let settings = await buildServerManager.buildSettingsInferredFromMainFile(
         for: DocumentURI(versionSpecificManifestURL),
         language: .swift,
         fallbackAfterTimeout: false
@@ -1117,15 +1117,15 @@ struct SwiftPMBuildSystemTests {
       )
       let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
       let manifestURL = packageRoot.appendingPathComponent("Package.swift")
-      let buildSystemManager = await BuildSystemManager(
-        buildSystemSpec: .swiftpmSpec(for: packageRoot),
+      let buildServerManager = await BuildServerManager(
+        buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
-        connectionToClient: DummyBuildSystemManagerConnectionToClient(),
-        buildSystemHooks: BuildSystemHooks()
+        connectionToClient: DummyBuildServerManagerConnectionToClient(),
+        buildServerHooks: BuildServerHooks()
       )
-      await buildSystemManager.waitForUpToDateBuildGraph()
-      let settings = await buildSystemManager.buildSettingsInferredFromMainFile(
+      await buildServerManager.waitForUpToDateBuildGraph()
+      let settings = await buildServerManager.buildSettingsInferredFromMainFile(
         for: DocumentURI(manifestURL),
         language: .swift,
         fallbackAfterTimeout: false
@@ -1194,9 +1194,9 @@ fileprivate extension URL {
   }
 }
 
-fileprivate extension BuildSystemSpec {
-  static func swiftpmSpec(for packageRoot: URL) -> BuildSystemSpec {
-    return BuildSystemSpec(
+fileprivate extension BuildServerSpec {
+  static func swiftpmSpec(for packageRoot: URL) -> BuildServerSpec {
+    return BuildServerSpec(
       kind: .swiftPM,
       projectRoot: packageRoot,
       configPath: packageRoot.appendingPathComponent("Package.swift")
