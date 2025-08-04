@@ -24,7 +24,7 @@ import struct TSCBasic.RelativePath
 private func searchForCompilationDatabaseConfig(
   in workspaceFolder: URL,
   options: SourceKitLSPOptions
-) -> BuildSystemSpec? {
+) -> BuildServerSpec? {
   let searchPaths =
     (options.compilationDatabaseOrDefault.searchPaths ?? []).compactMap {
       try? RelativePath(validating: $0)
@@ -40,14 +40,14 @@ private func searchForCompilationDatabaseConfig(
     .compactMap { searchPath in
       let path = workspaceFolder.appending(searchPath)
 
-      let jsonPath = path.appendingPathComponent(JSONCompilationDatabaseBuildSystem.dbName)
+      let jsonPath = path.appendingPathComponent(JSONCompilationDatabaseBuildServer.dbName)
       if FileManager.default.isFile(at: jsonPath) {
-        return BuildSystemSpec(kind: .jsonCompilationDatabase, projectRoot: workspaceFolder, configPath: jsonPath)
+        return BuildServerSpec(kind: .jsonCompilationDatabase, projectRoot: workspaceFolder, configPath: jsonPath)
       }
 
-      let fixedPath = path.appendingPathComponent(FixedCompilationDatabaseBuildSystem.dbName)
+      let fixedPath = path.appendingPathComponent(FixedCompilationDatabaseBuildServer.dbName)
       if FileManager.default.isFile(at: fixedPath) {
-        return BuildSystemSpec(kind: .fixedCompilationDatabase, projectRoot: workspaceFolder, configPath: fixedPath)
+        return BuildServerSpec(kind: .fixedCompilationDatabase, projectRoot: workspaceFolder, configPath: fixedPath)
       }
 
       return nil
@@ -55,41 +55,41 @@ private func searchForCompilationDatabaseConfig(
     .first
 }
 
-/// Determine which build system should be started to handle the given workspace folder and at which folder that build
-/// system's project root is (see `BuiltInBuildSystem.projectRoot(for:options:)`). `onlyConsiderRoot` controls whether
+/// Determine which build server should be started to handle the given workspace folder and at which folder that build
+/// servers's project root is (see `BuiltInBuildServer.projectRoot(for:options:)`). `onlyConsiderRoot` controls whether
 /// paths outside the root should be considered (eg. configuration files in the user's home directory).
 ///
-/// Returns `nil` if no build system can handle this workspace folder.
-package func determineBuildSystem(
+/// Returns `nil` if no build server can handle this workspace folder.
+package func determineBuildServer(
   forWorkspaceFolder workspaceFolder: DocumentURI,
   onlyConsiderRoot: Bool,
   options: SourceKitLSPOptions,
-  hooks: BuildSystemHooks
-) -> BuildSystemSpec? {
+  hooks: BuildServerHooks
+) -> BuildServerSpec? {
   if let injectBuildServer = hooks.injectBuildServer {
-    return BuildSystemSpec(
+    return BuildServerSpec(
       kind: .injected(injectBuildServer),
       projectRoot: workspaceFolder.arbitrarySchemeURL,
       configPath: workspaceFolder.arbitrarySchemeURL
     )
   }
 
-  var buildSystemPreference: [WorkspaceType] = [
+  var buildServerPreference: [WorkspaceType] = [
     .buildServer, .swiftPM, .compilationDatabase,
   ]
-  if let defaultBuildSystem = options.defaultWorkspaceType {
-    buildSystemPreference.removeAll(where: { $0 == defaultBuildSystem })
-    buildSystemPreference.insert(defaultBuildSystem, at: 0)
+  if let defaultBuildServer = options.defaultWorkspaceType {
+    buildServerPreference.removeAll(where: { $0 == defaultBuildServer })
+    buildServerPreference.insert(defaultBuildServer, at: 0)
   }
   guard let workspaceFolderUrl = workspaceFolder.fileURL else {
     return nil
   }
-  for buildSystemType in buildSystemPreference {
-    var spec: BuildSystemSpec? = nil
+  for buildServerType in buildServerPreference {
+    var spec: BuildServerSpec? = nil
 
-    switch buildSystemType {
+    switch buildServerType {
     case .buildServer:
-      spec = ExternalBuildSystemAdapter.searchForConfig(
+      spec = ExternalBuildServerAdapter.searchForConfig(
         in: workspaceFolderUrl,
         onlyConsiderRoot: onlyConsiderRoot,
         options: options
@@ -98,7 +98,7 @@ package func determineBuildSystem(
       spec = searchForCompilationDatabaseConfig(in: workspaceFolderUrl, options: options)
     case .swiftPM:
       #if !NO_SWIFTPM_DEPENDENCY
-      spec = SwiftPMBuildSystem.searchForConfig(in: workspaceFolderUrl, options: options)
+      spec = SwiftPMBuildServer.searchForConfig(in: workspaceFolderUrl, options: options)
       #endif
     }
 

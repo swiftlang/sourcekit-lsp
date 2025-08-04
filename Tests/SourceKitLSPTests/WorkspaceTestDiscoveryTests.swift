@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(Testing) import BuildSystemIntegration
+@_spi(Testing) import BuildServerIntegration
 import Foundation
 import LanguageServerProtocol
 import SKTestSupport
@@ -699,7 +699,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     )
   }
 
-  func testInMemoryFileWithFallbackBuildSystem() async throws {
+  func testInMemoryFileWithFallbackBuildServer() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -734,7 +734,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     )
   }
 
-  func testIndexedFileWithCompilationDbBuildSystem() async throws {
+  func testIndexedFileWithCompilationDbBuildServer() async throws {
     try SkipUnless.longTestsEnabled()
 
     let project = try await IndexedSingleSwiftFileTestProject(
@@ -767,7 +767,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     )
   }
 
-  func testOnDiskFileWithCompilationDbBuildSystem() async throws {
+  func testOnDiskFileWithCompilationDbBuildServer() async throws {
     let project = try await MultiFileTestProject(files: [
       "MyTests.swift": """
       import XCTest
@@ -779,7 +779,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       "compile_commands.json": "[]",
     ])
 
-    // When MyTests.swift is not part of the compilation database, the build system doesn't know about the file and thus
+    // When MyTests.swift is not part of the compilation database, the build server doesn't know about the file and thus
     // doesn't return any tests for it.
     let testsWithEmptyCompilationDatabase = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(testsWithEmptyCompilationDatabase, [])
@@ -796,7 +796,7 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     ])
 
     try await project.changeFileOnDisk(
-      JSONCompilationDatabaseBuildSystem.dbName,
+      JSONCompilationDatabaseBuildServer.dbName,
       newMarkedContents: XCTUnwrap(String(data: JSONEncoder().encode(compilationDatabase), encoding: .utf8))
     )
 

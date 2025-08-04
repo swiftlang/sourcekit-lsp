@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+package import BuildServerIntegration
 package import BuildServerProtocol
-package import BuildSystemIntegration
 import Foundation
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
@@ -96,8 +96,8 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   /// The files that should be indexed.
   package let filesToIndex: [FileIndexInfo]
 
-  /// The build system manager that is used to get the toolchain and build settings for the files to index.
-  private let buildSystemManager: BuildSystemManager
+  /// The build server manager that is used to get the toolchain and build settings for the files to index.
+  private let buildServerManager: BuildServerManager
 
   /// A reference to the underlying index store. Used to check if the index is already up-to-date for a file, in which
   /// case we don't need to index it again.
@@ -142,7 +142,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
 
   init(
     filesToIndex: [FileIndexInfo],
-    buildSystemManager: BuildSystemManager,
+    buildServerManager: BuildServerManager,
     index: UncheckedIndex,
     indexStoreUpToDateTracker: UpToDateTracker<DocumentURI, BuildTargetIdentifier>,
     indexFilesWithUpToDateUnit: Bool,
@@ -154,7 +154,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     hooks: IndexHooks
   ) {
     self.filesToIndex = filesToIndex
-    self.buildSystemManager = buildSystemManager
+    self.buildServerManager = buildServerManager
     self.index = index
     self.indexStoreUpToDateTracker = indexStoreUpToDateTracker
     self.indexFilesWithUpToDateUnit = indexFilesWithUpToDateUnit
@@ -253,11 +253,11 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     if file.mainFile != file.sourceFile {
       logger.log("Updating index store of \(file.forLogging) using main file \(file.mainFile.forLogging)")
     }
-    guard let language = await buildSystemManager.defaultLanguage(for: file.mainFile, in: target) else {
+    guard let language = await buildServerManager.defaultLanguage(for: file.mainFile, in: target) else {
       logger.error("Not indexing \(file.forLogging) because its language could not be determined")
       return
     }
-    let buildSettings = await buildSystemManager.buildSettings(
+    let buildSettings = await buildServerManager.buildSettings(
       for: file.mainFile,
       in: target,
       language: language,
@@ -278,7 +278,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       logger.error("Not indexing \(file.forLogging) because it has fallback compiler arguments")
       return
     }
-    guard let toolchain = await buildSystemManager.toolchain(for: file.mainFile, in: target, language: language) else {
+    guard let toolchain = await buildServerManager.toolchain(for: file.mainFile, in: target, language: language) else {
       logger.error(
         "Not updating index store for \(file.forLogging) because no toolchain could be determined for the document"
       )
@@ -316,29 +316,29 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     await indexStoreUpToDateTracker.markUpToDate([(file.sourceFile, target)], updateOperationStartDate: startDate)
   }
 
-  /// If `args` does not contain an `-index-store-path` argument, add it, pointing to the build system's index store
-  /// path. If an `-index-store-path` already exists, validate that it matches the build system's index store path and
-  /// replace it by the build system's index store path if they don't match.
+  /// If `args` does not contain an `-index-store-path` argument, add it, pointing to the build server's index store
+  /// path. If an `-index-store-path` already exists, validate that it matches the build server's index store path and
+  /// replace it by the build server's index store path if they don't match.
   private func addOrReplaceIndexStorePath(in args: [String], for uri: DocumentURI) async throws -> [String] {
     var args = args
-    guard let buildSystemIndexStorePath = await self.buildSystemManager.initializationData?.indexStorePath else {
+    guard let buildServerIndexStorePath = await self.buildServerManager.initializationData?.indexStorePath else {
       struct NoIndexStorePathError: Error {}
       throw NoIndexStorePathError()
     }
     if let indexStorePathIndex = args.lastIndex(of: "-index-store-path"), indexStorePathIndex + 1 < args.count {
       let indexStorePath = args[indexStorePathIndex + 1]
-      if indexStorePath != buildSystemIndexStorePath {
+      if indexStorePath != buildServerIndexStorePath {
         logger.error(
           """
-          Compiler arguments for \(uri) specify index store path \(indexStorePath) but build system specified an \
-          incompatible index store path \(buildSystemIndexStorePath). Overriding with the path specified by the build \
+          Compiler arguments for \(uri) specify index store path \(indexStorePath) but build server specified an \
+          incompatible index store path \(buildServerIndexStorePath). Overriding with the path specified by the build \
           system.
           """
         )
-        args[indexStorePathIndex + 1] = buildSystemIndexStorePath
+        args[indexStorePathIndex + 1] = buildServerIndexStorePath
       }
     } else {
-      args += ["-index-store-path", buildSystemIndexStorePath]
+      args += ["-index-store-path", buildServerIndexStorePath]
     }
     return args
   }

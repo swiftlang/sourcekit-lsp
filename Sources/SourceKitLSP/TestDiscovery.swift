@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerIntegration
 import BuildServerProtocol
-import BuildSystemIntegration
 import Foundation
 import IndexStoreDB
 package import LanguageServerProtocol
@@ -196,9 +196,9 @@ extension SourceKitLSPServer {
   /// The returned list of tests is not sorted. It should be sorted before being returned to the editor.
   private func tests(in workspace: Workspace) async -> [AnnotatedTestItem] {
     // If files have recently been added to the workspace (which is communicated by a `workspace/didChangeWatchedFiles`
-    // notification, wait these changes to be reflected in the build system so we can include the updated files in the
+    // notification, wait these changes to be reflected in the build server so we can include the updated files in the
     // tests.
-    await workspace.buildSystemManager.waitForUpToDateBuildGraph()
+    await workspace.buildServerManager.waitForUpToDateBuildGraph()
 
     // Gather all tests classes and test methods. We include test from different sources:
     //  - For all files that have been not been modified since they were last indexed in the semantic index, include
@@ -318,7 +318,7 @@ extension SourceKitLSPServer {
     languageService: LanguageService
   ) async throws -> [AnnotatedTestItem] {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
-    let mainFileUri = await workspace.buildSystemManager.mainFile(
+    let mainFileUri = await workspace.buildServerManager.mainFile(
       for: req.textDocument.uri,
       language: snapshot.language
     )
@@ -582,8 +582,8 @@ extension TestItem {
   }
 
   fileprivate func prefixIDWithModuleName(workspace: Workspace) async -> TestItem {
-    guard let canonicalTarget = await workspace.buildSystemManager.canonicalTarget(for: self.location.uri),
-      let moduleName = await workspace.buildSystemManager.moduleName(for: self.location.uri, in: canonicalTarget)
+    guard let canonicalTarget = await workspace.buildServerManager.canonicalTarget(for: self.location.uri),
+      let moduleName = await workspace.buildServerManager.moduleName(for: self.location.uri, in: canonicalTarget)
     else {
       return self
     }
@@ -600,9 +600,9 @@ extension SwiftLanguageService {
     for uri: DocumentURI,
     in workspace: Workspace
   ) async throws -> [AnnotatedTestItem]? {
-    let targetIdentifiers = await workspace.buildSystemManager.targets(for: uri)
+    let targetIdentifiers = await workspace.buildServerManager.targets(for: uri)
     let isInTestTarget = await targetIdentifiers.asyncContains(where: {
-      await workspace.buildSystemManager.buildTarget(named: $0)?.tags.contains(.test) ?? true
+      await workspace.buildServerManager.buildTarget(named: $0)?.tags.contains(.test) ?? true
     })
     if !targetIdentifiers.isEmpty && !isInTestTarget {
       // If we know the targets for the file and the file is not part of any test target, don't scan it for tests.

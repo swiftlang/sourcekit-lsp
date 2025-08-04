@@ -14,7 +14,7 @@ public import LanguageServerProtocol
 
 /// This request is a no-op and doesn't have any effects.
 ///
-/// If the build system is currently updating the build graph, this request should return after those updates have
+/// If the build server is currently updating the build graph, this request should return after those updates have
 /// finished processing.
 public struct WorkspaceWaitForBuildSystemUpdatesRequest: RequestType, Hashable {
   public typealias Response = VoidResponse

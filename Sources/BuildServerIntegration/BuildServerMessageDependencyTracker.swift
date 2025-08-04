@@ -18,7 +18,7 @@ import SwiftExtensions
 
 /// A lightweight way of describing tasks that are created from handling BSP
 /// requests or notifications for the purpose of dependency tracking.
-package enum BuildSystemMessageDependencyTracker: QueueBasedMessageHandlerDependencyTracker {
+package enum BuildServerMessageDependencyTracker: QueueBasedMessageHandlerDependencyTracker {
   /// A task that modifies some state. It is a barrier for all requests that read state.
   case stateChange
 
@@ -31,7 +31,7 @@ package enum BuildSystemMessageDependencyTracker: QueueBasedMessageHandlerDepend
   case taskProgress
 
   /// Whether this request needs to finish before `other` can start executing.
-  package func isDependency(of other: BuildSystemMessageDependencyTracker) -> Bool {
+  package func isDependency(of other: BuildServerMessageDependencyTracker) -> Bool {
     switch (self, other) {
     case (.stateChange, .stateChange): return true
     case (.stateChange, .stateRead): return true

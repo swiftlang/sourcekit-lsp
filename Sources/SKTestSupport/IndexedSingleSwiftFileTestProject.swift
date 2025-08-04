@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(Testing) import BuildSystemIntegration
+@_spi(Testing) import BuildServerIntegration
 package import Foundation
 package import LanguageServerProtocol
 import SKLogging
@@ -158,7 +158,7 @@ package struct IndexedSingleSwiftFileTestProject {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     try encoder.encode(compilationDatabase).write(
-      to: testWorkspaceDirectory.appendingPathComponent(JSONCompilationDatabaseBuildSystem.dbName)
+      to: testWorkspaceDirectory.appendingPathComponent(JSONCompilationDatabaseBuildServer.dbName)
     )
 
     // Run swiftc to build the index store

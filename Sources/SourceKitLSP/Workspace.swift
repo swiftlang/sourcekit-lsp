@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+package import BuildServerIntegration
 package import BuildServerProtocol
-package import BuildSystemIntegration
 import Foundation
 import IndexStoreDB
 package import LanguageServerProtocol
@@ -32,11 +32,11 @@ package import DocCDocumentation
 
 /// Actor that caches realpaths for `sourceFilesWithSameRealpath`.
 fileprivate actor SourceFilesWithSameRealpathInferrer {
-  private let buildSystemManager: BuildSystemManager
+  private let buildServerManager: BuildServerManager
   private var realpathCache: [DocumentURI: DocumentURI] = [:]
 
-  init(buildSystemManager: BuildSystemManager) {
-    self.buildSystemManager = buildSystemManager
+  init(buildServerManager: BuildServerManager) {
+    self.buildServerManager = buildServerManager
   }
 
   private func realpath(of uri: DocumentURI) -> DocumentURI {
@@ -58,7 +58,7 @@ fileprivate actor SourceFilesWithSameRealpathInferrer {
     let realPaths = Set(documents.map { realpath(of: $0) })
     return await orLog("Determining source files with same realpath") {
       var result: [DocumentURI] = []
-      let filesAndDirectories = try await buildSystemManager.sourceFiles(includeNonBuildableFiles: true)
+      let filesAndDirectories = try await buildServerManager.sourceFiles(includeNonBuildableFiles: true)
       for file in filesAndDirectories.keys {
         if realPaths.contains(realpath(of: file)) && !documents.contains(file) {
           result.append(file)
@@ -82,7 +82,7 @@ fileprivate actor SourceFilesWithSameRealpathInferrer {
 /// "initialize" request has been made.
 ///
 /// Typically a workspace is contained in a root directory.
-package final class Workspace: Sendable, BuildSystemManagerDelegate {
+package final class Workspace: Sendable, BuildServerManagerDelegate {
   /// The ``SourceKitLSPServer`` instance that created this `Workspace`.
   private(set) weak nonisolated(unsafe) var sourceKitLSPServer: SourceKitLSPServer? {
     didSet {
@@ -98,8 +98,8 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
   /// Tracks dynamically registered server capabilities as well as the client's capabilities.
   package let capabilityRegistry: CapabilityRegistry
 
-  /// The build system manager to use for documents in this workspace.
-  package let buildSystemManager: BuildSystemManager
+  /// The build server manager to use for documents in this workspace.
+  package let buildServerManager: BuildServerManager
 
   #if canImport(DocCDocumentation)
   package let doccDocumentationManager: DocCDocumentationManager
@@ -142,7 +142,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     capabilityRegistry: CapabilityRegistry,
     options: SourceKitLSPOptions,
     hooks: Hooks,
-    buildSystemManager: BuildSystemManager,
+    buildServerManager: BuildServerManager,
     index uncheckedIndex: UncheckedIndex?,
     indexDelegate: SourceKitIndexDelegate?,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
@@ -152,19 +152,19 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     self.capabilityRegistry = capabilityRegistry
     self.options = options
     self._uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
-    self.buildSystemManager = buildSystemManager
+    self.buildServerManager = buildServerManager
     #if canImport(DocCDocumentation)
-    self.doccDocumentationManager = DocCDocumentationManager(buildSystemManager: buildSystemManager)
+    self.doccDocumentationManager = DocCDocumentationManager(buildServerManager: buildServerManager)
     #endif
     self.sourceFilesWithSameRealpathInferrer = SourceFilesWithSameRealpathInferrer(
-      buildSystemManager: buildSystemManager
+      buildServerManager: buildServerManager
     )
     if options.backgroundIndexingOrDefault, let uncheckedIndex,
-      await buildSystemManager.initializationData?.prepareProvider ?? false
+      await buildServerManager.initializationData?.prepareProvider ?? false
     {
       self.semanticIndexManager = SemanticIndexManager(
         index: uncheckedIndex,
-        buildSystemManager: buildSystemManager,
+        buildServerManager: buildServerManager,
         updateIndexStoreTimeout: options.indexOrDefault.updateIndexStoreTimeoutOrDefault,
         hooks: hooks.indexHooks,
         indexTaskScheduler: indexTaskScheduler,
@@ -184,11 +184,11 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     // Trigger an initial population of `syntacticTestIndex`.
     self.syntacticTestIndex = SyntacticTestIndex(determineTestFiles: {
       await orLog("Getting list of test files for initial syntactic index population") {
-        try await buildSystemManager.testFiles()
+        try await buildServerManager.testFiles()
       } ?? []
     })
     await indexDelegate?.addMainFileChangedCallback { [weak self] in
-      await self?.buildSystemManager.mainFilesChanged()
+      await self?.buildServerManager.mainFilesChanged()
     }
     if let semanticIndexManager {
       await semanticIndexManager.scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
@@ -208,13 +208,13 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     documentManager: DocumentManager,
     rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
-    buildSystemSpec: BuildSystemSpec?,
+    buildServerSpec: BuildServerSpec?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     hooks: Hooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async {
-    struct ConnectionToClient: BuildSystemManagerConnectionToClient {
+    struct ConnectionToClient: BuildServerManagerConnectionToClient {
       func waitUntilInitialized() async {
         await sourceKitLSPServer?.waitUntilInitialized()
       }
@@ -272,34 +272,34 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       }
     }
 
-    let buildSystemManager = await BuildSystemManager(
-      buildSystemSpec: buildSystemSpec,
+    let buildServerManager = await BuildServerManager(
+      buildServerSpec: buildServerSpec,
       toolchainRegistry: toolchainRegistry,
       options: options,
       connectionToClient: ConnectionToClient(sourceKitLSPServer: sourceKitLSPServer),
-      buildSystemHooks: hooks.buildSystemHooks
+      buildServerHooks: hooks.buildServerHooks
     )
 
     logger.log(
-      "Created workspace at \(rootUri.forLogging) with project root \(buildSystemSpec?.projectRoot.description ?? "<nil>")"
+      "Created workspace at \(rootUri.forLogging) with project root \(buildServerSpec?.projectRoot.description ?? "<nil>")"
     )
 
     var indexDelegate: SourceKitIndexDelegate? = nil
 
     let indexOptions = options.indexOrDefault
     let indexStorePath: URL? =
-      if let indexStorePath = await buildSystemManager.initializationData?.indexStorePath {
+      if let indexStorePath = await buildServerManager.initializationData?.indexStorePath {
         URL(fileURLWithPath: indexStorePath, relativeTo: rootUri?.fileURL)
       } else {
         nil
       }
     let indexDatabasePath: URL? =
-      if let indexDatabasePath = await buildSystemManager.initializationData?.indexDatabasePath {
+      if let indexDatabasePath = await buildServerManager.initializationData?.indexDatabasePath {
         URL(fileURLWithPath: indexDatabasePath, relativeTo: rootUri?.fileURL)
       } else {
         nil
       }
-    let supportsOutputPaths = await buildSystemManager.initializationData?.outputPathsProvider ?? false
+    let supportsOutputPaths = await buildServerManager.initializationData?.outputPathsProvider ?? false
     let index: UncheckedIndex?
     if let indexStorePath, let indexDatabasePath, let libPath = await toolchainRegistry.default?.libIndexStore {
       do {
@@ -348,7 +348,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       index = nil
     }
 
-    await buildSystemManager.setMainFilesProvider(index)
+    await buildServerManager.setMainFilesProvider(index)
 
     await self.init(
       sourceKitLSPServer: sourceKitLSPServer,
@@ -356,12 +356,12 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       capabilityRegistry: capabilityRegistry,
       options: options,
       hooks: hooks,
-      buildSystemManager: buildSystemManager,
+      buildServerManager: buildServerManager,
       index: index,
       indexDelegate: indexDelegate,
       indexTaskScheduler: indexTaskScheduler
     )
-    await buildSystemManager.setDelegate(self)
+    await buildServerManager.setDelegate(self)
 
     // Populate the initial list of unit output paths in the index.
     await scheduleUpdateOfUnitOutputPathsInIndexIfNecessary()
@@ -370,7 +370,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
   package static func forTesting(
     options: SourceKitLSPOptions,
     testHooks: Hooks,
-    buildSystemManager: BuildSystemManager,
+    buildServerManager: BuildServerManager,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async -> Workspace {
     return await Workspace(
@@ -379,7 +379,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
       options: options,
       hooks: testHooks,
-      buildSystemManager: buildSystemManager,
+      buildServerManager: buildServerManager,
       index: nil,
       indexDelegate: nil,
       indexTaskScheduler: indexTaskScheduler
@@ -412,7 +412,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
       .map { FileEvent(uri: $0, type: .changed) }
 
     // Notify all clients about the reported and inferred edits.
-    await buildSystemManager.filesDidChange(events)
+    await buildServerManager.filesDidChange(events)
     #if canImport(DocCDocumentation)
     await doccDocumentationManager.filesDidChange(events)
     #endif
@@ -441,7 +441,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     }
   }
 
-  /// Handle a build settings change notification from the `BuildSystem`.
+  /// Handle a build settings change notification from the build serveer.
   /// This has two primary cases:
   /// - Initial settings reported for a given file, now we can fully open it
   /// - Changed settings for an already open file
@@ -451,7 +451,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     }
   }
 
-  /// Handle a dependencies updated notification from the `BuildSystem`.
+  /// Handle a dependencies updated notification from the build server.
   /// We inform the respective language services as long as the given file is open
   /// (not queued for opening).
   package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
@@ -473,7 +473,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     await sourceKitLSPServer?.fileHandlingCapabilityChanged()
     await semanticIndexManager?.buildTargetsChanged(changes)
     await orLog("Scheduling syntactic test re-indexing") {
-      let testFiles = try await buildSystemManager.testFiles()
+      let testFiles = try await buildServerManager.testFiles()
       await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
     }
 
@@ -484,16 +484,16 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     guard await self.uncheckedIndex?.usesExplicitOutputPaths ?? false else {
       return
     }
-    guard await buildSystemManager.initializationData?.outputPathsProvider ?? false else {
-      // This can only happen if an index got injected that uses explicit output paths but the build system does not
+    guard await buildServerManager.initializationData?.outputPathsProvider ?? false else {
+      // This can only happen if an index got injected that uses explicit output paths but the build server does not
       // support output paths.
-      logger.error("The index uses explicit output paths but the build system does not support output paths")
+      logger.error("The index uses explicit output paths but the build server does not support output paths")
       return
     }
 
     indexUnitOutputPathsUpdateQueue.async {
       await orLog("Setting new list of unit output paths") {
-        let outputPaths = try await Set(self.buildSystemManager.outputPathsInAllTargets())
+        let outputPaths = try await Set(self.buildServerManager.outputPathsInAllTargets())
         await self.uncheckedIndex?.setUnitOutputPaths(outputPaths)
       }
     }
@@ -511,7 +511,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
 
   package func synchronize(_ request: SynchronizeRequest) async {
     if request.buildServerUpdates ?? false || request.index ?? false {
-      await buildSystemManager.waitForUpToDateBuildGraph()
+      await buildServerManager.waitForUpToDateBuildGraph()
       await indexUnitOutputPathsUpdateQueue.async {}.value
     }
     if request.index ?? false {

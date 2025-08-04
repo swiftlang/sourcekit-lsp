@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #if canImport(DocCDocumentation)
-import BuildSystemIntegration
+import BuildServerIntegration
 import DocCDocumentation
 import Foundation
 import IndexStoreDB
@@ -36,9 +36,9 @@ extension SwiftLanguageService {
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
     var moduleName: String? = nil
     var catalogURL: URL? = nil
-    if let target = await workspace.buildSystemManager.canonicalTarget(for: req.textDocument.uri) {
-      moduleName = await workspace.buildSystemManager.moduleName(for: target)
-      catalogURL = await workspace.buildSystemManager.doccCatalog(for: target)
+    if let target = await workspace.buildServerManager.canonicalTarget(for: req.textDocument.uri) {
+      moduleName = await workspace.buildServerManager.moduleName(for: target)
+      catalogURL = await workspace.buildServerManager.doccCatalog(for: target)
     }
 
     // Search for the nearest documentable symbol at this location
