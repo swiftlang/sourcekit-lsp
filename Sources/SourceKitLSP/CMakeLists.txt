@@ -68,6 +68,7 @@ target_sources(SourceKitLSP PRIVATE
   Swift/SwiftCommand.swift
   Swift/SwiftLanguageService.swift
   Swift/SwiftTestingScanner.swift
+  Swift/SymbolGraphCache.swift
   Swift/SymbolInfo.swift
   Swift/SyntacticSwiftXCTestScanner.swift
   Swift/SyntacticTestIndex.swift
@@ -76,7 +77,6 @@ target_sources(SourceKitLSP PRIVATE
   Swift/SyntaxHighlightingTokens.swift
   Swift/SyntaxTreeManager.swift
   Swift/VariableTypeInfo.swift
-  Swift/WithSnapshotFromDiskOpenedInSourcekitd.swift
 )
 set_target_properties(SourceKitLSP PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
