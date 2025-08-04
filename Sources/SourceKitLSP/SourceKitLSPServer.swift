@@ -519,7 +519,6 @@ package actor SourceKitLSPServer {
         syncKind = .incremental
       }
       guard syncKind == .incremental else {
-        logger.error("Received non-incremental update request, which is not implemented")
         throw ResponseError.internalError("non-incremental update not implemented")
       }
 
