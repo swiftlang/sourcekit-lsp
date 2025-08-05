@@ -519,7 +519,7 @@ package actor SourceKitLSPServer {
         syncKind = .incremental
       }
       guard syncKind == .incremental else {
-        fatalError("non-incremental update not implemented")
+        throw ResponseError.internalError("non-incremental update not implemented")
       }
 
       await service.clientInitialized(InitializedNotification())
