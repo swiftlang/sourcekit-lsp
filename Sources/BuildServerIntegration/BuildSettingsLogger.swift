@@ -17,8 +17,6 @@ package import SKLogging
 
 /// Shared logger that only logs build settings for a file once unless they change
 package actor BuildSettingsLogger {
-  package static let shared = BuildSettingsLogger()
-
   private var loggedSettings: [DocumentURI: FileBuildSettings] = [:]
 
   package func log(level: LogLevel = .default, settings: FileBuildSettings, for uri: DocumentURI) {
