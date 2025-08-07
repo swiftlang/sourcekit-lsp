@@ -770,7 +770,7 @@ struct SwiftPMBuildServerTests {
       // We opened the project from a symlink. The realpath isn't part of the project and we should thus not receive
       // build settings for it.
       #expect(
-        try await #require(
+        try #require(
           await buildServerManager.buildSettingsInferredFromMainFile(
             for: DocumentURI(aswiftReal),
             language: .swift,

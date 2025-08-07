@@ -132,7 +132,7 @@ package func withCancellableCheckedThrowingContinuation<Handle: Sendable, Result
   )
 }
 
-extension Collection where Element: Sendable {
+extension Collection where Self: Sendable, Element: Sendable {
   /// Transforms all elements in the collection concurrently and returns the transformed collection.
   package func concurrentMap<TransformedElement: Sendable>(
     maxConcurrentTasks: Int = ProcessInfo.processInfo.processorCount,
