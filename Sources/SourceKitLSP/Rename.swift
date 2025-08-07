@@ -14,6 +14,7 @@ import Csourcekitd
 import Foundation
 import IndexStoreDB
 package import LanguageServerProtocol
+import LanguageServerProtocolExtensions
 import SKLogging
 import SKUtilities
 import SemanticIndex
@@ -451,11 +452,11 @@ extension SwiftLanguageService {
 package struct CrossLanguageName: Sendable {
   /// The name of the symbol in clang languages or `nil` if the symbol is defined in Swift, doesn't have any references
   /// from clang languages and thus hasn't been translated.
-  fileprivate let clangName: String?
+  package let clangName: String?
 
   /// The name of the symbol in Swift or `nil` if the symbol is defined in clang, doesn't have any references from
   /// Swift and thus hasn't been translated.
-  fileprivate let swiftName: String?
+  package let swiftName: String?
 
   fileprivate var compoundSwiftName: CompoundDeclName? {
     if let swiftName {
@@ -465,10 +466,10 @@ package struct CrossLanguageName: Sendable {
   }
 
   /// the language that the symbol is defined in.
-  fileprivate let definitionLanguage: Language
+  package let definitionLanguage: Language
 
   /// The name of the symbol in the language that it is defined in.
-  var definitionName: String? {
+  package var definitionName: String? {
     switch definitionLanguage {
     case .c, .cpp, .objective_c, .objective_cpp:
       return clangName
@@ -576,20 +577,10 @@ extension SourceKitLSPServer {
       }
     let definitionDocumentUri = definitionOccurrence.location.documentUri
 
-    guard
-      let definitionLanguageService = await self.languageService(
-        for: definitionDocumentUri,
-        definitionLanguage,
-        in: workspace
-      )
-    else {
-      throw ResponseError.unknown("Failed to get language service for the document defining \(usr)")
-    }
-
     let definitionName = overrideName ?? definitionSymbol.name
 
-    switch definitionLanguageService {
-    case is ClangLanguageService:
+    switch definitionLanguage.semanticKind {
+    case .clang:
       let swiftName: String?
       if let swiftReference = await getReferenceFromSwift(usr: usr, index: index, workspace: workspace) {
         let isObjectiveCSelector = definitionLanguage == .objective_c && definitionSymbol.kind.isMethod
@@ -604,7 +595,16 @@ extension SourceKitLSPServer {
         swiftName = nil
       }
       return CrossLanguageName(clangName: definitionName, swiftName: swiftName, definitionLanguage: definitionLanguage)
-    case let swiftLanguageService as SwiftLanguageService:
+    case .swift:
+      guard
+        let swiftLanguageService = await self.languageService(
+          for: definitionDocumentUri,
+          definitionLanguage,
+          in: workspace
+        ) as? SwiftLanguageService
+      else {
+        throw ResponseError.unknown("Failed to get language service for the document defining \(usr)")
+      }
       // Continue iteration if the symbol provider is not clang.
       // If we terminate early by returning `false` from the closure, `forEachSymbolOccurrence` returns `true`,
       // indicating that we have found a reference from clang.
@@ -1357,71 +1357,6 @@ extension SwiftLanguageService {
 }
 
 // MARK: - Clang
-
-extension ClangLanguageService {
-  func rename(_ renameRequest: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
-    async let edits = forwardRequestToClangd(renameRequest)
-    let symbolInfoRequest = SymbolInfoRequest(
-      textDocument: renameRequest.textDocument,
-      position: renameRequest.position
-    )
-    let symbolDetail = try await forwardRequestToClangd(symbolInfoRequest).only
-    return (try await edits ?? WorkspaceEdit(), symbolDetail?.usr)
-  }
-
-  func editsToRename(
-    locations renameLocations: [RenameLocation],
-    in snapshot: DocumentSnapshot,
-    oldName oldCrossLanguageName: CrossLanguageName,
-    newName newCrossLanguageName: CrossLanguageName
-  ) async throws -> [TextEdit] {
-    let positions = [
-      snapshot.uri: renameLocations.compactMap { snapshot.position(of: $0) }
-    ]
-    guard
-      let oldName = oldCrossLanguageName.clangName,
-      let newName = newCrossLanguageName.clangName
-    else {
-      throw ResponseError.unknown(
-        "Failed to rename \(snapshot.uri.forLogging) because the clang name for rename is unknown"
-      )
-    }
-    let request = IndexedRenameRequest(
-      textDocument: TextDocumentIdentifier(snapshot.uri),
-      oldName: oldName,
-      newName: newName,
-      positions: positions
-    )
-    do {
-      let edits = try await forwardRequestToClangd(request)
-      return edits?.changes?[snapshot.uri] ?? []
-    } catch {
-      logger.error("Failed to get indexed rename edits: \(error.forLogging)")
-      return []
-    }
-  }
-
-  package func prepareRename(
-    _ request: PrepareRenameRequest
-  ) async throws -> (prepareRename: PrepareRenameResponse, usr: String?)? {
-    guard let prepareRename = try await forwardRequestToClangd(request) else {
-      return nil
-    }
-    let symbolInfo = try await forwardRequestToClangd(
-      SymbolInfoRequest(textDocument: request.textDocument, position: request.position)
-    )
-    return (prepareRename, symbolInfo.only?.usr)
-  }
-
-  package func editsToRenameParametersInFunctionBody(
-    snapshot: DocumentSnapshot,
-    renameLocation: RenameLocation,
-    newName: CrossLanguageName
-  ) async -> [TextEdit] {
-    // When renaming a clang function name, we don't need to rename any references to the arguments.
-    return []
-  }
-}
 
 fileprivate extension SyntaxProtocol {
   /// Returns the parent node and casts it to the specified type.

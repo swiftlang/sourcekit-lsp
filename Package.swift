@@ -39,6 +39,7 @@ var targets: [Target] = [
     dependencies: [
       "BuildServerIntegration",
       "Diagnose",
+      "InProcessClient",
       "LanguageServerProtocol",
       "LanguageServerProtocolExtensions",
       "LanguageServerProtocolJSONRPC",
@@ -124,6 +125,27 @@ var targets: [Target] = [
   .target(
     name: "CCompletionScoring",
     dependencies: []
+  ),
+
+  // MARK: ClangLanguageService
+
+  .target(
+    name: "ClangLanguageService",
+    dependencies: [
+      "BuildServerIntegration",
+      "DocCDocumentation",
+      "LanguageServerProtocol",
+      "LanguageServerProtocolExtensions",
+      "LanguageServerProtocolJSONRPC",
+      "SKLogging",
+      "SKOptions",
+      "SourceKitLSP",
+      "SwiftExtensions",
+      "ToolchainRegistry",
+      "TSCExtensions",
+    ] + swiftSyntaxDependencies(["SwiftSyntax"]),
+    exclude: ["CMakeLists.txt"],
+    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: CompletionScoring
@@ -240,6 +262,7 @@ var targets: [Target] = [
     name: "InProcessClient",
     dependencies: [
       "BuildServerIntegration",
+      "ClangLanguageService",
       "LanguageServerProtocol",
       "SKLogging",
       "SKOptions",

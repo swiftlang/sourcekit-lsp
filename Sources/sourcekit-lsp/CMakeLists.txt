@@ -4,6 +4,7 @@ add_executable(sourcekit-lsp
 target_link_libraries(sourcekit-lsp PRIVATE
   BuildServerIntegration
   Diagnose
+  InProcessClient
   LanguageServerProtocol
   LanguageServerProtocolExtensions
   LanguageServerProtocolJSONRPC
