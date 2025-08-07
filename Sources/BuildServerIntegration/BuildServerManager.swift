@@ -341,6 +341,8 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   /// Build server delegate that will receive notifications about setting changes, etc.
   private weak var delegate: BuildServerManagerDelegate?
 
+  private let buildSettingsLogger = BuildSettingsLogger()
+
   /// The list of toolchains that are available.
   ///
   /// Used to determine which toolchain to use for a given document.
@@ -1033,7 +1035,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       settings = settings.patching(newFile: document, originalFile: mainFile)
     }
 
-    await BuildSettingsLogger.shared.log(settings: settings, for: document)
+    await buildSettingsLogger.log(settings: settings, for: document)
     return settings
   }
 
