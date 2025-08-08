@@ -1149,6 +1149,32 @@ final class LocalSwiftTests: XCTestCase {
     )
   }
 
+  func testXMLToMarkdownCommentOmitDeclaration() {
+    XCTAssertEqual(
+      try xmlDocumentationToMarkdown(
+        """
+        <Function file="Pi.swift" line="3" column="14">\
+        <Declaration>func pi()</Declaration>\
+        <CommentParts>\
+        <Abstract><Para>Computes π with infinite precision.</Para></Abstract>\
+        <Discussion>\
+        <Para>This function doesn’t terminate.</Para>\
+        </Discussion>\
+        </CommentParts>\
+        </Function>
+        """,
+        includeDeclaration: false
+      ),
+      """
+      Computes π with infinite precision.
+
+      ### Discussion
+
+      This function doesn’t terminate.
+      """
+    )
+  }
+
   func testSymbolInfo() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")

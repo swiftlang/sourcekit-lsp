@@ -24,13 +24,17 @@ enum CommentXMLError: Error {
 /// Converts from sourcekit's XML documentation format to Markdown.
 ///
 /// This code should go away and sourcekitd should return the Markdown directly.
-package func xmlDocumentationToMarkdown(_ xmlString: String) throws -> String {
+///
+/// - Parameters:
+///   - xmlString: The XML string to convert.
+///   - includeDeclaration: If true, the declaration will be included at the top of the output markdown.
+package func xmlDocumentationToMarkdown(_ xmlString: String, includeDeclaration: Bool = true) throws -> String {
   let xml = try XMLDocument(xmlString: xmlString)
   guard let root = xml.rootElement() else {
     throw CommentXMLError.noRootElement
   }
 
-  var convert = XMLToMarkdown()
+  var convert = XMLToMarkdown(includeDeclaration: includeDeclaration)
   convert.out.reserveCapacity(xmlString.utf16.count)
   convert.toMarkdown(root)
   return convert.out
@@ -42,6 +46,11 @@ private struct XMLToMarkdown {
   let indentWidth: Int = 4
   var lineNumber: Int = 0
   var inParam: Bool = false
+  let includeDeclaration: Bool
+
+  init(includeDeclaration: Bool) {
+    self.includeDeclaration = includeDeclaration
+  }
 
   mutating func newlineIfNeeded(count: Int = 1) {
     if !out.isEmpty && out.last! != "\n" {
@@ -74,10 +83,12 @@ private struct XMLToMarkdown {
   mutating func toMarkdown(_ node: XMLElement) {
     switch node.name {
     case "Declaration":
-      newlineIfNeeded(count: 2)
-      out += "```swift\n"
-      toMarkdown(node.children)
-      out += "\n```\n"
+      if includeDeclaration {
+        newlineIfNeeded(count: 2)
+        out += "```swift\n"
+        toMarkdown(node.children)
+        out += "\n```\n"
+      }
 
     case "Name", "USR", "Direction":
       break
