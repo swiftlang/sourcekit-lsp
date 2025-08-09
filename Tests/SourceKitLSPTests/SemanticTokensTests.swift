@@ -882,6 +882,8 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testRawIdentifier() async throws {
+    try await SkipUnless.haveRawIdentifiers()
+
     try await assertSemanticTokens(
       markedContents: """
         1️⃣func 2️⃣`square returns x * x`() {}

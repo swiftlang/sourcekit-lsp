@@ -704,6 +704,8 @@ final class DocumentTestDiscoveryTests: XCTestCase {
   }
 
   func testSwiftTestingTestWithRawIdentifiers() async throws {
+    try await SkipUnless.haveRawIdentifiers()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -784,6 +786,8 @@ final class DocumentTestDiscoveryTests: XCTestCase {
   }
 
   func testSwiftTestingTestWithNestedRawIdentifiers() async throws {
+    try await SkipUnless.haveRawIdentifiers()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -844,6 +848,8 @@ final class DocumentTestDiscoveryTests: XCTestCase {
   }
 
   func testSwiftTestingTestWithNestedRawIdentifiersExtension() async throws {
+    try await SkipUnless.haveRawIdentifiers()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -909,6 +915,8 @@ final class DocumentTestDiscoveryTests: XCTestCase {
   }
 
   func testSwiftTestingTestWithSlashRawIdentifiers() async throws {
+    try await SkipUnless.haveRawIdentifiers()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
