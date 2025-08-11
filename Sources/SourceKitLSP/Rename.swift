@@ -29,7 +29,7 @@ import SwiftSyntax
 ///  - `foo(a:b:)`
 ///  - `foo(_:b:)`
 ///  - `foo` if no argument labels are specified, eg. for a variable.
-fileprivate struct CompoundDeclName {
+private struct CompoundDeclName {
   /// The parameter of a compound decl name, which can either be the parameter's name or `_` to indicate that the
   /// parameter is unnamed.
   enum Parameter: Equatable {
@@ -78,7 +78,7 @@ fileprivate struct CompoundDeclName {
 }
 
 /// The kind of range that a `SyntacticRenamePiece` can be.
-fileprivate enum SyntacticRenamePieceKind {
+private enum SyntacticRenamePieceKind {
   /// The base name of a function or the name of a variable, which can be renamed.
   ///
   /// ### Examples
@@ -164,7 +164,7 @@ fileprivate enum SyntacticRenamePieceKind {
 /// - The base name `foo`
 /// - The parameter name `x`
 /// - The call argument colon `: `.
-fileprivate struct SyntacticRenamePiece {
+private struct SyntacticRenamePiece {
   /// The range that represents this piece of the name
   let range: Range<Position>
 
@@ -203,7 +203,7 @@ fileprivate struct SyntacticRenamePiece {
 }
 
 /// The context in which the location to be renamed occurred.
-fileprivate enum SyntacticRenameNameContext {
+private enum SyntacticRenameNameContext {
   /// No syntactic rename ranges for the rename location could be found.
   case unmatched
 
@@ -242,7 +242,7 @@ fileprivate enum SyntacticRenameNameContext {
 /// A set of ranges that, combined, represent which edits need to be made to rename a possibly compound name.
 ///
 /// See `SyntacticRenamePiece` for more details.
-fileprivate struct SyntacticRenameName {
+private struct SyntacticRenameName {
   let pieces: [SyntacticRenamePiece]
   let category: SyntacticRenameNameContext
 
@@ -483,7 +483,7 @@ package struct CrossLanguageName: Sendable {
 // MARK: - SourceKitLSPServer
 
 /// The kinds of symbol occurrence roles that should be renamed.
-fileprivate let renameRoles: SymbolRole = [.declaration, .definition, .reference]
+private let renameRoles: SymbolRole = [.declaration, .definition, .reference]
 
 extension SourceKitLSPServer {
   /// Returns a `DocumentSnapshot`, a position and the corresponding language service that references

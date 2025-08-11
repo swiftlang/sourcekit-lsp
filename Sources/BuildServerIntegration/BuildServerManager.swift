@@ -24,7 +24,7 @@ package import ToolchainRegistry
 
 import struct TSCBasic.RelativePath
 
-fileprivate typealias RequestCache<Request: RequestType & Hashable> = Cache<Request, Request.Response>
+private typealias RequestCache<Request: RequestType & Hashable> = Cache<Request, Request.Response>
 
 /// An output path returned from the build server in the `SourceItem.data.outputPath` field.
 package enum OutputPath: Hashable, Comparable, CustomLogStringConvertible {
@@ -1627,7 +1627,7 @@ fileprivate extension TextDocumentSourceKitOptionsResponse {
   }
 }
 
-fileprivate let supplementalClangIndexingArgs: [String] = [
+private let supplementalClangIndexingArgs: [String] = [
   // Retain extra information for indexing
   "-fretain-comments-from-system-headers",
   // Pick up macro definitions during indexing

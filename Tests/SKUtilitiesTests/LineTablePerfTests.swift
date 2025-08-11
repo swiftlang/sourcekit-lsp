@@ -15,7 +15,7 @@ import SKUtilities
 import XCTest
 
 /// A linear congruential generator with user-specified seed value. Useful for generating a predictable "random" number sequence.
-fileprivate struct SimpleLCG: RandomNumberGenerator {
+private struct SimpleLCG: RandomNumberGenerator {
 
   var state: UInt64
 
@@ -24,7 +24,7 @@ fileprivate struct SimpleLCG: RandomNumberGenerator {
   }
 
   package mutating func next() -> UInt64 {
-    state = state &* 6364136223846793005 &+ 1442695040888963407
+    state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
     return state
   }
 }

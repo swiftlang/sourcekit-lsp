@@ -338,7 +338,7 @@ extension Array {
   package func unsafeSlicedConcurrentMap<T>(
     writer: @Sendable (ArraySlice<Element>, _ destination: UnsafeMutablePointer<T>) -> Void
   ) -> [T] where Self: Sendable {
-    return Array<T>(unsafeUninitializedCapacity: count) { buffer, initializedCount in
+    return [T](unsafeUninitializedCapacity: count) { buffer, initializedCount in
       if let bufferBase = buffer.baseAddress {
         // `nonisolated(unsafe)` is fine because every concurrent iteration accesses a disjunct slice of `buffer`.
         nonisolated(unsafe) let bufferBase = bufferBase
@@ -384,7 +384,7 @@ extension Dictionary {
   }
 
   func mapKeys<K: Hashable>(overwritingDuplicates: Affirmative, _ map: (Key) -> K) -> [K: Value] {
-    var result = Dictionary<K, Value>(capacity: count)
+    var result = [K: Value](capacity: count)
     for (key, value) in self {
       result[map(key)] = value
     }

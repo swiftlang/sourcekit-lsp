@@ -25,7 +25,7 @@ import WinSDK
 #endif
 
 #if !canImport(os) || SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER
-fileprivate struct FailedToCreateFileError: Error, CustomStringConvertible {
+private struct FailedToCreateFileError: Error, CustomStringConvertible {
   let logFile: URL
 
   var description: String {
@@ -37,13 +37,13 @@ fileprivate struct FailedToCreateFileError: Error, CustomStringConvertible {
 ///
 /// See comment on `logFileHandle`.
 @LogHandlerActor
-fileprivate var logRotateIndex = 0
+private var logRotateIndex = 0
 
 /// The file handle to the current log file. When the file managed by this handle reaches its maximum size, we increment
 /// the `logRotateIndex` by 1 and set the `logFileHandle` to `nil`. This causes a new log file handle with index
 /// `logRotateIndex % logRotateCount` to be created on the next log call.
 @LogHandlerActor
-fileprivate var logFileHandle: FileHandle?
+private var logFileHandle: FileHandle?
 
 @LogHandlerActor
 func getOrCreateLogFileHandle(logDirectory: URL, logRotateCount: Int) -> FileHandle {

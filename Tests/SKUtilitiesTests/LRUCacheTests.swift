@@ -137,7 +137,7 @@ final class LRUCacheTests: XCTestCase {
   }
 }
 
-fileprivate func assertLRUCacheKeys<Key: Comparable, Value>(
+private func assertLRUCacheKeys<Key: Comparable, Value>(
   _ lruCache: LRUCache<Key, Value>,
   expectedKeys: [Key],
   file: StaticString = #filePath,

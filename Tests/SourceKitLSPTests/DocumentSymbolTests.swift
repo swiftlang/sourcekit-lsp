@@ -791,7 +791,7 @@ final class DocumentSymbolTests: XCTestCase {
   }
 }
 
-fileprivate func assertDocumentSymbols(
+private func assertDocumentSymbols(
   _ markedText: String,
   _ expectedDocumentSymbols: (DocumentPositions) -> [DocumentSymbol],
   file: StaticString = #filePath,

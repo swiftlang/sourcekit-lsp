@@ -36,7 +36,7 @@ package struct SwiftVersion: Sendable, Comparable, CustomStringConvertible {
   }
 }
 
-fileprivate enum SwiftVersionParsingError: Error, CustomStringConvertible {
+private enum SwiftVersionParsingError: Error, CustomStringConvertible {
   case failedToFindSwiftc
   case failedToParseOutput(output: String?)
 

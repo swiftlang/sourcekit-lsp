@@ -95,7 +95,7 @@ package actor WorkDoneProgressManager {
     }
     await waitUntilClientInitialized()
     switch statusToSend {
-    case .inProgress(message: let message, percentage: let percentage):
+    case .inProgress(let message, let percentage):
       if let token {
         connectionToClient.send(
           WorkDoneProgress(

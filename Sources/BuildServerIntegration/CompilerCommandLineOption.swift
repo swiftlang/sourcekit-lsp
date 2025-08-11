@@ -151,7 +151,7 @@ package struct CompilerCommandLineOption {
   }
 }
 
-extension Array<CompilerCommandLineOption> {
+extension [CompilerCommandLineOption] {
   func firstMatch(for argument: String) -> CompilerCommandLineOption.Match? {
     for optionToRemove in self {
       if let match = optionToRemove.matches(argument: argument) {

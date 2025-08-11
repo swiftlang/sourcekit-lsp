@@ -281,7 +281,7 @@ package struct MatchCollator {
       return definitiveGroupScoreComparison
       // Only compare `individualScore` within the same group, or among items that have no group.
       // Otherwise when the group score ties, we would interleave the members of the tying groups.
-    } else if (lhs.denseGroupID == rhs.denseGroupID),
+    } else if lhs.denseGroupID == rhs.denseGroupID,
       let definitiveIndividualScoreComparison = lhs.individualScore.value >? rhs.individualScore.value
     {
       return definitiveIndividualScoreComparison

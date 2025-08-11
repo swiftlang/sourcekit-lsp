@@ -322,7 +322,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   public var buildSettingsTimeout: Int?
   public var buildSettingsTimeoutOrDefault: Duration {
     // The default timeout of 500ms was chosen arbitrarily without any measurements.
-    get { .milliseconds(buildSettingsTimeout ?? 500) }
+    .milliseconds(buildSettingsTimeout ?? 500)
   }
 
   /// Extra command line arguments passed to `clangd` when launching it.

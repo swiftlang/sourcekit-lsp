@@ -17,7 +17,7 @@ import SKLogging
 import SwiftExtensions
 
 /// Task metadata for `SyntacticTestIndexer.indexingQueue`
-fileprivate enum TaskMetadata: DependencyTracker, Equatable {
+private enum TaskMetadata: DependencyTracker, Equatable {
   /// Determine the list of test files from the build server and scan them for tests. Only created when the
   /// `SyntacticTestIndex` is created
   case initialPopulation
@@ -64,7 +64,7 @@ fileprivate enum TaskMetadata: DependencyTracker, Equatable {
 }
 
 /// Data from a syntactic scan of a source file for tests.
-fileprivate struct IndexedTests {
+private struct IndexedTests {
   /// The tests within the source file.
   let tests: [AnnotatedTestItem]
 
@@ -78,7 +78,7 @@ fileprivate struct IndexedTests {
 /// Does not write the results to the index.
 ///
 /// The order of the returned tests is not defined. The results should be sorted before being returned to the editor.
-fileprivate func testItems(in url: URL) async -> [AnnotatedTestItem] {
+private func testItems(in url: URL) async -> [AnnotatedTestItem] {
   guard url.pathExtension == "swift" else {
     return []
   }

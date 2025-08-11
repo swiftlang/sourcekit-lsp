@@ -414,7 +414,7 @@ extension AnnotatedTestItem {
   }
 }
 
-fileprivate extension Array<AnnotatedTestItem> {
+fileprivate extension [AnnotatedTestItem] {
   /// When the test scanners discover tests in extensions they are captured in their own parent `TestItem`, not the
   /// `TestItem` generated from the class/struct's definition. This is largely because of the syntatic nature of the
   /// test scanners as they are today, which only know about tests within the context of the current file. Extensions
@@ -532,7 +532,7 @@ fileprivate extension Array<AnnotatedTestItem> {
   }
 }
 
-fileprivate extension Array<TestItem> {
+fileprivate extension [TestItem] {
   /// If multiple testItems share the same ID we add more context to make it unique.
   /// Two tests can share the same ID when two swift testing tests accept
   /// arguments of different types, i.e:

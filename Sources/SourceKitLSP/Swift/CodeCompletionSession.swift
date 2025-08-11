@@ -655,7 +655,7 @@ extension CodeCompletionSession: CustomStringConvertible {
   }
 }
 
-fileprivate class OutermostFunctionCallFinder: SyntaxAnyVisitor {
+private class OutermostFunctionCallFinder: SyntaxAnyVisitor {
   /// Once a `FunctionCallExprSyntax` has been visited, that syntax node.
   var foundCall: FunctionCallExprSyntax?
 

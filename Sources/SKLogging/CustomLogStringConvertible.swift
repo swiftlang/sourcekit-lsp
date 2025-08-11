@@ -77,7 +77,7 @@ extension String {
 }
 
 private struct OptionalWrapper<Wrapped>: CustomLogStringConvertible where Wrapped: CustomLogStringConvertible {
-  let optional: Optional<Wrapped>
+  let optional: Wrapped?
 
   package var description: String {
     return optional?.description ?? "<nil>"

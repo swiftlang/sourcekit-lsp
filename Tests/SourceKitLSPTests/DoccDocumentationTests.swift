@@ -936,12 +936,12 @@ final class DoccDocumentationTests: XCTestCase {
   }
 }
 
-fileprivate enum PartialConvertResponse {
+private enum PartialConvertResponse {
   case renderNode(kind: RenderNode.Kind, path: String? = nil, containing: String? = nil)
   case error(DocCDocumentationError)
 }
 
-fileprivate func renderDocumentation(
+private func renderDocumentation(
   fileName: String,
   project: SwiftPMTestProject,
   expectedResponses: [String: PartialConvertResponse],
@@ -963,7 +963,7 @@ fileprivate func renderDocumentation(
   )
 }
 
-fileprivate func renderDocumentation(
+private func renderDocumentation(
   markedText: String,
   language: Language = .swift,
   expectedResponses: [String: PartialConvertResponse],
@@ -984,7 +984,7 @@ fileprivate func renderDocumentation(
   )
 }
 
-fileprivate func renderDocumentation(
+private func renderDocumentation(
   testClient: TestSourceKitLSPClient,
   uri: DocumentURI,
   positions: DocumentPositions,

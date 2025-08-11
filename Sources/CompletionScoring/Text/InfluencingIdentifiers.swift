@@ -12,7 +12,7 @@
 
 import Foundation
 
-fileprivate typealias UTF8Bytes = Pattern.UTF8Bytes
+private typealias UTF8Bytes = Pattern.UTF8Bytes
 
 package struct InfluencingIdentifiers: Sendable {
   // `nonisolated(unsafe)` is fine because the underlying buffer is not modified until `deallocate` is called and the
@@ -91,9 +91,7 @@ package struct InfluencingIdentifiers: Sendable {
       // TODO: We could turn this loop inside out to walk the candidate tokens first, and skip the ones that are shorter
       // than the shortest token, or keep bit for each length we have, and skip almost all of them.
       let matchedTokenCount = identifier.tokens.countOf { token in
-        if (RejectionFilter.match(pattern: token.rejectionFilter, candidate: candidate.rejectionFilter)
-          == .maybe)
-        {
+        if RejectionFilter.match(pattern: token.rejectionFilter, candidate: candidate.rejectionFilter) == .maybe {
           let candidateTokenization = candidateTokenization.lazyInitialize {
             Pattern.Tokenization.allocate(
               mixedcaseBytes: candidate.bytes,

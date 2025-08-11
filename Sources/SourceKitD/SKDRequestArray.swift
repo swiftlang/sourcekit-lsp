@@ -60,11 +60,11 @@ package final class SKDRequestArray: Sendable {
       sourcekitd.api.request_array_set_value(array, -1, newValue.dict)
     case let newValue as SKDRequestArray:
       sourcekitd.api.request_array_set_value(array, -1, newValue.array)
-    case let newValue as Array<SKDRequestValue>:
+    case let newValue as [SKDRequestValue]:
       self.append(sourcekitd.array(newValue))
-    case let newValue as Dictionary<sourcekitd_api_uid_t, SKDRequestValue>:
+    case let newValue as [sourcekitd_api_uid_t: SKDRequestValue]:
       self.append(sourcekitd.dictionary(newValue))
-    case let newValue as Optional<SKDRequestValue>:
+    case let newValue as SKDRequestValue?:
       if let newValue {
         self.append(newValue)
       }

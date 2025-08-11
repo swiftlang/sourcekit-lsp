@@ -18,7 +18,7 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 import XCTest
 
-fileprivate func assertFormatted<T: SyntaxProtocol>(
+private func assertFormatted<T: SyntaxProtocol>(
   tree: T,
   expected: String,
   using format: ClosureCompletionFormat = ClosureCompletionFormat(indentationWidth: .spaces(4)),
@@ -28,7 +28,7 @@ fileprivate func assertFormatted<T: SyntaxProtocol>(
   XCTAssertEqual(tree.formatted(using: format).description, expected, file: file, line: line)
 }
 
-fileprivate func assertFormatted(
+private func assertFormatted(
   source: String,
   expected: String,
   using format: ClosureCompletionFormat = ClosureCompletionFormat(indentationWidth: .spaces(4)),

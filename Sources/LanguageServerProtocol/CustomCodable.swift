@@ -93,16 +93,16 @@ extension Optional: CustomCodableWrapper where Wrapped: CustomCodableWrapper {
 
 extension KeyedDecodingContainer {
   public func decode<T: CustomCodableWrapper>(
-    _ type: CustomCodable<Optional<T>>.Type,
+    _ type: CustomCodable<T?>.Type,
     forKey key: Key
-  ) throws -> CustomCodable<Optional<T>> {
-    CustomCodable<Optional<T>>(wrappedValue: try decodeIfPresent(T.self, forKey: key)?.wrappedValue)
+  ) throws -> CustomCodable<T?> {
+    CustomCodable<T?>(wrappedValue: try decodeIfPresent(T.self, forKey: key)?.wrappedValue)
   }
 }
 
 extension KeyedEncodingContainer {
   public mutating func encode<T: CustomCodableWrapper>(
-    _ value: CustomCodable<Optional<T>>,
+    _ value: CustomCodable<T?>,
     forKey key: Key
   ) throws {
     try encodeIfPresent(

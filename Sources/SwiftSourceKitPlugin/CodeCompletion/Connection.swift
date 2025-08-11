@@ -32,7 +32,7 @@ extension PopularityIndex.Scope {
 }
 
 /// Execute the given block on a thread with the given stack size and wait for that thread to finish.
-fileprivate func withStackSize<T>(_ stackSize: Int, execute block: @Sendable @escaping () -> T) -> T {
+private func withStackSize<T>(_ stackSize: Int, execute block: @Sendable @escaping () -> T) -> T {
   var result: T! = nil
   nonisolated(unsafe) let workItem = DispatchWorkItem(block: {
     result = block()
@@ -55,7 +55,7 @@ final class Connection {
 
     var description: String {
       switch self {
-      case .openingFileFailed(path: let path):
+      case .openingFileFailed(let path):
         return "Could not open file '\(path)'"
       case .swiftIDEError(let message):
         return message

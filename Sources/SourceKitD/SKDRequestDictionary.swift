@@ -38,8 +38,8 @@ extension Int: SKDRequestValue {}
 extension sourcekitd_api_uid_t: SKDRequestValue {}
 extension SKDRequestDictionary: SKDRequestValue {}
 extension SKDRequestArray: SKDRequestValue {}
-extension Array<SKDRequestValue>: SKDRequestValue {}
-extension Dictionary<sourcekitd_api_uid_t, SKDRequestValue>: SKDRequestValue {}
+extension [SKDRequestValue]: SKDRequestValue {}
+extension [sourcekitd_api_uid_t: SKDRequestValue]: SKDRequestValue {}
 extension Optional: SKDRequestValue where Wrapped: SKDRequestValue {}
 
 extension SourceKitD {
@@ -78,11 +78,11 @@ package final class SKDRequestDictionary: Sendable {
       sourcekitd.api.request_dictionary_set_value(dict, key, newValue.dict)
     case let newValue as SKDRequestArray:
       sourcekitd.api.request_dictionary_set_value(dict, key, newValue.array)
-    case let newValue as Array<SKDRequestValue>:
+    case let newValue as [SKDRequestValue]:
       self.set(key, to: sourcekitd.array(newValue))
-    case let newValue as Dictionary<sourcekitd_api_uid_t, SKDRequestValue>:
+    case let newValue as [sourcekitd_api_uid_t: SKDRequestValue]:
       self.set(key, to: sourcekitd.dictionary(newValue))
-    case let newValue as Optional<SKDRequestValue>:
+    case let newValue as SKDRequestValue?:
       if let newValue {
         self.set(key, to: newValue)
       }

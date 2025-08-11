@@ -227,7 +227,7 @@ final class MessageParsingTests: XCTestCase {
     XCTAssertEqual(Int(ascii: "\(Int.min)"), Int.min)
     XCTAssertEqual(Int(ascii: "\(Int.min+1)"), Int.min + 1)
 
-    XCTAssertEqual(Int(ascii: "1234567890"), 1234567890)
+    XCTAssertEqual(Int(ascii: "1234567890"), 1_234_567_890)
     XCTAssertEqual(Int(ascii: "\n\r \u{b}\u{d}\t45\n\t\r\u{c}"), 45)
   }
 }

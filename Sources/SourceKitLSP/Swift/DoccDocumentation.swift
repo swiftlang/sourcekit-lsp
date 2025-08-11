@@ -128,7 +128,7 @@ extension SwiftLanguageService {
   }
 }
 
-fileprivate struct DocumentableSymbol {
+private struct DocumentableSymbol {
   let position: AbsolutePosition
   let documentationComments: [String]
 

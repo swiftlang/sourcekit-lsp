@@ -338,7 +338,7 @@ func assertRefactor<R: EditRefactoringProvider>(
 ///     which this function was called.
 ///   - line: The line number on which failure occurred. Defaults to the line number on which this
 ///     function was called.
-fileprivate func assertStringsEqualWithDiff(
+private func assertStringsEqualWithDiff(
   _ actual: String,
   _ expected: String,
   _ message: String = "",
@@ -360,7 +360,7 @@ fileprivate func assertStringsEqualWithDiff(
 }
 
 /// `XCTFail` with `diff`-style output.
-fileprivate func failStringsEqualWithDiff(
+private func failStringsEqualWithDiff(
   _ actual: String,
   _ expected: String,
   _ message: String = "",

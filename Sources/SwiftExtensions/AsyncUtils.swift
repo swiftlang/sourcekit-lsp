@@ -158,7 +158,7 @@ extension Collection where Element: Sendable {
       }
       return indexedResults
     }
-    return Array<TransformedElement>(unsafeUninitializedCapacity: indexedResults.count) { buffer, count in
+    return [TransformedElement](unsafeUninitializedCapacity: indexedResults.count) { buffer, count in
       for (index, transformedElement) in indexedResults {
         (buffer.baseAddress! + index).initialize(to: transformedElement)
       }

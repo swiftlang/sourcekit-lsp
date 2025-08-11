@@ -87,9 +87,9 @@ extension MarkedString: Codable, Sendable {
 
   public func encode(to encoder: Encoder) throws {
     switch self {
-    case .markdown(value: let value):
+    case .markdown(let value):
       try value.encode(to: encoder)
-    case .codeBlock(language: let language, value: let value):
+    case .codeBlock(let language, let value):
       try MarkdownCodeBlock(language: language, value: value).encode(to: encoder)
     }
   }

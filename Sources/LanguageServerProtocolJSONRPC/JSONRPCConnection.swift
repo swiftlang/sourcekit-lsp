@@ -519,17 +519,17 @@ public final class JSONRPCConnection: Connection {
     switch message {
     case .notification(let notification):
       notification._handle(self.receiveHandler!)
-    case .request(let request, id: let id):
+    case .request(let request, let id):
       request._handle(self.receiveHandler!, id: id) { (response, id) in
         self.sendReply(response, id: id)
       }
-    case .response(let response, id: let id):
+    case .response(let response, let id):
       guard let outstanding = outstandingRequests.removeValue(forKey: id) else {
         logger.error("No outstanding requests for response ID \(id, privacy: .public)")
         return
       }
       outstanding.replyHandler(.success(response))
-    case .errorResponse(let error, id: let id):
+    case .errorResponse(let error, let id):
       guard let id = id else {
         logger.error("Received error response for unknown request: \(error.forLogging)")
         return

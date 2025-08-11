@@ -36,7 +36,7 @@ private var progressBar: PercentProgressAnimation? = nil
 private var lastProgress: (Int, String)? = nil
 
 /// A component of the diagnostic bundle that's collected in independent stages.
-fileprivate enum BundleComponent: String, CaseIterable, ExpressibleByArgument {
+private enum BundleComponent: String, CaseIterable, ExpressibleByArgument {
   case crashReports = "crash-reports"
   case logs = "logs"
   case swiftVersions = "swift-versions"
@@ -472,7 +472,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
 }
 
 /// Describes the state that the diagnose command is in. This is used to compute a progress bar.
-fileprivate enum DiagnoseProgressState: Comparable {
+private enum DiagnoseProgressState: Comparable {
   case collectingCrashReports
   case collectingLogMessages(progress: Double)
   case collectingSwiftVersions(progress: Double)
@@ -513,8 +513,8 @@ fileprivate enum DiagnoseProgressState: Comparable {
     var elapsedEstimatedDuration = allFinalStates.filter { $0 < self }.reduce(0, { $0 + $1.estimatedDuration })
     switch self {
     case .collectingCrashReports: break
-    case .collectingLogMessages(let progress), .collectingSwiftVersions(progress: let progress),
-      .reproducingSourcekitdCrash(progress: let progress), .reproducingSwiftFrontendCrash(progress: let progress):
+    case .collectingLogMessages(let progress), .collectingSwiftVersions(let progress),
+      .reproducingSourcekitdCrash(let progress), .reproducingSwiftFrontendCrash(let progress):
       elapsedEstimatedDuration += progress * self.estimatedDuration
     }
     return elapsedEstimatedDuration / estimatedTotalDuration

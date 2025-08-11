@@ -184,7 +184,7 @@ package struct CompletionResultsArray {
         try apply(keys.numBytesToErase, sourcekitd_api_variant_t(result.numBytesToErase), context)
       }
       try apply(keys.hasDiagnostic, sourcekitd_api_variant_t(result.hasDiagnostic), context)
-      if (result.groupID != 0) {
+      if result.groupID != 0 {
         try apply(keys.groupId, sourcekitd_api_variant_t(result.groupID), context)
       }
     } catch {

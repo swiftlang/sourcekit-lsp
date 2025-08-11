@@ -138,7 +138,7 @@ package struct PopularityTable {
   }
 }
 
-extension Dictionary<String, Popularity> {
+extension [String: Popularity] {
   fileprivate mutating func record(scoreComponent: Double, for key: String) {
     let leastPopular = Popularity(scoreComponent: -Double.infinity)
     if self[key, default: leastPopular].scoreComponent < scoreComponent {

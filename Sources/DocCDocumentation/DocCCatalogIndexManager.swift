@@ -162,7 +162,7 @@ package struct DocCCatalogIndex: Sendable {
   }
 }
 
-fileprivate enum WithSchemeError: LocalizedError {
+private enum WithSchemeError: LocalizedError {
   case failedToRetrieveComponents(URL)
   case failedToEncode(URLComponents)
 

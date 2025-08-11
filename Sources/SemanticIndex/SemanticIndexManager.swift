@@ -133,7 +133,7 @@ package enum IndexProgressStatus: Sendable, Equatable {
 }
 
 /// See `SemanticIndexManager.inProgressPrepareForEditorTask`.
-fileprivate struct InProgressPrepareForEditorTask {
+private struct InProgressPrepareForEditorTask {
   /// A unique ID that identifies the preparation task and is used to set
   /// `SemanticIndexManager.inProgressPrepareForEditorTask` to `nil`  when the current in progress task finishes.
   let id: UUID
@@ -146,7 +146,7 @@ fileprivate struct InProgressPrepareForEditorTask {
 }
 
 /// The reason why a target is being prepared. This is used to determine the `IndexProgressStatus`.
-fileprivate enum TargetPreparationPurpose: Comparable {
+private enum TargetPreparationPurpose: Comparable {
   /// We are preparing the target so we can index files in it.
   case forIndexing
 
@@ -155,7 +155,7 @@ fileprivate enum TargetPreparationPurpose: Comparable {
 }
 
 /// An entry in `SemanticIndexManager.inProgressPreparationTasks`.
-fileprivate struct InProgressPreparationTask {
+private struct InProgressPreparationTask {
   let task: OpaqueQueuedIndexTask
   let purpose: TargetPreparationPurpose
 }
@@ -239,7 +239,7 @@ package final actor SemanticIndexManager {
       switch inProgress.state {
       case .creatingIndexTask, .waitingForPreparation, .preparing:
         return IndexTaskStatus.scheduled
-      case .updatingIndexStore(updateIndexStoreTask: let updateIndexStoreTask, indexTask: _):
+      case .updatingIndexStore(let updateIndexStoreTask, indexTask: _):
         return updateIndexStoreTask.isExecuting ? IndexTaskStatus.executing : IndexTaskStatus.scheduled
       }
     }
@@ -340,9 +340,9 @@ package final actor SemanticIndexManager {
       switch inProgress.state {
       case .creatingIndexTask:
         break
-      case .waitingForPreparation(preparationTaskID: _, indexTask: let indexTask),
-        .preparing(preparationTaskID: _, indexTask: let indexTask),
-        .updatingIndexStore(updateIndexStoreTask: _, indexTask: let indexTask):
+      case .waitingForPreparation(preparationTaskID: _, let indexTask),
+        .preparing(preparationTaskID: _, let indexTask),
+        .updatingIndexStore(updateIndexStoreTask: _, let indexTask):
         await indexTask.value
       }
     }

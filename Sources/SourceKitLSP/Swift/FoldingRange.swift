@@ -15,7 +15,7 @@ import SKLogging
 import SKUtilities
 import SwiftSyntax
 
-fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
+private final class FoldingRangeFinder: SyntaxAnyVisitor {
   private let snapshot: DocumentSnapshot
   /// Some ranges might occur multiple times.
   /// E.g. for `print("hi")`, `"hi"` is both the range of all call arguments and the range the first argument in the call.

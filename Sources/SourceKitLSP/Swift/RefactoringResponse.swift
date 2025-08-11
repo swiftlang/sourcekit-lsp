@@ -20,7 +20,7 @@ protocol RefactoringResponse {
   init(title: String, uri: DocumentURI, refactoringEdits: [RefactoringEdit])
 }
 
-extension Array<RefactoringEdit> {
+extension [RefactoringEdit] {
   init?(_ dict: SKDResponseDictionary, _ snapshot: DocumentSnapshot, _ keys: sourcekitd_api_keys) {
     guard let categorizedEdits: SKDResponseArray = dict[keys.categorizedEdits] else {
       logger.fault("categorizedEdits doesn't exist in response dictionary")

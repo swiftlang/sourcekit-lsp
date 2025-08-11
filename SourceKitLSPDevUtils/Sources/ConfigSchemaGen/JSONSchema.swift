@@ -101,10 +101,10 @@ struct JSONSchemaBuilder {
     case .integer: schema.type = "integer"
     case .number: schema.type = "number"
     case .string: schema.type = "string"
-    case .array(value: let value):
+    case .array(let value):
       schema.type = "array"
       schema.items = try buildJSONSchema(from: value)
-    case .dictionary(value: let value):
+    case .dictionary(let value):
       schema.type = "object"
       schema.additionalProperties = try buildJSONSchema(from: value)
     case .struct(let structInfo):

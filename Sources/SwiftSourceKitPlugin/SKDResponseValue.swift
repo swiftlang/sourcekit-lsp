@@ -27,6 +27,6 @@ extension Double: SKDResponseValue {}
 extension sourcekitd_api_uid_t: SKDResponseValue {}
 extension SKDResponseDictionaryBuilder: SKDResponseValue {}
 extension SKDResponseArrayBuilder: SKDResponseValue {}
-extension Array<SKDResponseValue>: SKDResponseValue {}
-extension Dictionary<sourcekitd_api_uid_t, SKDResponseValue>: SKDResponseValue {}
+extension [SKDResponseValue]: SKDResponseValue {}
+extension [sourcekitd_api_uid_t: SKDResponseValue]: SKDResponseValue {}
 extension Optional: SKDResponseValue where Wrapped: SKDResponseValue {}

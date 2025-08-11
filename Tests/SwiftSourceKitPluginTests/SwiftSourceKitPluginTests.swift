@@ -1679,7 +1679,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
 
 // MARK: - Structured result types
 
-fileprivate struct CompletionResultSet: Sendable {
+private struct CompletionResultSet: Sendable {
   var unfilteredResultCount: Int
   var memberAccessTypes: [String]
   var items: [CompletionResult]
@@ -1711,7 +1711,7 @@ fileprivate struct CompletionResultSet: Sendable {
   }
 }
 
-fileprivate struct CompletionResult: Equatable, Sendable {
+private struct CompletionResult: Equatable, Sendable {
   nonisolated(unsafe) var kind: sourcekitd_api_uid_t
   var id: Int
   var name: String
@@ -1765,7 +1765,7 @@ fileprivate struct CompletionResult: Equatable, Sendable {
   }
 }
 
-fileprivate struct CompletionDocumentation {
+private struct CompletionDocumentation {
   var docBrief: String? = nil
   var associatedUSRs: [String] = []
 
@@ -1776,7 +1776,7 @@ fileprivate struct CompletionDocumentation {
   }
 }
 
-fileprivate struct CompletionDiagnostic {
+private struct CompletionDiagnostic {
   var severity: sourcekitd_api_uid_t
   var description: String
 
@@ -1793,7 +1793,7 @@ fileprivate struct CompletionDiagnostic {
   }
 }
 
-fileprivate struct TestError: Error {
+private struct TestError: Error {
   let error: String
 
   init(_ message: String) {

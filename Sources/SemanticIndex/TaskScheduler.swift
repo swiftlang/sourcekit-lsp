@@ -678,7 +678,7 @@ fileprivate extension Collection {
 }
 
 /// Version of the `withTaskPriorityChangedHandler` where the body doesn't throw.
-fileprivate func withTaskPriorityChangedHandler(
+private func withTaskPriorityChangedHandler(
   initialPriority: TaskPriority = Task.currentPriority,
   pollingInterval: Duration = .seconds(0.1),
   @_inheritActorContext operation: @escaping @Sendable () async -> Void,

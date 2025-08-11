@@ -96,7 +96,7 @@ actor IndexProgressManager {
     case .schedulingIndexing:
       message = "Scheduling tasks"
       percentage = 0
-    case .indexing(preparationTasks: let preparationTasks, indexTasks: let indexTasks):
+    case .indexing(let preparationTasks, let indexTasks):
       // We can get into a situation where queuedIndexTasks < indexTasks.count if we haven't processed all
       // `indexTasksWereScheduled` calls yet but the semantic index managers already track them in their in-progress tasks.
       // Clip the finished tasks to 0 because showing a negative number there looks stupid.

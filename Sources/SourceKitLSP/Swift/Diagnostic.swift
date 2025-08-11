@@ -128,7 +128,7 @@ extension TextEdit {
       let replacementWithoutPlaceholders = rewriteSourceKitPlaceholders(in: replacement, clientSupportsSnippets: false)
 
       // If both the replacement without placeholders and the fixit are empty, no TextEdit should be created.
-      if (replacementWithoutPlaceholders.isEmpty && length == 0) {
+      if replacementWithoutPlaceholders.isEmpty && length == 0 {
         return nil
       }
 
