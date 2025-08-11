@@ -352,6 +352,39 @@ package actor SkipUnless {
       return .featureSupported
     }
   }
+
+  package static func haveRawIdentifiers(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    return try await shared.skipUnlessSupportedByToolchain(
+      swiftVersion: SwiftVersion(6, 2),
+      file: file,
+      line: line
+    ) {
+      let testClient = try await TestSourceKitLSPClient()
+      let uri = DocumentURI(for: .swift)
+      testClient.openDocument(
+        """
+        let `1 * 1` = 1
+        _ = `1 * 1`
+        """,
+        uri: uri
+      )
+
+      let response = try unwrap(
+        await testClient.send(DocumentSemanticTokensRequest(textDocument: TextDocumentIdentifier(uri)))
+      )
+
+      let tokens = SyntaxHighlightingTokens(lspEncodedTokens: response.data)
+      return tokens.tokens.last
+        == SourceKitLSP.SyntaxHighlightingToken(
+          range: Position(line: 1, utf16index: 4)..<Position(line: 1, utf16index: 11),
+          kind: .variable,
+          modifiers: []
+        )
+    }
+  }
 }
 
 // MARK: - Parsing Swift compiler version
