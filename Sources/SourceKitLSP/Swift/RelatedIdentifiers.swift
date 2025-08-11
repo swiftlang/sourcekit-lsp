@@ -87,6 +87,8 @@ extension SwiftLanguageService {
 
     var relatedIdentifiers: [RelatedIdentifier] = []
 
+    // swift-format-ignore: ReplaceForEachWithForLoop
+    // Reference is to `SKDResponseArray.forEach`, not `Array.forEach`.
     results.forEach { _, value in
       guard let offset: Int = value[keys.offset], let length: Int = value[keys.length] else {
         return true  // continue

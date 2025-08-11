@@ -46,7 +46,7 @@ public struct TaskStartNotification: NotificationType {
   /// Message describing the task.
   public var message: String?
 
-  /** Kind of data to expect in the `data` field. If this field is not set, the kind of data is not specified. */
+  /// Kind of data to expect in the `data` field. If this field is not set, the kind of data is not specified.
   public var dataKind: TaskStartDataKind?
 
   /// Optional metadata about the task.

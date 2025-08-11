@@ -29,11 +29,15 @@ extension [RefactoringEdit] {
 
     self = []
 
+    // swift-format-ignore: ReplaceForEachWithForLoop
+    // Reference is to `SKDResponseArray.forEach`, not `Array.forEach`.
     categorizedEdits.forEach { _, categorizedEdit in
       guard let edits: SKDResponseArray = categorizedEdit[keys.edits] else {
         logger.fault("edits doesn't exist in categorizedEdit dictionary")
         return true
       }
+      // swift-format-ignore: ReplaceForEachWithForLoop
+      // Reference is to `SKDResponseArray.forEach`, not `Array.forEach`.
       edits.forEach { _, edit in
         guard let startLine: Int = edit[keys.line],
           let startColumn: Int = edit[keys.column],

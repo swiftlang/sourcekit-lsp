@@ -460,18 +460,19 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     // The debounce duration of 500ms was chosen arbitrarily without any measurements.
     self.filesDependenciesUpdatedDebouncer = Debouncer(
       debounceDuration: .milliseconds(500),
-      combineResults: { $0.union($1) }
-    ) {
-      [weak self] (filesWithUpdatedDependencies) in
-      guard let self, let delegate = await self.delegate else {
-        logger.fault("Not calling filesDependenciesUpdated because no delegate exists in SwiftPMBuildServer")
-        return
+      combineResults: { $0.union($1) },
+      makeCall: {
+        [weak self] (filesWithUpdatedDependencies) in
+        guard let self, let delegate = await self.delegate else {
+          logger.fault("Not calling filesDependenciesUpdated because no delegate exists in SwiftPMBuildServer")
+          return
+        }
+        let changedWatchedFiles = await self.watchedFilesReferencing(mainFiles: filesWithUpdatedDependencies)
+        if !changedWatchedFiles.isEmpty {
+          await delegate.filesDependenciesUpdated(changedWatchedFiles)
+        }
       }
-      let changedWatchedFiles = await self.watchedFilesReferencing(mainFiles: filesWithUpdatedDependencies)
-      if !changedWatchedFiles.isEmpty {
-        await delegate.filesDependenciesUpdated(changedWatchedFiles)
-      }
-    }
+    )
 
     // We don't need a large debounce duration here. It just needs to be big enough to accumulate
     // `resultReceivedAfterTimeout` calls for the same document (see comment on `filesBuildSettingsChangedDebouncer`).
@@ -479,17 +480,18 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     // plenty while still not causing a noticeable delay to the user.
     self.filesBuildSettingsChangedDebouncer = Debouncer(
       debounceDuration: .milliseconds(20),
-      combineResults: { $0.union($1) }
-    ) {
-      [weak self] (filesWithChangedBuildSettings) in
-      guard let self, let delegate = await self.delegate else {
-        logger.fault("Not calling fileBuildSettingsChanged because no delegate exists in SwiftPMBuildServer")
-        return
+      combineResults: { $0.union($1) },
+      makeCall: {
+        [weak self] (filesWithChangedBuildSettings) in
+        guard let self, let delegate = await self.delegate else {
+          logger.fault("Not calling fileBuildSettingsChanged because no delegate exists in SwiftPMBuildServer")
+          return
+        }
+        if !filesWithChangedBuildSettings.isEmpty {
+          await delegate.fileBuildSettingsChanged(filesWithChangedBuildSettings)
+        }
       }
-      if !filesWithChangedBuildSettings.isEmpty {
-        await delegate.fileBuildSettingsChanged(filesWithChangedBuildSettings)
-      }
-    }
+    )
 
     // TODO: Forward file watch patterns from this initialize request to the client
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1671)

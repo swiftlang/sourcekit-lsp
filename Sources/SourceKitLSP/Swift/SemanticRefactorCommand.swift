@@ -86,6 +86,8 @@ extension Array where Element == SemanticRefactorCommand {
       return nil
     }
     var commands: [SemanticRefactorCommand] = []
+    // swift-format-ignore: ReplaceForEachWithForLoop
+    // Reference is to `SKDResponseArray.forEach`, not `Array.forEach`.
     results.forEach { _, value in
       if let name: String = value[keys.actionName],
         let actionuid: sourcekitd_api_uid_t = value[keys.actionUID],

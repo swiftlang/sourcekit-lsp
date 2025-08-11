@@ -65,8 +65,11 @@ private struct XMLToMarkdown {
 
   // [XMLNode]? is the type of XMLNode.children.
   mutating func toMarkdown(_ nodes: [XMLNode]?, separator: String = "") {
-    nodes?.forEach {
-      toMarkdown($0)
+    guard let nodes else {
+      return
+    }
+    for node in nodes {
+      toMarkdown(node)
       out += separator
     }
   }

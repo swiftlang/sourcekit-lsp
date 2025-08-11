@@ -26,6 +26,8 @@ extension CodeAction {
   /// If this is from a note, the note's description should be passed as `fromNote`.
   init?(fixits: SKDResponseArray, in snapshot: DocumentSnapshot, fromNote: String?) {
     var edits: [TextEdit] = []
+    // swift-format-ignore: ReplaceForEachWithForLoop
+    // Reference is to `SKDResponseArray.forEach`, not `Array.forEach`.
     let editsMapped = fixits.forEach { (_, skfixit) -> Bool in
       if let edit = TextEdit(fixit: skfixit, in: snapshot) {
         edits.append(edit)
@@ -204,6 +206,8 @@ extension Diagnostic {
       range = Range(snapshot.positionOf(utf8Offset: utf8Offset))
     }
 
+    // swift-format-ignore: ReplaceForEachWithForLoop
+    // Reference is to `SKDResponseArray.forEach`, not `Array.forEach`.
     // If the diagnostic has a range associated with it that starts at the same location as the diagnostics position, use it to retrieve a proper range for the diagnostic, instead of just reporting a zero-length range.
     (diag[keys.ranges] as SKDResponseArray?)?.forEach { index, skRange in
       guard let utf8Offset: Int = skRange[keys.offset],
@@ -273,6 +277,8 @@ extension Diagnostic {
     var notes: [DiagnosticRelatedInformation]? = nil
     if let sknotes: SKDResponseArray = diag[keys.diagnostics] {
       notes = []
+      // swift-format-ignore: ReplaceForEachWithForLoop
+      // Reference is to `SKDResponseArray.forEach`, not `Array.forEach`.
       sknotes.forEach { (_, sknote) -> Bool in
         guard
           let note = DiagnosticRelatedInformation(

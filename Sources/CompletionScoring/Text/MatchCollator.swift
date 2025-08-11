@@ -415,15 +415,16 @@ package struct MatchCollator {
       influencingTokenizedIdentifiers: influencingTokenizedIdentifiers,
       patternUTF8Length: 0,
       orderingTiesBy: { _, _ in false },
-      maximumNumberOfItemsForExpensiveSelection: Self.defaultMaximumNumberOfItemsForExpensiveSelection
-    ) { collator in
-      return (0..<iterations).reduce(0) { accumulation, _ in
-        collator.applyInfluence()
-        return collator.rescoredMatches.reduce(accumulation) { accumulation, match in
-          accumulation + match.individualScore.value
+      maximumNumberOfItemsForExpensiveSelection: Self.defaultMaximumNumberOfItemsForExpensiveSelection,
+      body: { collator in
+        return (0..<iterations).reduce(0) { accumulation, _ in
+          collator.applyInfluence()
+          return collator.rescoredMatches.reduce(accumulation) { accumulation, match in
+            accumulation + match.individualScore.value
+          }
         }
       }
-    }
+    )
   }
 
   package static func tokenize(

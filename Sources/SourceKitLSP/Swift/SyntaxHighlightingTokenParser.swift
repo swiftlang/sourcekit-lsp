@@ -70,6 +70,8 @@ struct SyntaxHighlightingTokenParser {
     in snapshot: DocumentSnapshot,
     into tokens: inout SyntaxHighlightingTokens
   ) {
+    // swift-format-ignore: ReplaceForEachWithForLoop
+    // Reference is to `SKDResponseArray.forEach`, not `Array.forEach`.
     response.forEach { (_, value) in
       parseTokens(value, in: snapshot, into: &tokens)
       return true

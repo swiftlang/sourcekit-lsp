@@ -31,10 +31,14 @@ final class DebouncerTests: XCTestCase {
   func testDebouncerCombinesParameters() async throws {
     let expectation = self.expectation(description: "makeCallCalled")
     expectation.assertForOverFulfill = true
-    let debouncer = Debouncer<Int>(debounceDuration: .seconds(0.1), combineResults: { $0 + $1 }) { param in
-      XCTAssertEqual(param, 3)
-      expectation.fulfill()
-    }
+    let debouncer = Debouncer<Int>(
+      debounceDuration: .seconds(0.1),
+      combineResults: { $0 + $1 },
+      makeCall: { param in
+        XCTAssertEqual(param, 3)
+        expectation.fulfill()
+      }
+    )
     await debouncer.scheduleCall(1)
     await debouncer.scheduleCall(2)
     try await fulfillmentOfOrThrow(expectation)

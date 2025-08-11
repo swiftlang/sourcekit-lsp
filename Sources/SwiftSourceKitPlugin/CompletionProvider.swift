@@ -31,6 +31,8 @@ import SwiftSourceKitPluginCommon
 /// Returns `nil` if parsing failed because one of he entries didn't contain a key or value.
 private func parsePopularityDict(_ data: SKDRequestArrayReader) -> [String: Popularity]? {
   var result: [String: Popularity] = [:]
+  // swift-format-ignore: ReplaceForEachWithForLoop
+  // Reference is to `SKDRequestArrayReader.forEach`, not `Array.forEach`.
   let iteratedAllEntries = data.forEach { (_, entry) -> Bool in
     // We can't deserialize double values in SourceKit requests at the moment.
     // We transfer the double value as an integer with 9 significant digits by multiplying it by 1 billion first.
