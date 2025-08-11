@@ -13,7 +13,7 @@
 import LanguageServerProtocol
 import XCTest
 
-private func AssertDataIsString(
+private func assertDataIsString(
   _ data: Data,
   expected: String,
   file: StaticString = #filePath,
@@ -45,9 +45,9 @@ final class LanguageServerProtocolTests: XCTestCase {
 
   func testFileChangeTypeEncoding() throws {
     let encoder = JSONEncoder()
-    try AssertDataIsString(encoder.encode(FileChangeType.created), expected: "1")
-    try AssertDataIsString(encoder.encode(FileChangeType.changed), expected: "2")
-    try AssertDataIsString(encoder.encode(FileChangeType.deleted), expected: "3")
-    try AssertDataIsString(encoder.encode(FileChangeType(rawValue: 5)), expected: "5")
+    try assertDataIsString(encoder.encode(FileChangeType.created), expected: "1")
+    try assertDataIsString(encoder.encode(FileChangeType.changed), expected: "2")
+    try assertDataIsString(encoder.encode(FileChangeType.deleted), expected: "3")
+    try assertDataIsString(encoder.encode(FileChangeType(rawValue: 5)), expected: "5")
   }
 }
