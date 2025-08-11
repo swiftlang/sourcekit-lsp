@@ -22,10 +22,16 @@ extension SwiftLanguageService {
     groupName: String?,
     symbolUSR symbol: String?
   ) async throws -> GeneratedInterfaceDetails? {
+    // Include build settings context to distinguish different versions/configurations
+    let buildSettingsFileHash = "\(abs(document.buildSettingsFile.stringValue.hashValue))"
+    let sourcekitdDocumentName = [moduleName, groupName, buildSettingsFileHash].compactMap(\.self).joined(
+      separator: "."
+    )
+
     let urlData = GeneratedInterfaceDocumentURLData(
       moduleName: moduleName,
       groupName: groupName,
-      sourcekitdDocumentName: "\(moduleName)-\(UUID())",
+      sourcekitdDocumentName: sourcekitdDocumentName,
       primaryFile: document
     )
     let position: Position? =
