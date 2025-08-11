@@ -50,7 +50,7 @@ final class CompilerCommandLineOptionMatchingTests: XCTestCase {
   }
 }
 
-fileprivate func assertOption(
+private func assertOption(
   _ option: CompilerCommandLineOption,
   _ argument: String,
   _ expected: CompilerCommandLineOption.Match?,

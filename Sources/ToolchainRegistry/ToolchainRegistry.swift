@@ -235,24 +235,22 @@ package final actor ToolchainRegistry {
   ///
   /// The default toolchain must be only of the registered toolchains.
   package var `default`: Toolchain? {
-    get {
-      // Toolchains discovered from the `SOURCEKIT_TOOLCHAIN_PATH` environment variable or relative to sourcekit-lsp's
-      // install path always take precedence over Xcode toolchains.
-      if let (toolchain, reason) = toolchainsAndReasons.first, reason < .xcode {
-        return toolchain
-      }
-      // Try finding the Xcode default toolchain.
-      if let tc = toolchainsByIdentifier[darwinToolchainIdentifier]?.first {
-        return tc
-      }
-      var result: Toolchain? = nil
-      for toolchain in toolchains {
-        if result == nil || toolchain.isProperSuperset(of: result!) {
-          result = toolchain
-        }
-      }
-      return result
+    // Toolchains discovered from the `SOURCEKIT_TOOLCHAIN_PATH` environment variable or relative to sourcekit-lsp's
+    // install path always take precedence over Xcode toolchains.
+    if let (toolchain, reason) = toolchainsAndReasons.first, reason < .xcode {
+      return toolchain
     }
+    // Try finding the Xcode default toolchain.
+    if let tc = toolchainsByIdentifier[darwinToolchainIdentifier]?.first {
+      return tc
+    }
+    var result: Toolchain? = nil
+    for toolchain in toolchains {
+      if result == nil || toolchain.isProperSuperset(of: result!) {
+        result = toolchain
+      }
+    }
+    return result
   }
 
   /// The standard default toolchain identifier on Darwin.

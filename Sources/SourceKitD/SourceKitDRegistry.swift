@@ -86,6 +86,6 @@ extension SourceKitDRegistry<SourceKitD> {
   package static let shared: SourceKitDRegistry = SourceKitDRegistry()
 }
 
-fileprivate struct WeakSourceKitD<SourceKitDType: AnyObject> {
+private struct WeakSourceKitD<SourceKitDType: AnyObject> {
   weak var value: SourceKitDType?
 }

@@ -237,7 +237,7 @@ package struct NonDarwinLogInterpolation: StringInterpolationProtocol, Sendable 
       switch piece {
       case .string(let string):
         result += string
-      case .possiblyRedacted(description: let description, redactedDescription: let redacted, privacy: let privacy):
+      case .possiblyRedacted(let description, redactedDescription: let redacted, let privacy):
         if privacy > logPrivacyLevel {
           result += redacted()
         } else {

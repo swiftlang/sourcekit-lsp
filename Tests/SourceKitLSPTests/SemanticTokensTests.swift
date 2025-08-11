@@ -1033,7 +1033,7 @@ final class SemanticTokensTests: XCTestCase {
   }
 }
 
-fileprivate struct TokenSpec {
+private struct TokenSpec {
   let marker: String
   let length: Int
   let kind: SemanticTokenTypes
@@ -1052,7 +1052,7 @@ fileprivate struct TokenSpec {
   }
 }
 
-fileprivate func assertSemanticTokens(
+private func assertSemanticTokens(
   markedContents: String,
   language: Language = .swift,
   range: (startMarker: String, endMarker: String)? = nil,
@@ -1087,7 +1087,7 @@ fileprivate func assertSemanticTokens(
   )
 }
 
-fileprivate func assertSemanticTokens(
+private func assertSemanticTokens(
   uri: DocumentURI,
   in testClient: TestSourceKitLSPClient,
   positions: DocumentPositions,

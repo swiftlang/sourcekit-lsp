@@ -15,7 +15,7 @@ package import SKOptions
 import SwiftExtensions
 import XCTest
 
-fileprivate let sdkArgs =
+private let sdkArgs =
   if let defaultSDKPath {
     """
     "-sdk", r"\(defaultSDKPath)",

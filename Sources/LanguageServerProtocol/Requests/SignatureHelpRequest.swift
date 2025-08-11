@@ -167,7 +167,7 @@ public struct ParameterInformation: Codable, Hashable, Sendable {
     public init(from decoder: Decoder) throws {
       if let string = try? String(from: decoder) {
         self = .string(string)
-      } else if let offsets = try? Array<Int>(from: decoder), offsets.count == 2 {
+      } else if let offsets = try? [Int](from: decoder), offsets.count == 2 {
         self = .offsets(start: offsets[0], end: offsets[1])
       } else {
         let context = DecodingError.Context(
@@ -182,7 +182,7 @@ public struct ParameterInformation: Codable, Hashable, Sendable {
       switch self {
       case .string(let string):
         try string.encode(to: encoder)
-      case .offsets(start: let start, end: let end):
+      case .offsets(let start, let end):
         try [start, end].encode(to: encoder)
       }
     }

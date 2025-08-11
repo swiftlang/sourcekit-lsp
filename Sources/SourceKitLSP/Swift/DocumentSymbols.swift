@@ -34,7 +34,7 @@ extension SwiftLanguageService {
 
 // MARK: - DocumentSymbolsFinder
 
-fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
+private final class DocumentSymbolsFinder: SyntaxAnyVisitor {
   /// The snapshot of the document for which we are getting document symbols.
   private let snapshot: DocumentSnapshot
 

@@ -194,7 +194,7 @@ enum DocCServerError: LocalizedError {
       return "Received an unknown message type: '\(messageType)'."
     case .unexpectedlyNilPayload(let messageType):
       return "Received a message of type '\(messageType)' with a 'nil' payload."
-    case .internalError(underlyingError: let underlyingError):
+    case .internalError(let underlyingError):
       return underlyingError.errorDescription
     }
   }

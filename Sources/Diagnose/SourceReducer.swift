@@ -37,7 +37,7 @@ extension RequestInfo {
 
 /// The return value of a source reducer, indicating whether edits were made or if the reducer has finished reducing
 /// the source file.
-fileprivate enum ReducerResult {
+private enum ReducerResult {
   /// The reduction step produced edits that should be applied to the source file.
   case edits([SourceEdit])
 
@@ -55,7 +55,7 @@ fileprivate enum ReducerResult {
 
 /// The return value of `runReductionStep`, indicating whether applying the edits from a reducer reduced the issue,
 /// failed to reproduce the issue or if no changes were applied by the reducer.
-fileprivate enum ReductionStepResult {
+private enum ReductionStepResult {
   case reduced(RequestInfo)
   case didNotReproduce
   case noChange
@@ -63,7 +63,7 @@ fileprivate enum ReductionStepResult {
 
 /// Reduces an input source file while continuing to reproduce the crash
 @MainActor
-fileprivate class SourceReducer {
+private class SourceReducer {
   /// The executor that is used to run a sourcekitd request and check whether it
   /// still crashes.
   private let sourcekitdExecutor: SourceKitRequestExecutor
@@ -324,14 +324,14 @@ fileprivate class SourceReducer {
 // MARK: - Reduce functions
 
 /// See `SourceReducer.runReductionStep`
-fileprivate protocol StatefulReducer {
+private protocol StatefulReducer {
   func reduce(tree: SourceFileSyntax) -> ReducerResult
 }
 
 // MARK: Remove function bodies
 
 /// Tries removing the contents of function bodies one at a time.
-fileprivate class RemoveFunctionBodies: StatefulReducer {
+private class RemoveFunctionBodies: StatefulReducer {
   /// The function bodies that should not be removed.
   ///
   /// When we tried removing a function, it gets added to this list.
@@ -391,7 +391,7 @@ fileprivate class RemoveFunctionBodies: StatefulReducer {
 ///
 /// If `simultaneousRemove` is set, it tries to remove that many adjacent top-level items at a time to quickly reduce
 /// the source file.
-fileprivate class RemoveTopLevelItems: StatefulReducer {
+private class RemoveTopLevelItems: StatefulReducer {
   /// The code block items that shouldn't be removed.
   ///
   /// See `ReplaceFunctionBodiesByFatalError.keepFunctionBodies`.
@@ -454,7 +454,7 @@ fileprivate class RemoveTopLevelItems: StatefulReducer {
 // MARK: Remove members and code block items
 
 /// Tries removing `MemberBlockItemSyntax` and `CodeBlockItemSyntax` one at a time.
-fileprivate class RemoveMembersAndCodeBlockItems: StatefulReducer {
+private class RemoveMembersAndCodeBlockItems: StatefulReducer {
   /// The code block items / members that shouldn't be removed.
   ///
   /// See `ReplaceFunctionBodiesByFatalError.keepFunctionBodies`.
@@ -512,7 +512,7 @@ fileprivate class RemoveMembersAndCodeBlockItems: StatefulReducer {
 }
 
 /// For any top-level items in the source file that occur multiple times, only keep the first occurrence.
-fileprivate func mergeDuplicateTopLevelItems(in tree: SourceFileSyntax) -> ReducerResult {
+private func mergeDuplicateTopLevelItems(in tree: SourceFileSyntax) -> ReducerResult {
   class DuplicateTopLevelItemMerger: SyntaxVisitor {
     var seenItems: Set<String> = []
     var edits: [SourceEdit] = []
@@ -539,7 +539,7 @@ fileprivate func mergeDuplicateTopLevelItems(in tree: SourceFileSyntax) -> Reduc
 }
 
 /// Removes all comments from the source file.
-fileprivate func removeComments(from tree: SourceFileSyntax) -> ReducerResult {
+private func removeComments(from tree: SourceFileSyntax) -> ReducerResult {
   class CommentRemover: SyntaxVisitor {
     var edits: [SourceEdit] = []
 
@@ -582,7 +582,7 @@ fileprivate extension TriviaPiece {
 
 // MARK: Inline first include
 
-fileprivate class FirstImportFinder: SyntaxAnyVisitor {
+private class FirstImportFinder: SyntaxAnyVisitor {
   var firstImport: ImportDeclSyntax?
 
   override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
@@ -614,7 +614,7 @@ fileprivate class FirstImportFinder: SyntaxAnyVisitor {
 /// contain a target and SDK. This is useful when reducing a swift-frontend crash because sourcekitd requires driver
 /// arguments but the swift-frontend crash has frontend args.
 @MainActor
-fileprivate func getSwiftInterface(
+private func getSwiftInterface(
   _ moduleName: String,
   executor: SourceKitRequestExecutor,
   compilerArgs: [String],
@@ -641,7 +641,7 @@ fileprivate func getSwiftInterface(
 
   let result: String
   switch try await executor.run(request: requestInfo) {
-  case .success(response: let response):
+  case .success(let response):
     result = response
   case .error where !areFallbackArgs:
     var fallbackArgs: [String] = []
@@ -688,7 +688,7 @@ fileprivate func getSwiftInterface(
 }
 
 @MainActor
-fileprivate func inlineFirstImport(
+private func inlineFirstImport(
   in tree: SourceFileSyntax,
   executor: SourceKitRequestExecutor,
   compilerArgs: [String]

@@ -281,7 +281,7 @@ package struct MatchCollator {
       return definitiveGroupScoreComparison
       // Only compare `individualScore` within the same group, or among items that have no group.
       // Otherwise when the group score ties, we would interleave the members of the tying groups.
-    } else if (lhs.denseGroupID == rhs.denseGroupID),
+    } else if lhs.denseGroupID == rhs.denseGroupID,
       let definitiveIndividualScoreComparison = lhs.individualScore.value >? rhs.individualScore.value
     {
       return definitiveIndividualScoreComparison
@@ -415,15 +415,16 @@ package struct MatchCollator {
       influencingTokenizedIdentifiers: influencingTokenizedIdentifiers,
       patternUTF8Length: 0,
       orderingTiesBy: { _, _ in false },
-      maximumNumberOfItemsForExpensiveSelection: Self.defaultMaximumNumberOfItemsForExpensiveSelection
-    ) { collator in
-      return (0..<iterations).reduce(0) { accumulation, _ in
-        collator.applyInfluence()
-        return collator.rescoredMatches.reduce(accumulation) { accumulation, match in
-          accumulation + match.individualScore.value
+      maximumNumberOfItemsForExpensiveSelection: Self.defaultMaximumNumberOfItemsForExpensiveSelection,
+      body: { collator in
+        return (0..<iterations).reduce(0) { accumulation, _ in
+          collator.applyInfluence()
+          return collator.rescoredMatches.reduce(accumulation) { accumulation, match in
+            accumulation + match.individualScore.value
+          }
         }
       }
-    }
+    )
   }
 
   package static func tokenize(

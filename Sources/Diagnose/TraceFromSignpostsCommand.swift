@@ -16,7 +16,7 @@ import RegexBuilder
 import SwiftExtensions
 
 /// Shared instance of the regex that is used to extract Signpost lines from `log stream --signpost`.
-fileprivate struct LogParseRegex {
+private struct LogParseRegex {
   @MainActor static let shared = LogParseRegex()
 
   let dateComponent = Reference(Substring.self)
@@ -74,7 +74,7 @@ fileprivate struct LogParseRegex {
 }
 
 /// A signpost event extracted from a log.
-fileprivate struct Signpost {
+private struct Signpost {
   /// ID that identifies the signpost across the log.
   ///
   /// There might be multiple signposts with the same `signpostId` across multiple processes.
@@ -126,7 +126,7 @@ fileprivate struct Signpost {
 
 /// A trace event in the *Trace Event Format* that can be opened using Perfetto.
 /// https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/mobilebasic
-fileprivate struct TraceEvent: Codable {
+private struct TraceEvent: Codable {
   enum EventType: String, Codable {
     case begin = "B"
     case end = "E"

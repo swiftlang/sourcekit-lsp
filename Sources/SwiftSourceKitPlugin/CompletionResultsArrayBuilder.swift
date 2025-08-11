@@ -77,7 +77,7 @@ struct CompletionResultsArrayBuilder {
       + MemoryLayout<Int>.size  // numResults
       + results.count * MemoryLayout<CompletionResult>.stride + nextString
 
-    return Array<UInt8>(unsafeUninitializedCapacity: capacity) {
+    return [UInt8](unsafeUninitializedCapacity: capacity) {
       (bytes: inout UnsafeMutableBufferPointer<UInt8>, size: inout Int) in
       size = capacity
       var cursor = UnsafeMutableRawBufferPointer(bytes)

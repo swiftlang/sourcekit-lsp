@@ -12,7 +12,7 @@
 
 public import LanguageServerProtocol
 
-fileprivate let requestTypes: [_RequestType.Type] = [
+private let requestTypes: [_RequestType.Type] = [
   BuildShutdownRequest.self,
   BuildTargetPrepareRequest.self,
   BuildTargetSourcesRequest.self,
@@ -24,7 +24,7 @@ fileprivate let requestTypes: [_RequestType.Type] = [
   WorkspaceWaitForBuildSystemUpdatesRequest.self,
 ]
 
-fileprivate let notificationTypes: [NotificationType.Type] = [
+private let notificationTypes: [NotificationType.Type] = [
   CancelRequestNotification.self,
   FileOptionsChangedNotification.self,
   OnBuildExitNotification.self,

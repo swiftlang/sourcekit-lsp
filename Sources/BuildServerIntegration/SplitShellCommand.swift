@@ -12,7 +12,7 @@
 
 // MARK: - Unix
 
-fileprivate struct UnixCommandParser {
+private struct UnixCommandParser {
   var content: Substring
   var i: Substring.UTF8View.Index
   var result: [String] = []
@@ -162,7 +162,7 @@ fileprivate extension Character {
   }
 }
 
-fileprivate struct WindowsCommandParser {
+private struct WindowsCommandParser {
   /// The content of the entire command that shall be parsed.
   private let content: String
 

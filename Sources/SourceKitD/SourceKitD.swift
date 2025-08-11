@@ -22,7 +22,7 @@ extension sourcekitd_api_values: @unchecked Sendable {}
 fileprivate extension ThreadSafeBox {
   /// If the wrapped value is `nil`, run `compute` and store the computed value. If it is not `nil`, return the stored
   /// value.
-  func computeIfNil<WrappedValue>(compute: () -> WrappedValue) -> WrappedValue where T == Optional<WrappedValue> {
+  func computeIfNil<WrappedValue>(compute: () -> WrappedValue) -> WrappedValue where T == WrappedValue? {
     return withLock { value in
       if let value {
         return value
@@ -35,7 +35,7 @@ fileprivate extension ThreadSafeBox {
 }
 
 #if canImport(Darwin)
-fileprivate func setenv(name: String, value: String, override: Bool) throws {
+private func setenv(name: String, value: String, override: Bool) throws {
   struct FailedToSetEnvError: Error {
     let errorCode: Int32
   }
@@ -50,7 +50,7 @@ fileprivate func setenv(name: String, value: String, override: Bool) throws {
 }
 #endif
 
-fileprivate struct SourceKitDRequestHandle: Sendable {
+private struct SourceKitDRequestHandle: Sendable {
   /// `nonisolated(unsafe)` is fine because we just use the handle as an opaque value.
   nonisolated(unsafe) let handle: sourcekitd_api_request_handle_t
 }

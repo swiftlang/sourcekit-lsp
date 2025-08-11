@@ -2665,7 +2665,7 @@ fileprivate extension SymbolOccurrence {
 
 /// Simple struct for pending notifications/requests, including a cancellation handler.
 /// For convenience the notifications/request handlers are type erased via wrapping.
-fileprivate struct NotificationRequestOperation {
+private struct NotificationRequestOperation {
   let operation: () async -> Void
   let cancellationHandler: (() -> Void)?
 }
@@ -2674,7 +2674,7 @@ fileprivate struct NotificationRequestOperation {
 /// on build server operations such as fetching build settings.
 ///
 /// Note: This is not thread safe. Must be called from the `SourceKitLSPServer.queue`.
-fileprivate struct DocumentNotificationRequestQueue {
+private struct DocumentNotificationRequestQueue {
   fileprivate var queue = [NotificationRequestOperation]()
 
   /// Add an operation to the end of the queue.
@@ -2695,7 +2695,7 @@ fileprivate struct DocumentNotificationRequestQueue {
 }
 
 /// Returns the USRs of the subtypes of `usrs` as well as their subtypes and extensions, transitively.
-fileprivate func transitiveSubtypeClosure(ofUsrs usrs: [String], index: CheckedIndex) -> [String] {
+private func transitiveSubtypeClosure(ofUsrs usrs: [String], index: CheckedIndex) -> [String] {
   var result: [String] = []
   for usr in usrs {
     result.append(usr)

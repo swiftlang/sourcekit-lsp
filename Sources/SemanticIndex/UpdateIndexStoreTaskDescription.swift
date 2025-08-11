@@ -45,7 +45,7 @@ package enum FileToIndex: CustomLogStringConvertible, Hashable {
   package var sourceFile: DocumentURI {
     switch self {
     case .indexableFile(let uri): return uri
-    case .headerFile(header: let header, mainFile: _): return header
+    case .headerFile(let header, mainFile: _): return header
     }
   }
 
@@ -56,7 +56,7 @@ package enum FileToIndex: CustomLogStringConvertible, Hashable {
   var mainFile: DocumentURI {
     switch self {
     case .indexableFile(let uri): return uri
-    case .headerFile(header: _, mainFile: let mainFile): return mainFile
+    case .headerFile(header: _, let mainFile): return mainFile
     }
   }
 
@@ -64,7 +64,7 @@ package enum FileToIndex: CustomLogStringConvertible, Hashable {
     switch self {
     case .indexableFile(let uri):
       return uri.description
-    case .headerFile(header: let header, mainFile: let mainFile):
+    case .headerFile(let header, let mainFile):
       return "\(header.description) using main file \(mainFile.description)"
     }
   }
@@ -73,7 +73,7 @@ package enum FileToIndex: CustomLogStringConvertible, Hashable {
     switch self {
     case .indexableFile(let uri):
       return uri.redactedDescription
-    case .headerFile(header: let header, mainFile: let mainFile):
+    case .headerFile(let header, let mainFile):
       return "\(header.redactedDescription) using main file \(mainFile.redactedDescription)"
     }
   }
@@ -458,7 +458,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     switch exitStatus {
     case .terminated(code: 0):
       break
-    case .terminated(code: let code):
+    case .terminated(let code):
       // This most likely happens if there are compilation errors in the source file. This is nothing to worry about.
       let stdout = (try? String(bytes: result.output.get(), encoding: .utf8)) ?? "<failed to decode stdout>"
       let stderr = (try? String(bytes: result.stderrOutput.get(), encoding: .utf8)) ?? "<failed to decode stderr>"
@@ -473,7 +473,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         """
       )
       BuildSettingsLogger.log(level: .debug, settings: buildSettings, for: indexFile)
-    case .signalled(signal: let signal):
+    case .signalled(let signal):
       if !Task.isCancelled {
         // The indexing job finished with a signal. Could be because the compiler crashed.
         // Ignore signal exit codes if this task has been cancelled because the compiler exits with SIGINT if it gets
@@ -481,7 +481,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         logger.error("Updating index store for \(indexFile.forLogging) signaled \(signal)")
         BuildSettingsLogger.log(level: .error, settings: buildSettings, for: indexFile)
       }
-    case .abnormal(exception: let exception):
+    case .abnormal(let exception):
       if !Task.isCancelled {
         logger.error("Updating index store for \(indexFile.forLogging) exited abnormally \(exception)")
         BuildSettingsLogger.log(level: .error, settings: buildSettings, for: indexFile)

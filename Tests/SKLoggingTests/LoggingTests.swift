@@ -14,7 +14,7 @@
 import SKTestSupport
 import XCTest
 
-fileprivate func assertLogging(
+private func assertLogging(
   logLevel: NonDarwinLogLevel = .default,
   privacyLevel: NonDarwinLogPrivacy = .private,
   expected: [String],

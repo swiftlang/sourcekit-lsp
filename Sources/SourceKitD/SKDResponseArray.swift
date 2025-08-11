@@ -62,6 +62,8 @@ package final class SKDResponseArray: Sendable {
   package func map<T>(_ transform: (SKDResponseDictionary) throws -> T) rethrows -> [T] {
     var result: [T] = []
     result.reserveCapacity(self.count)
+    // swift-format-ignore: ReplaceForEachWithForLoop
+    // Reference is to `SKDResponseArray.forEach`, not `Array.forEach`.
     try self.forEach { _, element in
       result.append(try transform(element))
       return true
@@ -71,6 +73,8 @@ package final class SKDResponseArray: Sendable {
 
   package func compactMap<T>(_ transform: (SKDResponseDictionary) throws -> T?) rethrows -> [T] {
     var result: [T] = []
+    // swift-format-ignore: ReplaceForEachWithForLoop
+    // Reference is to `SKDResponseArray.forEach`, not `Array.forEach`.
     try self.forEach { _, element in
       if let transformed = try transform(element) {
         result.append(transformed)

@@ -208,7 +208,7 @@ extension ConvertJSONToCodableStruct: SyntaxRefactoringCodeActionProvider {
 
 /// A JSON object, which is has a set of fields, each of which has the given
 /// type.
-fileprivate struct JSONObject {
+private struct JSONObject {
   /// The fields of the JSON object.
   var fields: [String: JSONType] = [:]
 
@@ -278,7 +278,7 @@ fileprivate struct JSONObject {
 }
 
 /// Describes the type of JSON data.
-fileprivate enum JSONType {
+private enum JSONType {
   /// String data
   case string
 

@@ -13,7 +13,7 @@
 import LanguageServerProtocol
 import XCTest
 
-fileprivate func AssertDataIsString(
+private func AssertDataIsString(
   _ data: Data,
   expected: String,
   file: StaticString = #filePath,

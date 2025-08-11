@@ -423,7 +423,7 @@ final class CompilationDatabaseTests: XCTestCase {
   }
 }
 
-fileprivate var pathSeparator: String {
+private var pathSeparator: String {
   #if os(Windows)
   return #"\"#
   #else

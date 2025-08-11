@@ -349,7 +349,7 @@ final class TaskSchedulerTests: XCTestCase {
 // MARK: - Test helpers
 
 /// Identifies a task that was scheduled in a test case.
-fileprivate enum TaskID: Hashable, CustomDebugStringConvertible {
+private enum TaskID: Hashable, CustomDebugStringConvertible {
   case lowPriority(Int)
   case highPriority(Int)
 
@@ -385,7 +385,7 @@ fileprivate enum TaskID: Hashable, CustomDebugStringConvertible {
 }
 
 /// A `TaskDescriptionProtocol` that is based on closures, which makes it easy to use in test cases.
-fileprivate final class ClosureTaskDescription: TaskDescriptionProtocol {
+private final class ClosureTaskDescription: TaskDescriptionProtocol {
   let taskId: TaskID?
   let estimatedCPUCoreCount: Int
   private let closure: @Sendable () async -> Void
@@ -442,7 +442,7 @@ fileprivate actor TaskExecutionRecorder {
   }
 }
 
-fileprivate func runTaskScheduler(
+private func runTaskScheduler(
   highPriorityTasks: Int = 4,
   lowPriorityTasks: Int = 2,
   highPriorityThreshold: TaskPriority = .high,
@@ -523,7 +523,7 @@ fileprivate extension TaskScheduler<ClosureTaskDescription> {
 
 // MARK: - Misc assertion functions
 
-fileprivate func assertAllSatisfy<Element>(
+private func assertAllSatisfy<Element>(
   _ array: some Collection<Element>,
   _ predicate: (Element) -> Bool,
   file: StaticString = #filePath,
@@ -532,7 +532,7 @@ fileprivate func assertAllSatisfy<Element>(
   XCTAssert(array.allSatisfy(predicate), "\(array) did not fulfill predicate", file: file, line: line)
 }
 
-fileprivate func assertContains<Element>(
+private func assertContains<Element>(
   _ array: some Collection<Element>,
   _ predicate: (Element) -> Bool,
   file: StaticString = #filePath,
@@ -541,7 +541,7 @@ fileprivate func assertContains<Element>(
   XCTAssert(array.contains(where: predicate), "\(array) did not fulfill predicate", file: file, line: line)
 }
 
-fileprivate func assertNotContains<Element>(
+private func assertNotContains<Element>(
   _ array: some Collection<Element>,
   _ predicate: (Element) -> Bool,
   file: StaticString = #filePath,

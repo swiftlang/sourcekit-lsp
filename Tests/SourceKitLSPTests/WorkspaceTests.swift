@@ -1389,7 +1389,7 @@ final class WorkspaceTests: XCTestCase {
   }
 }
 
-fileprivate let defaultSDKArgs: String = {
+private let defaultSDKArgs: String = {
   if let defaultSDKPath {
     let escapedPath = defaultSDKPath.replacing(#"\"#, with: #"\\"#)
     return """

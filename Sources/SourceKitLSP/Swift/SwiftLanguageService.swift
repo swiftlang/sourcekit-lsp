@@ -52,7 +52,7 @@ fileprivate extension Range {
 }
 
 /// Explicitly excluded `DocumentURI` schemes.
-fileprivate let excludedDocumentURISchemes: [String] = [
+private let excludedDocumentURISchemes: [String] = [
   "git",
   "hg",
 ]
@@ -67,7 +67,7 @@ fileprivate let excludedDocumentURISchemes: [String] = [
 /// the `-working-directory` argument is passed since it incorrectly applies it to the input
 /// argument but not the internal primary file, leading sourcekitd to believe that the input
 /// file is missing.
-fileprivate func diagnosticsEnabled(for document: DocumentURI) -> Bool {
+private func diagnosticsEnabled(for document: DocumentURI) -> Bool {
   guard let scheme = document.scheme else { return true }
   return !excludedDocumentURISchemes.contains(scheme)
 }

@@ -583,8 +583,8 @@ extension CompletionItem.PriorityBucket {
       self = .invalidTypeMatch
     } else {
       let skFlair = session.sourcekitd.ideApi.completion_item_get_flair(item.impl)
-      if (skFlair & SWIFTIDE_COMPLETION_FLAIR_EXPRESSIONSPECIFIC.rawValue != 0
-        || skFlair & SWIFTIDE_COMPLETION_FLAIR_SUPERCHAIN.rawValue != 0)
+      if skFlair & SWIFTIDE_COMPLETION_FLAIR_EXPRESSIONSPECIFIC.rawValue != 0
+        || skFlair & SWIFTIDE_COMPLETION_FLAIR_SUPERCHAIN.rawValue != 0
       {
         self = .exprSpecific
         return

@@ -43,7 +43,7 @@ extension SourceKitLSPOptions {
   }
 }
 
-fileprivate struct NotificationTimeoutError: Error, CustomStringConvertible {
+private struct NotificationTimeoutError: Error, CustomStringConvertible {
   var description: String = "Failed to receive next notification within timeout"
 }
 

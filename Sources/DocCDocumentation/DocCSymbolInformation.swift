@@ -47,7 +47,7 @@ package struct DocCSymbolInformation {
   }
 }
 
-fileprivate typealias KindIdentifier = SymbolGraph.Symbol.KindIdentifier
+private typealias KindIdentifier = SymbolGraph.Symbol.KindIdentifier
 
 extension LinkCompletionTools.SymbolInformation {
   init(fromModuleName moduleName: String) {

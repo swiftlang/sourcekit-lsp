@@ -304,7 +304,7 @@ package final class Pattern: Sendable {
           // Allow skipping single character delemiters
           || ((token.length == 1) && candidateLowercaseBytes[cidx].isDelimiter)
 
-        if (tcidx > 0) {
+        if tcidx > 0 {
           candidate.matchedRanges.append(initialCidx..<cidx)
         }
         cidx = initialCidx + token.length
@@ -426,7 +426,8 @@ package final class Pattern: Sendable {
     candidateBytes: UTF8Bytes,
     patternBytes: UTF8Bytes
   ) -> Bool {
-    var cidx = startOffset, pidx = 0
+    var cidx = startOffset
+    var pidx = 0
     var currentlyMatching = false
     while (cidx < candidateBytes.count) && (pidx < patternBytes.count) {
       if candidateBytes[cidx] == patternBytes[pidx] {
@@ -526,7 +527,7 @@ package final class Pattern: Sendable {
           patternCharactersRemaining -= coveredCharacters
           remainingCharacters -= coveredCharacters
           position += coveredCharacters
-        } while (remainingCharacters > 0)
+        } while remainingCharacters > 0
         if (range.length > 1) || matchedTokenPrefix {
           score += pow(Double(range.length), 1.5)
         }
@@ -538,7 +539,7 @@ package final class Pattern: Sendable {
         score *= 0.75
       }
 
-      if (matchStyle == .acronym) {
+      if matchStyle == .acronym {
         badShortMatches = 0
         falseStarts = 0
       }

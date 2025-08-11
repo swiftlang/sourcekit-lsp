@@ -108,7 +108,7 @@ fileprivate extension Double {
   }
 }
 
-fileprivate func formatTable(rows: [[String]]) -> String {
+private func formatTable(rows: [[String]]) -> String {
   if let headers = rows.first {
     let separator = " | "
     let headerSeparatorColumnSeparator = "-+-"

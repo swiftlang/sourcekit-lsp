@@ -20,7 +20,7 @@ protocol RefactoringResponse {
   init(title: String, uri: DocumentURI, refactoringEdits: [RefactoringEdit])
 }
 
-extension Array<RefactoringEdit> {
+extension [RefactoringEdit] {
   init?(_ dict: SKDResponseDictionary, _ snapshot: DocumentSnapshot, _ keys: sourcekitd_api_keys) {
     guard let categorizedEdits: SKDResponseArray = dict[keys.categorizedEdits] else {
       logger.fault("categorizedEdits doesn't exist in response dictionary")
@@ -29,11 +29,15 @@ extension Array<RefactoringEdit> {
 
     self = []
 
+    // swift-format-ignore: ReplaceForEachWithForLoop
+    // Reference is to `SKDResponseArray.forEach`, not `Array.forEach`.
     categorizedEdits.forEach { _, categorizedEdit in
       guard let edits: SKDResponseArray = categorizedEdit[keys.edits] else {
         logger.fault("edits doesn't exist in categorizedEdit dictionary")
         return true
       }
+      // swift-format-ignore: ReplaceForEachWithForLoop
+      // Reference is to `SKDResponseArray.forEach`, not `Array.forEach`.
       edits.forEach { _, edit in
         guard let startLine: Int = edit[keys.line],
           let startColumn: Int = edit[keys.column],

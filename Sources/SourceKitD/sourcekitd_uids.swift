@@ -14,6 +14,8 @@
 
 package import Csourcekitd
 
+// swift-format-ignore: TypeNamesShouldBeCapitalized
+// Matching C style types
 package struct sourcekitd_api_keys {
   /// `key.version_major`
   package let versionMajor: sourcekitd_api_uid_t
@@ -776,6 +778,8 @@ package struct sourcekitd_api_keys {
   }
 }
 
+// swift-format-ignore: TypeNamesShouldBeCapitalized
+// Matching C style types
 package struct sourcekitd_api_requests {
   /// `source.request.protocol_version`
   package let protocolVersion: sourcekitd_api_uid_t
@@ -947,6 +951,8 @@ package struct sourcekitd_api_requests {
   }
 }
 
+// swift-format-ignore: TypeNamesShouldBeCapitalized
+// Matching C style types
 package struct sourcekitd_api_values {
   /// `source.lang.swift.decl.function.free`
   package let declFunctionFree: sourcekitd_api_uid_t

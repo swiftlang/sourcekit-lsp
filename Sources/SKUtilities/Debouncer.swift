@@ -41,7 +41,7 @@ package actor Debouncer<Parameter: Sendable> {
   package init(
     debounceDuration: Duration,
     combineResults: @escaping (Parameter, Parameter) -> Parameter,
-    _ makeCall: @Sendable @escaping (Parameter) async -> Void
+    makeCall: @Sendable @escaping (Parameter) async -> Void
   ) {
     self.debounceDuration = debounceDuration
     self.combineParameters = combineResults
@@ -84,7 +84,7 @@ package actor Debouncer<Parameter: Sendable> {
 
 extension Debouncer<Void> {
   package init(debounceDuration: Duration, _ makeCall: @Sendable @escaping () async -> Void) {
-    self.init(debounceDuration: debounceDuration, combineResults: { _, _ in }, makeCall)
+    self.init(debounceDuration: debounceDuration, combineResults: { _, _ in }, makeCall: makeCall)
   }
 
   package func scheduleCall() {

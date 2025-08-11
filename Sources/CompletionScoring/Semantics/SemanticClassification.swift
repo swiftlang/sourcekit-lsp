@@ -155,7 +155,7 @@ extension SemanticClassification {
 }
 
 /// Used for debugging.
-fileprivate protocol CompletionScoreComponent {
+private protocol CompletionScoreComponent {
   var name: String { get }
 
   var instance: String { get }

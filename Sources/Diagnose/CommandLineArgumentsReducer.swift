@@ -31,7 +31,7 @@ extension RequestInfo {
 // MARK: - FileProducer
 
 /// Reduces the compiler arguments needed to reproduce a sourcekitd crash.
-fileprivate class CommandLineArgumentReducer {
+private class CommandLineArgumentReducer {
   /// The executor that is used to run a sourcekitd request and check whether it
   /// still crashes.
   private let sourcekitdExecutor: SourceKitRequestExecutor

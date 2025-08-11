@@ -36,7 +36,7 @@ import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 package import class ToolchainRegistry.Toolchain
 
-fileprivate typealias AbsolutePath = Basics.AbsolutePath
+private typealias AbsolutePath = Basics.AbsolutePath
 
 /// A build target in SwiftPM
 package typealias SwiftBuildTarget = SourceKitLSPAPI.BuildTarget
@@ -78,7 +78,7 @@ fileprivate extension TSCBasic.AbsolutePath {
   }
 }
 
-fileprivate let preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
+private let preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
 
 /// Swift Package Manager build server and workspace support.
 ///
@@ -779,7 +779,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     switch exitStatus {
     case .terminated(code: 0):
       break
-    case .terminated(code: let code):
+    case .terminated(let code):
       // This most likely happens if there are compilation errors in the source file. This is nothing to worry about.
       let stdout = (try? String(bytes: result.output.get(), encoding: .utf8)) ?? "<no stderr>"
       let stderr = (try? String(bytes: result.stderrOutput.get(), encoding: .utf8)) ?? "<no stderr>"
@@ -792,14 +792,14 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
         \(stdout)
         """
       )
-    case .signalled(signal: let signal):
+    case .signalled(let signal):
       if !Task.isCancelled {
         // The indexing job finished with a signal. Could be because the compiler crashed.
         // Ignore signal exit codes if this task has been cancelled because the compiler exits with SIGINT if it gets
         // interrupted.
         logger.error("Preparation of target \(target.forLogging) signaled \(signal)")
       }
-    case .abnormal(exception: let exception):
+    case .abnormal(let exception):
       if !Task.isCancelled {
         logger.error("Preparation of target \(target.forLogging) exited abnormally \(exception)")
       }

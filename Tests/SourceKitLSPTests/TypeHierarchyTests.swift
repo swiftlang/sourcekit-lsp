@@ -263,7 +263,7 @@ fileprivate extension TypeHierarchyItem {
 /// Compares the given type hierarchies ignoring the implementation-specific
 /// data field (which includes e.g. USRs that are difficult to test, especially
 /// in the presence of extensions, and are not user-visible anyway).
-fileprivate func assertEqualIgnoringData(
+private func assertEqualIgnoringData(
   _ actual: [TypeHierarchyItem]?,
   _ expected: [TypeHierarchyItem],
   file: StaticString = #filePath,

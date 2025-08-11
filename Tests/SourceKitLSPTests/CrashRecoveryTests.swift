@@ -26,7 +26,7 @@ fileprivate extension HoverResponse {
     case .markedStrings(let markedStrings):
       for markedString in markedStrings {
         switch markedString {
-        case .markdown(value: let value), .codeBlock(language: _, value: let value):
+        case .markdown(let value), .codeBlock(language: _, let value):
           if value.contains(string) {
             return true
           }

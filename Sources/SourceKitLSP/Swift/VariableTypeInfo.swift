@@ -109,6 +109,8 @@ extension SwiftLanguageService {
     variableTypeInfos.reserveCapacity(skVariableTypeInfos.count)
 
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    // swift-format-ignore: ReplaceForEachWithForLoop
+    // Reference is to `SKDResponseArray.forEach`, not `Array.forEach`.
     skVariableTypeInfos.forEach { (_, skVariableTypeInfo) -> Bool in
       guard let info = VariableTypeInfo(skVariableTypeInfo, in: snapshot, syntaxTree: syntaxTree) else {
         assertionFailure("VariableTypeInfo failed to deserialize")

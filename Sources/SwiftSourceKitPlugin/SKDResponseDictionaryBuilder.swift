@@ -58,11 +58,11 @@ struct SKDResponseDictionaryBuilder {
       sourcekitd.servicePluginApi.response_dictionary_set_value(value, key, newValue.value)
     case let newValue as SKDResponseArrayBuilder:
       sourcekitd.servicePluginApi.response_dictionary_set_value(value, key, newValue.value)
-    case let newValue as Array<SKDResponseValue>:
+    case let newValue as [SKDResponseValue]:
       self.set(key, to: sourcekitd.responseArray(newValue))
-    case let newValue as Dictionary<sourcekitd_api_uid_t, SKDResponseValue>:
+    case let newValue as [sourcekitd_api_uid_t: SKDResponseValue]:
       self.set(key, to: sourcekitd.responseDictionary(newValue))
-    case let newValue as Optional<SKDResponseValue>:
+    case let newValue as SKDResponseValue?:
       if let newValue {
         self.set(key, to: newValue)
       }

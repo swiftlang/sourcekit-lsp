@@ -148,7 +148,7 @@ class SwiftExtensionsTests: XCTestCase {
   }
 }
 
-fileprivate struct CompletionItem {
+private struct CompletionItem {
   var score: Double
   var text: String
 }

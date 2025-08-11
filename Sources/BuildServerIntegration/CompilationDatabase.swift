@@ -140,7 +140,9 @@ package struct JSONCompilationDatabase: Equatable, Codable {
 
   package func encode(to encoder: Encoder) throws {
     var container = encoder.unkeyedContainer()
-    try commands.forEach { try container.encode($0) }
+    for command in commands {
+      try container.encode(command)
+    }
   }
 
   package subscript(_ uri: DocumentURI) -> [CompilationDatabaseCompileCommand] {

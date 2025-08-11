@@ -12,7 +12,7 @@
 
 package import LanguageServerProtocol
 
-extension Array<CompletionItem> {
+extension [CompletionItem] {
   /// Remove `sortText` and `data` from all completion items as these are not stable across runs. Instead, sort items
   /// by `sortText` to ensure we test them in the order that an editor would display them in.
   package var clearingUnstableValues: [CompletionItem] {

@@ -13,7 +13,7 @@
 import LanguageServerProtocol
 import SwiftSyntax
 
-fileprivate class StartOfIdentifierFinder: SyntaxAnyVisitor {
+private class StartOfIdentifierFinder: SyntaxAnyVisitor {
   let requestedPosition: AbsolutePosition
   var resolvedPosition: AbsolutePosition?
 

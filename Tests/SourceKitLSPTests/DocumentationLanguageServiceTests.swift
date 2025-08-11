@@ -25,7 +25,7 @@ final class DocumentationLanguageServiceTests: XCTestCase {
   }
 }
 
-fileprivate func assertHandles(language: Language) async throws {
+private func assertHandles(language: Language) async throws {
   let testClient = try await TestSourceKitLSPClient()
   let uri = DocumentURI(for: language)
   testClient.openDocument("", uri: uri)
