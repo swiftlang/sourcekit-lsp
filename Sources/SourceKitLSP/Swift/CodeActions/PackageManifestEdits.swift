@@ -10,14 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if !NO_SWIFTPM_DEPENDENCY
-
 import Foundation
 import LanguageServerProtocol
-import PackageModel
-import PackageModelSyntax
 import SwiftParser
-import SwiftRefactor
+@_spi(PackageRefactor) import SwiftRefactor
 import SwiftSyntax
 
 import struct Basics.RelativePath
@@ -41,21 +37,21 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
   ) -> [CodeAction] {
     do {
       var actions: [CodeAction] = []
-      let variants: [(TargetDescription.TargetKind, String)] = [
-        (.regular, "library"),
+      let variants: [(PackageTarget.TargetKind, String)] = [
+        (.library, "library"),
         (.executable, "executable"),
         (.macro, "macro"),
       ]
 
       for (type, name) in variants {
-        let target = try TargetDescription(
+        let target = PackageTarget(
           name: "NewTarget",
           type: type
         )
 
-        let edits = try AddTarget.addTarget(
-          target,
-          to: scope.file
+        let edits = try AddPackageTarget.manifestRefactor(
+          syntax: scope.file,
+          in: .init(target: target)
         )
 
         actions.append(
@@ -89,22 +85,21 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
     do {
       var actions: [CodeAction] = []
 
-      let variants: [(AddTarget.TestHarness, String)] = [
+      let variants: [(AddPackageTarget.TestHarness, String)] = [
         (.swiftTesting, "Swift Testing"),
         (.xctest, "XCTest"),
       ]
       for (testingLibrary, libraryName) in variants {
         // Describe the target we are going to create.
-        let target = try TargetDescription(
+        let target = PackageTarget(
           name: "\(targetName)Tests",
-          dependencies: [.byName(name: targetName, condition: nil)],
-          type: .test
+          type: .test,
+          dependencies: [.byName(name: targetName)],
         )
 
-        let edits = try AddTarget.addTarget(
-          target,
-          to: scope.file,
-          configuration: .init(testHarness: testingLibrary)
+        let edits = try AddPackageTarget.manifestRefactor(
+          syntax: scope.file,
+          in: .init(target: target, testHarness: testingLibrary)
         )
 
         actions.append(
@@ -143,19 +138,23 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
     }
 
     do {
-      let type: ProductType =
+      let type: ProductDescription.ProductType =
         calledMember == "executableTarget"
         ? .executable
         : .library(.automatic)
 
       // Describe the target we are going to create.
-      let product = try ProductDescription(
+      let product = ProductDescription(
         name: targetName,
         type: type,
         targets: [targetName]
       )
 
-      let edits = try AddProduct.addProduct(product, to: scope.file)
+      let edits = try AddProduct.manifestRefactor(
+        syntax: scope.file,
+        in: .init(product: product)
+      )
+
       return [
         CodeAction(
           title: "Add product to export this target",
@@ -175,7 +174,7 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
   ]
 }
 
-fileprivate extension PackageEditResult {
+fileprivate extension PackageEdit {
   /// Translate package manifest edits into a workspace edit. This can
   /// involve both modifications to the manifest file as well as the creation
   /// of new files.
@@ -218,7 +217,7 @@ fileprivate extension PackageEditResult {
     for (relativePath, contents) in auxiliaryFiles {
       guard
         let url = URL(
-          string: relativePath.pathString,
+          string: relativePath,
           relativeTo: manifestDirectoryURL
         )
       else {
@@ -300,5 +299,3 @@ fileprivate extension FunctionCallExprSyntax {
     return memberAccess.declName.baseName.text
   }
 }
-
-#endif
