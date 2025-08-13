@@ -389,6 +389,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     )
     await testHooks.reloadPackageDidStart?()
     defer {
+      signposter.endInterval("Reloading package", state)
       Task {
         self.connectionToSourceKitLSP.send(
           TaskFinishNotification(taskId: TaskId(id: "package-reloading"), status: .ok)
@@ -456,7 +457,6 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     signposter.emitEvent("Finished traversing modules", id: signpostID)
 
     connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
-    signposter.endInterval("Reloading package", state)
   }
 
   package nonisolated var supportsPreparationAndOutputPaths: Bool { options.backgroundIndexingOrDefault }
