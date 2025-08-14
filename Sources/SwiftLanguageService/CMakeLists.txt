@@ -22,7 +22,6 @@ add_library(SwiftLanguageService STATIC
   SemanticRefactorCommand.swift
   DocumentFormatting.swift
   DiagnosticReportManager.swift
-  WithSnapshotFromDiskOpenedInSourcekitd.swift
   SemanticTokens.swift
   ExpandMacroCommand.swift
   Diagnostic.swift
