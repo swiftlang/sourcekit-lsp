@@ -20,7 +20,7 @@ import SwiftExtensions
 /// capabilities.
 package final actor CapabilityRegistry {
   /// The client's capabilities as they were reported when sourcekit-lsp was launched.
-  package let clientCapabilities: ClientCapabilities
+  package nonisolated let clientCapabilities: ClientCapabilities
 
   // MARK: Tracking capabilities dynamically registered in the client
 

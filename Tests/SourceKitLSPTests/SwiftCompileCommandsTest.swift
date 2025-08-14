@@ -13,6 +13,7 @@
 import BuildServerIntegration
 import LanguageServerProtocol
 import SourceKitLSP
+import SwiftLanguageService
 import XCTest
 
 final class SwiftCompileCommandsTest: XCTestCase {

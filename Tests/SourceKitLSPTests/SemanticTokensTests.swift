@@ -16,6 +16,7 @@ import SKTestSupport
 import SKUtilities
 import SourceKitD
 @_spi(Testing) import SourceKitLSP
+import SwiftLanguageService
 import XCTest
 
 private typealias Token = SyntaxHighlightingToken

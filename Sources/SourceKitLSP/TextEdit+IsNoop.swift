@@ -14,7 +14,7 @@ import LanguageServerProtocol
 
 extension TextEdit {
   /// Returns `true` the replaced text is the same as the new text
-  func isNoOp(in snapshot: DocumentSnapshot) -> Bool {
+  package func isNoOp(in snapshot: DocumentSnapshot) -> Bool {
     if snapshot.text[snapshot.indexRange(of: range)] == newText {
       return true
     }

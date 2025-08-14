@@ -14,6 +14,23 @@ import IndexStoreDB
 import LanguageServerProtocol
 import SKLogging
 
+/// Wrapper around `LanguageService.Type`, making it conform to `Hashable`.
+struct LanguageServiceType: Hashable {
+  let type: LanguageService.Type
+
+  init(_ type: any LanguageService.Type) {
+    self.type = type
+  }
+
+  static func == (lhs: LanguageServiceType, rhs: LanguageServiceType) -> Bool {
+    return ObjectIdentifier(lhs.type) == ObjectIdentifier(rhs.type)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine(ObjectIdentifier(type))
+  }
+}
+
 /// Registry in which conformers to `LanguageService` can be registered to server semantic functionality for a set of
 /// languages.
 package struct LanguageServiceRegistry {
@@ -35,5 +52,9 @@ package struct LanguageServiceRegistry {
 
   func languageService(for language: Language) -> LanguageService.Type? {
     return byLanguage[language]
+  }
+
+  var languageServices: Set<LanguageServiceType> {
+    return Set(byLanguage.values.map { LanguageServiceType($0) })
   }
 }

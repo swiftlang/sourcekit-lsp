@@ -16,6 +16,7 @@ import SKOptions
 import SKTestSupport
 @_spi(Testing) import SourceKitLSP
 import SwiftExtensions
+import SwiftLanguageService
 import XCTest
 
 final class ExpandMacroTests: XCTestCase {

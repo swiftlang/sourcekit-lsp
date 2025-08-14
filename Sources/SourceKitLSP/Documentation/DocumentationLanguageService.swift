@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+package import IndexStoreDB
 package import LanguageServerProtocol
 package import SKOptions
 import SwiftExtensions
@@ -29,6 +30,8 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
       return sourceKitLSPServer.documentManager
     }
   }
+
+  package static var builtInCommands: [String] { [] }
 
   package init?(
     sourceKitLSPServer: SourceKitLSPServer,
@@ -138,6 +141,13 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
 
   package func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails] {
     []
+  }
+
+  package func symbolGraph(
+    forOnDiskContentsOf symbolDocumentUri: DocumentURI,
+    at location: SymbolLocation
+  ) async throws -> String? {
+    return nil
   }
 
   package func openGeneratedInterface(
@@ -269,6 +279,10 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     in workspace: Workspace
   ) async throws -> [AnnotatedTestItem]? {
     nil
+  }
+
+  package static func syntacticTestItems(in uri: DocumentURI) async -> [AnnotatedTestItem] {
+    return []
   }
 
   package func canonicalDeclarationPosition(

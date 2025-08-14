@@ -237,23 +237,6 @@ extension DocumentSnapshot {
     )
   }
 
-  // MARK: Position <-> SourceKitDPosition
-
-  func sourcekitdPosition(
-    of position: Position,
-    callerFile: StaticString = #fileID,
-    callerLine: UInt = #line
-  ) -> SourceKitDPosition {
-    let utf8Column = lineTable.utf8ColumnAt(
-      line: position.line,
-      utf16Column: position.utf16index,
-      callerFile: callerFile,
-      callerLine: callerLine
-    )
-    // FIXME: Introduce new type for UTF-8 based positions
-    return SourceKitDPosition(line: position.line + 1, utf8Column: utf8Column + 1)
-  }
-
   // MAR: Position <-> SymbolLocation
 
   /// Converts the given UTF-8-offset-based `SymbolLocation` to a UTF-16-based line:column `Position`.

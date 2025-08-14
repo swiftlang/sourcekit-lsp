@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+package import IndexStoreDB
 package import LanguageServerProtocol
 package import SKOptions
 package import SwiftSyntax
@@ -47,7 +48,7 @@ package struct RenameLocation: Sendable {
   ///
   /// This is primarily used to influence how argument labels should be renamed in Swift and if a location should be
   /// rejected if argument labels don't match.
-  enum Usage {
+  package enum Usage {
     /// The definition of a function/subscript/variable/...
     case definition
 
@@ -70,12 +71,18 @@ package struct RenameLocation: Sendable {
   }
 
   /// The line of the identifier to be renamed (1-based).
-  let line: Int
+  package let line: Int
 
   /// The column of the identifier to be renamed in UTF-8 bytes (1-based).
-  let utf8Column: Int
+  package let utf8Column: Int
 
-  let usage: Usage
+  package let usage: Usage
+
+  package init(line: Int, utf8Column: Int, usage: RenameLocation.Usage) {
+    self.line = line
+    self.utf8Column = utf8Column
+    self.usage = usage
+  }
 }
 
 /// The textual output of a module interface.
@@ -110,6 +117,9 @@ package protocol LanguageService: AnyObject, Sendable {
   ///
   /// If this returns `false`, a new language server will be started for `workspace`.
   func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool
+
+  /// Identifiers of the commands that this language service can handle.
+  static var builtInCommands: [String] { get }
 
   // MARK: - Lifetime
 
@@ -170,6 +180,13 @@ package protocol LanguageService: AnyObject, Sendable {
   func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse
   #endif
   func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails]
+
+  /// Return the symbol graph at the given location for the contents of the document as they are on-disk (opposed to the
+  /// in-memory modified version of the document).
+  func symbolGraph(
+    forOnDiskContentsOf symbolDocumentUri: DocumentURI,
+    at location: SymbolLocation
+  ) async throws -> String?
 
   /// Request a generated interface of a module to display in the IDE.
   ///
@@ -267,6 +284,13 @@ package protocol LanguageService: AnyObject, Sendable {
   ///
   /// A return value of `nil` indicates that this language service does not support syntactic test discovery.
   func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [AnnotatedTestItem]?
+
+  /// Syntactically scans the file at the given URL for tests declared within it.
+  ///
+  /// Does not write the results to the index.
+  ///
+  /// The order of the returned tests is not defined. The results should be sorted before being returned to the editor.
+  static func syntacticTestItems(in uri: DocumentURI) async -> [AnnotatedTestItem]
 
   /// A position that is canonical for all positions within a declaration. For example, if we have the following
   /// declaration, then all `|` markers should return the same canonical position.

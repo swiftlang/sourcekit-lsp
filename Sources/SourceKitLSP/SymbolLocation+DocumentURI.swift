@@ -11,10 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import IndexStoreDB
-import LanguageServerProtocol
+package import LanguageServerProtocol
 
 extension SymbolLocation {
-  var documentUri: DocumentURI {
+  package var documentUri: DocumentURI {
     return DocumentURI(filePath: self.path, isDirectory: false)
   }
 }

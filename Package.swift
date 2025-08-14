@@ -267,6 +267,7 @@ var targets: [Target] = [
       "SKLogging",
       "SKOptions",
       "SourceKitLSP",
+      "SwiftLanguageService",
       "ToolchainRegistry",
       "TSCExtensions",
     ],
@@ -464,6 +465,7 @@ var targets: [Target] = [
       "SourceKitD",
       "SourceKitLSP",
       "SwiftExtensions",
+      "SwiftLanguageService",
       "ToolchainRegistry",
       "TSCExtensions",
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
@@ -533,17 +535,8 @@ var targets: [Target] = [
       "ToolchainRegistry",
       "TSCExtensions",
       .product(name: "IndexStoreDB", package: "indexstore-db"),
-      .product(name: "Crypto", package: "swift-crypto"),
       .product(name: "Markdown", package: "swift-markdown"),
-      .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-    ]
-      + swiftPMDependency([
-        .product(name: "SwiftPM-auto", package: "swift-package-manager")
-      ])
-      + swiftSyntaxDependencies([
-        "SwiftBasicFormat", "SwiftDiagnostics", "SwiftIDEUtils", "SwiftParser", "SwiftParserDiagnostics",
-        "SwiftRefactor", "SwiftSyntax",
-      ]),
+    ] + swiftSyntaxDependencies(["SwiftSyntax"]),
     exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
   ),
@@ -594,6 +587,48 @@ var targets: [Target] = [
       "SKTestSupport",
       "SwiftExtensions",
     ],
+    swiftSettings: globalSwiftSettings
+  ),
+
+  // MARK: SwiftLanguageService
+
+  .target(
+    name: "SwiftLanguageService",
+    dependencies: [
+      "BuildServerProtocol",
+      "BuildServerIntegration",
+      "Csourcekitd",
+      "DocCDocumentation",
+      "LanguageServerProtocol",
+      "LanguageServerProtocolExtensions",
+      "LanguageServerProtocolJSONRPC",
+      "SemanticIndex",
+      "SKLogging",
+      "SKOptions",
+      "SKUtilities",
+      "SourceKitD",
+      "SourceKitLSP",
+      "SwiftExtensions",
+      "ToolchainRegistry",
+      "TSCExtensions",
+      .product(name: "IndexStoreDB", package: "indexstore-db"),
+      .product(name: "Crypto", package: "swift-crypto"),
+      .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+    ]
+      + swiftPMDependency([
+        .product(name: "SwiftPM-auto", package: "swift-package-manager")
+      ])
+      + swiftSyntaxDependencies([
+        "SwiftBasicFormat",
+        "SwiftDiagnostics",
+        "SwiftIDEUtils",
+        "SwiftParser",
+        "SwiftParserDiagnostics",
+        "SwiftRefactor",
+        "SwiftSyntax",
+        "SwiftSyntaxBuilder",
+      ]),
+    exclude: ["CMakeLists.txt"],
     swiftSettings: globalSwiftSettings
   ),
 

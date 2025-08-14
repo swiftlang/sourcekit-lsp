@@ -12,6 +12,7 @@
 
 import SKTestSupport
 @_spi(Testing) import SourceKitLSP
+import SwiftLanguageService
 import SwiftParser
 import SwiftRefactor
 import SwiftSyntax

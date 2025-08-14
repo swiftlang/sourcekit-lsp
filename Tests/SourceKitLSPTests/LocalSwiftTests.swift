@@ -15,8 +15,9 @@ import SKLogging
 import SKOptions
 import SKTestSupport
 import SourceKitD
-@_spi(Testing) import SourceKitLSP
+import SourceKitLSP
 import SwiftExtensions
+@_spi(Testing) import SwiftLanguageService
 import SwiftParser
 import SwiftSyntax
 import XCTest
