@@ -654,6 +654,7 @@ package final actor SemanticIndexManager {
     guard !targetsToPrepare.isEmpty else {
       return
     }
+
     let taskDescription = AnyIndexTaskDescription(
       PreparationTaskDescription(
         targetsToPrepare: targetsToPrepare,
