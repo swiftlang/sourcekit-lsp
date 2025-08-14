@@ -162,12 +162,17 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     if options.backgroundIndexingOrDefault, let uncheckedIndex,
       await buildServerManager.initializationData?.prepareProvider ?? false
     {
+      // TODO: When we can index multiple targets concurrently in SwiftPM, we may want to default
+      // to something else other than 1.
+      // (https://github.com/swiftlang/sourcekit-lsp/issues/1262)
+      let batchSize = await buildServerManager.initializationData?.indexTaskBatchSize ?? 1
       self.semanticIndexManager = SemanticIndexManager(
         index: uncheckedIndex,
         buildServerManager: buildServerManager,
         updateIndexStoreTimeout: options.indexOrDefault.updateIndexStoreTimeoutOrDefault,
         hooks: hooks.indexHooks,
         indexTaskScheduler: indexTaskScheduler,
+        indexTaskBatchSize: batchSize,
         logMessageToIndexLog: { [weak sourceKitLSPServer] in
           sourceKitLSPServer?.logMessageToIndexLog(message: $0, type: $1, structure: $2)
         },

@@ -2624,6 +2624,81 @@ final class BackgroundIndexingTests: XCTestCase {
     let symbols = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTestFu"))
     XCTAssertEqual(symbols?.count, 1)
   }
+
+  func testBuildServerUsesCustomTaskBatchSize() async throws {
+    final class BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+      private let projectRoot: URL
+      private var testFileURL: URL { projectRoot.appendingPathComponent("test.swift").standardized }
+
+      required init(projectRoot: URL, connectionToSourceKitLSP: any LanguageServerProtocol.Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: false,
+          indexTaskBatchSize: 3
+        )
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        var dummyTargets = [BuildTargetIdentifier]()
+        for i in 0..<10 {
+          dummyTargets.append(BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-\(i)")))
+        }
+        return BuildTargetSourcesResponse(items: dummyTargets.map {
+          SourcesItem(target: $0, sources: [SourceItem(uri: URI(testFileURL), kind: .file, generated: false)])
+        })
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: [request.textDocument.uri.pseudoPath])
+      }
+    }
+
+    let preparationTaskSemaphore = WrappedSemaphore(name: "Received a preparation task")
+    let preparationTasks = ThreadSafeBox<[PreparationTaskDescription]>(initialValue: [])
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "test.swift": """
+        func testFunction() {}
+        """
+      ],
+      buildServer: BuildServer.self,
+      hooks: Hooks(
+        indexHooks: IndexHooks(
+          preparationTaskDidStart: { task in
+            preparationTasks.withLock { preparationTasks in
+              // Ignore everything after the 4th batch to avoid flakiness.
+              if preparationTasks.count < 4 {
+                preparationTasks.append(task)
+              }
+              if preparationTasks.count == 4 {
+                preparationTaskSemaphore.signal()
+              }
+            }
+          }
+        )
+      ),
+      enableBackgroundIndexing: true
+    )
+
+    _ = try await project.testClient.send(SynchronizeRequest(index: true))
+
+    preparationTaskSemaphore.waitOrXCTFail()
+
+    // The test project has 10 targets, and we should have received them in batches of 3.
+    XCTAssertEqual(preparationTasks.value.count, 4)
+    let preparedTargetBatches = preparationTasks.value.map(\.targetsToPrepare).sorted { $0.count > $1.count }
+    XCTAssertEqual(preparedTargetBatches[0].count, 3)
+    XCTAssertEqual(preparedTargetBatches[1].count, 3)
+    XCTAssertEqual(preparedTargetBatches[2].count, 3)
+    XCTAssertEqual(preparedTargetBatches[3].count, 1)
+  }
 }
 
 extension HoverResponseContents {

@@ -278,6 +278,9 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
   /// Whether the server implements the `textDocument/sourceKitOptions` request.
   public var sourceKitOptionsProvider: Bool?
 
+  /// The number of targets to prepare concurrently, when an index request is scheduled.
+  public var indexTaskBatchSize: Int?
+
   /// The files to watch for changes.
   public var watchers: [FileSystemWatcher]?
 
@@ -286,12 +289,14 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
   public init(
     indexDatabasePath: String? = nil,
     indexStorePath: String? = nil,
+    indexTaskBatchSize: Int? = nil,
     watchers: [FileSystemWatcher]? = nil,
     prepareProvider: Bool? = nil,
     sourceKitOptionsProvider: Bool? = nil
   ) {
     self.indexDatabasePath = indexDatabasePath
     self.indexStorePath = indexStorePath
+    self.indexTaskBatchSize = indexTaskBatchSize
     self.watchers = watchers
     self.prepareProvider = prepareProvider
     self.sourceKitOptionsProvider = sourceKitOptionsProvider
@@ -300,6 +305,7 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
   public init(
     indexDatabasePath: String? = nil,
     indexStorePath: String? = nil,
+    indexTaskBatchSize: Int? = nil,
     outputPathsProvider: Bool? = nil,
     prepareProvider: Bool? = nil,
     sourceKitOptionsProvider: Bool? = nil,
@@ -307,6 +313,7 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
   ) {
     self.indexDatabasePath = indexDatabasePath
     self.indexStorePath = indexStorePath
+    self.indexTaskBatchSize = indexTaskBatchSize
     self.outputPathsProvider = outputPathsProvider
     self.prepareProvider = prepareProvider
     self.sourceKitOptionsProvider = sourceKitOptionsProvider
@@ -319,6 +326,9 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
     }
     if case .string(let indexStorePath) = dictionary[CodingKeys.indexStorePath.stringValue] {
       self.indexStorePath = indexStorePath
+    }
+    if case .int(let indexTaskBatchSize) = dictionary[CodingKeys.indexTaskBatchSize.stringValue] {
+      self.indexTaskBatchSize = indexTaskBatchSize
     }
     if case .bool(let outputPathsProvider) = dictionary[CodingKeys.outputPathsProvider.stringValue] {
       self.outputPathsProvider = outputPathsProvider
@@ -341,6 +351,9 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
     }
     if let indexStorePath {
       result[CodingKeys.indexStorePath.stringValue] = .string(indexStorePath)
+    }
+    if let indexTaskBatchSize {
+      result[CodingKeys.indexTaskBatchSize.stringValue] = .int(indexTaskBatchSize)
     }
     if let outputPathsProvider {
       result[CodingKeys.outputPathsProvider.stringValue] = .bool(outputPathsProvider)
