@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2025 Apple Inc. and the Swift project authors
+// Copyright (c) 2025 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerIntegration
 import Foundation
 package import IndexStoreDB
 package import LanguageServerProtocol
@@ -19,24 +20,22 @@ import SwiftSyntax
 
 extension SwiftLanguageService {
   package func symbolGraph(
-    forOnDiskContentsOf symbolDocumentUri: DocumentURI,
-    at location: SymbolLocation
+    forOnDiskContentsAt location: SymbolLocation,
+    in workspace: Workspace,
+    manager: OnDiskDocumentManager
   ) async throws -> String {
-    return try await withSnapshotFromDiskOpenedInSourcekitd(
-      uri: symbolDocumentUri,
-      fallbackSettingsAfterTimeout: false
-    ) { snapshot, compileCommand in
-      let symbolGraph = try await cursorInfo(
-        snapshot,
-        compileCommand: compileCommand,
-        Range(snapshot.position(of: location)),
-        includeSymbolGraph: true
-      ).symbolGraph
-      guard let symbolGraph else {
-        throw ResponseError.internalError("Unable to retrieve symbol graph")
-      }
-      return symbolGraph
+    let (snapshot, buildSettings) = try await manager.open(uri: location.documentUri, language: .swift, in: workspace)
+
+    let symbolGraph = try await cursorInfo(
+      snapshot,
+      compileCommand: SwiftCompileCommand(buildSettings),
+      Range(snapshot.position(of: location)),
+      includeSymbolGraph: true
+    ).symbolGraph
+    guard let symbolGraph else {
+      throw ResponseError.internalError("Unable to retrieve symbol graph")
     }
+    return symbolGraph
   }
 
   package func symbolGraph(

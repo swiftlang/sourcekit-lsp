@@ -795,6 +795,28 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     return languageFromBuildServer ?? Language(inferredFromFileExtension: document)
   }
 
+  /// Returns the language that a document should be interpreted in for background tasks where the editor doesn't
+  /// specify the document's language.
+  ///
+  /// If the language could not be determined, this method throws an error.
+  package func defaultLanguageInCanonicalTarget(for document: DocumentURI) async throws -> Language {
+    struct UnableToInferLanguage: Error, CustomStringConvertible {
+      let document: DocumentURI
+      var description: String { "Unable to infer language for \(document)" }
+    }
+
+    guard let canonicalTarget = await self.canonicalTarget(for: document) else {
+      guard let language = Language(inferredFromFileExtension: document) else {
+        throw UnableToInferLanguage(document: document)
+      }
+      return language
+    }
+    guard let language = await defaultLanguage(for: document, in: canonicalTarget) else {
+      throw UnableToInferLanguage(document: document)
+    }
+    return language
+  }
+
   /// Retrieve information about the given source file within the build server.
   package func sourceFileInfo(for document: DocumentURI) async -> SourceFileInfo? {
     return await orLog("Getting targets for source file") {
