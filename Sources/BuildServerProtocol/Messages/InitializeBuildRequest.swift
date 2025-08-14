@@ -269,6 +269,9 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
   /// The path at which SourceKit-LSP can store its index database, aggregating data from `indexStorePath`
   public var indexStorePath: String?
 
+  /// Options to control how many targets should be prepared simultaneously by SourceKit-LSP.
+  public var multiTargetPreparation: MultiTargetPreparationSupport?
+
   /// Whether the server implements the `buildTarget/outputPaths` request.
   public var outputPathsProvider: Bool?
 
@@ -278,9 +281,6 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
   /// Whether the server implements the `textDocument/sourceKitOptions` request.
   public var sourceKitOptionsProvider: Bool?
 
-  /// The number of targets to prepare concurrently, when an index request is scheduled.
-  public var indexTaskBatchSize: Int?
-
   /// The files to watch for changes.
   public var watchers: [FileSystemWatcher]?
 
@@ -289,14 +289,14 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
   public init(
     indexDatabasePath: String? = nil,
     indexStorePath: String? = nil,
-    indexTaskBatchSize: Int? = nil,
+    multiTargetPreparation: MultiTargetPreparationSupport? = nil,
     watchers: [FileSystemWatcher]? = nil,
     prepareProvider: Bool? = nil,
     sourceKitOptionsProvider: Bool? = nil
   ) {
     self.indexDatabasePath = indexDatabasePath
     self.indexStorePath = indexStorePath
-    self.indexTaskBatchSize = indexTaskBatchSize
+    self.multiTargetPreparation = multiTargetPreparation
     self.watchers = watchers
     self.prepareProvider = prepareProvider
     self.sourceKitOptionsProvider = sourceKitOptionsProvider
@@ -305,7 +305,7 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
   public init(
     indexDatabasePath: String? = nil,
     indexStorePath: String? = nil,
-    indexTaskBatchSize: Int? = nil,
+    multiTargetPreparation: MultiTargetPreparationSupport? = nil,
     outputPathsProvider: Bool? = nil,
     prepareProvider: Bool? = nil,
     sourceKitOptionsProvider: Bool? = nil,
@@ -313,7 +313,7 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
   ) {
     self.indexDatabasePath = indexDatabasePath
     self.indexStorePath = indexStorePath
-    self.indexTaskBatchSize = indexTaskBatchSize
+    self.multiTargetPreparation = multiTargetPreparation
     self.outputPathsProvider = outputPathsProvider
     self.prepareProvider = prepareProvider
     self.sourceKitOptionsProvider = sourceKitOptionsProvider
@@ -327,8 +327,8 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
     if case .string(let indexStorePath) = dictionary[CodingKeys.indexStorePath.stringValue] {
       self.indexStorePath = indexStorePath
     }
-    if case .int(let indexTaskBatchSize) = dictionary[CodingKeys.indexTaskBatchSize.stringValue] {
-      self.indexTaskBatchSize = indexTaskBatchSize
+    if case .dictionary(let multiTargetPreparation) = dictionary[CodingKeys.multiTargetPreparation.stringValue] {
+      self.multiTargetPreparation = MultiTargetPreparationSupport(fromLSPDictionary: multiTargetPreparation)
     }
     if case .bool(let outputPathsProvider) = dictionary[CodingKeys.outputPathsProvider.stringValue] {
       self.outputPathsProvider = outputPathsProvider
@@ -352,8 +352,8 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
     if let indexStorePath {
       result[CodingKeys.indexStorePath.stringValue] = .string(indexStorePath)
     }
-    if let indexTaskBatchSize {
-      result[CodingKeys.indexTaskBatchSize.stringValue] = .int(indexTaskBatchSize)
+    if let multiTargetPreparation {
+      result[CodingKeys.multiTargetPreparation.stringValue] = multiTargetPreparation.encodeToLSPAny()
     }
     if let outputPathsProvider {
       result[CodingKeys.outputPathsProvider.stringValue] = .bool(outputPathsProvider)
@@ -366,6 +366,29 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
     }
     if let watchers {
       result[CodingKeys.watchers.stringValue] = watchers.encodeToLSPAny()
+    }
+    return .dictionary(result)
+  }
+}
+
+public struct MultiTargetPreparationSupport: LSPAnyCodable, Codable, Sendable {
+  /// Whether the build server can prepare multiple targets in parallel. If this value is omitted, it is assumed to be `true`.
+  public var supported: Bool?
+
+  public init(supported: Bool? = nil) {
+    self.supported = supported
+  }
+
+  public init?(fromLSPDictionary dictionary: [String: LanguageServerProtocol.LSPAny]) {
+    if case .bool(let supported) = dictionary[CodingKeys.supported.stringValue] {
+      self.supported = supported
+    }
+  }
+
+  public func encodeToLSPAny() -> LanguageServerProtocol.LSPAny {
+    var result: [String: LSPAny] = [:]
+    if let supported {
+      result[CodingKeys.supported.stringValue] = .bool(supported)
     }
     return .dictionary(result)
   }

@@ -35,6 +35,9 @@ package protocol BuiltInBuildServer: AnyObject, Sendable {
   /// The path to put the index database, if any.
   var indexDatabasePath: URL? { get async }
 
+  /// Whether the build server can prepare multiple targets in parallel.
+  var supportsMultiTargetPreparation: Bool { get }
+
   /// Whether the build server is capable of preparing a target for indexing and determining the output paths for the
   /// target, ie. whether the `prepare` method has been implemented and this build server populates the `outputPath`
   /// property in the `buildTarget/sources` request.

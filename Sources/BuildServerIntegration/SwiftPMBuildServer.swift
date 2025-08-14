@@ -459,6 +459,8 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     signposter.endInterval("Reloading package", state)
   }
 
+  package nonisolated var supportsMultiTargetPreparation: Bool { false }
+
   package nonisolated var supportsPreparationAndOutputPaths: Bool { options.backgroundIndexingOrDefault }
 
   package var buildPath: URL {

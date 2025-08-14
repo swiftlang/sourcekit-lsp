@@ -370,7 +370,6 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
         // We didn't actually change anything, so we don't need to perform any validation or task processing.
         return
       }
-
       // Check we are over-subscribed in currently executing tasks by walking through all currently executing tasks and
       // checking if we could schedule them within the new execution limits. Cancel any tasks that do not fit within the
       // new limit to be rescheduled when we are within the limit again.

@@ -222,8 +222,8 @@ package final actor SemanticIndexManager {
   /// The parameter is the number of files that were scheduled to be indexed.
   private let indexTasksWereScheduled: @Sendable (_ numberOfFileScheduled: Int) -> Void
 
-  /// The number of targets to prepare concurrently, whenever a index request is scheduled.
-  private let indexTaskBatchSize: Int
+  /// Determines whether or not the `SemanticIndexManager` should dispatch preparation tasks in batches.
+  private let shouldIndexInParallel: Bool
 
   /// Callback that is called when `progressStatus` might have changed.
   private let indexProgressStatusDidChange: @Sendable () -> Void
@@ -264,7 +264,7 @@ package final actor SemanticIndexManager {
     updateIndexStoreTimeout: Duration,
     hooks: IndexHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
-    indexTaskBatchSize: Int,
+    shouldIndexInParallel: Bool,
     logMessageToIndexLog:
       @escaping @Sendable (
         _ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind
@@ -277,7 +277,7 @@ package final actor SemanticIndexManager {
     self.updateIndexStoreTimeout = updateIndexStoreTimeout
     self.hooks = hooks
     self.indexTaskScheduler = indexTaskScheduler
-    self.indexTaskBatchSize = indexTaskBatchSize
+    self.shouldIndexInParallel = shouldIndexInParallel
     self.logMessageToIndexLog = logMessageToIndexLog
     self.indexTasksWereScheduled = indexTasksWereScheduled
     self.indexProgressStatusDidChange = indexProgressStatusDidChange
@@ -654,7 +654,6 @@ package final actor SemanticIndexManager {
     guard !targetsToPrepare.isEmpty else {
       return
     }
-
     let taskDescription = AnyIndexTaskDescription(
       PreparationTaskDescription(
         targetsToPrepare: targetsToPrepare,
@@ -882,7 +881,14 @@ package final actor SemanticIndexManager {
 
     var indexTasks: [Task<Void, Never>] = []
 
-    for targetsBatch in sortedTargets.partition(intoBatchesOfSize: indexTaskBatchSize) {
+    let batchSize: Int
+    if shouldIndexInParallel {
+      let processorCount = ProcessInfo.processInfo.activeProcessorCount
+      batchSize = max(1, processorCount * 5)
+    } else {
+      batchSize = 1
+    }
+    for targetsBatch in sortedTargets.partition(intoBatchesOfSize: batchSize) {
       let preparationTaskID = UUID()
       let filesToIndex = targetsBatch.flatMap({ filesByTarget[$0]! })
 
@@ -906,10 +912,7 @@ package final actor SemanticIndexManager {
         // And after preparation is done, index the files in the targets.
         await withTaskGroup(of: Void.self) { taskGroup in
           for target in targetsBatch {
-            // TODO: Once swiftc supports indexing of multiple files in a single invocation, increase the batch size to
-            // allow it to share AST builds between multiple files within a target.
-            // (https://github.com/swiftlang/sourcekit-lsp/issues/1268)
-            for fileBatch in filesByTarget[target]!.partition(intoBatchesOfSize: 1) {
+            for fileBatch in filesByTarget[target]!.partition(intoBatchesOfSize: batchSize) {
               taskGroup.addTask {
                 await self.updateIndexStore(
                   for: fileBatch,
