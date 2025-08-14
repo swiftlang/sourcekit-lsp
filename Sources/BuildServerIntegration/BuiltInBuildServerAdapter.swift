@@ -94,6 +94,7 @@ actor BuiltInBuildServerAdapter: QueueBasedMessageHandler {
         indexStorePath: await orLog("getting index store file path") {
           try await underlyingBuildServer.indexStorePath?.filePath
         },
+        multiTargetPreparation: MultiTargetPreparationSupport(supported: underlyingBuildServer.supportsMultiTargetPreparation),
         outputPathsProvider: underlyingBuildServer.supportsPreparationAndOutputPaths,
         prepareProvider: underlyingBuildServer.supportsPreparationAndOutputPaths,
         sourceKitOptionsProvider: true,
