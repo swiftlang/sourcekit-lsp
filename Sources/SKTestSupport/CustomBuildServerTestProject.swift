@@ -183,7 +183,7 @@ package extension CustomBuildServer {
         indexStorePath: try projectRoot.appendingPathComponent("index-store").filePath,
         outputPathsProvider: outputPathsProvider,
         prepareProvider: true,
-        sourceKitOptionsProvider: true,
+        sourceKitOptionsProvider: true
       )
     )
   }

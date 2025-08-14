@@ -39,6 +39,11 @@ export interface SourceKitInitializeBuildResponseData {
    * `FileSystemWatcher` is the same as in LSP. */
   watchers?: [FileSystemWatcher]
 }
+
+export interface MultiTargetPreparationSupport {
+  /** Whether the build server can prepare multiple targets in parallel. If this value is omitted, it is assumed to be `true`. */
+  supported: bool;
+}
 ```
 
 ## `build/taskStart`
