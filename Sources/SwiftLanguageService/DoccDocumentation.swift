@@ -35,6 +35,7 @@ extension SwiftLanguageService {
       throw ResponseError.invalidParams("A position must be provided for Swift files")
     }
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
+
     var moduleName: String? = nil
     var catalogURL: URL? = nil
     if let target = await workspace.buildServerManager.canonicalTarget(for: req.textDocument.uri) {
@@ -70,27 +71,19 @@ extension SwiftLanguageService {
       throw ResponseError.internalError("Unable to retrieve symbol graph for the document")
     }
     // Locate the documentation extension and include it in the request if one exists
-    let markupExtensionFile = await orLog("Finding markup extension file for symbol \(symbolUSR)") {
-      try await findMarkupExtensionFile(
-        workspace: workspace,
-        documentationManager: documentationManager,
-        catalogURL: catalogURL,
-        for: symbolUSR,
-        fetchSymbolGraph: { symbolLocation in
-          try await withSnapshotFromDiskOpenedInSourcekitd(
-            uri: symbolLocation.documentUri,
-            fallbackSettingsAfterTimeout: false
-          ) { (snapshot, compileCommand) in
-            let (_, _, symbolGraph) = try await self.cursorInfo(
-              snapshot,
-              compileCommand: compileCommand,
-              Range(snapshot.position(of: symbolLocation)),
-              includeSymbolGraph: true
-            )
-            return symbolGraph
+    let markupExtensionFile = await sourceKitLSPServer.withOnDiskDocumentManager { onDiskDocumentManager in
+      await orLog("Finding markup extension file for symbol \(symbolUSR)") {
+        try await findMarkupExtensionFile(
+          workspace: workspace,
+          documentationManager: documentationManager,
+          catalogURL: catalogURL,
+          for: symbolUSR,
+          fetchSymbolGraph: {
+            try await onDiskDocumentManager.languageService(for: $0.documentUri, .swift)
+              .symbolGraphForDocumentOnDisk(at: $0, manager: onDiskDocumentManager)
           }
-        }
-      )
+        )
+      }
     }
     return try await documentationManager.renderDocCDocumentation(
       symbolUSR: symbolUSR,
@@ -114,11 +107,12 @@ extension SwiftLanguageService {
     }
     let catalogIndex = try await documentationManager.catalogIndex(for: catalogURL)
     guard let index = workspace.index(checkedFor: .deletedFiles),
-      let symbolInformation = try await index.doccSymbolInformation(
-        ofUSR: symbolUSR,
-        fetchSymbolGraph: fetchSymbolGraph
-      ),
-      let markupExtensionFileURL = catalogIndex.documentationExtension(for: symbolInformation)
+      let markupExtensionFileURL = try await catalogIndex.documentationExtension(
+        for: index.doccSymbolInformation(
+          ofUSR: symbolUSR,
+          fetchSymbolGraph: fetchSymbolGraph
+        )
+      )
     else {
       return nil
     }

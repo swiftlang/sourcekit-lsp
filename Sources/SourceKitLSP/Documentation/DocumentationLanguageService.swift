@@ -98,6 +98,14 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     // The DocumentationLanguageService does not do anything with document events
   }
 
+  package func openDocumentOnDisk(snapshot: DocumentSnapshot, originalFile: DocumentURI) async throws {
+    // The DocumentationLanguageService does not do anything with document events
+  }
+
+  package func closeDocumentOnDisk(snapshot: DocumentSnapshot) async {
+    // The DocumentationLanguageService does not do anything with document events
+  }
+
   package func reopenDocument(_ notification: ReopenTextDocumentNotification) async {
     // The DocumentationLanguageService does not do anything with document events
   }
@@ -143,11 +151,11 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     []
   }
 
-  package func symbolGraph(
-    forOnDiskContentsOf symbolDocumentUri: DocumentURI,
-    at location: SymbolLocation
+  package func symbolGraphForDocumentOnDisk(
+    at location: SymbolLocation,
+    manager: OnDiskDocumentManager
   ) async throws -> String? {
-    return nil
+    nil
   }
 
   package func openGeneratedInterface(

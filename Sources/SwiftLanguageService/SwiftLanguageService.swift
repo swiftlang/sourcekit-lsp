@@ -586,6 +586,34 @@ extension SwiftLanguageService {
     }
   }
 
+  package func openDocumentOnDisk(snapshot: DocumentSnapshot, originalFile: DocumentURI) async throws {
+    let patchedCompileCommand: SwiftCompileCommand? =
+      if let buildSettings = await self.buildSettings(
+        for: originalFile,
+        fallbackAfterTimeout: false
+      ) {
+        SwiftCompileCommand(buildSettings.patching(newFile: snapshot.uri, originalFile: originalFile))
+      } else {
+        nil
+      }
+
+    _ = try await send(
+      sourcekitdRequest: \.editorOpen,
+      self.openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: patchedCompileCommand),
+      snapshot: snapshot
+    )
+  }
+
+  package func closeDocumentOnDisk(snapshot: DocumentSnapshot) async {
+    await orLog("Close on-disk document in sourcekitd '\(snapshot.uri)'") {
+      _ = try await send(
+        sourcekitdRequest: \.editorClose,
+        self.closeDocumentSourcekitdRequest(uri: snapshot.uri),
+        snapshot: snapshot
+      )
+    }
+  }
+
   /// Cancels any in-flight tasks to send a `PublishedDiagnosticsNotification` after edits.
   private func cancelInFlightPublishDiagnosticsTask(for document: DocumentURI) {
     if let inFlightTask = inFlightPublishDiagnosticsTasks[document] {
