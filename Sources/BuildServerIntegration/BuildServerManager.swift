@@ -322,8 +322,12 @@ package actor BuildServerManager: QueueBasedMessageHandler {
 
   private var connectionToClient: BuildServerManagerConnectionToClient
 
-  /// The build serer adapter that is used to answer build server queries.
+  /// The build server adapter that is used to answer build server queries.
   private var buildServerAdapter: BuildServerAdapter?
+
+  /// The kind of underlying build server adapter that is being managed.
+  /// `nil` if the `BuildServerManager` does not have an underlying build system.
+  private var kind: BuildServerSpec.Kind?
 
   /// The build server adapter after initialization finishes. When sending messages to the BSP server, this should be
   /// preferred over `buildServerAdapter` because no messages must be sent to the build server before initialization
@@ -451,6 +455,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     self.toolchainRegistry = toolchainRegistry
     self.options = options
     self.connectionToClient = connectionToClient
+    self.kind = buildServerSpec?.kind
     self.configPath = buildServerSpec?.configPath
     self.buildServerAdapter = await buildServerSpec?.createBuildServerAdapter(
       toolchainRegistry: toolchainRegistry,

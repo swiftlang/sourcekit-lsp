@@ -222,6 +222,9 @@ package final actor SemanticIndexManager {
   /// The parameter is the number of files that were scheduled to be indexed.
   private let indexTasksWereScheduled: @Sendable (_ numberOfFileScheduled: Int) -> Void
 
+  /// The number of targets to prepare concurrently, whenever a index request is scheduled.
+  private let indexTaskBatchSize: Int
+
   /// Callback that is called when `progressStatus` might have changed.
   private let indexProgressStatusDidChange: @Sendable () -> Void
 
@@ -261,6 +264,7 @@ package final actor SemanticIndexManager {
     updateIndexStoreTimeout: Duration,
     hooks: IndexHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
+    indexTaskBatchSize: Int,
     logMessageToIndexLog:
       @escaping @Sendable (
         _ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind
@@ -273,6 +277,7 @@ package final actor SemanticIndexManager {
     self.updateIndexStoreTimeout = updateIndexStoreTimeout
     self.hooks = hooks
     self.indexTaskScheduler = indexTaskScheduler
+    self.indexTaskBatchSize = indexTaskBatchSize
     self.logMessageToIndexLog = logMessageToIndexLog
     self.indexTasksWereScheduled = indexTasksWereScheduled
     self.indexProgressStatusDidChange = indexProgressStatusDidChange
@@ -877,10 +882,7 @@ package final actor SemanticIndexManager {
 
     var indexTasks: [Task<Void, Never>] = []
 
-    // TODO: When we can index multiple targets concurrently in SwiftPM, increase the batch size to half the
-    // processor count, so we can get parallelism during preparation.
-    // (https://github.com/swiftlang/sourcekit-lsp/issues/1262)
-    for targetsBatch in sortedTargets.partition(intoBatchesOfSize: 1) {
+    for targetsBatch in sortedTargets.partition(intoBatchesOfSize: indexTaskBatchSize) {
       let preparationTaskID = UUID()
       let filesToIndex = targetsBatch.flatMap({ filesByTarget[$0]! })
 
