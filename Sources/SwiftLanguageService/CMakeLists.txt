@@ -74,7 +74,6 @@ target_link_libraries(SourceKitLSP PRIVATE
   Crypto
   TSCBasic
   PackageModel
-  PackageModelSyntax
   SwiftSyntax::SwiftDiagnostics
   SwiftSyntax::SwiftIDEUtils
   SwiftSyntax::SwiftParser
