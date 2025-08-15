@@ -2626,6 +2626,95 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 }
 
+// WIP, not ready for review
+//   func testBuildServerUsesCustomTaskBatchSize() async throws {
+//     final class BuildServer: CustomBuildServer {
+//       let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+//       private let projectRoot: URL
+//       private var testFileURL: URL { projectRoot.appendingPathComponent("test.swift").standardized }
+
+//       nonisolated(unsafe) var preparedTargetBatches = [[BuildTargetIdentifier]]()
+
+//       required init(projectRoot: URL, connectionToSourceKitLSP: any LanguageServerProtocol.Connection) {
+//         self.projectRoot = projectRoot
+//       }
+
+//       func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+//         return try initializationResponseSupportingBackgroundIndexing(
+//           projectRoot: projectRoot,
+//           outputPathsProvider: false,
+//         )
+//       }
+
+//       func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+//         var dummyTargets = [BuildTargetIdentifier]()
+//         for i in 0..<10 {
+//           dummyTargets.append(BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-\(i)")))
+//         }
+//         return BuildTargetSourcesResponse(items: dummyTargets.map {
+//           SourcesItem(target: $0, sources: [SourceItem(uri: URI(testFileURL), kind: .file, generated: false)])
+//         })
+//       }
+
+//       func textDocumentSourceKitOptionsRequest(
+//         _ request: TextDocumentSourceKitOptionsRequest
+//       ) async throws -> TextDocumentSourceKitOptionsResponse? {
+//         return TextDocumentSourceKitOptionsResponse(compilerArguments: [request.textDocument.uri.pseudoPath])
+//       }
+
+//       func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+//         preparedTargetBatches.append(request.targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
+//         return VoidResponse()
+//       }
+//     }
+
+//     let project = try await CustomBuildServerTestProject(
+//       files: [
+//         "test.swift": """
+//         func testFunction() {}
+//         """
+//       ],
+//       buildServer: BuildServer.self,
+//       enableBackgroundIndexing: true,
+//     )
+
+//     // Wait for indexing to finish without elevating the priority
+//     // Otherwise, task re-scheduling would cause the test to become flaky
+//     let semaphore = WrappedSemaphore(name: "Indexing finished")
+//     let testClient = project.testClient
+//     Task(priority: .low) {
+//       await assertNoThrow {
+//         try await testClient.send(SynchronizeRequest(index: true))
+//       }
+//       semaphore.signal()
+//     }
+//     try semaphore.waitOrThrow()
+
+//     let buildServer = try project.buildServer()
+//     let preparedBatches = buildServer.preparedTargetBatches.sorted { $0[0].uri.stringValue < $1[0].uri.stringValue }
+//     XCTAssertEqual(preparedBatches, [
+//       [
+//         BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-0")),
+//         BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-1")),
+//         BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-2")),
+//       ],
+//       [
+//         BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-3")),
+//         BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-4")),
+//         BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-5")),
+//       ],
+//       [
+//         BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-6")),
+//         BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-7")),
+//         BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-8")),
+//       ],
+//       [
+//         BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-9")),
+//       ]
+//     ])
+//   }
+// }
+
 extension HoverResponseContents {
   var markupContent: MarkupContent? {
     switch self {
