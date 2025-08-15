@@ -421,6 +421,14 @@ extension ClangLanguageService {
     clangd.send(notification)
   }
 
+  package func openDocumentOnDisk(snapshot: DocumentSnapshot, originalFile: DocumentURI) async throws {
+    // clangd doesn't support on-disk documents
+  }
+
+  package func closeDocumentOnDisk(snapshot: DocumentSnapshot) async {
+    // clangd doesn't support on-disk documents
+  }
+
   package func reopenDocument(_ notification: ReopenTextDocumentNotification) {}
 
   package func changeDocument(
@@ -512,9 +520,9 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
-  package func symbolGraph(
-    forOnDiskContentsOf symbolDocumentUri: DocumentURI,
-    at location: SymbolLocation
+  package func symbolGraphForDocumentOnDisk(
+    at location: SymbolLocation,
+    manager: OnDiskDocumentManager
   ) async throws -> String? {
     return nil
   }

@@ -13,6 +13,7 @@ add_library(SourceKitLSP STATIC
   LogMessageNotification+representingStructureUsingEmojiPrefixIfNecessary.swift
   MacroExpansionReferenceDocumentURLData.swift
   MessageHandlingDependencyTracker.swift
+  OnDiskDocumentManager.swift
   ReferenceDocumentURL.swift
   Rename.swift
   SemanticTokensLegend+SourceKitLSPLegend.swift
@@ -27,7 +28,7 @@ add_library(SourceKitLSP STATIC
   Workspace.swift
 )
 target_sources(SourceKitLSP PRIVATE
-  Documentation/DocCDocumentationHandler.swift
+  Documentation/DocCDocumentation.swift
   Documentation/DocumentationLanguageService.swift
 )
 set_target_properties(SourceKitLSP PROPERTIES
