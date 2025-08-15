@@ -138,7 +138,7 @@ actor LegacyBuildServer: MessageHandler, BuiltInBuildServer {
     connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
   }
 
-  package nonisolated var supportsMultiTargetPreparation: Bool { true }
+  package nonisolated var supportsMultiTargetPreparation: Bool { false }
 
   package nonisolated var supportsPreparationAndOutputPaths: Bool { false }
 

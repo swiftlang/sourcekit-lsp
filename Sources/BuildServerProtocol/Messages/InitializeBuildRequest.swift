@@ -372,16 +372,24 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
 }
 
 public struct MultiTargetPreparationSupport: LSPAnyCodable, Codable, Sendable {
-  /// Whether the build server can prepare multiple targets in parallel. If this value is omitted, it is assumed to be `true`.
+  /// Whether the build server can prepare multiple targets in parallel.
   public var supported: Bool?
 
-  public init(supported: Bool? = nil) {
+  /// The number of targets to prepare in parallel.
+  /// If not provided, SourceKit-LSP will calculate an appropriate value based on the environment.
+  public var batchSize: Int?
+
+  public init(supported: Bool? = nil, batchSize: Int? = nil) {
     self.supported = supported
+    self.batchSize = batchSize
   }
 
   public init?(fromLSPDictionary dictionary: [String: LanguageServerProtocol.LSPAny]) {
     if case .bool(let supported) = dictionary[CodingKeys.supported.stringValue] {
       self.supported = supported
+    }
+    if case .int(let batchSize) = dictionary[CodingKeys.batchSize.stringValue] {
+      self.batchSize = batchSize
     }
   }
 
@@ -389,6 +397,9 @@ public struct MultiTargetPreparationSupport: LSPAnyCodable, Codable, Sendable {
     var result: [String: LSPAny] = [:]
     if let supported {
       result[CodingKeys.supported.stringValue] = .bool(supported)
+    }
+    if let batchSize {
+      result[CodingKeys.batchSize.stringValue] = .int(batchSize)
     }
     return .dictionary(result)
   }

@@ -162,11 +162,15 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     if options.backgroundIndexingOrDefault, let uncheckedIndex,
       await buildServerManager.initializationData?.prepareProvider ?? false
     {
-      let shouldIndexInParallel = await buildServerManager.initializationData?.multiTargetPreparation?.supported ?? true
+      let shouldIndexInParallel = await buildServerManager.initializationData?.multiTargetPreparation?.supported ?? false
       let batchSize: Int
       if shouldIndexInParallel {
-        let processorCount = ProcessInfo.processInfo.activeProcessorCount
-        batchSize = max(1, processorCount * 5)
+        if let customBatchSize = await buildServerManager.initializationData?.multiTargetPreparation?.batchSize {
+          batchSize = customBatchSize
+        } else {
+          let processorCount = ProcessInfo.processInfo.activeProcessorCount
+          batchSize = max(1, processorCount / 2)
+        }
       } else {
         batchSize = 1
       }
