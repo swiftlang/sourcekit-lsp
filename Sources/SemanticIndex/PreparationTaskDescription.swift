@@ -39,6 +39,9 @@ package struct PreparationTaskDescription: IndexTaskDescription {
 
   private let preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier, DummySecondaryKey>
 
+  /// The purpose of the preparation task.
+  private let purpose: TargetPreparationPurpose
+
   /// See `SemanticIndexManager.logMessageToIndexLog`.
   private let logMessageToIndexLog:
     @Sendable (_ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind) -> Void
@@ -63,6 +66,7 @@ package struct PreparationTaskDescription: IndexTaskDescription {
     targetsToPrepare: [BuildTargetIdentifier],
     buildServerManager: BuildServerManager,
     preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier, DummySecondaryKey>,
+    purpose: TargetPreparationPurpose,
     logMessageToIndexLog:
       @escaping @Sendable (
         _ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind
@@ -72,6 +76,7 @@ package struct PreparationTaskDescription: IndexTaskDescription {
     self.targetsToPrepare = targetsToPrepare
     self.buildServerManager = buildServerManager
     self.preparationUpToDateTracker = preparationUpToDateTracker
+    self.purpose = purpose
     self.logMessageToIndexLog = logMessageToIndexLog
     self.hooks = hooks
   }
@@ -119,14 +124,22 @@ package struct PreparationTaskDescription: IndexTaskDescription {
     to currentlyExecutingTasks: [PreparationTaskDescription]
   ) -> [TaskDependencyAction<PreparationTaskDescription>] {
     return currentlyExecutingTasks.compactMap { (other) -> TaskDependencyAction<PreparationTaskDescription>? in
-      if other.targetsToPrepare.count > self.targetsToPrepare.count {
-        // If there is an prepare operation with more targets already running, suspend it.
-        // The most common use case for this is if we prepare all targets simultaneously during the initial preparation
-        // when a project is opened and need a single target indexed for user interaction. We should suspend the
-        // workspace-wide preparation and just prepare the currently needed target.
+      if other.purpose == .forIndexing && self.purpose == .forEditorFunctionality {
+        // If we're running a background indexing operation but need a target indexed for user interaction,
+        // we should prioritize the latter.
         return .cancelAndRescheduleDependency(other)
       }
       return .waitAndElevatePriorityOfDependency(other)
     }
   }
+}
+
+/// The reason why a target is being prepared. This is used to determine the `IndexProgressStatus`
+/// and to prioritize preparation tasks when several of them are running.
+package enum TargetPreparationPurpose: Comparable {
+  /// We are preparing the target so we can index files in it.
+  case forIndexing
+
+  /// We are preparing the target to provide semantic functionality in one of its files.
+  case forEditorFunctionality
 }

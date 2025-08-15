@@ -145,15 +145,6 @@ private struct InProgressPrepareForEditorTask {
   let task: Task<Void, Never>
 }
 
-/// The reason why a target is being prepared. This is used to determine the `IndexProgressStatus`.
-private enum TargetPreparationPurpose: Comparable {
-  /// We are preparing the target so we can index files in it.
-  case forIndexing
-
-  /// We are preparing the target to provide semantic functionality in one of its files.
-  case forEditorFunctionality
-}
-
 /// An entry in `SemanticIndexManager.inProgressPreparationTasks`.
 private struct InProgressPreparationTask {
   let task: OpaqueQueuedIndexTask
@@ -222,8 +213,8 @@ package final actor SemanticIndexManager {
   /// The parameter is the number of files that were scheduled to be indexed.
   private let indexTasksWereScheduled: @Sendable (_ numberOfFileScheduled: Int) -> Void
 
-  /// Determines whether or not the `SemanticIndexManager` should dispatch preparation tasks in batches.
-  private let shouldIndexInParallel: Bool
+  /// The size of the batches in which the `SemanticIndexManager` should dispatch preparation tasks.
+  private let indexTaskBatchSize: Int
 
   /// Callback that is called when `progressStatus` might have changed.
   private let indexProgressStatusDidChange: @Sendable () -> Void
@@ -264,7 +255,7 @@ package final actor SemanticIndexManager {
     updateIndexStoreTimeout: Duration,
     hooks: IndexHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
-    shouldIndexInParallel: Bool,
+    indexTaskBatchSize: Int,
     logMessageToIndexLog:
       @escaping @Sendable (
         _ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind
@@ -277,7 +268,7 @@ package final actor SemanticIndexManager {
     self.updateIndexStoreTimeout = updateIndexStoreTimeout
     self.hooks = hooks
     self.indexTaskScheduler = indexTaskScheduler
-    self.shouldIndexInParallel = shouldIndexInParallel
+    self.indexTaskBatchSize = indexTaskBatchSize
     self.logMessageToIndexLog = logMessageToIndexLog
     self.indexTasksWereScheduled = indexTasksWereScheduled
     self.indexProgressStatusDidChange = indexProgressStatusDidChange
@@ -660,6 +651,7 @@ package final actor SemanticIndexManager {
         targetsToPrepare: targetsToPrepare,
         buildServerManager: self.buildServerManager,
         preparationUpToDateTracker: preparationUpToDateTracker,
+        purpose: purpose,
         logMessageToIndexLog: logMessageToIndexLog,
         hooks: hooks
       )
@@ -882,14 +874,7 @@ package final actor SemanticIndexManager {
 
     var indexTasks: [Task<Void, Never>] = []
 
-    let batchSize: Int
-    if shouldIndexInParallel {
-      let processorCount = ProcessInfo.processInfo.activeProcessorCount
-      batchSize = max(1, processorCount * 5)
-    } else {
-      batchSize = 1
-    }
-    for targetsBatch in sortedTargets.partition(intoBatchesOfSize: batchSize) {
+    for targetsBatch in sortedTargets.partition(intoBatchesOfSize: indexTaskBatchSize) {
       let preparationTaskID = UUID()
       let filesToIndex = targetsBatch.flatMap({ filesByTarget[$0]! })
 
@@ -913,7 +898,7 @@ package final actor SemanticIndexManager {
         // And after preparation is done, index the files in the targets.
         await withTaskGroup(of: Void.self) { taskGroup in
           for target in targetsBatch {
-            for fileBatch in filesByTarget[target]!.partition(intoBatchesOfSize: batchSize) {
+            for fileBatch in filesByTarget[target]!.partition(intoBatchesOfSize: indexTaskBatchSize) {
               taskGroup.addTask {
                 await self.updateIndexStore(
                   for: fileBatch,
