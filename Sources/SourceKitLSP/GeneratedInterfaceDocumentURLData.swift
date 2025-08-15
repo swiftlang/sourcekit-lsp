@@ -67,7 +67,7 @@ package struct GeneratedInterfaceDocumentURLData: Hashable, ReferenceURLData {
     self.moduleName = moduleName
     self.groupName = groupName
     self.sourcekitdDocumentName = sourcekitdDocumentName
-    self.buildSettingsFrom = primaryFile
+    self.buildSettingsFrom = primaryFile.buildSettingsFile
   }
 
   init(queryItems: [URLQueryItem]) throws {

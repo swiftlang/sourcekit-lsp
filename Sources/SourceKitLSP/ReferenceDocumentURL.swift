@@ -170,8 +170,4 @@ extension DocumentURI {
 
 package struct ReferenceDocumentURLError: Error, CustomStringConvertible {
   package var description: String
-
-  init(description: String) {
-    self.description = description
-  }
 }
