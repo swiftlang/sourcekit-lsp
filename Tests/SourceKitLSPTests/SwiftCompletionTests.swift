@@ -40,6 +40,13 @@ final class SwiftCompletionTests: XCTestCase {
       """
       struct S {
         /// Documentation for `abc`.
+        ///
+        /// _More_ documentation for `abc`.
+        ///
+        /// Usage:
+        /// ```swift
+        /// S().abc
+        /// ```
         var abc: Int
 
         func test(a: Int) {
@@ -71,10 +78,14 @@ final class SwiftCompletionTests: XCTestCase {
       assertMarkdown(
         documentation: abc.documentation,
         expected: """
-          ```swift
-          var abc: Int
-          ```
           Documentation for `abc`.
+
+          _More_ documentation for `abc`.
+
+          Usage:
+          ```swift
+          S().abc
+          ```
           """
       )
       XCTAssertEqual(abc.filterText, "abc")
@@ -99,10 +110,14 @@ final class SwiftCompletionTests: XCTestCase {
       assertMarkdown(
         documentation: abc.documentation,
         expected: """
-          ```swift
-          var abc: Int
-          ```
           Documentation for `abc`.
+
+          _More_ documentation for `abc`.
+
+          Usage:
+          ```swift
+          S().abc
+          ```
           """
       )
       XCTAssertEqual(abc.filterText, "abc")
@@ -1207,12 +1222,7 @@ final class SwiftCompletionTests: XCTestCase {
     let resolvedItem = try await testClient.send(CompletionItemResolveRequest(item: item))
     assertMarkdown(
       documentation: resolvedItem.documentation,
-      expected: """
-        ```swift
-        func makeBool() -> Bool
-        ```
-        Creates a true value
-        """
+      expected: "Creates a true value"
     )
   }
 
@@ -1310,7 +1320,12 @@ private func assertMarkdown(
   file: StaticString = #filePath,
   line: UInt = #line
 ) {
-  XCTAssertEqual(documentation, .markupContent(MarkupContent(kind: .markdown, value: expected)))
+  XCTAssertEqual(
+    documentation,
+    .markupContent(MarkupContent(kind: .markdown, value: expected)),
+    file: file,
+    line: line
+  )
 }
 
 fileprivate extension Position {

@@ -205,6 +205,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
     XCTAssertEqual(result2.items.count, 1)
     XCTAssertEqual(result2.items[0].name, "")
     let doc = try await sourcekitd.completeDocumentation(id: result2.items[0].id)
+    XCTAssertNil(doc.docComment)
     XCTAssertNil(doc.docFullAsXML)
     XCTAssertNil(doc.docBrief)
   }
@@ -441,6 +442,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
     let sym3 = try unwrap(result.items.first(where: { $0.name == "foo3()" }), "did not find foo3; got \(result.items)")
 
     let sym1Doc = try await sourcekitd.completeDocumentation(id: sym1.id)
+    XCTAssertEqual(sym1Doc.docComment, "Protocol P foo1")
     XCTAssertEqual(
       sym1Doc.docFullAsXML,
       """
@@ -461,6 +463,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
     XCTAssertEqual(sym1Doc.associatedUSRs, ["s:1a1SV4foo1yyF", "s:1a1PP4foo1yyF"])
 
     let sym2Doc = try await sourcekitd.completeDocumentation(id: sym2.id)
+    XCTAssertEqual(sym2Doc.docComment, "Struct S foo2")
     XCTAssertEqual(
       sym2Doc.docFullAsXML,
       """
@@ -478,6 +481,7 @@ final class SwiftSourceKitPluginTests: XCTestCase {
     XCTAssertEqual(sym2Doc.associatedUSRs, ["s:1a1SV4foo2yyF"])
 
     let sym3Doc = try await sourcekitd.completeDocumentation(id: sym3.id)
+    XCTAssertNil(sym3Doc.docComment)
     XCTAssertNil(sym3Doc.docFullAsXML)
     XCTAssertNil(sym3Doc.docBrief)
     XCTAssertEqual(sym3Doc.associatedUSRs, ["s:1a1SV4foo3yyF"])
@@ -1801,12 +1805,14 @@ private struct CompletionResult: Equatable, Sendable {
 }
 
 private struct CompletionDocumentation {
+  var docComment: String? = nil
   var docFullAsXML: String? = nil
   var docBrief: String? = nil
   var associatedUSRs: [String] = []
 
   init(_ dict: SKDResponseDictionary) {
     let keys = dict.sourcekitd.keys
+    self.docComment = dict[keys.docComment]
     self.docFullAsXML = dict[keys.docFullAsXML]
     self.docBrief = dict[keys.docBrief]
     self.associatedUSRs = dict[keys.associatedUSRs]?.asStringArray ?? []
