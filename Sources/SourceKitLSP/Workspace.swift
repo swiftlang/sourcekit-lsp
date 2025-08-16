@@ -162,12 +162,25 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     if options.backgroundIndexingOrDefault, let uncheckedIndex,
       await buildServerManager.initializationData?.prepareProvider ?? false
     {
+      let shouldIndexInParallel = await buildServerManager.initializationData?.multiTargetPreparation?.supported ?? false
+      let batchSize: Int
+      if shouldIndexInParallel {
+        if let customBatchSize = await buildServerManager.initializationData?.multiTargetPreparation?.batchSize {
+          batchSize = customBatchSize
+        } else {
+          let processorCount = ProcessInfo.processInfo.activeProcessorCount
+          batchSize = max(1, processorCount / 2)
+        }
+      } else {
+        batchSize = 1
+      }
       self.semanticIndexManager = SemanticIndexManager(
         index: uncheckedIndex,
         buildServerManager: buildServerManager,
         updateIndexStoreTimeout: options.indexOrDefault.updateIndexStoreTimeoutOrDefault,
         hooks: hooks.indexHooks,
         indexTaskScheduler: indexTaskScheduler,
+        indexTaskBatchSize: batchSize,
         logMessageToIndexLog: { [weak sourceKitLSPServer] in
           sourceKitLSPServer?.logMessageToIndexLog(message: $0, type: $1, structure: $2)
         },

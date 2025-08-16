@@ -322,7 +322,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
 
   private var connectionToClient: BuildServerManagerConnectionToClient
 
-  /// The build serer adapter that is used to answer build server queries.
+  /// The build server adapter that is used to answer build server queries.
   private var buildServerAdapter: BuildServerAdapter?
 
   /// The build server adapter after initialization finishes. When sending messages to the BSP server, this should be

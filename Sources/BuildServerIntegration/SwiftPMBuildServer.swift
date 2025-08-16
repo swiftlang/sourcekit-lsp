@@ -459,6 +459,8 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
   }
 
+  package nonisolated var supportsMultiTargetPreparation: Bool { false }
+
   package nonisolated var supportsPreparationAndOutputPaths: Bool { options.backgroundIndexingOrDefault }
 
   package var buildPath: URL {
