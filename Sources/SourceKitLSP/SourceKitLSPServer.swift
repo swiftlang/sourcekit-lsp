@@ -757,10 +757,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.declaration)
     case let request as RequestAndReply<DefinitionRequest>:
       await self.handleRequest(for: request, requestHandler: self.definition)
-    #if canImport(DocCDocumentation)
     case let request as RequestAndReply<DoccDocumentationRequest>:
       await self.handleRequest(for: request, requestHandler: self.doccDocumentation)
-    #endif
     case let request as RequestAndReply<DocumentColorRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentColor)
     case let request as RequestAndReply<DocumentDiagnosticsRequest>:
@@ -1573,7 +1571,6 @@ extension SourceKitLSPServer {
     return try await documentService(for: uri).completionItemResolve(request)
   }
 
-  #if canImport(DocCDocumentation)
   func doccDocumentation(
     _ req: DoccDocumentationRequest,
     workspace: Workspace,
@@ -1581,7 +1578,6 @@ extension SourceKitLSPServer {
   ) async throws -> DoccDocumentationResponse {
     return try await languageService.doccDocumentation(req)
   }
-  #endif
 
   func hover(
     _ req: HoverRequest,

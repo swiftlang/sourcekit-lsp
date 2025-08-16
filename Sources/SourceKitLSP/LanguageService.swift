@@ -176,9 +176,7 @@ package protocol LanguageService: AnyObject, Sendable {
   func completion(_ req: CompletionRequest) async throws -> CompletionList
   func completionItemResolve(_ req: CompletionItemResolveRequest) async throws -> CompletionItem
   func hover(_ req: HoverRequest) async throws -> HoverResponse?
-  #if canImport(DocCDocumentation)
   func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse
-  #endif
   func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails]
 
   /// Return the symbol graph at the given location for the contents of the document as they are on-disk (opposed to the

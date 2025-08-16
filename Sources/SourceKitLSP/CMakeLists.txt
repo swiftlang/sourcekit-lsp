@@ -26,10 +26,6 @@ add_library(SourceKitLSP STATIC
   TextEdit+IsNoop.swift
   Workspace.swift
 )
-target_sources(SourceKitLSP PRIVATE
-  Documentation/DocCDocumentationHandler.swift
-  Documentation/DocumentationLanguageService.swift
-)
 set_target_properties(SourceKitLSP PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY}
 )

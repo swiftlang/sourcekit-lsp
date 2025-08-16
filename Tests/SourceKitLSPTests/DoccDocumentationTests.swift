@@ -21,7 +21,6 @@ import SwiftDocC
 import XCTest
 
 final class DoccDocumentationTests: XCTestCase {
-
   func testUnsupportedLanguage() async throws {
     try await renderDocumentation(
       markedText: "1️⃣",
