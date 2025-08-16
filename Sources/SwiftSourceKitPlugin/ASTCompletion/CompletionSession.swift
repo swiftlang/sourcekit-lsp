@@ -241,9 +241,19 @@ struct ExtendedCompletionInfo {
     return result
   }
 
-  var fullDocumentation: String? {
+  var fullDocumentationAsXML: String? {
     var result: String? = nil
-    session.sourcekitd.ideApi.completion_item_get_doc_full?(session.response, rawItem) {
+    session.sourcekitd.ideApi.completion_item_get_doc_full_as_xml?(session.response, rawItem) {
+      if let cstr = $0 {
+        result = String(cString: cstr)
+      }
+    }
+    return result
+  }
+
+  var rawDocumentation: String? {
+    var result: String? = nil
+    session.sourcekitd.ideApi.completion_item_get_doc_raw?(session.response, rawItem) {
       if let cstr = $0 {
         result = String(cString: cstr)
       }

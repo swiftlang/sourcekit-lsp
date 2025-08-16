@@ -277,7 +277,7 @@ package actor SkipUnless {
     return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 2), file: file, line: line) {
       let sourcekitd = try await getSourceKitD()
 
-      return sourcekitd.ideApi.completion_item_get_doc_full != nil
+      return sourcekitd.ideApi.completion_item_get_doc_raw != nil
     }
   }
 
