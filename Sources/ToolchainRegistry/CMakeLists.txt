@@ -9,7 +9,6 @@ target_link_libraries(ToolchainRegistry PUBLIC
 LanguageServerProtocolExtensions
   SKLogging
   SwiftExtensions
-  PackageModel
   TSCBasic)
 
 target_link_libraries(ToolchainRegistry PRIVATE
