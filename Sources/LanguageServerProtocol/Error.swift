@@ -83,6 +83,9 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable, Sendable {
 
   // MARK: SourceKit-LSP specific error codes
   public static let workspaceNotOpen: ErrorCode = ErrorCode(rawValue: -32003)
+
+  /// The method is not implemented in this `LanguageService`.
+  public static let requestNotImplemented: ErrorCode = ErrorCode(rawValue: -32004)
 }
 
 /// An error response represented by a code and message.
@@ -130,6 +133,10 @@ extension ResponseError {
 
   public static func internalError(_ message: String) -> ResponseError {
     return ResponseError(code: .internalError, message: message)
+  }
+
+  public static func requestNotImplemented(_ method: any RequestType.Type) -> ResponseError {
+    return ResponseError(code: .requestNotImplemented, message: "request not implemented: \(method.method)")
   }
 }
 

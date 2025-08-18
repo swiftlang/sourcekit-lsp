@@ -18,6 +18,7 @@ import Foundation
 package import LanguageServerProtocol
 import Markdown
 import SKUtilities
+import SourceKitLSP
 import SemanticIndex
 
 extension DocumentationLanguageService {
@@ -63,9 +64,13 @@ extension DocumentationLanguageService {
             ofDocCSymbolLink: symbolLink,
             fetchSymbolGraph: { location in
               guard let symbolWorkspace = try await workspaceForDocument(uri: location.documentUri),
-                let languageService = try await languageService(for: location.documentUri, .swift, in: symbolWorkspace)
+                let languageService = await sourceKitLSPServer.languageService(
+                  for: location.documentUri,
+                  .swift,
+                  in: symbolWorkspace
+                )
               else {
-                throw ResponseError.internalError("Unable to find Swift language service for \(location.documentUri)")
+                throw ResponseError.internalError("Unable to find language service for \(location.documentUri)")
               }
               return try await languageService.symbolGraph(forOnDiskContentsOf: location.documentUri, at: location)
             }
@@ -76,9 +81,13 @@ extension DocumentationLanguageService {
         let symbolDocumentUri = symbolOccurrence.location.documentUri
         guard
           let symbolWorkspace = try await workspaceForDocument(uri: symbolDocumentUri),
-          let languageService = try await languageService(for: symbolDocumentUri, .swift, in: symbolWorkspace)
+          let languageService = await sourceKitLSPServer.languageService(
+            for: symbolDocumentUri,
+            .swift,
+            in: symbolWorkspace
+          )
         else {
-          throw ResponseError.internalError("Unable to find Swift language service for \(symbolDocumentUri)")
+          throw ResponseError.internalError("Unable to find language service for \(symbolDocumentUri)")
         }
         let symbolGraph = try await languageService.symbolGraph(
           forOnDiskContentsOf: symbolDocumentUri,

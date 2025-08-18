@@ -24,10 +24,6 @@ package import SwiftSyntax
 import TSCExtensions
 package import ToolchainRegistry
 
-#if canImport(DocCDocumentation)
-import DocCDocumentation
-#endif
-
 #if os(Windows)
 import WinSDK
 #endif
@@ -497,16 +493,16 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
-  #if canImport(DocCDocumentation)
   package func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
     guard let sourceKitLSPServer else {
       throw ResponseError.unknown("Connection to the editor closed")
     }
 
     let snapshot = try sourceKitLSPServer.documentManager.latestSnapshot(req.textDocument.uri)
-    throw ResponseError.requestFailed(doccDocumentationError: .unsupportedLanguage(snapshot.language))
+    throw ResponseError.requestFailed(
+      "Documentation preview is not available for \(snapshot.language.description) files"
+    )
   }
-  #endif
 
   package func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
     return try await forwardRequestToClangd(req)

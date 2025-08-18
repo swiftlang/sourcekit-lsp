@@ -237,7 +237,22 @@ var targets: [Target] = [
     swiftSettings: globalSwiftSettings
   ),
 
-  // MARK: DocCDocumentation
+  // MARK: DocumentationLanguageService
+
+  .target(
+    name: "DocumentationLanguageService",
+    dependencies: [
+      "BuildServerIntegration",
+      "DocCDocumentation",
+      "LanguageServerProtocol",
+      "SKUtilities",
+      "SourceKitLSP",
+      "SemanticIndex",
+      .product(name: "Markdown", package: "swift-markdown"),
+    ],
+    exclude: [],
+    swiftSettings: globalSwiftSettings
+  ),
 
   .target(
     name: "DocCDocumentation",
@@ -263,6 +278,7 @@ var targets: [Target] = [
     dependencies: [
       "BuildServerIntegration",
       "ClangLanguageService",
+      "DocumentationLanguageService",
       "LanguageServerProtocol",
       "SKLogging",
       "SKOptions",

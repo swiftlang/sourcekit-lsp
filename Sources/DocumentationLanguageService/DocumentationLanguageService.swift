@@ -14,6 +14,7 @@ import Foundation
 package import IndexStoreDB
 package import LanguageServerProtocol
 package import SKOptions
+package import SourceKitLSP
 import SwiftExtensions
 package import SwiftSyntax
 package import ToolchainRegistry
@@ -52,7 +53,7 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
 
   func languageService(
     for uri: DocumentURI,
-    _ language: Language,
+    _ language: LanguageServerProtocol.Language,
     in workspace: Workspace
   ) async throws -> LanguageService? {
     guard let sourceKitLSPServer else {
