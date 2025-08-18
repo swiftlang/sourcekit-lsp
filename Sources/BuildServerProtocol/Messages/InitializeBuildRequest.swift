@@ -373,6 +373,7 @@ public struct SourceKitInitializeBuildResponseData: LSPAnyCodable, Codable, Send
 
 public struct MultiTargetPreparationSupport: LSPAnyCodable, Codable, Sendable {
   /// Whether the build server can prepare multiple targets in parallel.
+  /// If this value is not provided, it will be assumed to be `true`.
   public var supported: Bool?
 
   /// The number of targets to prepare in parallel.

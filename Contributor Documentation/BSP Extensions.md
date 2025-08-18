@@ -41,8 +41,9 @@ export interface SourceKitInitializeBuildResponseData {
 }
 
 export interface MultiTargetPreparationSupport {
-  /** Whether the build server can prepare multiple targets in parallel. */
-  supported: bool;
+  /** Whether the build server can prepare multiple targets in parallel.
+   * If this value is not provided, it will be assumed to be `true`. */
+  supported?: bool;
 
   /** The number of targets to prepare in parallel.
    * If not provided, SourceKit-LSP will calculate an appropriate value based on the environment. */

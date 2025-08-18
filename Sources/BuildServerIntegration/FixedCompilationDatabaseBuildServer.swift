@@ -59,7 +59,7 @@ package actor FixedCompilationDatabaseBuildServer: BuiltInBuildServer {
     indexStorePath?.deletingLastPathComponent().appendingPathComponent("IndexDatabase")
   }
 
-  package nonisolated var supportsMultiTargetPreparation: Bool { false }
+  package nonisolated var supportsMultiTargetPreparation: Bool { true }
 
   package nonisolated var supportsPreparationAndOutputPaths: Bool { false }
 
