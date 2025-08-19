@@ -24,9 +24,8 @@ extension SwiftLanguageService {
   ) async throws -> GeneratedInterfaceDetails? {
     // Include build settings context to distinguish different versions/configurations
     let buildSettingsFileHash = "\(abs(document.buildSettingsFile.stringValue.hashValue))"
-    let sourcekitdDocumentName = [moduleName, groupName, buildSettingsFileHash].compactMap(\.self).joined(
-      separator: "."
-    )
+    let sourcekitdDocumentName = [moduleName, groupName, buildSettingsFileHash].compactMap(\.self)
+      .joined(separator: ".")
 
     let urlData = GeneratedInterfaceDocumentURLData(
       moduleName: moduleName,
@@ -46,7 +45,13 @@ extension SwiftLanguageService {
     if self.capabilityRegistry.clientHasExperimentalCapability(GetReferenceDocumentRequest.method) {
       return GeneratedInterfaceDetails(uri: try urlData.uri, position: position)
     }
-    let interfaceFilePath = self.generatedInterfacesPath.appendingPathComponent(urlData.displayName)
+    let interfaceFilePath = self.generatedInterfacesPath
+      .appendingPathComponent(buildSettingsFileHash)
+      .appendingPathComponent(urlData.displayName)
+    try FileManager.default.createDirectory(
+      at: interfaceFilePath.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
     try await generatedInterfaceManager.snapshot(of: urlData).text.write(
       to: interfaceFilePath,
       atomically: true,
