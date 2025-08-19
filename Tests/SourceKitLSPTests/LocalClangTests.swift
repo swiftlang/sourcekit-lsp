@@ -340,11 +340,11 @@ final class LocalClangTests: XCTestCase {
     struct MyObject * newObject();
     """.writeWithRetry(to: XCTUnwrap(headerUri.fileURL))
 
-    let clangdServer = await project.testClient.server.languageService(
+    let clangdServer = try await project.testClient.server.primaryLanguageService(
       for: mainUri,
       .c,
       in: project.testClient.server.workspaceForDocument(uri: mainUri)!
-    )!
+    )
 
     await clangdServer.documentDependenciesUpdated([mainUri])
 

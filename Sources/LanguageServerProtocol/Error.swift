@@ -85,6 +85,8 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable, Sendable {
   public static let workspaceNotOpen: ErrorCode = ErrorCode(rawValue: -32003)
 
   /// The method is not implemented in this `LanguageService`.
+  ///
+  /// This informs `SourceKitLSPServer` that it should query secondary language services for the results.
   public static let requestNotImplemented: ErrorCode = ErrorCode(rawValue: -32004)
 }
 

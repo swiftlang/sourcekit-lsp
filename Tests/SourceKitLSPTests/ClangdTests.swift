@@ -158,8 +158,10 @@ final class ClangdTests: XCTestCase {
     )
 
     // Monitor clangd to notice when it gets restarted
-    let clangdServer = try await unwrap(
-      testClient.server.languageService(for: uri, .c, in: unwrap(testClient.server.workspaceForDocument(uri: uri)))
+    let clangdServer = try await testClient.server.primaryLanguageService(
+      for: uri,
+      .c,
+      in: unwrap(testClient.server.workspaceForDocument(uri: uri))
     )
     await clangdServer.addStateChangeHandler { oldState, newState in
       if oldState == .connectionInterrupted, newState == .connected {

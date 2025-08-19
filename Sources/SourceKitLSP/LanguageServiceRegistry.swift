@@ -34,27 +34,35 @@ struct LanguageServiceType: Hashable {
 /// Registry in which conformers to `LanguageService` can be registered to server semantic functionality for a set of
 /// languages.
 package struct LanguageServiceRegistry {
-  private var byLanguage: [Language: LanguageService.Type] = [:]
+  private var byLanguage: [Language: [LanguageServiceType]] = [:]
 
   package init() {}
 
   package mutating func register(_ languageService: LanguageService.Type, for languages: [Language]) {
     for language in languages {
-      if let existingLanguageService = byLanguage[language] {
-        logger.fault(
-          "Cannot register \(languageService) for \(language, privacy: .public) because \(existingLanguageService) is already registered"
-        )
+      let services = byLanguage[language] ?? []
+      if services.contains(LanguageServiceType(languageService)) {
+        logger.fault("\(languageService) already registered for \(language, privacy: .public)")
         continue
       }
-      byLanguage[language] = languageService
+      byLanguage[language, default: []].append(LanguageServiceType(languageService))
     }
   }
 
-  func languageService(for language: Language) -> LanguageService.Type? {
-    return byLanguage[language]
+  /// The language services that can handle a document of the given language.
+  ///
+  /// Multiple language services may be able to handle a document. Depending on the use case, callers need to combine
+  /// the results of the language services.
+  /// If it is possible to merge the results of the language service (eg. combining code actions from multiple language
+  /// services), that's the preferred choice.
+  /// Otherwise the language services occurring early in the array should be given precedence and the results of the
+  /// first language service that produces some should be returned.
+  func languageServices(for language: Language) -> [LanguageService.Type] {
+    return byLanguage[language]?.map(\.type) ?? []
   }
 
+  /// All language services that are registered in the registry.
   var languageServices: Set<LanguageServiceType> {
-    return Set(byLanguage.values.map { LanguageServiceType($0) })
+    return Set(byLanguage.values.flatMap { $0 })
   }
 }

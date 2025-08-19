@@ -214,7 +214,7 @@ extension SourceKitLSPServer {
       return documentManager.fileHasInMemoryModifications(uri)
     }
 
-    let filesWithInMemoryState = documentManager.openDocuments.filter { uri in
+    let snapshotsWithInMemoryState = documentManager.openDocuments.filter { uri in
       // Use the index to check for in-memory modifications so we can re-use its cache. If no index exits, ask the
       // document manager directly.
       if let index {
@@ -222,17 +222,22 @@ extension SourceKitLSPServer {
       } else {
         return documentManagerHasInMemoryModifications(uri)
       }
+    }.compactMap { uri in
+      orLog("Getting snapshot of open document") {
+        try documentManager.latestSnapshot(uri)
+      }
     }
 
-    let testsFromFilesWithInMemoryState = await filesWithInMemoryState.concurrentMap { (uri) -> [AnnotatedTestItem] in
-      guard let languageService = workspace.documentService(for: uri) else {
-        return []
-      }
-      return await orLog("Getting document tests for \(uri)") {
+    let testsFromFilesWithInMemoryState = await snapshotsWithInMemoryState.concurrentMap {
+      (snapshot) -> [AnnotatedTestItem] in
+      // When secondary language services can provide tests, we need to query them for tests as well. For now there is
+      // too much overhead associated with calling `documentTestsWithoutMergingExtensions` for language services that
+      // don't have any test discovery functionality.
+      return await orLog("Getting document tests for \(snapshot.uri)") {
         try await self.documentTestsWithoutMergingExtensions(
-          DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)),
+          DocumentTestsRequest(textDocument: TextDocumentIdentifier(snapshot.uri)),
           workspace: workspace,
-          languageService: languageService
+          languageService: self.primaryLanguageService(for: snapshot.uri, snapshot.language, in: workspace)
         )
       } ?? []
     }.flatMap { $0 }
@@ -262,7 +267,7 @@ extension SourceKitLSPServer {
           // don't need to include results from the syntactic index.
           return nil
         }
-        if filesWithInMemoryState.contains(testItem.location.uri) {
+        if snapshotsWithInMemoryState.contains(where: { $0.uri == testItem.location.uri }) {
           // If the file has been modified in the editor, the syntactic index (which indexes on-disk files) is no longer
           // up-to-date. Include the tests from `testsFromFilesWithInMemoryState`.
           return nil

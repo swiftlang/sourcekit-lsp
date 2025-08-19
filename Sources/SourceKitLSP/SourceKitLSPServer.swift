@@ -274,16 +274,6 @@ package actor SourceKitLSPServer {
     }.valuePropagatingCancellation
   }
 
-  private func documentService(for uri: DocumentURI) async throws -> LanguageService {
-    guard let workspace = await self.workspaceForDocument(uri: uri) else {
-      throw ResponseError.workspaceNotOpen(uri)
-    }
-    guard let languageService = workspace.documentService(for: uri) else {
-      throw ResponseError.unknown("No language service for '\(uri)' found")
-    }
-    return languageService
-  }
-
   /// This method must be executed on `workspaceQueue` to ensure that the file handling capabilities of the
   /// workspaces don't change during the computation. Otherwise, we could run into a race condition like the following:
   ///  1. We don't have an entry for file `a.swift` in `workspaceForUri` and start the computation
@@ -385,11 +375,9 @@ package actor SourceKitLSPServer {
 
     // This should be created as soon as we receive an open call, even if the document
     // isn't yet ready.
-    guard let languageService = workspace.documentService(for: doc) else {
-      return
+    for languageService in workspace.languageServices(for: doc) {
+      await notificationHandler(notification, languageService)
     }
-
-    await notificationHandler(notification, languageService)
   }
 
   private func handleRequest<RequestType: TextDocumentRequest>(
@@ -406,10 +394,19 @@ package actor SourceKitLSPServer {
       guard let workspace = await self.workspaceForDocument(uri: request.textDocument.uri) else {
         throw ResponseError.workspaceNotOpen(request.textDocument.uri)
       }
-      guard let languageService = workspace.documentService(for: doc) else {
+      let languageServices = workspace.languageServices(for: doc)
+      if languageServices.isEmpty {
         throw ResponseError.unknown("No language service for '\(request.textDocument.uri)' found")
       }
-      return try await requestHandler(request, workspace, languageService)
+      // Return the results from the first language service that doesn't throw a `requestNotImplemented` error.
+      for languageService in languageServices {
+        do {
+          return try await requestHandler(request, workspace, languageService)
+        } catch let error as ResponseError where error.code == .requestNotImplemented {
+          continue
+        }
+      }
+      throw ResponseError.unknown("No language service implements request")
     }
   }
 
@@ -429,7 +426,7 @@ package actor SourceKitLSPServer {
       guard let workspace = await self.workspaceForDocument(uri: documentUri) else {
         continue
       }
-      guard workspace.documentService(for: documentUri) === languageService else {
+      guard workspace.languageServices(for: documentUri).contains(where: { $0 === languageService }) else {
         continue
       }
       guard let snapshot = try? self.documentManager.latestSnapshot(documentUri) else {
@@ -437,7 +434,10 @@ package actor SourceKitLSPServer {
         continue
       }
 
-      // Close the document properly in the document manager and build server manager to start with a clean sheet when re-opening it.
+      // Close the document properly in the document manager and build server manager to start with a clean sheet when
+      // re-opening it.
+      // This closes and re-opens the document in all of its language services, not just the crashed language service
+      // but since crashing language services should be rare, this is acceptable.
       let closeNotification = DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(documentUri))
       await self.closeDocument(closeNotification, workspace: workspace)
 
@@ -466,94 +466,113 @@ package actor SourceKitLSPServer {
     return nil
   }
 
-  func languageService(
+  /// Get the language services that can handle the given languages in the given workspace using the given toolchain.
+  ///
+  /// If we have language services that can handle this combination but that haven't been started yet, start them.
+  func languageServices(
     for toolchain: Toolchain,
     _ language: Language,
     in workspace: Workspace
-  ) async -> LanguageService? {
-    guard let serverType = languageServiceRegistry.languageService(for: language) else {
-      logger.error("Unable to infer language server type for language '\(language)'")
-      return nil
-    }
-    // Pick the first language service that can handle this workspace.
-    if let languageService = existingLanguageService(serverType, toolchain: toolchain, workspace: workspace) {
-      return languageService
-    }
-
-    // Start a new service.
-    return await orLog("failed to start language service", level: .error) { [options = workspace.options, hooks] in
-      let service = try await serverType.init(
-        sourceKitLSPServer: self,
-        toolchain: toolchain,
-        options: options,
-        hooks: hooks,
-        workspace: workspace
-      )
-
-      guard let service else {
-        return nil
+  ) async -> [LanguageService] {
+    var result: [any LanguageService] = []
+    for serverType in languageServiceRegistry.languageServices(for: language) {
+      if let languageService = existingLanguageService(serverType, toolchain: toolchain, workspace: workspace) {
+        result.append(languageService)
+        continue
       }
 
-      let pid = Int(ProcessInfo.processInfo.processIdentifier)
-      let resp = try await service.initialize(
-        InitializeRequest(
-          processId: pid,
-          rootPath: nil,
-          rootURI: workspace.rootUri,
-          initializationOptions: nil,
-          capabilities: workspace.capabilityRegistry.clientCapabilities,
-          trace: .off,
-          workspaceFolders: nil
+      // Start a new service.
+      let languageService: (any LanguageService)? = await orLog("failed to start language service") {
+        [options = workspace.options, hooks] in
+        let service = try await serverType.init(
+          sourceKitLSPServer: self,
+          toolchain: toolchain,
+          options: options,
+          hooks: hooks,
+          workspace: workspace
         )
-      )
-      let languages = languageClass(for: language)
-      await self.registerCapabilities(
-        for: resp.capabilities,
-        languages: languages,
-        registry: workspace.capabilityRegistry
-      )
 
-      var syncKind: TextDocumentSyncKind
-      switch resp.capabilities.textDocumentSync {
-      case .options(let options):
-        syncKind = options.change ?? .incremental
-      case .kind(let kind):
-        syncKind = kind
-      default:
-        syncKind = .incremental
+        guard let service else {
+          return nil
+        }
+
+        let pid = Int(ProcessInfo.processInfo.processIdentifier)
+        let resp = try await service.initialize(
+          InitializeRequest(
+            processId: pid,
+            rootPath: nil,
+            rootURI: workspace.rootUri,
+            initializationOptions: nil,
+            capabilities: workspace.capabilityRegistry.clientCapabilities,
+            trace: .off,
+            workspaceFolders: nil
+          )
+        )
+        let languages = languageClass(for: language)
+        await self.registerCapabilities(
+          for: resp.capabilities,
+          languages: languages,
+          registry: workspace.capabilityRegistry
+        )
+
+        var syncKind: TextDocumentSyncKind
+        switch resp.capabilities.textDocumentSync {
+        case .options(let options):
+          syncKind = options.change ?? .incremental
+        case .kind(let kind):
+          syncKind = kind
+        default:
+          syncKind = .incremental
+        }
+        guard syncKind == .incremental else {
+          throw ResponseError.internalError("non-incremental update not implemented")
+        }
+
+        await service.clientInitialized(InitializedNotification())
+
+        if let concurrentlyInitializedService = existingLanguageService(
+          serverType,
+          toolchain: toolchain,
+          workspace: workspace
+        ) {
+          // Since we 'await' above, another call to languageService might have
+          // happened concurrently, passed the `existingLanguageService` check at
+          // the top and started initializing another language service.
+          // If this race happened, just shut down our server and return the
+          // other one.
+          await service.shutdown()
+          return concurrentlyInitializedService
+        }
+
+        languageServices[LanguageServiceType(serverType), default: []].append(service)
+        return service
       }
-      guard syncKind == .incremental else {
-        throw ResponseError.internalError("non-incremental update not implemented")
+      guard let languageService else {
+        // If a language service fails to start, don't try starting language services with lower precedence. Otherwise
+        // we get into a situation where eg. `SwiftLanguageService`` fails to start (eg. because the toolchain doesn't
+        // contain sourcekitd) and the `DocumentationLanguageService` now becomes the primary language service for the
+        // document, trying to serve documentation, completion etc. which is not intended.
+        break
       }
-
-      await service.clientInitialized(InitializedNotification())
-
-      if let concurrentlyInitializedService = existingLanguageService(
-        serverType,
-        toolchain: toolchain,
-        workspace: workspace
-      ) {
-        // Since we 'await' above, another call to languageService might have
-        // happened concurrently, passed the `existingLanguageService` check at
-        // the top and started initializing another language service.
-        // If this race happened, just shut down our server and return the
-        // other one.
-        await service.shutdown()
-        return concurrentlyInitializedService
-      }
-
-      languageServices[LanguageServiceType(serverType), default: []].append(service)
-      return service
+      result.append(languageService)
     }
+    if result.isEmpty {
+      logger.error("Unable to infer language server type for language '\(language)'")
+    }
+    return result
   }
 
-  package func languageService(
+  /// Get the language services that can handle the given document.
+  ///
+  /// If we have language services that can handle this document but that haven't been started yet, start them.
+  package func languageServices(
     for uri: DocumentURI,
     _ language: Language,
     in workspace: Workspace
-  ) async -> LanguageService? {
-    if let service = workspace.documentService(for: uri) {
-      return service
+  ) async -> [LanguageService] {
+    let existingLanguageServices = workspace.languageServices(for: uri)
+    if !existingLanguageServices.isEmpty {
+      return existingLanguageServices
     }
 
     let toolchain = await workspace.buildServerManager.toolchain(
@@ -563,11 +582,12 @@ package actor SourceKitLSPServer {
     )
     guard let toolchain else {
       logger.error("Failed to determine toolchain for \(uri)")
-      return nil
+      return []
     }
-    guard let service = await languageService(for: toolchain, language, in: workspace) else {
-      logger.error("Failed to create language service for \(uri)")
-      return nil
+    let languageServices = await self.languageServices(for: toolchain, language, in: workspace)
+
+    if languageServices.isEmpty {
+      logger.error("No language service found to handle \(uri.forLogging)")
     }
 
     logger.log(
@@ -577,7 +597,23 @@ package actor SourceKitLSPServer {
       """
     )
 
-    return workspace.setDocumentService(for: uri, service)
+    return workspace.setLanguageServices(for: uri, languageServices)
+  }
+
+  /// The language service with the highest precedence that can handle the given document.
+  ///
+  /// If we have language services that can handle this document but that haven't been started yet, start them.
+  ///
+  /// If no language service exists for this document, throw an error.
+  package func primaryLanguageService(
+    for uri: DocumentURI,
+    _ language: Language,
+    in workspace: Workspace
+  ) async throws -> LanguageService {
+    guard let languageService = await languageServices(for: uri, language, in: workspace).first else {
+      throw ResponseError.unknown("No language service found for \(uri)")
+    }
+    return languageService
   }
 }
 
@@ -1302,15 +1338,19 @@ extension SourceKitLSPServer {
     let uri = textDocument.uri
     let language = textDocument.language
 
-    // If we can't create a service, this document is unsupported and we can bail here.
-    guard let service = await languageService(for: uri, language, in: workspace) else {
+    let languageServices = await languageServices(for: uri, language, in: workspace)
+
+    if languageServices.isEmpty {
+      // If we can't create a service, this document is unsupported and we can bail here.
       return
     }
 
     await workspace.buildServerManager.registerForChangeNotifications(for: uri, language: language)
 
     // If the document is ready, we can immediately send the notification.
-    await service.openDocument(notification, snapshot: snapshot)
+    for languageService in languageServices {
+      await languageService.openDocument(notification, snapshot: snapshot)
+    }
   }
 
   func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
@@ -1332,7 +1372,10 @@ extension SourceKitLSPServer {
       )
       return
     }
-    await workspace.documentService(for: uri)?.reopenDocument(notification)
+
+    for languageService in workspace.languageServices(for: uri) {
+      await languageService.reopenDocument(notification)
+    }
   }
 
   func closeDocument(_ notification: DidCloseTextDocumentNotification, workspace: Workspace) async {
@@ -1346,7 +1389,9 @@ extension SourceKitLSPServer {
 
     await workspace.buildServerManager.unregisterForChangeNotifications(for: uri)
 
-    await workspace.documentService(for: uri)?.closeDocument(notification)
+    for languageService in workspace.languageServices(for: uri) {
+      await languageService.closeDocument(notification)
+    }
 
     workspaceQueue.async {
       self.workspaceForUri[notification.textDocument.uri] = nil
@@ -1376,12 +1421,14 @@ extension SourceKitLSPServer {
       // Already logged failure
       return
     }
-    await workspace.documentService(for: uri)?.changeDocument(
-      notification,
-      preEditSnapshot: preEditSnapshot,
-      postEditSnapshot: postEditSnapshot,
-      edits: edits
-    )
+    for languageService in workspace.languageServices(for: uri) {
+      await languageService.changeDocument(
+        notification,
+        preEditSnapshot: preEditSnapshot,
+        postEditSnapshot: postEditSnapshot,
+        edits: edits
+      )
+    }
   }
 
   /// If the client doesn't support the `window/didChangeActiveDocument` notification, when the client interacts with a
@@ -1568,7 +1615,11 @@ extension SourceKitLSPServer {
     else {
       return request.item
     }
-    return try await documentService(for: uri).completionItemResolve(request)
+    guard let workspace = await self.workspaceForDocument(uri: uri) else {
+      throw ResponseError.workspaceNotOpen(uri)
+    }
+    let language = try documentManager.latestSnapshot(uri.buildSettingsFile).language
+    return try await primaryLanguageService(for: uri, language, in: workspace).completionItemResolve(request)
   }
 
   func doccDocumentation(
@@ -1767,21 +1818,44 @@ extension SourceKitLSPServer {
       command: req.command,
       arguments: req.argumentsWithoutSourceKitMetadata
     )
-    return try await documentService(for: uri).executeCommand(executeCommand)
+    guard let workspace = await self.workspaceForDocument(uri: uri) else {
+      throw ResponseError.workspaceNotOpen(uri)
+    }
+    let language = try documentManager.latestSnapshot(uri.buildSettingsFile).language
+    // First, check if we have a language service that explicitly declares support for this command.
+    if let languageService = await languageServices(for: uri, language, in: workspace)
+      .first(where: { type(of: $0).builtInCommands.contains(req.command) })
+    {
+      return try await languageService.executeCommand(executeCommand)
+    }
+    // Otherwise handle it in the primary language service. This is important to handle eg. commands in clangd, which
+    // are not declared as built-in commands.
+    return try await primaryLanguageService(for: uri, language, in: workspace).executeCommand(executeCommand)
   }
 
   func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
     let buildSettingsUri = try ReferenceDocumentURL(from: req.uri).buildSettingsFile
 
-    guard let workspace = await workspaceForDocument(uri: buildSettingsUri) else {
+    guard let workspace = await self.workspaceForDocument(uri: buildSettingsUri) else {
       throw ResponseError.workspaceNotOpen(buildSettingsUri)
     }
+    let language: Language
 
-    guard let languageService = workspace.documentService(for: buildSettingsUri) else {
-      throw ResponseError.unknown("No Language Service for URI: \(buildSettingsUri)")
+    // The document that provided the build settings might no longer be open, so we need to be able to infer the
+    // language by other means as well.
+    if let snapshot = try? documentManager.latestSnapshot(buildSettingsUri) {
+      language = snapshot.language
+    } else if let target = await workspace.buildServerManager.canonicalTarget(for: buildSettingsUri),
+      let lang = await workspace.buildServerManager.defaultLanguage(for: buildSettingsUri, in: target)
+    {
+      language = lang
+    } else if let lang = Language(inferredFromFileExtension: buildSettingsUri) {
+      language = lang
+    } else {
+      throw ResponseError.unknown("Unable to infer language for \(buildSettingsUri)")
     }
 
-    return try await languageService.getReferenceDocument(req)
+    return try await primaryLanguageService(for: buildSettingsUri, language, in: workspace).getReferenceDocument(req)
   }
 
   func codeAction(

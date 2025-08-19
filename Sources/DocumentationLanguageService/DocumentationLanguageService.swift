@@ -51,17 +51,6 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     return await sourceKitLSPServer.workspaceForDocument(uri: uri)
   }
 
-  func languageService(
-    for uri: DocumentURI,
-    _ language: LanguageServerProtocol.Language,
-    in workspace: Workspace
-  ) async throws -> LanguageService? {
-    guard let sourceKitLSPServer else {
-      throw ResponseError.unknown("Connection to the editor closed")
-    }
-    return await sourceKitLSPServer.languageService(for: uri, language, in: workspace)
-  }
-
   package nonisolated func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool {
     return true
   }
