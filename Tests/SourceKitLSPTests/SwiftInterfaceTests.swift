@@ -341,8 +341,8 @@ final class SwiftInterfaceTests: XCTestCase {
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
     let foundationLocation = try XCTUnwrap(foundationDefinition?.locations?.only)
-    XCTAssertTrue(foundationLocation.uri.scheme == "sourcekit-lsp")
-    XCTAssertTrue(foundationLocation.uri.pseudoPath.contains("Foundation.swiftinterface"))
+    XCTAssertEqual(foundationLocation.uri.scheme, "sourcekit-lsp")  
+    assertContains(foundationLocation.uri.pseudoPath, "Foundation.swiftinterface")  
   }
 
   func testFoundationSubmoduleNavigation() async throws {
@@ -364,8 +364,8 @@ final class SwiftInterfaceTests: XCTestCase {
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
     let foundationLocation = try XCTUnwrap(foundationDefinition?.locations?.only)
-    XCTAssertTrue(foundationLocation.uri.pseudoPath.contains("Foundation.swiftinterface"))
-    XCTAssertTrue(foundationLocation.uri.scheme == "sourcekit-lsp")
+        XCTAssertEqual(foundationLocation.uri.scheme, "sourcekit-lsp")  
+    assertContains(foundationLocation.uri.pseudoPath, "Foundation.swiftinterface")  
 
     // Test navigation to NSAffineTransform
     let transformDefinition = try await testClient.send(
@@ -373,8 +373,8 @@ final class SwiftInterfaceTests: XCTestCase {
     )
     let transformLocation = try XCTUnwrap(transformDefinition?.locations?.only)
     // Verify we can identify this as a swiftinterface file
-    XCTAssertTrue(transformLocation.uri.pseudoPath.contains("Foundation.NSAffineTransform.swiftinterface"))
-    XCTAssertTrue(transformLocation.uri.scheme == "sourcekit-lsp")
+    XCTAssertEqual(transformLocation.uri.scheme, "sourcekit-lsp")
+    assertContains(transformLocation.uri.pseudoPath, "Foundation.NSAffineTransform.swiftinterface")
   }
 }
 
