@@ -1923,10 +1923,24 @@ extension SourceKitLSPServer {
     languageService: LanguageService
   ) async throws -> [Location] {
     // If this symbol is a module then generate a textual interface
-    if symbol.kind == .module, let name = symbol.name {
+    if symbol.kind == .module {
+      // For module symbols, prefer using systemModule information if available
+      let moduleName: String
+      let groupName: String?
+
+      if let systemModule = symbol.systemModule {
+        moduleName = systemModule.moduleName
+        groupName = systemModule.groupName
+      } else if let name = symbol.name {
+        moduleName = name
+        groupName = nil
+      } else {
+        return []
+      }
+
       let interfaceLocation = try await self.definitionInInterface(
-        moduleName: name,
-        groupName: nil,
+        moduleName: moduleName,
+        groupName: groupName,
         symbolUSR: nil,
         originatorUri: uri,
         languageService: languageService
@@ -2124,9 +2138,12 @@ extension SourceKitLSPServer {
     originatorUri: DocumentURI,
     languageService: LanguageService
   ) async throws -> Location {
+    // Let openGeneratedInterface handle all the logic, including checking if we're already in the right interface
+    let documentForBuildSettings = originatorUri.buildSettingsFile
+
     guard
       let interfaceDetails = try await languageService.openGeneratedInterface(
-        document: originatorUri,
+        document: documentForBuildSettings,
         moduleName: moduleName,
         groupName: groupName,
         symbolUSR: symbolUSR

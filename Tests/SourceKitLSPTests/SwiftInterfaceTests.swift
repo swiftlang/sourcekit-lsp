@@ -319,6 +319,65 @@ final class SwiftInterfaceTests: XCTestCase {
     )
     XCTAssertEqual(diagnostics.fullReport?.items, [])
   }
+
+  func testFoundationImportNavigation() async throws {
+    let testClient = try await TestSourceKitLSPClient(
+      capabilities: ClientCapabilities(experimental: [
+        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+      ])
+    )
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import 1️⃣Foundation
+      """,
+      uri: uri,
+      language: .swift
+    )
+
+    // Test navigation to Foundation module
+    let foundationDefinition = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let foundationLocation = try XCTUnwrap(foundationDefinition?.locations?.only)
+    XCTAssertEqual(foundationLocation.uri.scheme, "sourcekit-lsp")
+    assertContains(foundationLocation.uri.pseudoPath, "Foundation.swiftinterface")
+  }
+
+  func testFoundationSubmoduleNavigation() async throws {
+    try SkipUnless.platformIsDarwin("Non-Darwin platforms don't have Foundation submodules")
+
+    let testClient = try await TestSourceKitLSPClient(
+      capabilities: ClientCapabilities(experimental: [
+        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+      ])
+    )
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import 1️⃣Foundation.2️⃣NSAffineTransform
+      """,
+      uri: uri
+    )
+
+    let foundationDefinition = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let foundationLocation = try XCTUnwrap(foundationDefinition?.locations?.only)
+    XCTAssertEqual(foundationLocation.uri.scheme, "sourcekit-lsp")
+    assertContains(foundationLocation.uri.pseudoPath, "Foundation.swiftinterface")
+
+    // Test navigation to NSAffineTransform
+    let transformDefinition = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let transformLocation = try XCTUnwrap(transformDefinition?.locations?.only)
+    // Verify we can identify this as a swiftinterface file
+    XCTAssertEqual(transformLocation.uri.scheme, "sourcekit-lsp")
+    assertContains(transformLocation.uri.pseudoPath, "Foundation.NSAffineTransform.swiftinterface")
+  }
 }
 
 private func assertSystemSwiftInterface(
