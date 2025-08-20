@@ -136,8 +136,15 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
   package func symbolGraph(
     forOnDiskContentsOf symbolDocumentUri: DocumentURI,
     at location: SymbolLocation
-  ) async throws -> String? {
-    return nil
+  ) async throws -> String {
+    throw ResponseError.internalError("Not applicable")
+  }
+
+  package func symbolGraph(
+    for snapshot: SourceKitLSP.DocumentSnapshot,
+    at position: LanguageServerProtocol.Position
+  ) async throws -> (symbolGraph: String, usr: String, overrideDocComments: [String]) {
+    throw ResponseError.internalError("Not applicable")
   }
 
   package func openGeneratedInterface(
