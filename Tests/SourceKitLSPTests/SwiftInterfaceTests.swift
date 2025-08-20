@@ -346,6 +346,8 @@ final class SwiftInterfaceTests: XCTestCase {
   }
 
   func testFoundationSubmoduleNavigation() async throws {
+    try SkipUnless.platformIsDarwin("Non-Darwin platforms don't have Foundation submodules")
+
     let testClient = try await TestSourceKitLSPClient(
       capabilities: ClientCapabilities(experimental: [
         GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
