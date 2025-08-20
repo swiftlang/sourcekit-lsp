@@ -34,7 +34,7 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
 
   package static var builtInCommands: [String] { [] }
 
-  package init?(
+  package init(
     sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
     options: SourceKitLSPOptions,

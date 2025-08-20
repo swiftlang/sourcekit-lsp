@@ -197,14 +197,18 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the `SwiftLanguageService` asks its
   /// parent server to reopen all of its documents.
   /// Returns `nil` if `sourcekitd` couldn't be found.
-  package init?(
+  package init(
     sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
     options: SourceKitLSPOptions,
     hooks: Hooks,
     workspace: Workspace
   ) async throws {
-    guard let sourcekitd = toolchain.sourcekitd else { return nil }
+    guard let sourcekitd = toolchain.sourcekitd else {
+      throw ResponseError.unknown(
+        "Cannot create SwiftLanguage service because \(toolchain.identifier) does not contain sourcekitd"
+      )
+    }
     self.sourcekitdPath = sourcekitd
     self.sourceKitLSPServer = sourceKitLSPServer
     self.swiftFormat = toolchain.swiftFormat
