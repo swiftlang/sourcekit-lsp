@@ -51,6 +51,10 @@ package final actor CapabilityRegistry {
     clientCapabilities.textDocument?.completion?.dynamicRegistration == true
   }
 
+  package var clientHasDynamicSignatureHelpRegistration: Bool {
+    clientCapabilities.textDocument?.signatureHelp?.dynamicRegistration == true
+  }
+
   package var clientHasDynamicFoldingRangeRegistration: Bool {
     clientCapabilities.textDocument?.foldingRange?.dynamicRegistration == true
   }

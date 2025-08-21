@@ -1,0 +1,87 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the Swift.org open source project
+//
+// Copyright (c) 2025 Apple Inc. and the Swift project authors
+// Licensed under Apache License v2.0 with Runtime Library Exception
+//
+// See https://swift.org/LICENSE.txt for license information
+// See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+//
+//===----------------------------------------------------------------------===//
+
+import Foundation
+package import LanguageServerProtocol
+import SKLogging
+import SourceKitD
+import SourceKitLSP
+import SwiftBasicFormat
+
+fileprivate extension ParameterInformation {
+  init?(_ parameter: SKDResponseDictionary, _ keys: sourcekitd_api_keys) {
+    guard let nameOffset = parameter[keys.nameOffset] as Int?,
+      let nameLength = parameter[keys.nameLength] as Int?
+    else {
+      return nil
+    }
+
+    self.init(label: .offsets(start: nameOffset, end: nameOffset + nameLength))
+  }
+}
+
+fileprivate extension SignatureInformation {
+  init?(_ signature: SKDResponseDictionary, _ keys: sourcekitd_api_keys) {
+    guard let label = signature[keys.name] as String?,
+      let activeParameter = signature[keys.activeParameter] as Int?,
+      let skParameters = signature[keys.parameters] as SKDResponseArray?
+    else {
+      return nil
+    }
+
+    let parameters = skParameters.compactMap { ParameterInformation($0, keys) }
+
+    let documentation: StringOrMarkupContent? = signature[keys.docComment].map {
+      .markupContent(MarkupContent(kind: .markdown, value: $0))
+    }
+
+    self.init(
+      label: label,
+      documentation: documentation,
+      parameters: parameters,
+      activeParameter: activeParameter
+    )
+  }
+}
+
+fileprivate extension SignatureHelp {
+  init?(_ dict: SKDResponseDictionary, _ keys: sourcekitd_api_keys) {
+    guard let skSignatures = dict[keys.signatures] as SKDResponseArray?,
+      let activeSignature = dict[keys.activeSignature] as Int?
+    else {
+      return nil
+    }
+
+    let signatures = skSignatures.compactMap { SignatureInformation($0, keys) }
+
+    self.init(signatures: signatures, activeSignature: activeSignature)
+  }
+}
+
+extension SwiftLanguageService {
+  package func signatureHelp(_ req: SignatureHelpRequest) async throws -> SignatureHelp? {
+    let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
+
+    let compileCommand = await compileCommand(for: snapshot.uri, fallbackAfterTimeout: false)
+
+    let skreq = sourcekitd.dictionary([
+      keys.offset: snapshot.utf8Offset(of: req.position),
+      keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
+      keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
+      keys.compilerArgs: compileCommand?.compilerArgs as [SKDRequestValue]?,
+    ])
+
+    let dict = try await send(sourcekitdRequest: \.signatureHelp, skreq, snapshot: snapshot)
+
+    return SignatureHelp(dict, keys)
+  }
+}

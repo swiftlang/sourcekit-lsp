@@ -103,6 +103,14 @@ package struct sourcekitd_api_keys {
   package let fullyAnnotatedDecl: sourcekitd_api_uid_t
   /// `key.fully_annotated_generic_signature`
   package let fullyAnnotatedGenericSignature: sourcekitd_api_uid_t
+  /// `key.signatures`
+  package let signatures: sourcekitd_api_uid_t
+  /// `key.active_signature`
+  package let activeSignature: sourcekitd_api_uid_t
+  /// `key.parameters`
+  package let parameters: sourcekitd_api_uid_t
+  /// `key.active_parameter`
+  package let activeParameter: sourcekitd_api_uid_t
   /// `key.doc.brief`
   package let docBrief: sourcekitd_api_uid_t
   /// `key.context`
@@ -411,6 +419,8 @@ package struct sourcekitd_api_keys {
   package let indexUnitOutputPath: sourcekitd_api_uid_t
   /// `key.include_locals`
   package let includeLocals: sourcekitd_api_uid_t
+  /// `key.compress`
+  package let compress: sourcekitd_api_uid_t
   /// `key.ignore_clang_modules`
   package let ignoreClangModules: sourcekitd_api_uid_t
   /// `key.include_system_modules`
@@ -566,6 +576,10 @@ package struct sourcekitd_api_keys {
     annotatedDecl = api.uid_get_from_cstr("key.annotated_decl")!
     fullyAnnotatedDecl = api.uid_get_from_cstr("key.fully_annotated_decl")!
     fullyAnnotatedGenericSignature = api.uid_get_from_cstr("key.fully_annotated_generic_signature")!
+    signatures = api.uid_get_from_cstr("key.signatures")!
+    activeSignature = api.uid_get_from_cstr("key.active_signature")!
+    parameters = api.uid_get_from_cstr("key.parameters")!
+    activeParameter = api.uid_get_from_cstr("key.active_parameter")!
     docBrief = api.uid_get_from_cstr("key.doc.brief")!
     context = api.uid_get_from_cstr("key.context")!
     typeRelation = api.uid_get_from_cstr("key.typerelation")!
@@ -720,6 +734,7 @@ package struct sourcekitd_api_keys {
     indexStorePath = api.uid_get_from_cstr("key.index_store_path")!
     indexUnitOutputPath = api.uid_get_from_cstr("key.index_unit_output_path")!
     includeLocals = api.uid_get_from_cstr("key.include_locals")!
+    compress = api.uid_get_from_cstr("key.compress")!
     ignoreClangModules = api.uid_get_from_cstr("key.ignore_clang_modules")!
     includeSystemModules = api.uid_get_from_cstr("key.include_system_modules")!
     ignoreStdlib = api.uid_get_from_cstr("key.ignore_stdlib")!
@@ -809,6 +824,8 @@ package struct sourcekitd_api_requests {
   package let codeCompleteSetPopularAPI: sourcekitd_api_uid_t
   /// `source.request.codecomplete.setcustom`
   package let codeCompleteSetCustom: sourcekitd_api_uid_t
+  /// `source.request.signaturehelp`
+  package let signatureHelp: sourcekitd_api_uid_t
   /// `source.request.typecontextinfo`
   package let typeContextInfo: sourcekitd_api_uid_t
   /// `source.request.conformingmethods`
@@ -907,6 +924,7 @@ package struct sourcekitd_api_requests {
     codeCompleteCacheOnDisk = api.uid_get_from_cstr("source.request.codecomplete.cache.ondisk")!
     codeCompleteSetPopularAPI = api.uid_get_from_cstr("source.request.codecomplete.setpopularapi")!
     codeCompleteSetCustom = api.uid_get_from_cstr("source.request.codecomplete.setcustom")!
+    signatureHelp = api.uid_get_from_cstr("source.request.signaturehelp")!
     typeContextInfo = api.uid_get_from_cstr("source.request.typecontextinfo")!
     conformingMethodList = api.uid_get_from_cstr("source.request.conformingmethods")!
     activeRegions = api.uid_get_from_cstr("source.request.activeregions")!
