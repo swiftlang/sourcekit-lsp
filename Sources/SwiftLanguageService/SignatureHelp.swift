@@ -71,10 +71,12 @@ extension SwiftLanguageService {
   package func signatureHelp(_ req: SignatureHelpRequest) async throws -> SignatureHelp? {
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
 
+    let adjustedPosition = await adjustPositionToStartOfArgument(req.position, in: snapshot)
+
     let compileCommand = await compileCommand(for: snapshot.uri, fallbackAfterTimeout: false)
 
     let skreq = sourcekitd.dictionary([
-      keys.offset: snapshot.utf8Offset(of: req.position),
+      keys.offset: snapshot.utf8Offset(of: adjustedPosition),
       keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
       keys.compilerArgs: compileCommand?.compilerArgs as [SKDRequestValue]?,
