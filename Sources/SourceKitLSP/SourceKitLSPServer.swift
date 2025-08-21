@@ -781,6 +781,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.completion)
     case let request as RequestAndReply<CompletionItemResolveRequest>:
       await request.reply { try await completionItemResolve(request: request.params) }
+    case let request as RequestAndReply<SignatureHelpRequest>:
+      await self.handleRequest(for: request, requestHandler: self.signatureHelp)
     case let request as RequestAndReply<DeclarationRequest>:
       await self.handleRequest(for: request, requestHandler: self.declaration)
     case let request as RequestAndReply<DefinitionRequest>:
@@ -1076,6 +1078,14 @@ extension SourceKitLSPServer {
         triggerCharacters: [".", "("]
       )
 
+    let signatureHelpOptions =
+      await registry.clientHasDynamicSignatureHelpRegistration
+      ? nil
+      : LanguageServerProtocol.SignatureHelpOptions(
+        triggerCharacters: ["(", "["],
+        retriggerCharacters: [",", ":"]
+      )
+
     let onTypeFormattingOptions =
       options.hasExperimentalFeature(.onTypeFormatting)
       ? DocumentOnTypeFormattingOptions(triggerCharacters: ["\n", "\r\n", "\r", "{", "}", ";", ".", ":", "#"])
@@ -1130,6 +1140,7 @@ extension SourceKitLSPServer {
       ),
       hoverProvider: .bool(true),
       completionProvider: completionOptions,
+      signatureHelpProvider: signatureHelpOptions,
       definitionProvider: .bool(true),
       implementationProvider: .bool(true),
       referencesProvider: .bool(true),
@@ -1637,6 +1648,14 @@ extension SourceKitLSPServer {
     languageService: LanguageService
   ) async throws -> HoverResponse? {
     return try await languageService.hover(req)
+  }
+
+  func signatureHelp(
+    _ req: SignatureHelpRequest,
+    workspace: Workspace,
+    languageService: LanguageService
+  ) async throws -> SignatureHelp? {
+    return try await languageService.signatureHelp(req)
   }
 
   /// Handle a workspace/symbol request, returning the SymbolInformation.

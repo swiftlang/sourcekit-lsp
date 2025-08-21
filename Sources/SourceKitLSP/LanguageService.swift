@@ -196,6 +196,7 @@ package protocol LanguageService: AnyObject, Sendable {
 
   func completion(_ req: CompletionRequest) async throws -> CompletionList
   func completionItemResolve(_ req: CompletionItemResolveRequest) async throws -> CompletionItem
+  func signatureHelp(_ req: SignatureHelpRequest) async throws -> SignatureHelp?
   func hover(_ req: HoverRequest) async throws -> HoverResponse?
   func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse
   func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails]
@@ -368,6 +369,10 @@ package extension LanguageService {
 
   func completionItemResolve(_ req: CompletionItemResolveRequest) async throws -> CompletionItem {
     throw ResponseError.requestNotImplemented(CompletionItemResolveRequest.self)
+  }
+
+  func signatureHelp(_ req: SignatureHelpRequest) async throws -> SignatureHelp? {
+    throw ResponseError.requestNotImplemented(SignatureHelpRequest.self)
   }
 
   func hover(_ req: HoverRequest) async throws -> HoverResponse? {
