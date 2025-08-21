@@ -386,6 +386,10 @@ extension SwiftLanguageService {
           resolveProvider: true,
           triggerCharacters: [".", "("]
         ),
+        signatureHelpProvider: SignatureHelpOptions(
+          triggerCharacters: ["(", "["],
+          retriggerCharacters: [",", ":"]
+        ),
         definitionProvider: nil,
         implementationProvider: .bool(true),
         referencesProvider: nil,

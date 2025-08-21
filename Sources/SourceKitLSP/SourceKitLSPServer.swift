@@ -1156,6 +1156,9 @@ extension SourceKitLSPServer {
     if let completionOptions = server.completionProvider {
       await registry.registerCompletionIfNeeded(options: completionOptions, for: languages, server: self)
     }
+    if let signatureHelpOptions = server.signatureHelpProvider {
+      await registry.registerSignatureHelpIfNeeded(options: signatureHelpOptions, for: languages, server: self)
+    }
     if server.foldingRangeProvider?.isSupported == true {
       await registry.registerFoldingRangeIfNeeded(options: FoldingRangeOptions(), for: languages, server: self)
     }
