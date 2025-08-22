@@ -31,6 +31,7 @@ final class SwiftCompletionTests: XCTestCase {
 
   func testCompletionBasic() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()
+    try await SkipUnless.sourcekitdSupportsFullDocumentationInCompletion()
 
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
@@ -39,6 +40,13 @@ final class SwiftCompletionTests: XCTestCase {
       """
       struct S {
         /// Documentation for `abc`.
+        ///
+        /// _More_ documentation for `abc`.
+        ///
+        /// Usage:
+        /// ```swift
+        /// S().abc
+        /// ```
         var abc: Int
 
         func test(a: Int) {
@@ -67,7 +75,19 @@ final class SwiftCompletionTests: XCTestCase {
     if let abc = abc {
       XCTAssertEqual(abc.kind, .property)
       XCTAssertEqual(abc.detail, "Int")
-      XCTAssertEqual(abc.documentation, .markupContent(MarkupContent(kind: .markdown, value: "Documentation for abc.")))
+      assertMarkdown(
+        documentation: abc.documentation,
+        expected: """
+          Documentation for `abc`.
+
+          _More_ documentation for `abc`.
+
+          Usage:
+          ```swift
+          S().abc
+          ```
+          """
+      )
       XCTAssertEqual(abc.filterText, "abc")
       XCTAssertEqual(abc.textEdit, .textEdit(TextEdit(range: Range(positions["1️⃣"]), newText: "abc")))
       XCTAssertEqual(abc.insertText, "abc")
@@ -87,7 +107,19 @@ final class SwiftCompletionTests: XCTestCase {
       // If we switch to server-side filtering this will change.
       XCTAssertEqual(abc.kind, .property)
       XCTAssertEqual(abc.detail, "Int")
-      XCTAssertEqual(abc.documentation, .markupContent(MarkupContent(kind: .markdown, value: "Documentation for abc.")))
+      assertMarkdown(
+        documentation: abc.documentation,
+        expected: """
+          Documentation for `abc`.
+
+          _More_ documentation for `abc`.
+
+          Usage:
+          ```swift
+          S().abc
+          ```
+          """
+      )
       XCTAssertEqual(abc.filterText, "abc")
       XCTAssertEqual(abc.textEdit, .textEdit(TextEdit(range: positions["1️⃣"]..<offsetPosition, newText: "abc")))
       XCTAssertEqual(abc.insertText, "abc")
@@ -1154,6 +1186,7 @@ final class SwiftCompletionTests: XCTestCase {
 
   func testCompletionItemResolve() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()
+    try await SkipUnless.sourcekitdSupportsFullDocumentationInCompletion()
 
     let capabilities = ClientCapabilities(
       textDocument: TextDocumentClientCapabilities(
@@ -1187,9 +1220,37 @@ final class SwiftCompletionTests: XCTestCase {
     let item = try XCTUnwrap(completions.items.only)
     XCTAssertNil(item.documentation)
     let resolvedItem = try await testClient.send(CompletionItemResolveRequest(item: item))
-    XCTAssertEqual(
-      resolvedItem.documentation,
-      .markupContent(MarkupContent(kind: .markdown, value: "Creates a true value"))
+    assertMarkdown(
+      documentation: resolvedItem.documentation,
+      expected: "Creates a true value"
+    )
+  }
+
+  func testCompletionBriefDocumentationFallback() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+    try await SkipUnless.sourcekitdSupportsFullDocumentationInCompletion()
+
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    // We test completion for result builder build functions since they don't have full documentation
+    // but still have brief documentation.
+    let positions = testClient.openDocument(
+      """
+      @resultBuilder
+      struct AnyBuilder {
+        static func 1️⃣
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let item = try XCTUnwrap(completions.items.filter { $0.label.contains("buildBlock") }.only)
+    assertMarkdown(
+      documentation: item.documentation,
+      expected: "Required by every result builder to build combined results from statement blocks"
     )
   }
 
@@ -1251,6 +1312,20 @@ final class SwiftCompletionTests: XCTestCase {
 
 private func countFs(_ response: CompletionList) -> Int {
   return response.items.filter { $0.label.hasPrefix("f") }.count
+}
+
+private func assertMarkdown(
+  documentation: StringOrMarkupContent?,
+  expected: String,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) {
+  XCTAssertEqual(
+    documentation,
+    .markupContent(MarkupContent(kind: .markdown, value: expected)),
+    file: file,
+    line: line
+  )
 }
 
 fileprivate extension Position {
