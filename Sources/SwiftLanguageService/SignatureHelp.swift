@@ -32,12 +32,12 @@ fileprivate extension ParameterInformation {
 fileprivate extension SignatureInformation {
   init?(_ signature: SKDResponseDictionary, _ keys: sourcekitd_api_keys) {
     guard let label = signature[keys.name] as String?,
-      let activeParameter = signature[keys.activeParameter] as Int?,
       let skParameters = signature[keys.parameters] as SKDResponseArray?
     else {
       return nil
     }
 
+    let activeParameter = signature[keys.activeParameter] as Int?
     let parameters = skParameters.compactMap { ParameterInformation($0, keys) }
 
     let documentation: StringOrMarkupContent? = signature[keys.docComment].map {
@@ -63,7 +63,15 @@ fileprivate extension SignatureHelp {
 
     let signatures = skSignatures.compactMap { SignatureInformation($0, keys) }
 
-    self.init(signatures: signatures, activeSignature: activeSignature)
+    guard !signatures.isEmpty else {
+      return nil
+    }
+
+    self.init(
+      signatures: signatures,
+      activeSignature: activeSignature,
+      activeParameter: signatures[activeSignature].activeParameter
+    )
   }
 }
 
