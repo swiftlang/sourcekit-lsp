@@ -25,7 +25,14 @@ fileprivate extension ParameterInformation {
       return nil
     }
 
-    self.init(label: .offsets(start: nameOffset, end: nameOffset + nameLength))
+    let documentation = parameter[keys.docComment].map {
+      StringOrMarkupContent.markupContent(MarkupContent(kind: .markdown, value: $0))
+    }
+
+    self.init(
+      label: .offsets(start: nameOffset, end: nameOffset + nameLength),
+      documentation: documentation
+    )
   }
 }
 
@@ -40,8 +47,8 @@ fileprivate extension SignatureInformation {
     let activeParameter = signature[keys.activeParameter] as Int?
     let parameters = skParameters.compactMap { ParameterInformation($0, keys) }
 
-    let documentation: StringOrMarkupContent? = signature[keys.docComment].map {
-      .markupContent(MarkupContent(kind: .markdown, value: $0))
+    let documentation = signature[keys.docComment].map {
+      StringOrMarkupContent.markupContent(MarkupContent(kind: .markdown, value: $0))
     }
 
     self.init(
