@@ -373,6 +373,48 @@ final class SwiftSignatureHelpTests: XCTestCase {
     )
   }
 
+  func testSignatureHelpNonASCII() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      /// This is a test function
+      func 🧑‍🧑‍🧒‍🧒🧑‍🧑‍🧒‍🧒(🧑🏽‍🚀🧑🏽‍🚀: Int, `🕵🏻‍♀️🕵🏻‍♀️`: String) -> Double { 0 }
+
+      func main() {
+        🧑‍🧑‍🧒‍🧒🧑‍🧑‍🧒‍🧒(🧑🏽‍🚀🧑🏽‍🚀: 1️⃣)
+      }
+      """,
+      uri: uri
+    )
+
+    let result = try await testClient.send(
+      SignatureHelpRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        position: positions["1️⃣"]
+      )
+    )
+
+    let signatureHelp = try XCTUnwrap(result)
+    let signature = try XCTUnwrap(signatureHelp.signatures.only)
+
+    XCTAssertEqual(signatureHelp.activeSignature, 0)
+    XCTAssertEqual(signatureHelp.activeParameter, 0)
+    XCTAssertEqual(signature.label, "🧑‍🧑‍🧒‍🧒🧑‍🧑‍🧒‍🧒(🧑🏽‍🚀🧑🏽‍🚀: Int, `🕵🏻‍♀️🕵🏻‍♀️`: String) -> Double")
+    XCTAssertEqual(
+      signature.documentation,
+      .markupContent(MarkupContent(kind: .markdown, value: "This is a test function"))
+    )
+    XCTAssertEqual(
+      signature.parameters,
+      [
+        ParameterInformation(label: .offsets(start: 23, end: 42)),
+        ParameterInformation(label: .offsets(start: 44, end: 68)),
+      ]
+    )
+  }
+
   func testSignatureHelpSwiftPMProject() async throws {
     let project = try await SwiftPMTestProject(
       files: [
