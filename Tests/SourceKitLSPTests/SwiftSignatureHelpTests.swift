@@ -245,7 +245,7 @@ final class SwiftSignatureHelpTests: XCTestCase {
     )
   }
 
-  func testSignatureHelpWithNoParameters() async throws {
+  func testSignatureHelpNoParameters() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -304,6 +304,47 @@ final class SwiftSignatureHelpTests: XCTestCase {
     )
 
     XCTAssertNil(result)
+  }
+
+  func testSignatureHelpNoActiveParameter() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      /// This is a test function
+      func test(x: Int) -> Double { 0 }
+
+      func main() {
+        test(x: 1, 1️⃣)
+      }
+      """,
+      uri: uri
+    )
+
+    let result = try await testClient.send(
+      SignatureHelpRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        position: positions["1️⃣"]
+      )
+    )
+
+    let signatureHelp = try XCTUnwrap(result)
+    let signature = try XCTUnwrap(signatureHelp.signatures.only)
+
+    XCTAssertEqual(signatureHelp.activeSignature, 0)
+    XCTAssertEqual(signatureHelp.activeParameter, 1)
+    XCTAssertEqual(signature.label, "test(x: Int) -> Double")
+    XCTAssertEqual(
+      signature.documentation,
+      .markupContent(
+        MarkupContent(kind: .markdown, value: "This is a test function")
+      )
+    )
+    XCTAssertEqual(
+      signature.parameters,
+      [ParameterInformation(label: .offsets(start: 5, end: 11))]
+    )
   }
 
   func testSignatureHelpAdjustToStartOfArgument() async throws {
