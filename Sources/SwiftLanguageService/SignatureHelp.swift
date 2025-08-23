@@ -67,8 +67,23 @@ fileprivate extension SignatureInformation {
       return nil
     }
 
-    let activeParameter = signature[keys.activeParameter] as Int?
     let parameters = skParameters.compactMap { ParameterInformation($0, label, keys) }
+
+    let activeParameter: Int? =
+      if let activeParam: Int = signature[keys.activeParameter] {
+        activeParam
+      } else if !parameters.isEmpty {
+        // If we have parameters and no active parameter is present, we return
+        // an out-of-range index that way editors don't show an active parameter.
+        // As of LSP 3.17, not returning an active parameter defaults to choosing
+        // the first parameter which isn't the desired behavior.
+        // LSP 3.18 defines a `noActiveParameterSupport` option which allows the
+        // active parameter to be `null` causing editors not to show an active
+        // parameter which would be the best solution here.
+        parameters.count
+      } else {
+        nil
+      }
 
     let documentation: StringOrMarkupContent? =
       if let docComment: String = signature[keys.docComment] {
