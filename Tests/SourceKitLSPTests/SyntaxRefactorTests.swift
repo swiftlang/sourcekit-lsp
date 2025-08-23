@@ -278,8 +278,8 @@ func assertRefactor<R: EditRefactoringProvider>(
   file: StaticString = #filePath,
   line: UInt = #line
 ) throws {
-  let edits = R.textRefactor(syntax: input, in: context)
-  guard !edits.isEmpty else {
+  let edits = try? R.textRefactor(syntax: input, in: context)
+  guard let edits, !edits.isEmpty else {
     if !expected.isEmpty {
       XCTFail(
         """
