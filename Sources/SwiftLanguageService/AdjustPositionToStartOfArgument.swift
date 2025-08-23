@@ -25,7 +25,7 @@ private class StartOfArgumentFinder: SyntaxAnyVisitor {
   }
 
   override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
-    if (node.position...node.endPosition).contains(requestedPosition) {
+    if node.range.contains(requestedPosition) {
       return .visitChildren
     }
     return .skipChildren
