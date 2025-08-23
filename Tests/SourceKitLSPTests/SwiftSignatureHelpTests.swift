@@ -188,6 +188,63 @@ final class SwiftSignatureHelpTests: XCTestCase {
     )
   }
 
+  func testSignatureHelpEnumCase() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      enum Label {
+        /// The label as an offset within the signature label
+        /// - Parameters:
+        ///   - start: The start offset
+        ///   - end: The end offset
+        case offset(start: Int, end: Int)
+      }
+
+      func main() {
+        let label = Label.offset(start: 11️⃣)
+      }
+      """,
+      uri: uri
+    )
+
+    let result = try await testClient.send(
+      SignatureHelpRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        position: positions["1️⃣"]
+      )
+    )
+
+    let signatureHelp = try XCTUnwrap(result)
+    let signature = try XCTUnwrap(signatureHelp.signatures.only)
+
+    XCTAssertEqual(signatureHelp.activeSignature, 0)
+    XCTAssertEqual(signatureHelp.activeParameter, 0)
+    XCTAssertEqual(signature.label, "offset(start: Int, end: Int) -> Label")
+    XCTAssertEqual(
+      signature.documentation,
+      .markupContent(
+        MarkupContent(
+          kind: .markdown,
+          value: """
+            The label as an offset within the signature label
+            - Parameters:
+              - start: The start offset
+              - end: The end offset
+            """
+        )
+      )
+    )
+    XCTAssertEqual(
+      signature.parameters,
+      [
+        ParameterInformation(label: .offsets(start: 7, end: 17)),
+        ParameterInformation(label: .offsets(start: 19, end: 27)),
+      ]
+    )
+  }
+
   func testSignatureHelpWithNoParameters() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
@@ -281,14 +338,15 @@ final class SwiftSignatureHelpTests: XCTestCase {
       let signature = try XCTUnwrap(signatureHelp.signatures.only)
 
       XCTAssertEqual(signature.label, "add(first: Double!, second: Float, third: Int) -> Double", line: line)
-      XCTAssertNil(signature.documentation)
+      XCTAssertNil(signature.documentation, line: line)
       XCTAssertEqual(
         signature.parameters,
         [
           ParameterInformation(label: .offsets(start: 4, end: 18)),
           ParameterInformation(label: .offsets(start: 20, end: 33)),
           ParameterInformation(label: .offsets(start: 35, end: 45)),
-        ]
+        ],
+        line: line
       )
 
       return signature
@@ -346,9 +404,13 @@ final class SwiftSignatureHelpTests: XCTestCase {
     let signatureHelp = try XCTUnwrap(result)
     XCTAssertEqual(signatureHelp.activeSignature, 0)
     XCTAssertEqual(signatureHelp.activeParameter, 0)
-    XCTAssertEqual(signatureHelp.signatures.count, 2)
 
-    let firstSignature = try XCTUnwrap(signatureHelp.signatures[0])
+    guard signatureHelp.signatures.count == 2 else {
+      XCTFail("expected 2 signatures, got \(signatureHelp.signatures)")
+      return
+    }
+
+    let firstSignature = signatureHelp.signatures[0]
     XCTAssertEqual(firstSignature.label, "add(_ x: Int, to: Int) -> Int")
     XCTAssertEqual(firstSignature.activeParameter, 0)
     XCTAssertNil(firstSignature.documentation)
@@ -360,7 +422,7 @@ final class SwiftSignatureHelpTests: XCTestCase {
       ]
     )
 
-    let secondSignature = try XCTUnwrap(signatureHelp.signatures[1])
+    let secondSignature = signatureHelp.signatures[1]
     XCTAssertEqual(secondSignature.label, "add(oneTo: inout Int)")
     XCTAssertEqual(secondSignature.activeParameter, 0)
     XCTAssertEqual(
@@ -418,16 +480,16 @@ final class SwiftSignatureHelpTests: XCTestCase {
   func testSignatureHelpSwiftPMProject() async throws {
     let project = try await SwiftPMTestProject(
       files: [
-        "utils.swift": """
+        "utils.swift": #"""
         /// A utility function that combines values
         /// - Parameters:
         ///   - first: The first value
         ///   - second: The second value
         /// - Returns: The combined result
         func combine(first: String, second: Int) -> String {
-          return "\\(first)-\\(second)"
+          return "\(first)-\(second)"
         }
-        """,
+        """#,
         "main.swift": """
         func test() {
           combine(1️⃣)
