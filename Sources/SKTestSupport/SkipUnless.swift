@@ -393,7 +393,10 @@ package actor SkipUnless {
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
-    return try await shared.skipUnlessSupported(file: file, line: line) {
+    // docc is supported on macOS and Linux. Do not perform a check on those platforms to avoid accidentally skipping
+    // the tests in CI on those platforms.
+    #if os(Windows)
+    return try await shared.skipUnlessSupported(allowSkippingInCI: true, file: file, line: line) {
       let server = try await SourceKitLSPServer(
         client: LocalConnection(receiverName: "client"),
         toolchainRegistry: .forTesting,
@@ -421,6 +424,7 @@ package actor SkipUnless {
       }
       return .featureSupported
     }
+    #endif
   }
 }
 
