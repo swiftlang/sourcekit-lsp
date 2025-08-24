@@ -393,6 +393,7 @@ package actor SkipUnless {
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
+    #if os(Windows)  // docc is supported on Linux and Windows
     return try await shared.skipUnlessSupported(file: file, line: line) {
       let server = try await SourceKitLSPServer(
         client: LocalConnection(receiverName: "client"),
@@ -421,6 +422,7 @@ package actor SkipUnless {
       }
       return .featureSupported
     }
+    #endif
   }
 }
 
