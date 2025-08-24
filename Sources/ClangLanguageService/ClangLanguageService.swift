@@ -491,6 +491,10 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
+  package func signatureHelp(_ req: SignatureHelpRequest) async throws -> SignatureHelp? {
+    return try await forwardRequestToClangd(req)
+  }
+
   package func hover(_ req: HoverRequest) async throws -> HoverResponse? {
     return try await forwardRequestToClangd(req)
   }

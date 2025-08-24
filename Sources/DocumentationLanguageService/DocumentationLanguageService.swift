@@ -125,6 +125,10 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     return req.item
   }
 
+  package func signatureHelp(_ req: SignatureHelpRequest) async throws -> SignatureHelp? {
+    throw ResponseError.requestNotImplemented(SignatureHelpRequest.self)
+  }
+
   package func hover(_ req: HoverRequest) async throws -> HoverResponse? {
     nil
   }
