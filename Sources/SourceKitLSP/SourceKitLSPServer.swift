@@ -1055,6 +1055,7 @@ extension SourceKitLSPServer {
       ? nil
       : LanguageServerProtocol.SignatureHelpOptions(
         triggerCharacters: ["(", "["],
+        // We retrigger on `:` as it's potentially after an argument label which can change the active parameter or signature.
         retriggerCharacters: [",", ":"]
       )
 

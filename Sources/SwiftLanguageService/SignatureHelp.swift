@@ -77,6 +77,8 @@ fileprivate extension SignatureInformation {
         // an out-of-range index that way editors don't show an active parameter.
         // As of LSP 3.17, not returning an active parameter defaults to choosing
         // the first parameter which isn't the desired behavior.
+        // LSP 3.17 states that out-of-range values are treated as 0 but this is
+        // not the case in VS Code so we rely on that as a workaround.
         // LSP 3.18 defines a `noActiveParameterSupport` option which allows the
         // active parameter to be `null` causing editors not to show an active
         // parameter which would be the best solution here.
