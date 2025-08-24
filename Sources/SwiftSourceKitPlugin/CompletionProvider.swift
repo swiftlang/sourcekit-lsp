@@ -126,7 +126,7 @@ actor CompletionProvider {
     } else if let file: String = request[keys.sourceFile] {
       logger.info("Document open request missing source text. Reading contents of '\(file)' from disk.")
       do {
-        content = try String(contentsOfFile: file)
+        content = try String(contentsOfFile: file, encoding: .utf8)
       } catch {
         self.logger.error("error: dropping request editor.open: failed to read \(file): \(String(describing: error))")
         return

@@ -25,14 +25,6 @@ import WinSDK
 #endif
 
 #if !canImport(os) || SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER
-private struct FailedToCreateFileError: Error, CustomStringConvertible {
-  let logFile: URL
-
-  var description: String {
-    return "Failed to create log file at \(logFile)"
-  }
-}
-
 /// The number of log file handles that have been created by this process.
 ///
 /// See comment on `logFileHandle`.
@@ -59,9 +51,7 @@ func getOrCreateLogFileHandle(logDirectory: URL, logRotateCount: Int) -> FileHan
   do {
     try FileManager.default.createDirectory(at: logDirectory, withIntermediateDirectories: true)
     if !FileManager.default.fileExists(at: logFileUrl) {
-      guard FileManager.default.createFile(atPath: try logFileUrl.filePath, contents: nil) else {
-        throw FailedToCreateFileError(logFile: logFileUrl)
-      }
+      try FileManager.default.createFile(at: logFileUrl, contents: nil)
     }
     let newFileHandle = try FileHandle(forWritingTo: logFileUrl)
     logFileHandle = newFileHandle

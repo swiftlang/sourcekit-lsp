@@ -39,7 +39,7 @@ final class LocalSwiftTests: XCTestCase {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let uri = DocumentURI(for: .swift)
 
-    let documentManager = await testClient.server.documentManager
+    let documentManager = testClient.server.documentManager
 
     testClient.openDocument("func", uri: uri, version: 12)
 
@@ -162,7 +162,7 @@ final class LocalSwiftTests: XCTestCase {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let uri = try DocumentURI(string: "urn:uuid:A1B08909-E791-469E-BF0F-F5790977E051")
 
-    let documentManager = await testClient.server.documentManager
+    let documentManager = testClient.server.documentManager
 
     testClient.openDocument("func", uri: uri, language: .swift)
 

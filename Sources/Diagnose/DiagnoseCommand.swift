@@ -219,9 +219,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     #if os(macOS)
     reportProgress(.collectingLogMessages(progress: 0), message: "Collecting log messages")
     let outputFileUrl = bundlePath.appendingPathComponent("log.txt")
-    guard FileManager.default.createFile(atPath: try outputFileUrl.filePath, contents: nil) else {
-      throw GenericError("Failed to create log.txt")
-    }
+    try FileManager.default.createFile(at: outputFileUrl, contents: nil)
     let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
     let bytesCollected = AtomicInt32(initialValue: 0)
     let processExited = AtomicBool(initialValue: false)
@@ -320,9 +318,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
   @MainActor
   private func addSwiftVersion(toBundle bundlePath: URL) async throws {
     let outputFileUrl = bundlePath.appendingPathComponent("swift-versions.txt")
-    guard FileManager.default.createFile(atPath: try outputFileUrl.filePath, contents: nil) else {
-      throw GenericError("Failed to create file at \(outputFileUrl)")
-    }
+    try FileManager.default.createFile(at: outputFileUrl, contents: nil)
     let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
 
     let toolchains = try await toolchainRegistry.toolchains

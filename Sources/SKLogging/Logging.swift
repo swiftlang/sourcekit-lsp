@@ -19,9 +19,17 @@ package typealias LogLevel = os.OSLogType
 package typealias Logger = os.Logger
 package typealias Signposter = OSSignposter
 
-extension OSSignposter: @retroactive @unchecked Sendable {}
-extension OSSignpostID: @retroactive @unchecked Sendable {}
+// -user-module-version of the 'os' module is 1062.100.1 in Xcode 16.3, which added the conformance of
+// `OSSignpostIntervalState` to `Sendable`
+#if !canImport(os, _version: 1062.100)
 extension OSSignpostIntervalState: @retroactive @unchecked Sendable {}
+#endif
+
+#if compiler(>=6.4)
+#warning(
+  "Remove retroactive conformance of OSSignpostIntervalState to Sendable if we no longer need to support building SourceKit-LSP with SDKs from Xcode <16.3"
+)
+#endif
 
 extension os.Logger {
   package func makeSignposter() -> Signposter {
