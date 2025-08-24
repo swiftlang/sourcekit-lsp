@@ -31,7 +31,7 @@ private struct LogParseRegex {
   private init() {
     regex = Regex {
       Capture(as: dateComponent) {
-        #/[-0-9]+ [0-9:.-]+/#
+        #/[-0-9]+ [0-9:.+-]+/#
       }
       " "
       #/[0-9a-fx]+/#  // Thread ID
