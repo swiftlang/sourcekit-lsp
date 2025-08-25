@@ -412,7 +412,7 @@ class CodeCompletionSession {
     var parser = Parser(exprToExpand)
     let expr = ExprSyntax.parse(from: &parser)
     guard let call = OutermostFunctionCallFinder.findOutermostFunctionCall(in: expr),
-      let expandedCall = ExpandEditorPlaceholdersToLiteralClosures.refactor(
+      let expandedCall = try? ExpandEditorPlaceholdersToLiteralClosures.refactor(
         syntax: Syntax(call),
         in: ExpandEditorPlaceholdersToLiteralClosures.Context(
           format: .custom(

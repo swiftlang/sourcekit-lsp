@@ -33,7 +33,9 @@ extension SyntaxRefactoringCodeActionProvider where Self.Context == Void {
       return []
     }
 
-    let sourceEdits = Self.textRefactor(syntax: node)
+    guard let sourceEdits = try? Self.textRefactor(syntax: node) else {
+      return []
+    }
 
     let textEdits = sourceEdits.compactMap { (edit) -> TextEdit? in
       let edit = TextEdit(

@@ -17,9 +17,9 @@ import SwiftSyntax
 /// ConvertStringConcatenationToStringInterpolation is a code action that converts a valid string concatenation into a
 /// string interpolation.
 struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvider {
-  static func refactor(syntax: SequenceExprSyntax, in context: Void) -> SequenceExprSyntax? {
+  static func refactor(syntax: SequenceExprSyntax, in context: Void) throws -> SequenceExprSyntax {
     guard let (componentsOnly, commonPounds) = preflight(exprList: syntax.elements) else {
-      return nil
+      throw RefactoringNotApplicableError("unsupported expression")
     }
 
     var segments: StringLiteralSegmentListSyntax = []
