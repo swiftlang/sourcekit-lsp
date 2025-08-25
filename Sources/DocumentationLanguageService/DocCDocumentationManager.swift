@@ -10,21 +10,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import BuildServerIntegration
+import BuildServerIntegration
 import BuildServerProtocol
-package import Foundation
-package import LanguageServerProtocol
+import Foundation
+import LanguageServerProtocol
 import SKLogging
 import SwiftDocC
 
-package struct DocCDocumentationManager: Sendable {
+struct DocCDocumentationManager: Sendable {
   private let doccServer: DocCServer
   private let referenceResolutionService: DocCReferenceResolutionService
   private let catalogIndexManager: DocCCatalogIndexManager
 
   private let buildServerManager: BuildServerManager
 
-  package init(buildServerManager: BuildServerManager) {
+  init(buildServerManager: BuildServerManager) {
     let symbolResolutionServer = DocumentationServer(qualityOfService: .unspecified)
     doccServer = DocCServer(
       peer: symbolResolutionServer,
@@ -36,7 +36,7 @@ package struct DocCDocumentationManager: Sendable {
     self.buildServerManager = buildServerManager
   }
 
-  package func filesDidChange(_ events: [FileEvent]) async {
+  func filesDidChange(_ events: [FileEvent]) async {
     for event in events {
       for target in await buildServerManager.targets(for: event.uri) {
         guard let catalogURL = await buildServerManager.doccCatalog(for: target) else {
@@ -47,7 +47,7 @@ package struct DocCDocumentationManager: Sendable {
     }
   }
 
-  package func catalogIndex(for catalogURL: URL) async throws(DocCIndexError) -> DocCCatalogIndex {
+  func catalogIndex(for catalogURL: URL) async throws(DocCIndexError) -> DocCCatalogIndex {
     try await catalogIndexManager.index(for: catalogURL)
   }
 
@@ -63,7 +63,7 @@ package struct DocCDocumentationManager: Sendable {
   ///   - catalogURL: The URL pointing to the docc catalog that this symbol, tutorial, or markdown file is a part of
   /// - Throws: A ResponseError if something went wrong
   /// - Returns: The DoccDocumentationResponse containing the RenderNode if successful
-  package func renderDocCDocumentation(
+  func renderDocCDocumentation(
     symbolUSR: String? = nil,
     symbolGraph: String? = nil,
     overrideDocComments: [String]? = nil,

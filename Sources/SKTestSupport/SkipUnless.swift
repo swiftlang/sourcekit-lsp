@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import InProcessClient
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import RegexBuilder
@@ -384,6 +385,41 @@ package actor SkipUnless {
           kind: .variable,
           modifiers: []
         )
+    }
+  }
+
+  /// Check if SourceKit-LSP was compiled with docc support
+  package static func doccSupported(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    return try await shared.skipUnlessSupported(file: file, line: line) {
+      let server = try await SourceKitLSPServer(
+        client: LocalConnection(receiverName: "client"),
+        toolchainRegistry: .forTesting,
+        languageServerRegistry: .staticallyKnownServices,
+        options: .testDefault(),
+        hooks: Hooks()
+      )
+      let initializeResponse = try await withCheckedThrowingContinuation { continuation in
+        let initializeRequest = InitializeRequest(
+          processId: nil,
+          rootPath: nil,
+          rootURI: nil,
+          capabilities: ClientCapabilities(),
+          trace: .off,
+          workspaceFolders: []
+        )
+        server.handle(initializeRequest, id: .number(0)) { result in
+          continuation.resume(with: result)
+        }
+      }
+      guard case .dictionary(let dict) = initializeResponse.capabilities.experimental,
+        dict[DoccDocumentationRequest.method] != nil
+      else {
+        return .featureUnsupported(skipMessage: "docc not supported")
+      }
+      return .featureSupported
     }
   }
 }

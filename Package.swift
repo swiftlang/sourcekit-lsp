@@ -133,7 +133,6 @@ var targets: [Target] = [
     name: "ClangLanguageService",
     dependencies: [
       "BuildServerIntegration",
-      "DocCDocumentation",
       "LanguageServerProtocol",
       "LanguageServerProtocolExtensions",
       "LanguageServerProtocolJSONRPC",
@@ -243,27 +242,17 @@ var targets: [Target] = [
     name: "DocumentationLanguageService",
     dependencies: [
       "BuildServerIntegration",
-      "DocCDocumentation",
-      "LanguageServerProtocol",
-      "SKUtilities",
-      "SourceKitLSP",
-      "SemanticIndex",
-      .product(name: "Markdown", package: "swift-markdown"),
-    ],
-    exclude: [],
-    swiftSettings: globalSwiftSettings
-  ),
-
-  .target(
-    name: "DocCDocumentation",
-    dependencies: [
       "BuildServerProtocol",
-      "BuildServerIntegration",
       "LanguageServerProtocol",
+
+      "SemanticIndex",
       "SemanticIndex",
       "SKLogging",
+      "SKUtilities",
+      "SourceKitLSP",
       "SwiftExtensions",
       .product(name: "IndexStoreDB", package: "indexstore-db"),
+      .product(name: "Markdown", package: "swift-markdown"),
       .product(name: "SwiftDocC", package: "swift-docc"),
       .product(name: "SymbolKit", package: "swift-docc-symbolkit"),
     ],
@@ -538,7 +527,6 @@ var targets: [Target] = [
     dependencies: [
       "BuildServerProtocol",
       "BuildServerIntegration",
-      "DocCDocumentation",
       "LanguageServerProtocol",
       "LanguageServerProtocolExtensions",
       "LanguageServerProtocolJSONRPC",
@@ -614,7 +602,6 @@ var targets: [Target] = [
       "BuildServerProtocol",
       "BuildServerIntegration",
       "Csourcekitd",
-      "DocCDocumentation",
       "LanguageServerProtocol",
       "LanguageServerProtocolExtensions",
       "LanguageServerProtocolJSONRPC",

@@ -13,7 +13,7 @@
 import Foundation
 @preconcurrency import SwiftDocC
 
-package struct DocCServer {
+struct DocCServer {
   private let server: DocumentationServer
 
   init(peer peerServer: DocumentationServer? = nil, qualityOfService: DispatchQoS) {

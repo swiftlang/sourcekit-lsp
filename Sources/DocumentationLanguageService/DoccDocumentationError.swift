@@ -11,11 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-package import LanguageServerProtocol
+import LanguageServerProtocol
 
-package enum DocCDocumentationError: LocalizedError {
+enum DocCDocumentationError: LocalizedError {
   case unsupportedLanguage(Language)
-  case noDocumentableSymbols
   case indexNotAvailable
   case symbolNotFound(String)
 
@@ -23,8 +22,6 @@ package enum DocCDocumentationError: LocalizedError {
     switch self {
     case .unsupportedLanguage(let language):
       return "Documentation preview is not available for \(language.description) files"
-    case .noDocumentableSymbols:
-      return "No documentable symbols were found in this Swift file"
     case .indexNotAvailable:
       return "The index is not availble to complete the request"
     case .symbolNotFound(let symbolName):
@@ -33,7 +30,7 @@ package enum DocCDocumentationError: LocalizedError {
   }
 }
 
-package extension ResponseError {
+extension ResponseError {
   static func requestFailed(doccDocumentationError: DocCDocumentationError) -> ResponseError {
     return ResponseError.requestFailed(doccDocumentationError.localizedDescription)
   }

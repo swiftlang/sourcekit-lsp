@@ -802,6 +802,10 @@ extension SwiftLanguageService {
     )
   }
 
+  package func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
+    throw ResponseError.requestNotImplemented(DoccDocumentationRequest.self)
+  }
+
   package func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
 

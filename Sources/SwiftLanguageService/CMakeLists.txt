@@ -1,6 +1,5 @@
 add_library(SwiftLanguageService STATIC
   SemanticRefactoring.swift
-  DoccDocumentation.swift
   SwiftTestingScanner.swift
   FoldingRange.swift
   CMakeLists.txt
