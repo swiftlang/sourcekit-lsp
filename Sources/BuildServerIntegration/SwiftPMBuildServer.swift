@@ -137,8 +137,12 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
 
   private var targetDependencies: [BuildTargetIdentifier: Set<BuildTargetIdentifier>] = [:]
 
-  static package func searchForConfig(in path: URL, options: SourceKitLSPOptions) -> BuildServerSpec? {
+  /// Regular expression that matches version-specific package manifest file names such as Package@swift-6.1.swift
+  private static var versionSpecificPackageManifestNameRegex: Regex<(Substring, Substring, Substring?, Substring?)> {
+    #/^Package@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?.swift$/#
+  }
 
+  static package func searchForConfig(in path: URL, options: SourceKitLSPOptions) -> BuildServerSpec? {
     let packagePath = path.appendingPathComponent("Package.swift")
     if (try? String(contentsOf: packagePath, encoding: .utf8))?.contains("PackageDescription") ?? false {
       return BuildServerSpec(kind: .swiftPM, projectRoot: path, configPath: packagePath)
@@ -543,12 +547,11 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1267)
     for target in request.targets {
       if target == .forPackageManifest {
-        let packageManifestName = #/^Package@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?.swift$/#
         let versionSpecificManifests = try? FileManager.default.contentsOfDirectory(
           at: projectRoot,
           includingPropertiesForKeys: nil
         ).compactMap { (url) -> SourceItem? in
-          guard (try? packageManifestName.wholeMatch(in: url.lastPathComponent)) != nil else {
+          guard (try? Self.versionSpecificPackageManifestNameRegex.wholeMatch(in: url.lastPathComponent)) != nil else {
             return nil
           }
           return SourceItem(
@@ -806,10 +809,27 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     }
   }
 
+  private func isPackageManifestOrPackageResolved(_ url: URL) -> Bool {
+    guard url.lastPathComponent.contains("Package") else {
+      // Fast check to early exit for files that don't like a package manifest or Package.resolved
+      return false
+    }
+    guard
+      url.lastPathComponent == "Package.resolved" || url.lastPathComponent == "Package.swift"
+        || (try? Self.versionSpecificPackageManifestNameRegex.wholeMatch(in: url.lastPathComponent)) != nil
+    else {
+      return false
+    }
+    return url.deletingLastPathComponent() == self.projectRoot
+  }
+
   /// An event is relevant if it modifies a file that matches one of the file rules used by the SwiftPM workspace.
   private func fileEventShouldTriggerPackageReload(event: FileEvent) -> Bool {
     guard let fileURL = event.uri.fileURL else {
       return false
+    }
+    if isPackageManifestOrPackageResolved(fileURL) {
+      return true
     }
     switch event.type {
     case .created, .deleted:
@@ -819,7 +839,8 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
 
       return buildDescription.fileAffectsSwiftOrClangBuildSettings(fileURL)
     case .changed:
-      return fileURL.lastPathComponent == "Package.swift" || fileURL.lastPathComponent == "Package.resolved"
+      // Only modified package manifests should trigger a package reload and that's handled above.
+      return false
     default:  // Unknown file change type
       return false
     }
