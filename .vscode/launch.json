@@ -7,7 +7,7 @@
             "program": "${workspaceFolder:sourcekit-lsp}/.build/debug/sourcekit-lsp",
             "args": [],
             "cwd": "${workspaceFolder:sourcekit-lsp}",
-            "preLaunchTask": "swift: Build Debug sourcekit-lsp",
+            "preLaunchTask": "swift: Build Debug sourcekit-lsp"
         },
         {
             "type": "swift",
@@ -16,7 +16,7 @@
             "program": "${workspaceFolder:sourcekit-lsp}/.build/release/sourcekit-lsp",
             "args": [],
             "cwd": "${workspaceFolder:sourcekit-lsp}",
-            "preLaunchTask": "swift: Build Release sourcekit-lsp",
+            "preLaunchTask": "swift: Build Release sourcekit-lsp"
         },
         {
             "type": "swift",
@@ -24,6 +24,24 @@
             "name": "Attach sourcekit-lsp (debug)",
             "program": "${workspaceFolder:sourcekit-lsp}/.build/debug/sourcekit-lsp",
             "waitFor": true
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:sourcekit-lsp}/SourceKitLSPDevUtils",
+            "name": "Debug sourcekit-lsp-dev-utils (SourceKitLSPDevUtils)",
+            "program": "${workspaceFolder:sourcekit-lsp}/SourceKitLSPDevUtils/.build/debug/sourcekit-lsp-dev-utils",
+            "preLaunchTask": "swift: Build Debug sourcekit-lsp-dev-utils (SourceKitLSPDevUtils)"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:sourcekit-lsp}/SourceKitLSPDevUtils",
+            "name": "Release sourcekit-lsp-dev-utils (SourceKitLSPDevUtils)",
+            "program": "${workspaceFolder:sourcekit-lsp}/SourceKitLSPDevUtils/.build/release/sourcekit-lsp-dev-utils",
+            "preLaunchTask": "swift: Build Release sourcekit-lsp-dev-utils (SourceKitLSPDevUtils)"
         }
     ]
 }
