@@ -35,6 +35,7 @@ package import struct BuildServerProtocol.SourceItem
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 package import class ToolchainRegistry.Toolchain
+import struct TSCBasic.FileSystemError
 
 private typealias AbsolutePath = Basics.AbsolutePath
 
@@ -351,22 +352,36 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
             description: "Create SwiftPM build description"
           )
         )
-      } catch let error as NSError {
-        #if os(Windows)
-        if error.domain == NSCocoaErrorDomain, error.code == CocoaError.fileWriteNoPermission.rawValue,
-          let url = error.userInfo["NSURL"] as? URL, url.lastPathComponent == "output-file-map.json",
-          loadAttempt < maxLoadAttempts
+      } catch {
+        guard SwiftExtensions.Platform.current == .windows else {
+          // We only retry loading the build description on Windows. The output-file-map issue does not exist on other
+          // platforms.
+          throw error
+        }
+        let isOutputFileMapWriteError: Bool
+        let nsError = error as NSError
+        if nsError.domain == NSCocoaErrorDomain,
+          nsError.code == CocoaError.fileWriteNoPermission.rawValue,
+          (nsError.userInfo["NSURL"] as? URL)?.lastPathComponent == "output-file-map.json"
         {
+          isOutputFileMapWriteError = true
+        } else if let error = error as? FileSystemError,
+          error.kind == .invalidAccess && error.path?.basename == "output-file-map.json"
+        {
+          isOutputFileMapWriteError = true
+        } else {
+          isOutputFileMapWriteError = false
+        }
+        if isOutputFileMapWriteError, loadAttempt < maxLoadAttempts {
           logger.log(
             """
             Loading the build description failed to write output-file-map.json \
             (attempt \(loadAttempt)/\(maxLoadAttempts)), trying again.
-            \(error)
+            \(error.forLogging)
             """
           )
           continue
         }
-        #endif
         throw error
       }
     }
