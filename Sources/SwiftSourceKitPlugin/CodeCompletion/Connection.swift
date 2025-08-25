@@ -183,7 +183,7 @@ final class Connection {
         // FIXME: move line:column translation into C++ impl. so that we can avoid reading the file an extra time here.
         do {
           logger.log("Received code completion request for file that wasn't open. Reading file contents from disk.")
-          let contents = try String(contentsOfFile: loc.path)
+          let contents = try String(contentsOfFile: loc.path, encoding: .utf8)
           let lineTable = LineTable(contents)
           return lineTable.utf8OffsetOf(line: loc.line - 1, utf8Column: loc.utf8Column - 1)
         } catch {

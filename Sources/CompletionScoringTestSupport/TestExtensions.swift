@@ -110,7 +110,7 @@ extension XCTestCase {
           at: URL(fileURLWithPath: path).deletingLastPathComponent(),
           withIntermediateDirectories: true
         )
-        FileManager.default.createFile(atPath: path, contents: Data())
+        try FileManager.default.createFile(at: URL(fileURLWithPath: path), contents: Data())
       }
       let logFD = try FileHandle(forWritingAtPath: path).unwrap(orThrow: "Opening \(path) failed")
       try logFD.seekToEnd()

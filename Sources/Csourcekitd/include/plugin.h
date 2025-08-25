@@ -233,13 +233,23 @@ typedef struct {
     _Null_unspecified sourcekitd_api_plugin_initialize_params_t
   );
 
-  _Null_unspecified SWIFT_SENDABLE sourcekitd_api_uid_get_from_cstr_t (*_Nonnull plugin_initialize_uid_get_from_cstr)(
+  // The following would be more idiomatically written as follows but marking `sourcekitd_api_uid_get_from_cstr_t` as
+  // `Sendable` hits https://github.com/swiftlang/swift/issues/83892.
+  // _Null_unspecified SWIFT_SENDABLE sourcekitd_api_uid_get_from_cstr_t (*_Nonnull plugin_initialize_uid_get_from_cstr)(
+  //   _Null_unspecified sourcekitd_api_plugin_initialize_params_t
+  // );
+  _Null_unspecified sourcekitd_api_uid_t (*_Null_unspecified SWIFT_SENDABLE (*_Nonnull plugin_initialize_uid_get_from_cstr)(
     _Null_unspecified sourcekitd_api_plugin_initialize_params_t
-  );
+  ))(const char *_Null_unspecified string);
 
-  _Null_unspecified SWIFT_SENDABLE sourcekitd_api_uid_get_string_ptr_t (*_Nonnull plugin_initialize_uid_get_string_ptr)(
+  // The following would be more idiomatically written as follows but marking `sourcekitd_api_uid_get_string_ptr_t` as
+  // `Sendable` hits https://github.com/swiftlang/swift/issues/83892.
+  // _Null_unspecified SWIFT_SENDABLE sourcekitd_api_uid_get_string_ptr_t (*_Nonnull plugin_initialize_uid_get_string_ptr)(
+  //   _Null_unspecified sourcekitd_api_plugin_initialize_params_t
+  // );
+  const char *_Null_unspecified (*_Null_unspecified SWIFT_SENDABLE (*_Nonnull plugin_initialize_uid_get_string_ptr)(
     _Null_unspecified sourcekitd_api_plugin_initialize_params_t
-  );
+  ))(_Null_unspecified sourcekitd_api_uid_t);
 
   void (*_Nonnull plugin_initialize_register_custom_buffer)(
     _Nonnull sourcekitd_api_plugin_initialize_params_t,

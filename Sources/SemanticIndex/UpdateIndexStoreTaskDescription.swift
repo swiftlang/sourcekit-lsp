@@ -537,7 +537,7 @@ fileprivate extension Process {
           try FileManager.default.removeItem(at: responseFile)
         }
       }
-      FileManager.default.createFile(atPath: try responseFile.filePath, contents: nil)
+      try FileManager.default.createFile(at: responseFile, contents: nil)
       let handle = try FileHandle(forWritingTo: responseFile)
       for argument in arguments.dropFirst() {
         handle.write(Data((argument.spm_shellEscaped() + "\n").utf8))

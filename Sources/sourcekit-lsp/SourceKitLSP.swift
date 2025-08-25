@@ -222,7 +222,7 @@ struct SourceKitLSP: AsyncParsableCommand {
 
     logger.log("Mirroring input to \(inputMirrorURL)")
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    FileManager.default.createFile(atPath: try inputMirrorURL.filePath, contents: nil)
+    try FileManager.default.createFile(at: inputMirrorURL, contents: nil)
 
     return try FileHandle(forWritingTo: inputMirrorURL)
   }

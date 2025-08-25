@@ -134,7 +134,7 @@ final class BuildServerTests: XCTestCase {
 
     await buildServer.setBuildSettings(for: doc, to: TextDocumentSourceKitOptionsResponse(compilerArguments: args))
 
-    let documentManager = await self.testClient.server.documentManager
+    let documentManager = self.testClient.server.documentManager
 
     testClient.openDocument(text, uri: doc)
 
@@ -173,7 +173,7 @@ final class BuildServerTests: XCTestCase {
       foo()
       """
 
-    let documentManager = await self.testClient.server.documentManager
+    let documentManager = self.testClient.server.documentManager
 
     testClient.openDocument(text, uri: doc)
     let diags1 = try await testClient.nextDiagnosticsNotification()
@@ -204,7 +204,7 @@ final class BuildServerTests: XCTestCase {
         }
       """
 
-    let documentManager = await self.testClient.server.documentManager
+    let documentManager = self.testClient.server.documentManager
 
     testClient.openDocument(text, uri: doc)
     let openDiags = try await testClient.nextDiagnosticsNotification()
@@ -245,7 +245,7 @@ final class BuildServerTests: XCTestCase {
         func
       """
 
-    let documentManager = await self.testClient.server.documentManager
+    let documentManager = self.testClient.server.documentManager
 
     testClient.openDocument(text, uri: doc)
     let openDiags = try await testClient.nextDiagnosticsNotification()

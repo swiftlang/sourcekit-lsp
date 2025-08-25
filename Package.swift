@@ -244,8 +244,6 @@ var targets: [Target] = [
       "BuildServerIntegration",
       "BuildServerProtocol",
       "LanguageServerProtocol",
-
-      "SemanticIndex",
       "SemanticIndex",
       "SKLogging",
       "SKUtilities",

@@ -219,9 +219,7 @@ package actor SkipUnless {
         .appendingPathComponent("swift-frontend")
       return try await withTestScratchDir { scratchDirectory in
         let input = scratchDirectory.appendingPathComponent("Input.swift")
-        guard FileManager.default.createFile(atPath: input.path, contents: nil) else {
-          throw GenericError("Failed to create input file")
-        }
+        try FileManager.default.createFile(at: input, contents: nil)
         // If we can't compile for wasm, this fails complaining that it can't find the stdlib for wasm.
         let result = try await withTimeout(defaultTimeoutDuration) {
           try await Process.run(
