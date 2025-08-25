@@ -40,9 +40,10 @@ extension URL {
         guard let realpath = Darwin.realpath(path, nil) else {
           return self
         }
-        let result = URL(fileURLWithPath: String(cString: realpath))
-        free(realpath)
-        return result
+        defer {
+          free(realpath)
+        }
+        return URL(fileURLWithPath: String(cString: realpath))
       }
       #else
       // Non-Darwin platforms don't have the `/private` stripping issue, so we can just use `self.resolvingSymlinksInPath`

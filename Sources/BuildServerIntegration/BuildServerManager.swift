@@ -1349,36 +1349,36 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       return [uri]
     }
     let mainFiles = Array(await mainFilesProvider.mainFiles(containing: uri, crossLanguage: false))
-    #if canImport(Darwin)
-    if let buildableSourceFiles = try? await self.buildableSourceFiles() {
-      return mainFiles.map { mainFile in
-        if mainFile == uri {
-          // Do not apply the standardized file normalization to the source file itself. Otherwise we would get the
-          // following behavior:
-          //  - We have a build server that uses standardized file paths and index a file as /tmp/test.c
-          //  - We are asking for the main files of /private/tmp/test.c
-          //  - Since indexstore-db uses realpath for everything, we find the unit for /tmp/test.c as a unit containg
-          //    /private/tmp/test.c, which has /private/tmp/test.c as the main file.
-          //  - If we applied the path normalization, we would normalize /private/tmp/test.c to /tmp/test.c, thus
-          //    reporting that /tmp/test.c is a main file containing /private/tmp/test.c,
-          // But that doesn't make sense (it would, in fact cause us to treat /private/tmp/test.c as a header file that
-          // we should index using /tmp/test.c as a main file.
+    if Platform.current == .darwin {
+      if let buildableSourceFiles = try? await self.buildableSourceFiles() {
+        return mainFiles.map { mainFile in
+          if mainFile == uri {
+            // Do not apply the standardized file normalization to the source file itself. Otherwise we would get the
+            // following behavior:
+            //  - We have a build server that uses standardized file paths and index a file as /tmp/test.c
+            //  - We are asking for the main files of /private/tmp/test.c
+            //  - Since indexstore-db uses realpath for everything, we find the unit for /tmp/test.c as a unit containg
+            //    /private/tmp/test.c, which has /private/tmp/test.c as the main file.
+            //  - If we applied the path normalization, we would normalize /private/tmp/test.c to /tmp/test.c, thus
+            //    reporting that /tmp/test.c is a main file containing /private/tmp/test.c,
+            // But that doesn't make sense (it would, in fact cause us to treat /private/tmp/test.c as a header file that
+            // we should index using /tmp/test.c as a main file.
+            return mainFile
+          }
+          if buildableSourceFiles.contains(mainFile) {
+            return mainFile
+          }
+          guard let fileURL = mainFile.fileURL else {
+            return mainFile
+          }
+          let standardized = DocumentURI(fileURL.standardizedFileURL)
+          if buildableSourceFiles.contains(standardized) {
+            return standardized
+          }
           return mainFile
         }
-        if buildableSourceFiles.contains(mainFile) {
-          return mainFile
-        }
-        guard let fileURL = mainFile.fileURL else {
-          return mainFile
-        }
-        let standardized = DocumentURI(fileURL.standardizedFileURL)
-        if buildableSourceFiles.contains(standardized) {
-          return standardized
-        }
-        return mainFile
       }
     }
-    #endif
     return mainFiles
   }
 

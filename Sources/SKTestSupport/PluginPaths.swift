@@ -11,7 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SKLogging
 package import SourceKitD
+import SwiftExtensions
 import ToolchainRegistry
 
 // Anchor class to lookup the testing bundle when swiftpm-testing-helper is used.
@@ -19,21 +21,21 @@ private final class TestingAnchor {}
 
 /// The path to the `SwiftSourceKitPluginTests` test bundle. This gives us a hook into the the build directory.
 private let xctestBundle: URL = {
-  #if canImport(Darwin)
-  for bundle in Bundle.allBundles where bundle.bundlePath.hasSuffix(".xctest") {
-    return bundle.bundleURL
+  if Platform.current == .darwin {
+    for bundle in Bundle.allBundles where bundle.bundlePath.hasSuffix(".xctest") {
+      return bundle.bundleURL
+    }
+    let bundle = Bundle(for: TestingAnchor.self)
+    if bundle.bundlePath.hasSuffix(".xctest") {
+      return bundle.bundleURL
+    }
+    preconditionFailure("Failed to find xctest bundle")
+  } else {
+    return URL(
+      fileURLWithPath: CommandLine.arguments.first!,
+      relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+    )
   }
-  let bundle = Bundle(for: TestingAnchor.self)
-  if bundle.bundlePath.hasSuffix(".xctest") {
-    return bundle.bundleURL
-  }
-  preconditionFailure("Failed to find xctest bundle")
-  #else
-  return URL(
-    fileURLWithPath: CommandLine.arguments.first!,
-    relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-  )
-  #endif
 }()
 
 /// When running tests from Xcode, determine the build configuration of the package.
@@ -90,16 +92,23 @@ private func pluginPaths(relativeTo base: URL) -> PluginPaths? {
 
   // When building using 'swift test'
   do {
-    #if canImport(Darwin)
-    let clientPluginName = "libSwiftSourceKitClientPlugin.dylib"
-    let servicePluginName = "libSwiftSourceKitPlugin.dylib"
-    #elseif os(Windows)
-    let clientPluginName = "SwiftSourceKitClientPlugin.dll"
-    let servicePluginName = "SwiftSourceKitPlugin.dll"
-    #else
-    let clientPluginName = "libSwiftSourceKitClientPlugin.so"
-    let servicePluginName = "libSwiftSourceKitPlugin.so"
-    #endif
+    let clientPluginName: String
+    let servicePluginName: String
+    switch Platform.current {
+    case .darwin:
+      clientPluginName = "libSwiftSourceKitClientPlugin.dylib"
+      servicePluginName = "libSwiftSourceKitPlugin.dylib"
+    case .windows:
+      clientPluginName = "SwiftSourceKitClientPlugin.dll"
+      servicePluginName = "SwiftSourceKitPlugin.dll"
+    case .linux:
+      clientPluginName = "libSwiftSourceKitClientPlugin.so"
+      servicePluginName = "libSwiftSourceKitPlugin.so"
+    case nil:
+      logger.fault("Could not determine host OS. Falling back to using '.so' as dynamic library extension")
+      clientPluginName = "libSwiftSourceKitClientPlugin.so"
+      servicePluginName = "libSwiftSourceKitPlugin.so"
+    }
     let clientPlugin = base.appendingPathComponent(clientPluginName)
     let servicePlugin = base.appendingPathComponent(servicePluginName)
     if fileExists(at: clientPlugin) && fileExists(at: servicePlugin) {
