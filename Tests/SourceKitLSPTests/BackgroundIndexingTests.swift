@@ -1325,7 +1325,7 @@ final class BackgroundIndexingTests: XCTestCase {
     // Updating Package.swift causes a package reload but should not cause dependencies to be updated.
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
-        FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("Package.resolved")), type: .changed)
+        FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("Package.swift")), type: .changed)
       ])
     )
     try await project.testClient.send(SynchronizeRequest(index: true))
@@ -1360,14 +1360,19 @@ final class BackgroundIndexingTests: XCTestCase {
       ])
     )
     try await project.testClient.send(SynchronizeRequest(index: true))
+    let dependencyCheckoutFile = try XCTUnwrap(
+      FileManager.default.findFiles(
+        named: "Dependency.swift",
+        in: project.scratchDirectory
+          .appendingPathComponent(".build")
+          .appendingPathComponent("index-build")
+          .appendingPathComponent("checkouts")
+      ).only
+    )
+    // Check that modifying Package.resolved actually modified the dependency checkout inside the package
+    assertContains(try String(contentsOf: dependencyCheckoutFile, encoding: .utf8), "Do something v1.1.0")
     project.testClient.send(
-      DidChangeWatchedFilesNotification(
-        changes: FileManager.default.findFiles(
-          named: "Dependency.swift",
-          in: project.scratchDirectory.appendingPathComponent(".build").appendingPathComponent("index-build")
-            .appendingPathComponent("checkouts")
-        ).map { FileEvent(uri: DocumentURI($0), type: .changed) }
-      )
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: DocumentURI(dependencyCheckoutFile), type: .changed)])
     )
 
     try await repeatUntilExpectedResult {
