@@ -561,4 +561,156 @@ final class SwiftPMIntegrationTests: XCTestCase {
       return location.range.lowerBound == Position(line: 3, utf16index: 4)
     }
   }
+
+  func testChangePackageManifestFile() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib.swift": """
+        #if MY_FLAG
+        #error("MY_FLAG set")
+        #else
+        #error("MY_FLAG not set")
+        #endif
+        """
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+        import PackageDescription
+        let package = Package(
+          name: "MyLibrary",
+          targets: [.target(name: "MyLibrary")]
+        )
+        """
+    )
+
+    let (uri, _) = try project.openDocument("Lib.swift")
+    let initialDiagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(initialDiagnostics.fullReport?.items.map(\.message), ["MY_FLAG not set"])
+
+    try await project.changeFileOnDisk(
+      "Package.swift",
+      newMarkedContents: """
+        // swift-tools-version: 5.7
+        import PackageDescription
+        let package = Package(
+          name: "MyLibrary",
+          targets: [.target(name: "MyLibrary", swiftSettings: [.define("MY_FLAG")])]
+        )
+        """
+    )
+    try await repeatUntilExpectedResult {
+      let diagnosticsAfterUpdate = try await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+      )
+      return diagnosticsAfterUpdate.fullReport?.items.map(\.message) == ["MY_FLAG set"]
+    }
+  }
+
+  func testChangeVersionSpecificPackageManifestFile() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib.swift": """
+        #if MY_FLAG
+        #error("MY_FLAG set")
+        #elseif MY_OTHER_FLAG
+        #error("MY_OTHER_FLAG set")
+        #else
+        #error("no flag set")
+        #endif
+        """,
+        "/Package@swift-6.1.swift": """
+        // swift-tools-version: 6.1
+        import PackageDescription
+        let package = Package(
+          name: "MyLibrary",
+          targets: [.target(name: "MyLibrary", swiftSettings: [.define("MY_FLAG")])]
+        )
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+        import PackageDescription
+        let package = Package(
+          name: "MyLibrary",
+          targets: [.target(name: "MyLibrary")]
+        )
+        """
+    )
+
+    let (uri, _) = try project.openDocument("Lib.swift")
+    let initialDiagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(initialDiagnostics.fullReport?.items.map(\.message), ["MY_FLAG set"])
+
+    try await project.changeFileOnDisk(
+      "Package@swift-6.1.swift",
+      newMarkedContents: """
+        // swift-tools-version: 6.1
+        import PackageDescription
+        let package = Package(
+          name: "MyLibrary",
+          targets: [.target(name: "MyLibrary", swiftSettings: [.define("MY_OTHER_FLAG")])]
+        )
+        """
+    )
+    try await repeatUntilExpectedResult {
+      let diagnosticsAfterUpdate = try await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+      )
+      return diagnosticsAfterUpdate.fullReport?.items.map(\.message) == ["MY_OTHER_FLAG set"]
+    }
+  }
+
+  func testAddVersionSpecificPackageManifestFile() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib.swift": """
+        #if MY_FLAG
+        #error("MY_FLAG set")
+        #else
+        #error("MY_FLAG not set")
+        #endif
+        """
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+        import PackageDescription
+        let package = Package(
+          name: "MyLibrary",
+          targets: [.target(name: "MyLibrary")]
+        )
+        """
+    )
+
+    let (uri, _) = try project.openDocument("Lib.swift")
+    let initialDiagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(initialDiagnostics.fullReport?.items.map(\.message), ["MY_FLAG not set"])
+
+    let versionSpecificManifestUrl = project.scratchDirectory.appending(component: "Package@swift-6.1.swift")
+    try await """
+    // swift-tools-version: 6.1
+    import PackageDescription
+    let package = Package(
+      name: "MyLibrary",
+      targets: [.target(name: "MyLibrary", swiftSettings: [.define("MY_FLAG")])]
+    )
+    """.writeWithRetry(to: versionSpecificManifestUrl)
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: DocumentURI(versionSpecificManifestUrl), type: .created)
+      ])
+    )
+    try await repeatUntilExpectedResult {
+      let diagnosticsAfterUpdate = try await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+      )
+      return diagnosticsAfterUpdate.fullReport?.items.map(\.message) == ["MY_FLAG set"]
+    }
+  }
 }
