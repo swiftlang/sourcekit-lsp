@@ -145,15 +145,6 @@ private struct InProgressPrepareForEditorTask {
   let task: Task<Void, Never>
 }
 
-/// The reason why a target is being prepared. This is used to determine the `IndexProgressStatus`.
-private enum TargetPreparationPurpose: Comparable {
-  /// We are preparing the target so we can index files in it.
-  case forIndexing
-
-  /// We are preparing the target to provide semantic functionality in one of its files.
-  case forEditorFunctionality
-}
-
 /// An entry in `SemanticIndexManager.inProgressPreparationTasks`.
 private struct InProgressPreparationTask {
   let task: OpaqueQueuedIndexTask
@@ -222,6 +213,9 @@ package final actor SemanticIndexManager {
   /// The parameter is the number of files that were scheduled to be indexed.
   private let indexTasksWereScheduled: @Sendable (_ numberOfFileScheduled: Int) -> Void
 
+  /// The size of the batches in which the `SemanticIndexManager` should dispatch preparation tasks.
+  private let indexTaskBatchSize: Int
+
   /// Callback that is called when `progressStatus` might have changed.
   private let indexProgressStatusDidChange: @Sendable () -> Void
 
@@ -261,6 +255,7 @@ package final actor SemanticIndexManager {
     updateIndexStoreTimeout: Duration,
     hooks: IndexHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
+    indexTaskBatchSize: Int,
     logMessageToIndexLog:
       @escaping @Sendable (
         _ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind
@@ -273,6 +268,7 @@ package final actor SemanticIndexManager {
     self.updateIndexStoreTimeout = updateIndexStoreTimeout
     self.hooks = hooks
     self.indexTaskScheduler = indexTaskScheduler
+    self.indexTaskBatchSize = indexTaskBatchSize
     self.logMessageToIndexLog = logMessageToIndexLog
     self.indexTasksWereScheduled = indexTasksWereScheduled
     self.indexProgressStatusDidChange = indexProgressStatusDidChange
@@ -655,6 +651,7 @@ package final actor SemanticIndexManager {
         targetsToPrepare: targetsToPrepare,
         buildServerManager: self.buildServerManager,
         preparationUpToDateTracker: preparationUpToDateTracker,
+        purpose: purpose,
         logMessageToIndexLog: logMessageToIndexLog,
         hooks: hooks
       )
@@ -877,10 +874,7 @@ package final actor SemanticIndexManager {
 
     var indexTasks: [Task<Void, Never>] = []
 
-    // TODO: When we can index multiple targets concurrently in SwiftPM, increase the batch size to half the
-    // processor count, so we can get parallelism during preparation.
-    // (https://github.com/swiftlang/sourcekit-lsp/issues/1262)
-    for targetsBatch in sortedTargets.partition(intoBatchesOfSize: 1) {
+    for targetsBatch in sortedTargets.partition(intoBatchesOfSize: indexTaskBatchSize) {
       let preparationTaskID = UUID()
       let filesToIndex = targetsBatch.flatMap({ filesByTarget[$0]! })
 
@@ -904,10 +898,7 @@ package final actor SemanticIndexManager {
         // And after preparation is done, index the files in the targets.
         await withTaskGroup(of: Void.self) { taskGroup in
           for target in targetsBatch {
-            // TODO: Once swiftc supports indexing of multiple files in a single invocation, increase the batch size to
-            // allow it to share AST builds between multiple files within a target.
-            // (https://github.com/swiftlang/sourcekit-lsp/issues/1268)
-            for fileBatch in filesByTarget[target]!.partition(intoBatchesOfSize: 1) {
+            for fileBatch in filesByTarget[target]!.partition(intoBatchesOfSize: indexTaskBatchSize) {
               taskGroup.addTask {
                 await self.updateIndexStore(
                   for: fileBatch,

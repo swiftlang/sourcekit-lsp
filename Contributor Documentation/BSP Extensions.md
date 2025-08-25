@@ -22,6 +22,9 @@ export interface SourceKitInitializeBuildResponseData {
    * for `swiftc` or `clang` invocations **/
   indexStorePath?: string;
 
+  /** Options to control how many targets should be prepared simultaneously by SourceKit-LSP. */
+  multiTargetPreparation?: MultiTargetPreparationSupport
+
   /** Whether the server set the `outputPath` property in the `buildTarget/sources` request */
   outputPathsProvider?: bool;
 
@@ -34,7 +37,17 @@ export interface SourceKitInitializeBuildResponseData {
   /** The files to watch for changes.
    * Changes to these files are sent to the BSP server using `workspace/didChangeWatchedFiles`.
    * `FileSystemWatcher` is the same as in LSP. */
-  watchers: [FileSystemWatcher]?
+  watchers?: [FileSystemWatcher]
+}
+
+export interface MultiTargetPreparationSupport {
+  /** Whether the build server can prepare multiple targets in parallel.
+   * If this value is not provided, it will be assumed to be `true`. */
+  supported?: bool;
+
+  /** The number of targets to prepare in parallel.
+   * If not provided, SourceKit-LSP will calculate an appropriate value based on the environment. */
+  batchSize?: int;
 }
 ```
 

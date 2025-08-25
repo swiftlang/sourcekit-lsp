@@ -59,6 +59,8 @@ package actor FixedCompilationDatabaseBuildServer: BuiltInBuildServer {
     indexStorePath?.deletingLastPathComponent().appendingPathComponent("IndexDatabase")
   }
 
+  package nonisolated var supportsMultiTargetPreparation: Bool { true }
+
   package nonisolated var supportsPreparationAndOutputPaths: Bool { false }
 
   private static func parseCompileFlags(at configPath: URL) throws -> [String] {
