@@ -37,18 +37,7 @@ extension SyntaxRefactoringCodeActionProvider where Self.Context == Void {
       return []
     }
 
-    let textEdits = sourceEdits.compactMap { (edit) -> TextEdit? in
-      let edit = TextEdit(
-        range: scope.snapshot.absolutePositionRange(of: edit.range),
-        newText: edit.replacement
-      )
-      if edit.isNoOp(in: scope.snapshot) {
-        return nil
-      }
-      return edit
-    }
-
-    if textEdits.isEmpty {
+    guard let workspaceEdit = sourceEdits.asWorkspaceEdit(snapshot: scope.snapshot) else {
       return []
     }
 
@@ -56,7 +45,7 @@ extension SyntaxRefactoringCodeActionProvider where Self.Context == Void {
       CodeAction(
         title: Self.title,
         kind: .refactorInline,
-        edit: WorkspaceEdit(changes: [scope.snapshot.uri: textEdits])
+        edit: workspaceEdit
       )
     ]
   }
@@ -138,5 +127,32 @@ extension SyntaxProtocol {
       node = unwrappedNode.parent
     }
     return nil
+  }
+}
+
+extension [SourceEdit] {
+  /// Translate source edits into a workspace edit.
+  /// `snapshot` is the latest snapshot of the document to which these edits belong.
+  func asWorkspaceEdit(snapshot: DocumentSnapshot) -> WorkspaceEdit? {
+    let textEdits = compactMap { edit -> TextEdit? in
+      let edit = TextEdit(
+        range: snapshot.absolutePositionRange(of: edit.range),
+        newText: edit.replacement
+      )
+
+      if edit.isNoOp(in: snapshot) {
+        return nil
+      }
+
+      return edit
+    }
+
+    if textEdits.isEmpty {
+      return nil
+    }
+
+    return WorkspaceEdit(
+      changes: [snapshot.uri: textEdits]
+    )
   }
 }

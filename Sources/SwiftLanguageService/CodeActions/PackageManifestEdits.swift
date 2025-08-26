@@ -50,16 +50,20 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
           type: type
         )
 
-        let edits = try AddPackageTarget.textRefactor(
-          syntax: scope.file,
-          in: .init(target: target)
-        )
+        guard
+          let edit = try AddPackageTarget.textRefactor(
+            syntax: scope.file,
+            in: .init(target: target)
+          ).asWorkspaceEdit(snapshot: scope.snapshot)
+        else {
+          continue
+        }
 
         actions.append(
           CodeAction(
             title: "Add \(name) target",
             kind: .refactor,
-            edit: edits.asWorkspaceEdit(snapshot: scope.snapshot)
+            edit: edit
           )
         )
       }
@@ -98,16 +102,20 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
           dependencies: [.byName(name: targetName)],
         )
 
-        let edits = try AddPackageTarget.textRefactor(
-          syntax: scope.file,
-          in: .init(target: target, testHarness: testingLibrary)
-        )
+        guard
+          let edit = try AddPackageTarget.textRefactor(
+            syntax: scope.file,
+            in: .init(target: target, testHarness: testingLibrary)
+          ).asWorkspaceEdit(snapshot: scope.snapshot)
+        else {
+          continue
+        }
 
         actions.append(
           CodeAction(
             title: "Add test target (\(libraryName))",
             kind: .refactor,
-            edit: edits.asWorkspaceEdit(snapshot: scope.snapshot)
+            edit: edit
           )
         )
       }
@@ -151,16 +159,20 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
         targets: [targetName]
       )
 
-      let edits = try AddProduct.textRefactor(
-        syntax: scope.file,
-        in: .init(product: product)
-      )
+      guard
+        let edit = try AddProduct.textRefactor(
+          syntax: scope.file,
+          in: .init(product: product)
+        ).asWorkspaceEdit(snapshot: scope.snapshot)
+      else {
+        return []
+      }
 
       return [
         CodeAction(
           title: "Add product to export this target",
           kind: .refactor,
-          edit: edits.asWorkspaceEdit(snapshot: scope.snapshot)
+          edit: edit
         )
       ]
     } catch {
@@ -173,24 +185,6 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
     "executableTarget",
     "target",
   ]
-}
-
-fileprivate extension [SourceEdit] {
-  /// Translate package manifest edits into a workspace edit.
-  /// `snapshot` is the latest snapshot of the `Package.swift` file.
-  func asWorkspaceEdit(snapshot: DocumentSnapshot) -> WorkspaceEdit {
-    // The edits to perform on the manifest itself.
-    let manifestTextEdits = map { edit in
-      TextEdit(
-        range: snapshot.absolutePositionRange(of: edit.range),
-        newText: edit.replacement
-      )
-    }
-
-    return WorkspaceEdit(
-      changes: [snapshot.uri: manifestTextEdits]
-    )
-  }
 }
 
 fileprivate extension SyntaxProtocol {
