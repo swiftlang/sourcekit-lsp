@@ -623,29 +623,19 @@ final class CodeActionTests: XCTestCase {
       }
     )
 
-    guard let addTestChanges = addTestAction?.edit?.documentChanges else {
+    guard let addTestChanges = addTestAction?.edit?.changes else {
       XCTFail("Didn't have changes in the 'Add test target (Swift Testing)' action")
       return
     }
 
-    guard
-      let addTestEdit = addTestChanges.lazy.compactMap({ change in
-        switch change {
-        case .textDocumentEdit(let edit): edit
-        default: nil
-        }
-      }).first
-    else {
+    guard let manifestEdits = addTestChanges[uri] else {
       XCTFail("Didn't have edits")
       return
     }
 
     XCTAssertTrue(
-      addTestEdit.edits.contains { edit in
-        switch edit {
-        case .textEdit(let edit): edit.newText.contains("testTarget")
-        case .annotatedTextEdit(let edit): edit.newText.contains("testTarget")
-        }
+      manifestEdits.contains { edit in
+        edit.newText.contains("testTarget")
       }
     )
 
