@@ -33,4 +33,19 @@ extension FileManager {
     var isDirectory: ObjCBool = false
     return self.fileExists(atPath: url.path, isDirectory: &isDirectory) && !isDirectory.boolValue
   }
+
+  /// Same as `createFile(atPath:data:attributes)` but throws an error when file creation fails instead of returning
+  /// `false`.
+  package func createFile(at url: URL, contents data: Data?, attributes: [FileAttributeKey: Any]? = nil) throws {
+    struct FileCreationFailed: Error, CustomStringConvertible {
+      let url: URL
+      var description: String {
+        "Failed to create file at '\(url)'"
+      }
+    }
+    let successful = createFile(atPath: try url.filePath, contents: data, attributes: attributes)
+    guard successful else {
+      throw FileCreationFailed(url: url)
+    }
+  }
 }

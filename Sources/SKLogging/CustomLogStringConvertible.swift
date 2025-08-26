@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import Foundation
+public import Foundation
 
 #if !NO_CRYPTO_DEPENDENCY
 import Crypto
@@ -33,14 +33,21 @@ package protocol CustomLogStringConvertible: CustomStringConvertible, Sendable {
 /// There currently is no way to get equivalent functionality in pure Swift. We
 /// thus pass this object to OSLog, which just forwards to `description` or
 /// `redactedDescription` of an object that implements `CustomLogStringConvertible`.
-package final class CustomLogStringConvertibleWrapper: NSObject, Sendable {
+public final class CustomLogStringConvertibleWrapper: NSObject, Sendable {
+  // `CustomLogStringConvertibleWrapper` is marked as `public` to work around
+  // https://github.com/swiftlang/swift/issues/83893
   private let underlyingObject: any CustomLogStringConvertible
+  #if compiler(>=6.4)
+  #warning(
+    "Mark CustomLogStringConvertibleWrapper as `package` if https://github.com/swiftlang/swift/issues/83893 is fixed"
+  )
+  #endif
 
   fileprivate init(_ underlyingObject: any CustomLogStringConvertible) {
     self.underlyingObject = underlyingObject
   }
 
-  package override var description: String {
+  public override var description: String {
     return underlyingObject.description
   }
 
