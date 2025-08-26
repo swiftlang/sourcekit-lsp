@@ -184,19 +184,19 @@ struct SourceKitLSP: AsyncParsableCommand {
           .appendingPathComponent("config.json")
       )
     )
-    #if canImport(Darwin)
-    for applicationSupportDir in FileManager.default.urls(for: .applicationSupportDirectory, in: [.allDomainsMask]) {
-      options = SourceKitLSPOptions.merging(
-        base: options,
-        override: SourceKitLSPOptions(
-          path:
-            applicationSupportDir
-            .appendingPathComponent("org.swift.sourcekit-lsp")
-            .appendingPathComponent("config.json")
+    if Platform.current == .darwin {
+      for applicationSupportDir in FileManager.default.urls(for: .applicationSupportDirectory, in: [.allDomainsMask]) {
+        options = SourceKitLSPOptions.merging(
+          base: options,
+          override: SourceKitLSPOptions(
+            path:
+              applicationSupportDir
+              .appendingPathComponent("org.swift.sourcekit-lsp")
+              .appendingPathComponent("config.json")
+          )
         )
-      )
+      }
     }
-    #endif
     if let xdgConfigHome = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"] {
       options = SourceKitLSPOptions.merging(
         base: options,

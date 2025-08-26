@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(DocCDocumentation)
 import LanguageServerProtocol
 import SKTestSupport
 import SourceKitLSP
@@ -18,10 +17,12 @@ import XCTest
 
 final class DocumentationLanguageServiceTests: XCTestCase {
   func testHandlesMarkdownFiles() async throws {
+    try await SkipUnless.doccSupported()
     try await assertHandles(language: .markdown)
   }
 
   func testHandlesTutorialFiles() async throws {
+    try await SkipUnless.doccSupported()
     try await assertHandles(language: .tutorial)
   }
 }
@@ -40,4 +41,3 @@ private func assertHandles(language: Language) async throws {
   )
   XCTAssertEqual(completions, .init(isIncomplete: false, items: []))
 }
-#endif
