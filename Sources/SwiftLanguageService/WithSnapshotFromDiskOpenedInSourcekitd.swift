@@ -15,6 +15,7 @@ import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SKUtilities
+import SourceKitD
 import SourceKitLSP
 import SwiftExtensions
 
