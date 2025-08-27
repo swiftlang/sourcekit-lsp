@@ -229,7 +229,7 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
         // Theoretically they could have changed and we would need to inform SourceKitLSPServer about them.
         // But since SourceKitLSPServer more or less ignores them right now anyway, this should be fine for now.
         _ = try await self.initialize(initializeRequest)
-        self.clientInitialized(InitializedNotification())
+        await self.clientInitialized(InitializedNotification())
         if let sourceKitLSPServer {
           await sourceKitLSPServer.reopenDocuments(for: self)
         } else {
@@ -309,7 +309,7 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
       logger.fault(
         "Did not receive reply from clangd after \(self.options.semanticServiceRestartTimeoutOrDefault, privacy: .public). Terminating and restarting clangd."
       )
-      self.crash()
+      await self.crash()
       throw error
     }
   }
@@ -318,7 +318,7 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
     return nil
   }
 
-  package func crash() {
+  package func crash() async {
     clangdProcess?.terminateImmediately()
   }
 }
@@ -383,7 +383,7 @@ extension ClangLanguageService {
     return result
   }
 
-  package func clientInitialized(_ initialized: InitializedNotification) {
+  package func clientInitialized(_ initialized: InitializedNotification) async {
     clangd.send(initialized)
   }
 
@@ -430,11 +430,11 @@ extension ClangLanguageService {
     clangd.send(notification)
   }
 
-  package func willSaveDocument(_ notification: WillSaveTextDocumentNotification) {
+  package func willSaveDocument(_ notification: WillSaveTextDocumentNotification) async {
 
   }
 
-  package func didSaveDocument(_ notification: DidSaveTextDocumentNotification) {
+  package func didSaveDocument(_ notification: DidSaveTextDocumentNotification) async {
     clangd.send(notification)
   }
 
@@ -458,7 +458,7 @@ extension ClangLanguageService {
     }
   }
 
-  package func documentDependenciesUpdated(_ uris: Set<DocumentURI>) {
+  package func documentDependenciesUpdated(_ uris: Set<DocumentURI>) async {
     for uri in uris {
       // In order to tell clangd to reload an AST, we send it an empty `didChangeTextDocument`
       // with `forceRebuild` set in case any missing header files have been added.
@@ -508,20 +508,6 @@ extension ClangLanguageService {
 
   package func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
     return try await forwardRequestToClangd(req)
-  }
-
-  package func symbolGraph(
-    forOnDiskContentsOf symbolDocumentUri: DocumentURI,
-    at location: SymbolLocation
-  ) async throws -> String {
-    throw ResponseError.internalError("Symbol graph is currently not supported for clang files")
-  }
-
-  package func symbolGraph(
-    for snapshot: SourceKitLSP.DocumentSnapshot,
-    at position: LanguageServerProtocol.Position
-  ) async throws -> (symbolGraph: String, usr: String, overrideDocComments: [String]) {
-    throw ResponseError.internalError("Symbol graph is currently not supported for clang files")
   }
 
   package func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
@@ -630,15 +616,6 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
-  package func openGeneratedInterface(
-    document: DocumentURI,
-    moduleName: String,
-    groupName: String?,
-    symbolUSR symbol: String?
-  ) async throws -> GeneratedInterfaceDetails? {
-    throw ResponseError.unknown("unsupported method")
-  }
-
   package func indexedRename(_ request: IndexedRenameRequest) async throws -> WorkspaceEdit? {
     return try await forwardRequestToClangd(request)
   }
@@ -647,10 +624,6 @@ extension ClangLanguageService {
 
   package func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
     return try await forwardRequestToClangd(req)
-  }
-
-  package func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
-    throw ResponseError.unknown("unsupported method")
   }
 
   package func rename(_ renameRequest: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
@@ -663,7 +636,10 @@ extension ClangLanguageService {
     return (try await edits ?? WorkspaceEdit(), symbolDetail?.usr)
   }
 
-  package func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async -> [AnnotatedTestItem]? {
+  package func syntacticDocumentTests(
+    for uri: DocumentURI,
+    in workspace: Workspace
+  ) async throws -> [AnnotatedTestItem]? {
     return nil
   }
 

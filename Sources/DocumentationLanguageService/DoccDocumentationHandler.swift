@@ -108,7 +108,7 @@ extension DocumentationLanguageService {
         let symbolOccurrence = try await index.primaryDefinitionOrDeclarationOccurrence(
           ofDocCSymbolLink: symbolLink,
           fetchSymbolGraph: { location in
-            guard let symbolWorkspace = try await workspaceForDocument(uri: location.documentUri) else {
+            guard let symbolWorkspace = await sourceKitLSPServer.workspaceForDocument(uri: location.documentUri) else {
               throw ResponseError.internalError("Unable to find language service for \(location.documentUri)")
             }
             let languageService = try await sourceKitLSPServer.primaryLanguageService(
@@ -126,7 +126,7 @@ extension DocumentationLanguageService {
         throw ResponseError.requestFailed(doccDocumentationError: .symbolNotFound(symbolName))
       }
       let symbolDocumentUri = symbolOccurrence.location.documentUri
-      guard let symbolWorkspace = try await workspaceForDocument(uri: symbolDocumentUri) else {
+      guard let symbolWorkspace = await sourceKitLSPServer.workspaceForDocument(uri: symbolDocumentUri) else {
         throw ResponseError.internalError("Unable to find language service for \(symbolDocumentUri)")
       }
       let languageService = try await sourceKitLSPServer.primaryLanguageService(
@@ -182,7 +182,7 @@ extension DocumentationLanguageService {
         catalogURL: catalogURL,
         for: symbolUSR,
         fetchSymbolGraph: { location in
-          guard let symbolWorkspace = try await workspaceForDocument(uri: location.documentUri) else {
+          guard let symbolWorkspace = await sourceKitLSPServer.workspaceForDocument(uri: location.documentUri) else {
             throw ResponseError.internalError("Unable to find language service for \(location.documentUri)")
           }
           let languageService = try await sourceKitLSPServer.primaryLanguageService(
