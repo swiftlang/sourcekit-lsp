@@ -50,16 +50,20 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
           type: type
         )
 
-        let edits = try AddPackageTarget.manifestRefactor(
-          syntax: scope.file,
-          in: .init(target: target)
-        )
+        guard
+          let edit = try AddPackageTarget.textRefactor(
+            syntax: scope.file,
+            in: .init(target: target)
+          ).asWorkspaceEdit(snapshot: scope.snapshot)
+        else {
+          continue
+        }
 
         actions.append(
           CodeAction(
             title: "Add \(name) target",
             kind: .refactor,
-            edit: edits.asWorkspaceEdit(snapshot: scope.snapshot)
+            edit: edit
           )
         )
       }
@@ -98,16 +102,20 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
           dependencies: [.byName(name: targetName)],
         )
 
-        let edits = try AddPackageTarget.manifestRefactor(
-          syntax: scope.file,
-          in: .init(target: target, testHarness: testingLibrary)
-        )
+        guard
+          let edit = try AddPackageTarget.textRefactor(
+            syntax: scope.file,
+            in: .init(target: target, testHarness: testingLibrary)
+          ).asWorkspaceEdit(snapshot: scope.snapshot)
+        else {
+          continue
+        }
 
         actions.append(
           CodeAction(
             title: "Add test target (\(libraryName))",
             kind: .refactor,
-            edit: edits.asWorkspaceEdit(snapshot: scope.snapshot)
+            edit: edit
           )
         )
       }
@@ -151,16 +159,20 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
         targets: [targetName]
       )
 
-      let edits = try AddProduct.manifestRefactor(
-        syntax: scope.file,
-        in: .init(product: product)
-      )
+      guard
+        let edit = try AddProduct.textRefactor(
+          syntax: scope.file,
+          in: .init(product: product)
+        ).asWorkspaceEdit(snapshot: scope.snapshot)
+      else {
+        return []
+      }
 
       return [
         CodeAction(
           title: "Add product to export this target",
           kind: .refactor,
-          edit: edits.asWorkspaceEdit(snapshot: scope.snapshot)
+          edit: edit
         )
       ]
     } catch {
@@ -173,85 +185,6 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
     "executableTarget",
     "target",
   ]
-}
-
-fileprivate extension PackageEdit {
-  /// Translate package manifest edits into a workspace edit. This can
-  /// involve both modifications to the manifest file as well as the creation
-  /// of new files.
-  /// `snapshot` is the latest snapshot of the `Package.swift` file.
-  func asWorkspaceEdit(snapshot: DocumentSnapshot) -> WorkspaceEdit {
-    // The edits to perform on the manifest itself.
-    let manifestTextEdits = manifestEdits.map { edit in
-      TextEdit(
-        range: snapshot.absolutePositionRange(of: edit.range),
-        newText: edit.replacement
-      )
-    }
-
-    // If we couldn't figure out the manifest directory, or there are no
-    // files to add, the only changes are the manifest edits. We're done
-    // here.
-    let manifestDirectoryURL = snapshot.uri.fileURL?
-      .deletingLastPathComponent()
-    guard let manifestDirectoryURL, !auxiliaryFiles.isEmpty else {
-      return WorkspaceEdit(
-        changes: [snapshot.uri: manifestTextEdits]
-      )
-    }
-
-    // Use the more full-featured documentChanges, which takes precedence
-    // over the individual changes to documents.
-    var documentChanges: [WorkspaceEditDocumentChange] = []
-
-    // Put the manifest changes into the array.
-    documentChanges.append(
-      .textDocumentEdit(
-        TextDocumentEdit(
-          textDocument: .init(snapshot.uri, version: snapshot.version),
-          edits: manifestTextEdits.map { .textEdit($0) }
-        )
-      )
-    )
-
-    // Create an populate all of the auxiliary files.
-    for (relativePath, contents) in auxiliaryFiles {
-      guard
-        let url = URL(
-          string: relativePath,
-          relativeTo: manifestDirectoryURL
-        )
-      else {
-        continue
-      }
-
-      let documentURI = DocumentURI(url)
-      let createFile = CreateFile(
-        uri: documentURI
-      )
-
-      let zeroPosition = Position(line: 0, utf16index: 0)
-      let edit = TextEdit(
-        range: zeroPosition..<zeroPosition,
-        newText: contents.description
-      )
-
-      documentChanges.append(.createFile(createFile))
-      documentChanges.append(
-        .textDocumentEdit(
-          TextDocumentEdit(
-            textDocument: .init(documentURI, version: snapshot.version),
-            edits: [.textEdit(edit)]
-          )
-        )
-      )
-    }
-
-    return WorkspaceEdit(
-      changes: [snapshot.uri: manifestTextEdits],
-      documentChanges: documentChanges
-    )
-  }
 }
 
 fileprivate extension SyntaxProtocol {
