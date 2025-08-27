@@ -23,7 +23,7 @@ enum DocCDocumentationError: LocalizedError {
     case .unsupportedLanguage(let language):
       return "Documentation preview is not available for \(language.description) files"
     case .indexNotAvailable:
-      return "The index is not availble to complete the request"
+      return "The index is not available to complete the request"
     case .symbolNotFound(let symbolName):
       return "Could not find symbol \(symbolName) in the project"
     }

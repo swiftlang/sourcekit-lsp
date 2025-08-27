@@ -40,7 +40,7 @@ extension CheckedIndex {
     var result: [SymbolOccurrence] = []
     for occurrence in topLevelSymbolOccurrences {
       let info = try await doccSymbolInformation(ofUSR: occurrence.symbol.usr, fetchSymbolGraph: fetchSymbolGraph)
-      if let info, info.matches(symbolLink) {
+      if info.matches(symbolLink) {
         result.append(occurrence)
       }
     }
@@ -60,9 +60,9 @@ extension CheckedIndex {
   func doccSymbolInformation(
     ofUSR usr: String,
     fetchSymbolGraph: (SymbolLocation) async throws -> String?
-  ) async throws -> DocCSymbolInformation? {
+  ) async throws -> DocCSymbolInformation {
     guard let topLevelSymbolOccurrence = primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
-      return nil
+      throw DocCCheckedIndexError.emptyDocCSymbolLink
     }
     let moduleName = topLevelSymbolOccurrence.location.moduleName
     var symbols = [topLevelSymbolOccurrence]

@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+package import BuildServerIntegration
 import Foundation
 package import IndexStoreDB
 package import LanguageServerProtocol
@@ -148,6 +149,18 @@ package protocol LanguageService: AnyObject, Sendable {
   /// Sent to close a document on the Language Server.
   func closeDocument(_ notification: DidCloseTextDocumentNotification) async
 
+  /// Sent to open up a document on the Language Server whose contents are on-disk.
+  ///
+  /// The snapshot will have a synthesized name and the caller is responsible for synthesizing build settings for it.
+  ///
+  /// - Important: This should only be called by `OnDiskDocumentManager`.
+  func openOnDiskDocument(snapshot: DocumentSnapshot, buildSettings: FileBuildSettings) async throws
+
+  /// Sent to close a document that was opened by `openOnDiskDocument`.
+  ///
+  /// - Important: This should only be called by `OnDiskDocumentManager`.
+  func closeOnDiskDocument(uri: DocumentURI) async throws
+
   /// Re-open the given document, discarding any in-memory state and forcing an AST to be re-built after build settings
   /// have been changed. This needs to be handled via a notification to ensure that no other request for this document
   /// is executing at the same time.
@@ -197,8 +210,9 @@ package protocol LanguageService: AnyObject, Sendable {
   /// Return the symbol graph at the given location for the contents of the document as they are on-disk (opposed to the
   /// in-memory modified version of the document).
   func symbolGraph(
-    forOnDiskContentsOf symbolDocumentUri: DocumentURI,
-    at location: SymbolLocation
+    forOnDiskContentsAt location: SymbolLocation,
+    in workspace: Workspace,
+    manager: OnDiskDocumentManager
   ) async throws -> String
 
   /// Request a generated interface of a module to display in the IDE.
@@ -330,6 +344,14 @@ package extension LanguageService {
 
   func clientInitialized(_ initialized: LanguageServerProtocol.InitializedNotification) async {}
 
+  func openOnDiskDocument(snapshot: DocumentSnapshot, buildSettings: FileBuildSettings) async throws {
+    throw ResponseError.unknown("\(#function) not implemented in \(Self.self)")
+  }
+
+  func closeOnDiskDocument(uri: DocumentURI) async throws {
+    throw ResponseError.unknown("\(#function) not implemented in \(Self.self)")
+  }
+
   func willSaveDocument(_ notification: WillSaveTextDocumentNotification) async {}
 
   func didSaveDocument(_ notification: DidSaveTextDocumentNotification) async {}
@@ -368,8 +390,9 @@ package extension LanguageService {
   }
 
   func symbolGraph(
-    forOnDiskContentsOf symbolDocumentUri: DocumentURI,
-    at location: SymbolLocation
+    forOnDiskContentsAt location: SymbolLocation,
+    in workspace: Workspace,
+    manager: OnDiskDocumentManager
   ) async throws -> String {
     throw ResponseError.internalError("\(#function) not implemented in \(Self.self)")
   }

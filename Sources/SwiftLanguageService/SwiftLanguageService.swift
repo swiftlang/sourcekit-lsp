@@ -294,29 +294,24 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     }
   }
 
-  func buildSettings(for document: DocumentURI, fallbackAfterTimeout: Bool) async -> FileBuildSettings? {
-    let buildSettingsFile = document.buildSettingsFile
-
+  func compileCommand(for document: DocumentURI, fallbackAfterTimeout: Bool) async -> SwiftCompileCommand? {
     guard let sourceKitLSPServer else {
       logger.fault("Cannot retrieve build settings because SourceKitLSPServer is no longer alive")
       return nil
     }
-    guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: buildSettingsFile) else {
+    guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: document.buildSettingsFile) else {
       return nil
     }
-    return await workspace.buildServerManager.buildSettingsInferredFromMainFile(
-      for: buildSettingsFile,
+    let settings = await workspace.buildServerManager.buildSettingsInferredFromMainFile(
+      for: document.buildSettingsFile,
       language: .swift,
       fallbackAfterTimeout: fallbackAfterTimeout
     )
-  }
 
-  func compileCommand(for document: DocumentURI, fallbackAfterTimeout: Bool) async -> SwiftCompileCommand? {
-    if let settings = await self.buildSettings(for: document, fallbackAfterTimeout: fallbackAfterTimeout) {
-      return SwiftCompileCommand(settings)
-    } else {
+    guard let settings else {
       return nil
     }
+    return SwiftCompileCommand(settings)
   }
 
   func send(
@@ -584,6 +579,22 @@ extension SwiftLanguageService {
         _ = try await self.send(sourcekitdRequest: \.editorClose, req, snapshot: nil)
       }
     }
+  }
+
+  package func openOnDiskDocument(snapshot: DocumentSnapshot, buildSettings: FileBuildSettings) async throws {
+    _ = try await send(
+      sourcekitdRequest: \.editorOpen,
+      self.openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: SwiftCompileCommand(buildSettings)),
+      snapshot: snapshot
+    )
+  }
+
+  package func closeOnDiskDocument(uri: DocumentURI) async throws {
+    _ = try await send(
+      sourcekitdRequest: \.editorClose,
+      self.closeDocumentSourcekitdRequest(uri: uri),
+      snapshot: nil
+    )
   }
 
   /// Cancels any in-flight tasks to send a `PublishedDiagnosticsNotification` after edits.

@@ -496,14 +496,10 @@ extension ClangLanguageService {
   }
 
   package func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
-    guard let sourceKitLSPServer else {
-      throw ResponseError.unknown("Connection to the editor closed")
+    guard let language = openDocuments[req.textDocument.uri] else {
+      throw ResponseError.requestFailed("Documentation preview is not available for clang files")
     }
-
-    let snapshot = try sourceKitLSPServer.documentManager.latestSnapshot(req.textDocument.uri)
-    throw ResponseError.requestFailed(
-      "Documentation preview is not available for \(snapshot.language.description) files"
-    )
+    throw ResponseError.requestFailed("Documentation preview is not available for \(language.description) files")
   }
 
   package func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
