@@ -12,6 +12,7 @@
 
 import LanguageServerProtocol
 import SKTestSupport
+import SwiftExtensions
 import TSCBasic
 import XCTest
 
@@ -247,6 +248,46 @@ final class TypeHierarchyTests: XCTestCase {
         TypeHierarchyItem(name: "Outer.Mid", kind: .class, location: "1️⃣", in: project)
       ]
     )
+  }
+
+  func testClangTypeHierarchy() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/include/empty.h": "",
+        "MyLibrary/Test.cpp": """
+        class Foo {};
+
+        class Bar: 1️⃣Foo {};
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+    let (uri, positions) = try project.openDocument("Test.cpp", language: .cpp)
+    let response = try await project.testClient.send(
+      TypeHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertEqual(response?.count, 1)
+  }
+
+  func testClangTypeHierarchyInitiatedFromFunction() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/include/empty.h": "",
+        "MyLibrary/Test.cpp": """
+        void hello() {}
+
+        void test() {
+          1️⃣hello();
+        }
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+    let (uri, positions) = try project.openDocument("Test.cpp", language: .cpp)
+    let response = try await project.testClient.send(
+      TypeHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertNil(response)
   }
 }
 

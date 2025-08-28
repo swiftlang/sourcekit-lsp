@@ -2464,20 +2464,31 @@ extension SourceKitLSPServer {
     guard let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles) else {
       return nil
     }
-    let usrs =
-      symbols
-      .filter {
-        // Only include references to type. For example, we don't want to find the type hierarchy of a constructor when
-        // starting the type hierarchy on `Foo()``.
-        switch $0.kind {
-        case .class, .enum, .interface, .struct: return true
-        default: return false
-        }
+    let usrs = symbols.filter {
+      // Only include references to type. For example, we don't want to find the type hierarchy of a constructor when
+      // starting the type hierarchy on `Foo()`.
+      // Consider a symbol a class if its kind is `nil`, eg. for a symbol returned by clang's SymbolInfo, which
+      // doesn't support the `kind` field.
+      switch $0.kind {
+      case .class, .enum, .interface, .struct, nil: return true
+      default: return false
       }
-      .compactMap(\.usr)
+    }.compactMap(\.usr)
+
     let typeHierarchyItems = usrs.compactMap { (usr) -> TypeHierarchyItem? in
       guard let info = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
         return nil
+      }
+      // Filter symbols based on their kind in the index since the filter on the symbol info response might have
+      // returned `nil` for the kind, preventing us from doing any filtering there.
+      switch info.symbol.kind {
+      case .unknown, .macro, .function, .variable, .field, .enumConstant, .instanceMethod, .classMethod, .staticMethod,
+        .instanceProperty, .classProperty, .staticProperty, .constructor, .destructor, .conversionFunction, .parameter,
+        .concept, .commentTag:
+        return nil
+      case .module, .namespace, .namespaceAlias, .enum, .struct, .class, .protocol, .extension, .union, .typealias,
+        .using:
+        break
       }
       return self.indexToLSPTypeHierarchyItem(
         definition: info,
