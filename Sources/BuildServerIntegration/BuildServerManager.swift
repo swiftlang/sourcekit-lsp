@@ -329,8 +329,10 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   /// preferred over `buildServerAdapter` because no messages must be sent to the build server before initialization
   /// finishes.
   private var buildServerAdapterAfterInitialized: BuildServerAdapter? {
-    get async {
-      _ = await initializeResult.value
+    get async throws {
+      guard await initializeResult.value != nil else {
+        throw ResponseError.unknown("Build server failed to initialize")
+      }
       return buildServerAdapter
     }
   }
@@ -505,8 +507,9 @@ package actor BuildServerManager: QueueBasedMessageHandler {
         logger.fault("If we have a connectionToBuildServer, we must have had a buildServerSpec")
         return nil
       }
-      let initializeResponse = await orLog("Initializing build server") {
-        try await buildServerAdapter.send(
+      let initializeResponse: InitializeBuildResponse?
+      do {
+        initializeResponse = try await buildServerAdapter.send(
           InitializeBuildRequest(
             displayName: "SourceKit-LSP",
             version: "",
@@ -515,7 +518,19 @@ package actor BuildServerManager: QueueBasedMessageHandler {
             capabilities: BuildClientCapabilities(languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift])
           )
         )
+      } catch {
+        initializeResponse = nil
+        let errorMessage: String
+        if let error = error as? ResponseError {
+          errorMessage = error.message
+        } else {
+          errorMessage = "\(error)"
+        }
+        connectionToClient.send(
+          ShowMessageNotification(type: .error, message: "Failed to initialize build server: \(errorMessage)")
+        )
       }
+
       if let initializeResponse, !(initializeResponse.sourceKitData?.sourceKitOptionsProvider ?? false),
         case .external(let externalBuildServerAdapter) = buildServerAdapter
       {
@@ -559,7 +574,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   package func shutdown() async {
     // Clear any pending work done progresses from the build server.
     self.workDoneProgressManagers.removeAll()
-    guard let buildServerAdapter = await self.buildServerAdapterAfterInitialized else {
+    guard let buildServerAdapter = try? await self.buildServerAdapterAfterInitialized else {
       return
     }
     await orLog("Sending shutdown request to build server") {
@@ -898,7 +913,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     in target: BuildTargetIdentifier,
     language: Language
   ) async throws -> FileBuildSettings? {
-    guard let buildServerAdapter = await buildServerAdapterAfterInitialized else {
+    guard let buildServerAdapter = try await buildServerAdapterAfterInitialized else {
       return nil
     }
     let request = TextDocumentSourceKitOptionsRequest(
@@ -1158,7 +1173,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   }
 
   private func buildTargets() async throws -> [BuildTargetIdentifier: BuildTargetInfo] {
-    guard let buildServerAdapter = await buildServerAdapterAfterInitialized else {
+    guard let buildServerAdapter = try await buildServerAdapterAfterInitialized else {
       return [:]
     }
 
@@ -1198,7 +1213,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   }
 
   package func sourceFiles(in targets: Set<BuildTargetIdentifier>) async throws -> [SourcesItem] {
-    guard let buildServerAdapter = await buildServerAdapterAfterInitialized, !targets.isEmpty else {
+    guard let buildServerAdapter = try await buildServerAdapterAfterInitialized, !targets.isEmpty else {
       return []
     }
 
@@ -1414,7 +1429,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   // MARK: Informing BuildSererManager about changes
 
   package func filesDidChange(_ events: [FileEvent]) async {
-    if let buildServerAdapter = await buildServerAdapterAfterInitialized {
+    if let buildServerAdapter = try? await buildServerAdapterAfterInitialized {
       await buildServerAdapter.send(OnWatchedFilesDidChangeNotification(changes: events))
     }
 
