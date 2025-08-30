@@ -13,7 +13,7 @@
 public import Foundation
 public import LanguageServerProtocol
 import LanguageServerProtocolExtensions
-import SKLogging
+package import SKLogging
 
 import struct TSCBasic.AbsolutePath
 
@@ -500,6 +500,10 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     else {
       return nil
     }
+
+    logger.log("Read options from \(path)")
+    logger.logFullObjectInMultipleLogMessages(header: "Config file options", loggingProxy)
+
     self = decoded
   }
 
@@ -559,5 +563,27 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       return false
     }
     return experimentalFeatures.contains(feature)
+  }
+}
+
+extension SourceKitLSPOptions {
+  /// Options proxy to avoid public import of `SKLogging`.
+  ///
+  /// We can't conform `SourceKitLSPOptions` to `CustomLogStringConvertible` because that would require a public import
+  /// of `SKLogging`. Instead, define a package type that performs the logging of `SourceKitLSPOptions`.
+  package struct LoggingProxy: CustomLogStringConvertible {
+    let options: SourceKitLSPOptions
+
+    package var description: String {
+      options.prettyPrintedJSON
+    }
+
+    package var redactedDescription: String {
+      options.prettyPrintedRedactedJSON
+    }
+  }
+
+  package var loggingProxy: LoggingProxy {
+    LoggingProxy(options: self)
   }
 }
