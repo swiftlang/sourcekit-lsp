@@ -1119,7 +1119,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       let lhsDepth = buildTargets[lhs]?.depth ?? 0
       let rhsDepth = buildTargets[rhs]?.depth ?? 0
       if lhsDepth != rhsDepth {
-        return rhsDepth > lhsDepth
+        return lhsDepth > rhsDepth
       }
       return lhs.uri.stringValue < rhs.uri.stringValue
     }
