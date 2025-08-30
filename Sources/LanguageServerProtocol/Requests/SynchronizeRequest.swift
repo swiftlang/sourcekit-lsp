@@ -38,11 +38,18 @@ public struct SynchronizeRequest: RequestType {
   /// may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
   public var buildServerUpdates: Bool?
 
+  /// Wait for the build server to update its internal mapping of copied files to their original location.
+  ///
+  /// This option is experimental, guarded behind the `synchronize-copy-file-map` experimental feature, and may be
+  /// modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
+  public var copyFileMap: Bool?
+
   /// Wait for background indexing to finish and all index unit files to be loaded into indexstore-db.
   public var index: Bool?
 
-  public init(buildServerUpdates: Bool? = nil, index: Bool? = nil) {
+  public init(buildServerUpdates: Bool? = nil, copyFileMap: Bool? = nil, index: Bool? = nil) {
     self.buildServerUpdates = buildServerUpdates
+    self.copyFileMap = copyFileMap
     self.index = index
   }
 }

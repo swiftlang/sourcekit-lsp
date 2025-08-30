@@ -45,6 +45,11 @@ public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
   /// - Note: Internal option, for testing only
   case synchronizeForBuildSystemUpdates = "synchronize-for-build-system-updates"
 
+  /// Enable the `copyFileMap` option in the `workspace/synchronize` request.
+  ///
+  /// - Note: Internal option, for testing only
+  case synchronizeCopyFileMap = "synchronize-copy-file-map"
+
   /// All non-internal experimental features.
   public static var allNonInternalCases: [ExperimentalFeature] {
     allCases.filter { !$0.isInternal }
@@ -66,6 +71,8 @@ public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
     case .outputPathsRequest:
       return true
     case .synchronizeForBuildSystemUpdates:
+      return true
+    case .synchronizeCopyFileMap:
       return true
     }
   }

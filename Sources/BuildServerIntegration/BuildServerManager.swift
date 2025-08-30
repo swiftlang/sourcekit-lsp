@@ -75,6 +75,10 @@ package struct SourceFileInfo: Sendable {
   ///    compiler arguments for these files to provide semantic editor functionality but we can't build them.
   package var isBuildable: Bool
 
+  /// If this source item gets copied to a different destination during preparation, the destinations it will be copied
+  /// to.
+  package var copyDestinations: Set<DocumentURI>
+
   fileprivate func merging(_ other: SourceFileInfo?) -> SourceFileInfo {
     guard let other else {
       return self
@@ -99,7 +103,8 @@ package struct SourceFileInfo: Sendable {
       targetsToOutputPath: mergedTargetsToOutputPaths,
       isPartOfRootProject: other.isPartOfRootProject || isPartOfRootProject,
       mayContainTests: other.mayContainTests || mayContainTests,
-      isBuildable: other.isBuildable || isBuildable
+      isBuildable: other.isBuildable || isBuildable,
+      copyDestinations: copyDestinations.union(other.copyDestinations)
     )
   }
 }
@@ -434,6 +439,18 @@ package actor BuildServerManager: QueueBasedMessageHandler {
 
   private let cachedSourceFilesAndDirectories = Cache<SourceFilesAndDirectoriesKey, SourceFilesAndDirectories>()
 
+  /// The latest map of copied file URIs to their original source locations.
+  ///
+  /// We don't use a `Cache` for this because we can provide reasonable functionality even without or with an
+  /// out-of-date copied file map - in the worst case we jump to a file in the build directory instead of the source
+  /// directory.
+  /// We don't want to block requests like definition on receiving up-to-date index information from the build server.
+  private var cachedCopiedFileMap: [DocumentURI: DocumentURI] = [:]
+
+  /// The latest task to update the `cachedCopiedFileMap`. This allows us to cancel previous tasks to update the copied
+  /// file map when a new update is requested.
+  private var copiedFileMapUpdateTask: Task<Void, Never>?
+
   /// The `SourceKitInitializeBuildResponseData` received from the `build/initialize` request, if any.
   package var initializationData: SourceKitInitializeBuildResponseData? {
     get async {
@@ -660,6 +677,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       return !updatedTargets.intersection(cacheKey.targets).isEmpty
     }
     self.cachedSourceFilesAndDirectories.clearAll(isolation: self)
+    self.scheduleRecomputeCopyFileMap()
 
     await delegate?.buildTargetsChanged(notification.changes)
     await filesBuildSettingsChangedDebouncer.scheduleCall(Set(watchedFiles.keys))
@@ -837,6 +855,43 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       }
       return result
     }
+  }
+
+  /// Check if the URI referenced by `location` has been copied during the preparation phase. If so, adjust the URI to
+  /// the original source file.
+  package func locationAdjustedForCopiedFiles(_ location: Location) -> Location {
+    guard let originalUri = cachedCopiedFileMap[location.uri] else {
+      return location
+    }
+    // If we regularly get issues that the copied file is out-of-sync with its original, we can check that the contents
+    // of the lines touched by the location match and only return the original URI if they do. For now, we avoid this
+    // check due to its performance cost of reading files from disk.
+    return Location(uri: originalUri, range: location.range)
+  }
+
+  /// Check if the URI referenced by `location` has been copied during the preparation phase. If so, adjust the URI to
+  /// the original source file.
+  package func locationsAdjustedForCopiedFiles(_ locations: [Location]) -> [Location] {
+    return locations.map { locationAdjustedForCopiedFiles($0) }
+  }
+
+  @discardableResult
+  package func scheduleRecomputeCopyFileMap() -> Task<Void, Never> {
+    let task = Task { [previousUpdateTask = copiedFileMapUpdateTask] in
+      previousUpdateTask?.cancel()
+      await orLog("Re-computing copy file map") {
+        let sourceFilesAndDirectories = try await self.sourceFilesAndDirectories()
+        var copiedFileMap: [DocumentURI: DocumentURI] = [:]
+        for (file, fileInfo) in sourceFilesAndDirectories.files {
+          for copyDestination in fileInfo.copyDestinations {
+            copiedFileMap[copyDestination] = file
+          }
+        }
+        self.cachedCopiedFileMap = copiedFileMap
+      }
+    }
+    copiedFileMapUpdateTask = task
+    return task
   }
 
   /// Returns all the targets that the document is part of.
@@ -1292,7 +1347,8 @@ package actor BuildServerManager: QueueBasedMessageHandler {
             isPartOfRootProject: isPartOfRootProject,
             mayContainTests: mayContainTests,
             isBuildable: !(target?.tags.contains(.notBuildable) ?? false)
-              && (sourceKitData?.kind ?? .source) == .source
+              && (sourceKitData?.kind ?? .source) == .source,
+            copyDestinations: Set(sourceKitData?.copyDestinations ?? [])
           )
           switch sourceItem.kind {
           case .file:

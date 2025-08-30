@@ -157,10 +157,23 @@ public struct SourceKitSourceItemData: LSPAnyCodable, Codable {
   /// `outputPathsProvider: true` in `SourceKitInitializeBuildResponseData`.
   public var outputPath: String?
 
-  public init(language: Language? = nil, kind: SourceKitSourceItemKind? = nil, outputPath: String? = nil) {
+  /// If this source item gets copied to a different destination during preparation, the destinations it will be copied
+  /// to.
+  ///
+  /// If a user action would jump to one of these copied files, this allows SourceKit-LSP to redirect the navigation to
+  /// the original source file instead of jumping to a file in the build directory.
+  public var copyDestinations: [DocumentURI]?
+
+  public init(
+    language: Language? = nil,
+    kind: SourceKitSourceItemKind? = nil,
+    outputPath: String? = nil,
+    copyDestinations: [DocumentURI]? = nil
+  ) {
     self.language = language
     self.kind = kind
     self.outputPath = outputPath
+    self.copyDestinations = copyDestinations
   }
 
   public init?(fromLSPDictionary dictionary: [String: LanguageServerProtocol.LSPAny]) {
@@ -177,6 +190,14 @@ public struct SourceKitSourceItemData: LSPAnyCodable, Codable {
     if case .string(let outputFilePath) = dictionary[CodingKeys.outputPath.stringValue] {
       self.outputPath = outputFilePath
     }
+    if case .array(let copyDestinations) = dictionary[CodingKeys.copyDestinations.stringValue] {
+      self.copyDestinations = copyDestinations.compactMap { entry in
+        guard case .string(let copyDestination) = entry else {
+          return nil
+        }
+        return try? DocumentURI(string: copyDestination)
+      }
+    }
   }
 
   public func encodeToLSPAny() -> LanguageServerProtocol.LSPAny {
@@ -189,6 +210,9 @@ public struct SourceKitSourceItemData: LSPAnyCodable, Codable {
     }
     if let outputPath {
       result[CodingKeys.outputPath.stringValue] = .string(outputPath)
+    }
+    if let copyDestinations {
+      result[CodingKeys.copyDestinations.stringValue] = .array(copyDestinations.map { .string($0.stringValue) })
     }
     return .dictionary(result)
   }

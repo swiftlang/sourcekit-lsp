@@ -795,12 +795,20 @@ export interface SynchronizeParams {
    * This option is experimental, guarded behind the `synchronize-for-build-system-updates` experimental feature, and
    * may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
    */
-  buildServerUpdates?: bool
+  buildServerUpdates?: bool;
+
+  /**
+   *  Wait for the build server to update its internal mapping of copied files to their original location.
+   *
+   * This option is experimental, guarded behind the `synchronize-copy-file-map` experimental feature, and may be
+   * modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
+   */
+  copyFileMap?: bool;
 
   /**
    * Wait for background indexing to finish and all index unit files to be loaded into indexstore-db.
    */
-  index?: bool
+  index?: bool;
 }
 ```
 

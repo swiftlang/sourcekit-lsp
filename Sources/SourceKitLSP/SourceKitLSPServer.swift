@@ -2128,7 +2128,8 @@ extension SourceKitLSPServer {
         return try await languageService.definition(req)
       }
     }
-    return .locations(indexBasedResponse)
+    let remappedLocations = await workspace.buildServerManager.locationsAdjustedForCopiedFiles(indexBasedResponse)
+    return .locations(remappedLocations)
   }
 
   /// Generate the generated interface for the given module, write it to disk and return the location to which to jump
@@ -2631,6 +2632,9 @@ extension SourceKitLSPServer {
   func synchronize(_ req: SynchronizeRequest) async throws -> VoidResponse {
     if req.buildServerUpdates != nil, !self.options.hasExperimentalFeature(.synchronizeForBuildSystemUpdates) {
       throw ResponseError.unknown("\(SynchronizeRequest.method).buildServerUpdates is an experimental request option")
+    }
+    if req.copyFileMap != nil, !self.options.hasExperimentalFeature(.synchronizeCopyFileMap) {
+      throw ResponseError.unknown("\(SynchronizeRequest.method).copyFileMap is an experimental request option")
     }
     for workspace in workspaces {
       await workspace.synchronize(req)
