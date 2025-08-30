@@ -27,6 +27,14 @@ package actor PipeAsStringHandler {
     self.handler = handler
   }
 
+  deinit {
+    if !buffer.isEmpty {
+      queue.async { [handler, buffer] in
+        handler(String(data: buffer, encoding: .utf8) ?? "<invalid UTF-8>")
+      }
+    }
+  }
+
   private func handleDataFromPipeImpl(_ newData: Data) {
     self.buffer += newData
     while let newlineIndex = self.buffer.firstIndex(of: UInt8(ascii: "\n")) {
