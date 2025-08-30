@@ -133,7 +133,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
 
       let linkerFlags = objectFiles.map {
         """
-        "-l", "\($0)",
+        "\($0)",
         """
       }.joined(separator: "\n")
 
