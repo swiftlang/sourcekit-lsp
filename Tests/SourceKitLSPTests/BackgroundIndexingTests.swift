@@ -379,7 +379,7 @@ final class BackgroundIndexingTests: XCTestCase {
       XCTFail("Expected begin notification")
       return
     }
-    XCTAssertEqual(beginData.message, "Scheduling tasks")
+    XCTAssertEqual(beginData.message, "Determining files")
     let indexingWorkDoneProgressToken = beginNotification.token
 
     _ = try await project.testClient.nextNotification(
