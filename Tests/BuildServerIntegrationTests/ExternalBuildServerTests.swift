@@ -647,4 +647,37 @@ final class ExternalBuildServerTests: XCTestCase {
     }
     try await fulfillmentOfOrThrow(preparationFinished)
   }
+
+  func testBuildServerFailsToInitialize() async throws {
+    actor BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {}
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        throw ResponseError.unknown("Initialization failed with bad error")
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        throw ResponseError.unknown("Not expected to get called")
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        throw ResponseError.unknown("Not expected to get called")
+      }
+    }
+
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "Test.swift": """
+        func 1️⃣myTestFunc() {}
+        """
+      ],
+      buildServer: BuildServer.self
+    )
+    let message = try await project.testClient.nextNotification(ofType: ShowMessageNotification.self)
+    assertContains(message.message, "Initialization failed with bad error")
+  }
 }
