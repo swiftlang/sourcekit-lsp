@@ -892,6 +892,7 @@ extension SwiftLanguageService {
       (retrieveSyntaxCodeActions, nil),
       (retrieveRefactorCodeActions, .refactor),
       (retrieveQuickFixCodeActions, .quickFix),
+      (retrieveFocusedRemarksCodeActions, nil),
     ]
     let wantedActionKinds = req.context.only
     let providers: [CodeActionProvider] = providersAndKinds.compactMap {
@@ -1028,6 +1029,21 @@ extension SwiftLanguageService {
     return codeActions
   }
 
+  func retrieveFocusedRemarksCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
+    guard self.capabilityRegistry.clientHasExperimentalCapability(ShowFocusedDiagnosticsRequest.method) else {
+      return []
+    }
+    return FocusedRemarksKind.allCases.map { commandType in
+      let command = FocusedRemarksCommand(
+        commandType: commandType,
+        position: params.range.lowerBound,
+        textDocument: params.textDocument
+      )
+      .asCommand()
+      return CodeAction(title: command.title, kind: nil, command: command)
+    }
+  }
+
   package func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
     let uri = req.textDocument.uri
     let infos = try await variableTypeInfos(uri, req.range)
@@ -1119,11 +1135,49 @@ extension SwiftLanguageService {
       try await semanticRefactoring(command)
     } else if let command = req.swiftCommand(ofType: ExpandMacroCommand.self) {
       try await expandMacro(command)
+    } else if let command = req.swiftCommand(ofType: FocusedRemarksCommand.self) {
+      try await executeFocusedRemarksCommand(command)
     } else {
       throw ResponseError.unknown("unknown command \(req.command)")
     }
 
     return nil
+  }
+
+  package func executeFocusedRemarksCommand(_ command: FocusedRemarksCommand) async throws {
+    let snapshot = try self.documentManager.latestSnapshot(command.textDocument.uri)
+    let buildSettings = await self.buildSettings(
+      for: command.textDocument.uri,
+      fallbackAfterTimeout: true
+    )
+
+    guard var buildSettings else {
+      throw ResponseError.unknown("Unable to get build settings for '\(command.textDocument.uri)'")
+    }
+
+    let line = command.position.line + 1
+    let column = command.position.utf16index + 1
+    buildSettings.compilerArguments.append(
+      contentsOf: command.commandType.additionalCompilerArgs(
+        line: line,
+        column: column
+      )
+    )
+
+    let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
+      for: snapshot,
+      buildSettings: SwiftCompileCommand(buildSettings)
+    )
+
+    let showFocusedDiagnosticsRequest = ShowFocusedDiagnosticsRequest(
+      diagnostics: diagnosticReport.items,
+      uri: snapshot.uri
+    )
+
+    guard let sourceKitLSPServer else {
+      throw ResponseError.unknown("Connection to the editor closed")
+    }
+    _ = try await sourceKitLSPServer.sendRequestToClient(showFocusedDiagnosticsRequest)
   }
 
   package func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
