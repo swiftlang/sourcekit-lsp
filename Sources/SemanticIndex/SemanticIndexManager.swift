@@ -833,6 +833,7 @@ package final actor SemanticIndexManager {
       }
 
     if filesToIndex.isEmpty {
+      indexProgressStatusDidChange()
       // Early exit if there are no files to index.
       return Task {}
     }

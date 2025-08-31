@@ -274,10 +274,12 @@ package final class CustomBuildServerTestProject<BuildServer: CustomBuildServer>
   package init(
     files: [RelativeFileLocation: String],
     buildServer buildServerType: BuildServer.Type,
+    capabilities: ClientCapabilities = ClientCapabilities(),
     options: SourceKitLSPOptions? = nil,
     hooks: Hooks = Hooks(),
     enableBackgroundIndexing: Bool = false,
     pollIndex: Bool = true,
+    preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
     testScratchDir: URL? = nil,
     testName: String = #function
   ) async throws {
@@ -290,9 +292,11 @@ package final class CustomBuildServerTestProject<BuildServer: CustomBuildServer>
     }
     try await super.init(
       files: files,
+      capabilities: capabilities,
       options: options,
       hooks: hooks,
       enableBackgroundIndexing: enableBackgroundIndexing,
+      preInitialization: preInitialization,
       testScratchDir: testScratchDir,
       testName: testName
     )

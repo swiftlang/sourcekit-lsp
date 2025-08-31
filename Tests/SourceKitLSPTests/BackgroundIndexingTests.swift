@@ -2666,6 +2666,106 @@ final class BackgroundIndexingTests: XCTestCase {
       ]
     )
   }
+
+  func testIndexingProgressDoesNotGetStuckIfThereAreNoSourceFilesInTarget() async throws {
+    actor BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+      private let projectRoot: URL
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: false
+        )
+      }
+
+      func workspaceBuildTargetsRequest(
+        _ request: WorkspaceBuildTargetsRequest
+      ) async throws -> WorkspaceBuildTargetsResponse {
+        return WorkspaceBuildTargetsResponse(targets: [
+          BuildTarget(
+            id: .dummy,
+            capabilities: BuildTargetCapabilities(),
+            languageIds: [],
+            dependencies: []
+          )
+        ])
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) throws -> BuildTargetSourcesResponse {
+        return BuildTargetSourcesResponse(items: [
+          SourcesItem(
+            target: .dummy,
+            sources: []
+          )
+        ])
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) -> TextDocumentSourceKitOptionsResponse? {
+        var arguments = [request.textDocument.uri.pseudoPath]
+        if let defaultSDKPath {
+          arguments += ["-sdk", defaultSDKPath]
+        }
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
+      }
+
+      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+        return VoidResponse()
+      }
+    }
+
+    let expectation = self.expectation(description: "Did receive indexing work done progress")
+    let hooks = Hooks(
+      indexHooks: IndexHooks(buildGraphGenerationDidStart: {
+        // Defer build graph generation long enough so the the debouncer has time to start a work done progress for
+        // indexing.
+        do {
+          try await fulfillmentOfOrThrow(expectation)
+        } catch {
+          XCTFail("\(error)")
+        }
+      })
+    )
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "Test.swift": """
+        func 1️⃣myTestFunc() {}
+        """
+      ],
+      buildServer: BuildServer.self,
+      capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
+      hooks: hooks,
+      enableBackgroundIndexing: true,
+      pollIndex: false,
+      preInitialization: { testClient in
+        testClient.handleMultipleRequests { (request: CreateWorkDoneProgressRequest) in
+          return VoidResponse()
+        }
+      }
+    )
+    let startIndexing = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self) { notification in
+      guard case .begin(let value) = notification.value else {
+        return false
+      }
+      return value.title == "Indexing"
+    }
+    expectation.fulfill()
+    _ = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self) { notification in
+      guard notification.token == startIndexing.token else {
+        return false
+      }
+      guard case .end = notification.value else {
+        return false
+      }
+      return true
+    }
+  }
 }
 
 extension HoverResponseContents {
