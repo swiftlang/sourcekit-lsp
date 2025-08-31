@@ -2629,6 +2629,43 @@ final class BackgroundIndexingTests: XCTestCase {
     let symbols = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTestFu"))
     XCTAssertEqual(symbols?.count, 1)
   }
+
+  func testTargetsAreIndexedInDependencyOrder() async throws {
+    // We want to prepare low-level targets before high-level targets to make progress on indexing more quickly.
+    let preparationRequests = ThreadSafeBox<[BuildTargetPrepareRequest]>(initialValue: [])
+    let testHooks = Hooks(
+      buildServerHooks: BuildServerHooks(preHandleRequest: { request in
+        if let request = request as? BuildTargetPrepareRequest {
+          preparationRequests.value.append(request)
+        }
+      })
+    )
+    _ = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": "",
+        "LibB/LibB.swift": "",
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"])
+          ]
+        )
+        """,
+      hooks: testHooks,
+      enableBackgroundIndexing: true,
+      pollIndex: true
+    )
+    XCTAssertEqual(
+      preparationRequests.value.flatMap(\.targets),
+      [
+        try BuildTargetIdentifier(target: "LibA", destination: .target),
+        try BuildTargetIdentifier(target: "LibB", destination: .target),
+      ]
+    )
+  }
 }
 
 extension HoverResponseContents {

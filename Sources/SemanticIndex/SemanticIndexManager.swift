@@ -630,13 +630,12 @@ package final actor SemanticIndexManager {
 
   // MARK: - Helper functions
 
-  private func prepare(
+  private func schedulePreparation(
     targets: [BuildTargetIdentifier],
     purpose: TargetPreparationPurpose,
     priority: TaskPriority?,
-    executionStatusChangedCallback: @escaping (QueuedTask<AnyIndexTaskDescription>, TaskExecutionState) async -> Void =
-      { _, _ in }
-  ) async {
+    executionStatusChangedCallback: @escaping (QueuedTask<AnyIndexTaskDescription>, TaskExecutionState) async -> Void
+  ) async -> QueuedTask<AnyIndexTaskDescription>? {
     // Perform a quick initial check whether the target is up-to-date, in which case we don't need to schedule a
     // preparation operation at all.
     // We will check the up-to-date status again in `PreparationTaskDescription.execute`. This ensures that if we
@@ -647,7 +646,7 @@ package final actor SemanticIndexManager {
     }
 
     guard !targetsToPrepare.isEmpty else {
-      return
+      return nil
     }
 
     let taskDescription = AnyIndexTaskDescription(
@@ -660,7 +659,7 @@ package final actor SemanticIndexManager {
       )
     )
     if Task.isCancelled {
-      return
+      return nil
     }
     let preparationTask = await indexTaskScheduler.schedule(priority: priority, taskDescription) { task, newState in
       await executionStatusChangedCallback(task, newState)
@@ -688,6 +687,25 @@ package final actor SemanticIndexManager {
         task: OpaqueQueuedIndexTask(preparationTask),
         purpose: mergedPurpose
       )
+    }
+    return preparationTask
+  }
+
+  private func prepare(
+    targets: [BuildTargetIdentifier],
+    purpose: TargetPreparationPurpose,
+    priority: TaskPriority?,
+    executionStatusChangedCallback: @escaping (QueuedTask<AnyIndexTaskDescription>, TaskExecutionState) async -> Void =
+      { _, _ in }
+  ) async {
+    let preparationTask = await schedulePreparation(
+      targets: targets,
+      purpose: purpose,
+      priority: priority,
+      executionStatusChangedCallback: executionStatusChangedCallback
+    )
+    guard let preparationTask else {
+      return
     }
     await withTaskCancellationHandler {
       return await preparationTask.waitToFinish()
@@ -884,22 +902,30 @@ package final actor SemanticIndexManager {
       let preparationTaskID = UUID()
       let filesToIndex = targetsBatch.flatMap({ filesByTarget[$0]! })
 
-      let indexTask = Task(priority: priority) {
-        // First prepare the targets.
-        await prepare(targets: targetsBatch, purpose: .forIndexing, priority: priority) { task, newState in
-          if case .executing = newState {
-            for file in filesToIndex {
-              if case .waitingForPreparation(preparationTaskID: preparationTaskID, indexTask: let indexTask) =
-                self.inProgressIndexTasks[file]?.state
-              {
-                self.inProgressIndexTasks[file]?.state = .preparing(
-                  preparationTaskID: preparationTaskID,
-                  indexTask: indexTask
-                )
-              }
+      // First schedule preparation of the targets. We schedule the preparation outside of `indexTask` so that we
+      // deterministically prepare targets in the topological order for indexing. If we triggered preparation inside the
+      // indexTask, we would get nondeterministic ordering since Tasks may start executing in any order.
+      let preparationTask = await schedulePreparation(
+        targets: targetsBatch,
+        purpose: .forIndexing,
+        priority: priority
+      ) { task, newState in
+        if case .executing = newState {
+          for file in filesToIndex {
+            if case .waitingForPreparation(preparationTaskID: preparationTaskID, indexTask: let indexTask) =
+              self.inProgressIndexTasks[file]?.state
+            {
+              self.inProgressIndexTasks[file]?.state = .preparing(
+                preparationTaskID: preparationTaskID,
+                indexTask: indexTask
+              )
             }
           }
         }
+      }
+
+      let indexTask = Task(priority: priority) {
+        await preparationTask?.waitToFinishPropagatingCancellation()
 
         // And after preparation is done, index the files in the targets.
         await withTaskGroup(of: Void.self) { taskGroup in
