@@ -104,7 +104,7 @@ package enum IndexTaskStatus: Comparable {
 /// messages to the user, we only show the highest priority task.
 package enum IndexProgressStatus: Sendable, Equatable {
   case preparingFileForEditorFunctionality
-  case schedulingIndexing
+  case generatingBuildGraph
   case indexing(
     preparationTasks: [BuildTargetIdentifier: IndexTaskStatus],
     indexTasks: [FileIndexInfo: IndexTaskStatus]
@@ -115,8 +115,8 @@ package enum IndexProgressStatus: Sendable, Equatable {
     switch (self, other) {
     case (_, .preparingFileForEditorFunctionality), (.preparingFileForEditorFunctionality, _):
       return .preparingFileForEditorFunctionality
-    case (_, .schedulingIndexing), (.schedulingIndexing, _):
-      return .schedulingIndexing
+    case (_, .generatingBuildGraph), (.generatingBuildGraph, _):
+      return .generatingBuildGraph
     case (
       .indexing(let selfPreparationTasks, let selfIndexTasks),
       .indexing(let otherPreparationTasks, let otherIndexTasks)
@@ -250,7 +250,7 @@ package final actor SemanticIndexManager {
     // flickering between indexing progress and `Scheduling indexing` if we trigger an index schedule task while
     // indexing is already in progress
     if !buildGraphGenerationTasks.isEmpty {
-      return .schedulingIndexing
+      return .generatingBuildGraph
     }
     return .upToDate
   }

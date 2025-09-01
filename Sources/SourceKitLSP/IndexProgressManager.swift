@@ -93,8 +93,8 @@ actor IndexProgressManager {
     case .preparingFileForEditorFunctionality:
       message = "Preparing current file"
       percentage = 0
-    case .schedulingIndexing:
-      message = "Scheduling tasks"
+    case .generatingBuildGraph:
+      message = "Determining files"
       percentage = 0
     case .indexing(let preparationTasks, let indexTasks):
       // We can get into a situation where queuedIndexTasks < indexTasks.count if we haven't processed all
