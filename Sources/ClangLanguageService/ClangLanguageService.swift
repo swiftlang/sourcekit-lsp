@@ -12,7 +12,7 @@
 
 import BuildServerIntegration
 import Foundation
-package import IndexStoreDB
+import IndexStoreDB
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC

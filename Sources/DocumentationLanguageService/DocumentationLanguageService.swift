@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-package import IndexStoreDB
+import IndexStoreDB
 package import LanguageServerProtocol
 package import SKOptions
 package import SourceKitLSP

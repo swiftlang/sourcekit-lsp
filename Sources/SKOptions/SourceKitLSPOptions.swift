@@ -13,7 +13,7 @@
 public import Foundation
 public import LanguageServerProtocol
 import LanguageServerProtocolExtensions
-package import SKLogging
+import SKLogging
 
 import struct TSCBasic.AbsolutePath
 
