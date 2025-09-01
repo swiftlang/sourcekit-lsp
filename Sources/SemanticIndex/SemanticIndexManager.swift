@@ -416,14 +416,7 @@ package final actor SemanticIndexManager {
     }
   }
 
-  package func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {
-    let targets: Set<BuildTargetIdentifier>? =
-      if let changes = changes?.map(\.target) {
-        Set(changes)
-      } else {
-        nil
-      }
-
+  package func buildTargetsChanged(_ targets: Set<BuildTargetIdentifier>?) async {
     if let targets {
       var targetsAndDependencies = targets
       targetsAndDependencies.formUnion(await buildServerManager.targets(dependingOn: targets))

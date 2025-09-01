@@ -33,6 +33,15 @@ package class Cache<Key: Sendable & Hashable, Result: Sendable> {
     return try await task.value
   }
 
+  /// Force the value for a specific key to a value.
+  ///
+  /// This should only be used if a value for this key is received by means that aren't covered through the `compute`
+  /// function in `get`. An example of this is receiving the results of a BSP request after a timeout, in which case we
+  /// would have cached the timeout result through `get` but now we have an updated value.
+  package func set(_ key: Key, to value: Result) {
+    storage[key] = Task { value }
+  }
+
   /// Get the value cached for `key`. If no value exists for `key`, try deriving the result from an existing cache entry
   /// that satisfies `canReuseKey` by applying `transform` to that result.
   package func getDerived(

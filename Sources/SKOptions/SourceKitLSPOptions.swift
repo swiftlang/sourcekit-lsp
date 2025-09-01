@@ -433,6 +433,22 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     return .seconds(300)
   }
 
+  /// Duration how long to wait for responses to `workspace/buildTargets` or `buildTarget/sources` request by the build
+  /// server before defaulting to an empty response.
+  public var buildServerWorkspaceRequestsTimeout: Double? = nil
+
+  public var buildServerWorkspaceRequestsTimeoutOrDefault: Duration {
+    if let buildServerWorkspaceRequestsTimeout {
+      return .seconds(buildServerWorkspaceRequestsTimeout)
+    }
+    // The default value needs to strike a balance: If the build server is slow to respond, we don't want to constantly
+    // run into this timeout, which causes somewhat expensive computations because we trigger the `buildTargetsChanged`
+    // chain.
+    // At the same time, we do want to provide functionality based on fallback settings after some time.
+    // 15s seems like it should strike a balance here but there is no data backing this value up.
+    return .seconds(15)
+  }
+
   public init(
     swiftPM: SwiftPMOptions? = .init(),
     fallbackBuildSystem: FallbackBuildSystemOptions? = .init(),
@@ -451,7 +467,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     swiftPublishDiagnosticsDebounceDuration: Double? = nil,
     workDoneProgressDebounceDuration: Double? = nil,
     sourcekitdRequestTimeout: Double? = nil,
-    semanticServiceRestartTimeout: Double? = nil
+    semanticServiceRestartTimeout: Double? = nil,
+    buildServerWorkspaceRequestsTimeout: Double? = nil
   ) {
     self.swiftPM = swiftPM
     self.fallbackBuildSystem = fallbackBuildSystem
@@ -471,6 +488,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     self.workDoneProgressDebounceDuration = workDoneProgressDebounceDuration
     self.sourcekitdRequestTimeout = sourcekitdRequestTimeout
     self.semanticServiceRestartTimeout = semanticServiceRestartTimeout
+    self.buildServerWorkspaceRequestsTimeout = buildServerWorkspaceRequestsTimeout
   }
 
   public init?(fromLSPAny lspAny: LSPAny?) throws {
@@ -531,7 +549,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       workDoneProgressDebounceDuration: override?.workDoneProgressDebounceDuration
         ?? base.workDoneProgressDebounceDuration,
       sourcekitdRequestTimeout: override?.sourcekitdRequestTimeout ?? base.sourcekitdRequestTimeout,
-      semanticServiceRestartTimeout: override?.semanticServiceRestartTimeout ?? base.semanticServiceRestartTimeout
+      semanticServiceRestartTimeout: override?.semanticServiceRestartTimeout ?? base.semanticServiceRestartTimeout,
+      buildServerWorkspaceRequestsTimeout: override?.buildServerWorkspaceRequestsTimeout
+        ?? base.buildServerWorkspaceRequestsTimeout
     )
   }
 
