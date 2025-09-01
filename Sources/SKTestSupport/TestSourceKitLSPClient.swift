@@ -27,7 +27,7 @@ import XCTest
 extension SourceKitLSPOptions {
   package static func testDefault(
     backgroundIndexing: Bool = true,
-    experimentalFeatures: Set<ExperimentalFeature> = []
+    experimentalFeatures: Set<ExperimentalFeature> = [.synchronizeCopyFileMap]
   ) async throws -> SourceKitLSPOptions {
     let pluginPaths = try await sourceKitPluginPaths
     return SourceKitLSPOptions(

@@ -513,6 +513,18 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
       await buildServerManager.waitForUpToDateBuildGraph()
       await indexUnitOutputPathsUpdateQueue.async {}.value
     }
+    if request.copyFileMap ?? false {
+      // Not using `valuePropagatingCancellation` here because that could lead us to the following scenario:
+      //  - An update of the copy file map is scheduled because of a change in the build graph
+      //  - We get a synchronize request
+      //  - Scheduling a new recomputation of the copy file map cancels the previous recomputation
+      //  - We cancel the synchronize request, which would also cancel the copy file map recomputation, leaving us with
+      //    an outdated version
+      //
+      // Technically, we might be doing unnecessary work here if the output file map is already up-to-date. But since
+      // this option is mostly intended for testing purposes, this is acceptable.
+      await buildServerManager.scheduleRecomputeCopyFileMap().value
+    }
     if request.index ?? false {
       await semanticIndexManager?.waitForUpToDateIndex()
       uncheckedIndex?.pollForUnitChangesAndWait()

@@ -95,6 +95,15 @@ export interface SourceKitSourceItemData {
    * `outputPathsProvider: true` in `SourceKitInitializeBuildResponseData`.
    */
   outputPath?: string;
+
+  /**
+   * If this source item gets copied to a different destination during preparation, the destinations it will be copied
+   * to.
+   *
+   * If a user action would jump to one of these copied files, this allows SourceKit-LSP to redirect the navigation to
+   * the original source file instead of jumping to a file in the build directory.
+   */
+  copyDestinations?: DocumentURI[];
 }
 ```
 
