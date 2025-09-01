@@ -88,6 +88,10 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     // The DocumentationLanguageService does not do anything with document events
   }
 
+  package static func syntacticTestItems(in uri: DocumentURI) async -> [AnnotatedTestItem] {
+    return []
+  }
+
   package func changeDocument(
     _ notification: DidChangeTextDocumentNotification,
     preEditSnapshot: DocumentSnapshot,

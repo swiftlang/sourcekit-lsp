@@ -342,14 +342,14 @@ package extension LanguageService {
 
   static var experimentalCapabilities: [String: LSPAny] { [:] }
 
-  func clientInitialized(_ initialized: LanguageServerProtocol.InitializedNotification) async {}
+  func clientInitialized(_ initialized: InitializedNotification) async {}
 
   func openOnDiskDocument(snapshot: DocumentSnapshot, buildSettings: FileBuildSettings) async throws {
-    throw ResponseError.unknown("\(#function) not implemented in \(Self.self)")
+    throw ResponseError.unknown("\(#function) not implemented in \(Self.self) for \(snapshot.uri)")
   }
 
   func closeOnDiskDocument(uri: DocumentURI) async throws {
-    throw ResponseError.unknown("\(#function) not implemented in \(Self.self)")
+    throw ResponseError.unknown("\(#function) not implemented in \(Self.self) for \(uri)")
   }
 
   func willSaveDocument(_ notification: WillSaveTextDocumentNotification) async {}
@@ -386,7 +386,7 @@ package extension LanguageService {
     for snapshot: DocumentSnapshot,
     at position: Position
   ) async throws -> (symbolGraph: String, usr: String, overrideDocComments: [String]) {
-    throw ResponseError.internalError("\(#function) not implemented in \(Self.self)")
+    throw ResponseError.internalError("\(#function) not implemented in \(Self.self) for \(snapshot.uri)")
   }
 
   func symbolGraph(
@@ -394,7 +394,7 @@ package extension LanguageService {
     in workspace: Workspace,
     manager: OnDiskDocumentManager
   ) async throws -> String {
-    throw ResponseError.internalError("\(#function) not implemented in \(Self.self)")
+    throw ResponseError.internalError("\(#function) not implemented in \(Self.self) for \(location.path)")
   }
 
   func openGeneratedInterface(
@@ -403,7 +403,7 @@ package extension LanguageService {
     groupName: String?,
     symbolUSR symbol: String?
   ) async throws -> GeneratedInterfaceDetails? {
-    throw ResponseError.internalError("Generated interface not implemented in \(Self.self)")
+    throw ResponseError.internalError("Generated interface not implemented in \(Self.self) for \(document)")
   }
 
   func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
@@ -488,7 +488,7 @@ package extension LanguageService {
     oldName: CrossLanguageName,
     newName: CrossLanguageName
   ) async throws -> [TextEdit] {
-    throw ResponseError.internalError("\(#function) not implemented in \(Self.self)")
+    throw ResponseError.internalError("\(#function) not implemented in \(Self.self) for \(snapshot.uri)")
   }
 
   func prepareRename(
@@ -502,11 +502,11 @@ package extension LanguageService {
   }
 
   func editsToRenameParametersInFunctionBody(
-    snapshot: SourceKitLSP.DocumentSnapshot,
-    renameLocation: SourceKitLSP.RenameLocation,
-    newName: SourceKitLSP.CrossLanguageName
-  ) async -> [LanguageServerProtocol.TextEdit] {
-    logger.error("\(#function) not implemented in \(Self.self)")
+    snapshot: DocumentSnapshot,
+    renameLocation: RenameLocation,
+    newName: CrossLanguageName
+  ) async -> [TextEdit] {
+    logger.error("\(#function) not implemented in \(Self.self) for \(snapshot.uri)")
     return []
   }
 
@@ -519,19 +519,11 @@ package extension LanguageService {
   }
 
   func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [AnnotatedTestItem]? {
-    throw ResponseError.internalError("syntacticDocumentTests not implemented in \(Self.self)")
+    throw ResponseError.internalError("syntacticDocumentTests not implemented in \(Self.self) for \(uri)")
   }
 
-  static func syntacticTestItems(in uri: LanguageServerProtocol.DocumentURI) async -> [SourceKitLSP.AnnotatedTestItem] {
-    logger.error("\(#function) not implemented in \(Self.self)")
-    return []
-  }
-
-  func canonicalDeclarationPosition(
-    of position: LanguageServerProtocol.Position,
-    in uri: LanguageServerProtocol.DocumentURI
-  ) async -> LanguageServerProtocol.Position? {
-    logger.error("\(#function) not implemented in \(Self.self)")
+  func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
+    logger.error("\(#function) not implemented in \(Self.self) for \(uri)")
     return nil
   }
 
