@@ -870,7 +870,7 @@ extension SourceKitLSPServer {
   nonisolated package func logMessageToIndexLog(
     message: String,
     type: WindowMessageType,
-    structure: StructuredLogKind?
+    structure: LanguageServerProtocol.StructuredLogKind?
   ) {
     self.sendNotificationToClient(
       LogMessageNotification(

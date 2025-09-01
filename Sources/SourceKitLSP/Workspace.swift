@@ -253,7 +253,11 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
         await sourceKitLSPServer?.watchFiles(fileWatchers)
       }
 
-      func logMessageToIndexLog(message: String, type: WindowMessageType, structure: StructuredLogKind?) {
+      func logMessageToIndexLog(
+        message: String,
+        type: WindowMessageType,
+        structure: LanguageServerProtocol.StructuredLogKind?
+      ) {
         guard let sourceKitLSPServer else {
           // `SourceKitLSPServer` has been destructed. We are tearing down the
           // language server. Nothing left to do.

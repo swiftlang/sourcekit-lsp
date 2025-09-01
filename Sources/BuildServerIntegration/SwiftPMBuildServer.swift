@@ -184,12 +184,13 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
 
     // Start an open-ended log for messages that we receive during package loading. We never end this log.
-    let logTaskID = "swiftpm-log-\(UUID())"
+    let logTaskID = TaskId(id: "swiftpm-log-\(UUID())")
     connectionToSourceKitLSP.send(
       OnBuildLogMessageNotification(
         type: .info,
+        task: logTaskID,
         message: "",
-        structure: .begin(StructuredLogBegin(title: "SwiftPM log for \(projectRoot.path)", taskID: logTaskID))
+        structure: .begin(StructuredLogBegin(title: "SwiftPM log for \(projectRoot.path)"))
       )
     )
 
@@ -197,8 +198,9 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       connectionToSourceKitLSP.send(
         OnBuildLogMessageNotification(
           type: .info,
+          task: logTaskID,
           message: diagnostic.description,
-          structure: .report(StructuredLogReport(taskID: logTaskID))
+          structure: .report(StructuredLogReport())
         )
       )
       logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
@@ -750,12 +752,10 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     connectionToSourceKitLSP.send(
       BuildServerProtocol.OnBuildLogMessageNotification(
         type: .info,
+        task: taskID,
         message: "\(arguments.joined(separator: " "))",
         structure: .begin(
-          StructuredLogBegin(
-            title: "Preparing \(self.swiftPMTargets[target]?.name ?? target.uri.stringValue)",
-            taskID: taskID.id
-          )
+          StructuredLogBegin(title: "Preparing \(self.swiftPMTargets[target]?.name ?? target.uri.stringValue)")
         )
       )
     )
@@ -763,8 +763,9 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       self.connectionToSourceKitLSP.send(
         BuildServerProtocol.OnBuildLogMessageNotification(
           type: .info,
+          task: taskID,
           message: message,
-          structure: .report(StructuredLogReport(taskID: taskID.id))
+          structure: .report(StructuredLogReport())
         )
       )
     }
@@ -772,8 +773,9 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       self.connectionToSourceKitLSP.send(
         BuildServerProtocol.OnBuildLogMessageNotification(
           type: .info,
+          task: taskID,
           message: message,
-          structure: .report(StructuredLogReport(taskID: taskID.id))
+          structure: .report(StructuredLogReport())
         )
       )
     }
@@ -790,8 +792,9 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     self.connectionToSourceKitLSP.send(
       BuildServerProtocol.OnBuildLogMessageNotification(
         type: exitStatus.isSuccess ? .info : .error,
+        task: taskID,
         message: "Finished with \(exitStatus.description) in \(start.duration(to: .now))",
-        structure: .end(StructuredLogEnd(taskID: taskID.id))
+        structure: .end(StructuredLogEnd())
       )
     )
     switch exitStatus {

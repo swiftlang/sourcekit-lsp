@@ -50,5 +50,9 @@ package protocol BuildServerManagerConnectionToClient: Sendable, Connection {
   func watchFiles(_ fileWatchers: [FileSystemWatcher]) async
 
   /// Log a message in the client's index log.
-  func logMessageToIndexLog(message: String, type: WindowMessageType, structure: StructuredLogKind?)
+  func logMessageToIndexLog(
+    message: String,
+    type: WindowMessageType,
+    structure: LanguageServerProtocol.StructuredLogKind?
+  )
 }
