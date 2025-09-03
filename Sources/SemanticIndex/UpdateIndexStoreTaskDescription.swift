@@ -101,6 +101,9 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   /// The target in whose context the files should be indexed.
   package let target: BuildTargetIdentifier
 
+  /// The common language of all main files in `filesToIndex`.
+  package let language: Language
+
   /// The build server manager that is used to get the toolchain and build settings for the files to index.
   private let buildServerManager: BuildServerManager
 
@@ -150,6 +153,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   init(
     filesToIndex: [FileAndOutputPath],
     target: BuildTargetIdentifier,
+    language: Language,
     buildServerManager: BuildServerManager,
     index: UncheckedIndex,
     indexStoreUpToDateTracker: UpToDateTracker<DocumentURI, BuildTargetIdentifier>,
@@ -163,6 +167,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   ) {
     self.filesToIndex = filesToIndex
     self.target = target
+    self.language = language
     self.buildServerManager = buildServerManager
     self.index = index
     self.indexStoreUpToDateTracker = indexStoreUpToDateTracker
@@ -260,10 +265,6 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     }
 
     for fileInfo in fileInfos {
-      guard let language = await buildServerManager.defaultLanguage(for: fileInfo.mainFile, in: target) else {
-        logger.error("Not indexing \(fileInfo.file.forLogging) because its language could not be determined")
-        continue
-      }
       let buildSettings = await buildServerManager.buildSettings(
         for: fileInfo.mainFile,
         in: target,

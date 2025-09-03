@@ -94,6 +94,7 @@ private struct InProgressIndexStore {
 /// The information that's needed to index a file within a given target.
 package struct FileIndexInfo: Sendable, Hashable {
   package let file: FileToIndex
+  package let language: Language
   package let target: BuildTargetIdentifier
   package let outputPath: OutputPath
 }
@@ -507,10 +508,13 @@ package final actor SemanticIndexManager {
             continue
           }
           // If this is a source file, just index it.
+          guard let language = await buildServerManager.defaultLanguage(for: uri, in: target) else {
+            continue
+          }
           didFindTargetToIndex = true
           filesToReIndex.append(
             (
-              FileIndexInfo(file: .indexableFile(uri), target: target, outputPath: outputPath),
+              FileIndexInfo(file: .indexableFile(uri), language: language, target: target, outputPath: outputPath),
               modifiedFilesIndex.modificationDate(of: uri)
             )
           )
@@ -550,10 +554,14 @@ package final actor SemanticIndexManager {
       {
         continue
       }
+      guard let language = await buildServerManager.defaultLanguage(for: uri, in: targetAndOutputPath.key) else {
+        continue
+      }
       filesToReIndex.append(
         (
           FileIndexInfo(
             file: .headerFile(header: uri, mainFile: mainFile),
+            language: language,
             target: targetAndOutputPath.key,
             outputPath: outputPath
           ),
@@ -733,6 +741,7 @@ package final actor SemanticIndexManager {
   private func updateIndexStore(
     for fileAndOutputPaths: [FileAndOutputPath],
     target: BuildTargetIdentifier,
+    language: Language,
     indexFilesWithUpToDateUnit: Bool,
     preparationTaskID: UUID,
     priority: TaskPriority?
@@ -741,6 +750,7 @@ package final actor SemanticIndexManager {
       UpdateIndexStoreTaskDescription(
         filesToIndex: fileAndOutputPaths,
         target: target,
+        language: language,
         buildServerManager: self.buildServerManager,
         index: index,
         indexStoreUpToDateTracker: indexStoreUpToDateTracker,
@@ -759,6 +769,7 @@ package final actor SemanticIndexManager {
       for fileAndOutputPath in fileAndOutputPaths {
         let fileAndTarget = FileIndexInfo(
           file: fileAndOutputPath.file,
+          language: language,
           target: target,
           outputPath: fileAndOutputPath.outputPath
         )
@@ -780,6 +791,7 @@ package final actor SemanticIndexManager {
     for fileAndOutputPath in fileAndOutputPaths {
       let fileAndTarget = FileIndexInfo(
         file: fileAndOutputPath.file,
+        language: language,
         target: target,
         outputPath: fileAndOutputPath.outputPath
       )
@@ -873,13 +885,7 @@ package final actor SemanticIndexManager {
     var newIndexTasks = 0
 
     for (fileIndexInfo, fileModificationDate) in filesToIndex {
-      guard
-        let language = await buildServerManager.defaultLanguage(
-          for: fileIndexInfo.file.mainFile,
-          in: fileIndexInfo.target
-        ),
-        UpdateIndexStoreTaskDescription.canIndex(language: language)
-      else {
+      guard UpdateIndexStoreTaskDescription.canIndex(language: fileIndexInfo.language) else {
         continue
       }
 
@@ -952,27 +958,34 @@ package final actor SemanticIndexManager {
         // And after preparation is done, index the files in the targets.
         await withTaskGroup(of: Void.self) { taskGroup in
           for target in targetsBatch {
-            // TODO: Once swiftc supports indexing of multiple files in a single invocation, increase the batch size to
-            // allow it to share AST builds between multiple files within a target.
-            // (https://github.com/swiftlang/sourcekit-lsp/issues/1268)
-            for fileBatch in filesByTarget[target]!.partition(intoBatchesOfSize: 1) {
-              taskGroup.addTask {
-                let fileAndOutputPaths: [FileAndOutputPath] = fileBatch.compactMap {
-                  guard $0.target == target else {
-                    logger.fault(
-                      "FileIndexInfo refers to different target than should be indexed \($0.target.forLogging) vs \(target.forLogging)"
-                    )
-                    return nil
+            var filesByLanguage: [Language: [FileIndexInfo]] = [:]
+            for fileInfo in filesByTarget[target]! {
+              filesByLanguage[fileInfo.language, default: []].append(fileInfo)
+            }
+            for (language, fileInfos) in filesByLanguage {
+              // TODO: Once swiftc supports indexing of multiple files in a single invocation, increase the batch size to
+              // allow it to share AST builds between multiple files within a target.
+              // (https://github.com/swiftlang/sourcekit-lsp/issues/1268)
+              for fileBatch in fileInfos.partition(intoBatchesOfSize: 1) {
+                taskGroup.addTask {
+                  let fileAndOutputPaths: [FileAndOutputPath] = fileBatch.compactMap {
+                    guard $0.target == target else {
+                      logger.fault(
+                        "FileIndexInfo refers to different target than should be indexed \($0.target.forLogging) vs \(target.forLogging)"
+                      )
+                      return nil
+                    }
+                    return FileAndOutputPath(file: $0.file, outputPath: $0.outputPath)
                   }
-                  return FileAndOutputPath(file: $0.file, outputPath: $0.outputPath)
+                  await self.updateIndexStore(
+                    for: fileAndOutputPaths,
+                    target: target,
+                    language: language,
+                    indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit,
+                    preparationTaskID: preparationTaskID,
+                    priority: priority
+                  )
                 }
-                await self.updateIndexStore(
-                  for: fileAndOutputPaths,
-                  target: target,
-                  indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit,
-                  preparationTaskID: preparationTaskID,
-                  priority: priority
-                )
               }
             }
           }

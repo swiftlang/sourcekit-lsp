@@ -758,11 +758,17 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   // MARK: Build server queries
 
   /// Returns the toolchain that should be used to process the given target.
+  ///
+  /// If `target` is `nil` or the build server does not explicitly specify a toolchain for this target, the preferred
+  /// toolchain for the given language is returned.
   package func toolchain(
-    for target: BuildTargetIdentifier,
+    for target: BuildTargetIdentifier?,
     language: Language
   ) async -> Toolchain? {
     let toolchainPath = await orLog("Getting toolchain from build targets") { () -> URL? in
+      guard let target else {
+        return nil
+      }
       let targets = try await self.buildTargets()
       guard let target = targets[target]?.target else {
         logger.error("Failed to find target \(target.forLogging) to determine toolchain")
