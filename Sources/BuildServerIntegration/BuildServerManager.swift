@@ -698,7 +698,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     await filesBuildSettingsChangedDebouncer.scheduleCall(Set(watchedFiles.keys))
   }
 
-  private func logMessage(notification: BuildServerProtocol.OnBuildLogMessageNotification) async {
+  private func logMessage(notification: OnBuildLogMessageNotification) async {
     await connectionToClient.waitUntilInitialized()
     let type: WindowMessageType =
       switch notification.type {
@@ -710,7 +710,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     connectionToClient.logMessageToIndexLog(
       message: notification.message,
       type: type,
-      structure: notification.structure
+      structure: notification.lspStructure
     )
   }
 
@@ -1739,3 +1739,21 @@ private let supplementalClangIndexingArgs: [String] = [
   "-Wno-non-modular-include-in-framework-module",
   "-Wno-incomplete-umbrella",
 ]
+
+private extension OnBuildLogMessageNotification {
+  var lspStructure: LanguageServerProtocol.StructuredLogKind? {
+    guard let taskId = self.task?.id else {
+      return nil
+    }
+    switch structure {
+    case .begin(let info):
+      return .begin(StructuredLogBegin(title: info.title, taskID: taskId))
+    case .report:
+      return .report(StructuredLogReport(taskID: taskId))
+    case .end:
+      return .end(StructuredLogEnd(taskID: taskId))
+    case nil:
+      return nil
+    }
+  }
+}

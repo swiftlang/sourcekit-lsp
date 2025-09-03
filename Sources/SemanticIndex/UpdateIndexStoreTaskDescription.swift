@@ -113,7 +113,9 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
 
   /// See `SemanticIndexManager.logMessageToIndexLog`.
   private let logMessageToIndexLog:
-    @Sendable (_ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind) -> Void
+    @Sendable (
+      _ message: String, _ type: WindowMessageType, _ structure: LanguageServerProtocol.StructuredLogKind
+    ) -> Void
 
   /// How long to wait until we cancel an update indexstore task. This timeout should be long enough that all
   /// `swift-frontend` tasks finish within it. It prevents us from blocking the index if the type checker gets stuck on
@@ -148,7 +150,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     indexFilesWithUpToDateUnit: Bool,
     logMessageToIndexLog:
       @escaping @Sendable (
-        _ message: String, _ type: WindowMessageType, _ structure: StructuredLogKind
+        _ message: String, _ type: WindowMessageType, _ structure: LanguageServerProtocol.StructuredLogKind
       ) -> Void,
     timeout: Duration,
     hooks: IndexHooks

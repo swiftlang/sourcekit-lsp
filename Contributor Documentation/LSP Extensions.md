@@ -517,7 +517,7 @@ With
  * payloads.
  */
 export interface StructuredLogBegin {
-  kind: 'begin'
+  kind: 'begin';
 
   /**
    * A succinct title that can be used to describe the task that started this structured.
@@ -535,10 +535,7 @@ export interface StructuredLogBegin {
  * Adds a new log message to a structured log without ending it.
  */
 export interface StructuredLogReport {
-  /*
-   * A unique identifier, identifying the task this structured log message belongs to.
-   */
-  taskID: string;
+  kind: 'report';
 }
 
 /**
@@ -547,10 +544,7 @@ export interface StructuredLogReport {
  * The task ID may be re-used for new structured logs by beginning a new structured log for that task.
  */
 export interface StructuredLogEnd {
-  /*
-   * A unique identifier, identifying the task this structured log message belongs to.
-   */
-  taskID: string;
+  kind: 'end';
 }
 ```
 

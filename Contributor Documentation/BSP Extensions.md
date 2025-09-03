@@ -38,6 +38,51 @@ export interface SourceKitInitializeBuildResponseData {
 }
 ```
 
+## `build/logMessage`
+
+Added fields:
+
+```ts
+/**
+ * Extends BSPs log message grouping by explicitly starting and ending the log for a specific task ID.
+ */
+structure?: StructuredLogBegin | StructuredLogReport | StructuredLogEnd;
+```
+
+With
+
+```ts
+/**
+ * Indicates the beginning of a new task that may receive updates with `StructuredLogReport` or `StructuredLogEnd`
+ * payloads.
+ */
+export interface StructuredLogBegin {
+  kind: 'begin'
+
+  /**
+   * A succinct title that can be used to describe the task that started this structured.
+   */
+  title: string;
+}
+
+
+/**
+ * Adds a new log message to a structured log without ending it.
+ */
+export interface StructuredLogReport {
+  kind: 'report';
+}
+
+/**
+ * Ends a structured log. No more `StructuredLogReport` updates should be sent for this task ID.
+ *
+ * The task ID may be re-used for new structured logs by beginning a new structured log for that task.
+ */
+export interface StructuredLogEnd {
+  kind: 'end';
+}
+```
+
 ## `build/taskStart`
 
 If `data` contains a string value for the `workDoneProgressTitle` key, then the task's message will be displayed in the client as a work done progress with that title.
