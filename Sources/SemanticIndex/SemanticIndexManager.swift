@@ -91,6 +91,13 @@ private struct InProgressIndexStore {
   var fileModificationDate: Date?
 }
 
+/// The information that's needed to index a file within a given target.
+package struct FileIndexInfo: Sendable, Hashable {
+  package let file: FileToIndex
+  package let target: BuildTargetIdentifier
+  package let outputPath: OutputPath
+}
+
 /// Status of document indexing / target preparation in `inProgressIndexAndPreparationTasks`.
 package enum IndexTaskStatus: Comparable {
   case scheduled
@@ -722,16 +729,18 @@ package final actor SemanticIndexManager {
     }
   }
 
-  /// Update the index store for the given files, assuming that their targets have already been prepared.
+  /// Update the index store for the given files, assuming that their targets has already been prepared.
   private func updateIndexStore(
-    for filesAndTargets: [FileIndexInfo],
+    for fileAndOutputPaths: [FileAndOutputPath],
+    target: BuildTargetIdentifier,
     indexFilesWithUpToDateUnit: Bool,
     preparationTaskID: UUID,
     priority: TaskPriority?
   ) async {
     let taskDescription = AnyIndexTaskDescription(
       UpdateIndexStoreTaskDescription(
-        filesToIndex: filesAndTargets,
+        filesToIndex: fileAndOutputPaths,
+        target: target,
         buildServerManager: self.buildServerManager,
         index: index,
         indexStoreUpToDateTracker: indexStoreUpToDateTracker,
@@ -747,7 +756,12 @@ package final actor SemanticIndexManager {
         self.indexProgressStatusDidChange()
         return
       }
-      for fileAndTarget in filesAndTargets {
+      for fileAndOutputPath in fileAndOutputPaths {
+        let fileAndTarget = FileIndexInfo(
+          file: fileAndOutputPath.file,
+          target: target,
+          outputPath: fileAndOutputPath.outputPath
+        )
         switch self.inProgressIndexTasks[fileAndTarget]?.state {
         case .updatingIndexStore(let registeredTask, _):
           if registeredTask == OpaqueQueuedIndexTask(task) {
@@ -763,7 +777,12 @@ package final actor SemanticIndexManager {
       }
       self.indexProgressStatusDidChange()
     }
-    for fileAndTarget in filesAndTargets {
+    for fileAndOutputPath in fileAndOutputPaths {
+      let fileAndTarget = FileIndexInfo(
+        file: fileAndOutputPath.file,
+        target: target,
+        outputPath: fileAndOutputPath.outputPath
+      )
       switch inProgressIndexTasks[fileAndTarget]?.state {
       case .waitingForPreparation(preparationTaskID, let indexTask), .preparing(preparationTaskID, let indexTask):
         inProgressIndexTasks[fileAndTarget]?.state = .updatingIndexStore(
@@ -938,8 +957,18 @@ package final actor SemanticIndexManager {
             // (https://github.com/swiftlang/sourcekit-lsp/issues/1268)
             for fileBatch in filesByTarget[target]!.partition(intoBatchesOfSize: 1) {
               taskGroup.addTask {
+                let fileAndOutputPaths: [FileAndOutputPath] = fileBatch.compactMap {
+                  guard $0.target == target else {
+                    logger.fault(
+                      "FileIndexInfo refers to different target than should be indexed \($0.target.forLogging) vs \(target.forLogging)"
+                    )
+                    return nil
+                  }
+                  return FileAndOutputPath(file: $0.file, outputPath: $0.outputPath)
+                }
                 await self.updateIndexStore(
-                  for: fileBatch,
+                  for: fileAndOutputPaths,
+                  target: target,
                   indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit,
                   preparationTaskID: preparationTaskID,
                   priority: priority

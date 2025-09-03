@@ -79,11 +79,13 @@ package enum FileToIndex: CustomLogStringConvertible, Hashable {
   }
 }
 
-/// The information that's needed to index a file within a given target.
-package struct FileIndexInfo: Sendable, Hashable {
+/// A source file to index and the output path that should be used for indexing.
+package struct FileAndOutputPath: Sendable, Hashable {
   package let file: FileToIndex
-  package let target: BuildTargetIdentifier
   package let outputPath: OutputPath
+
+  fileprivate var mainFile: DocumentURI { file.mainFile }
+  fileprivate var sourceFile: DocumentURI { file.sourceFile }
 }
 
 /// Describes a task to index a set of source files.
@@ -94,7 +96,10 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   package let id = updateIndexStoreIDForLogging.fetchAndIncrement()
 
   /// The files that should be indexed.
-  package let filesToIndex: [FileIndexInfo]
+  package let filesToIndex: [FileAndOutputPath]
+
+  /// The target in whose context the files should be indexed.
+  package let target: BuildTargetIdentifier
 
   /// The build server manager that is used to get the toolchain and build settings for the files to index.
   private let buildServerManager: BuildServerManager
@@ -143,7 +148,8 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   }
 
   init(
-    filesToIndex: [FileIndexInfo],
+    filesToIndex: [FileAndOutputPath],
+    target: BuildTargetIdentifier,
     buildServerManager: BuildServerManager,
     index: UncheckedIndex,
     indexStoreUpToDateTracker: UpToDateTracker<DocumentURI, BuildTargetIdentifier>,
@@ -156,6 +162,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     hooks: IndexHooks
   ) {
     self.filesToIndex = filesToIndex
+    self.target = target
     self.buildServerManager = buildServerManager
     self.index = index
     self.indexStoreUpToDateTracker = indexStoreUpToDateTracker
@@ -185,11 +192,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       // TODO: Once swiftc supports it, we should group files by target and index files within the same target together
       // in one swiftc invocation. (https://github.com/swiftlang/sourcekit-lsp/issues/1268)
       for fileIndexInfo in filesToIndex {
-        await updateIndexStore(
-          forSingleFile: fileIndexInfo.file,
-          in: fileIndexInfo.target,
-          outputPath: fileIndexInfo.outputPath
-        )
+        await updateIndexStore(forSingleFile: fileIndexInfo.file, outputPath: fileIndexInfo.outputPath)
       }
       // If we know the output paths, make sure that we load their units into indexstore-db. We would eventually also
       // pick the units up through file watching but that would leave a short time period in which we think that
@@ -230,11 +233,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     }
   }
 
-  private func updateIndexStore(
-    forSingleFile file: FileToIndex,
-    in target: BuildTargetIdentifier,
-    outputPath: OutputPath
-  ) async {
+  private func updateIndexStore(forSingleFile file: FileToIndex, outputPath: OutputPath) async {
     guard await !indexStoreUpToDateTracker.isUpToDate(file.sourceFile, target) else {
       // If we know that the file is up-to-date without having ot hit the index, do that because it's fastest.
       return
