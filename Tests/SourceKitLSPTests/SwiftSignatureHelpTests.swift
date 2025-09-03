@@ -476,6 +476,61 @@ final class SwiftSignatureHelpTests: XCTestCase {
     )
   }
 
+  func testSignatureHelpPreservesActiveSignature() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      struct Adder {
+        func add(x: Int, y: Int) -> Int { 0 }
+
+        /// Adds two doubles
+        func add(y: Double = 0.0, x: Double) -> Double { 0 }
+      }
+
+      func test(adder: Adder) {
+        adder.add(1️⃣x: 2️⃣)
+      }
+      """,
+      uri: uri
+    )
+
+    let initialResult = try await testClient.send(
+      SignatureHelpRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        position: positions["1️⃣"],
+        context: SignatureHelpContext(
+          triggerKind: .triggerCharacter,
+          isRetrigger: false,
+        )
+      )
+    )
+
+    var activeSignatureHelp = try XCTUnwrap(initialResult)
+
+    // Simulate the user selecting the second signature.
+    activeSignatureHelp.activeSignature = 1
+    activeSignatureHelp.activeParameter = 0
+
+    let retriggerResult = try await testClient.send(
+      SignatureHelpRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        position: positions["2️⃣"],
+        context: SignatureHelpContext(
+          triggerKind: .contentChange,
+          isRetrigger: true,
+          activeSignatureHelp: activeSignatureHelp
+        )
+      )
+    )
+
+    let retriggerSignatureHelp = try XCTUnwrap(retriggerResult)
+
+    XCTAssertEqual(retriggerSignatureHelp.activeSignature, 1)
+    XCTAssertEqual(retriggerSignatureHelp.activeParameter, 1)
+  }
+
   func testSignatureHelpNonASCII() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)

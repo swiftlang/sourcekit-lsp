@@ -16,6 +16,7 @@ import SKLogging
 import SourceKitD
 import SourceKitLSP
 import SwiftBasicFormat
+import SwiftExtensions
 
 fileprivate extension String {
   func utf16Offset(of utf8Offset: Int, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> Int {
@@ -101,6 +102,12 @@ fileprivate extension SignatureInformation {
       activeParameter: activeParameter
     )
   }
+
+  /// Checks if two signatures are identical except for the active parameter.
+  /// This is used to match the active signature given a previously active signature.
+  func isSame(_ other: SignatureInformation) -> Bool {
+    self.label == other.label && self.documentation == other.documentation && self.parameters == other.parameters
+  }
 }
 
 fileprivate extension SignatureHelp {
@@ -142,6 +149,22 @@ extension SwiftLanguageService {
 
     let dict = try await send(sourcekitdRequest: \.signatureHelp, skreq, snapshot: snapshot)
 
-    return SignatureHelp(dict, keys)
+    guard var signatureHelp = SignatureHelp(dict, keys) else {
+      return nil
+    }
+
+    // Persist the active signature and parameter from the previous request if it exists.
+    guard let activeSignatureHelp = req.context?.activeSignatureHelp,
+      let activeSignatureIndex = activeSignatureHelp.activeSignature,
+      let activeSignature = activeSignatureHelp.signatures[safe: activeSignatureIndex],
+      let matchingSignatureIndex = signatureHelp.signatures.firstIndex(where: activeSignature.isSame)
+    else {
+      return signatureHelp
+    }
+
+    signatureHelp.activeSignature = matchingSignatureIndex
+    signatureHelp.activeParameter = signatureHelp.signatures[matchingSignatureIndex].activeParameter
+
+    return signatureHelp
   }
 }
