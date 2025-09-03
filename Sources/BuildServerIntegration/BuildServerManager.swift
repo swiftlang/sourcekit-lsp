@@ -757,16 +757,12 @@ package actor BuildServerManager: QueueBasedMessageHandler {
 
   // MARK: Build server queries
 
-  /// Returns the toolchain that should be used to process the given document.
+  /// Returns the toolchain that should be used to process the given target.
   package func toolchain(
-    for uri: DocumentURI,
-    in target: BuildTargetIdentifier?,
+    for target: BuildTargetIdentifier,
     language: Language
   ) async -> Toolchain? {
     let toolchainPath = await orLog("Getting toolchain from build targets") { () -> URL? in
-      guard let target else {
-        return nil
-      }
       let targets = try await self.buildTargets()
       guard let target = targets[target]?.target else {
         logger.error("Failed to find target \(target.forLogging) to determine toolchain")

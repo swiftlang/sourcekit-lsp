@@ -567,11 +567,12 @@ package actor SourceKitLSPServer {
       return existingLanguageServices
     }
 
-    let toolchain = await workspace.buildServerManager.toolchain(
-      for: uri,
-      in: workspace.buildServerManager.canonicalTarget(for: uri),
-      language: language
-    )
+    let toolchain: Toolchain? =
+      if let target = await workspace.buildServerManager.canonicalTarget(for: uri) {
+        await workspace.buildServerManager.toolchain(for: target, language: language)
+      } else {
+        nil
+      }
     guard let toolchain else {
       logger.error("Failed to determine toolchain for \(uri)")
       return []
