@@ -575,11 +575,22 @@ class CodeCompletionSession {
           fileContents: nil
         )
       }
-      if let docString: String = documentationResponse?[sourcekitd.keys.docBrief] {
+
+      if let response = documentationResponse,
+        let docString = documentationString(from: response, sourcekitd: sourcekitd)
+      {
         item.documentation = .markupContent(MarkupContent(kind: .markdown, value: docString))
       }
     }
     return item
+  }
+
+  private static func documentationString(from response: SKDResponseDictionary, sourcekitd: SourceKitD) -> String? {
+    if let docComment: String = response[sourcekitd.keys.docComment] {
+      return docComment
+    }
+
+    return response[sourcekitd.keys.docBrief]
   }
 
   private func computeCompletionTextEdit(
