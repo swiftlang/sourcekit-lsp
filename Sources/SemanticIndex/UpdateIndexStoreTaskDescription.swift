@@ -79,11 +79,13 @@ package enum FileToIndex: CustomLogStringConvertible, Hashable {
   }
 }
 
-/// The information that's needed to index a file within a given target.
-package struct FileIndexInfo: Sendable, Hashable {
+/// A source file to index and the output path that should be used for indexing.
+package struct FileAndOutputPath: Sendable, Hashable {
   package let file: FileToIndex
-  package let target: BuildTargetIdentifier
   package let outputPath: OutputPath
+
+  fileprivate var mainFile: DocumentURI { file.mainFile }
+  fileprivate var sourceFile: DocumentURI { file.sourceFile }
 }
 
 /// Describes a task to index a set of source files.
@@ -94,7 +96,13 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   package let id = updateIndexStoreIDForLogging.fetchAndIncrement()
 
   /// The files that should be indexed.
-  package let filesToIndex: [FileIndexInfo]
+  package let filesToIndex: [FileAndOutputPath]
+
+  /// The target in whose context the files should be indexed.
+  package let target: BuildTargetIdentifier
+
+  /// The common language of all main files in `filesToIndex`.
+  package let language: Language
 
   /// The build server manager that is used to get the toolchain and build settings for the files to index.
   private let buildServerManager: BuildServerManager
@@ -143,7 +151,9 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   }
 
   init(
-    filesToIndex: [FileIndexInfo],
+    filesToIndex: [FileAndOutputPath],
+    target: BuildTargetIdentifier,
+    language: Language,
     buildServerManager: BuildServerManager,
     index: UncheckedIndex,
     indexStoreUpToDateTracker: UpToDateTracker<DocumentURI, BuildTargetIdentifier>,
@@ -156,6 +166,8 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     hooks: IndexHooks
   ) {
     self.filesToIndex = filesToIndex
+    self.target = target
+    self.language = language
     self.buildServerManager = buildServerManager
     self.index = index
     self.indexStoreUpToDateTracker = indexStoreUpToDateTracker
@@ -182,15 +194,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         "Starting updating index store with priority \(Task.currentPriority.rawValue, privacy: .public): \(filesToIndexDescription)"
       )
       let filesToIndex = filesToIndex.sorted(by: { $0.file.sourceFile.stringValue < $1.file.sourceFile.stringValue })
-      // TODO: Once swiftc supports it, we should group files by target and index files within the same target together
-      // in one swiftc invocation. (https://github.com/swiftlang/sourcekit-lsp/issues/1268)
-      for fileIndexInfo in filesToIndex {
-        await updateIndexStore(
-          forSingleFile: fileIndexInfo.file,
-          in: fileIndexInfo.target,
-          outputPath: fileIndexInfo.outputPath
-        )
-      }
+      await updateIndexStore(forFiles: filesToIndex)
       // If we know the output paths, make sure that we load their units into indexstore-db. We would eventually also
       // pick the units up through file watching but that would leave a short time period in which we think that
       // indexing has finished (because the index process has terminated) but when the new symbols aren't present in
@@ -230,92 +234,96 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     }
   }
 
-  private func updateIndexStore(
-    forSingleFile file: FileToIndex,
-    in target: BuildTargetIdentifier,
-    outputPath: OutputPath
-  ) async {
-    guard await !indexStoreUpToDateTracker.isUpToDate(file.sourceFile, target) else {
+  private func updateIndexStore(forFiles fileInfos: [FileAndOutputPath]) async {
+    let fileInfos = await fileInfos.asyncFilter { fileInfo in
       // If we know that the file is up-to-date without having ot hit the index, do that because it's fastest.
-      return
-    }
-    guard
-      indexFilesWithUpToDateUnit
-        || !index.checked(for: .modifiedFiles).hasUpToDateUnit(
-          for: file.sourceFile,
-          mainFile: file.mainFile,
-          outputPath: outputPath
-        )
-    else {
-      logger.debug("Not indexing \(file.forLogging) because index has an up-to-date unit")
-      // We consider a file's index up-to-date if we have any up-to-date unit. Changing build settings does not
-      // invalidate the up-to-date status of the index.
-      return
-    }
-    if file.mainFile != file.sourceFile {
-      logger.log("Updating index store of \(file.forLogging) using main file \(file.mainFile.forLogging)")
-    }
-    guard let language = await buildServerManager.defaultLanguage(for: file.mainFile, in: target) else {
-      logger.error("Not indexing \(file.forLogging) because its language could not be determined")
-      return
-    }
-    let buildSettings = await buildServerManager.buildSettings(
-      for: file.mainFile,
-      in: target,
-      language: language,
-      fallbackAfterTimeout: false
-    )
-    guard let buildSettings else {
-      logger.error("Not indexing \(file.forLogging) because it has no compiler arguments")
-      return
-    }
-    if buildSettings.isFallback {
-      // Fallback build settings don’t even have an indexstore path set, so they can't generate index data that we would
-      // pick up. Also, indexing with fallback args has some other problems:
-      // - If it did generate a unit file, we would consider the file’s index up-to-date even if the compiler arguments
-      //   change, which means that we wouldn't get any up-to-date-index even when we have build settings for the file.
-      // - It's unlikely that the index from a single file with fallback arguments will be very useful as it can't tie
-      //   into the rest of the project.
-      // So, don't index the file.
-      logger.error("Not indexing \(file.forLogging) because it has fallback compiler arguments")
-      return
-    }
-    guard let toolchain = await buildServerManager.toolchain(for: file.mainFile, in: target, language: language) else {
-      logger.error(
-        "Not updating index store for \(file.forLogging) because no toolchain could be determined for the document"
+      if await indexStoreUpToDateTracker.isUpToDate(fileInfo.file.sourceFile, target) {
+        return false
+      }
+      if indexFilesWithUpToDateUnit {
+        return true
+      }
+      let hasUpToDateUnit = index.checked(for: .modifiedFiles).hasUpToDateUnit(
+        for: fileInfo.sourceFile,
+        mainFile: fileInfo.mainFile,
+        outputPath: fileInfo.outputPath
       )
+      if !hasUpToDateUnit {
+        logger.debug("Not indexing \(fileInfo.file.forLogging) because index has an up-to-date unit")
+        // We consider a file's index up-to-date if we have any up-to-date unit. Changing build settings does not
+        // invalidate the up-to-date status of the index.
+      }
+      return !hasUpToDateUnit
+    }
+    if fileInfos.isEmpty {
       return
     }
-    let startDate = Date()
-    switch language.semanticKind {
-    case .swift:
-      do {
-        try await updateIndexStore(
-          forSwiftFile: file.mainFile,
-          buildSettings: buildSettings,
-          toolchain: toolchain
-        )
-      } catch {
-        logger.error("Updating index store for \(file.forLogging) failed: \(error.forLogging)")
-        BuildSettingsLogger.log(settings: buildSettings, for: file.mainFile)
-      }
-    case .clang:
-      do {
-        try await updateIndexStore(
-          forClangFile: file.mainFile,
-          buildSettings: buildSettings,
-          toolchain: toolchain
-        )
-      } catch {
-        logger.error("Updating index store for \(file) failed: \(error.forLogging)")
-        BuildSettingsLogger.log(settings: buildSettings, for: file.mainFile)
-      }
-    case nil:
-      logger.error(
-        "Not updating index store for \(file) because it is a language that is not supported by background indexing"
+    for fileInfo in fileInfos where fileInfo.mainFile != fileInfo.sourceFile {
+      logger.log(
+        "Updating index store of \(fileInfo.file.forLogging) using main file \(fileInfo.mainFile.forLogging)"
       )
     }
-    await indexStoreUpToDateTracker.markUpToDate([(file.sourceFile, target)], updateOperationStartDate: startDate)
+
+    for fileInfo in fileInfos {
+      let buildSettings = await buildServerManager.buildSettings(
+        for: fileInfo.mainFile,
+        in: target,
+        language: language,
+        fallbackAfterTimeout: false
+      )
+      guard let buildSettings else {
+        logger.error("Not indexing \(fileInfo.file.forLogging) because it has no compiler arguments")
+        continue
+      }
+      if buildSettings.isFallback {
+        // Fallback build settings don’t even have an indexstore path set, so they can't generate index data that we would
+        // pick up. Also, indexing with fallback args has some other problems:∂
+        // - If it did generate a unit file, we would consider the file’s index up-to-date even if the compiler arguments
+        //   change, which means that we wouldn't get any up-to-date-index even when we have build settings for the file.
+        // - It's unlikely that the index from a single file with fallback arguments will be very useful as it can't tie
+        //   into the rest of the project.
+        // So, don't index the file.
+        logger.error("Not indexing \(fileInfo.file.forLogging) because it has fallback compiler arguments")
+        continue
+      }
+
+      guard let toolchain = await buildServerManager.toolchain(for: target, language: buildSettings.language) else {
+        logger.fault(
+          "Unable to determine toolchain to index \(buildSettings.language.description, privacy: .public) files in \(target.forLogging)"
+        )
+        continue
+      }
+      let startDate = Date()
+      switch buildSettings.language.semanticKind {
+      case .swift:
+        do {
+          try await updateIndexStore(
+            forSwiftFile: fileInfo.mainFile,
+            buildSettings: buildSettings,
+            toolchain: toolchain
+          )
+        } catch {
+          logger.error("Updating index store for \(fileInfo.mainFile) failed: \(error.forLogging)")
+          BuildSettingsLogger.log(settings: buildSettings, for: fileInfo.mainFile)
+        }
+      case .clang:
+        do {
+          try await updateIndexStore(
+            forClangFile: fileInfo.mainFile,
+            buildSettings: buildSettings,
+            toolchain: toolchain
+          )
+        } catch {
+          logger.error("Updating index store for \(fileInfo.mainFile.forLogging) failed: \(error.forLogging)")
+          BuildSettingsLogger.log(settings: buildSettings, for: fileInfo.mainFile)
+        }
+      case nil:
+        logger.error(
+          "Not updating index store for \(fileInfo.mainFile.forLogging) because it is a language that is not supported by background indexing"
+        )
+      }
+      await indexStoreUpToDateTracker.markUpToDate([(fileInfo.sourceFile, target)], updateOperationStartDate: startDate)
+    }
   }
 
   /// If `args` does not contain an `-index-store-path` argument, add it, pointing to the build server's index store

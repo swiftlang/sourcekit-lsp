@@ -757,10 +757,12 @@ package actor BuildServerManager: QueueBasedMessageHandler {
 
   // MARK: Build server queries
 
-  /// Returns the toolchain that should be used to process the given document.
+  /// Returns the toolchain that should be used to process the given target.
+  ///
+  /// If `target` is `nil` or the build server does not explicitly specify a toolchain for this target, the preferred
+  /// toolchain for the given language is returned.
   package func toolchain(
-    for uri: DocumentURI,
-    in target: BuildTargetIdentifier?,
+    for target: BuildTargetIdentifier?,
     language: Language
   ) async -> Toolchain? {
     let toolchainPath = await orLog("Getting toolchain from build targets") { () -> URL? in

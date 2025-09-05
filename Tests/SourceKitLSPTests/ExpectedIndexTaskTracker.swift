@@ -264,7 +264,7 @@ actor ExpectedIndexTaskTracker {
   }
 }
 
-fileprivate extension FileIndexInfo {
+fileprivate extension FileAndOutputPath {
   var sourceFileName: String? {
     return self.file.sourceFile.fileURL?.lastPathComponent
   }

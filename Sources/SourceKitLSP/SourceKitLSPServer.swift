@@ -568,8 +568,7 @@ package actor SourceKitLSPServer {
     }
 
     let toolchain = await workspace.buildServerManager.toolchain(
-      for: uri,
-      in: workspace.buildServerManager.canonicalTarget(for: uri),
+      for: await workspace.buildServerManager.canonicalTarget(for: uri),
       language: language
     )
     guard let toolchain else {
