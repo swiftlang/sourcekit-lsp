@@ -2633,14 +2633,18 @@ final class BackgroundIndexingTests: XCTestCase {
   func testTargetsAreIndexedInDependencyOrder() async throws {
     // We want to prepare low-level targets before high-level targets to make progress on indexing more quickly.
     let preparationRequests = ThreadSafeBox<[BuildTargetPrepareRequest]>(initialValue: [])
+    let twoPreparationRequestsReceived = self.expectation(description: "Received two preparation requests")
     let testHooks = Hooks(
       buildServerHooks: BuildServerHooks(preHandleRequest: { request in
         if let request = request as? BuildTargetPrepareRequest {
           preparationRequests.value.append(request)
+          if preparationRequests.value.count >= 2 {
+            twoPreparationRequestsReceived.fulfill()
+          }
         }
       })
     )
-    _ = try await SwiftPMTestProject(
+    let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": "",
         "LibB/LibB.swift": "",
@@ -2656,8 +2660,12 @@ final class BackgroundIndexingTests: XCTestCase {
         """,
       hooks: testHooks,
       enableBackgroundIndexing: true,
-      pollIndex: true
+      pollIndex: false
     )
+    // We can't poll the index using `workspace/synchronize` because that elevates the priority of the indexing requests
+    // in a non-deterministic order (due to the way ). If LibB's priority gets elevated before LibA's, then LibB will
+    // get prepared first, which is contrary to the background behavior we want to check here.
+    try await fulfillmentOfOrThrow(twoPreparationRequestsReceived)
     XCTAssertEqual(
       preparationRequests.value.flatMap(\.targets),
       [
@@ -2665,6 +2673,7 @@ final class BackgroundIndexingTests: XCTestCase {
         try BuildTargetIdentifier(target: "LibB", destination: .target),
       ]
     )
+    withExtendedLifetime(project) {}
   }
 
   func testIndexingProgressDoesNotGetStuckIfThereAreNoSourceFilesInTarget() async throws {
