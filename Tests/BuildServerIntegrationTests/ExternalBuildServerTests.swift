@@ -680,4 +680,93 @@ final class ExternalBuildServerTests: XCTestCase {
     let message = try await project.testClient.nextNotification(ofType: ShowMessageNotification.self)
     assertContains(message.message, "Initialization failed with bad error")
   }
+
+  func testBuildServerTakesLongToReply() async throws {
+    actor BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+      let projectRoot: URL
+      let unlockBuildServerResponses = MultiEntrySemaphore(name: "Build server starts responding")
+      var didReceiveTargetSourcesRequest = false
+      var didReceiveBuildTargetsRequest = false
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func workspaceBuildTargetsRequest(
+        _ request: WorkspaceBuildTargetsRequest
+      ) async throws -> WorkspaceBuildTargetsResponse {
+        // We should cache the result of the request once we receive it and not re-request information after the build
+        // server request timeout has fired
+        XCTAssert(!didReceiveBuildTargetsRequest)
+        didReceiveBuildTargetsRequest = true
+
+        await unlockBuildServerResponses.waitOrXCTFail()
+
+        return WorkspaceBuildTargetsResponse(targets: [
+          BuildTarget(
+            id: .dummy,
+            capabilities: BuildTargetCapabilities(),
+            languageIds: [],
+            dependencies: []
+          )
+        ])
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        // We should cache the result of the request once we receive it and not re-request information after the build
+        // server request timeout has fired
+        XCTAssert(!didReceiveTargetSourcesRequest)
+        didReceiveTargetSourcesRequest = true
+
+        await unlockBuildServerResponses.waitOrXCTFail()
+        return dummyTargetSourcesResponse(files: [DocumentURI(projectRoot.appendingPathComponent("Test.swift"))])
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        var arguments = [request.textDocument.uri.pseudoPath, "-DFOO"]
+        if let defaultSDKPath {
+          arguments += ["-sdk", defaultSDKPath]
+        }
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
+      }
+    }
+
+    var options = try await SourceKitLSPOptions.testDefault()
+    options.buildServerWorkspaceRequestsTimeout = 0.1 /* seconds */
+
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "Test.swift": """
+        #if FOO
+        func foo() {}
+        #endif
+
+        func test() {
+          1️⃣foo()
+        }
+        """
+      ],
+      buildServer: BuildServer.self,
+      options: options
+    )
+
+    // Check that we can open a document using fallback settings even if the build server is unresponsive.
+    let (uri, positions) = try project.openDocument("Test.swift")
+    let definitionWithoutBuildServer = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertEqual(definitionWithoutBuildServer?.locations, nil)
+    try project.buildServer().unlockBuildServerResponses.signal()
+
+    // Once the build server starts being responsive, we should be able to get actual results.
+    try await repeatUntilExpectedResult {
+      let definitionsWithBuildServer = try await project.testClient.send(
+        DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      )
+      return definitionsWithBuildServer?.locations?.count == 1
+    }
+  }
 }

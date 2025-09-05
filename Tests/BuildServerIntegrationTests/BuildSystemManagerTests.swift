@@ -428,7 +428,7 @@ private actor BSMDelegate: BuildServerManagerDelegate {
 
   func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {}
 
-  func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {}
+  func buildTargetsChanged(_ changedTargets: Set<BuildTargetIdentifier>?) async {}
 
   var clientSupportsWorkDoneProgress: Bool { false }
 
