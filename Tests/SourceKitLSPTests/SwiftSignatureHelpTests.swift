@@ -18,6 +18,8 @@ import XCTest
 
 final class SwiftSignatureHelpTests: XCTestCase {
   func testSignatureHelpFunction() async throws {
+    try await SkipUnless.sourcekitdSupportsSignatureHelp()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -75,6 +77,8 @@ final class SwiftSignatureHelpTests: XCTestCase {
   }
 
   func testSignatureHelpSubscript() async throws {
+    try await SkipUnless.sourcekitdSupportsSignatureHelp()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -134,6 +138,8 @@ final class SwiftSignatureHelpTests: XCTestCase {
   }
 
   func testSignatureHelpInitializer() async throws {
+    try await SkipUnless.sourcekitdSupportsSignatureHelp()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -189,6 +195,8 @@ final class SwiftSignatureHelpTests: XCTestCase {
   }
 
   func testSignatureHelpEnumCase() async throws {
+    try await SkipUnless.sourcekitdSupportsSignatureHelp()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -246,6 +254,8 @@ final class SwiftSignatureHelpTests: XCTestCase {
   }
 
   func testSignatureHelpNoParameters() async throws {
+    try await SkipUnless.sourcekitdSupportsSignatureHelp()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -284,6 +294,8 @@ final class SwiftSignatureHelpTests: XCTestCase {
   }
 
   func testSignatureHelpNoSignatures() async throws {
+    try await SkipUnless.sourcekitdSupportsSignatureHelp()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -307,6 +319,8 @@ final class SwiftSignatureHelpTests: XCTestCase {
   }
 
   func testSignatureHelpNoActiveParameter() async throws {
+    try await SkipUnless.sourcekitdSupportsSignatureHelp()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -348,6 +362,8 @@ final class SwiftSignatureHelpTests: XCTestCase {
   }
 
   func testSignatureHelpAdjustToStartOfArgument() async throws {
+    try await SkipUnless.sourcekitdSupportsSignatureHelp()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -416,6 +432,8 @@ final class SwiftSignatureHelpTests: XCTestCase {
   }
 
   func testSignatureHelpMultipleOverloads() async throws {
+    try await SkipUnless.sourcekitdSupportsSignatureHelp()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -477,6 +495,8 @@ final class SwiftSignatureHelpTests: XCTestCase {
   }
 
   func testSignatureHelpPreservesActiveSignature() async throws {
+    try await SkipUnless.sourcekitdSupportsSignatureHelp()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -532,6 +552,8 @@ final class SwiftSignatureHelpTests: XCTestCase {
   }
 
   func testSignatureHelpNonASCII() async throws {
+    try await SkipUnless.sourcekitdSupportsSignatureHelp()
+
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -574,6 +596,8 @@ final class SwiftSignatureHelpTests: XCTestCase {
   }
 
   func testSignatureHelpSwiftPMProject() async throws {
+    try await SkipUnless.sourcekitdSupportsSignatureHelp()
+
     let project = try await SwiftPMTestProject(
       files: [
         "utils.swift": #"""
