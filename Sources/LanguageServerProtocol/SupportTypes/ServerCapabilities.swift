@@ -612,6 +612,38 @@ public struct SignatureHelpOptions: WorkDoneProgressOptions, Codable, Hashable, 
     self.triggerCharacters = triggerCharacters
     self.retriggerCharacters = retriggerCharacters
   }
+
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+    if let arrayAny = dictionary["triggerCharacters"] {
+      triggerCharacters = [String](fromLSPArray: arrayAny)
+    }
+
+    if let arrayAny = dictionary["retriggerCharacters"] {
+      retriggerCharacters = [String](fromLSPArray: arrayAny)
+    }
+
+    if case .bool(let value) = dictionary["workDoneProgress"] {
+      workDoneProgress = value
+    }
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    var dict: [String: LSPAny] = [:]
+
+    if let triggerCharacters {
+      dict["triggerCharacters"] = triggerCharacters.encodeToLSPAny()
+    }
+
+    if let retriggerCharacters {
+      dict["retriggerCharacters"] = retriggerCharacters.encodeToLSPAny()
+    }
+
+    if let workDoneProgress {
+      dict["workDoneProgress"] = .bool(workDoneProgress)
+    }
+
+    return .dictionary(dict)
+  }
 }
 
 public struct DocumentFilter: Codable, Hashable, Sendable {

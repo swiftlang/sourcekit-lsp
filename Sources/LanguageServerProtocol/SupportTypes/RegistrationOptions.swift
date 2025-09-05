@@ -90,6 +90,46 @@ public struct CompletionRegistrationOptions: RegistrationOptions, TextDocumentRe
   }
 }
 
+/// Signature help registration options.
+public struct SignatureHelpRegistrationOptions: RegistrationOptions, TextDocumentRegistrationOptionsProtocol, Hashable {
+  public var textDocumentRegistrationOptions: TextDocumentRegistrationOptions
+  public var signatureHelpOptions: SignatureHelpOptions
+
+  public init(documentSelector: DocumentSelector? = nil, signatureHelpOptions: SignatureHelpOptions) {
+    self.textDocumentRegistrationOptions =
+      TextDocumentRegistrationOptions(documentSelector: documentSelector)
+    self.signatureHelpOptions = signatureHelpOptions
+  }
+
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+    guard let signatureHelpOptions = SignatureHelpOptions(fromLSPDictionary: dictionary) else {
+      return nil
+    }
+
+    self.signatureHelpOptions = signatureHelpOptions
+
+    guard let textDocumentRegistrationOptions = TextDocumentRegistrationOptions(fromLSPDictionary: dictionary) else {
+      return nil
+    }
+
+    self.textDocumentRegistrationOptions = textDocumentRegistrationOptions
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    var dict: [String: LSPAny] = [:]
+
+    if case .dictionary(let dictionary) = signatureHelpOptions.encodeToLSPAny() {
+      dict.merge(dictionary) { (current, _) in current }
+    }
+
+    if case .dictionary(let dictionary) = textDocumentRegistrationOptions.encodeToLSPAny() {
+      dict.merge(dictionary) { (current, _) in current }
+    }
+
+    return .dictionary(dict)
+  }
+}
+
 /// Folding range registration options.
 public struct FoldingRangeRegistrationOptions: RegistrationOptions, TextDocumentRegistrationOptionsProtocol, Hashable {
   public var textDocumentRegistrationOptions: TextDocumentRegistrationOptions

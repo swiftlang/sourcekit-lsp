@@ -27,6 +27,9 @@ package final actor CapabilityRegistry {
   /// Dynamically registered completion options.
   private var completion: [CapabilityRegistration: CompletionRegistrationOptions] = [:]
 
+  /// Dynamically registered signature help options.
+  private var signatureHelp: [CapabilityRegistration: SignatureHelpRegistrationOptions] = [:]
+
   /// Dynamically registered folding range options.
   private var foldingRange: [CapabilityRegistration: FoldingRangeRegistrationOptions] = [:]
 
@@ -49,6 +52,10 @@ package final actor CapabilityRegistry {
 
   package var clientHasDynamicCompletionRegistration: Bool {
     clientCapabilities.textDocument?.completion?.dynamicRegistration == true
+  }
+
+  package var clientHasDynamicSignatureHelpRegistration: Bool {
+    clientCapabilities.textDocument?.signatureHelp?.dynamicRegistration == true
   }
 
   package var clientHasDynamicFoldingRangeRegistration: Bool {
@@ -217,6 +224,26 @@ package final actor CapabilityRegistry {
       in: server,
       registrationDict: completion,
       setRegistrationDict: { completion[$0] = $1 }
+    )
+  }
+
+  package func registerSignatureHelpIfNeeded(
+    options: SignatureHelpOptions,
+    for languages: [Language],
+    server: SourceKitLSPServer
+  ) async {
+    guard clientHasDynamicCompletionRegistration else { return }
+
+    await registerLanguageSpecificCapability(
+      options: SignatureHelpRegistrationOptions(
+        documentSelector: DocumentSelector(for: languages),
+        signatureHelpOptions: options
+      ),
+      forMethod: SignatureHelpRequest.method,
+      languages: languages,
+      in: server,
+      registrationDict: signatureHelp,
+      setRegistrationDict: { signatureHelp[$0] = $1 }
     )
   }
 
