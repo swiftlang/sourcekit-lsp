@@ -25,15 +25,13 @@ final class FormattingTests: XCTestCase {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
-    let positions = testClient.openDocument(
-      """
+    let source = """
       struct S {
       1️⃣var foo: 2️⃣ 3️⃣Int
       4️⃣var bar: Int
       }5️⃣
-      """,
-      uri: uri
-    )
+      """
+    testClient.openDocument(source, uri: uri)
 
     let response = try await testClient.send(
       DocumentFormattingRequest(
@@ -43,14 +41,19 @@ final class FormattingTests: XCTestCase {
     )
 
     let edits = try XCTUnwrap(response)
+    let (_, unmarkedSource) = extractMarkers(source)
+    let formattedSource = unmarkedSource.applying(edits)
+
     XCTAssertEqual(
-      edits,
-      [
-        TextEdit(range: Range(positions["1️⃣"]), newText: "   "),
-        TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: ""),
-        TextEdit(range: Range(positions["4️⃣"]), newText: "   "),
-        TextEdit(range: Range(positions["5️⃣"]), newText: "\n"),
-      ]
+      formattedSource,
+      """
+      struct S {
+         var foo: Int
+         var bar: Int
+      }
+
+
+      """
     )
   }
 
@@ -217,15 +220,13 @@ final class FormattingTests: XCTestCase {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
-    let positions = testClient.openDocument(
-      """
+    let source = """
       1️⃣public 2️⃣extension Example {
         3️⃣func function() {}
       }
 
-      """,
-      uri: uri
-    )
+      """
+    testClient.openDocument(source, uri: uri)
 
     let response = try await testClient.send(
       DocumentFormattingRequest(
@@ -235,12 +236,18 @@ final class FormattingTests: XCTestCase {
     )
 
     let edits = try XCTUnwrap(response)
+    let (_, unmarkedSource) = extractMarkers(source)
+    let formattedSource = unmarkedSource.applying(edits)
+
     XCTAssertEqual(
-      edits,
-      [
-        TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: ""),
-        TextEdit(range: Range(positions["3️⃣"]), newText: "public "),
-      ]
+      formattedSource,
+      """
+      extension Example {
+        public func function() {}
+      }
+
+
+      """
     )
   }
 
@@ -248,8 +255,7 @@ final class FormattingTests: XCTestCase {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
-    let positions = testClient.openDocument(
-      #"""
+    let source = #"""
       _ = [
         Node(
           documentation: """
@@ -268,9 +274,8 @@ final class FormattingTests: XCTestCase {
         )
       ]
 
-      """#,
-      uri: uri
-    )
+      """#
+    testClient.openDocument(source, uri: uri)
 
     let response = try await testClient.send(
       DocumentFormattingRequest(
@@ -280,18 +285,32 @@ final class FormattingTests: XCTestCase {
     )
 
     let edits = try XCTUnwrap(response)
+    let (_, unmarkedSource) = extractMarkers(source)
+    let formattedSource = unmarkedSource.applying(edits)
+
     XCTAssertEqual(
-      edits,
-      [
-        TextEdit(range: Range(positions["1️⃣"]), newText: "  "),
-        TextEdit(range: Range(positions["2️⃣"]), newText: "  "),
-        TextEdit(range: Range(positions["3️⃣"]), newText: "  "),
-        TextEdit(range: Range(positions["4️⃣"]), newText: "  "),
-        TextEdit(range: Range(positions["5️⃣"]), newText: "  "),
-        TextEdit(range: Range(positions["6️⃣"]), newText: "\n"),
-        TextEdit(range: positions["7️⃣"]..<positions["8️⃣"], newText: ""),
-        TextEdit(range: positions["9️⃣"]..<positions["🔟"], newText: ""),
+      formattedSource,
+      #"""
+      _ = [
+        Node(
+          documentation: """
+            A
+            B
+            C
+            """,
+          children: [
+            Child(
+              documentation: """
+                A
+
+                """
+            )
+          ]
+        )
       ]
+
+
+      """#
     )
   }
 
