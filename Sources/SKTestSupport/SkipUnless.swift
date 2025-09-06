@@ -432,6 +432,46 @@ package actor SkipUnless {
     #endif
   }
 
+  package static func sourcekitdSupportsSignatureHelp(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 2), file: file, line: line) {
+      let sourcekitd = try await getSourceKitD()
+
+      return try await withTestScratchDir { scratchDirectory in
+        let (positions, source) = extractMarkers(
+          """
+          func foo() {
+            foo(1️⃣)
+          }
+          """
+        )
+
+        let testURL = scratchDirectory.appending(component: "test.swift")
+        try source.write(to: testURL, atomically: false, encoding: .utf8)
+
+        let offset = positions["1️⃣"]
+        let sourceFile = try testURL.filePath
+
+        let skreq = sourcekitd.dictionary([
+          sourcekitd.keys.offset: offset,
+          sourcekitd.keys.sourceFile: sourceFile,
+          sourcekitd.keys.compilerArgs: [sourceFile],
+        ])
+
+        do {
+          let response = try await sourcekitd.send(\.signatureHelp, skreq)
+
+          let signatures: SKDResponseArray? = response[sourcekitd.keys.signatures]
+          return signatures != nil
+        } catch {
+          return false
+        }
+      }
+    }
+  }
+
   private static func getSourceKitD() async throws -> SourceKitD {
     guard let sourcekitdPath = await ToolchainRegistry.forTesting.default?.sourcekitd else {
       throw GenericError("Could not find SourceKitD")
