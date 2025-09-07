@@ -15,7 +15,7 @@ import SKTestSupport
 import SKUtilities
 import XCTest
 
-private func apply(edits: [TextEdit], to source: String) -> String {
+internal func apply(edits: [TextEdit], to source: String) -> String {
   var lineTable = LineTable(source)
   let edits = edits.sorted(by: { $0.range.lowerBound < $1.range.lowerBound })
   for edit in edits.reversed() {

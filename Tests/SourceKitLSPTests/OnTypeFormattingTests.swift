@@ -56,7 +56,7 @@ final class OnTypeFormattingTests: XCTestCase {
 
     let source = """
       func foo() {
-      1️⃣if let SomeReallyLongVar = 2️⃣    3️⃣Some.More.Stuff(), let a = 4️⃣    5️⃣myfunc() 6️⃣{
+      if let SomeReallyLongVar =     Some.More.Stuff(), let a =     myfunc() 1️⃣{
       }
       }
       """
@@ -65,7 +65,7 @@ final class OnTypeFormattingTests: XCTestCase {
     let response = try await testClient.send(
       DocumentOnTypeFormattingRequest(
         textDocument: TextDocumentIdentifier(uri),
-        position: positions["6️⃣"],
+        position: positions["1️⃣"],
         ch: "{",
         options: FormattingOptions(tabSize: 4, insertSpaces: true)
       )
@@ -73,7 +73,7 @@ final class OnTypeFormattingTests: XCTestCase {
 
     let edits = try XCTUnwrap(response)
     let (_, unmarkedSource) = extractMarkers(source)
-    let formattedSource = unmarkedSource.applying(edits)
+    let formattedSource = apply(edits: edits, to: unmarkedSource)
 
     XCTAssertEqual(
       formattedSource,

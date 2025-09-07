@@ -27,9 +27,9 @@ final class FormattingTests: XCTestCase {
 
     let source = """
       struct S {
-      1️⃣var foo: 2️⃣ 3️⃣Int
-      4️⃣var bar: Int
-      }5️⃣
+      var foo:  Int
+      var bar: Int
+      }
       """
     testClient.openDocument(source, uri: uri)
 
@@ -41,8 +41,7 @@ final class FormattingTests: XCTestCase {
     )
 
     let edits = try XCTUnwrap(response)
-    let (_, unmarkedSource) = extractMarkers(source)
-    let formattedSource = unmarkedSource.applying(edits)
+    let formattedSource = apply(edits: edits, to: source)
 
     XCTAssertEqual(
       formattedSource,
@@ -51,7 +50,6 @@ final class FormattingTests: XCTestCase {
          var foo: Int
          var bar: Int
       }
-
 
       """
     )
@@ -221,8 +219,8 @@ final class FormattingTests: XCTestCase {
     let uri = DocumentURI(for: .swift)
 
     let source = """
-      1️⃣public 2️⃣extension Example {
-        3️⃣func function() {}
+      public extension Example {
+        func function() {}
       }
 
       """
@@ -236,8 +234,7 @@ final class FormattingTests: XCTestCase {
     )
 
     let edits = try XCTUnwrap(response)
-    let (_, unmarkedSource) = extractMarkers(source)
-    let formattedSource = unmarkedSource.applying(edits)
+    let formattedSource = apply(edits: edits, to: source)
 
     XCTAssertEqual(
       formattedSource,
@@ -245,7 +242,6 @@ final class FormattingTests: XCTestCase {
       extension Example {
         public func function() {}
       }
-
 
       """
     )
@@ -259,16 +255,16 @@ final class FormattingTests: XCTestCase {
       _ = [
         Node(
           documentation: """
-          1️⃣A
-          2️⃣B
-          3️⃣C
-          4️⃣""",
+          A
+          B
+          C
+          """,
           children: [
             Child(
               documentation: """
-              5️⃣A
-      6️⃣        7️⃣\#("")
-      8️⃣  9️⃣      🔟"""
+              A
+              \#("")
+              """
             )
           ]
         )
@@ -285,8 +281,7 @@ final class FormattingTests: XCTestCase {
     )
 
     let edits = try XCTUnwrap(response)
-    let (_, unmarkedSource) = extractMarkers(source)
-    let formattedSource = unmarkedSource.applying(edits)
+    let formattedSource = apply(edits: edits, to: source)
 
     XCTAssertEqual(
       formattedSource,
@@ -308,7 +303,6 @@ final class FormattingTests: XCTestCase {
           ]
         )
       ]
-
 
       """#
     )
