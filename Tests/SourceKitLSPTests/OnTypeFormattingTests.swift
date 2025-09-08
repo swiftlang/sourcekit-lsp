@@ -75,6 +75,7 @@ final class OnTypeFormattingTests: XCTestCase {
     let (_, unmarkedSource) = extractMarkers(source)
     let formattedSource = apply(edits: edits, to: unmarkedSource)
 
+    XCTAssert(edits.allSatisfy { $0.newText.allSatisfy(\.isWhitespace) })
     XCTAssertEqual(
       formattedSource,
       """
@@ -82,7 +83,6 @@ final class OnTypeFormattingTests: XCTestCase {
           if let SomeReallyLongVar = Some.More.Stuff(), let a = myfunc() {
       }
       }
-
       """
     )
   }
