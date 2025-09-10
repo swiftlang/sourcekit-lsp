@@ -54,33 +54,36 @@ final class OnTypeFormattingTests: XCTestCase {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
-    let positions = testClient.openDocument(
-      """
+    let source = """
       func foo() {
-      1️⃣if let SomeReallyLongVar = 2️⃣    3️⃣Some.More.Stuff(), let a = 4️⃣    5️⃣myfunc() 6️⃣{
+      if let SomeReallyLongVar =     Some.More.Stuff(), let a =     myfunc() 1️⃣{
       }
       }
-      """,
-      uri: uri
-    )
+      """
+    let positions = testClient.openDocument(source, uri: uri)
 
     let response = try await testClient.send(
       DocumentOnTypeFormattingRequest(
         textDocument: TextDocumentIdentifier(uri),
-        position: positions["6️⃣"],
+        position: positions["1️⃣"],
         ch: "{",
         options: FormattingOptions(tabSize: 4, insertSpaces: true)
       )
     )
 
     let edits = try XCTUnwrap(response)
+    let (_, unmarkedSource) = extractMarkers(source)
+    let formattedSource = apply(edits: edits, to: unmarkedSource)
+
+    XCTAssert(edits.allSatisfy { $0.newText.allSatisfy(\.isWhitespace) })
     XCTAssertEqual(
-      edits,
-      [
-        TextEdit(range: Range(positions["1️⃣"]), newText: "    "),
-        TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: ""),
-        TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: ""),
-      ]
+      formattedSource,
+      """
+      func foo() {
+          if let SomeReallyLongVar = Some.More.Stuff(), let a = myfunc() {
+      }
+      }
+      """
     )
   }
 
