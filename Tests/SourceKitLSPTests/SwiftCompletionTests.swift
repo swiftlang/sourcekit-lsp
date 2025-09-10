@@ -863,6 +863,108 @@ final class SwiftCompletionTests: XCTestCase {
     )
   }
 
+  func testIndentTrailingClosureBody() async throws {
+    // sourcekitd returns a completion item with an already expanded closure here. Make sure that we add indentation to
+    // the body.
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
+    let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct MyArray {
+        func myasync(execute work: () -> Void) {}
+      }
+
+      func test(x: MyArray) {
+          x.1️⃣
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertEqual(
+      completions.items.clearingUnstableValues.filter { $0.label.contains("myasync {") },
+      [
+        CompletionItem(
+          label: "myasync { code }",
+          kind: .method,
+          detail: "Void",
+          deprecated: false,
+          filterText: "myasync",
+          insertText: #"""
+            myasync {
+                ${1:code}
+            }
+            """#,
+          insertTextFormat: .snippet,
+          textEdit: .textEdit(
+            TextEdit(
+              range: Range(positions["1️⃣"]),
+              newText: #"""
+                myasync {
+                    ${1:code}
+                }
+                """#
+            )
+          )
+        )
+      ]
+    )
+  }
+
+  func testIndentTrailingClosureBodyOnOptional() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
+    let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct MyArray {
+        func myasync(execute work: () -> Void) {}
+      }
+
+      func test(x: MyArray?) {
+          x1️⃣.2️⃣
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    XCTAssertEqual(
+      completions.items.clearingUnstableValues.filter { $0.label.contains("myasync {") },
+      [
+        CompletionItem(
+          label: "myasync { code }",
+          kind: .method,
+          detail: "Void",
+          deprecated: false,
+          filterText: ".myasync",
+          insertText: #"""
+            ?.myasync {
+                ${1:code}
+            }
+            """#,
+          insertTextFormat: .snippet,
+          textEdit: .textEdit(
+            TextEdit(
+              range: positions["1️⃣"]..<positions["2️⃣"],
+              newText: #"""
+                ?.myasync {
+                    ${1:code}
+                }
+                """#
+            )
+          )
+        )
+      ]
+    )
+  }
+
   func testExpandClosurePlaceholder() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()
 

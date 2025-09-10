@@ -19,6 +19,7 @@ import SKOptions
 import SKUtilities
 import SourceKitD
 import SourceKitLSP
+import SwiftBasicFormat
 import SwiftExtensions
 import SwiftParser
 @_spi(SourceKitLSP) import SwiftRefactor
@@ -396,15 +397,7 @@ class CodeCompletionSession {
       return nil
     }
 
-    let strippedPrefix: String
-    let exprToExpand: String
-    if insertText.starts(with: "?.") {
-      strippedPrefix = "?."
-      exprToExpand = String(insertText.dropFirst(2))
-    } else {
-      strippedPrefix = ""
-      exprToExpand = insertText
-    }
+    let (strippedPrefix, exprToExpand) = extractExpressionToExpand(from: insertText)
 
     // Note we don't need special handling for macro expansions since
     // their insertion text doesn't include the '#', so are parsed as
@@ -439,6 +432,33 @@ class CodeCompletionSession {
     return String(bytes: expandedBytes, encoding: .utf8)
   }
 
+  /// Extract the expression to expand by stripping optional chaining prefix if present.
+  private func extractExpressionToExpand(from insertText: String) -> (strippedPrefix: String, exprToExpand: String) {
+    if insertText.starts(with: "?.") {
+      return (strippedPrefix: "?.", exprToExpand: String(insertText.dropFirst(2)))
+    } else {
+      return (strippedPrefix: "", exprToExpand: insertText)
+    }
+  }
+
+  /// If the code completion text returned by sourcekitd, format it using SwiftBasicFormat. This is needed for
+  /// completion items returned from sourcekitd that already have the trailing closure expanded.
+  private func formatMultiLineCompletion(insertText: String) -> String? {
+    // We only need to format the completion result if it's a multi-line completion that needs adjustment of
+    // indentation.
+    guard insertText.contains(where: \.isNewline) else {
+      return nil
+    }
+
+    let (strippedPrefix, exprToExpand) = extractExpressionToExpand(from: insertText)
+
+    var parser = Parser(exprToExpand)
+    let expr = ExprSyntax.parse(from: &parser)
+    let formatted = expr.formatted(using: ClosureCompletionFormat(indentationWidth: indentationWidth))
+
+    return strippedPrefix + formatted.description
+  }
+
   private func completionsFromSKDResponse(
     _ completions: SKDResponseArray,
     in snapshot: DocumentSnapshot,
@@ -462,6 +482,8 @@ class CodeCompletionSession {
 
       if let closureExpanded = expandClosurePlaceholders(insertText: insertText) {
         insertText = closureExpanded
+      } else if let multilineFormatted = formatMultiLineCompletion(insertText: insertText) {
+        insertText = multilineFormatted
       }
 
       let text = rewriteSourceKitPlaceholders(in: insertText, clientSupportsSnippets: clientSupportsSnippets)
