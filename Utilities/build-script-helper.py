@@ -253,9 +253,12 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
             raise SystemExit(1)
 
 
-def install_binary(exe: str, source_dir: str, install_dir: str, verbose: bool) -> None:
-    cmd = ['rsync', '-a', os.path.join(source_dir, exe), install_dir]
-    check_call(cmd, verbose=verbose)
+def copy_file(source: str, destination_dir: str, verbose: bool) -> None:
+    """
+    Copies the file at `source` into `destination_dir`.
+    """
+    os.makedirs(destination_dir)
+    check_call(['rsync', '-a', source, destination_dir], verbose=verbose)
 
 
 def install(swift_exec: str, args: argparse.Namespace) -> None:
@@ -273,9 +276,10 @@ def install(swift_exec: str, args: argparse.Namespace) -> None:
         dynamic_library_extension = "so"
 
     for prefix in args.install_prefixes:
-        install_binary('sourcekit-lsp', bin_path, os.path.join(prefix, 'bin'), verbose=args.verbose)
-        install_binary(f'libSwiftSourceKitPlugin.{dynamic_library_extension}', bin_path, os.path.join(prefix, 'lib'), verbose=args.verbose)
-        install_binary(f'libSwiftSourceKitClientPlugin.{dynamic_library_extension}', bin_path, os.path.join(prefix, 'lib'), verbose=args.verbose)
+        copy_file(os.path.join(bin_path, 'sourcekit-lsp'), os.path.join(prefix, 'bin'), verbose=args.verbose)
+        copy_file(os.path.join(bin_path, f'libSwiftSourceKitPlugin.{dynamic_library_extension}'), os.path.join(prefix, 'lib'), verbose=args.verbose)
+        copy_file(os.path.join(bin_path, f'libSwiftSourceKitClientPlugin.{dynamic_library_extension}'), os.path.join(prefix, 'lib'), verbose=args.verbose)
+        copy_file(os.path.join(args.package_path, 'config.schema.json'), os.path.join(prefix, 'share', 'sourcekit-lsp'), verbose=args.verbose)
 
 
 def handle_invocation(swift_exec: str, args: argparse.Namespace) -> None:
