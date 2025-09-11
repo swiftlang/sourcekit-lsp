@@ -12,6 +12,10 @@
 
 package import Foundation
 
+#if os(Windows)
+import WinSDK
+#endif
+
 enum FilePathError: Error, CustomStringConvertible {
   case noFileSystemRepresentation(URL)
   case noFileURL(URL)
@@ -83,14 +87,14 @@ extension URL {
   }
 
   package var isRoot: Bool {
-    #if os(Windows)
-    // FIXME: We should call into Windows' native check to check if this path is a root once https://github.com/swiftlang/swift-foundation/issues/976 is fixed.
-    return self.pathComponents.count <= 1
-    #else
-    // On Linux, we may end up with an string for the path due to https://github.com/swiftlang/swift-foundation/issues/980
-    // TODO: Remove the check for "" once https://github.com/swiftlang/swift-foundation/issues/980 is fixed.
-    return self.path == "/" || self.path == ""
-    #endif
+    get throws {
+      let checkPath = try filePath
+      #if os(Windows)
+      return checkPath.withCString(encodedAs: UTF16.self, PathCchIsRoot)
+      #else
+      return checkPath == "/"
+      #endif
+    }
   }
 
   /// Returns true if the path of `self` starts with the path in `other`.

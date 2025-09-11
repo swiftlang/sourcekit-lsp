@@ -336,7 +336,7 @@ final class ToolchainRegistryTests: XCTestCase {
 
       try ProcessEnv.setVar(
         "SOURCEKIT_PATH_FOR_TEST",
-        value: ["/bogus", binPath.filePath, "/bogus2"].joined(separator: separator)
+        value: ["/bogus/../parent", "/bogus", binPath.filePath, "/bogus2"].joined(separator: separator)
       )
       defer { try! ProcessEnv.setVar("SOURCEKIT_PATH_FOR_TEST", value: "") }
 
