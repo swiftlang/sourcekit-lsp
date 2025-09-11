@@ -366,10 +366,23 @@ public final class Toolchain: Sendable {
 }
 
 /// Find a containing xctoolchain with plist, if available.
-func containingXCToolchain(
+private func containingXCToolchain(
   _ path: URL
 ) -> (XCToolchainPlist, URL)? {
-  var path = path
+  // `deletingLastPathComponent` only makes sense on resolved paths (ie. those without symlinks or `..`). Any given
+  // toolchain path should have already been realpathed, but since this can turn into an infinite loop otherwise, it's
+  // better to be safe than sorry.
+  let resolvedPath = orLog("Toolchain realpath") {
+    try path.realpath
+  }
+  guard let resolvedPath else {
+    return nil
+  }
+  if path != resolvedPath {
+    logger.fault("\(path) was not realpathed")
+  }
+
+  var path = resolvedPath
   while !((try? path.isRoot) ?? true) {
     if path.pathExtension == "xctoolchain" {
       if let infoPlist = orLog("Loading information from xctoolchain", { try XCToolchainPlist(fromDirectory: path) }) {
