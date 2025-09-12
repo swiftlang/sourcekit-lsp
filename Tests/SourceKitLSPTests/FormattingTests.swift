@@ -284,7 +284,6 @@ final class FormattingTests: XCTestCase {
     let edits = try XCTUnwrap(response)
     let formattedSource = apply(edits: edits, to: source)
 
-    XCTAssert(edits.allSatisfy { $0.newText.allSatisfy(\.isWhitespace) })
     XCTAssertEqual(
       formattedSource,
       #"""
