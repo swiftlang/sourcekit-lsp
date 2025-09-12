@@ -96,17 +96,18 @@ package final actor ToolchainRegistry {
     var toolchainsByPath: [URL: Toolchain] = [:]
     var toolchainsByCompiler: [URL: Toolchain] = [:]
     for (toolchain, reason) in toolchainsAndReasonsParam {
+      // Toolchain should always be unique by path. It isn't particularly useful to log if we already have a toolchain
+      // though, as we could have just found toolchains through symlinks (this is actually quite normal - eg. OSS
+      // toolchains add a `swift-latest.xctoolchain` symlink on macOS).
+      if toolchainsByPath[toolchain.path] != nil {
+        continue
+      }
+
       // Non-XcodeDefault toolchain: disallow all duplicates.
       if toolchainsByIdentifier[toolchain.identifier] != nil,
         toolchain.identifier != ToolchainRegistry.darwinDefaultToolchainIdentifier
       {
         logger.error("Found two toolchains with the same identifier: \(toolchain.identifier)")
-        continue
-      }
-
-      // Toolchain should always be unique by path.
-      if toolchainsByPath[toolchain.path] != nil {
-        logger.fault("Found two toolchains with the same path: \(toolchain.path)")
         continue
       }
 
@@ -219,7 +220,9 @@ package final actor ToolchainRegistry {
     }
 
     let toolchainsAndReasons = toolchainPaths.compactMap {
-      if let toolchain = Toolchain($0.path) {
+      if let resolvedPath = try? $0.path.realpath,
+        let toolchain = Toolchain(resolvedPath)
+      {
         return (toolchain, $0.reason)
       }
       return nil
@@ -283,7 +286,18 @@ package final actor ToolchainRegistry {
   /// If we have a toolchain in the toolchain registry that contains the compiler with the given URL, return it.
   /// Otherwise, return `nil`.
   package func toolchain(withCompiler compiler: URL) -> Toolchain? {
-    return toolchainsByCompiler[compiler]
+    if let resolvedPath = try? compiler.realpath {
+      return toolchainsByCompiler[resolvedPath]
+    }
+    return nil
+  }
+
+  /// If we have a toolchain in the toolchain registry with the given URL, return it. Otherwise, return `nil`.
+  package func toolchain(withPath path: URL) -> Toolchain? {
+    if let resolvedPath = try? path.realpath {
+      return toolchainsByPath[resolvedPath]
+    }
+    return nil
   }
 }
 
@@ -291,10 +305,6 @@ package final actor ToolchainRegistry {
 extension ToolchainRegistry {
   package func toolchains(withIdentifier identifier: String) -> [Toolchain] {
     return toolchainsByIdentifier[identifier] ?? []
-  }
-
-  package func toolchain(withPath path: URL) -> Toolchain? {
-    return toolchainsByPath[path]
   }
 }
 
