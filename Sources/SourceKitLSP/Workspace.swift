@@ -363,26 +363,6 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     await scheduleUpdateOfUnitOutputPathsInIndexIfNecessary()
   }
 
-  package static func forTesting(
-    options: SourceKitLSPOptions,
-    sourceKitLSPServer: SourceKitLSPServer,
-    testHooks: Hooks,
-    buildServerManager: BuildServerManager,
-    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
-  ) async -> Workspace {
-    return await Workspace(
-      sourceKitLSPServer: sourceKitLSPServer,
-      rootUri: nil,
-      capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
-      options: options,
-      hooks: testHooks,
-      buildServerManager: buildServerManager,
-      index: nil,
-      indexDelegate: nil,
-      indexTaskScheduler: indexTaskScheduler
-    )
-  }
-
   /// Returns a `CheckedIndex` that verifies that all the returned entries are up-to-date with the given
   /// `IndexCheckLevel`.
   package func index(checkedFor checkLevel: IndexCheckLevel) -> CheckedIndex? {
