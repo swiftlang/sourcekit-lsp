@@ -278,6 +278,7 @@ package final class CustomBuildServerTestProject<BuildServer: CustomBuildServer>
     options: SourceKitLSPOptions? = nil,
     hooks: Hooks = Hooks(),
     enableBackgroundIndexing: Bool = false,
+    usePullDiagnostics: Bool = true,
     pollIndex: Bool = true,
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
     testScratchDir: URL? = nil,
@@ -296,6 +297,7 @@ package final class CustomBuildServerTestProject<BuildServer: CustomBuildServer>
       options: options,
       hooks: hooks,
       enableBackgroundIndexing: enableBackgroundIndexing,
+      usePullDiagnostics: usePullDiagnostics,
       preInitialization: preInitialization,
       testScratchDir: testScratchDir,
       testName: testName
