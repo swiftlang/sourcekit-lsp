@@ -25,6 +25,7 @@ add_library(SwiftLanguageService STATIC
   InlayHints.swift
   MacroExpansion.swift
   OpenInterface.swift
+  ParametersDocumentationExtractor.swift
   RefactoringEdit.swift
   RefactoringResponse.swift
   RelatedIdentifiers.swift
@@ -59,6 +60,7 @@ target_link_libraries(SwiftLanguageService PUBLIC
   SourceKitLSP
   ToolchainRegistry
   IndexStoreDB
+  Markdown
   SwiftSyntax::SwiftBasicFormat
   SwiftSyntax::SwiftSyntax
 )

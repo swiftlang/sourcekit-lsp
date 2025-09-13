@@ -36,7 +36,12 @@ fileprivate extension String {
 }
 
 fileprivate extension ParameterInformation {
-  init?(_ parameter: SKDResponseDictionary, _ signatureLabel: String, _ keys: sourcekitd_api_keys) {
+  init?(
+    _ parameter: SKDResponseDictionary,
+    _ signatureLabel: String,
+    _ keys: sourcekitd_api_keys,
+    _ parameterDocumentation: [String: String]
+  ) {
     guard let nameOffset = parameter[keys.nameOffset] as Int?,
       let nameLength = parameter[keys.nameLength] as Int?
     else {
@@ -44,8 +49,10 @@ fileprivate extension ParameterInformation {
     }
 
     let documentation: StringOrMarkupContent? =
-      if let docComment: String = parameter[keys.docComment] {
-        .markupContent(MarkupContent(kind: .markdown, value: docComment))
+      if let name = parameter[keys.name] as String?,
+        let documentation = parameterDocumentation[name]
+      {
+        .markupContent(MarkupContent(kind: .markdown, value: documentation))
       } else {
         nil
       }
@@ -68,7 +75,20 @@ fileprivate extension SignatureInformation {
       return nil
     }
 
-    let parameters = skParameters.compactMap { ParameterInformation($0, label, keys) }
+    let documentation: StringOrMarkupContent?
+    let parameterDocumentation: [String: String]
+
+    if let docComment: String = signature[keys.docComment] {
+      let (parameterComments, signatureComment) = extractParametersDocumentation(from: docComment)
+
+      documentation = .markupContent(MarkupContent(kind: .markdown, value: signatureComment))
+      parameterDocumentation = parameterComments
+    } else {
+      documentation = nil
+      parameterDocumentation = [:]
+    }
+
+    let parameters = skParameters.compactMap { ParameterInformation($0, label, keys, parameterDocumentation) }
 
     let activeParameter: Int? =
       if let activeParam: Int = signature[keys.activeParameter] {
@@ -84,13 +104,6 @@ fileprivate extension SignatureInformation {
         // active parameter to be `null` causing editors not to show an active
         // parameter which would be the best solution here.
         parameters.count
-      } else {
-        nil
-      }
-
-    let documentation: StringOrMarkupContent? =
-      if let docComment: String = signature[keys.docComment] {
-        .markupContent(MarkupContent(kind: .markdown, value: docComment))
       } else {
         nil
       }

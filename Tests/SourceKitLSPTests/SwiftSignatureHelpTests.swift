@@ -60,9 +60,7 @@ final class SwiftSignatureHelpTests: SourceKitLSPTestCase {
           kind: .markdown,
           value: """
             This is a test function
-            - Parameters:
-              - a: The first parameter
-              - b: The second parameter
+
             - Returns: The result of the test
             """
         )
@@ -71,8 +69,14 @@ final class SwiftSignatureHelpTests: SourceKitLSPTestCase {
     XCTAssertEqual(
       signature.parameters,
       [
-        ParameterInformation(label: .offsets(start: 5, end: 11)),
-        ParameterInformation(label: .offsets(start: 13, end: 22)),
+        ParameterInformation(
+          label: .offsets(start: 5, end: 11),
+          documentation: .markupContent(MarkupContent(kind: .markdown, value: "The first parameter")),
+        ),
+        ParameterInformation(
+          label: .offsets(start: 13, end: 22),
+          documentation: .markupContent(MarkupContent(kind: .markdown, value: "The second parameter")),
+        ),
       ]
     )
   }
@@ -121,9 +125,7 @@ final class SwiftSignatureHelpTests: SourceKitLSPTestCase {
           kind: .markdown,
           value: """
             Returns the element at the given row and column
-            - Parameters:
-              - row: The row index
-              - column: The column index
+
             - Returns: The element at the given row and column
             """
         )
@@ -132,8 +134,14 @@ final class SwiftSignatureHelpTests: SourceKitLSPTestCase {
     XCTAssertEqual(
       signature.parameters,
       [
-        ParameterInformation(label: .offsets(start: 10, end: 18)),
-        ParameterInformation(label: .offsets(start: 20, end: 31)),
+        ParameterInformation(
+          label: .offsets(start: 10, end: 18),
+          documentation: .markupContent(MarkupContent(kind: .markdown, value: "The row index")),
+        ),
+        ParameterInformation(
+          label: .offsets(start: 20, end: 31),
+          documentation: .markupContent(MarkupContent(kind: .markdown, value: "The column index")),
+        ),
       ]
     )
   }
@@ -236,20 +244,21 @@ final class SwiftSignatureHelpTests: SourceKitLSPTestCase {
       .markupContent(
         MarkupContent(
           kind: .markdown,
-          value: """
-            The label as an offset within the signature label
-            - Parameters:
-              - start: The start offset
-              - end: The end offset
-            """
+          value: "The label as an offset within the signature label"
         )
       )
     )
     XCTAssertEqual(
       signature.parameters,
       [
-        ParameterInformation(label: .offsets(start: 7, end: 17)),
-        ParameterInformation(label: .offsets(start: 19, end: 27)),
+        ParameterInformation(
+          label: .offsets(start: 7, end: 17),
+          documentation: .markupContent(MarkupContent(kind: .markdown, value: "The start offset"))
+        ),
+        ParameterInformation(
+          label: .offsets(start: 19, end: 27),
+          documentation: .markupContent(MarkupContent(kind: .markdown, value: "The end offset"))
+        ),
       ]
     )
   }
@@ -640,9 +649,7 @@ final class SwiftSignatureHelpTests: SourceKitLSPTestCase {
           kind: .markdown,
           value: """
             A utility function that combines values
-            - Parameters:
-              - first: The first value
-              - second: The second value
+
             - Returns: The combined result
             """
         )
@@ -651,8 +658,14 @@ final class SwiftSignatureHelpTests: SourceKitLSPTestCase {
     XCTAssertEqual(
       signature.parameters,
       [
-        ParameterInformation(label: .offsets(start: 8, end: 21)),
-        ParameterInformation(label: .offsets(start: 23, end: 34)),
+        ParameterInformation(
+          label: .offsets(start: 8, end: 21),
+          documentation: .markupContent(MarkupContent(kind: .markdown, value: "The first value"))
+        ),
+        ParameterInformation(
+          label: .offsets(start: 23, end: 34),
+          documentation: .markupContent(MarkupContent(kind: .markdown, value: "The second value"))
+        ),
       ]
     )
   }
