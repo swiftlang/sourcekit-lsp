@@ -298,7 +298,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       case .swift:
         do {
           try await updateIndexStore(
-            forSwiftFile: fileInfo.mainFile,
+            forSwiftFiles: [fileInfo.mainFile],
             buildSettings: buildSettings,
             toolchain: toolchain
           )
@@ -329,7 +329,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   /// If `args` does not contain an `-index-store-path` argument, add it, pointing to the build server's index store
   /// path. If an `-index-store-path` already exists, validate that it matches the build server's index store path and
   /// replace it by the build server's index store path if they don't match.
-  private func addOrReplaceIndexStorePath(in args: [String], for uri: DocumentURI) async throws -> [String] {
+  private func addOrReplaceIndexStorePath(in args: [String], for uris: [DocumentURI]) async throws -> [String] {
     var args = args
     guard let buildServerIndexStorePath = await self.buildServerManager.initializationData?.indexStorePath else {
       struct NoIndexStorePathError: Error {}
@@ -340,9 +340,9 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       if indexStorePath != buildServerIndexStorePath {
         logger.error(
           """
-          Compiler arguments for \(uri) specify index store path \(indexStorePath) but build server specified an \
+          Compiler arguments for specify index store path \(indexStorePath) but build server specified an \
           incompatible index store path \(buildServerIndexStorePath). Overriding with the path specified by the build \
-          system.
+          system. For \(uris)
           """
         )
         args[indexStorePathIndex + 1] = buildServerIndexStorePath
@@ -354,13 +354,13 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   }
 
   private func updateIndexStore(
-    forSwiftFile uri: DocumentURI,
+    forSwiftFiles uris: [DocumentURI],
     buildSettings: FileBuildSettings,
     toolchain: Toolchain
   ) async throws {
     guard let swiftc = toolchain.swiftc else {
       logger.error(
-        "Not updating index store for \(uri.forLogging) because toolchain \(toolchain.identifier) does not contain a Swift compiler"
+        "Not updating index store for \(uris) because toolchain \(toolchain.identifier) does not contain a Swift compiler"
       )
       return
     }
@@ -368,14 +368,13 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     var args =
       try [swiftc.filePath] + buildSettings.compilerArguments + [
         "-index-file",
-        "-index-file-path", uri.pseudoPath,
         // batch mode is not compatible with -index-file
         "-disable-batch-mode",
-      ]
-    args = try await addOrReplaceIndexStorePath(in: args, for: uri)
+      ] + uris.flatMap { ["-index-file-path", $0.pseudoPath] }
+    args = try await addOrReplaceIndexStorePath(in: args, for: uris)
 
     try await runIndexingProcess(
-      indexFile: uri,
+      indexFiles: uris,
       buildSettings: buildSettings,
       processArguments: args,
       workingDirectory: buildSettings.workingDirectory.map(AbsolutePath.init(validating:))
@@ -395,10 +394,10 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     }
 
     var args = [try clang.filePath] + buildSettings.compilerArguments
-    args = try await addOrReplaceIndexStorePath(in: args, for: uri)
+    args = try await addOrReplaceIndexStorePath(in: args, for: [uri])
 
     try await runIndexingProcess(
-      indexFile: uri,
+      indexFiles: [uri],
       buildSettings: buildSettings,
       processArguments: args,
       workingDirectory: buildSettings.workingDirectory.map(AbsolutePath.init(validating:))
@@ -406,7 +405,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   }
 
   private func runIndexingProcess(
-    indexFile: DocumentURI,
+    indexFiles: [DocumentURI],
     buildSettings: FileBuildSettings,
     processArguments: [String],
     workingDirectory: AbsolutePath?
@@ -420,7 +419,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     let state = signposter.beginInterval(
       "Indexing",
       id: signpostID,
-      "Indexing \(indexFile.fileURL?.lastPathComponent ?? indexFile.pseudoPath)"
+      "Indexing \(indexFiles.map { $0.fileURL?.lastPathComponent ?? $0.pseudoPath })"
     )
     defer {
       signposter.endInterval("Indexing", state)
@@ -429,7 +428,9 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     logMessageToIndexLog(
       processArguments.joined(separator: " "),
       .info,
-      .begin(StructuredLogBegin(title: "Indexing \(indexFile.pseudoPath)", taskID: taskId))
+      .begin(
+        StructuredLogBegin(title: "Indexing \(indexFiles.map(\.pseudoPath).joined(separator: ", "))", taskID: taskId)
+      )
     )
 
     let stdoutHandler = PipeAsStringHandler {
@@ -475,26 +476,26 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       // Indexing will frequently fail if the source code is in an invalid state. Thus, log the failure at a low level.
       logger.debug(
         """
-        Updating index store for \(indexFile.forLogging) terminated with non-zero exit code \(code)
+        Updating index store for terminated with non-zero exit code \(code) for \(indexFiles)
         Stderr:
         \(stderr)
         Stdout:
         \(stdout)
         """
       )
-      BuildSettingsLogger.log(level: .debug, settings: buildSettings, for: indexFile)
+    // BuildSettingsLogger.log(level: .debug, settings: buildSettings, for: indexFile)
     case .signalled(let signal):
       if !Task.isCancelled {
         // The indexing job finished with a signal. Could be because the compiler crashed.
         // Ignore signal exit codes if this task has been cancelled because the compiler exits with SIGINT if it gets
         // interrupted.
-        logger.error("Updating index store for \(indexFile.forLogging) signaled \(signal)")
-        BuildSettingsLogger.log(level: .error, settings: buildSettings, for: indexFile)
+        logger.error("Updating index store for signaled \(signal) for \(indexFiles)")
+        // BuildSettingsLogger.log(level: .error, settings: buildSettings, for: indexFile)
       }
     case .abnormal(let exception):
       if !Task.isCancelled {
-        logger.error("Updating index store for \(indexFile.forLogging) exited abnormally \(exception)")
-        BuildSettingsLogger.log(level: .error, settings: buildSettings, for: indexFile)
+        logger.error("Updating index store exited abnormally \(exception) for \(indexFiles)")
+        // BuildSettingsLogger.log(level: .error, settings: buildSettings, for: indexFile)
       }
     }
   }
