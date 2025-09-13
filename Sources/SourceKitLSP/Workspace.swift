@@ -452,9 +452,9 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     }
   }
 
-  package func buildTargetsChanged(_ changes: [BuildTargetEvent]?) async {
+  package func buildTargetsChanged(_ changedTargets: Set<BuildTargetIdentifier>?) async {
     await sourceKitLSPServer?.fileHandlingCapabilityChanged()
-    await semanticIndexManager?.buildTargetsChanged(changes)
+    await semanticIndexManager?.buildTargetsChanged(changedTargets)
     await orLog("Scheduling syntactic test re-indexing") {
       let testFiles = try await buildServerManager.testFiles()
       await syntacticTestIndex.listOfTestFilesDidChange(testFiles)

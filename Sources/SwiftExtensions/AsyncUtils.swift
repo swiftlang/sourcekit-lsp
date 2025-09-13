@@ -270,8 +270,8 @@ package func withTimeout<T: Sendable>(
 ///   `body` should be cancelled after `timeout`.
 package func withTimeout<T: Sendable>(
   _ timeout: Duration,
-  body: @escaping @Sendable () async throws -> T?,
-  resultReceivedAfterTimeout: @escaping @Sendable () async -> Void
+  body: @escaping @Sendable () async throws -> T,
+  resultReceivedAfterTimeout: @escaping @Sendable (_ result: T) async -> Void
 ) async throws -> T? {
   let didHitTimeout = AtomicBool(initialValue: false)
 
@@ -286,7 +286,7 @@ package func withTimeout<T: Sendable>(
       do {
         let result = try await body()
         if didHitTimeout.value {
-          await resultReceivedAfterTimeout()
+          await resultReceivedAfterTimeout(result)
         }
         continuation.yield(result)
       } catch {
@@ -304,5 +304,19 @@ package func withTimeout<T: Sendable>(
     throw CancellationError()
   } else {
     preconditionFailure("Continuation never finishes")
+  }
+}
+
+/// Same as `withTimeout` above but allows `body` to return an optional value.
+package func withTimeout<T: Sendable>(
+  _ timeout: Duration,
+  body: @escaping @Sendable () async throws -> T?,
+  resultReceivedAfterTimeout: @escaping @Sendable (_ result: T?) async -> Void
+) async throws -> T? {
+  let result: T?? = try await withTimeout(timeout, body: body, resultReceivedAfterTimeout: resultReceivedAfterTimeout)
+  switch result {
+  case .none: return nil
+  case .some(.none): return nil
+  case .some(.some(let value)): return value
   }
 }
