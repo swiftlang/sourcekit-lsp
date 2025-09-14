@@ -472,6 +472,15 @@ package actor SkipUnless {
     }
   }
 
+  package static func canIndexMultipleSwiftFilesInSingleInvocation(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 2), file: file, line: line) {
+      return await ToolchainRegistry.forTesting.default?.canIndexMultipleSwiftFilesInSingleInvocation ?? false
+    }
+  }
+
   private static func getSourceKitD() async throws -> SourceKitD {
     guard let sourcekitdPath = await ToolchainRegistry.forTesting.default?.sourcekitd else {
       throw GenericError("Could not find SourceKitD")

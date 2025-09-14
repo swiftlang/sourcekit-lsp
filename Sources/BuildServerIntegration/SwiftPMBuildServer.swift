@@ -514,6 +514,11 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
 
       throw NonFileURIError(uri: file)
     }
+    #if compiler(>=6.4)
+    #warning(
+      "Once we can guarantee that the toolchain can index multiple Swift files in a single invocation, we no longer need to set -index-unit-output-path since it's always set using an -output-file-map"
+    )
+    #endif
     var compilerArguments = try buildTarget.compileArguments(for: fileURL)
     if buildTarget.compiler == .swift {
       compilerArguments += [

@@ -2775,6 +2775,224 @@ final class BackgroundIndexingTests: XCTestCase {
       return true
     }
   }
+
+  func testIndexMultipleSwiftFilesInSameCompilerInvocation() async throws {
+    try await SkipUnless.canIndexMultipleSwiftFilesInSingleInvocation()
+    let hooks = Hooks(
+      indexHooks: IndexHooks(
+        updateIndexStoreTaskDidStart: { taskDescription in
+          XCTAssertEqual(
+            taskDescription.filesToIndex.map(\.file.sourceFile.fileURL?.lastPathComponent),
+            ["First.swift", "Second.swift"]
+          )
+        }
+      )
+    )
+    _ = try await SwiftPMTestProject(
+      files: [
+        "First.swift": "",
+        "Second.swift": "",
+      ],
+      hooks: hooks,
+      enableBackgroundIndexing: true
+    )
+  }
+
+  func testIndexMultipleSwiftFilesWithExistingOutputFileMap() async throws {
+    actor BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+      private let projectRoot: URL
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: false
+        )
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        return self.dummyTargetSourcesResponse(files: [
+          DocumentURI(projectRoot.appending(component: "MyFile.swift")),
+          DocumentURI(projectRoot.appending(component: "MyOtherFile.swift")),
+        ])
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        var arguments = [
+          try projectRoot.appending(component: "MyFile.swift").filePath,
+          try projectRoot.appending(component: "MyOtherFile.swift").filePath,
+        ]
+        if let defaultSDKPath {
+          arguments += ["-sdk", defaultSDKPath]
+        }
+        arguments += ["-index-unit-output-path", request.textDocument.uri.pseudoPath + ".o"]
+        arguments += ["-output-file-map", "dummy.json"]
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
+      }
+    }
+
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "MyFile.swift": """
+        func 1️⃣foo() {}
+        """,
+        "MyOtherFile.swift": """
+        func 2️⃣bar() {
+          3️⃣foo()
+        }
+        """,
+      ],
+      buildServer: BuildServer.self,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("MyFile.swift")
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "bar()",
+            kind: .function,
+            tags: nil,
+            uri: try project.uri(for: "MyOtherFile.swift"),
+            range: Range(try project.position(of: "2️⃣", in: "MyOtherFile.swift")),
+            selectionRange: Range(try project.position(of: "2️⃣", in: "MyOtherFile.swift")),
+            data: .dictionary([
+              "usr": .string("s:4main3baryyF"),
+              "uri": .string(try project.uri(for: "MyOtherFile.swift").stringValue),
+            ])
+          ),
+          fromRanges: [Range(try project.position(of: "3️⃣", in: "MyOtherFile.swift"))]
+        )
+      ]
+    )
+  }
+
+  func testSwiftFilesInSameTargetHaveDifferentBuildSettings() async throws {
+    // In the real world, this shouldn't happen. If the files within the same target and thus module have different
+    // build settings, we wouldn't be able to build them with whole-module-optimization.
+    // Check for this anyway to make sure that we provide reasonable behavior even for build servers that are somewhat
+    // misbehaving, eg. if for some reasons targets and modules don't line up within the build server.
+    actor BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+      private let projectRoot: URL
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: false
+        )
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        return self.dummyTargetSourcesResponse(files: [
+          DocumentURI(projectRoot.appending(component: "MyFile.swift")),
+          DocumentURI(projectRoot.appending(component: "MyOtherFile.swift")),
+        ])
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        var arguments = [
+          try projectRoot.appending(component: "MyFile.swift").filePath,
+          try projectRoot.appending(component: "MyOtherFile.swift").filePath,
+        ]
+        if let defaultSDKPath {
+          arguments += ["-sdk", defaultSDKPath]
+        }
+        arguments += ["-index-unit-output-path", request.textDocument.uri.pseudoPath + ".o"]
+        if request.textDocument.uri.fileURL?.lastPathComponent == "MyFile.swift" {
+          arguments += ["-DMY_FILE"]
+        }
+        if request.textDocument.uri.fileURL?.lastPathComponent == "MyOtherFile.swift" {
+          arguments += ["-DMY_OTHER_FILE"]
+        }
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
+      }
+    }
+
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "MyFile.swift": """
+        func 1️⃣foo() {}
+
+        #if MY_FILE
+        func 2️⃣boo() {
+          3️⃣foo()
+        }
+        #endif
+        """,
+        "MyOtherFile.swift": """
+        #if MY_OTHER_FILE
+        func 4️⃣bar() {
+          5️⃣foo()
+        }
+        #endif
+        """,
+      ],
+      buildServer: BuildServer.self,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("MyFile.swift")
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "bar()",
+            kind: .function,
+            tags: nil,
+            uri: try project.uri(for: "MyOtherFile.swift"),
+            range: Range(try project.position(of: "4️⃣", in: "MyOtherFile.swift")),
+            selectionRange: Range(try project.position(of: "4️⃣", in: "MyOtherFile.swift")),
+            data: .dictionary([
+              "usr": .string("s:4main3baryyF"),
+              "uri": .string(try project.uri(for: "MyOtherFile.swift").stringValue),
+            ])
+          ),
+          fromRanges: [Range(try project.position(of: "5️⃣", in: "MyOtherFile.swift"))]
+        ),
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "boo()",
+            kind: .function,
+            tags: nil,
+            uri: try project.uri(for: "MyFile.swift"),
+            range: Range(try project.position(of: "2️⃣", in: "MyFile.swift")),
+            selectionRange: Range(try project.position(of: "2️⃣", in: "MyFile.swift")),
+            data: .dictionary([
+              "usr": .string("s:4main3booyyF"),
+              "uri": .string(try project.uri(for: "MyFile.swift").stringValue),
+            ])
+          ),
+          fromRanges: [Range(try project.position(of: "3️⃣", in: "MyFile.swift"))]
+        ),
+      ]
+    )
+  }
 }
 
 extension HoverResponseContents {
