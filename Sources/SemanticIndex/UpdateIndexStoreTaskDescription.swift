@@ -242,15 +242,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         // Disjoint sets of files can be indexed concurrently.
         return nil
       }
-      if self.filesToIndex.count < other.filesToIndex.count {
-        // If there is an index operation with more files already running, suspend it.
-        // The most common use case for this is if we schedule an entire target to be indexed in the background and then
-        // need a single file indexed for use interaction. We should suspend the target-wide indexing and just index
-        // the current file to get index data for it ASAP.
-        return .cancelAndRescheduleDependency(other)
-      } else {
-        return .waitAndElevatePriorityOfDependency(other)
-      }
+      return .waitAndElevatePriorityOfDependency(other)
     }
   }
 
