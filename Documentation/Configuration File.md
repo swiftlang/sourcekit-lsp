@@ -62,3 +62,7 @@ The structure of the file is currently not guaranteed to be stable. Options may 
 - `sourcekitdRequestTimeout: number`: The maximum duration that a sourcekitd request should be allowed to execute before being declared as timed out. In general, editors should cancel requests that they are no longer interested in, but in case editors don't cancel requests, this ensures that a long-running non-cancelled request is not blocking sourcekitd and thus most semantic functionality. In particular, VS Code does not cancel the semantic tokens request, which can cause a long-running AST build that blocks sourcekitd.
 - `semanticServiceRestartTimeout: number`: If a request to sourcekitd or clangd exceeds this timeout, we assume that the semantic service provider is hanging for some reason and won't recover. To restore semantic functionality, we terminate and restart it.
 - `buildServerWorkspaceRequestsTimeout: number`: Duration how long to wait for responses to `workspace/buildTargets` or `buildTarget/sources` request by the build server before defaulting to an empty response.
+- `preparationBatchingStrategy: object`: Defines the batch size for target preparation. If nil, defaults to preparing 1 target at a time.
+  - This is a tagged union discriminated by the `strategy` field. Each case has the following structure:
+  - `strategy: "fixedTargetBatchSize"`: Prepare a fixed number of targets in a single batch. `batchSize`: The number of targets to prepare in each batch.
+    - `batchSize: integer`: The number of targets to prepare in each batch.

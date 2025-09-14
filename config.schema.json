@@ -186,6 +186,31 @@
       },
       "type" : "object"
     },
+    "preparationBatchingStrategy" : {
+      "description" : "Defines the batch size for target preparation. If nil, defaults to preparing 1 target at a time.",
+      "markdownDescription" : "Defines the batch size for target preparation. If nil, defaults to preparing 1 target at a time.",
+      "oneOf" : [
+        {
+          "description" : "Prepare a fixed number of targets in a single batch. `batchSize`: The number of targets to prepare in each batch.",
+          "markdownDescription" : "Prepare a fixed number of targets in a single batch. `batchSize`: The number of targets to prepare in each batch.",
+          "properties" : {
+            "batchSize" : {
+              "description" : "The number of targets to prepare in each batch.",
+              "markdownDescription" : "The number of targets to prepare in each batch.",
+              "type" : "integer"
+            },
+            "strategy" : {
+              "const" : "fixedTargetBatchSize"
+            }
+          },
+          "required" : [
+            "strategy",
+            "batchSize"
+          ],
+          "type" : "object"
+        }
+      ]
+    },
     "semanticServiceRestartTimeout" : {
       "description" : "If a request to sourcekitd or clangd exceeds this timeout, we assume that the semantic service provider is hanging for some reason and won't recover. To restore semantic functionality, we terminate and restart it.",
       "markdownDescription" : "If a request to sourcekitd or clangd exceeds this timeout, we assume that the semantic service provider is hanging for some reason and won't recover. To restore semantic functionality, we terminate and restart it.",

@@ -241,6 +241,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
           updateIndexStoreTimeout: options.indexOrDefault.updateIndexStoreTimeoutOrDefault,
           hooks: hooks.indexHooks,
           indexTaskScheduler: indexTaskScheduler,
+          preparationBatchingStrategy: options.preparationBatchingStrategy,
           logMessageToIndexLog: { [weak sourceKitLSPServer] in
             sourceKitLSPServer?.logMessageToIndexLog(message: $0, type: $1, structure: $2)
           },

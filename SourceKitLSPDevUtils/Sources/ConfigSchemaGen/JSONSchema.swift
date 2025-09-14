@@ -38,6 +38,8 @@ struct JSONSchema: Encodable {
     case additionalProperties
     case markdownDescription
     case markdownEnumDescriptions
+    case oneOf
+    case const
   }
   var _schema: String?
   var id: String?
@@ -59,6 +61,9 @@ struct JSONSchema: Encodable {
   /// VSCode extension: Markdown formatted descriptions for rich hover for enum values
   /// https://github.com/microsoft/vscode-wiki/blob/main/Setting-Descriptions.md
   var markdownEnumDescriptions: [String]?
+
+  var oneOf: [JSONSchema]?
+  var const: String?
 
   func encode(to encoder: any Encoder) throws {
     // Manually implement encoding to use `encodeIfPresent` for HeapBox-ed fields
@@ -82,6 +87,10 @@ struct JSONSchema: Encodable {
     if let markdownEnumDescriptions {
       try container.encode(markdownEnumDescriptions, forKey: .markdownEnumDescriptions)
     }
+    if let oneOf, !oneOf.isEmpty {
+      try container.encode(oneOf, forKey: .oneOf)
+    }
+    try container.encodeIfPresent(const, forKey: .const)
   }
 }
 
@@ -126,13 +135,53 @@ struct JSONSchemaBuilder {
       schema.properties = properties
       schema.required = required
     case .enum(let enumInfo):
-      schema.type = "string"
-      schema.enum = enumInfo.cases.map(\.name)
-      // Set `markdownEnumDescriptions` for better rendering in VSCode rich hover
-      // Unlike `description`, `enumDescriptions` field is not a part of JSON Schema spec,
-      // so we only set `markdownEnumDescriptions` here.
-      if enumInfo.cases.contains(where: { $0.description != nil }) {
-        schema.markdownEnumDescriptions = enumInfo.cases.map { $0.description ?? "" }
+      let hasAssociatedTypes = enumInfo.cases.contains { !($0.associatedProperties?.isEmpty ?? true) }
+
+      if hasAssociatedTypes {
+        let discriminatorFieldName = enumInfo.discriminatorFieldName ?? "type"
+        var oneOfSchemas: [JSONSchema] = []
+
+        for caseInfo in enumInfo.cases {
+          var caseSchema = JSONSchema()
+          caseSchema.type = "object"
+          caseSchema.description = caseInfo.description
+          caseSchema.markdownDescription = caseInfo.description
+
+          var caseProperties: [String: JSONSchema] = [:]
+          var caseRequired: [String] = [discriminatorFieldName]
+
+          var discriminatorSchema = JSONSchema()
+          discriminatorSchema.const = caseInfo.name
+          caseProperties[discriminatorFieldName] = discriminatorSchema
+
+          if let associatedProperties = caseInfo.associatedProperties {
+            for property in associatedProperties {
+              let propertyType = property.type
+              var propertySchema = try buildJSONSchema(from: propertyType)
+              propertySchema.description = property.description
+              propertySchema.markdownDescription = property.description
+              caseProperties[property.name] = propertySchema
+              if !propertyType.isOptional {
+                caseRequired.append(property.name)
+              }
+            }
+          }
+
+          caseSchema.properties = caseProperties
+          caseSchema.required = caseRequired
+          oneOfSchemas.append(caseSchema)
+        }
+
+        schema.oneOf = oneOfSchemas
+      } else {
+        schema.type = "string"
+        schema.enum = enumInfo.cases.map(\.name)
+        // Set `markdownEnumDescriptions` for better rendering in VSCode rich hover
+        // Unlike `description`, `enumDescriptions` field is not a part of JSON Schema spec,
+        // so we only set `markdownEnumDescriptions` here.
+        if enumInfo.cases.contains(where: { $0.description != nil }) {
+          schema.markdownEnumDescriptions = enumInfo.cases.map { $0.description ?? "" }
+        }
       }
     }
     return schema
