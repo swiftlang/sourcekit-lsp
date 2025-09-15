@@ -58,7 +58,7 @@ target_link_libraries(SwiftLanguageService PUBLIC
   SourceKitLSP
   ToolchainRegistry
   IndexStoreDB
-  Markdown
+  SwiftMarkdown::Markdown
   SwiftSyntax::SwiftBasicFormat
   SwiftSyntax::SwiftSyntax
 )
