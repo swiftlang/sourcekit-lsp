@@ -669,4 +669,77 @@ final class SwiftSignatureHelpTests: SourceKitLSPTestCase {
       ]
     )
   }
+
+  func testSignatureHelpMatchesParametersWithInternalNames() async throws {
+    try await SkipUnless.sourcekitdSupportsSignatureHelp()
+
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      /// - Parameter number: The number to add 1 to
+      func addOne(to number: Int) -> Int { number + 1 }
+
+      func main() {
+        addOne(1️⃣)
+      }
+      """,
+      uri: uri
+    )
+
+    let result = try await testClient.send(
+      SignatureHelpRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        position: positions["1️⃣"]
+      )
+    )
+
+    let signatureHelp = try XCTUnwrap(result)
+    let signature = try XCTUnwrap(signatureHelp.signatures.only)
+    let signatureDocumentation = try XCTUnwrap(signature.documentation)
+    let parameter = try XCTUnwrap(signature.parameters?.only)
+
+    XCTAssertEqual(signatureDocumentation, .markupContent(MarkupContent(kind: .markdown, value: "")))
+    XCTAssertEqual(
+      parameter.documentation,
+      .markupContent(MarkupContent(kind: .markdown, value: "The number to add 1 to"))
+    )
+  }
+
+  /// Tests that we drop parameter documentation for parameters that don't exist aligning with swift-docc.
+  func testSignatureHelpDropsNonExistentParameterDocumentation() async throws {
+    try await SkipUnless.sourcekitdSupportsSignatureHelp()
+
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      /// - Parameters:
+      ///   - numberWithTypo: The number to do stuff with
+      func compute(number: Int) {}
+
+      func main() {
+        compute(1️⃣)
+      }
+      """,
+      uri: uri
+    )
+
+    let result = try await testClient.send(
+      SignatureHelpRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        position: positions["1️⃣"]
+      )
+    )
+
+    let signatureHelp = try XCTUnwrap(result)
+    let signature = try XCTUnwrap(signatureHelp.signatures.only)
+    let parameter = try XCTUnwrap(signature.parameters?.only)
+    let signatureDocumentation = try XCTUnwrap(signature.documentation)
+
+    XCTAssertEqual(signatureDocumentation, .markupContent(MarkupContent(kind: .markdown, value: "")))
+    XCTAssertNil(parameter.documentation)
+  }
 }

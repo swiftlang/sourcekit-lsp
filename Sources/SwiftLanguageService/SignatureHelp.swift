@@ -36,6 +36,7 @@ fileprivate extension String {
 }
 
 fileprivate extension ParameterInformation {
+  /// - Parameter parameterDocumentation: A dictionary with the parameter name as the key and its documentation as the value.
   init?(
     _ parameter: SKDResponseDictionary,
     _ signatureLabel: String,
