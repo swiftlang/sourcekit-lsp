@@ -249,4 +249,79 @@ final class ParametersDocumentationExtractorTests: XCTestCase {
       """
     )
   }
+
+  /// Tests that we drop non-parameter items in the parameter outline. Aligns with swift-docc.
+  func testDropsNonParameterItemsInParameterOutline() {
+    let comment = """
+      - Parameters:
+        - number: The number to do stuff with
+        - TODO Improve this documentation
+      """
+
+    let (parameters, remaining) = extractParametersDocumentation(from: comment)
+
+    XCTAssertEqual(parameters, ["number": "The number to do stuff with"])
+    XCTAssertTrue(remaining.isEmpty)
+  }
+
+  /// Tests that we drop duplicate parameter documentation and keep thefirst one. Aligns with swift-docc.
+  func testDropsDuplicateParameterDocumentation() {
+    let comment = """
+      - Parameters:
+        - number: The number to do stuff with
+        - number: The number to do amazing stuff with
+      """
+
+    let (parameters, remaining) = extractParametersDocumentation(from: comment)
+
+    XCTAssertEqual(parameters, ["number": "The number to do stuff with"])
+    XCTAssertTrue(remaining.isEmpty)
+  }
+
+  /// Tests that we drop text after the colon in the parameter outline. Aligns with swift-docc.
+  func testDropsTextAfterColonInParameterOutline() {
+    let comment = """
+      - Parameters: listing parameter documentation below
+        - number: The number to do stuff
+      """
+
+    let (parameters, remaining) = extractParametersDocumentation(from: comment)
+
+    XCTAssertEqual(parameters, ["number": "The number to do stuff"])
+    XCTAssertTrue(remaining.isEmpty)
+  }
+
+  /// Tests that we support mixed parameter documentation styles in a single comment. Aligns with swift-docc.
+  func testMixedParameterDocumentationStyles() {
+    let comment = #"""
+      Function documentation.
+
+      - Parameters:
+        - first: First parameter from Parameters section
+      - Parameter second: Second parameter from separate Parameter
+      \param third Third parameter from Doxygen style
+
+      Additional documentation.
+      """#
+
+    let (parameters, remaining) = extractParametersDocumentation(from: comment)
+
+    XCTAssertEqual(
+      parameters,
+      [
+        "first": "First parameter from Parameters section",
+        "second": "Second parameter from separate Parameter",
+        "third": "Third parameter from Doxygen style",
+      ]
+    )
+
+    XCTAssertEqual(
+      remaining,
+      """
+      Function documentation.
+
+      Additional documentation.
+      """
+    )
+  }
 }

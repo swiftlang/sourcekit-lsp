@@ -57,12 +57,14 @@ private struct ParametersDocumentationExtractor {
         }
 
         for param in params {
-          parameters[param.name] = param.documentation
+          // If duplicate parameter documentation is found, keep the first one following swift-docc's behavior
+          parameters[param.name] = parameters[param.name] ?? param.documentation
         }
 
       case let doxygenParameter as DoxygenParameter:
         let param = extract(from: doxygenParameter)
-        parameters[param.name] = param.documentation
+        // If duplicate parameter documentation is found, keep the first one following swift-docc's behavior
+        parameters[param.name] = parameters[param.name] ?? param.documentation
 
       default:
         remainingBlocks.append(block)
