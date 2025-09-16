@@ -69,6 +69,12 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
     )
   }
 
+  @available(*, deprecated, message: "This method is deprecated. Please use throwing version instead.")
+  static func refactor(syntax: SequenceExprSyntax, in context: Void) -> SequenceExprSyntax? {
+    let newRefactor: (SequenceExprSyntax, Void) throws -> SequenceExprSyntax = refactor(syntax:in:)
+    return try? newRefactor(syntax, context)
+  }
+
   /// If `exprList` is a valid string concatenation, returns 1) all elements in `exprList` with concat operators
   /// stripped and 2) the longest pounds amongst all string literals, otherwise returns nil.
   ///
