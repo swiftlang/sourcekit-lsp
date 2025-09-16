@@ -17,8 +17,6 @@ import SwiftParser
 @_spi(PackageRefactor) import SwiftRefactor
 import SwiftSyntax
 
-import struct Basics.RelativePath
-
 /// Syntactic code action provider to provide refactoring actions that
 /// edit a package manifest.
 struct PackageManifestEdits: SyntaxCodeActionProvider {

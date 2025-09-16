@@ -616,9 +616,6 @@ var targets: [Target] = [
       .product(name: "Crypto", package: "swift-crypto"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ]
-      + swiftPMDependency([
-        .product(name: "SwiftPM-auto", package: "swift-package-manager")
-      ])
       + swiftSyntaxDependencies([
         "SwiftBasicFormat",
         "SwiftDiagnostics",
