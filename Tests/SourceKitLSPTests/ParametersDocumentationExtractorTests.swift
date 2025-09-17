@@ -324,4 +324,27 @@ final class ParametersDocumentationExtractorTests: XCTestCase {
       """
     )
   }
+
+  func testSeparatedParameterWithRawIdentifier() {
+    let comment = """
+      - Parameter `foo: bar :) `: hello
+      """
+
+    let (parameters, remaining) = extractParametersDocumentation(from: comment)
+
+    XCTAssertEqual(parameters, ["foo: bar :) ": "hello"])
+    XCTAssertTrue(remaining.isEmpty)
+  }
+
+  func testParameterOutlineWithRawIdentifier() {
+    let comment = """
+      - Parameters:
+         - `foo: bar :) `: hello
+      """
+
+    let (parameters, remaining) = extractParametersDocumentation(from: comment)
+
+    XCTAssertEqual(parameters, ["foo: bar :) ": "hello"])
+    XCTAssertTrue(remaining.isEmpty)
+  }
 }
