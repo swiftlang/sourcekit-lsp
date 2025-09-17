@@ -168,7 +168,7 @@ private struct ParametersDocumentationExtractor {
 
     let remainingContent = String(paragraphContent[prefixEnd...]).trimmingCharacters(in: .whitespaces)
 
-    return extractParam(firstTextContent: remainingContent, listItem: listItem)
+    return extractParam(firstTextContent: remainingContent, listItem: listItem, single: true)
   }
 
   /// Extracts a parameter field from a list item (used for parameter outline items)
@@ -177,11 +177,9 @@ private struct ParametersDocumentationExtractor {
       return nil
     }
 
-    guard let paragraphText = paragraph.child(at: 0) as? Text else {
-      return nil
-    }
+    let firstText = paragraph.child(at: 0) as? Text
 
-    return extractParam(firstTextContent: paragraphText.string, listItem: listItem)
+    return extractParam(firstTextContent: firstText?.string ?? "", listItem: listItem, single: false)
   }
 
   /// Extracts a parameter field from a list item provided the relevant first text content allowing reuse in ``extractOutlineItem`` and ``extractSingle``
@@ -189,11 +187,13 @@ private struct ParametersDocumentationExtractor {
   /// - Parameters:
   ///   - firstTextContent: The content of the first text child of the list item's first paragraph
   ///   - listItem: The list item to extract the parameter from
+  ///   - single: Whether the parameter is a single parameter or part of a parameter outline
   ///
   /// - Returns: A tuple containing the parameter name and documentation if a parameter was found, nil otherwise.
   private func extractParam(
     firstTextContent: String,
-    listItem: ListItem
+    listItem: ListItem,
+    single: Bool
   ) -> Parameter? {
     guard let paragraph = listItem.child(at: 0) as? Paragraph else {
       return nil
@@ -202,7 +202,7 @@ private struct ParametersDocumentationExtractor {
     let components = firstTextContent.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
 
     guard components.count == 2 else {
-      return nil
+      return extractWithRawIdentifier(from: listItem, single: single)
     }
 
     let name = String(components[0]).trimmingCharacters(in: .whitespaces)
@@ -216,6 +216,44 @@ private struct ParametersDocumentationExtractor {
     let documentation = Document(remainingChildren).format()
 
     return Parameter(name: name, documentation: documentation)
+  }
+
+  /// Extracts a parameter with its name as a raw identifier.
+  ///
+  /// Example:
+  /// ```markdown
+  /// - Parameter `foo bar`: documentation
+  /// - Parameters:
+  ///   - `foo bar`: documentation
+  /// ```
+  ///
+  /// - Parameters:
+  ///   - listItem: The list item to extract the parameter from
+  ///   - single: Whether the parameter is a single parameter or part of a parameter outline
+  func extractWithRawIdentifier(from listItem: ListItem, single: Bool) -> Parameter? {
+    /// The index of ``InlineCode`` for the raw identifier parameter name in the first paragraph of ``listItem``
+    let inlineCodeIndex = single ? 1 : 0
+
+    guard let paragraph = listItem.child(at: 0) as? Paragraph,
+      let rawIdentifier = paragraph.child(at: inlineCodeIndex) as? InlineCode,
+      let text = paragraph.child(at: inlineCodeIndex + 1) as? Text
+    else {
+      return nil
+    }
+
+    let textContent = text.string.trimmingCharacters(in: .whitespaces)
+
+    guard textContent.hasPrefix(":") else {
+      return nil
+    }
+
+    let remainingTextContent = String(textContent.dropFirst()).trimmingCharacters(in: .whitespaces)
+    let remainingParagraphChildren =
+      [Text(remainingTextContent)] + paragraph.inlineChildren.dropFirst(inlineCodeIndex + 2)
+    let remainingChildren = [Paragraph(remainingParagraphChildren)] + listItem.blockChildren.dropFirst(1)
+    let documentation = Document(remainingChildren).format()
+
+    return Parameter(name: rawIdentifier.code, documentation: documentation)
   }
 }
 
