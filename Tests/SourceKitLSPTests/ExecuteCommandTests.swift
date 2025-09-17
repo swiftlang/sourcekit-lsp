@@ -189,4 +189,41 @@ final class ExecuteCommandTests: XCTestCase {
     req.arguments = [1, 2, "", metadata.encodeToLSPAny()]
     XCTAssertEqual([1, 2, ""], req.argumentsWithoutSourceKitMetadata)
   }
+
+  func testShowInferredTypesCommand() async throws {
+    let testClient = try await TestSourceKitLSPClient(
+      capabilities: ClientCapabilities(experimental: [
+        "workspace/showFocusedDiagnostics": .dictionary(["supported": .bool(true)])
+      ])
+    )
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func test() -> Int {
+        11️⃣0
+      }
+      """,
+      uri: uri
+    )
+    let textDocument = TextDocumentIdentifier(uri)
+    let command = FocusedRemarksCommand(
+      commandType: .showInferredTypes,
+      position: positions["1️⃣"],
+      textDocument: textDocument
+    )
+    let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
+    let request = ExecuteCommandRequest(
+      command: FocusedRemarksCommand.identifier,
+      arguments: [command.encodeToLSPAny(), metadata.encodeToLSPAny()]
+    )
+    let expectation = self.expectation(description: "Handle ShowFocusedDiagnosticsRequest")
+
+    testClient.handleSingleRequest { (req: ShowFocusedDiagnosticsRequest) in
+      expectation.fulfill()
+      XCTAssertEqual(req.diagnostics.map(\.message), ["integer literal was inferred to be of type 'Int'"])
+      return ShowFocusedDiagnosticsResponse(success: true)
+    }
+    _ = try await testClient.send(request)
+    try await fulfillmentOfOrThrow(expectation)
+  }
 }
