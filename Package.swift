@@ -800,7 +800,7 @@ var dependencies: [Package.Dependency] {
       .package(path: "../swift-crypto"),
     ] + swiftPMDependency([.package(name: "swift-package-manager", path: "../swiftpm")])
   } else {
-    let relatedDependenciesBranch = "release/6.2"
+    let relatedDependenciesBranch = "release/6.2.1"
 
     return [
       .package(url: "https://github.com/swiftlang/indexstore-db.git", branch: relatedDependenciesBranch),
