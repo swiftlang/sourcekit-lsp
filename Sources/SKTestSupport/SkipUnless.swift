@@ -275,9 +275,39 @@ package actor SkipUnless {
     line: UInt = #line
   ) async throws {
     return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 2), file: file, line: line) {
-      let sourcekitd = try await getSourceKitD()
-
-      return sourcekitd.ideApi.completion_item_get_doc_raw != nil
+      let testClient = try await TestSourceKitLSPClient()
+      let uri = DocumentURI(for: .swift)
+      let positions = testClient.openDocument(
+        """
+        /// A function
+        ///
+        /// with full docs
+        func sourcekitdSupportsFullDocumentationInCompletion() {}
+        1️⃣
+        """,
+        uri: uri
+      )
+      let result = try await testClient.send(
+        CompletionRequest(
+          textDocument: TextDocumentIdentifier(uri),
+          position: positions["1️⃣"]
+        )
+      )
+      guard
+        let item = result.items.first(where: {
+          $0.label == "sourcekitdSupportsFullDocumentationInCompletion()"
+        })
+      else {
+        XCTFail("Expected to find completion for 'sourcekitdSupportsFullDocumentationInCompletion'")
+        return false
+      }
+      let resolvedItem = try await testClient.send(
+        CompletionItemResolveRequest(item: item)
+      )
+      guard case let .markupContent(markup) = resolvedItem.documentation else {
+        return false
+      }
+      return markup.value.contains("with full docs")
     }
   }
 
