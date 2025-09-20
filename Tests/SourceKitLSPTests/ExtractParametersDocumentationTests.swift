@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2025 Apple Inc. and the Swift project authors
+// Copyright (c) 2025 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -15,7 +15,7 @@ import SKTestSupport
 @_spi(Testing) import SwiftLanguageService
 import XCTest
 
-final class ParametersDocumentationExtractorTests: XCTestCase {
+final class ExtractParametersDocumentationTests: XCTestCase {
   func testParameterOutlineBasic() {
     let comment = """
       This is a function that does something.
@@ -264,7 +264,7 @@ final class ParametersDocumentationExtractorTests: XCTestCase {
     XCTAssertTrue(remaining.isEmpty)
   }
 
-  /// Tests that we drop duplicate parameter documentation and keep thefirst one. Aligns with swift-docc.
+  /// Tests that we drop duplicate parameter documentation and keep the first one. Aligns with swift-docc.
   func testDropsDuplicateParameterDocumentation() {
     let comment = """
       - Parameters:

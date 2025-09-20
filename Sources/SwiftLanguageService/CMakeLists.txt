@@ -46,7 +46,7 @@ add_library(SwiftLanguageService STATIC
   GeneratedInterfaceManager.swift
   SignatureHelp.swift
   AdjustPositionToStartOfArgument.swift
-  ParametersDocumentationExtractor.swift
+  ExtractParametersDocumentation.swift
 )
 set_target_properties(SwiftLanguageService PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
