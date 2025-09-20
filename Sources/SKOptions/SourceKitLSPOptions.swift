@@ -544,8 +544,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       base: base,
       override: SourceKitLSPOptions(
         path: workspaceFolder.fileURL?
-          .appendingPathComponent(".sourcekit-lsp")
-          .appendingPathComponent("config.json")
+          .appending(components: ".sourcekit-lsp", "config.json")
       )
     )
   }
@@ -555,7 +554,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       return URL(fileURLWithPath: generatedFilesPath)
     }
 
-    return URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("sourcekit-lsp")
+    return URL(fileURLWithPath: NSTemporaryDirectory()).appending(component: "sourcekit-lsp")
   }
 
   public func hasExperimentalFeature(_ feature: ExperimentalFeature) -> Bool {

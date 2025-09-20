@@ -313,7 +313,7 @@ final class FormattingTests: XCTestCase {
     try await withTestScratchDir { scratchDir in
       let toolchain = try await unwrap(ToolchainRegistry.forTesting.default)
 
-      let crashingExecutablePath = scratchDir.appendingPathComponent("crashing-executable")
+      let crashingExecutablePath = scratchDir.appending(component: "crashing-executable")
       try await createBinary(
         """
         fatalError()

@@ -36,7 +36,7 @@ final class PluginSwiftPMTestProject {
         buildServerSpec: BuildServerSpec(
           kind: .swiftPM,
           projectRoot: scratchDirectory,
-          configPath: scratchDirectory.appendingPathComponent("Package.swift")
+          configPath: scratchDirectory.appending(component: "Package.swift")
         ),
         toolchainRegistry: .forTesting,
         options: try .testDefault(backgroundIndexing: false),

@@ -84,8 +84,8 @@ package func testScratchDir(testName: String = #function) throws -> URL {
   #endif
 
   let url = try FileManager.default.temporaryDirectory.realpath
-    .appendingPathComponent(testScratchDirsName)
-    .appendingPathComponent(testScratchName(testName: testName), isDirectory: true)
+    .appending(component: testScratchDirsName)
+    .appending(component: testScratchName(testName: testName), directoryHint: .isDirectory)
 
   try? FileManager.default.removeItem(at: url)
   try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
@@ -120,7 +120,6 @@ var globalModuleCache: URL? {
       return URL(fileURLWithPath: customModuleCache)
     }
     return try FileManager.default.temporaryDirectory.realpath
-      .appendingPathComponent("sourcekit-lsp-test-scratch")
-      .appendingPathComponent("shared-module-cache")
+      .appending(components: "sourcekit-lsp-test-scratch", "shared-module-cache")
   }
 }

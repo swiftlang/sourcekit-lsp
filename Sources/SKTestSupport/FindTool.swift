@@ -28,8 +28,7 @@ package func findTool(name: String) async -> URL? {
   var buf = [WCHAR](repeating: 0, count: Int(MAX_PATH))
   GetWindowsDirectoryW(&buf, DWORD(MAX_PATH))
   let wherePath = String(decodingCString: &buf, as: UTF16.self)
-    .appendingPathComponent("system32")
-    .appendingPathComponent("where.exe")
+    .appending(components: "system32", "where.exe")
   let cmd = [wherePath, name]
   #elseif os(Android)
   let cmd = ["/system/bin/which", name]

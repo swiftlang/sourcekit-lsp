@@ -1129,7 +1129,7 @@ final class RenameTests: XCTestCase {
       DocumentURI(
         definitionUri.fileURL!
           .deletingLastPathComponent()
-          .appendingPathComponent("movedDefinition.swift")
+          .appending(component: "movedDefinition.swift")
       )
 
     try FileManager.default.moveItem(at: XCTUnwrap(definitionUri.fileURL), to: XCTUnwrap(movedDefinitionUri.fileURL))

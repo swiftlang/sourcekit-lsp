@@ -129,9 +129,7 @@ private let skTestSupportInputsDirectory: URL = {
   #if os(macOS)
   var resources =
     productsDirectory
-    .appendingPathComponent("SourceKitLSP_CompletionScoringTestSupport.bundle")
-    .appendingPathComponent("Contents")
-    .appendingPathComponent("Resources")
+    .appending(components: "SourceKitLSP_CompletionScoringTestSupport.bundle", "Contents", "Resources")
   if !FileManager.default.fileExists(at: resources) {
     // Xcode and command-line swiftpm differ about the path.
     resources.deleteLastPathComponent()
@@ -140,18 +138,18 @@ private let skTestSupportInputsDirectory: URL = {
   #else
   let resources =
     productsDirectory
-    .appendingPathComponent("SourceKitLSP_CompletionScoringTestSupport.resources")
+    .appending(component: "SourceKitLSP_CompletionScoringTestSupport.resources")
   #endif
   guard FileManager.default.fileExists(at: resources) else {
     fatalError("missing resources \(resources)")
   }
-  return resources.appendingPathComponent("INPUTS", isDirectory: true).standardizedFileURL
+  return resources.appending(component: "INPUTS", directoryHint: .isDirectory).standardizedFileURL
 }()
 
 func loadTestResource(name: String, withExtension ext: String) throws -> Data {
   let file =
     skTestSupportInputsDirectory
-    .appendingPathComponent("\(name).\(ext)")
+    .appending(component: "\(name).\(ext)")
   return try Data(contentsOf: file)
 }
 

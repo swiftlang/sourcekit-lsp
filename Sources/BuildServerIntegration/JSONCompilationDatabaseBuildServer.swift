@@ -93,7 +93,7 @@ package actor JSONCompilationDatabaseBuildServer: BuiltInBuildServer {
   }
 
   package var indexDatabasePath: URL? {
-    indexStorePath?.deletingLastPathComponent().appendingPathComponent("IndexDatabase")
+    indexStorePath?.deletingLastPathComponent().appending(component: "IndexDatabase")
   }
 
   package nonisolated var supportsPreparationAndOutputPaths: Bool { false }
