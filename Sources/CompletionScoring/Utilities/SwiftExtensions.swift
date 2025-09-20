@@ -289,11 +289,6 @@ protocol ContiguousZeroBasedIndexedCollection: Collection where Index == Int {
   var indices: Range<Int> { get }
 }
 
-#if compiler(<6.2)
-/// Provide a compatibility layer for `SendableMetatype` if it doesn't exist in the compiler
-typealias SendableMetatype = Any
-#endif
-
 extension ContiguousZeroBasedIndexedCollection {
   func slicedConcurrentForEachSliceRange(body: @Sendable (Range<Index>) -> Void) where Self: SendableMetatype {
     // We want to use `DispatchQueue.concurrentPerform`, but we want to be called only a few times. So that we

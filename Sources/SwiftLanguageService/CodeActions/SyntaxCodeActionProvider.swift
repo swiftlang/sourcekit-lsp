@@ -16,11 +16,6 @@ import SourceKitLSP
 import SwiftRefactor
 import SwiftSyntax
 
-#if compiler(<6.2)
-/// Provide a compatibility layer for `SendableMetatype` if it doesn't exist in the compiler
-typealias SendableMetatype = Any
-#endif
-
 /// Describes types that provide one or more code actions based on purely
 /// syntactic information.
 protocol SyntaxCodeActionProvider: SendableMetatype {
