@@ -272,8 +272,8 @@ final class CompilationDatabaseTests: XCTestCase {
 
       // Create a dummy swiftly executable that picks the default toolchain for all file unless `fakeToolchain` is in
       // the source file's path.
-      let dummySwiftlyExecutableUrl = scratchDirectory.appendingPathComponent("swiftly")
-      let dummySwiftExecutableUrl = scratchDirectory.appendingPathComponent("swift")
+      let dummySwiftlyExecutableUrl = scratchDirectory.appending(component: "swiftly")
+      let dummySwiftExecutableUrl = scratchDirectory.appending(component: "swift")
       try FileManager.default.createSymbolicLink(
         at: dummySwiftExecutableUrl,
         withDestinationURL: dummySwiftlyExecutableUrl

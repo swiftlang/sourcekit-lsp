@@ -248,8 +248,7 @@ final class BackgroundIndexingTests: XCTestCase {
     let dependencyUrl = try XCTUnwrap(
       FileManager.default.findFiles(
         named: "MyDependency.swift",
-        in: project.scratchDirectory.appendingPathComponent(".build").appendingPathComponent("index-build")
-          .appendingPathComponent("checkouts")
+        in: project.scratchDirectory.appending(components: ".build", "index-build", "checkouts")
       ).only
     )
     let dependencyUri = DocumentURI(dependencyUrl)
@@ -894,8 +893,7 @@ final class BackgroundIndexingTests: XCTestCase {
     let nestedIndexBuildURL = try XCTUnwrap(
       project.uri(for: "OtherLib.swift").fileURL?
         .deletingLastPathComponent()
-        .appendingPathComponent(".build")
-        .appendingPathComponent("index-build")
+        .appending(components: ".build", "index-build")
     )
     XCTAssertFalse(
       FileManager.default.fileExists(at: nestedIndexBuildURL),
@@ -1263,9 +1261,7 @@ final class BackgroundIndexingTests: XCTestCase {
       """
     ])
     let dependencySwiftURL = dependencyProject.packageDirectory
-      .appendingPathComponent("Sources")
-      .appendingPathComponent("MyDependency")
-      .appendingPathComponent("Dependency.swift")
+      .appending(components: "Sources", "MyDependency", "Dependency.swift")
     defer { dependencyProject.keepAlive() }
 
     let project = try await SwiftPMTestProject(
@@ -1292,7 +1288,7 @@ final class BackgroundIndexingTests: XCTestCase {
         """,
       enableBackgroundIndexing: true
     )
-    let packageResolvedURL = project.scratchDirectory.appendingPathComponent("Package.resolved")
+    let packageResolvedURL = project.scratchDirectory.appending(component: "Package.resolved")
 
     let originalPackageResolvedContents = try String(contentsOf: packageResolvedURL, encoding: .utf8)
 
@@ -1325,7 +1321,7 @@ final class BackgroundIndexingTests: XCTestCase {
     // Updating Package.swift causes a package reload but should not cause dependencies to be updated.
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
-        FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("Package.swift")), type: .changed)
+        FileEvent(uri: DocumentURI(project.scratchDirectory.appending(component: "Package.swift")), type: .changed)
       ])
     )
     try await project.testClient.send(SynchronizeRequest(index: true))
@@ -1356,7 +1352,7 @@ final class BackgroundIndexingTests: XCTestCase {
     XCTAssertNotEqual(try String(contentsOf: packageResolvedURL, encoding: .utf8), originalPackageResolvedContents)
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
-        FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("Package.resolved")), type: .changed)
+        FileEvent(uri: DocumentURI(project.scratchDirectory.appending(component: "Package.resolved")), type: .changed)
       ])
     )
     try await project.testClient.send(SynchronizeRequest(index: true))
@@ -1364,9 +1360,7 @@ final class BackgroundIndexingTests: XCTestCase {
       FileManager.default.findFiles(
         named: "Dependency.swift",
         in: project.scratchDirectory
-          .appendingPathComponent(".build")
-          .appendingPathComponent("index-build")
-          .appendingPathComponent("checkouts")
+          .appending(components: ".build", "index-build", "checkouts")
       ).only
     )
     // Check that modifying Package.resolved actually modified the dependency checkout inside the package
@@ -1400,7 +1394,7 @@ final class BackgroundIndexingTests: XCTestCase {
     packageInitialized.value = true
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
-        FileEvent(uri: DocumentURI(project.scratchDirectory.appendingPathComponent("random.swift")), type: .created)
+        FileEvent(uri: DocumentURI(project.scratchDirectory.appending(component: "random.swift")), type: .created)
       ])
     )
     _ = try await project.testClient.send(SynchronizeRequest(index: true))
@@ -1570,12 +1564,10 @@ final class BackgroundIndexingTests: XCTestCase {
       workspaces: { scratchDirectory in
         let symlink =
           scratchDirectory
-          .appendingPathComponent("Sources")
-          .appendingPathComponent("MyLibrary")
-          .appendingPathComponent("symlink.swift")
+          .appending(components: "Sources", "MyLibrary", "symlink.swift")
         try FileManager.default.createSymbolicLink(
           at: symlink,
-          withDestinationURL: scratchDirectory.appendingPathComponent("original.swift")
+          withDestinationURL: scratchDirectory.appending(component: "original.swift")
         )
         return [WorkspaceFolder(uri: DocumentURI(scratchDirectory))]
       },
@@ -1593,13 +1585,11 @@ final class BackgroundIndexingTests: XCTestCase {
 
     let symlink =
       project.scratchDirectory
-      .appendingPathComponent("Sources")
-      .appendingPathComponent("MyLibrary")
-      .appendingPathComponent("symlink.swift")
+      .appending(components: "Sources", "MyLibrary", "symlink.swift")
     try FileManager.default.removeItem(at: symlink)
     try FileManager.default.createSymbolicLink(
       at: symlink,
-      withDestinationURL: project.scratchDirectory.appendingPathComponent("updated.swift")
+      withDestinationURL: project.scratchDirectory.appending(component: "updated.swift")
     )
 
     project.testClient.send(
@@ -1747,10 +1737,10 @@ final class BackgroundIndexingTests: XCTestCase {
         )
         """,
       workspaces: { scratchDirectory in
-        let sources = scratchDirectory.appendingPathComponent("Sources")
+        let sources = scratchDirectory.appending(component: "Sources")
         try FileManager.default.createSymbolicLink(
-          at: sources.appendingPathComponent("LibASymlink"),
-          withDestinationURL: sources.appendingPathComponent("LibA")
+          at: sources.appending(component: "LibASymlink"),
+          withDestinationURL: sources.appending(component: "LibA")
         )
         return [WorkspaceFolder(uri: DocumentURI(scratchDirectory))]
       },
@@ -2091,7 +2081,7 @@ final class BackgroundIndexingTests: XCTestCase {
     final class BuildServer: CustomBuildServer {
       let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
       private let projectRoot: URL
-      private var testFileURL: URL { projectRoot.appendingPathComponent("Test File.swift") }
+      private var testFileURL: URL { projectRoot.appending(component: "Test File.swift") }
 
       init(projectRoot: URL, connectionToSourceKitLSP: any LanguageServerProtocol.Connection) {
         self.projectRoot = projectRoot
@@ -2100,8 +2090,8 @@ final class BackgroundIndexingTests: XCTestCase {
       func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
         return initializationResponse(
           initializeData: SourceKitInitializeBuildResponseData(
-            indexDatabasePath: try projectRoot.appendingPathComponent("index-db").filePath,
-            indexStorePath: try projectRoot.appendingPathComponent("index-store").filePath,
+            indexDatabasePath: try projectRoot.appending(component: "index-db").filePath,
+            indexStorePath: try projectRoot.appending(component: "index-store").filePath,
             prepareProvider: true,
             sourceKitOptionsProvider: true
           )
@@ -2215,7 +2205,7 @@ final class BackgroundIndexingTests: XCTestCase {
     final class BuildServer: CustomBuildServer {
       let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
       private let projectRoot: URL
-      private var testFileURL: URL { projectRoot.appendingPathComponent("test.c").standardized }
+      private var testFileURL: URL { projectRoot.appending(component: "test.c").standardized }
 
       required init(projectRoot: URL, connectionToSourceKitLSP: any LanguageServerProtocol.Connection) {
         self.projectRoot = projectRoot
@@ -2242,8 +2232,7 @@ final class BackgroundIndexingTests: XCTestCase {
     }
 
     let scratchDirectory = URL(fileURLWithPath: "/tmp")
-      .appendingPathComponent("sourcekitlsp-test")
-      .appendingPathComponent(testScratchName())
+      .appending(components: "sourcekitlsp-test", testScratchName())
     let indexedFiles = ThreadSafeBox<[DocumentURI]>(initialValue: [])
     let project = try await CustomBuildServerTestProject(
       files: [
@@ -2290,11 +2279,11 @@ final class BackgroundIndexingTests: XCTestCase {
             target: libATarget,
             sources: [
               sourceItem(
-                for: projectRoot.appendingPathComponent("Shared.swift"),
+                for: projectRoot.appending(component: "Shared.swift"),
                 outputPath: fakeOutputPath(for: "Shared.swift", in: "LibA")
               ),
               sourceItem(
-                for: projectRoot.appendingPathComponent("LibA.swift"),
+                for: projectRoot.appending(component: "LibA.swift"),
                 outputPath: fakeOutputPath(for: "LibA.swift", in: "LibA")
               ),
             ]
@@ -2303,11 +2292,11 @@ final class BackgroundIndexingTests: XCTestCase {
             target: libBTarget,
             sources: [
               sourceItem(
-                for: projectRoot.appendingPathComponent("Shared.swift"),
+                for: projectRoot.appending(component: "Shared.swift"),
                 outputPath: fakeOutputPath(for: "Shared.swift", in: "LibB")
               ),
               sourceItem(
-                for: projectRoot.appendingPathComponent("LibB.swift"),
+                for: projectRoot.appending(component: "LibB.swift"),
                 outputPath: fakeOutputPath(for: "LibB.swift", in: "LibB")
               ),
             ]
@@ -2407,7 +2396,7 @@ final class BackgroundIndexingTests: XCTestCase {
             target: libATarget,
             sources: [
               sourceItem(
-                for: projectRoot.appendingPathComponent("LibA.c"),
+                for: projectRoot.appending(component: "LibA.c"),
                 outputPath: fakeOutputPath(for: "LibA.c", in: "LibA")
               )
             ]
@@ -2416,7 +2405,7 @@ final class BackgroundIndexingTests: XCTestCase {
             target: libBTarget,
             sources: [
               sourceItem(
-                for: projectRoot.appendingPathComponent("LibB.c"),
+                for: projectRoot.appending(component: "LibB.c"),
                 outputPath: fakeOutputPath(for: "LibB.c", in: "LibB")
               )
             ]
@@ -2557,7 +2546,7 @@ final class BackgroundIndexingTests: XCTestCase {
             target: .dummy,
             sources: [
               sourceItem(
-                for: projectRoot.appendingPathComponent("test.swift"),
+                for: projectRoot.appending(component: "test.swift"),
                 outputPath: fakeOutputPath(for: "test.swift", in: "dummy")
               )
             ]

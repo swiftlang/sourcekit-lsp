@@ -36,15 +36,13 @@ package struct ConfigSchemaGen {
     .deletingLastPathComponent()
   private static let sourceDir =
     projectRoot
-    .appendingPathComponent("Sources")
-    .appendingPathComponent("SKOptions")
+    .appending(components: "Sources", "SKOptions")
   private static let configSchemaJSONPath =
     projectRoot
-    .appendingPathComponent("config.schema.json")
+    .appending(component: "config.schema.json")
   private static let configSchemaDocPath =
     projectRoot
-    .appendingPathComponent("Documentation")
-    .appendingPathComponent("Configuration File.md")
+    .appending(components: "Documentation", "Configuration File.md")
 
   /// Generates and writes the JSON schema and documentation for the SourceKit-LSP configuration file format.
   package static func generate() throws {

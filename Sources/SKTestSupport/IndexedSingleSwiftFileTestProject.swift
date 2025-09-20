@@ -84,8 +84,8 @@ package struct IndexedSingleSwiftFileTestProject {
   ) async throws {
     let testWorkspaceDirectory = try workspaceDirectory ?? testScratchDir(testName: testName)
 
-    let testFileURL = testWorkspaceDirectory.appendingPathComponent("test.swift")
-    let indexURL = testWorkspaceDirectory.appendingPathComponent("index")
+    let testFileURL = testWorkspaceDirectory.appending(component: "test.swift")
+    let indexURL = testWorkspaceDirectory.appending(component: "index")
     guard let swiftc = await ToolchainRegistry.forTesting.default?.swiftc else {
       throw Error.swiftcNotFound
     }
@@ -115,30 +115,30 @@ package struct IndexedSingleSwiftFileTestProject {
       let sdkUrl = URL(fileURLWithPath: sdk)
       #if os(Windows)
       let platform = sdkUrl.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-      let info = try WindowsPlatformInfo(reading: platform.appendingPathComponent("Info.plist"))
+      let info = try WindowsPlatformInfo(reading: platform.appending(component: "Info.plist"))
       let xctestModuleDir =
         platform
-        .appendingPathComponent("Developer")
-        .appendingPathComponent("Library")
-        .appendingPathComponent("XCTest-\(info.defaults.xctestVersion)")
-        .appendingPathComponent("usr")
-        .appendingPathComponent("lib")
-        .appendingPathComponent("swift")
-        .appendingPathComponent("windows")
+        .appending(
+          components: "Developer",
+          "Library",
+          "XCTest-\(info.defaults.xctestVersion)",
+          "usr",
+          "lib",
+          "swift",
+          "windows"
+        )
       compilerArguments += ["-I", try xctestModuleDir.filePath]
       #else
       let usrLibDir =
         sdkUrl
         .deletingLastPathComponent()
         .deletingLastPathComponent()
-        .appendingPathComponent("usr")
-        .appendingPathComponent("lib")
+        .appending(components: "usr", "lib")
       let frameworksDir =
         sdkUrl
         .deletingLastPathComponent()
         .deletingLastPathComponent()
-        .appendingPathComponent("Library")
-        .appendingPathComponent("Frameworks")
+        .appending(components: "Library", "Frameworks")
       compilerArguments += [
         "-I", try usrLibDir.filePath,
         "-F", try frameworksDir.filePath,
@@ -158,7 +158,7 @@ package struct IndexedSingleSwiftFileTestProject {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     try encoder.encode(compilationDatabase).write(
-      to: testWorkspaceDirectory.appendingPathComponent(JSONCompilationDatabaseBuildServer.dbName)
+      to: testWorkspaceDirectory.appending(component: JSONCompilationDatabaseBuildServer.dbName)
     )
 
     // Run swiftc to build the index store

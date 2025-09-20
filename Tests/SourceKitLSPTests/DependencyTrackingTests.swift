@@ -94,7 +94,7 @@ final class DependencyTrackingTests: XCTestCase {
     )
 
     let generatedHeaderURL = try project.uri(for: "main.c").fileURL!.deletingLastPathComponent()
-      .appendingPathComponent("lib-generated.h", isDirectory: false)
+      .appending(component: "lib-generated.h")
 
     // Write an empty header file first since clangd doesn't handle missing header
     // files without a recently upstreamed extension.

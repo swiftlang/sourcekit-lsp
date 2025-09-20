@@ -56,7 +56,7 @@ struct SwiftPMBuildServerTests {
           "pkg/Sources/lib/a.swift": ""
         ]
       )
-      let packageRoot = tempDir.appendingPathComponent("pkg")
+      let packageRoot = tempDir.appending(component: "pkg")
       let buildServerSpec = SwiftPMBuildServer.searchForConfig(in: packageRoot, options: try await .testDefault())
       #expect(buildServerSpec == nil)
     }
@@ -79,7 +79,7 @@ struct SwiftPMBuildServerTests {
           """,
         ]
       )
-      let packageRoot = tempDir.appendingPathComponent("pkg")
+      let packageRoot = tempDir.appending(component: "pkg")
       await expectThrowsError(
         try await SwiftPMBuildServer(
           projectRoot: packageRoot,
@@ -125,7 +125,7 @@ struct SwiftPMBuildServerTests {
       )
 
       let dataPath = await swiftpmBuildServer.destinationBuildParameters.dataPath
-      let expectedScratchPath = packageRoot.appendingPathComponent(try #require(options.swiftPMOrDefault.scratchPath))
+      let expectedScratchPath = packageRoot.appending(component: try #require(options.swiftPMOrDefault.scratchPath))
       #expect(dataPath.asURL.isDescendant(of: expectedScratchPath))
     }
   }
@@ -147,7 +147,7 @@ struct SwiftPMBuildServerTests {
           """,
         ]
       )
-      let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
+      let packageRoot = try tempDir.appending(component: "pkg").realpath
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
@@ -159,9 +159,7 @@ struct SwiftPMBuildServerTests {
 
       let aswift =
         packageRoot
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("lib")
-        .appendingPathComponent("a.swift")
+        .appending(components: "Sources", "lib", "a.swift")
       let build = try await buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       _ = try #require(await buildServerManager.initializationData?.indexDatabasePath)
@@ -191,7 +189,7 @@ struct SwiftPMBuildServerTests {
       expectArgumentsContain("-target", try await hostTriple.tripleString, arguments: arguments)
       #endif
 
-      expectArgumentsContain("-I", try build.appendingPathComponent("Modules").filePath, arguments: arguments)
+      expectArgumentsContain("-I", try build.appending(component: "Modules").filePath, arguments: arguments)
 
       expectArgumentsContain(try aswift.filePath, arguments: arguments)
     }
@@ -215,7 +213,7 @@ struct SwiftPMBuildServerTests {
           """,
         ]
       )
-      let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
+      let packageRoot = try tempDir.appending(component: "pkg").realpath
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
@@ -227,9 +225,7 @@ struct SwiftPMBuildServerTests {
 
       let aPlusSomething =
         packageRoot
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("lib")
-        .appendingPathComponent("a+something.swift")
+        .appending(components: "Sources", "lib", "a+something.swift")
 
       _ = try #require(await buildServerManager.initializationData?.indexStorePath)
       let pathWithPlusEscaped = "\(try aPlusSomething.filePath.replacing("+", with: "%2B"))"
@@ -255,7 +251,7 @@ struct SwiftPMBuildServerTests {
       )
       #expect(
         try arguments.contains(
-          packageRoot.appendingPathComponent("Sources").appendingPathComponent("lib").appendingPathComponent("a.swift")
+          packageRoot.appending(components: "Sources", "lib", "a.swift")
             .filePath
         ),
         "Compiler arguments do not contain a.swift: \(arguments)"
@@ -280,11 +276,11 @@ struct SwiftPMBuildServerTests {
           """,
         ]
       )
-      let packageRoot = tempDir.appendingPathComponent("pkg")
+      let packageRoot = tempDir.appending(component: "pkg")
 
       let options = SourceKitLSPOptions.SwiftPMOptions(
         configuration: .release,
-        scratchPath: try packageRoot.appendingPathComponent("non_default_build_path").filePath,
+        scratchPath: try packageRoot.appending(component: "non_default_build_path").filePath,
         cCompilerFlags: ["-m32"],
         swiftCompilerFlags: ["-typecheck"]
       )
@@ -300,9 +296,7 @@ struct SwiftPMBuildServerTests {
 
       let aswift =
         packageRoot
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("lib")
-        .appendingPathComponent("a.swift")
+        .appending(components: "Sources", "lib", "a.swift")
 
       let arguments = try #require(
         await buildServerManager.buildSettingsInferredFromMainFile(
@@ -335,7 +329,7 @@ struct SwiftPMBuildServerTests {
           """,
         ]
       )
-      let packageRoot = tempDir.appendingPathComponent("pkg")
+      let packageRoot = tempDir.appending(component: "pkg")
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
@@ -345,7 +339,7 @@ struct SwiftPMBuildServerTests {
       )
       await buildServerManager.waitForUpToDateBuildGraph()
 
-      let source = try packageRoot.appendingPathComponent("Package.swift").realpath
+      let source = try packageRoot.appending(component: "Package.swift").realpath
       let arguments = try #require(
         await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(source),
@@ -376,7 +370,7 @@ struct SwiftPMBuildServerTests {
           """,
         ]
       )
-      let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
+      let packageRoot = try tempDir.appending(component: "pkg").realpath
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
@@ -388,14 +382,10 @@ struct SwiftPMBuildServerTests {
 
       let aswift =
         packageRoot
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("lib")
-        .appendingPathComponent("a.swift")
+        .appending(components: "Sources", "lib", "a.swift")
       let bswift =
         packageRoot
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("lib")
-        .appendingPathComponent("b.swift")
+        .appending(components: "Sources", "lib", "b.swift")
 
       let argumentsA = try #require(
         await buildServerManager.buildSettingsInferredFromMainFile(
@@ -442,7 +432,7 @@ struct SwiftPMBuildServerTests {
           """,
         ]
       )
-      let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
+      let packageRoot = try tempDir.appending(component: "pkg").realpath
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
@@ -454,14 +444,10 @@ struct SwiftPMBuildServerTests {
 
       let aswift =
         packageRoot
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("libA")
-        .appendingPathComponent("a.swift")
+        .appending(components: "Sources", "libA", "a.swift")
       let bswift =
         packageRoot
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("libB")
-        .appendingPathComponent("b.swift")
+        .appending(components: "Sources", "libB", "b.swift")
       let arguments = try #require(
         await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(aswift),
@@ -476,9 +462,7 @@ struct SwiftPMBuildServerTests {
         "-I",
         "-Xcc",
         try packageRoot
-          .appendingPathComponent("Sources")
-          .appendingPathComponent("libC")
-          .appendingPathComponent("include")
+          .appending(components: "Sources", "libC", "include")
           .filePath,
         arguments: arguments
       )
@@ -495,9 +479,7 @@ struct SwiftPMBuildServerTests {
       expectArgumentsDoNotContain(
         "-I",
         try packageRoot
-          .appendingPathComponent("Sources")
-          .appendingPathComponent("libC")
-          .appendingPathComponent("include")
+          .appending(components: "Sources", "libC", "include")
           .filePath,
         arguments: argumentsB
       )
@@ -522,7 +504,7 @@ struct SwiftPMBuildServerTests {
           """,
         ]
       )
-      let packageRoot = tempDir.appendingPathComponent("pkg")
+      let packageRoot = tempDir.appending(component: "pkg")
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
@@ -534,14 +516,10 @@ struct SwiftPMBuildServerTests {
 
       let aswift =
         packageRoot
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("libA")
-        .appendingPathComponent("a.swift")
+        .appending(components: "Sources", "libA", "a.swift")
       let bswift =
         packageRoot
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("libB")
-        .appendingPathComponent("b.swift")
+        .appending(components: "Sources", "libB", "b.swift")
       _ = try #require(
         await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(aswift),
@@ -586,7 +564,7 @@ struct SwiftPMBuildServerTests {
           """,
         ]
       )
-      let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
+      let packageRoot = try tempDir.appending(component: "pkg").realpath
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
@@ -598,20 +576,13 @@ struct SwiftPMBuildServerTests {
 
       let acxx =
         packageRoot
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("lib")
-        .appendingPathComponent("a.cpp")
+        .appending(components: "Sources", "lib", "a.cpp")
       let bcxx =
         packageRoot
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("lib")
-        .appendingPathComponent("b.cpp")
+        .appending(components: "Sources", "lib", "b.cpp")
       let header =
         packageRoot
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("lib")
-        .appendingPathComponent("include")
-        .appendingPathComponent("a.h")
+        .appending(components: "Sources", "lib", "include", "a.h")
       let build = buildPath(root: packageRoot, platform: try await hostTriple.platformBuildPathComponent)
 
       _ = try #require(await buildServerManager.initializationData?.indexStorePath)
@@ -645,16 +616,14 @@ struct SwiftPMBuildServerTests {
         expectArgumentsContain(
           "-I",
           try packageRoot
-            .appendingPathComponent("Sources")
-            .appendingPathComponent("lib")
-            .appendingPathComponent("include")
+            .appending(components: "Sources", "lib", "include")
             .filePath,
           arguments: args
         )
         expectArgumentsDoNotContain("-I", try build.filePath, arguments: args)
         expectArgumentsDoNotContain(try bcxx.filePath, arguments: args)
 
-        URL(fileURLWithPath: try build.appendingPathComponent("lib.build").appendingPathComponent("a.cpp.o").filePath)
+        URL(fileURLWithPath: try build.appending(components: "lib.build", "a.cpp.o").filePath)
           .withUnsafeFileSystemRepresentation {
             expectArgumentsContain("-o", String(cString: $0!), arguments: args)
           }
@@ -679,7 +648,7 @@ struct SwiftPMBuildServerTests {
           """,
         ]
       )
-      let packageRoot = tempDir.appendingPathComponent("pkg")
+      let packageRoot = tempDir.appending(component: "pkg")
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
@@ -691,9 +660,7 @@ struct SwiftPMBuildServerTests {
 
       let aswift =
         packageRoot
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("lib")
-        .appendingPathComponent("a.swift")
+        .appending(components: "Sources", "lib", "a.swift")
       let arguments = try #require(
         await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(aswift),
@@ -732,11 +699,11 @@ struct SwiftPMBuildServerTests {
           """,
         ]
       )
-      let packageRoot = tempDir.appendingPathComponent("pkg")
+      let packageRoot = tempDir.appending(component: "pkg")
 
       try FileManager.default.createSymbolicLink(
         at: URL(fileURLWithPath: packageRoot.filePath),
-        withDestinationURL: URL(fileURLWithPath: tempDir.appendingPathComponent("pkg_real").filePath)
+        withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").filePath)
       )
 
       let buildServerSpec = try #require(
@@ -753,11 +720,9 @@ struct SwiftPMBuildServerTests {
 
       let aswiftSymlink =
         packageRoot
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("lib")
-        .appendingPathComponent("a.swift")
+        .appending(components: "Sources", "lib", "a.swift")
       let aswiftReal = try aswiftSymlink.realpath
-      let manifest = packageRoot.appendingPathComponent("Package.swift")
+      let manifest = packageRoot.appending(component: "Package.swift")
 
       let argumentsFromSymlink = try #require(
         await buildServerManager.buildSettingsInferredFromMainFile(
@@ -818,12 +783,12 @@ struct SwiftPMBuildServerTests {
       let acpp = ["Sources", "lib", "a.cpp"]
       let ah = ["Sources", "lib", "include", "a.h"]
 
-      let realRoot = tempDir.appendingPathComponent("pkg_real")
-      let symlinkRoot = tempDir.appendingPathComponent("pkg")
+      let realRoot = tempDir.appending(component: "pkg_real")
+      let symlinkRoot = tempDir.appending(component: "pkg")
 
       try FileManager.default.createSymbolicLink(
         at: URL(fileURLWithPath: symlinkRoot.filePath),
-        withDestinationURL: URL(fileURLWithPath: tempDir.appendingPathComponent("pkg_real").filePath)
+        withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").filePath)
       )
 
       let buildServerSpec = try #require(
@@ -871,7 +836,7 @@ struct SwiftPMBuildServerTests {
           """,
         ]
       )
-      let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
+      let packageRoot = try tempDir.appending(component: "pkg").realpath
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
@@ -883,9 +848,7 @@ struct SwiftPMBuildServerTests {
 
       let aswift =
         packageRoot
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("lib")
-        .appendingPathComponent("a.swift")
+        .appending(components: "Sources", "lib", "a.swift")
       let arguments = try #require(
         await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(aswift),
@@ -923,9 +886,7 @@ struct SwiftPMBuildServerTests {
       )
       let workspaceRoot =
         tempDir
-        .appendingPathComponent("pkg")
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("lib")
+        .appending(components: "pkg", "Sources", "lib")
 
       let buildServerSpec = SwiftPMBuildServer.searchForConfig(in: workspaceRoot, options: try await .testDefault())
       #expect(buildServerSpec == nil)
@@ -953,7 +914,7 @@ struct SwiftPMBuildServerTests {
           """,
         ]
       )
-      let packageRoot = tempDir.appendingPathComponent("pkg")
+      let packageRoot = tempDir.appending(component: "pkg")
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
@@ -965,9 +926,7 @@ struct SwiftPMBuildServerTests {
 
       let aswift =
         packageRoot
-        .appendingPathComponent("Plugins")
-        .appendingPathComponent("MyPlugin")
-        .appendingPathComponent("a.swift")
+        .appending(components: "Plugins", "MyPlugin", "a.swift")
 
       _ = try #require(await buildServerManager.initializationData?.indexStorePath)
       let arguments = try #require(
@@ -1081,8 +1040,8 @@ struct SwiftPMBuildServerTests {
           """,
         ]
       )
-      let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
-      let versionSpecificManifestURL = packageRoot.appendingPathComponent("Package@swift-5.8.swift")
+      let packageRoot = try tempDir.appending(component: "pkg").realpath
+      let versionSpecificManifestURL = packageRoot.appending(component: "Package@swift-5.8.swift")
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
@@ -1115,8 +1074,8 @@ struct SwiftPMBuildServerTests {
           """,
         ]
       )
-      let packageRoot = try tempDir.appendingPathComponent("pkg").realpath
-      let manifestURL = packageRoot.appendingPathComponent("Package.swift")
+      let packageRoot = try tempDir.appending(component: "pkg").realpath
+      let manifestURL = packageRoot.appending(component: "Package.swift")
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
@@ -1179,9 +1138,9 @@ private func buildPath(
     if let scratchPath = options.scratchPath {
       URL(fileURLWithPath: scratchPath)
     } else {
-      root.appendingPathComponent(".build").appendingPathComponent("index-build")
+      root.appending(components: ".build", "index-build")
     }
-  return buildPath.appendingPathComponent(platform).appendingPathComponent("\(options.configuration ?? .debug)")
+  return buildPath.appending(components: platform, "\(options.configuration ?? .debug)")
 }
 
 fileprivate extension URL {
@@ -1199,7 +1158,7 @@ fileprivate extension BuildServerSpec {
     return BuildServerSpec(
       kind: .swiftPM,
       projectRoot: packageRoot,
-      configPath: packageRoot.appendingPathComponent("Package.swift")
+      configPath: packageRoot.appending(component: "Package.swift")
     )
   }
 }

@@ -40,12 +40,12 @@ private func searchForCompilationDatabaseConfig(
     .compactMap { searchPath in
       let path = workspaceFolder.appending(searchPath)
 
-      let jsonPath = path.appendingPathComponent(JSONCompilationDatabaseBuildServer.dbName)
+      let jsonPath = path.appending(component: JSONCompilationDatabaseBuildServer.dbName)
       if FileManager.default.isFile(at: jsonPath) {
         return BuildServerSpec(kind: .jsonCompilationDatabase, projectRoot: workspaceFolder, configPath: jsonPath)
       }
 
-      let fixedPath = path.appendingPathComponent(FixedCompilationDatabaseBuildServer.dbName)
+      let fixedPath = path.appending(component: FixedCompilationDatabaseBuildServer.dbName)
       if FileManager.default.isFile(at: fixedPath) {
         return BuildServerSpec(kind: .fixedCompilationDatabase, projectRoot: workspaceFolder, configPath: fixedPath)
       }

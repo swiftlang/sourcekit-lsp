@@ -53,7 +53,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
         productsDirectory
           .deletingLastPathComponent()  // arm64-apple-macosx
           .deletingLastPathComponent()  // debug
-          .appendingPathComponent("checkouts"),
+          .appending(component: "checkouts"),
         URL(fileURLWithPath: #filePath)
           .deletingLastPathComponent()  // SwiftPMTestProject.swift
           .deletingLastPathComponent()  // SKTestSupport
@@ -64,11 +64,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
       let swiftSyntaxCShimsModulemap =
         swiftSyntaxSearchPaths.map { swiftSyntaxSearchPath in
           swiftSyntaxSearchPath
-            .appendingPathComponent("swift-syntax")
-            .appendingPathComponent("Sources")
-            .appendingPathComponent("_SwiftSyntaxCShims")
-            .appendingPathComponent("include")
-            .appendingPathComponent("module.modulemap")
+            .appending(components: "swift-syntax", "Sources", "_SwiftSyntaxCShims", "include", "module.modulemap")
         }
         .first { FileManager.default.fileExists(at: $0) }
 
@@ -82,8 +78,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
       // build folder wasn't cleaned and thus we would link against the stale `.o` file.
       let linkFileListURL =
         productsDirectory
-        .appendingPathComponent("SourceKitLSPPackageTests.product")
-        .appendingPathComponent("Objects.LinkFileList")
+        .appending(components: "SourceKitLSPPackageTests.product", "Objects.LinkFileList")
       let linkFileListContents = try? String(contentsOf: linkFileListURL, encoding: .utf8)
       guard let linkFileListContents else {
         struct LinkFileListNotFoundError: Swift.Error {
@@ -122,7 +117,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
 
       var objectFiles: [String] = []
       for moduleName in swiftSyntaxModulesToLink {
-        let dir = productsDirectory.appendingPathComponent("\(moduleName).build")
+        let dir = productsDirectory.appending(component: "\(moduleName).build")
         let enumerator = FileManager.default.enumerator(at: dir, includingPropertiesForKeys: nil)
         while let file = enumerator?.nextObject() as? URL {
           if linkFileList.contains(try file.filePath) {

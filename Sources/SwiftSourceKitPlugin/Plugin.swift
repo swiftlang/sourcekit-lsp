@@ -176,8 +176,7 @@ public func sourcekitd_plugin_initialize(_ params: sourcekitd_api_plugin_initial
   url =
     url
     .deletingLastPathComponent()
-    .appendingPathComponent("sourcekitd.framework")
-    .appendingPathComponent("sourcekitd")
+    .appending(components: "sourcekitd.framework", "sourcekitd")
   if FileManager.default.fileExists(at: url) {
     try! url.filePath.withCString { sourcekitdPath in
       sourcekitd_plugin_initialize_2(params, sourcekitdPath)
@@ -221,16 +220,14 @@ private extension SourceKitD {
 
     let inProcUrl =
       frameworkUrl
-      .appendingPathComponent("sourcekitdInProc.framework")
-      .appendingPathComponent("sourcekitdInProc")
+      .appending(components: "sourcekitdInProc.framework", "sourcekitdInProc")
     if FileManager.default.fileExists(at: inProcUrl) {
       return try SourceKitD(dylib: inProcUrl, pluginPaths: nil, initialize: false)
     }
 
     let sourcekitdUrl =
       frameworkUrl
-      .appendingPathComponent("sourcekitd.framework")
-      .appendingPathComponent("sourcekitd")
+      .appending(components: "sourcekitd.framework", "sourcekitd")
     return try SourceKitD(dylib: sourcekitdUrl, pluginPaths: nil, initialize: false)
   }
 }

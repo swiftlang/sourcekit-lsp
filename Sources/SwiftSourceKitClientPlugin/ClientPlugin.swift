@@ -36,8 +36,7 @@ public func sourcekitd_plugin_initialize(_ params: sourcekitd_api_plugin_initial
   url =
     url
     .deletingLastPathComponent()
-    .appendingPathComponent("sourcekitd.framework")
-    .appendingPathComponent("sourcekitd")
+    .appending(components: "sourcekitd.framework", "sourcekitd")
   if !FileManager.default.fileExists(at: url),
     let clientPluginDylibUrlRealpath = try? clientPluginDylibUrl.realpath.filePath,
     let sourcekitdPath = ProcessInfo.processInfo.environment[

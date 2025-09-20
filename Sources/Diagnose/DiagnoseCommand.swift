@@ -124,7 +124,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
         try await reduce(
           requestInfo: requestInfo,
           toolchain: toolchain,
-          bundlePath: bundlePath.appendingPathComponent("sourcekitd-crash"),
+          bundlePath: bundlePath.appending(component: "sourcekitd-crash"),
           progressUpdate: { (progress, message) in
             reportProgress(
               .reproducingSourcekitdCrash(progress: progress),
@@ -192,7 +192,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
           }
         )
 
-        let bundleDirectory = bundlePath.appendingPathComponent("swift-frontend-crash")
+        let bundleDirectory = bundlePath.appending(component: "swift-frontend-crash")
         try makeReproducerBundle(for: reducedRequesInfo, toolchain: toolchain, bundlePath: bundleDirectory)
 
         // If reduce didn't throw, we have found a reproducer. Stop.
@@ -218,7 +218,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
   private func addOsLog(toBundle bundlePath: URL) async throws {
     #if os(macOS)
     reportProgress(.collectingLogMessages(progress: 0), message: "Collecting log messages")
-    let outputFileUrl = bundlePath.appendingPathComponent("log.txt")
+    let outputFileUrl = bundlePath.appending(component: "log.txt")
     try FileManager.default.createFile(at: outputFileUrl, contents: nil)
     let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
     let bytesCollected = AtomicInt32(initialValue: 0)
@@ -265,12 +265,11 @@ package struct DiagnoseCommand: AsyncParsableCommand {
   private func addNonDarwinLogs(toBundle bundlePath: URL) async throws {
     reportProgress(.collectingLogMessages(progress: 0), message: "Collecting log files")
 
-    let destinationDir = bundlePath.appendingPathComponent("logs")
+    let destinationDir = bundlePath.appending(component: "logs")
     try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true)
 
     let logFileDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent(".sourcekit-lsp")
-      .appendingPathComponent("logs")
+      .appending(components: ".sourcekit-lsp", "logs")
     let enumerator = FileManager.default.enumerator(at: logFileDirectoryURL, includingPropertiesForKeys: nil)
     while let fileUrl = enumerator?.nextObject() as? URL {
       guard fileUrl.lastPathComponent.hasPrefix("sourcekit-lsp") else {
@@ -278,7 +277,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
       }
       try? FileManager.default.copyItem(
         at: fileUrl,
-        to: destinationDir.appendingPathComponent(fileUrl.lastPathComponent)
+        to: destinationDir.appending(component: fileUrl.lastPathComponent)
       )
     }
   }
@@ -294,7 +293,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     #if os(macOS)
     reportProgress(.collectingCrashReports, message: "Collecting crash reports")
 
-    let destinationDir = bundlePath.appendingPathComponent("crashes")
+    let destinationDir = bundlePath.appending(component: "crashes")
     try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true)
 
     let processesToIncludeCrashReportsOf = ["SourceKitService", "sourcekit-lsp", "swift-frontend"]
@@ -308,7 +307,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
         }
         try? FileManager.default.copyItem(
           at: fileUrl,
-          to: destinationDir.appendingPathComponent(fileUrl.lastPathComponent)
+          to: destinationDir.appending(component: fileUrl.lastPathComponent)
         )
       }
     }
@@ -317,7 +316,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
 
   @MainActor
   private func addSwiftVersion(toBundle bundlePath: URL) async throws {
-    let outputFileUrl = bundlePath.appendingPathComponent("swift-versions.txt")
+    let outputFileUrl = bundlePath.appending(component: "swift-versions.txt")
     try FileManager.default.createFile(at: outputFileUrl, contents: nil)
     let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
 
@@ -388,8 +387,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
         URL(fileURLWithPath: bundleOutputPath)
       } else {
         FileManager.default.temporaryDirectory
-          .appendingPathComponent("sourcekit-lsp-diagnose")
-          .appendingPathComponent("sourcekit-lsp-diagnose-\(date)")
+          .appending(components: "sourcekit-lsp-diagnose", "sourcekit-lsp-diagnose-\(date)")
       }
     try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
 

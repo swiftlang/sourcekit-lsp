@@ -112,9 +112,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
     )
 
     let newFileUrl = project.scratchDirectory
-      .appendingPathComponent("Sources")
-      .appendingPathComponent("MyLibrary")
-      .appendingPathComponent("Other.swift")
+      .appending(components: "Sources", "MyLibrary", "Other.swift")
     let newFileUri = DocumentURI(newFileUrl)
 
     let newFileContents = """
