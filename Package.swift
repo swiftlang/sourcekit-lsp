@@ -613,6 +613,7 @@ var targets: [Target] = [
       "ToolchainRegistry",
       "TSCExtensions",
       .product(name: "IndexStoreDB", package: "indexstore-db"),
+      .product(name: "Markdown", package: "swift-markdown"),
       .product(name: "Crypto", package: "swift-crypto"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ]
