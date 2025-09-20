@@ -1410,6 +1410,36 @@ final class SwiftCompletionTests: XCTestCase {
     )
     XCTAssertEqual(completions.items.only?.detail, "String")
   }
+
+  func testSuggestInMemoryFunctionsFromFilesWithinSameModule() async throws {
+    let project = try await SwiftPMTestProject(files: [
+      "First.swift": """
+      myFancyFunc1️⃣
+      """,
+      "Second.swift": "2️⃣",
+    ])
+
+    let (secondUri, secondPositions) = try project.openDocument("Second.swift")
+    project.testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(secondUri, version: 2),
+        contentChanges: [
+          TextDocumentContentChangeEvent(
+            range: Range(secondPositions["2️⃣"]),
+            text: """
+              func myFancyFunction() {}
+              """
+          )
+        ]
+      )
+    )
+
+    let (firstUri, firstPositions) = try project.openDocument("First.swift")
+    let completions = try await project.testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(firstUri), position: firstPositions["1️⃣"])
+    )
+    XCTAssert(completions.items.contains(where: { $0.label.contains("myFancyFunction") }))
+  }
 }
 
 private func countFs(_ response: CompletionList) -> Int {
