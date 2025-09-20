@@ -482,8 +482,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     self.filesDependenciesUpdatedDebouncer = Debouncer(
       debounceDuration: .milliseconds(500),
       combineResults: { $0.union($1) },
-      makeCall: {
-        [weak self] (filesWithUpdatedDependencies) in
+      makeCall: { [weak self] (filesWithUpdatedDependencies) in
         guard let self, let delegate = await self.delegate else {
           logger.fault("Not calling filesDependenciesUpdated because no delegate exists in SwiftPMBuildServer")
           return
@@ -502,8 +501,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     self.filesBuildSettingsChangedDebouncer = Debouncer(
       debounceDuration: .milliseconds(20),
       combineResults: { $0.union($1) },
-      makeCall: {
-        [weak self] (filesWithChangedBuildSettings) in
+      makeCall: { [weak self] (filesWithChangedBuildSettings) in
         guard let self, let delegate = await self.delegate else {
           logger.fault("Not calling fileBuildSettingsChanged because no delegate exists in SwiftPMBuildServer")
           return
@@ -670,31 +668,76 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   }
 
   private func didChangeBuildTarget(notification: OnBuildTargetDidChangeNotification) async {
-    let updatedTargets: Set<BuildTargetIdentifier>? =
+    let changedTargets: Set<BuildTargetIdentifier>? =
       if let changes = notification.changes {
         Set(changes.map(\.target))
       } else {
         nil
       }
-    self.cachedAdjustedSourceKitOptions.clear(isolation: self) { cacheKey in
-      guard let updatedTargets else {
-        // All targets might have changed
-        return true
+    await self.buildTargetsDidChange(.didChangeBuildTargets(changedTargets: changedTargets))
+  }
+
+  private enum BuildTargetsChange {
+    case didChangeBuildTargets(changedTargets: Set<BuildTargetIdentifier>?)
+    case buildTargetsReceivedResultAfterTimeout(
+      request: WorkspaceBuildTargetsRequest,
+      newResult: [BuildTargetIdentifier: BuildTargetInfo]
+    )
+    case sourceFilesReceivedResultAfterTimeout(
+      request: BuildTargetSourcesRequest,
+      newResult: BuildTargetSourcesResponse
+    )
+  }
+
+  /// Update the cached state in `BuildServerManager` because new data was received from the BSP server.
+  ///
+  /// This handles a few seemingly unrelated reasons to ensure that we think about which caches to invalidate in the
+  /// other scenarios as well, when making changes in here.
+  private func buildTargetsDidChange(_ stateChange: BuildTargetsChange) async {
+    let changedTargets: Set<BuildTargetIdentifier>?
+
+    switch stateChange {
+    case .didChangeBuildTargets(let changedTargetsValue):
+      changedTargets = changedTargetsValue
+      self.cachedAdjustedSourceKitOptions.clear(isolation: self) { cacheKey in
+        guard let changedTargets else {
+          // All targets might have changed
+          return true
+        }
+        return changedTargets.contains(cacheKey.target)
       }
-      return updatedTargets.contains(cacheKey.target)
-    }
-    self.cachedBuildTargets.clearAll(isolation: self)
-    self.cachedTargetSources.clear(isolation: self) { cacheKey in
-      guard let updatedTargets else {
-        // All targets might have changed
-        return true
+      self.cachedBuildTargets.clearAll(isolation: self)
+      self.cachedTargetSources.clear(isolation: self) { cacheKey in
+        guard let changedTargets else {
+          // All targets might have changed
+          return true
+        }
+        return !changedTargets.intersection(cacheKey.targets).isEmpty
       }
-      return !updatedTargets.intersection(cacheKey.targets).isEmpty
+    case .buildTargetsReceivedResultAfterTimeout(let request, let newResult):
+      changedTargets = nil
+
+      // Caches not invalidated:
+      // - cachedAdjustedSourceKitOptions: We would not have requested SourceKit options for targets that we didn't
+      //   know about. Even if we did, the build server now telling us about the target should not change the options of
+      //   the file within the target
+      // - cachedTargetSources: Similar to cachedAdjustedSourceKitOptions, we would not have requested sources for
+      //   targets that we didn't know about and if we did, they wouldn't be affected
+      self.cachedBuildTargets.set(request, to: newResult)
+    case .sourceFilesReceivedResultAfterTimeout(let request, let newResult):
+      changedTargets = Set(request.targets)
+
+      // Caches not invalidated:
+      // - cachedAdjustedSourceKitOptions: Same as for buildTargetsReceivedResultAfterTimeout.
+      // - cachedBuildTargets: Getting a result for the source files in a target doesn't change anything about the
+      //   target's existence.
+      self.cachedTargetSources.set(request, to: newResult)
     }
+    // Clear caches that capture global state and are affected by all changes
     self.cachedSourceFilesAndDirectories.clearAll(isolation: self)
     self.scheduleRecomputeCopyFileMap()
 
-    await delegate?.buildTargetsChanged(notification.changes)
+    await delegate?.buildTargetsChanged(changedTargets)
     await filesBuildSettingsChangedDebouncer.scheduleCall(Set(watchedFiles.keys))
   }
 
@@ -898,6 +941,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       previousUpdateTask?.cancel()
       await orLog("Re-computing copy file map") {
         let sourceFilesAndDirectories = try await self.sourceFilesAndDirectories()
+        try Task.checkCancellation()
         var copiedFileMap: [DocumentURI: DocumentURI] = [:]
         for (file, fileInfo) in sourceFilesAndDirectories.files {
           for copyDestination in fileInfo.copyDestinations {
@@ -1024,7 +1068,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
         if fallbackAfterTimeout {
           try await withTimeout(options.buildSettingsTimeoutOrDefault) {
             return try await self.buildSettingsFromBuildServer(for: document, in: target, language: language)
-          } resultReceivedAfterTimeout: {
+          } resultReceivedAfterTimeout: { _ in
             await self.filesBuildSettingsChangedDebouncer.scheduleCall([document])
           }
         } else {
@@ -1082,7 +1126,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
           } else {
             try await withTimeout(options.buildSettingsTimeoutOrDefault) {
               await self.canonicalTarget(for: mainFile)
-            } resultReceivedAfterTimeout: {
+            } resultReceivedAfterTimeout: { _ in
               await self.filesBuildSettingsChangedDebouncer.scheduleCall([document])
             }
           }
@@ -1236,27 +1280,38 @@ package actor BuildServerManager: QueueBasedMessageHandler {
 
     let request = WorkspaceBuildTargetsRequest()
     let result = try await cachedBuildTargets.get(request, isolation: self) { request in
-      let buildTargets = try await buildServerAdapter.send(request).targets
-      let (depths, dependents) = await self.targetDepthsAndDependents(for: buildTargets)
-      var result: [BuildTargetIdentifier: BuildTargetInfo] = [:]
-      result.reserveCapacity(buildTargets.count)
-      for buildTarget in buildTargets {
-        guard result[buildTarget.id] == nil else {
-          logger.error("Found two targets with the same ID \(buildTarget.id)")
-          continue
+      let result = try await withTimeout(self.options.buildServerWorkspaceRequestsTimeoutOrDefault) {
+        let buildTargets = try await buildServerAdapter.send(request).targets
+        let (depths, dependents) = await self.targetDepthsAndDependents(for: buildTargets)
+        var result: [BuildTargetIdentifier: BuildTargetInfo] = [:]
+        result.reserveCapacity(buildTargets.count)
+        for buildTarget in buildTargets {
+          guard result[buildTarget.id] == nil else {
+            logger.error("Found two targets with the same ID \(buildTarget.id)")
+            continue
+          }
+          let depth: Int
+          if let d = depths[buildTarget.id] {
+            depth = d
+          } else {
+            logger.fault("Did not compute depth for target \(buildTarget.id)")
+            depth = 0
+          }
+          result[buildTarget.id] = BuildTargetInfo(
+            target: buildTarget,
+            depth: depth,
+            dependents: dependents[buildTarget.id] ?? []
+          )
         }
-        let depth: Int
-        if let d = depths[buildTarget.id] {
-          depth = d
-        } else {
-          logger.fault("Did not compute depth for target \(buildTarget.id)")
-          depth = 0
-        }
-        result[buildTarget.id] = BuildTargetInfo(
-          target: buildTarget,
-          depth: depth,
-          dependents: dependents[buildTarget.id] ?? []
+        return result
+      } resultReceivedAfterTimeout: { newResult in
+        await self.buildTargetsDidChange(
+          .buildTargetsReceivedResultAfterTimeout(request: request, newResult: newResult)
         )
+      }
+      guard let result else {
+        logger.error("Failed to get targets of workspace within timeout")
+        return [:]
       }
       return result
     }
@@ -1290,7 +1345,11 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     }
 
     let response = try await cachedTargetSources.get(request, isolation: self) { request in
-      try await buildServerAdapter.send(request)
+      try await withTimeout(self.options.buildServerWorkspaceRequestsTimeoutOrDefault) {
+        return try await buildServerAdapter.send(request)
+      } resultReceivedAfterTimeout: { newResult in
+        await self.buildTargetsDidChange(.sourceFilesReceivedResultAfterTimeout(request: request, newResult: newResult))
+      } ?? BuildTargetSourcesResponse(items: [])
     }
     return response.items
   }

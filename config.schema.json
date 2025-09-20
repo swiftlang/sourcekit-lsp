@@ -22,6 +22,11 @@
       ],
       "type" : "string"
     },
+    "buildServerWorkspaceRequestsTimeout" : {
+      "description" : "Duration how long to wait for responses to `workspace/buildTargets` or `buildTarget/sources` request by the build server before defaulting to an empty response.",
+      "markdownDescription" : "Duration how long to wait for responses to `workspace/buildTargets` or `buildTarget/sources` request by the build server before defaulting to an empty response.",
+      "type" : "number"
+    },
     "buildSettingsTimeout" : {
       "description" : "Number of milliseconds to wait for build settings from the build server before using fallback build settings.",
       "markdownDescription" : "Number of milliseconds to wait for build settings from the build server before using fallback build settings.",
