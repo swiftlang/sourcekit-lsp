@@ -39,9 +39,9 @@ package struct RelativeFileLocation: Hashable, ExpressibleByStringLiteral {
   package func url(relativeTo: URL) -> URL {
     var url = relativeTo
     for directory in directories {
-      url = url.appendingPathComponent(directory)
+      url = url.appending(component: directory)
     }
-    url = url.appendingPathComponent(fileName)
+    url = url.appending(component: fileName)
     return url
   }
 }

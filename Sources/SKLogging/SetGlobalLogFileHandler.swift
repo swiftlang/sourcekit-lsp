@@ -44,8 +44,9 @@ func getOrCreateLogFileHandle(logDirectory: URL, logRotateCount: Int) -> FileHan
   }
 
   // Name must match the regex in `cleanOldLogFiles` and the prefix in `DiagnoseCommand.addNonDarwinLogs`.
-  let logFileUrl = logDirectory.appendingPathComponent(
-    "sourcekit-lsp-\(ProcessInfo.processInfo.processIdentifier).\(logRotateIndex % logRotateCount).log"
+  let logFileUrl = logDirectory.appending(
+    component:
+      "sourcekit-lsp-\(ProcessInfo.processInfo.processIdentifier).\(logRotateIndex % logRotateCount).log"
   )
 
   do {

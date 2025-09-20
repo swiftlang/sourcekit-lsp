@@ -21,7 +21,7 @@ import class TSCBasic.Process
 final class ProcessRunTests: XCTestCase {
   func testWorkingDirectory() async throws {
     try await withTestScratchDir { tempDir in
-      let workingDir = tempDir.appendingPathComponent("working-dir")
+      let workingDir = tempDir.appending(component: "working-dir")
       try FileManager.default.createDirectory(at: workingDir, withIntermediateDirectories: true)
 
       #if os(Windows)
@@ -32,7 +32,7 @@ final class ProcessRunTests: XCTestCase {
       #endif
       let python = try await unwrap(findTool(name: pythonName))
 
-      let pythonFile = tempDir.appendingPathComponent("show-cwd.py")
+      let pythonFile = tempDir.appending(component: "show-cwd.py")
       try """
       import os
       print(os.getcwd(), end='')

@@ -119,12 +119,12 @@ package actor SwiftLanguageService: LanguageService, Sendable {
 
   /// Directory where generated Swift interfaces will be stored.
   var generatedInterfacesPath: URL {
-    options.generatedFilesAbsolutePath.appendingPathComponent("GeneratedInterfaces")
+    options.generatedFilesAbsolutePath.appending(component: "GeneratedInterfaces")
   }
 
   /// Directory where generated Macro expansions  will be stored.
   var generatedMacroExpansionsPath: URL {
-    options.generatedFilesAbsolutePath.appendingPathComponent("GeneratedMacroExpansions")
+    options.generatedFilesAbsolutePath.appending(component: "GeneratedMacroExpansions")
   }
 
   /// For each edited document, the last task that was triggered to send a `PublishDiagnosticsNotification`.

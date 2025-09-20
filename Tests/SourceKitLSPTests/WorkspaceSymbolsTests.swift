@@ -59,7 +59,7 @@ class WorkspaceSymbolsTests: XCTestCase {
         """,
       ],
       workspaces: {
-        return [WorkspaceFolder(uri: DocumentURI($0.appendingPathComponent("packageB")))]
+        return [WorkspaceFolder(uri: DocumentURI($0.appending(component: "packageB")))]
       },
       enableBackgroundIndexing: true
     )

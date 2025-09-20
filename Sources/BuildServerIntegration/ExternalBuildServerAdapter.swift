@@ -205,34 +205,34 @@ actor ExternalBuildServerAdapter {
   private static func getConfigPath(for workspaceFolder: URL? = nil, onlyConsiderRoot: Bool = false) -> URL? {
     var buildServerConfigLocations: [URL?] = []
     if let workspaceFolder = workspaceFolder {
-      buildServerConfigLocations.append(workspaceFolder.appendingPathComponent(".bsp"))
+      buildServerConfigLocations.append(workspaceFolder.appending(component: ".bsp"))
     }
 
     if !onlyConsiderRoot {
       #if os(Windows)
       if let localAppData = ProcessInfo.processInfo.environment["LOCALAPPDATA"] {
-        buildServerConfigLocations.append(URL(fileURLWithPath: localAppData).appendingPathComponent("bsp"))
+        buildServerConfigLocations.append(URL(fileURLWithPath: localAppData).appending(component: "bsp"))
       }
       if let programData = ProcessInfo.processInfo.environment["PROGRAMDATA"] {
-        buildServerConfigLocations.append(URL(fileURLWithPath: programData).appendingPathComponent("bsp"))
+        buildServerConfigLocations.append(URL(fileURLWithPath: programData).appending(component: "bsp"))
       }
       #else
       if let xdgDataHome = ProcessInfo.processInfo.environment["XDG_DATA_HOME"] {
-        buildServerConfigLocations.append(URL(fileURLWithPath: xdgDataHome).appendingPathComponent("bsp"))
+        buildServerConfigLocations.append(URL(fileURLWithPath: xdgDataHome).appending(component: "bsp"))
       }
 
       if let libraryUrl = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
-        buildServerConfigLocations.append(libraryUrl.appendingPathComponent("bsp"))
+        buildServerConfigLocations.append(libraryUrl.appending(component: "bsp"))
       }
 
       if let xdgDataDirs = ProcessInfo.processInfo.environment["XDG_DATA_DIRS"] {
         buildServerConfigLocations += xdgDataDirs.split(separator: ":").map { xdgDataDir in
-          URL(fileURLWithPath: String(xdgDataDir)).appendingPathComponent("bsp")
+          URL(fileURLWithPath: String(xdgDataDir)).appending(component: "bsp")
         }
       }
 
       if let libraryUrl = FileManager.default.urls(for: .applicationSupportDirectory, in: .systemDomainMask).first {
-        buildServerConfigLocations.append(libraryUrl.appendingPathComponent("bsp"))
+        buildServerConfigLocations.append(libraryUrl.appending(component: "bsp"))
       }
       #endif
     }
@@ -255,7 +255,7 @@ actor ExternalBuildServerAdapter {
 
     // Pre Swift 6.1 SourceKit-LSP looked for `buildServer.json` in the project root. Maintain this search location for
     // compatibility even though it's not a standard BSP search location.
-    if let buildServerPath = workspaceFolder?.appendingPathComponent("buildServer.json"),
+    if let buildServerPath = workspaceFolder?.appending(component: "buildServer.json"),
       FileManager.default.isFile(at: buildServerPath)
     {
       return buildServerPath

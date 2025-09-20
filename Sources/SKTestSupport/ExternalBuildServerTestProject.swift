@@ -29,9 +29,7 @@ private let skTestSupportInputsDirectory: URL = {
   #if os(macOS)
   var resources =
     productsDirectory
-    .appendingPathComponent("SourceKitLSP_SKTestSupport.bundle")
-    .appendingPathComponent("Contents")
-    .appendingPathComponent("Resources")
+    .appending(components: "SourceKitLSP_SKTestSupport.bundle", "Contents", "Resources")
   if !FileManager.default.fileExists(at: resources) {
     // Xcode and command-line swiftpm differ about the path.
     resources.deleteLastPathComponent()
@@ -40,12 +38,12 @@ private let skTestSupportInputsDirectory: URL = {
   #else
   let resources =
     productsDirectory
-    .appendingPathComponent("SourceKitLSP_SKTestSupport.resources")
+    .appending(component: "SourceKitLSP_SKTestSupport.resources")
   #endif
   guard FileManager.default.fileExists(at: resources) else {
     fatalError("missing resources \(resources)")
   }
-  return resources.appendingPathComponent("INPUTS", isDirectory: true).standardizedFileURL
+  return resources.appending(component: "INPUTS", directoryHint: .isDirectory).standardizedFileURL
 }()
 
 /// Creates a project that uses a BSP server to provide build settings.

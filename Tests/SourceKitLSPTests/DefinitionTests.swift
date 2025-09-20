@@ -486,7 +486,7 @@ class DefinitionTests: XCTestCase {
       DocumentURI(
         definitionUri.fileURL!
           .deletingLastPathComponent()
-          .appendingPathComponent("movedDefinition.swift")
+          .appending(component: "movedDefinition.swift")
       )
 
     try FileManager.default.moveItem(at: XCTUnwrap(definitionUri.fileURL), to: XCTUnwrap(movedDefinitionUri.fileURL))
@@ -616,7 +616,7 @@ class DefinitionTests: XCTestCase {
             target: .dummy,
             sources: [
               SourceItem(
-                uri: DocumentURI(projectRoot.appendingPathComponent("Test.c")),
+                uri: DocumentURI(projectRoot.appending(component: "Test.c")),
                 kind: .file,
                 generated: false,
                 dataKind: .sourceKit,
@@ -628,7 +628,7 @@ class DefinitionTests: XCTestCase {
                 ).encodeToLSPAny()
               ),
               SourceItem(
-                uri: DocumentURI(projectRoot.appendingPathComponent("Test.h")),
+                uri: DocumentURI(projectRoot.appending(component: "Test.h")),
                 kind: .file,
                 generated: false,
                 dataKind: .sourceKit,

@@ -58,17 +58,13 @@ private func fileExists(at url: URL) -> Bool {
 private func pluginPaths(relativeTo base: URL) -> PluginPaths? {
   // When building in Xcode
   if let buildConfiguration = inferredXcodeBuildConfiguration {
-    let frameworksDir = base.appendingPathComponent("Products")
-      .appendingPathComponent(buildConfiguration)
-      .appendingPathComponent("PackageFrameworks")
+    let frameworksDir = base.appending(components: "Products", buildConfiguration, "PackageFrameworks")
     let clientPlugin =
       frameworksDir
-      .appendingPathComponent("SwiftSourceKitClientPlugin.framework")
-      .appendingPathComponent("SwiftSourceKitClientPlugin")
+      .appending(components: "SwiftSourceKitClientPlugin.framework", "SwiftSourceKitClientPlugin")
     let servicePlugin =
       frameworksDir
-      .appendingPathComponent("SwiftSourceKitPlugin.framework")
-      .appendingPathComponent("SwiftSourceKitPlugin")
+      .appending(components: "SwiftSourceKitPlugin.framework", "SwiftSourceKitPlugin")
     if fileExists(at: clientPlugin) && fileExists(at: servicePlugin) {
       return PluginPaths(clientPlugin: clientPlugin, servicePlugin: servicePlugin)
     }
@@ -76,15 +72,13 @@ private func pluginPaths(relativeTo base: URL) -> PluginPaths? {
 
   // When creating an `xctestproducts` bundle
   do {
-    let frameworksDir = base.appendingPathComponent("PackageFrameworks")
+    let frameworksDir = base.appending(component: "PackageFrameworks")
     let clientPlugin =
       frameworksDir
-      .appendingPathComponent("SwiftSourceKitClientPlugin.framework")
-      .appendingPathComponent("SwiftSourceKitClientPlugin")
+      .appending(components: "SwiftSourceKitClientPlugin.framework", "SwiftSourceKitClientPlugin")
     let servicePlugin =
       frameworksDir
-      .appendingPathComponent("SwiftSourceKitPlugin.framework")
-      .appendingPathComponent("SwiftSourceKitPlugin")
+      .appending(components: "SwiftSourceKitPlugin.framework", "SwiftSourceKitPlugin")
     if fileExists(at: clientPlugin) && fileExists(at: servicePlugin) {
       return PluginPaths(clientPlugin: clientPlugin, servicePlugin: servicePlugin)
     }
@@ -109,8 +103,8 @@ private func pluginPaths(relativeTo base: URL) -> PluginPaths? {
       clientPluginName = "libSwiftSourceKitClientPlugin.so"
       servicePluginName = "libSwiftSourceKitPlugin.so"
     }
-    let clientPlugin = base.appendingPathComponent(clientPluginName)
-    let servicePlugin = base.appendingPathComponent(servicePluginName)
+    let clientPlugin = base.appending(component: clientPluginName)
+    let servicePlugin = base.appending(component: servicePluginName)
     if fileExists(at: clientPlugin) && fileExists(at: servicePlugin) {
       return PluginPaths(clientPlugin: clientPlugin, servicePlugin: servicePlugin)
     }

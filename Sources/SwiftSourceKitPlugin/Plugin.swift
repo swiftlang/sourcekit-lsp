@@ -191,16 +191,14 @@ private extension SourceKitD {
 
     let inProcUrl =
       frameworkUrl
-      .appendingPathComponent("sourcekitdInProc.framework")
-      .appendingPathComponent("sourcekitdInProc")
+      .appending(components: "sourcekitdInProc.framework", "sourcekitdInProc")
     if FileManager.default.fileExists(at: inProcUrl) {
       return try SourceKitD(dylib: inProcUrl, pluginPaths: nil, initialize: false)
     }
 
     let sourcekitdUrl =
       frameworkUrl
-      .appendingPathComponent("sourcekitd.framework")
-      .appendingPathComponent("sourcekitd")
+      .appending(components: "sourcekitd.framework", "sourcekitd")
     return try SourceKitD(dylib: sourcekitdUrl, pluginPaths: nil, initialize: false)
   }
 }

@@ -74,7 +74,7 @@ package class OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
 
   /// The file to which we write the reduce source file.
   private var temporarySourceFile: URL {
-    temporaryDirectory.appendingPathComponent("reduce.swift")
+    temporaryDirectory.appending(component: "reduce.swift")
   }
 
   /// If this predicate evaluates to true on the sourcekitd response, the request is
@@ -86,7 +86,7 @@ package class OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
     self.pluginPaths = pluginPaths
     self.swiftFrontend = swiftFrontend
     self.reproducerPredicate = reproducerPredicate
-    temporaryDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("sourcekitd-execute-\(UUID())")
+    temporaryDirectory = FileManager.default.temporaryDirectory.appending(component: "sourcekitd-execute-\(UUID())")
     try? FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
   }
 
@@ -171,7 +171,7 @@ package class OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
     try request.fileContents.write(to: temporarySourceFile, atomically: true, encoding: .utf8)
     let requestStrings = try request.requests(for: temporarySourceFile)
     for (index, requestString) in requestStrings.enumerated() {
-      let temporaryRequestFile = temporaryDirectory.appendingPathComponent("request-\(index).yml")
+      let temporaryRequestFile = temporaryDirectory.appending(component: "request-\(index).yml")
       try requestString.write(
         to: temporaryRequestFile,
         atomically: true,

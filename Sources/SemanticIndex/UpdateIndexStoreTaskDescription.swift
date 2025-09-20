@@ -756,8 +756,8 @@ fileprivate extension Process {
       }
 
       logger.debug("Argument list is too long. Using response file.")
-      let responseFile = FileManager.default.temporaryDirectory.appendingPathComponent(
-        "index-response-file-\(UUID()).txt"
+      let responseFile = FileManager.default.temporaryDirectory.appending(
+        component: "index-response-file-\(UUID()).txt"
       )
       defer {
         orLog("Failed to remove temporary response file") {

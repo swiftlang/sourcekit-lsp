@@ -297,10 +297,10 @@ public final class Toolchain: Sendable {
 
     var foundAny = false
     let searchPaths = [
-      path, path.appendingPathComponent("bin"), path.appendingPathComponent("usr").appendingPathComponent("bin"),
+      path, path.appending(component: "bin"), path.appending(components: "usr", "bin"),
     ]
     for binPath in searchPaths {
-      let libPath = binPath.deletingLastPathComponent().appendingPathComponent("lib")
+      let libPath = binPath.deletingLastPathComponent().appending(component: "lib")
 
       guard FileManager.default.isDirectory(at: binPath) || FileManager.default.isDirectory(at: libPath) else {
         continue
@@ -308,30 +308,30 @@ public final class Toolchain: Sendable {
 
       let execExt = Platform.current?.executableExtension ?? ""
 
-      let clangPath = binPath.appendingPathComponent("clang\(execExt)")
+      let clangPath = binPath.appending(component: "clang\(execExt)")
       if FileManager.default.isExecutableFile(atPath: clangPath.path) {
         clang = clangPath
         foundAny = true
       }
-      let clangdPath = binPath.appendingPathComponent("clangd\(execExt)")
+      let clangdPath = binPath.appending(component: "clangd\(execExt)")
       if FileManager.default.isExecutableFile(atPath: clangdPath.path) {
         clangd = clangdPath
         foundAny = true
       }
 
-      let swiftPath = binPath.appendingPathComponent("swift\(execExt)")
+      let swiftPath = binPath.appending(component: "swift\(execExt)")
       if FileManager.default.isExecutableFile(atPath: swiftPath.path) {
         swift = swiftPath
         foundAny = true
       }
 
-      let swiftcPath = binPath.appendingPathComponent("swiftc\(execExt)")
+      let swiftcPath = binPath.appending(component: "swiftc\(execExt)")
       if FileManager.default.isExecutableFile(atPath: swiftcPath.path) {
         swiftc = swiftcPath
         foundAny = true
       }
 
-      let swiftFormatPath = binPath.appendingPathComponent("swift-format\(execExt)")
+      let swiftFormatPath = binPath.appending(component: "swift-format\(execExt)")
       if FileManager.default.isExecutableFile(atPath: swiftFormatPath.path) {
         swiftFormat = swiftFormatPath
         foundAny = true
@@ -347,16 +347,16 @@ public final class Toolchain: Sendable {
       }
 
       func findDylib(named name: String, searchFramework: Bool = false) -> URL? {
-        let frameworkPath = libPath.appendingPathComponent("\(name).framework").appendingPathComponent(name)
+        let frameworkPath = libPath.appending(components: "\(name).framework", name)
         if FileManager.default.isFile(at: frameworkPath) {
           return frameworkPath
         }
-        let libSearchPath = libPath.appendingPathComponent("lib\(name)\(dylibExtension)")
+        let libSearchPath = libPath.appending(component: "lib\(name)\(dylibExtension)")
         if FileManager.default.isFile(at: libSearchPath) {
           return libSearchPath
         }
         #if os(Windows)
-        let binSearchPath = binPath.appendingPathComponent("\(name)\(dylibExtension)")
+        let binSearchPath = binPath.appending(component: "\(name)\(dylibExtension)")
         if FileManager.default.isFile(at: binSearchPath) {
           return binSearchPath
         }
@@ -382,9 +382,9 @@ public final class Toolchain: Sendable {
       }
 
       #if os(Windows)
-      let libIndexStorePath = binPath.appendingPathComponent("libIndexStore\(dylibExtension)")
+      let libIndexStorePath = binPath.appending(component: "libIndexStore\(dylibExtension)")
       #else
-      let libIndexStorePath = libPath.appendingPathComponent("libIndexStore\(dylibExtension)")
+      let libIndexStorePath = libPath.appending(component: "libIndexStore\(dylibExtension)")
       #endif
       if FileManager.default.isFile(at: libIndexStorePath) {
         libIndexStore = libIndexStorePath

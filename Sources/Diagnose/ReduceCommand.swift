@@ -98,7 +98,7 @@ package struct ReduceCommand: AsyncParsableCommand {
 
     progressBar.complete(success: true)
 
-    let reducedSourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("reduced.swift")
+    let reducedSourceFile = FileManager.default.temporaryDirectory.appending(component: "reduced.swift")
     try reduceRequestInfo.fileContents.write(to: reducedSourceFile, atomically: true, encoding: .utf8)
 
     print("Reduced Request:")
