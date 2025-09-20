@@ -18,8 +18,7 @@ import LanguageServerProtocolExtensions
 ///
 /// Encapsulates all the settings needed to compile a single file, including the compiler arguments
 /// and working directory. `FileBuildSettings`` are typically the result of a build server query.
-package struct FileBuildSettings: Equatable, Sendable {
-
+package struct FileBuildSettings: Hashable, Sendable {
   /// The compiler arguments to use for this file.
   package var compilerArguments: [String]
 
