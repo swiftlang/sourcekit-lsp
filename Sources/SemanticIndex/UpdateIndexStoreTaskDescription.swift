@@ -701,16 +701,17 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       let languageAndTarget = TargetAndLanguage(target: fileIndexInfo.target, language: fileIndexInfo.language)
       fileIndexInfosToBatch[languageAndTarget, default: []].append(fileIndexInfo)
     }
+    // Create one partition per processor core but limit the partition size to 25 primary files. This matches the
+    // driver's behavior in `numberOfBatchPartitions`
+    // https://github.com/swiftlang/swift-driver/blob/df3d0796ed5e533d82accd7baac43d15e97b5671/Sources/SwiftDriver/Jobs/Planning.swift#L917-L1022
+    let partitionSize = max(fileIndexInfosToBatch.count / ProcessInfo.processInfo.activeProcessorCount, 25)
     let batchedPartitions =
       fileIndexInfosToBatch
       .sorted { $0.key < $1.key }  // Ensure we get a deterministic partition order
       .flatMap { targetAndLanguage, files in
-        // The batch size of 5 was chosen without too many significant performance measurements because most projects
-        // currently indexed by SourceKit-LSP are limited by preparation time instead of indexing time and it's thus
-        // hard to quanify the performance characteristics of different batch sizes. 5 seems like a good trade-off to
-        // share work between files within the same target without overloading a single job with too many files and
-        // thus losing parallelism.
-        files.partition(intoBatchesOfSize: 5).map { (targetAndLanguage.target, targetAndLanguage.language, $0) }
+        files.partition(intoBatchesOfSize: partitionSize).map {
+          (targetAndLanguage.target, targetAndLanguage.language, $0)
+        }
       }
     return partitions + batchedPartitions
   }

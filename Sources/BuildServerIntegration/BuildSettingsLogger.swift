@@ -45,7 +45,7 @@ package actor BuildSettingsLogger {
     if let uri = uris.only {
       header = "Build settings for \(uri.forLogging)"
     } else if let firstUri = uris.first {
-      header = "Build settings for \(firstUri.forLogging) and \(firstUri) and \(uris.count - 1) others"
+      header = "Build settings for \(firstUri.forLogging) and \(uris.count - 1) others"
     } else {
       header = "Build settings for empty list"
     }
