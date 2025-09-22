@@ -87,6 +87,8 @@ extension URL {
     }
   }
 
+  /// Assuming this URL is a file URL, checks if it looks like a root path. This is a string check, ie. the return
+  /// value for a path of `"/foo/.."` would be `false`. An error will be thrown is this is a non-file URL.
   package var isRoot: Bool {
     get throws {
       let checkPath = try filePath
