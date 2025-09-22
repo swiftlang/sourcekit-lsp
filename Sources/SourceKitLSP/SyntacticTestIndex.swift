@@ -110,7 +110,7 @@ actor SyntacticTestIndex {
       // in O(number of pending tasks), since we need to scan for dependency edges to add, which would make scanning files
       // be O(number of files).
       // Over-subscribe the processor count in case one batch finishes more quickly than another.
-      let batches = testFiles.partition(intoNumberOfBatches: ProcessInfo.processInfo.processorCount * 4)
+      let batches = testFiles.partition(intoNumberOfBatches: ProcessInfo.processInfo.activeProcessorCount * 4)
       await batches.concurrentForEach { filesInBatch in
         for uri in filesInBatch {
           await self.rescanFileAssumingOnQueue(uri)
@@ -194,7 +194,7 @@ actor SyntacticTestIndex {
     // in O(number of pending tasks), since we need to scan for dependency edges to add, which would make scanning files
     // be O(number of files).
     // Over-subscribe the processor count in case one batch finishes more quickly than another.
-    let batches = uris.partition(intoNumberOfBatches: ProcessInfo.processInfo.processorCount * 4)
+    let batches = uris.partition(intoNumberOfBatches: ProcessInfo.processInfo.activeProcessorCount * 4)
     for batch in batches {
       self.indexingQueue.async(priority: .low, metadata: .index(Set(batch))) {
         for uri in batch {

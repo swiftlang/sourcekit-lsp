@@ -28,7 +28,7 @@ package class ScoredMatchSelector {
   package init(batches: [CandidateBatch]) {
     let scoringWorkloads = ScoringWorkload.workloads(
       for: batches,
-      parallelism: ProcessInfo.processInfo.processorCount
+      parallelism: ProcessInfo.processInfo.activeProcessorCount
     )
     threadWorkloads = scoringWorkloads.map { scoringWorkload in
       ThreadWorkload(allBatches: batches, slices: scoringWorkload.slices)

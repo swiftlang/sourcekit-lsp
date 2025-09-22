@@ -440,7 +440,7 @@ extension Pattern {
     compactScratchArea(capacity: Self.totalCandidates(batches: batches)) { matchesScratchArea in
       let scoringWorkloads = ScoringWorkload.workloads(
         for: batches,
-        parallelism: ProcessInfo.processInfo.processorCount
+        parallelism: ProcessInfo.processInfo.activeProcessorCount
       )
       // `nonisolated(unsafe)` is fine because every iteration accesses a distinct index of the buffer.
       nonisolated(unsafe) let matchesScratchArea = matchesScratchArea

@@ -644,14 +644,6 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   }
 }
 
-extension TaskScheduler {
-  package static var forTesting: TaskScheduler {
-    return .init(maxConcurrentTasksByPriority: [
-      (.low, ProcessInfo.processInfo.processorCount)
-    ])
-  }
-}
-
 // MARK: - Collection utilities
 
 fileprivate extension Collection where Element: Comparable {
