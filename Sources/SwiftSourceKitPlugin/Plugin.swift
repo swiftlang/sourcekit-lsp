@@ -157,41 +157,11 @@ final class RequestHandler: Sendable {
   }
 }
 
-#if compiler(>=6.3)
-#warning("Remove sourcekitd_plugin_initialize when we no longer support toolchains that call it")
-#endif
-
 /// Legacy plugin initialization logic in which sourcekitd does not inform the plugin about the sourcekitd path it was
 /// loaded from.
 @_cdecl("sourcekitd_plugin_initialize")
 public func sourcekitd_plugin_initialize(_ params: sourcekitd_api_plugin_initialize_params_t) {
-  #if canImport(Darwin)
-  var dlInfo = Dl_info()
-  dladdr(#dsohandle, &dlInfo)
-  let path = String(cString: dlInfo.dli_fname)
-  var url = URL(fileURLWithPath: path, isDirectory: false)
-  while url.pathExtension != "framework" && url.lastPathComponent != "/" {
-    url.deleteLastPathComponent()
-  }
-  url =
-    url
-    .deletingLastPathComponent()
-    .appendingPathComponent("sourcekitd.framework")
-    .appendingPathComponent("sourcekitd")
-  if FileManager.default.fileExists(at: url) {
-    try! url.filePath.withCString { sourcekitdPath in
-      sourcekitd_plugin_initialize_2(params, sourcekitdPath)
-    }
-  } else {
-    // When using a SourceKit plugin from the build directory, we can't find sourcekitd relative to the plugin.
-    // Since sourcekitd_plugin_initialize is only called on Darwin from Xcode toolchains, we know that we are getting
-    // called from an XPC sourcekitd. Thus, all sourcekitd symbols that we need should be loaded in the current process
-    // already and we can use `RTLD_DEFAULT` for the sourcekitd library.
-    sourcekitd_plugin_initialize_2(params, "SOURCEKIT_LSP_PLUGIN_PARENT_LIBRARY_RTLD_DEFAULT")
-  }
-  #else
-  fatalError("sourcekitd_plugin_initialize is not supported on non-Darwin platforms")
-  #endif
+  fatalError("sourcekitd_plugin_initialize has been removed in favor of sourcekitd_plugin_initialize_2")
 }
 
 #if canImport(Darwin)
