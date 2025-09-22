@@ -921,7 +921,13 @@ package final actor SemanticIndexManager {
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1262)
     for targetsBatch in sortedTargets.partition(intoBatchesOfSize: 1) {
       let preparationTaskID = UUID()
-      let filesToIndex = targetsBatch.flatMap({ filesByTarget[$0]! })
+      let filesToIndex = targetsBatch.flatMap { (target) -> [FileIndexInfo] in
+        guard let files = filesByTarget[target] else {
+          logger.fault("Unexpectedly found no files for target in target batch")
+          return []
+        }
+        return files
+      }
 
       // First schedule preparation of the targets. We schedule the preparation outside of `indexTask` so that we
       // deterministically prepare targets in the topological order for indexing. If we triggered preparation inside the
@@ -950,36 +956,36 @@ package final actor SemanticIndexManager {
 
         // And after preparation is done, index the files in the targets.
         await withTaskGroup(of: Void.self) { taskGroup in
-          for target in targetsBatch {
-            var filesByLanguage: [Language: [FileIndexInfo]] = [:]
-            for fileInfo in filesByTarget[target]! {
-              filesByLanguage[fileInfo.language, default: []].append(fileInfo)
+          let fileInfos = targetsBatch.flatMap { (target) -> [FileIndexInfo] in
+            guard let files = filesByTarget[target] else {
+              logger.fault("Unexpectedly found no files for target in target batch")
+              return []
             }
-            for (language, fileInfos) in filesByLanguage {
-              // TODO: Once swiftc supports indexing of multiple files in a single invocation, increase the batch size to
-              // allow it to share AST builds between multiple files within a target.
-              // (https://github.com/swiftlang/sourcekit-lsp/issues/1268)
-              for fileBatch in fileInfos.partition(intoBatchesOfSize: 1) {
-                taskGroup.addTask {
-                  let fileAndOutputPaths: [FileAndOutputPath] = fileBatch.compactMap {
-                    guard $0.target == target else {
-                      logger.fault(
-                        "FileIndexInfo refers to different target than should be indexed \($0.target.forLogging) vs \(target.forLogging)"
-                      )
-                      return nil
-                    }
-                    return FileAndOutputPath(file: $0.file, outputPath: $0.outputPath)
-                  }
-                  await self.updateIndexStore(
-                    for: fileAndOutputPaths,
-                    target: target,
-                    language: language,
-                    indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit,
-                    preparationTaskID: preparationTaskID,
-                    priority: priority
+            return files
+          }
+          let batches = await UpdateIndexStoreTaskDescription.batches(
+            toIndex: fileInfos,
+            buildServerManager: buildServerManager
+          )
+          for (target, language, fileBatch) in batches {
+            taskGroup.addTask {
+              let fileAndOutputPaths: [FileAndOutputPath] = fileBatch.compactMap {
+                guard $0.target == target else {
+                  logger.fault(
+                    "FileIndexInfo refers to different target than should be indexed: \($0.target.forLogging) vs \(target.forLogging)"
                   )
+                  return nil
                 }
+                return FileAndOutputPath(file: $0.file, outputPath: $0.outputPath)
               }
+              await self.updateIndexStore(
+                for: fileAndOutputPaths,
+                target: target,
+                language: language,
+                indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit,
+                preparationTaskID: preparationTaskID,
+                priority: priority
+              )
             }
           }
           await taskGroup.waitForAll()

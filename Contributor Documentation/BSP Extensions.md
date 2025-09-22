@@ -130,8 +130,12 @@ export interface SourceKitSourceItemData {
   kind?: "source" | "header" | "doccCatalog";
 
   /**
-   * The output path that is during indexing for this file, ie. the `-index-unit-output-path`, if it is specified
-   * in the compiler arguments or the file that is passed as `-o`, if `-index-unit-output-path` is not specified.
+   * The output path that is a string that uniquely identifies the index output of this file in this target. If an index
+   * store should be re-used between build and background indexing, it must match the `-o` path or
+   * `-index-unit-output-path` used during the build.
+   *
+   * The index unit output path historically matched the path used for `-o` during compilation but has since evolved to
+   * be an opaque string. In particular, it does not have to match to any file on disk.
    *
    * This allows SourceKit-LSP to remove index entries for source files that are removed from a target but remain
    * present on disk and to index a file that is part of multiple targets in the context of each target.

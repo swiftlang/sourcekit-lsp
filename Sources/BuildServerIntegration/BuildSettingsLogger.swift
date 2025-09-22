@@ -12,6 +12,7 @@
 
 package import LanguageServerProtocol
 package import SKLogging
+import SwiftExtensions
 
 // MARK: - Build settings logger
 
@@ -27,11 +28,31 @@ package actor BuildSettingsLogger {
     Self.log(level: level, settings: settings, for: uri)
   }
 
-  /// Log the given build settings.
+  /// Log the given build settings for a single file
   ///
   /// In contrast to the instance method `log`, this will always log the build settings. The instance method only logs
   /// the build settings if they have changed.
   package static func log(level: LogLevel = .default, settings: FileBuildSettings, for uri: DocumentURI) {
+    log(level: level, settings: settings, for: [uri])
+  }
+
+  /// Log the given build settings for a list of source files that all share the same build settings.
+  ///
+  /// In contrast to the instance method `log`, this will always log the build settings. The instance method only logs
+  /// the build settings if they have changed.
+  package static func log(level: LogLevel = .default, settings: FileBuildSettings, for uris: [DocumentURI]) {
+    let header: String
+    if let uri = uris.only {
+      header = "Build settings for \(uri.forLogging)"
+    } else if let firstUri = uris.first {
+      header = "Build settings for \(firstUri.forLogging) and \(firstUri) and \(uris.count - 1) others"
+    } else {
+      header = "Build settings for empty list"
+    }
+    log(level: level, settings: settings, header: header)
+  }
+
+  private static func log(level: LogLevel = .default, settings: FileBuildSettings, header: String) {
     let log = """
       Compiler Arguments:
       \(settings.compilerArguments.joined(separator: "\n"))
@@ -47,7 +68,7 @@ package actor BuildSettingsLogger {
       logger.log(
         level: level,
         """
-        Build settings for \(uri.forLogging) (\(index + 1)/\(chunks.count))
+        \(header) (\(index + 1)/\(chunks.count))
         \(chunk)
         """
       )
