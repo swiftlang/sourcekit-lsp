@@ -298,8 +298,8 @@ extension ContiguousZeroBasedIndexedCollection {
     // extra jobs should let the performance cores pull a disproportionate amount of work items. More fine
     // granularity also helps if the work items aren't all the same difficulty, for the same reason.
 
-    // Defensive against `processorCount` failing
-    let sliceCount = Swift.min(Swift.max(ProcessInfo.processInfo.processorCount * 32, 1), count)
+    // Defensive against `activeProcessorCount` failing
+    let sliceCount = Swift.min(Swift.max(ProcessInfo.processInfo.activeProcessorCount * 32, 1), count)
     let count = self.count
     DispatchQueue.concurrentPerform(iterations: sliceCount) { sliceIndex in
       precondition(sliceCount >= 1)

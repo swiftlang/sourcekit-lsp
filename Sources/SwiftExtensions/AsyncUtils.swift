@@ -135,7 +135,7 @@ package func withCancellableCheckedThrowingContinuation<Handle: Sendable, Result
 extension Collection where Self: Sendable, Element: Sendable {
   /// Transforms all elements in the collection concurrently and returns the transformed collection.
   package func concurrentMap<TransformedElement: Sendable>(
-    maxConcurrentTasks: Int = ProcessInfo.processInfo.processorCount,
+    maxConcurrentTasks: Int = ProcessInfo.processInfo.activeProcessorCount,
     _ transform: @escaping @Sendable (Element) async -> TransformedElement
   ) async -> [TransformedElement] {
     let indexedResults = await withTaskGroup(of: (index: Int, element: TransformedElement).self) { taskGroup in

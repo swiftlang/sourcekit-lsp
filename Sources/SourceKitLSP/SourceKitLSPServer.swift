@@ -138,6 +138,9 @@ package actor SourceKitLSPServer {
     isIndexingPaused: Bool,
     options: SourceKitLSPOptions
   ) -> [(priority: TaskPriority, maxConcurrentTasks: Int)] {
+    // Use `processorCount` instead of `activeProcessorCount` here because `activeProcessorCount` may be decreased due
+    // to thermal throttling. We don't want to consistently limit the concurrent indexing tasks if SourceKit-LSP was
+    // launched during a period of thermal throttling.
     let processorCount = ProcessInfo.processInfo.processorCount
     let lowPriorityCores =
       if isIndexingPaused {
