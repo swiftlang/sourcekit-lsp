@@ -29,7 +29,7 @@ package class SwiftPMDependencyProject {
 
   /// The directory in which the repository lives.
   package var packageDirectory: URL {
-    return scratchDirectory.appendingPathComponent("MyDependency")
+    return scratchDirectory.appending(component: "MyDependency")
   }
 
   private func runGitCommand(_ arguments: [String], workingDirectory: URL) async throws {

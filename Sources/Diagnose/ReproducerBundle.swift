@@ -24,13 +24,13 @@ import struct TSCBasic.AbsolutePath
 func makeReproducerBundle(for requestInfo: RequestInfo, toolchain: Toolchain, bundlePath: URL) throws {
   try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
   try requestInfo.fileContents.write(
-    to: bundlePath.appendingPathComponent("input.swift"),
+    to: bundlePath.appending(component: "input.swift"),
     atomically: true,
     encoding: .utf8
   )
   try toolchain.path.realpath.filePath
     .write(
-      to: bundlePath.appendingPathComponent("toolchain.txt"),
+      to: bundlePath.appending(component: "toolchain.txt"),
       atomically: true,
       encoding: .utf8
     )
@@ -38,12 +38,12 @@ func makeReproducerBundle(for requestInfo: RequestInfo, toolchain: Toolchain, bu
     let command =
       "swift-frontend \\\n"
       + requestInfo.compilerArgs.replacing(["$FILE"], with: ["./input.swift"]).joined(separator: " \\\n")
-    try command.write(to: bundlePath.appendingPathComponent("command.sh"), atomically: true, encoding: .utf8)
+    try command.write(to: bundlePath.appending(component: "command.sh"), atomically: true, encoding: .utf8)
   } else {
-    let requests = try requestInfo.requests(for: bundlePath.appendingPathComponent("input.swift"))
+    let requests = try requestInfo.requests(for: bundlePath.appending(component: "input.swift"))
     for (index, request) in requests.enumerated() {
       try request.write(
-        to: bundlePath.appendingPathComponent("request-\(index).yml"),
+        to: bundlePath.appending(component: "request-\(index).yml"),
         atomically: true,
         encoding: .utf8
       )

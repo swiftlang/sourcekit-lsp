@@ -425,7 +425,7 @@ final class PullDiagnosticsTests: XCTestCase {
     let project = try await SwiftPMTestProject(
       files: ["FileA.swift": contents],
       workspaces: { scratchDirectory in
-        let symlinkUrl = scratchDirectory.appendingPathComponent("symlink")
+        let symlinkUrl = scratchDirectory.appending(component: "symlink")
         try FileManager.default.createSymbolicLink(
           at: symlinkUrl,
           withDestinationURL: scratchDirectory
@@ -436,10 +436,7 @@ final class PullDiagnosticsTests: XCTestCase {
 
     let uri = DocumentURI(
       project.scratchDirectory
-        .appendingPathComponent("symlink")
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("MyLibrary")
-        .appendingPathComponent("FileA.swift")
+        .appending(components: "symlink", "Sources", "MyLibrary", "FileA.swift")
     )
     project.testClient.send(
       DidOpenTextDocumentNotification(

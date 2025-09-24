@@ -231,12 +231,11 @@ extension SwiftLanguageService {
       }
 
       var completeExpansionFilePath =
-        self.generatedMacroExpansionsPath.appendingPathComponent(
-          Insecure.MD5.hash(
-            data: Data(completeExpansionDirectoryName.utf8)
-          )
-          .map { String(format: "%02hhx", $0) }  // maps each byte of the hash to its hex equivalent `String`
-          .joined()
+        self.generatedMacroExpansionsPath.appending(
+          component:
+            Insecure.MD5.hash(data: Data(completeExpansionDirectoryName.utf8))
+            .map { String(format: "%02hhx", $0) }  // maps each byte of the hash to its hex equivalent `String`
+            .joined()
         )
 
       do {
@@ -251,7 +250,7 @@ extension SwiftLanguageService {
       }
 
       completeExpansionFilePath =
-        completeExpansionFilePath.appendingPathComponent(parentFileDisplayName)
+        completeExpansionFilePath.appending(component: parentFileDisplayName)
       do {
         try completeExpansionFileContent.write(to: completeExpansionFilePath, atomically: true, encoding: .utf8)
       } catch {

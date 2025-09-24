@@ -161,8 +161,8 @@ final class DiagnoseTests: XCTestCase {
         func unrelatedB() {}
         """
 
-      let fileAPath = try scratchDir.appendingPathComponent("a.swift").filePath
-      let fileBPath = try scratchDir.appendingPathComponent("b.swift").filePath
+      let fileAPath = try scratchDir.appending(component: "a.swift").filePath
+      let fileBPath = try scratchDir.appending(component: "b.swift").filePath
 
       try fileAContents.write(toFile: fileAPath, atomically: true, encoding: .utf8)
       try fileBContents.write(toFile: fileBPath, atomically: true, encoding: .utf8)
@@ -250,7 +250,7 @@ private func assertReduceSourceKitD(
         reproducerPredicate(requestResponse as! String)
       })
     )
-    let testFilePath = try scratchDir.appendingPathComponent("test.swift").filePath
+    let testFilePath = try scratchDir.appending(component: "test.swift").filePath
     try fileContents.write(toFile: testFilePath, atomically: false, encoding: .utf8)
 
     let request =
@@ -295,8 +295,8 @@ private class InProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
     self.sourcekitd = try XCTUnwrap(toolchain.sourcekitd)
     self.swiftFrontend = try XCTUnwrap(toolchain.swiftFrontend)
     self.reproducerPredicate = reproducerPredicate
-    temporaryRequestFile = FileManager.default.temporaryDirectory.appendingPathComponent("request-\(UUID()).yml")
-    temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("reduce-\(UUID()).swift")
+    temporaryRequestFile = FileManager.default.temporaryDirectory.appending(component: "request-\(UUID()).yml")
+    temporarySourceFile = FileManager.default.temporaryDirectory.appending(component: "reduce-\(UUID()).swift")
   }
 
   deinit {

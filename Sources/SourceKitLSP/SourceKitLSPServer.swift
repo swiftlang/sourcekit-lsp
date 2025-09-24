@@ -916,8 +916,7 @@ extension SourceKitLSPServer {
       base: self.options,
       override: SourceKitLSPOptions(
         path: workspaceFolder.fileURL?
-          .appendingPathComponent(".sourcekit-lsp")
-          .appendingPathComponent("config.json")
+          .appending(components: ".sourcekit-lsp", "config.json")
       )
     )
     logger.log("Creating workspace at \(workspaceFolder.forLogging)")

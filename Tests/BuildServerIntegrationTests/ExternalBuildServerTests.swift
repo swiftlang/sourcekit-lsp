@@ -311,7 +311,7 @@ final class ExternalBuildServerTests: XCTestCase {
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
     )
     XCTAssertEqual(diagnosticsBeforeCrash.fullReport?.items, [])
-    try FileManager.default.removeItem(at: project.scratchDirectory.appendingPathComponent("should_crash"))
+    try FileManager.default.removeItem(at: project.scratchDirectory.appending(component: "should_crash"))
 
     try await repeatUntilExpectedResult(timeout: .seconds(20)) {
       let diagnostics = try await project.testClient.send(
@@ -611,7 +611,7 @@ final class ExternalBuildServerTests: XCTestCase {
       }
 
       func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) -> BuildTargetSourcesResponse {
-        return dummyTargetSourcesResponse(files: [DocumentURI(projectRoot.appendingPathComponent("Test.swift"))])
+        return dummyTargetSourcesResponse(files: [DocumentURI(projectRoot.appending(component: "Test.swift"))])
       }
 
       func textDocumentSourceKitOptionsRequest(
@@ -720,7 +720,7 @@ final class ExternalBuildServerTests: XCTestCase {
         didReceiveTargetSourcesRequest = true
 
         await unlockBuildServerResponses.waitOrXCTFail()
-        return dummyTargetSourcesResponse(files: [DocumentURI(projectRoot.appendingPathComponent("Test.swift"))])
+        return dummyTargetSourcesResponse(files: [DocumentURI(projectRoot.appending(component: "Test.swift"))])
       }
 
       func textDocumentSourceKitOptionsRequest(

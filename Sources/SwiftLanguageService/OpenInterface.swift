@@ -46,8 +46,7 @@ extension SwiftLanguageService {
       return GeneratedInterfaceDetails(uri: try urlData.uri, position: position)
     }
     let interfaceFilePath = self.generatedInterfacesPath
-      .appendingPathComponent(buildSettingsFileHash)
-      .appendingPathComponent(urlData.displayName)
+      .appending(components: buildSettingsFileHash, urlData.displayName)
     try FileManager.default.createDirectory(
       at: interfaceFilePath.deletingLastPathComponent(),
       withIntermediateDirectories: true

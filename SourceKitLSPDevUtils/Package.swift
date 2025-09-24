@@ -1,11 +1,11 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 
 import Foundation
 import PackageDescription
 
 let package = Package(
   name: "SourceKitLSPDevUtils",
-  platforms: [.macOS(.v10_15)],
+  platforms: [.macOS(.v14)],
   products: [
     .executable(name: "sourcekit-lsp-dev-utils", targets: ["SourceKitLSPDevUtils"])
   ],
@@ -24,7 +24,8 @@ let package = Package(
         .product(name: "SwiftParser", package: "swift-syntax"),
       ]
     ),
-  ]
+  ],
+  swiftLanguageModes: [.v6]
 )
 
 let dependencies: [(url: String, path: String, fromVersion: Version)] = [

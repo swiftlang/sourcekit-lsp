@@ -144,7 +144,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
   }
 
   static package func searchForConfig(in path: URL, options: SourceKitLSPOptions) -> BuildServerSpec? {
-    let packagePath = path.appendingPathComponent("Package.swift")
+    let packagePath = path.appending(component: "Package.swift")
     if (try? String(contentsOf: packagePath, encoding: .utf8))?.contains("PackageDescription") ?? false {
       return BuildServerSpec(kind: .swiftPM, projectRoot: path, configPath: packagePath)
     }
@@ -494,7 +494,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
   }
 
   package var indexDatabasePath: URL? {
-    return buildPath.appendingPathComponent("index").appendingPathComponent("db")
+    return buildPath.appending(components: "index", "db")
   }
 
   private func indexUnitOutputPath(forSwiftFile uri: DocumentURI) -> String {
@@ -583,7 +583,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
           )
         }
         let packageManifest = SourceItem(
-          uri: DocumentURI(projectRoot.appendingPathComponent("Package.swift")),
+          uri: DocumentURI(projectRoot.appending(component: "Package.swift")),
           kind: .file,
           generated: false
         )

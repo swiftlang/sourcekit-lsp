@@ -180,8 +180,7 @@ struct SourceKitLSP: AsyncParsableCommand {
       base: commandLineOptions(),
       override: SourceKitLSPOptions(
         path: FileManager.default.homeDirectoryForCurrentUser
-          .appendingPathComponent(".sourcekit-lsp")
-          .appendingPathComponent("config.json")
+          .appending(components: ".sourcekit-lsp", "config.json")
       )
     )
     if Platform.current == .darwin {
@@ -191,8 +190,7 @@ struct SourceKitLSP: AsyncParsableCommand {
           override: SourceKitLSPOptions(
             path:
               applicationSupportDir
-              .appendingPathComponent("org.swift.sourcekit-lsp")
-              .appendingPathComponent("config.json")
+              .appending(components: "org.swift.sourcekit-lsp", "config.json")
           )
         )
       }
@@ -203,8 +201,7 @@ struct SourceKitLSP: AsyncParsableCommand {
         override: SourceKitLSPOptions(
           path:
             URL(fileURLWithPath: xdgConfigHome)
-            .appendingPathComponent("sourcekit-lsp")
-            .appendingPathComponent("config.json")
+            .appending(components: "sourcekit-lsp", "config.json")
         )
       )
     }
@@ -218,7 +215,7 @@ struct SourceKitLSP: AsyncParsableCommand {
     dateFormatter.timeZone = NSTimeZone.local
     let date = dateFormatter.string(from: Date()).replacingOccurrences(of: ":", with: "-")
 
-    let inputMirrorURL = directory.appendingPathComponent("\(date).log")
+    let inputMirrorURL = directory.appending(component: "\(date).log")
 
     logger.log("Mirroring input to \(inputMirrorURL)")
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -256,8 +253,7 @@ struct SourceKitLSP: AsyncParsableCommand {
 
     // Directory should match the directory we are searching for logs in `DiagnoseCommand.addNonDarwinLogs`.
     let logFileDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent(".sourcekit-lsp")
-      .appendingPathComponent("logs")
+      .appending(components: ".sourcekit-lsp", "logs")
     await setUpGlobalLogFileHandler(
       logFileDirectory: logFileDirectoryURL,
       logFileMaxBytes: 5_000_000,

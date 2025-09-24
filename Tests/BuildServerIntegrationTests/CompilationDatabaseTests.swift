@@ -186,7 +186,7 @@ final class CompilationDatabaseTests: XCTestCase {
 
   func testJSONCompilationDatabaseFromDirectory() async throws {
     try await withTestScratchDir { tempDir in
-      let dbFile = tempDir.appendingPathComponent(JSONCompilationDatabaseBuildServer.dbName)
+      let dbFile = tempDir.appending(component: JSONCompilationDatabaseBuildServer.dbName)
 
       XCTAssertThrowsError(try JSONCompilationDatabase(file: dbFile))
 
@@ -206,7 +206,7 @@ final class CompilationDatabaseTests: XCTestCase {
 
   func testFixedCompilationDatabase() async throws {
     try await withTestScratchDir { tempDir in
-      let dbFile = tempDir.appendingPathComponent(FixedCompilationDatabaseBuildServer.dbName)
+      let dbFile = tempDir.appending(component: FixedCompilationDatabaseBuildServer.dbName)
 
       XCTAssertThrowsError(
         try FixedCompilationDatabaseBuildServer(
@@ -228,7 +228,7 @@ final class CompilationDatabaseTests: XCTestCase {
         )
       )
 
-      let dummyFile = tempDir.appendingPathComponent("a.c")
+      let dummyFile = tempDir.appending(component: "a.c")
       let buildSettings = try await buildServer.sourceKitOptions(
         request: TextDocumentSourceKitOptionsRequest(
           textDocument: TextDocumentIdentifier(URI(dummyFile)),
@@ -248,7 +248,7 @@ final class CompilationDatabaseTests: XCTestCase {
 
   func testInvalidCompilationDatabase() async throws {
     try await withTestScratchDir { tempDir in
-      let dbFile = tempDir.appendingPathComponent(JSONCompilationDatabaseBuildServer.dbName)
+      let dbFile = tempDir.appending(component: JSONCompilationDatabaseBuildServer.dbName)
 
       try "".write(to: dbFile, atomically: true, encoding: .utf8)
       XCTAssertThrowsError(try JSONCompilationDatabase(file: dbFile))
@@ -436,7 +436,7 @@ private func checkCompilationDatabaseBuildServer(
   block: @Sendable (JSONCompilationDatabaseBuildServer) async throws -> Void
 ) async throws {
   try await withTestScratchDir { tempDir in
-    let configPath = tempDir.appendingPathComponent(JSONCompilationDatabaseBuildServer.dbName)
+    let configPath = tempDir.appending(component: JSONCompilationDatabaseBuildServer.dbName)
     try compdb.write(to: configPath, atomically: true, encoding: .utf8)
     let buildServer = try JSONCompilationDatabaseBuildServer(
       configPath: configPath,

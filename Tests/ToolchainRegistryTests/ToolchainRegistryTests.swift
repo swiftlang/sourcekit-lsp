@@ -46,13 +46,12 @@ final class ToolchainRegistryTests: XCTestCase {
     try await withTestScratchDir { tempDir in
       let xcodeDeveloper =
         tempDir
-        .appendingPathComponent("Xcode.app")
-        .appendingPathComponent("Developer")
-      let toolchains = xcodeDeveloper.appendingPathComponent("Toolchains")
+        .appending(components: "Xcode.app", "Developer")
+      let toolchains = xcodeDeveloper.appending(component: "Toolchains")
       try makeXCToolchain(
         identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier,
         opensource: false,
-        path: toolchains.appendingPathComponent("XcodeDefault.xctoolchain"),
+        path: toolchains.appending(component: "XcodeDefault.xctoolchain"),
         sourcekitd: true
       )
 
@@ -69,7 +68,7 @@ final class ToolchainRegistryTests: XCTestCase {
       assertEqual(await tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
       assertEqual(
         await tr.default?.path,
-        toolchains.appendingPathComponent("XcodeDefault.xctoolchain", isDirectory: true)
+        toolchains.appending(component: "XcodeDefault.xctoolchain", directoryHint: .isDirectory)
       )
       assertNotNil(await tr.default?.sourcekitd)
 
@@ -83,20 +82,19 @@ final class ToolchainRegistryTests: XCTestCase {
     try await withTestScratchDir { tempDir in
       let xcodeDeveloper =
         tempDir
-        .appendingPathComponent("Xcode.app")
-        .appendingPathComponent("Developer")
-      let toolchains = xcodeDeveloper.appendingPathComponent("Toolchains")
+        .appending(components: "Xcode.app", "Developer")
+      let toolchains = xcodeDeveloper.appending(component: "Toolchains")
 
       try makeXCToolchain(
         identifier: "com.apple.fake.A",
         opensource: false,
-        path: toolchains.appendingPathComponent("A.xctoolchain"),
+        path: toolchains.appending(component: "A.xctoolchain"),
         sourcekitd: true
       )
       try makeXCToolchain(
         identifier: "com.apple.fake.B",
         opensource: false,
-        path: toolchains.appendingPathComponent("B.xctoolchain"),
+        path: toolchains.appending(component: "B.xctoolchain"),
         sourcekitd: true
       )
 
@@ -119,20 +117,19 @@ final class ToolchainRegistryTests: XCTestCase {
     try await withTestScratchDir { tempDir in
       let xcodeDeveloper =
         tempDir
-        .appendingPathComponent("Xcode.app")
-        .appendingPathComponent("Developer")
-      let toolchains = xcodeDeveloper.appendingPathComponent("Toolchains")
+        .appending(components: "Xcode.app", "Developer")
+      let toolchains = xcodeDeveloper.appending(component: "Toolchains")
 
       try makeXCToolchain(
         identifier: "com.apple.fake.C",
         opensource: false,
-        path: toolchains.appendingPathComponent("C.wrong_extension"),
+        path: toolchains.appending(component: "C.wrong_extension"),
         sourcekitd: true
       )
       try makeXCToolchain(
         identifier: "com.apple.fake.D",
         opensource: false,
-        path: toolchains.appendingPathComponent("D_no_extension"),
+        path: toolchains.appending(component: "D_no_extension"),
         sourcekitd: true
       )
 
@@ -155,21 +152,20 @@ final class ToolchainRegistryTests: XCTestCase {
     try await withTestScratchDir { tempDir in
       let xcodeDeveloper =
         tempDir
-        .appendingPathComponent("Xcode.app")
-        .appendingPathComponent("Developer")
+        .appending(components: "Xcode.app", "Developer")
 
-      let toolchains = xcodeDeveloper.appendingPathComponent("Toolchains")
+      let toolchains = xcodeDeveloper.appending(component: "Toolchains")
       try makeXCToolchain(
         identifier: "com.apple.fake.A",
         opensource: false,
-        path: toolchains.appendingPathComponent("A.xctoolchain"),
+        path: toolchains.appending(component: "A.xctoolchain"),
         sourcekitd: true
       )
 
       try makeXCToolchain(
         identifier: "com.apple.fake.A",
         opensource: false,
-        path: toolchains.appendingPathComponent("E.xctoolchain"),
+        path: toolchains.appending(component: "E.xctoolchain"),
         sourcekitd: true
       )
 
@@ -189,15 +185,13 @@ final class ToolchainRegistryTests: XCTestCase {
   func testGloballyInstalledToolchains() async throws {
     try SkipUnless.platformIsDarwin("Finding toolchains in Xcode is only supported on macOS")
     try await withTestScratchDir { tempDir in
-      let libraryDir = tempDir.appendingPathComponent("Library")
+      let libraryDir = tempDir.appending(component: "Library")
       try makeXCToolchain(
         identifier: "org.fake.global.A",
         opensource: true,
         path:
           libraryDir
-          .appendingPathComponent("Developer")
-          .appendingPathComponent("Toolchains")
-          .appendingPathComponent("A.xctoolchain"),
+          .appending(components: "Developer", "Toolchains", "A.xctoolchain"),
         sourcekitd: true
       )
 
@@ -219,12 +213,11 @@ final class ToolchainRegistryTests: XCTestCase {
     try await withTestScratchDir { tempDir in
       let xcodeDeveloper =
         tempDir
-        .appendingPathComponent("Xcode.app")
-        .appendingPathComponent("Developer")
+        .appending(components: "Xcode.app", "Developer")
 
-      let toolchains = xcodeDeveloper.appendingPathComponent("Toolchains")
+      let toolchains = xcodeDeveloper.appending(component: "Toolchains")
 
-      let path = toolchains.appendingPathComponent("Explicit.xctoolchain", isDirectory: true)
+      let path = toolchains.appending(component: "Explicit.xctoolchain", directoryHint: .isDirectory)
       try makeXCToolchain(
         identifier: "org.fake.explicit",
         opensource: false,
@@ -233,7 +226,7 @@ final class ToolchainRegistryTests: XCTestCase {
       )
 
       let trInstall = ToolchainRegistry(
-        installPath: path.appendingPathComponent("usr").appendingPathComponent("bin"),
+        installPath: path.appending(components: "usr", "bin"),
         environmentVariables: [],
         xcodes: [],
         libraryDirectories: [],
@@ -251,21 +244,20 @@ final class ToolchainRegistryTests: XCTestCase {
     try await withTestScratchDir { tempDir in
       let xcodeDeveloper =
         tempDir
-        .appendingPathComponent("Xcode.app")
-        .appendingPathComponent("Developer")
+        .appending(components: "Xcode.app", "Developer")
 
-      let toolchains = xcodeDeveloper.appendingPathComponent("Toolchains")
+      let toolchains = xcodeDeveloper.appending(component: "Toolchains")
       try makeXCToolchain(
         identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier,
         opensource: false,
-        path: toolchains.appendingPathComponent("XcodeDefault.xctoolchain"),
+        path: toolchains.appending(component: "XcodeDefault.xctoolchain"),
         sourcekitd: true
       )
 
       try makeXCToolchain(
         identifier: "org.fake.global.A",
         opensource: false,
-        path: toolchains.appendingPathComponent("A.xctoolchain"),
+        path: toolchains.appending(component: "A.xctoolchain"),
         sourcekitd: true
       )
 
@@ -299,11 +291,10 @@ final class ToolchainRegistryTests: XCTestCase {
     try await withTestScratchDir { tempDir in
       let xcodeDeveloper =
         tempDir
-        .appendingPathComponent("Xcode.app")
-        .appendingPathComponent("Developer")
-      let toolchains = xcodeDeveloper.appendingPathComponent("Toolchains")
+        .appending(components: "Xcode.app", "Developer")
+      let toolchains = xcodeDeveloper.appending(component: "Toolchains")
 
-      let path = toolchains.appendingPathComponent("Explicit.xctoolchain", isDirectory: true)
+      let path = toolchains.appending(component: "Explicit.xctoolchain", directoryHint: .isDirectory)
       try makeXCToolchain(
         identifier: "org.fake.explicit",
         opensource: false,
@@ -315,7 +306,7 @@ final class ToolchainRegistryTests: XCTestCase {
       XCTAssertNotNil(tc)
       XCTAssertEqual(tc?.identifier, "org.fake.explicit")
 
-      let tcBin = Toolchain(path.appendingPathComponent("usr").appendingPathComponent("bin"))
+      let tcBin = Toolchain(path.appending(components: "usr", "bin"))
       XCTAssertNotNil(tcBin)
       XCTAssertEqual(tc?.identifier, tcBin?.identifier)
       XCTAssertEqual(tc?.path, tcBin?.path)
@@ -378,7 +369,7 @@ final class ToolchainRegistryTests: XCTestCase {
 
   func testSearchExplicitEnvBuiltin() async throws {
     try await withTestScratchDir { tempDir in
-      let binPath = tempDir.appendingPathComponent("bin", isDirectory: true)
+      let binPath = tempDir.appending(component: "bin", directoryHint: .isDirectory)
       try makeToolchain(binPath: binPath, sourcekitd: true)
 
       try ProcessEnv.setVar("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: binPath.deletingLastPathComponent().filePath)
@@ -409,7 +400,7 @@ final class ToolchainRegistryTests: XCTestCase {
 
   func testSearchExplicitEnv() async throws {
     try await withTestScratchDir { tempDir in
-      let binPath = tempDir.appendingPathComponent("bin", isDirectory: true)
+      let binPath = tempDir.appending(component: "bin", directoryHint: .isDirectory)
       try makeToolchain(binPath: binPath, sourcekitd: true)
 
       try ProcessEnv.setVar("TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2", value: binPath.deletingLastPathComponent().filePath)
@@ -439,9 +430,9 @@ final class ToolchainRegistryTests: XCTestCase {
 
   func testFromDirectory() async throws {
     try await withTestScratchDir { tempDir in
-      let path = tempDir.appendingPathComponent("A.xctoolchain").appendingPathComponent("usr")
+      let path = tempDir.appending(components: "A.xctoolchain", "usr")
       try makeToolchain(
-        binPath: path.appendingPathComponent("bin"),
+        binPath: path.appending(component: "bin"),
         clang: true,
         clangd: true,
         swiftc: true,
@@ -449,7 +440,7 @@ final class ToolchainRegistryTests: XCTestCase {
         sourcekitd: true
       )
 
-      try Data().write(to: path.appendingPathComponent("bin").appendingPathComponent("other"))
+      try Data().write(to: path.appending(components: "bin", "other"))
 
       let t1 = try XCTUnwrap(Toolchain(path.deletingLastPathComponent()))
       XCTAssertNotNil(t1.sourcekitd)
@@ -470,10 +461,10 @@ final class ToolchainRegistryTests: XCTestCase {
         XCTAssertEqual(chmod(try path.filePath, S_IRUSR | S_IXUSR), 0)
       }
 
-      try chmodRX(path.appendingPathComponent("bin").appendingPathComponent("clang"))
-      try chmodRX(path.appendingPathComponent("bin").appendingPathComponent("clangd"))
-      try chmodRX(path.appendingPathComponent("bin").appendingPathComponent("swiftc"))
-      try chmodRX(path.appendingPathComponent("bin").appendingPathComponent("other"))
+      try chmodRX(path.appending(components: "bin", "clang"))
+      try chmodRX(path.appending(components: "bin", "clangd"))
+      try chmodRX(path.appending(components: "bin", "swiftc"))
+      try chmodRX(path.appending(components: "bin", "other"))
       #endif
 
       let t2 = try XCTUnwrap(Toolchain(path.deletingLastPathComponent()))
@@ -493,7 +484,7 @@ final class ToolchainRegistryTests: XCTestCase {
 
   func testDylibNames() async throws {
     try await withTestScratchDir { tempDir in
-      let binPath = tempDir.appendingPathComponent("bin", isDirectory: true)
+      let binPath = tempDir.appending(component: "bin", directoryHint: .isDirectory)
       try makeToolchain(binPath: binPath, sourcekitdInProc: true, libIndexStore: true)
       guard let t = Toolchain(binPath) else {
         XCTFail("could not find any tools")
@@ -506,30 +497,28 @@ final class ToolchainRegistryTests: XCTestCase {
 
   func testSubDirs() async throws {
     try await withTestScratchDir { tempDir in
-      try makeToolchain(binPath: tempDir.appendingPathComponent("t1").appendingPathComponent("bin"), sourcekitd: true)
+      try makeToolchain(binPath: tempDir.appending(components: "t1", "bin"), sourcekitd: true)
       try makeToolchain(
-        binPath: tempDir.appendingPathComponent("t2").appendingPathComponent("usr").appendingPathComponent("bin"),
+        binPath: tempDir.appending(components: "t2", "usr", "bin"),
         sourcekitd: true
       )
 
-      XCTAssertNotNil(Toolchain(tempDir.appendingPathComponent("t1")))
-      XCTAssertNotNil(Toolchain(tempDir.appendingPathComponent("t1").appendingPathComponent("bin")))
-      XCTAssertNotNil(Toolchain(tempDir.appendingPathComponent("t2")))
+      XCTAssertNotNil(Toolchain(tempDir.appending(component: "t1")))
+      XCTAssertNotNil(Toolchain(tempDir.appending(components: "t1", "bin")))
+      XCTAssertNotNil(Toolchain(tempDir.appending(component: "t2")))
 
-      XCTAssertNil(Toolchain(tempDir.appendingPathComponent("t3")))
+      XCTAssertNil(Toolchain(tempDir.appending(component: "t3")))
       try FileManager.default.createDirectory(
-        at: tempDir.appendingPathComponent("t3").appendingPathComponent("bin"),
+        at: tempDir.appending(components: "t3", "bin"),
         withIntermediateDirectories: true
       )
       try FileManager.default.createDirectory(
-        at: tempDir.appendingPathComponent("t3").appendingPathComponent("lib").appendingPathComponent(
-          "sourcekitd.framework"
-        ),
+        at: tempDir.appending(components: "t3", "lib", "sourcekitd.framework"),
         withIntermediateDirectories: true
       )
-      XCTAssertNil(Toolchain(tempDir.appendingPathComponent("t3")))
-      try makeToolchain(binPath: tempDir.appendingPathComponent("t3").appendingPathComponent("bin"), sourcekitd: true)
-      XCTAssertNotNil(Toolchain(tempDir.appendingPathComponent("t3")))
+      XCTAssertNil(Toolchain(tempDir.appending(component: "t3")))
+      try makeToolchain(binPath: tempDir.appending(components: "t3", "bin"), sourcekitd: true)
+      XCTAssertNotNil(Toolchain(tempDir.appending(component: "t3")))
     }
   }
 
@@ -576,7 +565,7 @@ final class ToolchainRegistryTests: XCTestCase {
 
   func testInstallPath() async throws {
     try await withTestScratchDir { tempDir in
-      let binPath = tempDir.appendingPathComponent("t1").appendingPathComponent("bin", isDirectory: true)
+      let binPath = tempDir.appending(components: "t1", "bin", directoryHint: .isDirectory)
       try makeToolchain(binPath: binPath, sourcekitd: true)
 
       let trEmpty = ToolchainRegistry(
@@ -601,7 +590,7 @@ final class ToolchainRegistryTests: XCTestCase {
       await assertNotNil(tr1.default?.sourcekitd)
 
       let tr2 = ToolchainRegistry(
-        installPath: tempDir.appendingPathComponent("t2").appendingPathComponent("bin", isDirectory: true),
+        installPath: tempDir.appending(components: "t2", "bin", directoryHint: .isDirectory),
         environmentVariables: [],
         xcodes: [],
         libraryDirectories: [],
@@ -614,8 +603,8 @@ final class ToolchainRegistryTests: XCTestCase {
 
   func testInstallPathVsEnv() async throws {
     try await withTestScratchDir { tempDir in
-      let t1Bin = tempDir.appendingPathComponent("t1").appendingPathComponent("bin", isDirectory: true)
-      let t2Bin = tempDir.appendingPathComponent("t2").appendingPathComponent("bin", isDirectory: true)
+      let t1Bin = tempDir.appending(components: "t1", "bin", directoryHint: .isDirectory)
+      let t2Bin = tempDir.appending(components: "t2", "bin", directoryHint: .isDirectory)
       try makeToolchain(binPath: t1Bin, sourcekitd: true)
       try makeToolchain(binPath: t2Bin, sourcekitd: true)
 
@@ -638,22 +627,21 @@ final class ToolchainRegistryTests: XCTestCase {
 
   func testSupersetToolchains() async throws {
     try await withTestScratchDir { tempDir in
-      let usrLocal = tempDir.appendingPathComponent("usr").appendingPathComponent("local")
-      let usr = tempDir.appendingPathComponent("usr")
+      let usrLocal = tempDir.appending(components: "usr", "local")
+      let usr = tempDir.appending(component: "usr")
 
       let onlySwiftcToolchain = Toolchain(
         identifier: "onlySwiftc",
         displayName: "onlySwiftc",
         path: usrLocal,
-        swiftc: usrLocal.appendingPathComponent("bin").appendingPathComponent("swiftc")
+        swiftc: usrLocal.appending(components: "bin", "swiftc")
       )
       let swiftcAndSourcekitdToolchain = Toolchain(
         identifier: "swiftcAndSourcekitd",
         displayName: "swiftcAndSourcekitd",
         path: usr,
-        swiftc: usr.appendingPathComponent("bin").appendingPathComponent("swiftc"),
-        sourcekitd: usrLocal.appendingPathComponent("lib").appendingPathComponent("sourcekitd.framework")
-          .appendingPathComponent("sourcekitd")
+        swiftc: usr.appending(components: "bin", "swiftc"),
+        sourcekitd: usrLocal.appending(components: "lib", "sourcekitd.framework", "sourcekitd")
       )
 
       let tr = ToolchainRegistry(toolchains: [onlySwiftcToolchain, swiftcAndSourcekitdToolchain])
@@ -675,14 +663,14 @@ private func makeXCToolchain(
   libIndexStore: Bool = false
 ) throws {
   try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
-  let infoPlistPath = path.appendingPathComponent(opensource ? "Info.plist" : "ToolchainInfo.plist")
+  let infoPlistPath = path.appending(component: opensource ? "Info.plist" : "ToolchainInfo.plist")
   let infoPlist = try PropertyListEncoder().encode(
     XCToolchainPlist(identifier: identifier, displayName: "name-\(identifier)")
   )
   try infoPlist.write(to: infoPlistPath)
 
   try makeToolchain(
-    binPath: path.appendingPathComponent("usr").appendingPathComponent("bin"),
+    binPath: path.appending(components: "usr", "bin"),
     clang: clang,
     clangd: clangd,
     swiftc: swiftc,
@@ -716,7 +704,7 @@ private func makeToolchain(
     0x02,
   ]
 
-  let libPath = binPath.deletingLastPathComponent().appendingPathComponent("lib")
+  let libPath = binPath.deletingLastPathComponent().appending(component: "lib")
   try FileManager.default.createDirectory(at: binPath, withIntermediateDirectories: true)
   try FileManager.default.createDirectory(at: libPath, withIntermediateDirectories: true)
 
@@ -732,37 +720,37 @@ private func makeToolchain(
   let execExt = Platform.current?.executableExtension ?? ""
 
   if clang {
-    try makeExec(binPath.appendingPathComponent("clang\(execExt)"))
+    try makeExec(binPath.appending(component: "clang\(execExt)"))
   }
   if clangd {
-    try makeExec(binPath.appendingPathComponent("clangd\(execExt)"))
+    try makeExec(binPath.appending(component: "clangd\(execExt)"))
   }
   if swiftc {
-    try makeExec(binPath.appendingPathComponent("swiftc\(execExt)"))
+    try makeExec(binPath.appending(component: "swiftc\(execExt)"))
   }
 
   let dylibSuffix = Platform.current?.dynamicLibraryExtension ?? ".so"
 
   if sourcekitd {
     try FileManager.default.createDirectory(
-      at: libPath.appendingPathComponent("sourcekitd.framework"),
+      at: libPath.appending(component: "sourcekitd.framework"),
       withIntermediateDirectories: true
     )
-    try Data().write(to: libPath.appendingPathComponent("sourcekitd.framework").appendingPathComponent("sourcekitd"))
+    try Data().write(to: libPath.appending(components: "sourcekitd.framework", "sourcekitd"))
   }
   if sourcekitdInProc {
     #if os(Windows)
-    try Data().write(to: binPath.appendingPathComponent("sourcekitdInProc\(dylibSuffix)"))
+    try Data().write(to: binPath.appending(component: "sourcekitdInProc\(dylibSuffix)"))
     #else
-    try Data().write(to: libPath.appendingPathComponent("libsourcekitdInProc\(dylibSuffix)"))
+    try Data().write(to: libPath.appending(component: "libsourcekitdInProc\(dylibSuffix)"))
     #endif
   }
   if libIndexStore {
     #if os(Windows)
     // Windows has a prefix of `lib` on this particular library ...
-    try Data().write(to: binPath.appendingPathComponent("libIndexStore\(dylibSuffix)"))
+    try Data().write(to: binPath.appending(component: "libIndexStore\(dylibSuffix)"))
     #else
-    try Data().write(to: libPath.appendingPathComponent("libIndexStore\(dylibSuffix)"))
+    try Data().write(to: libPath.appending(component: "libIndexStore\(dylibSuffix)"))
     #endif
   }
 }

@@ -77,8 +77,8 @@ final class WorkspaceTests: XCTestCase {
       ],
       workspaces: { scratchDir in
         return [
-          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageA"))),
-          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageB"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "PackageA"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "PackageB"))),
         ]
       },
       enableBackgroundIndexing: true
@@ -174,14 +174,14 @@ final class WorkspaceTests: XCTestCase {
       workspaces: { scratchDir in
         return [
           WorkspaceFolder(uri: DocumentURI(scratchDir)),
-          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageA"))),
-          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageB"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "PackageA"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "PackageB"))),
         ]
       }
     )
 
     let bPackageManifestUri = DocumentURI(
-      project.scratchDirectory.appendingPathComponent("PackageB").appendingPathComponent("Package.swift")
+      project.scratchDirectory.appending(components: "PackageB", "Package.swift")
     )
 
     project.testClient.openDocument(SwiftPMTestProject.defaultPackageManifest, uri: bPackageManifestUri)
@@ -207,32 +207,30 @@ final class WorkspaceTests: XCTestCase {
       workspaces: { scratchDir in
         return [
           WorkspaceFolder(uri: DocumentURI(scratchDir)),
-          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageA"))),
-          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageB"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "PackageA"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "PackageB"))),
         ]
       }
     )
 
     let pkgA = DocumentURI(
       project.scratchDirectory
-        .appendingPathComponent("PackageA")
-        .appendingPathComponent("Package.swift")
+        .appending(components: "PackageA", "Package.swift")
     )
 
     let pkgB = DocumentURI(
       project.scratchDirectory
-        .appendingPathComponent("PackageB")
-        .appendingPathComponent("Package.swift")
+        .appending(components: "PackageB", "Package.swift")
     )
 
     assertEqual(
       await project.testClient.server.workspaceForDocument(uri: pkgA)?.rootUri,
-      DocumentURI(project.scratchDirectory.appendingPathComponent("PackageA"))
+      DocumentURI(project.scratchDirectory.appending(component: "PackageA"))
     )
 
     assertEqual(
       await project.testClient.server.workspaceForDocument(uri: pkgB)?.rootUri,
-      DocumentURI(project.scratchDirectory.appendingPathComponent("PackageB"))
+      DocumentURI(project.scratchDirectory.appending(component: "PackageB"))
     )
   }
 
@@ -467,8 +465,8 @@ final class WorkspaceTests: XCTestCase {
       ],
       workspaces: { scratchDir in
         return [
-          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("WorkspaceA"))),
-          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("WorkspaceB"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "WorkspaceA"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "WorkspaceB"))),
         ]
       },
       usePullDiagnostics: false
@@ -516,8 +514,8 @@ final class WorkspaceTests: XCTestCase {
       ],
       workspaces: { scratchDir in
         return [
-          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageA"))),
-          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageB"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "PackageA", directoryHint: .isDirectory))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "PackageB", directoryHint: .isDirectory))),
         ]
       }
     )
@@ -528,7 +526,7 @@ final class WorkspaceTests: XCTestCase {
     // yet) will belong to PackageA by default (because it provides fallback build settings for it).
     assertEqual(
       await project.testClient.server.workspaceForDocument(uri: mainUri)?.rootUri,
-      DocumentURI(project.scratchDirectory.appendingPathComponent("PackageA"))
+      DocumentURI(project.scratchDirectory.appending(component: "PackageA", directoryHint: .isDirectory))
     )
 
     // Add the MyExec target to PackageB/Package.swift
@@ -547,8 +545,7 @@ final class WorkspaceTests: XCTestCase {
       """
 
     let packageBManifestPath = project.scratchDirectory
-      .appendingPathComponent("PackageB")
-      .appendingPathComponent("Package.swift")
+      .appending(components: "PackageB", "Package.swift")
 
     try await newPackageManifest.writeWithRetry(to: packageBManifestPath)
     project.testClient.send(
@@ -563,7 +560,9 @@ final class WorkspaceTests: XCTestCase {
     // thus workspace membership should switch to PackageB.
 
     // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
-    let packageBRootUri = DocumentURI(project.scratchDirectory.appendingPathComponent("PackageB"))
+    let packageBRootUri = DocumentURI(
+      project.scratchDirectory.appending(component: "PackageB", directoryHint: .isDirectory)
+    )
     try await repeatUntilExpectedResult {
       await project.testClient.server.workspaceForDocument(uri: mainUri)?.rootUri == packageBRootUri
     }
@@ -668,7 +667,7 @@ final class WorkspaceTests: XCTestCase {
       ],
       workspaces: { scratchDir in
         return [
-          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("fake")))
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "fake")))
         ]
       }
     )
@@ -1304,7 +1303,7 @@ final class WorkspaceTests: XCTestCase {
 
     // Explicitly create a directory at /tmp (which is a standardized path but whose realpath is /private/tmp)
     let scratchDirectory = URL(fileURLWithPath: "/tmp")
-      .appendingPathComponent(testScratchName())
+      .appending(component: testScratchName())
     try FileManager.default.createDirectory(at: scratchDirectory, withIntermediateDirectories: true)
 
     defer {
@@ -1343,8 +1342,8 @@ final class WorkspaceTests: XCTestCase {
     let clangOutput = try await withTimeout(defaultTimeoutDuration) {
       try await Process.checkNonZeroExit(
         arguments: [
-          clang.filePath, "-index-store-path", scratchDirectory.appendingPathComponent("index").filePath,
-          scratchDirectory.appendingPathComponent("test.c").filePath,
+          clang.filePath, "-index-store-path", scratchDirectory.appending(component: "index").filePath,
+          scratchDirectory.appending(component: "test.c").filePath,
           "-fsyntax-only",
         ]
       )
@@ -1361,7 +1360,7 @@ final class WorkspaceTests: XCTestCase {
     // path as `/private/tmp` while the build server only knows about it as `/tmp`.
     let options = try await testClient.send(
       SourceKitOptionsRequest(
-        textDocument: TextDocumentIdentifier(scratchDirectory.appendingPathComponent("test.h")),
+        textDocument: TextDocumentIdentifier(scratchDirectory.appending(component: "test.h")),
         prepareTarget: false,
         allowFallbackSettings: false
       )

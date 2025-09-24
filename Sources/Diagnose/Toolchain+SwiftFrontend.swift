@@ -20,6 +20,6 @@ extension Toolchain {
   ///
   /// - Note: Not discovered as part of the toolchain because `swift-frontend` is only needed in the diagnose commands.
   package var swiftFrontend: URL? {
-    return swift?.deletingLastPathComponent().appendingPathComponent("swift-frontend")
+    return swift?.deletingLastPathComponent().appending(component: "swift-frontend")
   }
 }

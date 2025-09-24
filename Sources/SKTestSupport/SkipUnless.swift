@@ -217,9 +217,9 @@ package actor SkipUnless {
   ) async throws {
     return try await shared.skipUnlessSupported(allowSkippingInCI: true, file: file, line: line) {
       let swiftFrontend = try await unwrap(ToolchainRegistry.forTesting.default?.swift).deletingLastPathComponent()
-        .appendingPathComponent("swift-frontend")
+        .appending(component: "swift-frontend")
       return try await withTestScratchDir { scratchDirectory in
-        let input = scratchDirectory.appendingPathComponent("Input.swift")
+        let input = scratchDirectory.appending(component: "Input.swift")
         try FileManager.default.createFile(at: input, contents: nil)
         // If we can't compile for wasm, this fails complaining that it can't find the stdlib for wasm.
         let result = try await withTimeout(defaultTimeoutDuration) {

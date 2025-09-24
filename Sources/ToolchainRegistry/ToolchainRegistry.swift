@@ -191,15 +191,13 @@ package final actor ToolchainRegistry {
     var toolchainSearchPaths =
       xcodes.map {
         if $0.pathExtension == "app" {
-          return $0.appendingPathComponent("Contents").appendingPathComponent("Developer").appendingPathComponent(
-            "Toolchains"
-          )
+          return $0.appending(components: "Contents", "Developer", "Toolchains")
         } else {
-          return $0.appendingPathComponent("Toolchains")
+          return $0.appending(component: "Toolchains")
         }
       }
     toolchainSearchPaths += libraryDirectories.compactMap {
-      $0.appendingPathComponent("Developer").appendingPathComponent("Toolchains")
+      $0.appending(components: "Developer", "Toolchains")
     }
 
     for xctoolchainSearchPath in toolchainSearchPaths {
