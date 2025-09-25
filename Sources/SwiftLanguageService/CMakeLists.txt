@@ -60,9 +60,11 @@ target_link_libraries(SwiftLanguageService PUBLIC
   SourceKitLSP
   ToolchainRegistry
   IndexStoreDB
-  SwiftMarkdown::Markdown
   SwiftSyntax::SwiftBasicFormat
   SwiftSyntax::SwiftSyntax
+  SwiftMarkdown::Markdown
+  libcmark-gfm
+  libcmark-gfm-extensions
 )
 
 target_link_libraries(SwiftLanguageService PRIVATE

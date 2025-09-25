@@ -33,6 +33,7 @@ find_package(SwiftASN1 CONFIG REQUIRED)
 find_package(SwiftCrypto CONFIG REQUIRED)
 find_package(SwiftToolsProtocols CONFIG REQUIRED)
 find_package(SwiftMarkdown CONFIG REQUIRED)
+find_package(cmark-gfm CONFIG REQUIRED)
 
 include(SwiftSupport)
 
