@@ -966,6 +966,7 @@ extension SourceKitLSPServer {
         PeekDocumentsRequest.method,
         GetReferenceDocumentRequest.method,
         DidChangeActiveDocumentNotification.method,
+        ShowFocusedDiagnosticsRequest.method,
       ]
       for capabilityName in experimentalClientCapabilities {
         guard let experimentalCapability = initializationOptions[capabilityName] else {
