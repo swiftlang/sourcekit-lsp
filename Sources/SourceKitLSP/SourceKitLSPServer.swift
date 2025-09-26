@@ -912,13 +912,7 @@ extension SourceKitLSPServer {
       logger.log("Cannot open workspace before server is initialized")
       throw NoCapabilityRegistryError()
     }
-    let options = SourceKitLSPOptions.merging(
-      base: self.options,
-      override: SourceKitLSPOptions(
-        path: workspaceFolder.fileURL?
-          .appending(components: ".sourcekit-lsp", "config.json")
-      )
-    )
+
     logger.log("Creating workspace at \(workspaceFolder.forLogging)")
     logger.logFullObjectInMultipleLogMessages(header: "Workspace options", options.loggingProxy)
 
