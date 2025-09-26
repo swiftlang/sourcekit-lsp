@@ -1434,6 +1434,9 @@ final class SwiftCompletionTests: XCTestCase {
       )
     )
 
+    // Synchronize to make sure that the edit to Second.swift has been processed since opening First.swift and the
+    // completion request do not have any dependencies on the edit of Second.swift.
+    try await project.testClient.send(SynchronizeRequest())
     let (firstUri, firstPositions) = try project.openDocument("First.swift")
     let completions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(firstUri), position: firstPositions["1️⃣"])
