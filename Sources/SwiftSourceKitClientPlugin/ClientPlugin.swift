@@ -28,8 +28,20 @@ public func sourcekitd_plugin_initialize_2(
   _ params: sourcekitd_api_plugin_initialize_params_t,
   _ sourcekitdPath: UnsafePointer<CChar>
 ) {
+  let pluginPath = URL(fileURLWithPath: String(cString: sourcekitdPath))
+
+  if SourceKitD.isPluginLoaded {
+    // When `DYLD_(FRAMEWORK|LIBRARY)_PATH` is set, `dlopen` will first check if the basename of the provided path is
+    // within any of its search paths. Thus it's possible that only a single library is loaded for each toolchain,
+    // rather than a separate like we expect. The paths should be equal in this case, since the client plugin is loaded
+    // based on the path of `sourcekitd.framework` (and we should only have one for the same reason). Allow this case
+    // and just avoid re-initializing.
+    precondition(SourceKitD.forPlugin.path == pluginPath)
+    return
+  }
+
   SourceKitD.forPlugin = try! SourceKitD(
-    dylib: URL(fileURLWithPath: String(cString: sourcekitdPath)),
+    dylib: pluginPath,
     pluginPaths: nil,
     initialize: false
   )
