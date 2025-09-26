@@ -17,6 +17,11 @@ import SwiftExtensions
 
 extension SourceKitD {
   private static nonisolated(unsafe) var _forPlugin: SourceKitD?
+
+  package static var isPluginLoaded: Bool {
+    return _forPlugin != nil
+  }
+
   package static var forPlugin: SourceKitD {
     get {
       guard let _forPlugin else {
