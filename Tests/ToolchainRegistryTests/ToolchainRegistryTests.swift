@@ -325,8 +325,12 @@ final class ToolchainRegistryTests: XCTestCase {
 
   func testSearchPATH() async throws {
     try await withTestScratchDir { tempDir in
-      let binPath = tempDir.appendingPathComponent("bin", isDirectory: true)
-      try makeToolchain(binPath: binPath, sourcekitd: true)
+      let binPath = tempDir.appending(component: "bin", directoryHint: .isDirectory)
+      try makeToolchain(binPath: binPath, clang: true, sourcekitd: true)
+
+      let compilerPath = binPath.appending(component: "clang" + (Platform.current?.executableExtension ?? ""))
+      let linkPath = tempDir.appending(component: "link")
+      try FileManager.default.createSymbolicLink(at: linkPath, withDestinationURL: compilerPath)
 
       #if os(Windows)
       let separator: String = ";"
@@ -336,7 +340,12 @@ final class ToolchainRegistryTests: XCTestCase {
 
       try ProcessEnv.setVar(
         "SOURCEKIT_PATH_FOR_TEST",
-        value: ["/bogus", binPath.filePath, "/bogus2"].joined(separator: separator)
+        value: [
+          "/bogus/../parent",
+          "/bogus",
+          binPath.appending(components: "..", "bin", directoryHint: .isDirectory).filePath,
+          "/bogus2",
+        ].joined(separator: separator)
       )
       defer { try! ProcessEnv.setVar("SOURCEKIT_PATH_FOR_TEST", value: "") }
 
@@ -349,15 +358,21 @@ final class ToolchainRegistryTests: XCTestCase {
         darwinToolchainOverride: nil
       )
 
-      let tc = try unwrap(await tr.toolchains.first(where: { $0.path == binPath }))
+      let pathTC = try unwrap(await tr.toolchain(withPath: binPath))
 
-      await assertEqual(tr.default?.identifier, tc.identifier)
-      XCTAssertEqual(tc.identifier, try binPath.filePath)
-      XCTAssertNil(tc.clang)
-      XCTAssertNil(tc.clangd)
-      XCTAssertNil(tc.swiftc)
-      XCTAssertNotNil(tc.sourcekitd)
-      XCTAssertNil(tc.libIndexStore)
+      await assertEqual(tr.default?.identifier, pathTC.identifier)
+      XCTAssertEqual(pathTC.identifier, try binPath.filePath)
+      XCTAssertNotNil(pathTC.clang)
+      XCTAssertNil(pathTC.clangd)
+      XCTAssertNil(pathTC.swiftc)
+      XCTAssertNotNil(pathTC.sourcekitd)
+      XCTAssertNil(pathTC.libIndexStore)
+
+      let compilerTC = try unwrap(await tr.toolchain(withCompiler: compilerPath))
+      XCTAssertEqual(compilerTC.identifier, try binPath.filePath)
+
+      let linkTC = await tr.toolchain(withCompiler: linkPath)
+      XCTAssertNil(linkTC)
     }
   }
 

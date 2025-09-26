@@ -60,13 +60,13 @@ package final actor ToolchainRegistry {
   private let toolchainsByIdentifier: [String: [Toolchain]]
 
   /// The toolchains indexed by their path.
-  private let toolchainsByPath: [URL: Toolchain]
+  private var toolchainsByPath: [URL: Toolchain]
 
   /// Map from compiler paths (`clang`, `swift`, `swiftc`) mapping to the toolchain that contained them.
   ///
   /// This allows us to find the toolchain that should be used for semantic functionality based on which compiler it is
   /// built with in the `compile_commands.json`.
-  private let toolchainsByCompiler: [URL: Toolchain]
+  private var toolchainsByCompiler: [URL: Toolchain]
 
   /// The currently selected toolchain identifier on Darwin.
   package let darwinToolchainOverride: String?
@@ -96,17 +96,18 @@ package final actor ToolchainRegistry {
     var toolchainsByPath: [URL: Toolchain] = [:]
     var toolchainsByCompiler: [URL: Toolchain] = [:]
     for (toolchain, reason) in toolchainsAndReasonsParam {
+      // Toolchain should always be unique by path. It isn't particularly useful to log if we already have a toolchain
+      // though, as we could have just found toolchains through symlinks (this is actually quite normal - eg. OSS
+      // toolchains add a `swift-latest.xctoolchain` symlink on macOS).
+      if toolchainsByPath[toolchain.path] != nil {
+        continue
+      }
+
       // Non-XcodeDefault toolchain: disallow all duplicates.
       if toolchainsByIdentifier[toolchain.identifier] != nil,
         toolchain.identifier != ToolchainRegistry.darwinDefaultToolchainIdentifier
       {
         logger.error("Found two toolchains with the same identifier: \(toolchain.identifier)")
-        continue
-      }
-
-      // Toolchain should always be unique by path.
-      if toolchainsByPath[toolchain.path] != nil {
-        logger.fault("Found two toolchains with the same path: \(toolchain.path)")
         continue
       }
 
@@ -218,9 +219,14 @@ package final actor ToolchainRegistry {
       }
     }
 
-    let toolchainsAndReasons = toolchainPaths.compactMap {
-      if let toolchain = Toolchain($0.path) {
-        return (toolchain, $0.reason)
+    let toolchainsAndReasons = toolchainPaths.compactMap { toolchainAndReason in
+      let resolvedPath = orLog("Toolchain realpath") {
+        try toolchainAndReason.path.realpath
+      }
+      if let resolvedPath,
+        let toolchain = Toolchain(resolvedPath)
+      {
+        return (toolchain, toolchainAndReason.reason)
       }
       return nil
     }
@@ -285,7 +291,43 @@ package final actor ToolchainRegistry {
   /// If we have a toolchain in the toolchain registry that contains the compiler with the given URL, return it.
   /// Otherwise, return `nil`.
   package func toolchain(withCompiler compiler: URL) -> Toolchain? {
-    return toolchainsByCompiler[compiler]
+    if let toolchain = toolchainsByCompiler[compiler] {
+      return toolchain
+    }
+
+    // Only canonicalize the folder path, as we don't want to resolve symlinks to eg. `swift-driver`.
+    let resolvedPath = orLog("Compiler realpath") {
+      try compiler.deletingLastPathComponent().realpath
+    }?.appending(component: compiler.lastPathComponent)
+    guard let resolvedPath,
+      let toolchain = toolchainsByCompiler[resolvedPath]
+    else {
+      return nil
+    }
+
+    // Cache mapping of non-realpath to the realpath toolchain for faster subsequent lookups
+    toolchainsByCompiler[compiler] = toolchain
+    return toolchain
+  }
+
+  /// If we have a toolchain in the toolchain registry with the given URL, return it. Otherwise, return `nil`.
+  package func toolchain(withPath path: URL) -> Toolchain? {
+    if let toolchain = toolchainsByPath[path] {
+      return toolchain
+    }
+
+    let resolvedPath = orLog("Toolchain realpath") {
+      try path.realpath
+    }
+    guard let resolvedPath,
+      let toolchain = toolchainsByPath[resolvedPath]
+    else {
+      return nil
+    }
+
+    // Cache mapping of non-realpath to the realpath toolchain for faster subsequent lookups
+    toolchainsByPath[path] = toolchain
+    return toolchain
   }
 }
 
@@ -293,10 +335,6 @@ package final actor ToolchainRegistry {
 extension ToolchainRegistry {
   package func toolchains(withIdentifier identifier: String) -> [Toolchain] {
     return toolchainsByIdentifier[identifier] ?? []
-  }
-
-  package func toolchain(withPath path: URL) -> Toolchain? {
-    return toolchainsByPath[path]
   }
 }
 
