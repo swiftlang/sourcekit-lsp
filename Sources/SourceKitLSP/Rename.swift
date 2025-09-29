@@ -290,7 +290,7 @@ extension SourceKitLSPServer {
     // location. This way we are still able to rename occurrences in files where eg. only one line has been modified but
     // all the line:column locations of occurrences are still up-to-date.
     // This should match the check level in prepareRename.
-    guard let usr = renameResult.usr, let index = workspace.index(checkedFor: .deletedFiles) else {
+    guard let usr = renameResult.usr, let index = await workspace.index(checkedFor: .deletedFiles) else {
       // We don't have enough information to perform a cross-file rename.
       return renameResult.edits
     }
@@ -442,7 +442,7 @@ extension SourceKitLSPServer {
     var prepareRenameResult = languageServicePrepareRename.prepareRename
 
     guard
-      let index = workspace.index(checkedFor: .deletedFiles),
+      let index = await workspace.index(checkedFor: .deletedFiles),
       let usr = languageServicePrepareRename.usr,
       let oldName = try await self.getCrossLanguageName(forUsr: usr, workspace: workspace, index: index),
       var definitionName = oldName.definitionName

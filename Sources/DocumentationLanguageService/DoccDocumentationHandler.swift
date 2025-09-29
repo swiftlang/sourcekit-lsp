@@ -101,7 +101,7 @@ extension DocumentationLanguageService {
     }
     guard let moduleName, symbolName == moduleName else {
       // This is a symbol extension page. Find the symbol so that we can include it in the request.
-      guard let index = workspace.index(checkedFor: .deletedFiles) else {
+      guard let index = await workspace.index(checkedFor: .deletedFiles) else {
         throw ResponseError.requestFailed(doccDocumentationError: .indexNotAvailable)
       }
       return try await sourceKitLSPServer.withOnDiskDocumentManager { onDiskDocumentManager in
@@ -206,7 +206,7 @@ extension DocumentationLanguageService {
       return nil
     }
     let catalogIndex = try await documentationManager.catalogIndex(for: catalogURL)
-    guard let index = workspace.index(checkedFor: .deletedFiles) else {
+    guard let index = await workspace.index(checkedFor: .deletedFiles) else {
       return nil
     }
     let symbolInformation = try await index.doccSymbolInformation(

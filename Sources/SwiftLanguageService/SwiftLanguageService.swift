@@ -138,7 +138,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   let syntaxTreeManager = SyntaxTreeManager()
 
   /// The `semanticIndexManager` of the workspace this language service was created for.
-  private let semanticIndexManager: SemanticIndexManager?
+  private let semanticIndexManagerTask: Task<SemanticIndexManager?, Never>
 
   nonisolated var keys: sourcekitd_api_keys { return sourcekitd.keys }
   nonisolated var requests: sourcekitd_api_requests { return sourcekitd.requests }
@@ -228,7 +228,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     }
     self.sourcekitd = try await SourceKitD.getOrCreate(dylibPath: sourcekitd, pluginPaths: pluginPaths)
     self.capabilityRegistry = workspace.capabilityRegistry
-    self.semanticIndexManager = workspace.semanticIndexManager
+    self.semanticIndexManagerTask = workspace.semanticIndexManagerTask
     self.hooks = hooks
     self.state = .connected
     self.options = options
@@ -1084,7 +1084,7 @@ extension SwiftLanguageService {
       case .macroExpansion, nil: break
       }
 
-      await semanticIndexManager?.prepareFileForEditorFunctionality(
+      await semanticIndexManagerTask.value?.prepareFileForEditorFunctionality(
         req.textDocument.uri.buildSettingsFile
       )
       let snapshot = try await self.latestSnapshot(for: req.textDocument.uri)

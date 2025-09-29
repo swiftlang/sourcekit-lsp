@@ -83,7 +83,7 @@ actor IndexProgressManager {
       return
     }
     var status = IndexProgressStatus.upToDate
-    for indexManager in await sourceKitLSPServer.workspaces.compactMap({ $0.semanticIndexManager }) {
+    for indexManager in await sourceKitLSPServer.workspaces.asyncCompactMap({ await $0.semanticIndexManager }) {
       status = status.merging(with: await indexManager.progressStatus)
     }
 

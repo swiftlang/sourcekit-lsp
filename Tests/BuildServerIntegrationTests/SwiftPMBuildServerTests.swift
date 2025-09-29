@@ -153,7 +153,8 @@ struct SwiftPMBuildServerTests {
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
-        buildServerHooks: BuildServerHooks()
+        buildServerHooks: BuildServerHooks(),
+        createMainFilesProvider: { _, _ in nil }
       )
       await buildServerManager.waitForUpToDateBuildGraph()
 
@@ -219,7 +220,8 @@ struct SwiftPMBuildServerTests {
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
-        buildServerHooks: BuildServerHooks()
+        buildServerHooks: BuildServerHooks(),
+        createMainFilesProvider: { _, _ in nil }
       )
       await buildServerManager.waitForUpToDateBuildGraph()
 
@@ -290,7 +292,8 @@ struct SwiftPMBuildServerTests {
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(swiftPM: options),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
-        buildServerHooks: BuildServerHooks()
+        buildServerHooks: BuildServerHooks(),
+        createMainFilesProvider: { _, _ in nil }
       )
       await buildServerManager.waitForUpToDateBuildGraph()
 
@@ -335,7 +338,8 @@ struct SwiftPMBuildServerTests {
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
-        buildServerHooks: BuildServerHooks()
+        buildServerHooks: BuildServerHooks(),
+        createMainFilesProvider: { _, _ in nil }
       )
       await buildServerManager.waitForUpToDateBuildGraph()
 
@@ -376,7 +380,8 @@ struct SwiftPMBuildServerTests {
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
-        buildServerHooks: BuildServerHooks()
+        buildServerHooks: BuildServerHooks(),
+        createMainFilesProvider: { _, _ in nil }
       )
       await buildServerManager.waitForUpToDateBuildGraph()
 
@@ -438,7 +443,8 @@ struct SwiftPMBuildServerTests {
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
-        buildServerHooks: BuildServerHooks()
+        buildServerHooks: BuildServerHooks(),
+        createMainFilesProvider: { _, _ in nil }
       )
       await buildServerManager.waitForUpToDateBuildGraph()
 
@@ -510,7 +516,8 @@ struct SwiftPMBuildServerTests {
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
-        buildServerHooks: BuildServerHooks()
+        buildServerHooks: BuildServerHooks(),
+        createMainFilesProvider: { _, _ in nil }
       )
       await buildServerManager.waitForUpToDateBuildGraph()
 
@@ -570,7 +577,8 @@ struct SwiftPMBuildServerTests {
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
-        buildServerHooks: BuildServerHooks()
+        buildServerHooks: BuildServerHooks(),
+        createMainFilesProvider: { _, _ in nil }
       )
       await buildServerManager.waitForUpToDateBuildGraph()
 
@@ -654,7 +662,8 @@ struct SwiftPMBuildServerTests {
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
-        buildServerHooks: BuildServerHooks()
+        buildServerHooks: BuildServerHooks(),
+        createMainFilesProvider: { _, _ in nil }
       )
       await buildServerManager.waitForUpToDateBuildGraph()
 
@@ -714,7 +723,8 @@ struct SwiftPMBuildServerTests {
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
-        buildServerHooks: BuildServerHooks()
+        buildServerHooks: BuildServerHooks(),
+        createMainFilesProvider: { _, _ in nil }
       )
       await buildServerManager.waitForUpToDateBuildGraph()
 
@@ -799,7 +809,8 @@ struct SwiftPMBuildServerTests {
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
-        buildServerHooks: BuildServerHooks()
+        buildServerHooks: BuildServerHooks(),
+        createMainFilesProvider: { _, _ in nil }
       )
       await buildServerManager.waitForUpToDateBuildGraph()
 
@@ -842,7 +853,8 @@ struct SwiftPMBuildServerTests {
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
-        buildServerHooks: BuildServerHooks()
+        buildServerHooks: BuildServerHooks(),
+        createMainFilesProvider: { _, _ in nil }
       )
       await buildServerManager.waitForUpToDateBuildGraph()
 
@@ -920,7 +932,8 @@ struct SwiftPMBuildServerTests {
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
-        buildServerHooks: BuildServerHooks()
+        buildServerHooks: BuildServerHooks(),
+        createMainFilesProvider: { _, _ in nil }
       )
       await buildServerManager.waitForUpToDateBuildGraph()
 
@@ -1047,7 +1060,8 @@ struct SwiftPMBuildServerTests {
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
-        buildServerHooks: BuildServerHooks()
+        buildServerHooks: BuildServerHooks(),
+        createMainFilesProvider: { _, _ in nil }
       )
       await buildServerManager.waitForUpToDateBuildGraph()
       let settings = await buildServerManager.buildSettingsInferredFromMainFile(
@@ -1081,7 +1095,8 @@ struct SwiftPMBuildServerTests {
         toolchainRegistry: .forTesting,
         options: SourceKitLSPOptions(),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
-        buildServerHooks: BuildServerHooks()
+        buildServerHooks: BuildServerHooks(),
+        createMainFilesProvider: { _, _ in nil }
       )
       await buildServerManager.waitForUpToDateBuildGraph()
       let settings = await buildServerManager.buildSettingsInferredFromMainFile(
