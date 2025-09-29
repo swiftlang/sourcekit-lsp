@@ -15,6 +15,7 @@ import InProcessClient
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import LanguageServerProtocolJSONRPC
+import SKLogging
 package import SKOptions
 import SKUtilities
 import SourceKitD
@@ -217,14 +218,21 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   deinit {
     // It's really unfortunate that there are no async deinits. If we had async
     // deinits, we could await the sending of a ShutdownRequest.
-    let sema = WrappedSemaphore(name: "Shutdown")
+    let shutdownSemaphore = WrappedSemaphore(name: "Shutdown")
     server.handle(ShutdownRequest(), id: .number(Int(nextRequestID.fetchAndIncrement()))) { result in
-      sema.signal()
+      shutdownSemaphore.signal()
     }
-    sema.waitOrXCTFail()
+    shutdownSemaphore.waitOrXCTFail()
     self.send(ExitNotification())
 
     cleanUp()
+
+    let flushSemaphore = WrappedSemaphore(name: "Flush log")
+    Task {
+      await NonDarwinLogger.flush()
+      flushSemaphore.signal()
+    }
+    flushSemaphore.waitOrXCTFail()
   }
 
   // MARK: - Sending messages
