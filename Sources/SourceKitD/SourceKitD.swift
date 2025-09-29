@@ -100,7 +100,7 @@ package enum SKDError: Error, Equatable {
 /// `set_notification_handler`, which are global state managed internally by this class.
 package actor SourceKitD {
   /// The path to the sourcekitd dylib.
-  package let path: URL
+  nonisolated package let path: URL
 
   /// The handle to the dylib.
   private let dylib: DLHandle
