@@ -26,8 +26,10 @@ private func searchForCompilationDatabaseConfig(
   options: SourceKitLSPOptions
 ) -> BuildServerSpec? {
   let searchPaths =
-    (options.compilationDatabaseOrDefault.searchPaths ?? []).compactMap {
-      try? RelativePath(validating: $0)
+    (options.compilationDatabaseOrDefault.searchPaths ?? []).compactMap { searchPath in
+      orLog("Compilation DB search path") {
+        try RelativePath(validating: searchPath)
+      }
     } + [
       // These default search paths match the behavior of `clangd`
       try! RelativePath(validating: "."),
