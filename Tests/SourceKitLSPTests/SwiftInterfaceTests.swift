@@ -104,7 +104,7 @@ final class SwiftInterfaceTests: XCTestCase {
       uri: project.fileURI,
       position: project.positions["3️⃣"],
       testClient: project.testClient,
-      swiftInterfaceFile: "_Concurrency.swiftinterface",
+      swiftInterfaceFiles: ["Swift.swiftinterface", "_Concurrency.swiftinterface"],
       linePrefix: "@inlinable public func withTaskGroup"
     )
   }
@@ -388,6 +388,31 @@ private func assertSystemSwiftInterface(
   linePrefix: String,
   line: UInt = #line
 ) async throws {
+  try await assertSystemSwiftInterface(
+    uri: uri,
+    position: position,
+    testClient: testClient,
+    swiftInterfaceFiles: [swiftInterfaceFile],
+    linePrefix: linePrefix,
+    line: line
+  )
+}
+
+#if compiler(>=6.4)
+@available(
+  *,
+  deprecated,
+  message: "temporary workaround for '_Concurrency.swiftinterface' should no longer be necessary"
+)
+#endif
+private func assertSystemSwiftInterface(
+  uri: DocumentURI,
+  position: Position,
+  testClient: TestSourceKitLSPClient,
+  swiftInterfaceFiles: [String],
+  linePrefix: String,
+  line: UInt = #line
+) async throws {
   let definition = try await testClient.send(
     DefinitionRequest(
       textDocument: TextDocumentIdentifier(uri),
@@ -395,10 +420,9 @@ private func assertSystemSwiftInterface(
     )
   )
   let location = try XCTUnwrap(definition?.locations?.only)
-  XCTAssertEqual(
-    location.uri.fileURL?.lastPathComponent,
-    swiftInterfaceFile,
-    "Path was: '\(location.uri.pseudoPath)'",
+  XCTAssert(
+    (location.uri.fileURL?.lastPathComponent).map(swiftInterfaceFiles.contains) ?? false,
+    "Path '\(location.uri.pseudoPath)' did not match any of \(String(reflecting: swiftInterfaceFiles))",
     line: line
   )
   // load contents of swiftinterface
