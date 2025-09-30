@@ -343,7 +343,26 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   }
 
   /// Provider of file to main file mappings.
-  private var mainFilesProvider: MainFilesProvider?
+  ///
+  /// Force-unwrapped optional because initializing it requires access to `self`.
+  private var mainFilesProvider: Task<MainFilesProvider?, Never>! {
+    didSet {
+      // Must only be set once
+      precondition(oldValue == nil)
+      precondition(mainFilesProvider != nil)
+    }
+  }
+
+  package func mainFilesProvider<T: MainFilesProvider>(as: T.Type) async -> T? {
+    guard let mainFilesProvider = mainFilesProvider else {
+      return nil
+    }
+    guard let index = await mainFilesProvider.value as? T else {
+      logger.fault("Expected the main files provider of the build server manager to be an `\(T.self)`")
+      return nil
+    }
+    return index
+  }
 
   /// Build server delegate that will receive notifications about setting changes, etc.
   private weak var delegate: BuildServerManagerDelegate?
@@ -465,7 +484,11 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     connectionToClient: BuildServerManagerConnectionToClient,
-    buildServerHooks: BuildServerHooks
+    buildServerHooks: BuildServerHooks,
+    createMainFilesProvider:
+      @escaping @Sendable (
+        SourceKitInitializeBuildResponseData?, _ mainFilesChangedCallback: @escaping @Sendable () async -> Void
+      ) async -> MainFilesProvider?
   ) async {
     self.toolchainRegistry = toolchainRegistry
     self.options = options
@@ -578,6 +601,11 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       await buildServerAdapter.send(OnBuildInitializedNotification())
       return initializeResponse
     }
+    self.mainFilesProvider = Task {
+      await createMainFilesProvider(initializationData) { [weak self] in
+        await self?.mainFilesChanged()
+      }
+    }
   }
 
   /// Explicitly shut down the build server.
@@ -628,12 +656,6 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   ///   create the `BuildServerManager`, then initialize itself and then set itself as the delegate.
   package func setDelegate(_ delegate: BuildServerManagerDelegate?) {
     self.delegate = delegate
-  }
-
-  /// - Note: Needed because we need the `indexStorePath` and `indexDatabasePath` from the build server to create an
-  ///   IndexStoreDB, which serves as the `MainFilesProvider`. And thus this can't be set during initialization.
-  package func setMainFilesProvider(_ mainFilesProvider: MainFilesProvider?) {
-    self.mainFilesProvider = mainFilesProvider
   }
 
   // MARK: Handling messages from the build server
@@ -1274,13 +1296,12 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   }
 
   private func buildTargets() async throws -> [BuildTargetIdentifier: BuildTargetInfo] {
-    guard let buildServerAdapter = try await buildServerAdapterAfterInitialized else {
-      return [:]
-    }
-
     let request = WorkspaceBuildTargetsRequest()
     let result = try await cachedBuildTargets.get(request, isolation: self) { request in
       let result = try await withTimeout(self.options.buildServerWorkspaceRequestsTimeoutOrDefault) {
+        guard let buildServerAdapter = try await self.buildServerAdapterAfterInitialized else {
+          return [:]
+        }
         let buildTargets = try await buildServerAdapter.send(request).targets
         let (depths, dependents) = await self.targetDepthsAndDependents(for: buildTargets)
         var result: [BuildTargetIdentifier: BuildTargetInfo] = [:]
@@ -1325,7 +1346,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   }
 
   package func sourceFiles(in targets: Set<BuildTargetIdentifier>) async throws -> [SourcesItem] {
-    guard let buildServerAdapter = try await buildServerAdapterAfterInitialized, !targets.isEmpty else {
+    guard !targets.isEmpty else {
       return []
     }
 
@@ -1346,6 +1367,9 @@ package actor BuildServerManager: QueueBasedMessageHandler {
 
     let response = try await cachedTargetSources.get(request, isolation: self) { request in
       try await withTimeout(self.options.buildServerWorkspaceRequestsTimeoutOrDefault) {
+        guard let buildServerAdapter = try await self.buildServerAdapterAfterInitialized else {
+          return BuildTargetSourcesResponse(items: [])
+        }
         return try await buildServerAdapter.send(request)
       } resultReceivedAfterTimeout: { newResult in
         await self.buildTargetsDidChange(.sourceFilesReceivedResultAfterTimeout(request: request, newResult: newResult))
@@ -1393,7 +1417,6 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   /// - Important: This method returns both buildable and non-buildable source files. Callers need to check
   /// `SourceFileInfo.isBuildable` if they are only interested in buildable source files.
   private func sourceFilesAndDirectories() async throws -> SourceFilesAndDirectories {
-    let supportsOutputPaths = await initializationData?.outputPathsProvider ?? false
 
     return try await cachedSourceFilesAndDirectories.get(
       SourceFilesAndDirectoriesKey(),
@@ -1411,7 +1434,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
         for sourceItem in sourcesItem.sources {
           let sourceKitData = sourceItem.sourceKitData
           let outputPath: OutputPath? =
-            if !supportsOutputPaths {
+            if !(await self.initializationData?.outputPathsProvider ?? false) {
               .notSupported
             } else if let outputPath = sourceKitData?.outputPath {
               .path(outputPath)
@@ -1499,7 +1522,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   /// path is `/tmp`). If the realpath that indexstore-db returns could not be found in the build server's source files
   /// but the standardized path is part of the source files, return the standardized path instead.
   package func mainFiles(containing uri: DocumentURI) async -> [DocumentURI] {
-    guard let mainFilesProvider else {
+    guard let mainFilesProvider = await mainFilesProvider.value else {
       return [uri]
     }
     let mainFiles = Array(await mainFilesProvider.mainFiles(containing: uri, crossLanguage: false))

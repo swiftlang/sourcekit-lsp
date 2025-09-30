@@ -17,7 +17,7 @@ import IndexStoreDB
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
-package import SKOptions
+import SKOptions
 package import SemanticIndex
 import SwiftExtensions
 import TSCExtensions
@@ -71,6 +71,79 @@ fileprivate actor SourceFilesWithSameRealpathInferrer {
   }
 }
 
+/// Create an index instance based on the given options and response from the build server.
+func createIndex(
+  initializationData: SourceKitInitializeBuildResponseData?,
+  mainFilesChangedCallback: @escaping @Sendable () async -> Void,
+  rootUri: DocumentURI?,
+  toolchainRegistry: ToolchainRegistry,
+  options: SourceKitLSPOptions,
+  hooks: Hooks,
+) async -> UncheckedIndex? {
+  let indexOptions = options.indexOrDefault
+  let indexStorePath: URL? =
+    if let indexStorePath = initializationData?.indexStorePath {
+      URL(fileURLWithPath: indexStorePath, relativeTo: rootUri?.fileURL)
+    } else {
+      nil
+    }
+  let indexDatabasePath: URL? =
+    if let indexDatabasePath = initializationData?.indexDatabasePath {
+      URL(fileURLWithPath: indexDatabasePath, relativeTo: rootUri?.fileURL)
+    } else {
+      nil
+    }
+  let supportsOutputPaths = initializationData?.outputPathsProvider ?? false
+  if let indexStorePath, let indexDatabasePath, let libPath = await toolchainRegistry.default?.libIndexStore {
+    do {
+      let indexDelegate = SourceKitIndexDelegate {
+        await mainFilesChangedCallback()
+      }
+      let prefixMappings =
+        (indexOptions.indexPrefixMap ?? [:])
+        .map { PathMapping(original: $0.key, replacement: $0.value) }
+        .sorted {
+          // Fixes an issue where remapPath might match the shortest path first when multiple common prefixes exist
+          // Sort by path length descending to prioritize more specific paths;
+          // when lengths are equal, sort lexicographically in ascending order
+          if $0.original.count != $1.original.count {
+            return $0.original.count > $1.original.count  // Prefer longer paths (more specific)
+          } else {
+            return $0.original < $1.original  // Alphabetical sort when lengths are equal, ensures stable ordering
+          }
+        }
+      if let indexInjector = hooks.indexHooks.indexInjector {
+        let indexStoreDB = try await indexInjector.createIndex(
+          storePath: indexStorePath,
+          databasePath: indexDatabasePath,
+          indexStoreLibraryPath: libPath,
+          delegate: indexDelegate,
+          prefixMappings: prefixMappings
+        )
+        return UncheckedIndex(indexStoreDB, usesExplicitOutputPaths: await indexInjector.usesExplicitOutputPaths)
+      } else {
+        let indexStoreDB = try IndexStoreDB(
+          storePath: indexStorePath.filePath,
+          databasePath: indexDatabasePath.filePath,
+          library: IndexStoreLibrary(dylibPath: libPath.filePath),
+          delegate: indexDelegate,
+          useExplicitOutputUnits: supportsOutputPaths,
+          prefixMappings: prefixMappings
+        )
+        logger.debug(
+          "Opened IndexStoreDB at \(indexDatabasePath) with store path \(indexStorePath) with explicit output files \(supportsOutputPaths)"
+        )
+        return UncheckedIndex(indexStoreDB, usesExplicitOutputPaths: supportsOutputPaths)
+      }
+    } catch {
+      logger.error("Failed to open IndexStoreDB: \(error.localizedDescription)")
+      return nil
+    }
+  } else {
+    return nil
+  }
+}
+
 /// Represents the configuration and state of a project or combination of projects being worked on
 /// together.
 ///
@@ -104,10 +177,10 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   /// The source code index, if available.
   ///
   /// Usually a checked index (retrieved using `index(checkedFor:)`) should be used instead of the unchecked index.
-  private let _uncheckedIndex: ThreadSafeBox<UncheckedIndex?>
-
   private var uncheckedIndex: UncheckedIndex? {
-    return _uncheckedIndex.value
+    get async {
+      return await buildServerManager.mainFilesProvider(as: UncheckedIndex.self)
+    }
   }
 
   /// The index that syntactically scans the workspace for tests.
@@ -116,11 +189,22 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   /// Language service for an open document, if available.
   private let languageServices: ThreadSafeBox<[DocumentURI: [LanguageService]]> = ThreadSafeBox(initialValue: [:])
 
-  /// The `SemanticIndexManager` that keeps track of whose file's index is up-to-date in the workspace and schedules
-  /// indexing and preparation tasks for files with out-of-date index.
+  /// The task that constructs the `SemanticIndexManager`, which keeps track of whose file's index is up-to-date in the
+  /// workspace and schedules indexing and preparation tasks for files with out-of-date index.
+  ///
+  /// This is a task because we need to wait for build server initialization to construct the `SemanticIndexManager` so
+  /// that we know the index store and indexstore-db path. Since external build servers may take a while to initialize,
+  /// we don't want to block the creation of a `Workspace` and thus all syntactic functionality until we have received
+  /// the build server initialization response.
   ///
   /// `nil` if background indexing is not enabled.
-  package let semanticIndexManager: SemanticIndexManager?
+  package let semanticIndexManagerTask: Task<SemanticIndexManager?, Never>
+
+  package var semanticIndexManager: SemanticIndexManager? {
+    get async {
+      await semanticIndexManagerTask.value
+    }
+  }
 
   /// If the index uses explicit output paths, the queue on which we update the explicit output paths.
   ///
@@ -135,40 +219,44 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     options: SourceKitLSPOptions,
     hooks: Hooks,
     buildServerManager: BuildServerManager,
-    index uncheckedIndex: UncheckedIndex?,
-    indexDelegate: SourceKitIndexDelegate?,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async {
     self.sourceKitLSPServer = sourceKitLSPServer
     self.rootUri = rootUri
     self.capabilityRegistry = capabilityRegistry
     self.options = options
-    self._uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
     self.buildServerManager = buildServerManager
     self.sourceFilesWithSameRealpathInferrer = SourceFilesWithSameRealpathInferrer(
       buildServerManager: buildServerManager
     )
-    if options.backgroundIndexingOrDefault, let uncheckedIndex,
-      await buildServerManager.initializationData?.prepareProvider ?? false
-    {
-      self.semanticIndexManager = SemanticIndexManager(
-        index: uncheckedIndex,
-        buildServerManager: buildServerManager,
-        updateIndexStoreTimeout: options.indexOrDefault.updateIndexStoreTimeoutOrDefault,
-        hooks: hooks.indexHooks,
-        indexTaskScheduler: indexTaskScheduler,
-        logMessageToIndexLog: { [weak sourceKitLSPServer] in
-          sourceKitLSPServer?.logMessageToIndexLog(message: $0, type: $1, structure: $2)
-        },
-        indexTasksWereScheduled: { [weak sourceKitLSPServer] in
-          sourceKitLSPServer?.indexProgressManager.indexTasksWereScheduled(count: $0)
-        },
-        indexProgressStatusDidChange: { [weak sourceKitLSPServer] in
-          sourceKitLSPServer?.indexProgressManager.indexProgressStatusDidChange()
-        }
-      )
-    } else {
-      self.semanticIndexManager = nil
+    self.semanticIndexManagerTask = Task {
+      if options.backgroundIndexingOrDefault,
+        let uncheckedIndex = await buildServerManager.mainFilesProvider(as: UncheckedIndex.self),
+        await buildServerManager.initializationData?.prepareProvider ?? false
+      {
+        let semanticIndexManager = SemanticIndexManager(
+          index: uncheckedIndex,
+          buildServerManager: buildServerManager,
+          updateIndexStoreTimeout: options.indexOrDefault.updateIndexStoreTimeoutOrDefault,
+          hooks: hooks.indexHooks,
+          indexTaskScheduler: indexTaskScheduler,
+          logMessageToIndexLog: { [weak sourceKitLSPServer] in
+            sourceKitLSPServer?.logMessageToIndexLog(message: $0, type: $1, structure: $2)
+          },
+          indexTasksWereScheduled: { [weak sourceKitLSPServer] in
+            sourceKitLSPServer?.indexProgressManager.indexTasksWereScheduled(count: $0)
+          },
+          indexProgressStatusDidChange: { [weak sourceKitLSPServer] in
+            sourceKitLSPServer?.indexProgressManager.indexProgressStatusDidChange()
+          }
+        )
+        await semanticIndexManager.scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
+          indexFilesWithUpToDateUnit: false
+        )
+        return semanticIndexManager
+      } else {
+        return nil
+      }
     }
     // Trigger an initial population of `syntacticTestIndex`.
     self.syntacticTestIndex = SyntacticTestIndex(
@@ -179,14 +267,6 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
         } ?? []
       }
     )
-    await indexDelegate?.addMainFileChangedCallback { [weak self] in
-      await self?.buildServerManager.mainFilesChanged()
-    }
-    if let semanticIndexManager {
-      await semanticIndexManager.scheduleBuildGraphGenerationAndBackgroundIndexAllFiles(
-        indexFilesWithUpToDateUnit: false
-      )
-    }
   }
 
   /// Creates a workspace for a given root `DocumentURI`, inferring the `ExternalWorkspace` if possible.
@@ -273,78 +353,22 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
       toolchainRegistry: toolchainRegistry,
       options: options,
       connectionToClient: ConnectionToClient(sourceKitLSPServer: sourceKitLSPServer),
-      buildServerHooks: hooks.buildServerHooks
+      buildServerHooks: hooks.buildServerHooks,
+      createMainFilesProvider: { (initializationData, mainFilesChangedCallback) -> MainFilesProvider? in
+        await createIndex(
+          initializationData: initializationData,
+          mainFilesChangedCallback: mainFilesChangedCallback,
+          rootUri: rootUri,
+          toolchainRegistry: toolchainRegistry,
+          options: options,
+          hooks: hooks
+        )
+      }
     )
 
     logger.log(
       "Created workspace at \(rootUri.forLogging) with project root \(buildServerSpec?.projectRoot.description ?? "<nil>")"
     )
-
-    var indexDelegate: SourceKitIndexDelegate? = nil
-
-    let indexOptions = options.indexOrDefault
-    let indexStorePath: URL? =
-      if let indexStorePath = await buildServerManager.initializationData?.indexStorePath {
-        URL(fileURLWithPath: indexStorePath, relativeTo: rootUri?.fileURL)
-      } else {
-        nil
-      }
-    let indexDatabasePath: URL? =
-      if let indexDatabasePath = await buildServerManager.initializationData?.indexDatabasePath {
-        URL(fileURLWithPath: indexDatabasePath, relativeTo: rootUri?.fileURL)
-      } else {
-        nil
-      }
-    let supportsOutputPaths = await buildServerManager.initializationData?.outputPathsProvider ?? false
-    let index: UncheckedIndex?
-    if let indexStorePath, let indexDatabasePath, let libPath = await toolchainRegistry.default?.libIndexStore {
-      do {
-        indexDelegate = SourceKitIndexDelegate()
-        let prefixMappings =
-          (indexOptions.indexPrefixMap ?? [:])
-          .map { PathMapping(original: $0.key, replacement: $0.value) }
-          .sorted {
-            // Fixes an issue where remapPath might match the shortest path first when multiple common prefixes exist
-            // Sort by path length descending to prioritize more specific paths;
-            // when lengths are equal, sort lexicographically in ascending order
-            if $0.original.count != $1.original.count {
-              return $0.original.count > $1.original.count  // Prefer longer paths (more specific)
-            } else {
-              return $0.original < $1.original  // Alphabetical sort when lengths are equal, ensures stable ordering
-            }
-          }
-        if let indexInjector = hooks.indexHooks.indexInjector {
-          let indexStoreDB = try await indexInjector.createIndex(
-            storePath: indexStorePath,
-            databasePath: indexDatabasePath,
-            indexStoreLibraryPath: libPath,
-            delegate: indexDelegate!,
-            prefixMappings: prefixMappings
-          )
-          index = UncheckedIndex(indexStoreDB, usesExplicitOutputPaths: await indexInjector.usesExplicitOutputPaths)
-        } else {
-          let indexStoreDB = try IndexStoreDB(
-            storePath: indexStorePath.filePath,
-            databasePath: indexDatabasePath.filePath,
-            library: IndexStoreLibrary(dylibPath: libPath.filePath),
-            delegate: indexDelegate,
-            useExplicitOutputUnits: supportsOutputPaths,
-            prefixMappings: prefixMappings
-          )
-          index = UncheckedIndex(indexStoreDB, usesExplicitOutputPaths: supportsOutputPaths)
-          logger.debug(
-            "Opened IndexStoreDB at \(indexDatabasePath) with store path \(indexStorePath) with explicit output files \(supportsOutputPaths)"
-          )
-        }
-      } catch {
-        index = nil
-        logger.error("Failed to open IndexStoreDB: \(error.localizedDescription)")
-      }
-    } else {
-      index = nil
-    }
-
-    await buildServerManager.setMainFilesProvider(index)
 
     await self.init(
       sourceKitLSPServer: sourceKitLSPServer,
@@ -353,8 +377,6 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
       options: options,
       hooks: hooks,
       buildServerManager: buildServerManager,
-      index: index,
-      indexDelegate: indexDelegate,
       indexTaskScheduler: indexTaskScheduler
     )
     await buildServerManager.setDelegate(self)
@@ -365,16 +387,8 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
 
   /// Returns a `CheckedIndex` that verifies that all the returned entries are up-to-date with the given
   /// `IndexCheckLevel`.
-  package func index(checkedFor checkLevel: IndexCheckLevel) -> CheckedIndex? {
-    return _uncheckedIndex.value?.checked(for: checkLevel)
-  }
-
-  /// Write the index to disk.
-  ///
-  /// After this method is called, the workspace will no longer have an index associated with it. It should only be
-  /// called when SourceKit-LSP shuts down.
-  func closeIndex() {
-    _uncheckedIndex.value = nil
+  package func index(checkedFor checkLevel: IndexCheckLevel) async -> CheckedIndex? {
+    return await uncheckedIndex?.checked(for: checkLevel)
   }
 
   package func filesDidChange(_ events: [FileEvent]) async {
@@ -464,17 +478,16 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   }
 
   private func scheduleUpdateOfUnitOutputPathsInIndexIfNecessary() async {
-    guard await self.uncheckedIndex?.usesExplicitOutputPaths ?? false else {
-      return
-    }
-    guard await buildServerManager.initializationData?.outputPathsProvider ?? false else {
-      // This can only happen if an index got injected that uses explicit output paths but the build server does not
-      // support output paths.
-      logger.error("The index uses explicit output paths but the build server does not support output paths")
-      return
-    }
-
     indexUnitOutputPathsUpdateQueue.async {
+      guard await self.uncheckedIndex?.usesExplicitOutputPaths ?? false else {
+        return
+      }
+      guard await self.buildServerManager.initializationData?.outputPathsProvider ?? false else {
+        // This can only happen if an index got injected that uses explicit output paths but the build server does not
+        // support output paths.
+        logger.error("The index uses explicit output paths but the build server does not support output paths")
+        return
+      }
       await orLog("Setting new list of unit output paths") {
         let outputPaths = try await Set(self.buildServerManager.outputPathsInAllTargets())
         await self.uncheckedIndex?.setUnitOutputPaths(outputPaths)
@@ -511,7 +524,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     }
     if request.index ?? false {
       await semanticIndexManager?.waitForUpToDateIndex()
-      uncheckedIndex?.pollForUnitChangesAndWait()
+      await uncheckedIndex?.pollForUnitChangesAndWait()
     }
   }
 }

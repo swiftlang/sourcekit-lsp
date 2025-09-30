@@ -1257,8 +1257,6 @@ extension SourceKitLSPServer {
         taskGroup.addTask {
           await orLog("Shutting down build server") {
             await workspace.buildServerManager.shutdown()
-            await workspace.buildServerManager.setMainFilesProvider(nil)
-            workspace.closeIndex()
           }
         }
       }
@@ -1306,7 +1304,7 @@ extension SourceKitLSPServer {
     }
     let isIndexing =
       await workspaces
-      .compactMap(\.semanticIndexManager)
+      .asyncCompactMap { await $0.semanticIndexManager }
       .asyncContains { await $0.progressStatus != .upToDate }
     return IsIndexingResponse(indexing: isIndexing)
   }
@@ -1568,7 +1566,7 @@ extension SourceKitLSPServer {
       target = nil
     }
     let didPrepareTarget: Bool?
-    if request.prepareTarget, let target, let semanticIndexManager = workspace.semanticIndexManager {
+    if request.prepareTarget, let target, let semanticIndexManager = await workspace.semanticIndexManager {
       didPrepareTarget = await semanticIndexManager.prepareTargetsForSourceKitOptions(target: target)
     } else {
       didPrepareTarget = nil
@@ -1669,7 +1667,7 @@ extension SourceKitLSPServer {
     }
     var symbolsAndIndex: [(symbol: SymbolOccurrence, index: CheckedIndex)] = []
     for workspace in workspaces {
-      guard let index = workspace.index(checkedFor: .deletedFiles) else {
+      guard let index = await workspace.index(checkedFor: .deletedFiles) else {
         continue
       }
       var symbolOccurrences: [SymbolOccurrence] = []
@@ -2084,7 +2082,7 @@ extension SourceKitLSPServer {
       // overrides.
       if let location = locations.only,
         let usr = symbol.usr,
-        let index = workspace.index(checkedFor: .deletedFiles),
+        let index = await workspace.index(checkedFor: .deletedFiles),
         await isAtCanonicalOriginatorLocation(location)
       {
         let baseUSRs = index.occurrences(ofUSR: usr, roles: .overrideOf).flatMap {

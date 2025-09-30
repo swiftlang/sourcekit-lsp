@@ -41,7 +41,8 @@ final class PluginSwiftPMTestProject {
         toolchainRegistry: .forTesting,
         options: try .testDefault(backgroundIndexing: false),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
-        buildServerHooks: BuildServerHooks()
+        buildServerHooks: BuildServerHooks(),
+        createMainFilesProvider: { _, _ in nil }
       )
       _buildServerManager = buildServerManager
       return buildServerManager

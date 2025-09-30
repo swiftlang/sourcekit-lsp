@@ -769,4 +769,54 @@ final class ExternalBuildServerTests: XCTestCase {
       return definitionsWithBuildServer?.locations?.count == 1
     }
   }
+
+  func testBuildServerTakesLongToInitialize() async throws {
+    actor BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+      let projectRoot: URL
+      let unlockInitializeResponses = MultiEntrySemaphore(name: "Build server starts responding")
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        await unlockInitializeResponses.waitOrXCTFail()
+        return initializationResponse()
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        return dummyTargetSourcesResponse(files: [DocumentURI(projectRoot.appending(component: "Test.swift"))])
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        var arguments = [request.textDocument.uri.pseudoPath]
+        if let defaultSDKPath {
+          arguments += ["-sdk", defaultSDKPath]
+        }
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
+      }
+    }
+
+    var options = try await SourceKitLSPOptions.testDefault()
+    options.buildServerWorkspaceRequestsTimeout = 0.1 /* seconds */
+
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "Test.swift": """
+        func foo() {}
+        """
+      ],
+      buildServer: BuildServer.self,
+      options: options,
+      pollIndex: false
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+    _ = try await project.testClient.send(DocumentSymbolRequest(textDocument: TextDocumentIdentifier(uri)))
+
+    try project.buildServer().unlockInitializeResponses.signal()
+  }
 }

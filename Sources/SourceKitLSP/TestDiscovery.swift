@@ -207,7 +207,7 @@ extension SourceKitLSPServer {
     //  - For all files that don't have any in-memory modifications, include swift-testing tests from the syntactic test
     //    index.
     //  - All files that have in-memory modifications are syntactically scanned for tests here.
-    let index = workspace.index(checkedFor: .inMemoryModifiedFiles(documentManager))
+    let index = await workspace.index(checkedFor: .inMemoryModifiedFiles(documentManager))
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func documentManagerHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
@@ -252,7 +252,7 @@ extension SourceKitLSPServer {
     )
     let filesWithTestsFromSemanticIndex = Set(testsFromSemanticIndex.map(\.testItem.location.uri))
 
-    let indexOnlyDiscardingDeletedFiles = workspace.index(checkedFor: .deletedFiles)
+    let indexOnlyDiscardingDeletedFiles = await workspace.index(checkedFor: .deletedFiles)
 
     let syntacticTestsToInclude =
       testsFromSyntacticIndex
@@ -334,7 +334,7 @@ extension SourceKitLSPServer {
     let indexCheckLevel: IndexCheckLevel =
       syntacticTests == nil ? .deletedFiles : .inMemoryModifiedFiles(documentManager)
 
-    if let index = workspace.index(checkedFor: indexCheckLevel) {
+    if let index = await workspace.index(checkedFor: indexCheckLevel) {
       var syntacticSwiftTestingTests: [AnnotatedTestItem] {
         syntacticTests?.filter { $0.testItem.style == TestStyle.swiftTesting } ?? []
       }

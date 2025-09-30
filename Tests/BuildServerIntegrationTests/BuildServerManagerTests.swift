@@ -53,41 +53,35 @@ fileprivate extension BuildServerManager {
   }
 }
 
+private func createBuildServerManager(
+  mainFilesProvider: some MainFilesProvider
+) async throws -> (manager: BuildServerManager, buildServer: TestBuildServer) {
+  let dummyPath = URL(fileURLWithPath: "/")
+  let testBuildServer = ThreadSafeBox<TestBuildServer?>(initialValue: nil)
+  let spec = BuildServerSpec(
+    kind: .injected({ projectRoot, connectionToSourceKitLSP in
+      assert(testBuildServer.value == nil, "Build server injector hook can only create a single TestBuildServer")
+      let buildServer = TestBuildServer(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
+      testBuildServer.value = buildServer
+      return LocalConnection(receiverName: "TestBuildServer", handler: buildServer)
+    }),
+    projectRoot: dummyPath,
+    configPath: dummyPath
+  )
+
+  let manager = await BuildServerManager(
+    buildServerSpec: spec,
+    toolchainRegistry: ToolchainRegistry.forTesting,
+    options: SourceKitLSPOptions(),
+    connectionToClient: DummyBuildServerManagerConnectionToClient(),
+    buildServerHooks: BuildServerHooks(),
+    createMainFilesProvider: { _, _ in mainFilesProvider }
+  )
+  let buildServer = try unwrap(testBuildServer.value)
+  return (manager, buildServer)
+}
+
 final class BuildServerManagerTests: XCTestCase {
-  /// The build server manager that we use to verify SourceKitLSPServer behavior.
-  ///
-  /// - Note: Set before each test run in `setUp`.
-  private var manager: BuildServerManager! = nil
-
-  /// The build server that we use to verify SourceKitLSPServer behavior.
-  ///
-  /// - Note: Set before each test run in `setUp`.
-  private var buildServer: TestBuildServer! = nil
-
-  override func setUp() async throws {
-    let dummyPath = URL(fileURLWithPath: "/")
-    let testBuildServer = ThreadSafeBox<TestBuildServer?>(initialValue: nil)
-    let spec = BuildServerSpec(
-      kind: .injected({ projectRoot, connectionToSourceKitLSP in
-        assert(testBuildServer.value == nil, "Build erver injector hook can only create a single TestBuildServer")
-        let buildServer = TestBuildServer(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
-        testBuildServer.value = buildServer
-        return LocalConnection(receiverName: "TestBuildServer", handler: buildServer)
-      }),
-      projectRoot: dummyPath,
-      configPath: dummyPath
-    )
-
-    self.manager = await BuildServerManager(
-      buildServerSpec: spec,
-      toolchainRegistry: ToolchainRegistry.forTesting,
-      options: SourceKitLSPOptions(),
-      connectionToClient: DummyBuildServerManagerConnectionToClient(),
-      buildServerHooks: BuildServerHooks()
-    )
-    self.buildServer = try unwrap(testBuildServer.value)
-  }
-
   func testMainFiles() async throws {
     let a = try DocumentURI(string: "bsm:a")
     let b = try DocumentURI(string: "bsm:b")
@@ -103,7 +97,7 @@ final class BuildServerManagerTests: XCTestCase {
       ]
     )
 
-    await manager.setMainFilesProvider(mainFiles)
+    let (manager, _) = try await createBuildServerManager(mainFilesProvider: mainFiles)
 
     await assertEqual(manager.cachedMainFile(for: a), nil)
     await assertEqual(manager.cachedMainFile(for: b), nil)
@@ -155,7 +149,8 @@ final class BuildServerManagerTests: XCTestCase {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
 
-    await manager.setMainFilesProvider(mainFiles)
+    let (manager, buildServer) = try await createBuildServerManager(mainFilesProvider: mainFiles)
+
     let del = await BSMDelegate(manager)
 
     await buildServer.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
@@ -180,7 +175,8 @@ final class BuildServerManagerTests: XCTestCase {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
 
-    await manager.setMainFilesProvider(mainFiles)
+    let (manager, buildServer) = try await createBuildServerManager(mainFilesProvider: mainFiles)
+
     let del = await BSMDelegate(manager)
     await manager.registerForChangeNotifications(for: a, language: .swift)
 
@@ -194,7 +190,8 @@ final class BuildServerManagerTests: XCTestCase {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
 
-    await manager.setMainFilesProvider(mainFiles)
+    let (manager, buildServer) = try await createBuildServerManager(mainFilesProvider: mainFiles)
+
     let del = await BSMDelegate(manager)
     let fallbackSettings = fallbackBuildSettings(for: a, language: .swift, options: .init())
     await manager.registerForChangeNotifications(for: a, language: .swift)
@@ -231,7 +228,8 @@ final class BuildServerManagerTests: XCTestCase {
       ]
     )
 
-    await manager.setMainFilesProvider(mainFiles)
+    let (manager, buildServer) = try await createBuildServerManager(mainFilesProvider: mainFiles)
+
     let del = await BSMDelegate(manager)
 
     await buildServer.setBuildSettings(
@@ -293,7 +291,8 @@ final class BuildServerManagerTests: XCTestCase {
       ]
     )
 
-    await manager.setMainFilesProvider(mainFiles)
+    let (manager, buildServer) = try await createBuildServerManager(mainFilesProvider: mainFiles)
+
     let del = await BSMDelegate(manager)
 
     let cppArg = "C++ Main File"
