@@ -104,7 +104,7 @@ final class SwiftInterfaceTests: XCTestCase {
       uri: project.fileURI,
       position: project.positions["3️⃣"],
       testClient: project.testClient,
-      swiftInterfaceFile: "_Concurrency.swiftinterface",
+      swiftInterfaceFile: "Swift.swiftinterface",
       linePrefix: "@inlinable public func withTaskGroup"
     )
   }
