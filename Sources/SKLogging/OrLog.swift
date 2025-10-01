@@ -41,7 +41,7 @@ package func orLog<R>(
 package func orLog<R>(
   _ prefix: @autoclosure () -> String,
   level: LogLevel = .error,
-  @_inheritActorContext _ block: @Sendable () async throws -> R?
+  _ block: () async throws -> R?
 ) async -> R? {
   do {
     return try await block()

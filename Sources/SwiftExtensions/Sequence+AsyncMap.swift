@@ -13,7 +13,7 @@
 extension Sequence {
   /// Just like `Sequence.map` but allows an `async` transform function.
   package func asyncMap<T>(
-    @_inheritActorContext _ transform: @Sendable (Element) async throws -> T
+    _ transform: (Element) async throws -> T
   ) async rethrows -> [T] {
     var result: [T] = []
     result.reserveCapacity(self.underestimatedCount)
@@ -27,7 +27,7 @@ extension Sequence {
 
   /// Just like `Sequence.flatMap` but allows an `async` transform function.
   package func asyncFlatMap<SegmentOfResult: Sequence>(
-    @_inheritActorContext _ transform: @Sendable (Element) async throws -> SegmentOfResult
+    _ transform: (Element) async throws -> SegmentOfResult
   ) async rethrows -> [SegmentOfResult.Element] {
     var result: [SegmentOfResult.Element] = []
     result.reserveCapacity(self.underestimatedCount)
@@ -41,7 +41,7 @@ extension Sequence {
 
   /// Just like `Sequence.compactMap` but allows an `async` transform function.
   package func asyncCompactMap<T>(
-    @_inheritActorContext _ transform: @Sendable (Element) async throws -> T?
+    _ transform: (Element) async throws -> T?
   ) async rethrows -> [T] {
     var result: [T] = []
 
@@ -56,7 +56,7 @@ extension Sequence {
 
   /// Just like `Sequence.map` but allows an `async` transform function.
   package func asyncFilter(
-    @_inheritActorContext _ predicate: @Sendable (Element) async throws -> Bool
+    _ predicate: (Element) async throws -> Bool
   ) async rethrows -> [Element] {
     var result: [Element] = []
 
@@ -70,9 +70,7 @@ extension Sequence {
   }
 
   /// Just like `Sequence.first` but allows an `async` predicate function.
-  package func asyncFirst(
-    @_inheritActorContext where predicate: @Sendable (Element) async throws -> Bool
-  ) async rethrows -> Element? {
+  package func asyncFirst(where predicate: (Element) async throws -> Bool) async rethrows -> Element? {
     for element in self {
       if try await predicate(element) {
         return element
@@ -84,7 +82,7 @@ extension Sequence {
 
   /// Just like `Sequence.contains` but allows an `async` predicate function.
   package func asyncContains(
-    @_inheritActorContext where predicate: @Sendable (Element) async throws -> Bool
+    where predicate: (Element) async throws -> Bool
   ) async rethrows -> Bool {
     return try await asyncFirst(where: predicate) != nil
   }
