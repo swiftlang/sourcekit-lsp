@@ -105,6 +105,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
         "SwiftCompilerPlugin",
         "SwiftCompilerPluginMessageHandling",
         "SwiftDiagnostics",
+        "SwiftIfConfig",
         "SwiftOperators",
         "SwiftParser",
         "SwiftParserDiagnostics",

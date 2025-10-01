@@ -562,7 +562,10 @@ var targets: [Target] = [
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       // Depend on `SwiftCompilerPlugin` and `SwiftSyntaxMacros` so the modules are built before running tests and can
       // be used by test cases that test macros (see `SwiftPMTestProject.macroPackageManifest`)
-    ] + swiftSyntaxDependencies(["SwiftParser", "SwiftSyntax", "SwiftCompilerPlugin", "SwiftSyntaxMacros"]),
+    ]
+      + swiftSyntaxDependencies([
+        "SwiftIfConfig", "SwiftParser", "SwiftSyntax", "SwiftCompilerPlugin", "SwiftSyntaxMacros",
+      ]),
     swiftSettings: globalSwiftSettings
   ),
 
