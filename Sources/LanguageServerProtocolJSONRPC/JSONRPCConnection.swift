@@ -58,7 +58,7 @@ public final class JSONRPCConnection: Connection {
   /// The queue on which we send data.
   private let sendQueue: DispatchQueue = DispatchQueue(label: "jsonrpc-send-queue", qos: .userInitiated)
 
-  private let receiveIO: DispatchIO
+  private let inFD: FileHandle
   private let sendIO: DispatchIO
   private let messageRegistry: MessageRegistry
 
@@ -86,7 +86,6 @@ public final class JSONRPCConnection: Connection {
   /// Buffer of received bytes that haven't been parsed.
   ///
   /// Access to this must be be guaranteed to be sequential to avoid data races. Currently, all access are
-  ///  - The `receiveIO` handler: This is synchronized on `queue`.
   ///  - `requestBufferIsEmpty`: Also synchronized on `queue`.
   private nonisolated(unsafe) var requestBuffer: [UInt8] = []
 
@@ -140,23 +139,12 @@ public final class JSONRPCConnection: Connection {
 
     #if os(Windows)
     let rawInFD = dispatch_fd_t(bitPattern: inFD._handle)
+    self.inFD = inFD
     #else
     let rawInFD = inFD.fileDescriptor
     #endif
 
     ioGroup.enter()
-    receiveIO = DispatchIO(
-      type: .stream,
-      fileDescriptor: rawInFD,
-      queue: queue,
-      cleanupHandler: { (error: Int32) in
-        if error != 0 {
-          logger.fault("IO error \(error)")
-        }
-        ioGroup.leave()
-      }
-    )
-
     #if os(Windows)
     let rawOutFD = dispatch_fd_t(bitPattern: outFD._handle)
     #else
@@ -187,10 +175,6 @@ public final class JSONRPCConnection: Connection {
         await self.closeHandler?()
       }
     }
-
-    // We cannot assume the client will send us bytes in packets of any particular size, so set the lower limit to 1.
-    receiveIO.setLimit(lowWater: 1)
-    receiveIO.setLimit(highWater: Int.max)
 
     sendIO.setLimit(lowWater: 1)
     sendIO.setLimit(highWater: Int.max)
@@ -288,52 +272,56 @@ public final class JSONRPCConnection: Connection {
     receiveHandler: MessageHandler,
     closeHandler: @escaping @Sendable () async -> Void = {}
   ) {
+    var fd: FileHandle?
     queue.sync {
       precondition(state == .created)
       state = .running
       self.receiveHandler = receiveHandler
       self.closeHandler = closeHandler
+      fd = self.inFD
+    }
 
-      receiveIO.read(offset: 0, length: Int.max, queue: queue) { done, data, errorCode in
-        guard errorCode == 0 else {
-          #if !os(Windows)
-          if errorCode != POSIXError.ECANCELED.rawValue {
-            logger.fault("IO error reading \(errorCode)")
-          }
-          #endif
-          if done { self.closeAssumingOnQueue() }
-          return
-        }
+    func reader() async {
+      var done = false
+      while !done {
+        if let data1 = try? fd!.read(upToCount: 1) {
+            let ad = fd!.availableData
+            let data = data1 + ad
 
-        if done {
-          self.closeAssumingOnQueue()
-          return
-        }
+            queue.sync {
+              orLog("Writing input mirror file") {
+                try self.inputMirrorFile?.write(contentsOf: data)
+              }
 
-        guard let data = data, !data.isEmpty else {
-          return
-        }
-
-        orLog("Writing input mirror file") {
-          try self.inputMirrorFile?.write(contentsOf: data)
-        }
-
-        // Parse and handle any messages in `buffer + data`, leaving any remaining unparsed bytes in `buffer`.
-        if self.requestBuffer.isEmpty {
-          data.withUnsafeBytes { (pointer: UnsafePointer<UInt8>) in
-            let rest = self.parseAndHandleMessages(from: UnsafeBufferPointer(start: pointer, count: data.count))
-            self.requestBuffer.append(contentsOf: rest)
-          }
+              // Parse and handle any messages in `buffer + data`, leaving any remaining unparsed bytes in `buffer`.
+              if self.requestBuffer.isEmpty {
+                data.withUnsafeBytes { (pointer: UnsafePointer<UInt8>) in
+                  let rest = self.parseAndHandleMessages(from: UnsafeBufferPointer(start: pointer, count: data.count))
+                  self.requestBuffer.append(contentsOf: rest)
+                }
+              } else {
+                self.requestBuffer.append(contentsOf: data)
+                var unused = 0
+                self.requestBuffer.withUnsafeBufferPointer { buffer in
+                  let rest = self.parseAndHandleMessages(from: buffer)
+                  unused = rest.count
+                }
+                self.requestBuffer.removeFirst(self.requestBuffer.count - unused)
+              }
+            }
         } else {
-          self.requestBuffer.append(contentsOf: data)
-          var unused = 0
-          self.requestBuffer.withUnsafeBufferPointer { buffer in
-            let rest = self.parseAndHandleMessages(from: buffer)
-            unused = rest.count
-          }
-          self.requestBuffer.removeFirst(self.requestBuffer.count - unused)
+            done = true
+            return
         }
       }
+
+      queue.sync {
+        self.closeAssumingOnQueue()
+      }
+    }
+
+    Task.detached {
+      await reader()
     }
   }
 
@@ -660,7 +648,6 @@ public final class JSONRPCConnection: Connection {
 
       logger.log("Closing JSONRPCConnection...")
       // Attempt to close the reader immediately; we do not need to accept remaining inputs.
-      receiveIO.close(flags: .stop)
       // Close the writer after it finishes outstanding work.
       sendIO.close()
     }
