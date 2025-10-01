@@ -98,7 +98,7 @@ package func testScratchDir(testName: String = #function) throws -> URL {
 /// The temporary directory will be deleted at the end of `directory` unless the
 /// `SOURCEKIT_LSP_KEEP_TEST_SCRATCH_DIR` environment variable is set.
 package func withTestScratchDir<T>(
-  @_inheritActorContext _ body: @Sendable (URL) async throws -> T,
+  _ body: (URL) async throws -> T,
   testName: String = #function
 ) async throws -> T {
   let scratchDirectory = try testScratchDir(testName: testName)
