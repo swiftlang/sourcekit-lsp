@@ -54,7 +54,7 @@ package func withLoggingSubsystemAndScope<Result>(
 package func withLoggingSubsystemAndScope<Result>(
   subsystem: String,
   scope: String?,
-  @_inheritActorContext _ operation: @Sendable () async throws -> Result
+  @_inheritActorContext _ operation: @Sendable @concurrent () async throws -> Result
 ) async rethrows -> Result {
   return try await LoggingScope.$_subsystem.withValue(subsystem) {
     return try await LoggingScope.$_scope.withValue(scope, operation: operation)
@@ -84,7 +84,7 @@ package func withLoggingScope<Result>(
 /// - SeeAlso: ``withLoggingScope(_:_:)-6qtga``
 package func withLoggingScope<Result>(
   _ scope: String,
-  @_inheritActorContext _ operation: @Sendable () async throws -> Result
+  @_inheritActorContext _ operation: @Sendable @concurrent () async throws -> Result
 ) async rethrows -> Result {
   return try await LoggingScope.$_scope.withValue(
     scope,

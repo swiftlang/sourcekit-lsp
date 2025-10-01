@@ -24,7 +24,7 @@ package actor RefCountedCancellableTask<Success: Sendable> {
   /// Whether the task has been cancelled.
   package private(set) var isCancelled: Bool = false
 
-  package init(priority: TaskPriority? = nil, operation: @escaping @Sendable () async throws -> Success) {
+  package init(priority: TaskPriority? = nil, operation: @escaping @Sendable @concurrent () async throws -> Success) {
     self.task = Task(priority: priority, operation: operation)
   }
 
