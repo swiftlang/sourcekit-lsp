@@ -124,30 +124,6 @@ extension LineTable {
   /// - parameter replacement: The new text for the given range.
   @inlinable
   mutating package func replace(
-    fromLine: Int,
-    utf8Offset fromOff: Int,
-    toLine: Int,
-    utf8Offset toOff: Int,
-    with replacement: String
-  ) {
-    let start = self.stringIndexOf(line: fromLine, utf8Column: fromOff)
-    let end = self.stringIndexOf(line: toLine, utf8Column: toOff)
-
-    var newText = self.content
-    newText.replaceSubrange(start..<end, with: replacement)
-
-    self = LineTable(newText)
-  }
-
-  /// Replace the line table's `content` in the given range and update the line data.
-  ///
-  /// - parameter fromLine: Starting line number (zero-based).
-  /// - parameter fromOff: Starting UTF-8 column offset (zero-based).
-  /// - parameter toLine: Ending line number (zero-based).
-  /// - parameter toOff: Ending UTF-8 column offset (zero-based).
-  /// - parameter replacement: The new text for the given range.
-  @inlinable
-  mutating package func replace(
     utf8Offset fromOff: Int,
     length: Int,
     with replacement: String
