@@ -405,6 +405,80 @@ final class SwiftSourceKitPluginTests: XCTestCase {
     XCTAssertEqual(result3.items.count, 1)
   }
 
+  func testEditBounds() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+    let sourcekitd = try await getSourceKitD()
+    let path = scratchFilePath()
+    _ = try await sourcekitd.openDocument(
+      path,
+      contents: "",
+      compilerArguments: [path]
+    )
+
+    let typeWithMethod = """
+      struct S {
+        static func foo() -> Int {}
+      }
+
+      """
+    var fullText = typeWithMethod
+
+    try await sourcekitd.editDocument(path, fromOffset: 0, length: 0, newContents: typeWithMethod)
+
+    let completion = """
+      S.
+      """
+    fullText += completion
+
+    try await sourcekitd.editDocument(path, fromOffset: typeWithMethod.utf8.count, length: 0, newContents: completion)
+
+    func testCompletion(file: StaticString = #filePath, line: UInt = #line) async throws {
+      let result = try await sourcekitd.completeOpen(
+        path: path,
+        position: Position(line: 3, utf16index: 2),
+        filter: "foo",
+        flags: []
+      )
+      XCTAssertGreaterThan(result.unfilteredResultCount, 1, file: file, line: line)
+      XCTAssertEqual(result.items.count, 1, file: file, line: line)
+    }
+    try await testCompletion()
+
+    // Bogus edits are ignored (negative offsets crash SourceKit itself so we don't test them here).
+    await assertThrowsError(
+      try await sourcekitd.editDocument(path, fromOffset: 0, length: 99999, newContents: "")
+    )
+    await assertThrowsError(
+      try await sourcekitd.editDocument(path, fromOffset: 99999, length: 1, newContents: "")
+    )
+    await assertThrowsError(
+      try await sourcekitd.editDocument(path, fromOffset: 99999, length: 0, newContents: "unrelated")
+    )
+    // SourceKit doesn't throw an error for a no-op edit.
+    try await sourcekitd.editDocument(path, fromOffset: 99999, length: 0, newContents: "")
+
+    try await sourcekitd.editDocument(path, fromOffset: 0, length: 0, newContents: "")
+    try await sourcekitd.editDocument(path, fromOffset: fullText.utf8.count, length: 0, newContents: "")
+
+    try await testCompletion()
+
+    let badCompletion = """
+      X.
+      """
+    fullText = fullText.dropLast(2) + badCompletion
+
+    try await sourcekitd.editDocument(path, fromOffset: fullText.utf8.count - 2, length: 2, newContents: badCompletion)
+
+    let result = try await sourcekitd.completeOpen(
+      path: path,
+      position: Position(line: 3, utf16index: 2),
+      filter: "foo",
+      flags: []
+    )
+    XCTAssertEqual(result.unfilteredResultCount, 0)
+    XCTAssertEqual(result.items.count, 0)
+  }
+
   func testDocumentation() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()
     try await SkipUnless.sourcekitdSupportsFullDocumentationInCompletion()
