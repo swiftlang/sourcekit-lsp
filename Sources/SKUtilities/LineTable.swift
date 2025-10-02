@@ -115,21 +115,47 @@ extension LineTable {
     self.replace(fromLine: fromLine, utf16Offset: fromOff, toLine: toLine, utf16Offset: toOff, with: replacement)
   }
 
+  private struct OutOfBoundsError: Error, CustomLogStringConvertible {
+    // Note we use tuples here rather than Range since the latter would assert
+    // that upperBound >= lowerBound.
+    var utf8Range: (lower: Int, upper: Int)
+    var utf8Bounds: (lower: Int, upper: Int)
+
+    var description: String {
+      """
+      \(utf8Range.lower)..<\(utf8Range.upper) is out of bounds \
+      \(utf8Bounds.lower)..<\(utf8Bounds.upper)
+      """
+    }
+
+    var redactedDescription: String {
+      description
+    }
+  }
+
   /// Replace the line table's `content` in the given range and update the line data.
+  /// If the given range is out-of-bounds, throws an error.
   ///
-  /// - parameter fromLine: Starting line number (zero-based).
-  /// - parameter fromOff: Starting UTF-8 column offset (zero-based).
-  /// - parameter toLine: Ending line number (zero-based).
-  /// - parameter toOff: Ending UTF-8 column offset (zero-based).
+  /// - parameter utf8Offset: Starting UTF-8 offset (zero-based).
+  /// - parameter length: UTF-8 length.
   /// - parameter replacement: The new text for the given range.
   @inlinable
-  mutating package func replace(
+  mutating package func tryReplace(
     utf8Offset fromOff: Int,
     length: Int,
     with replacement: String
-  ) {
-    let start = content.utf8.index(content.startIndex, offsetBy: fromOff)
-    let end = content.utf8.index(content.startIndex, offsetBy: fromOff + length)
+  ) throws {
+    let utf8 = self.content.utf8
+    guard
+      fromOff >= 0, length >= 0,
+      let start = utf8.index(utf8.startIndex, offsetBy: fromOff, limitedBy: utf8.endIndex),
+      let end = utf8.index(start, offsetBy: length, limitedBy: utf8.endIndex)
+    else {
+      throw OutOfBoundsError(
+        utf8Range: (lower: fromOff, upper: fromOff + length),
+        utf8Bounds: (lower: 0, upper: utf8.count)
+      )
+    }
 
     var newText = self.content
     newText.replaceSubrange(start..<end, with: replacement)

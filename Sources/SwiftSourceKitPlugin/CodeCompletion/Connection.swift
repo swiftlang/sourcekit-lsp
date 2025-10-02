@@ -140,8 +140,11 @@ final class Connection {
       return
     }
 
-    document.lineTable.replace(utf8Offset: offset, length: length, with: newText)
-
+    // Try replace the range, ignoring an invalid input. This matches SourceKit's
+    // behavior.
+    orLog("Replacing text") {
+      try document.lineTable.tryReplace(utf8Offset: offset, length: length, with: newText)
+    }
     sourcekitd.ideApi.set_file_contents(impl, path, document.lineTable.content)
   }
 
