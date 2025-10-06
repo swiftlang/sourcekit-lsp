@@ -140,25 +140,11 @@ final class Connection {
       return
     }
 
-    document.lineTable.replace(utf8Offset: offset, length: length, with: newText)
-
-    sourcekitd.ideApi.set_file_contents(impl, path, document.lineTable.content)
-  }
-
-  func editDocument(path: String, edit: TextEdit) {
-    guard let document = documents[path] else {
-      logger.error("Document at '\(path)' is not open")
-      return
+    // Try replace the range, ignoring an invalid input. This matches SourceKit's
+    // behavior.
+    orLog("Replacing text") {
+      try document.lineTable.tryReplace(utf8Offset: offset, length: length, with: newText)
     }
-
-    document.lineTable.replace(
-      fromLine: edit.range.lowerBound.line - 1,
-      utf8Offset: edit.range.lowerBound.utf8Column - 1,
-      toLine: edit.range.upperBound.line - 1,
-      utf8Offset: edit.range.upperBound.utf8Column - 1,
-      with: edit.newText
-    )
-
     sourcekitd.ideApi.set_file_contents(impl, path, document.lineTable.content)
   }
 
