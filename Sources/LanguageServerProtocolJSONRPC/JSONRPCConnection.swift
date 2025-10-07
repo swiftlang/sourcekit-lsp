@@ -280,7 +280,7 @@ public final class JSONRPCConnection: Connection {
     }
 
     self.inFD.readabilityHandler = { fileHandle in
-      let data = fileHandle.availableData
+      let data = (try? fileHandle.read(upToCount: Int.max)) ?? Data()
       if data.isEmpty {
           fileHandle.readabilityHandler = nil
           self.close()
