@@ -272,56 +272,42 @@ public final class JSONRPCConnection: Connection {
     receiveHandler: MessageHandler,
     closeHandler: @escaping @Sendable () async -> Void = {}
   ) {
-    var fd: FileHandle?
     queue.sync {
       precondition(state == .created)
       state = .running
       self.receiveHandler = receiveHandler
       self.closeHandler = closeHandler
-      fd = self.inFD
     }
 
-    func reader() async {
-      var done = false
-      while !done {
-        if let data1 = try? fd!.read(upToCount: 1) {
-            let ad = fd!.availableData
-            let data = data1 + ad
+    self.inFD.readabilityHandler = { fileHandle in
+      let data = fileHandle.availableData
+      if data.isEmpty {
+          fileHandle.readabilityHandler = nil
+          self.close()
+          return
+      }
 
-            queue.sync {
-              orLog("Writing input mirror file") {
-                try self.inputMirrorFile?.write(contentsOf: data)
-              }
+      self.queue.sync {
+        orLog("Writing input mirror file") {
+          try self.inputMirrorFile?.write(contentsOf: data)
+        }
 
-              // Parse and handle any messages in `buffer + data`, leaving any remaining unparsed bytes in `buffer`.
-              if self.requestBuffer.isEmpty {
-                data.withUnsafeBytes { (pointer: UnsafePointer<UInt8>) in
-                  let rest = self.parseAndHandleMessages(from: UnsafeBufferPointer(start: pointer, count: data.count))
-                  self.requestBuffer.append(contentsOf: rest)
-                }
-              } else {
-                self.requestBuffer.append(contentsOf: data)
-                var unused = 0
-                self.requestBuffer.withUnsafeBufferPointer { buffer in
-                  let rest = self.parseAndHandleMessages(from: buffer)
-                  unused = rest.count
-                }
-                self.requestBuffer.removeFirst(self.requestBuffer.count - unused)
-              }
-            }
+        // Parse and handle any messages in `buffer + data`, leaving any remaining unparsed bytes in `buffer`.
+        if self.requestBuffer.isEmpty {
+          data.withUnsafeBytes { (pointer: UnsafePointer<UInt8>) in
+            let rest = self.parseAndHandleMessages(from: UnsafeBufferPointer(start: pointer, count: data.count))
+            self.requestBuffer.append(contentsOf: rest)
+          }
         } else {
-            done = true
-            return
+          self.requestBuffer.append(contentsOf: data)
+          var unused = 0
+          self.requestBuffer.withUnsafeBufferPointer { buffer in
+            let rest = self.parseAndHandleMessages(from: buffer)
+            unused = rest.count
+          }
+          self.requestBuffer.removeFirst(self.requestBuffer.count - unused)
         }
       }
-
-      queue.sync {
-        self.closeAssumingOnQueue()
-      }
-    }
-
-    Task.detached {
-      await reader()
     }
   }
 
