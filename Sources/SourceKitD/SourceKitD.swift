@@ -170,18 +170,6 @@ package actor SourceKitD {
     pluginPaths: PluginPaths?
   ) async throws -> SourceKitD {
     try await SourceKitDRegistry.shared.getOrAdd(dylibPath, pluginPaths: pluginPaths) {
-      #if canImport(Darwin)
-      #if compiler(>=6.3)
-      #warning("Remove this when we no longer need to support sourcekitd_plugin_initialize")
-      #endif
-      if let pluginPaths {
-        try setenv(
-          name: "SOURCEKIT_LSP_PLUGIN_SOURCEKITD_PATH_\(pluginPaths.clientPlugin.realpath.filePath)",
-          value: dylibPath.filePath,
-          override: false
-        )
-      }
-      #endif
       return try SourceKitD(dylib: dylibPath, pluginPaths: pluginPaths)
     }
   }

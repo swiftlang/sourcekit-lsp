@@ -20,8 +20,8 @@ import SKOptions
 import SwiftExtensions
 import ToolchainRegistry
 
-#if compiler(>=6.3)
-#warning("We have had a one year transition period to the pull based build server. Consider removing this build server")
+#if compiler(>=6.5)
+#warning("We have had a two year transition period to the pull based build server. Consider removing this build server")
 #endif
 
 /// Bridges the gap between the legacy push-based BSP settings model and the new pull based BSP settings model.
