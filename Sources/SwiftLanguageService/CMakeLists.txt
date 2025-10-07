@@ -46,6 +46,7 @@ add_library(SwiftLanguageService STATIC
   GeneratedInterfaceManager.swift
   SignatureHelp.swift
   AdjustPositionToStartOfArgument.swift
+  ExtractParametersDocumentation.swift
 )
 set_target_properties(SwiftLanguageService PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
@@ -59,6 +60,9 @@ target_link_libraries(SwiftLanguageService PUBLIC
   IndexStoreDB
   SwiftSyntax::SwiftBasicFormat
   SwiftSyntax::SwiftSyntax
+  SwiftMarkdown::Markdown
+  libcmark-gfm
+  libcmark-gfm-extensions
 )
 
 target_link_libraries(SourceKitLSP PRIVATE
