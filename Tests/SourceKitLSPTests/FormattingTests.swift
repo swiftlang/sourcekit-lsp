@@ -256,14 +256,14 @@ final class FormattingTests: XCTestCase {
       _ = [
         Node(
           documentation: """
-          A
-          B
-          C
+          Some great documentation
+          of an amazing
+          syntax node
           """,
           children: [
             Child(
               documentation: """
-              A
+              The one and only child
               \#("")
               """
             )
@@ -283,6 +283,7 @@ final class FormattingTests: XCTestCase {
 
     let edits = try XCTUnwrap(response)
     let formattedSource = apply(edits: edits, to: source)
+    XCTAssert(edits.allSatisfy { $0.newText.allSatisfy(\.isWhitespace) })
 
     XCTAssertEqual(
       formattedSource,
@@ -290,14 +291,14 @@ final class FormattingTests: XCTestCase {
       _ = [
         Node(
           documentation: """
-            A
-            B
-            C
+            Some great documentation
+            of an amazing
+            syntax node
             """,
           children: [
             Child(
               documentation: """
-                A
+                The one and only child
 
                 """
             )
