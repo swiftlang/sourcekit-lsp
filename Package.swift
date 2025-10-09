@@ -8,6 +8,8 @@ var globalSwiftSettings: [SwiftSetting] {
   var result: [SwiftSetting] = [
     .enableUpcomingFeature("InternalImportsByDefault"),
     .enableUpcomingFeature("MemberImportVisibility"),
+    .enableUpcomingFeature("InferIsolatedConformances"),
+    .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
   ]
   if noSwiftPMDependency {
     result += [.define("NO_SWIFTPM_DEPENDENCY")]
