@@ -224,4 +224,46 @@ final class InlayHintTests: XCTestCase {
       ]
     )
   }
+
+  func testIfConfigHints() async throws {
+    let (positions, hints) = try await performInlayHintRequest(
+      markedText: """
+        #if DEBUG
+        #endif1️⃣
+        """
+    )
+    XCTAssertEqual(
+      hints,
+      [
+        InlayHint(
+          position: positions["1️⃣"],
+          label: " // DEBUG",
+          kind: .type,
+          textEdits: [TextEdit(range: Range(positions["1️⃣"]), newText: " // DEBUG")],
+          tooltip: .string("Condition of this conditional compilation clause")
+        )
+      ]
+    )
+  }
+
+  func testIfConfigHintDoesNotShowIfCommentExits() async throws {
+    let (_, hints) = try await performInlayHintRequest(
+      markedText: """
+        #if DEBUG
+        #endif // DEBUG
+        """
+    )
+    XCTAssertEqual(hints, [])
+  }
+
+  func testIfConfigHintDoesNotShowIfElseClauseExists() async throws {
+    let (_, hints) = try await performInlayHintRequest(
+      markedText: """
+        #if DEBUG
+        #else
+        #endif
+        """
+    )
+    XCTAssertEqual(hints, [])
+  }
 }
