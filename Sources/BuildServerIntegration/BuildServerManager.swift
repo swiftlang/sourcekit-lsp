@@ -1119,6 +1119,64 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     return settings
   }
 
+  /// Try finding a source file with the same language as `document` in the same directory as `document` and patch its
+  /// build settings to provide more accurate fallback settings than the generic fallback settings.
+  private func fallbackBuildSettingsInferredFromSiblingFile(
+    of document: DocumentURI,
+    target explicitlyRequestedTarget: BuildTargetIdentifier?,
+    language: Language?,
+    fallbackAfterTimeout: Bool
+  ) async throws -> FileBuildSettings? {
+    guard let documentFileURL = document.fileURL else {
+      return nil
+    }
+    let directory = documentFileURL.deletingLastPathComponent()
+    guard let language = language ?? Language(inferredFromFileExtension: document) else {
+      return nil
+    }
+    let siblingFile = try await self.sourceFilesAndDirectories().files.compactMap { (uri, info) -> DocumentURI? in
+      guard info.isBuildable, uri.fileURL?.deletingLastPathComponent() == directory else {
+        return nil
+      }
+      if let explicitlyRequestedTarget, !info.targets.contains(explicitlyRequestedTarget) {
+        return nil
+      }
+      // Only consider build settings from sibling files that appear to have the same language. In theory, we might skip
+      // valid sibling files because of this since non-standard file extension might be mapped to `language` by the
+      // build server, but this is a good first check to avoid requesting build settings for too many documents. And
+      // since all of this is fallback-logic, skipping over possibly valid files is not a correctness issue.
+      guard let siblingLanguage = Language(inferredFromFileExtension: uri), siblingLanguage == language else {
+        return nil
+      }
+      return uri
+    }.sorted(by: { $0.pseudoPath < $1.pseudoPath }).first
+
+    guard let siblingFile else {
+      return nil
+    }
+
+    let siblingSettings = await self.buildSettingsInferredFromMainFile(
+      for: siblingFile,
+      target: explicitlyRequestedTarget,
+      language: language,
+      fallbackAfterTimeout: fallbackAfterTimeout,
+      allowInferenceFromSiblingFile: false
+    )
+    guard var siblingSettings, !siblingSettings.isFallback else {
+      return nil
+    }
+    siblingSettings.isFallback = true
+    switch language.semanticKind {
+    case .swift:
+      siblingSettings.compilerArguments += [try documentFileURL.filePath]
+    case .clang:
+      siblingSettings = siblingSettings.patching(newFile: document, originalFile: siblingFile)
+    case nil:
+      return nil
+    }
+    return siblingSettings
+  }
+
   /// Returns the build settings for the given document.
   ///
   /// If the document doesn't have builds settings by itself, eg. because it is a C header file, the build settings will
@@ -1135,7 +1193,8 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     for document: DocumentURI,
     target explicitlyRequestedTarget: BuildTargetIdentifier? = nil,
     language: Language?,
-    fallbackAfterTimeout: Bool
+    fallbackAfterTimeout: Bool,
+    allowInferenceFromSiblingFile: Bool = true
   ) async -> FileBuildSettings? {
     func mainFileAndSettings(
       basedOn document: DocumentURI
@@ -1170,6 +1229,19 @@ package actor BuildServerManager: QueueBasedMessageHandler {
           language: languageForFile,
           fallbackAfterTimeout: fallbackAfterTimeout
         )
+      }
+      if settings?.isFallback ?? true, allowInferenceFromSiblingFile {
+        let settingsFromSibling = await orLog("Inferring build settings from sibling file") {
+          try await self.fallbackBuildSettingsInferredFromSiblingFile(
+            of: document,
+            target: explicitlyRequestedTarget,
+            language: language,
+            fallbackAfterTimeout: fallbackAfterTimeout
+          )
+        }
+        if let settingsFromSibling {
+          return (mainFile, settingsFromSibling)
+        }
       }
       guard let settings else {
         return nil
