@@ -1205,13 +1205,13 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       basedOn document: DocumentURI
     ) async -> (mainFile: DocumentURI, settings: FileBuildSettings)? {
       let mainFile = await self.mainFile(for: document, language: language)
-      let settings: FileBuildSettings? = await orLog("Getting build settings") {
-        let target =
+      let settings: FileBuildSettings? = await orLog("Getting build settings") { () -> FileBuildSettings? in
+        let target: WithTimeoutResult<BuildTargetIdentifier?> =
           if let explicitlyRequestedTarget {
-            explicitlyRequestedTarget
+            .result(explicitlyRequestedTarget)
           } else {
-            try await withTimeout(options.buildSettingsTimeoutOrDefault) {
-              await self.canonicalTarget(for: mainFile)
+            try await withTimeoutResult(options.buildSettingsTimeoutOrDefault) {
+              return await self.canonicalTarget(for: mainFile)
             } resultReceivedAfterTimeout: { _ in
               await self.filesBuildSettingsChangedDebouncer.scheduleCall([document])
             }
@@ -1219,7 +1219,9 @@ package actor BuildServerManager: QueueBasedMessageHandler {
         var languageForFile: Language
         if let language {
           languageForFile = language
-        } else if let target, let language = await self.defaultLanguage(for: mainFile, in: target) {
+        } else if case let .result(target?) = target,
+          let language = await self.defaultLanguage(for: mainFile, in: target)
+        {
           languageForFile = language
         } else if let language = Language(inferredFromFileExtension: mainFile) {
           languageForFile = language
@@ -1228,31 +1230,37 @@ package actor BuildServerManager: QueueBasedMessageHandler {
           // settings.
           return nil
         }
-        guard let target else {
+        switch target {
+        case .result(let target?):
+          return await self.buildSettings(
+            for: mainFile,
+            in: target,
+            language: languageForFile,
+            fallbackAfterTimeout: fallbackAfterTimeout
+          )
+        case .result(nil):
+          if allowInferenceFromSiblingFile {
+            let settingsFromSibling = await orLog("Inferring build settings from sibling file") {
+              try await self.fallbackBuildSettingsInferredFromSiblingFile(
+                of: document,
+                target: explicitlyRequestedTarget,
+                language: language,
+                fallbackAfterTimeout: fallbackAfterTimeout
+              )
+            }
+            if let settingsFromSibling {
+              return settingsFromSibling
+            }
+          }
+          fallthrough
+        case .timedOut:
+          // If we timed out, we don't want to try inferring the build settings from a sibling since that would kick off
+          // new requests to the build server, which will likely also time out.
           return fallbackBuildSettings(
             for: document,
             language: languageForFile,
             options: options.fallbackBuildSystemOrDefault
           )
-        }
-        return await self.buildSettings(
-          for: mainFile,
-          in: target,
-          language: languageForFile,
-          fallbackAfterTimeout: fallbackAfterTimeout
-        )
-      }
-      if settings?.isFallback ?? true, allowInferenceFromSiblingFile {
-        let settingsFromSibling = await orLog("Inferring build settings from sibling file") {
-          try await self.fallbackBuildSettingsInferredFromSiblingFile(
-            of: document,
-            target: explicitlyRequestedTarget,
-            language: language,
-            fallbackAfterTimeout: fallbackAfterTimeout
-          )
-        }
-        if let settingsFromSibling {
-          return (mainFile, settingsFromSibling)
         }
       }
       guard let settings else {
