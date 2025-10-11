@@ -1071,8 +1071,6 @@ package actor BuildServerManager: QueueBasedMessageHandler {
 
   /// Returns the build settings for the given file in the given target.
   ///
-  /// If no target is given, this always returns fallback build settings.
-  ///
   /// Only call this method if it is known that `document` is a main file. Prefer `buildSettingsInferredFromMainFile`
   /// otherwise. If `document` is a header file, this will most likely return fallback settings because header files
   /// don't have build settings by themselves.
@@ -1081,42 +1079,30 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   /// `SourceKitLSPOptions.buildSettingsTimeoutOrDefault`.
   package func buildSettings(
     for document: DocumentURI,
-    in target: BuildTargetIdentifier?,
+    in target: BuildTargetIdentifier,
     language: Language,
     fallbackAfterTimeout: Bool
   ) async -> FileBuildSettings? {
-    if let target {
-      let buildSettingsFromBuildServer = await orLog("Getting build settings") {
-        if fallbackAfterTimeout {
-          try await withTimeout(options.buildSettingsTimeoutOrDefault) {
-            return try await self.buildSettingsFromBuildServer(for: document, in: target, language: language)
-          } resultReceivedAfterTimeout: { _ in
-            await self.filesBuildSettingsChangedDebouncer.scheduleCall([document])
-          }
-        } else {
-          try await self.buildSettingsFromBuildServer(for: document, in: target, language: language)
+    let buildSettingsFromBuildServer = await orLog("Getting build settings") {
+      if fallbackAfterTimeout {
+        try await withTimeout(options.buildSettingsTimeoutOrDefault) {
+          return try await self.buildSettingsFromBuildServer(for: document, in: target, language: language)
+        } resultReceivedAfterTimeout: { _ in
+          await self.filesBuildSettingsChangedDebouncer.scheduleCall([document])
         }
-      }
-      if let buildSettingsFromBuildServer {
-        return buildSettingsFromBuildServer
+      } else {
+        try await self.buildSettingsFromBuildServer(for: document, in: target, language: language)
       }
     }
-
-    guard
-      var settings = fallbackBuildSettings(
+    guard let buildSettingsFromBuildServer else {
+      return fallbackBuildSettings(
         for: document,
         language: language,
         options: options.fallbackBuildSystemOrDefault
       )
-    else {
-      return nil
     }
-    if buildServerAdapter == nil {
-      // If there is no build server and we only have the fallback build server, we will never get real build settings.
-      // Consider the build settings non-fallback.
-      settings.isFallback = false
-    }
-    return settings
+    return buildSettingsFromBuildServer
+
   }
 
   /// Try finding a source file with the same language as `document` in the same directory as `document` and patch its
@@ -1196,6 +1182,25 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     fallbackAfterTimeout: Bool,
     allowInferenceFromSiblingFile: Bool = true
   ) async -> FileBuildSettings? {
+    if buildServerAdapter == nil {
+      guard let language = language ?? Language(inferredFromFileExtension: document) else {
+        return nil
+      }
+      guard
+        var settings = fallbackBuildSettings(
+          for: document,
+          language: language,
+          options: options.fallbackBuildSystemOrDefault
+        )
+      else {
+        return nil
+      }
+      // If there is no build server and we only have the fallback build server, we will never get real build settings.
+      // Consider the build settings non-fallback.
+      settings.isFallback = false
+      return settings
+    }
+
     func mainFileAndSettings(
       basedOn document: DocumentURI
     ) async -> (mainFile: DocumentURI, settings: FileBuildSettings)? {
@@ -1222,6 +1227,13 @@ package actor BuildServerManager: QueueBasedMessageHandler {
           // We don't know the language as which to interpret the document, so we can't ask the build server for its
           // settings.
           return nil
+        }
+        guard let target else {
+          return fallbackBuildSettings(
+            for: document,
+            language: languageForFile,
+            options: options.fallbackBuildSystemOrDefault
+          )
         }
         return await self.buildSettings(
           for: mainFile,
