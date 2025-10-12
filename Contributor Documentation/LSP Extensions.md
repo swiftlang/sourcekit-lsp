@@ -690,6 +690,35 @@ export interface PeekDocumentsResult {
 }
 ```
 
+## `workspace/showFocusedDiagnostics`
+
+Request from the server to the client to display focused diagnostics for a specific subset of the source.
+
+It requires the experimental client capability `"workspace/showFocusedDiagnostics"` to use.
+
+- params: `ShowFocusedDiagnosticsParams`
+- result: `ShowFocusedDiagnosticsResult`
+
+```ts
+export interface ShowFocusedDiagnosticsParams {
+  /**
+   * Array of diagnostics to display
+   */
+  diagnostics: Diagnostic[];
+  /**
+   * The `DocumentUri` of the text document in which to present the diagnostics.
+   */
+  uri: DocumentUri;
+}
+
+/**
+ * Response to indicate the `success` of the `ShowFocusedDiagnosticsRequest`
+ */
+export interface ShowFocusedDiagnosticsResult {
+  success: boolean;
+}
+```
+
 ## `workspace/synchronize`
 
 Request from the client to the server to wait for SourceKit-LSP to handle all ongoing requests and, optionally, wait for background activity to finish.
