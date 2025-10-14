@@ -68,8 +68,8 @@ public struct InlayHintKind: RawRepresentable, Codable, Hashable, Sendable {
 
   /// A type annotation.
   public static let type: InlayHintKind = InlayHintKind(rawValue: 1)
-  /// A parameter label. Note that this case is not used by
-  /// Swift, since Swift already has explicit parameter labels.
+
+  /// A parameter label.
   public static let parameter: InlayHintKind = InlayHintKind(rawValue: 2)
 }
 

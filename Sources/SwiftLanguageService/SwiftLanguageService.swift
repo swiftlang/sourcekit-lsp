@@ -1032,32 +1032,6 @@ extension SwiftLanguageService {
     return codeActions
   }
 
-  package func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
-    let uri = req.textDocument.uri
-    let infos = try await variableTypeInfos(uri, req.range)
-    let hints = infos
-      .lazy
-      .filter { !$0.hasExplicitType }
-      .map { info -> InlayHint in
-        let position = info.range.upperBound
-        let label = ": \(info.printedType)"
-        let textEdits: [TextEdit]?
-        if info.canBeFollowedByTypeAnnotation {
-          textEdits = [TextEdit(range: position..<position, newText: label)]
-        } else {
-          textEdits = nil
-        }
-        return InlayHint(
-          position: position,
-          label: .string(label),
-          kind: .type,
-          textEdits: textEdits
-        )
-      }
-
-    return Array(hints)
-  }
-
   package func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens] {
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
     var targetDisplayName: String? = nil

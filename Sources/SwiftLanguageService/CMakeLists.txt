@@ -1,51 +1,51 @@
 add_library(SwiftLanguageService STATIC
-  SemanticRefactoring.swift
-  SwiftTestingScanner.swift
-  FoldingRange.swift
-  CMakeLists.txt
-  SymbolInfo.swift
-  RefactoringEdit.swift
-  CodeActions/ConvertStringConcatenationToStringInterpolation.swift
-  CodeActions/SyntaxRefactoringCodeActionProvider.swift
+  AdjustPositionToStartOfArgument.swift
+  AdjustPositionToStartOfIdentifier.swift
+  ClosureCompletionFormat.swift
+  CodeActions/AddDocumentation.swift
+  CodeActions/ConvertIntegerLiteral.swift
   CodeActions/ConvertJSONToCodableStruct.swift
+  CodeActions/ConvertStringConcatenationToStringInterpolation.swift
+  CodeActions/PackageManifestEdits.swift
   CodeActions/SyntaxCodeActionProvider.swift
   CodeActions/SyntaxCodeActions.swift
-  CodeActions/ConvertIntegerLiteral.swift
-  CodeActions/PackageManifestEdits.swift
-  CodeActions/AddDocumentation.swift
-  RefactoringResponse.swift
-  SyntacticSwiftXCTestScanner.swift
-  CommentXML.swift
-  SymbolGraph.swift
-  ClosureCompletionFormat.swift
-  SemanticRefactorCommand.swift
-  DocumentFormatting.swift
-  DiagnosticReportManager.swift
-  SemanticTokens.swift
-  ExpandMacroCommand.swift
-  Diagnostic.swift
+  CodeActions/SyntaxRefactoringCodeActionProvider.swift
   CodeCompletion.swift
-  SwiftCodeLensScanner.swift
-  SwiftCommand.swift
-  RelatedIdentifiers.swift
-  VariableTypeInfo.swift
   CodeCompletionSession.swift
-  SyntaxTreeManager.swift
+  CommentXML.swift
+  CursorInfo.swift
+  Diagnostic.swift
+  DiagnosticReportManager.swift
+  DocumentFormatting.swift
+  DocumentSymbols.swift
+  ExpandMacroCommand.swift
+  FoldingRange.swift
+  GeneratedInterfaceManager.swift
+  InlayHints.swift
+  MacroExpansion.swift
+  OpenInterface.swift
+  RefactoringEdit.swift
+  RefactoringResponse.swift
+  RelatedIdentifiers.swift
   Rename.swift
   RewriteSourceKitPlaceholders.swift
-  SwiftLanguageService.swift
-  TestDiscovery.swift
-  OpenInterface.swift
-  SyntaxHighlightingToken.swift
-  MacroExpansion.swift
-  AdjustPositionToStartOfIdentifier.swift
-  SyntaxHighlightingTokenParser.swift
-  CursorInfo.swift
-  DocumentSymbols.swift
-  SyntaxHighlightingTokens.swift
-  GeneratedInterfaceManager.swift
+  SemanticRefactorCommand.swift
+  SemanticRefactoring.swift
+  SemanticTokens.swift
   SignatureHelp.swift
-  AdjustPositionToStartOfArgument.swift
+  SwiftCodeLensScanner.swift
+  SwiftCommand.swift
+  SwiftLanguageService.swift
+  SwiftTestingScanner.swift
+  SymbolGraph.swift
+  SymbolInfo.swift
+  SyntacticSwiftXCTestScanner.swift
+  SyntaxHighlightingToken.swift
+  SyntaxHighlightingTokenParser.swift
+  SyntaxHighlightingTokens.swift
+  SyntaxTreeManager.swift
+  TestDiscovery.swift
+  VariableTypeInfo.swift
 )
 set_target_properties(SwiftLanguageService PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
