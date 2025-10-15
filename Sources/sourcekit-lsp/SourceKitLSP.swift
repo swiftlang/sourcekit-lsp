@@ -17,10 +17,10 @@ import Diagnose
 import Dispatch
 import Foundation
 import InProcessClient
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import LanguageServerProtocolJSONRPC
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import SourceKitLSP
 import SwiftExtensions
@@ -234,18 +234,20 @@ struct SourceKitLSP: AsyncParsableCommand {
       fatalError("failed to redirect stdout -> stderr: \(strerror(errno)!)")
     }
 
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp")
+
     logger.log("sourcekit-lsp launched from \(ProcessInfo.processInfo.arguments.first ?? "<nil>")")
 
     let globalConfigurationOptions = globalConfigurationOptions
     if let logLevelStr = globalConfigurationOptions.loggingOrDefault.level,
       let logLevel = NonDarwinLogLevel(logLevelStr)
     {
-      LogConfig.logLevel.value = logLevel
+      LogConfig.logLevel = logLevel
     }
     if let privacyLevelStr = globalConfigurationOptions.loggingOrDefault.privacyLevel,
       let privacyLevel = NonDarwinLogPrivacy(privacyLevelStr)
     {
-      LogConfig.privacyLevel.value = privacyLevel
+      LogConfig.privacyLevel = privacyLevel
     }
 
     let realStdoutHandle = FileHandle(fileDescriptor: realStdout, closeOnDealloc: false)

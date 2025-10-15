@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
 import SKTestSupport
 import SKUtilities
 import XCTest

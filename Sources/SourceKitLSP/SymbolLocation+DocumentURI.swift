@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import IndexStoreDB
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 
 extension SymbolLocation {
   package var documentUri: DocumentURI {

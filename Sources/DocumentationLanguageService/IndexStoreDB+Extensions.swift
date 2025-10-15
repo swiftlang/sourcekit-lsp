@@ -12,7 +12,7 @@
 
 import Foundation
 import IndexStoreDB
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 import SemanticIndex
 @preconcurrency @_spi(LinkCompletion) import SwiftDocC
 import SwiftExtensions

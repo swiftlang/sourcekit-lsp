@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import SKTestSupport
 import SourceKitD
@@ -22,7 +22,7 @@ import SwiftParser
 import SwiftSyntax
 import XCTest
 
-final class LocalSwiftTests: XCTestCase {
+final class LocalSwiftTests: SourceKitLSPTestCase {
   private let quickFixCapabilities = ClientCapabilities(
     textDocument: TextDocumentClientCapabilities(
       codeAction: .init(

@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
 
 extension TextEdit {
   /// Returns `true` the replaced text is the same as the new text

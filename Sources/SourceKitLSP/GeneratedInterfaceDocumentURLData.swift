@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 
 /// Represents url of generated interface reference document.
 package struct GeneratedInterfaceDocumentURLData: Hashable, ReferenceURLData {

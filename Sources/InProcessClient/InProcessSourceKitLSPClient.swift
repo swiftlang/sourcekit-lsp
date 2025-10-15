@@ -12,14 +12,16 @@
 
 import BuildServerIntegration
 public import Foundation
-public import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) public import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 public import SKOptions
 package import SourceKitLSP
 import SwiftExtensions
 import TSCExtensions
 package import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 
@@ -56,6 +58,7 @@ public final class InProcessSourceKitLSPClient: Sendable {
     workspaceFolders: [WorkspaceFolder],
     messageHandler: any MessageHandler
   ) async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp")
     let serverToClientConnection = LocalConnection(receiverName: "client")
     self.server = SourceKitLSPServer(
       client: serverToClientConnection,

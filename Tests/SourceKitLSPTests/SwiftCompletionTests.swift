@@ -10,13 +10,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
 import XCTest
 
-final class SwiftCompletionTests: XCTestCase {
+final class SwiftCompletionTests: SourceKitLSPTestCase {
   // MARK: - Helpers
 
   private var snippetCapabilities = ClientCapabilities(

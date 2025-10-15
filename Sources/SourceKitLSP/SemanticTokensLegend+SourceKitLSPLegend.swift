@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 
 extension SemanticTokenTypes {
   // LSP doesn’t know about actors. Display actors as classes.

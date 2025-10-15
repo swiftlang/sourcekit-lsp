@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 
 #if canImport(os)
 import os

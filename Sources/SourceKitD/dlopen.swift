@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
 
 #if os(Windows)

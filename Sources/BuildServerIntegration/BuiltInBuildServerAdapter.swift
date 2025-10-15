@@ -10,14 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildServerProtocol
+@_spi(SourceKitLSP) import BuildServerProtocol
 package import Foundation
-package import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import SwiftExtensions
 import ToolchainRegistry
+import ToolsProtocolsSwiftExtensions
 
 /// The details necessary to create a `BuildServerAdapter`.
 package struct BuildServerSpec {

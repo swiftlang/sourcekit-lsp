@@ -8,8 +8,9 @@ set_target_properties(InProcessClient PROPERTIES
 target_link_libraries(InProcessClient PUBLIC
   BuildServerIntegration
   ClangLanguageService
-  LanguageServerProtocol
-  SKLogging
+  Crypto
+  SwiftToolsProtocols::LanguageServerProtocol
+  SwiftToolsProtocols::SKLogging
   SKOptions
   SourceKitLSP
   SwiftLanguageService

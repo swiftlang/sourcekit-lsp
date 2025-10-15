@@ -10,17 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import BuildServerProtocol
+@_spi(SourceKitLSP) package import BuildServerProtocol
 import Dispatch
 package import Foundation
-package import LanguageServerProtocol
-package import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) package import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 package import SKOptions
 import SKUtilities
-package import SwiftExtensions
+import SwiftExtensions
 import TSCExtensions
 package import ToolchainRegistry
+@_spi(SourceKitLSP) package import ToolsProtocolsSwiftExtensions
 
 import struct TSCBasic.RelativePath
 

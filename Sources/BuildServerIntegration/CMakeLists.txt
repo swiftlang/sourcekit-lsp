@@ -25,14 +25,15 @@ add_library(BuildServerIntegration STATIC
 set_target_properties(BuildServerIntegration PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 target_link_libraries(BuildServerIntegration PUBLIC
-  BuildServerProtocol
-  LanguageServerProtocol
-  LanguageServerProtocolJSONRPC
-  SKLogging
+  SwiftToolsProtocols::BuildServerProtocol
+  SwiftToolsProtocols::LanguageServerProtocol
+  SwiftToolsProtocols::LanguageServerProtocolTransport
+  SwiftToolsProtocols::SKLogging
   SKOptions
   LanguageServerProtocolExtensions
   SourceKitD
   SwiftExtensions
+  SwiftToolsProtocols::ToolsProtocolsSwiftExtensions
   ToolchainRegistry
   PackageModel
   TSCBasic

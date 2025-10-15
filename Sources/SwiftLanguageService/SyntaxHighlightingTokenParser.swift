@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import Csourcekitd
-import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SourceKitD
 package import SourceKitLSP
 

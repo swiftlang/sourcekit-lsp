@@ -12,12 +12,14 @@
 
 @_spi(Testing) import BuildServerIntegration
 import Foundation
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import SemanticIndex
 @_spi(Testing) import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 import struct TSCBasic.AbsolutePath
@@ -29,7 +31,7 @@ private let packageManifestWithTestTarget = """
   )
   """
 
-final class WorkspaceTestDiscoveryTests: XCTestCase {
+final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
   func testIndexBasedWorkspaceXCTests() async throws {
     try SkipUnless.longTestsEnabled()
 

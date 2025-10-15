@@ -11,10 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
-import BuildServerProtocol
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) import BuildServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import SKTestSupport
 import SemanticIndex
@@ -22,11 +22,12 @@ import SourceKitLSP
 import SwiftExtensions
 import TSCExtensions
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 import class TSCBasic.Process
 
-final class BackgroundIndexingTests: XCTestCase {
+final class BackgroundIndexingTests: SourceKitLSPTestCase {
   func testBackgroundIndexingOfSingleFile() async throws {
     let project = try await SwiftPMTestProject(
       files: [

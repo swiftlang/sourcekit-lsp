@@ -28,10 +28,11 @@ set_target_properties(Diagnose PROPERTIES
 target_link_libraries(Diagnose PUBLIC
   BuildServerIntegration
   InProcessClient
-  SKLogging
+  SwiftToolsProtocols::SKLogging
   SKOptions
   SourceKitD
   SwiftExtensions
+  SwiftToolsProtocols::ToolsProtocolsSwiftExtensions
   ToolchainRegistry
   ArgumentParser
   SwiftSyntax::SwiftIDEUtils

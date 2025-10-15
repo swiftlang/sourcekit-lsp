@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 @_spi(Testing) import SourceKitLSP
 import XCTest
 
-final class LocalClangTests: XCTestCase {
+final class LocalClangTests: SourceKitLSPTestCase {
   // MARK: - Tests
 
   func testSymbolInfo() async throws {

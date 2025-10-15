@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import XCTest
 
-final class InlayHintTests: XCTestCase {
+final class InlayHintTests: SourceKitLSPTestCase {
   // MARK: - Helpers
 
   func performInlayHintRequest(

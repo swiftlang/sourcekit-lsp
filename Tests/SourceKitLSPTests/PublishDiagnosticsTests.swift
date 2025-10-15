@@ -10,13 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
-import LanguageServerProtocolJSONRPC
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 import SKTestSupport
 import XCTest
 
-final class PublishDiagnosticsTests: XCTestCase {
+final class PublishDiagnosticsTests: SourceKitLSPTestCase {
   func testUnknownIdentifierDiagnostic() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let uri = DocumentURI(for: .swift)

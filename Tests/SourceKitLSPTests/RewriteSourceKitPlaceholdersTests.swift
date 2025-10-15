@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKLogging
 import SKTestSupport
 import SourceKitLSP
 @_spi(Testing) import SwiftLanguageService
 import XCTest
 
-final class RewriteSourceKitPlaceholdersTests: XCTestCase {
+final class RewriteSourceKitPlaceholdersTests: SourceKitLSPTestCase {
   func testClientDoesNotSupportSnippets() {
     let input = "foo(bar: <#T##Int##Int#>)"
     let rewritten = rewriteSourceKitPlaceholders(in: input, clientSupportsSnippets: false)

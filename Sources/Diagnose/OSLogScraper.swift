@@ -12,7 +12,7 @@
 
 #if canImport(OSLog)
 import OSLog
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 import RegexBuilder
 
 /// Reads oslog messages to find recent sourcekitd crashes.

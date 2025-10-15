@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 
 #if canImport(FoundationXML)
 import FoundationXML

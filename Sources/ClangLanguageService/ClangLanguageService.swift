@@ -13,16 +13,17 @@
 import BuildServerIntegration
 import Foundation
 import IndexStoreDB
-package import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import LanguageServerProtocolJSONRPC
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 package import SKOptions
 package import SourceKitLSP
-package import SwiftExtensions
+import SwiftExtensions
 package import SwiftSyntax
 import TSCExtensions
 package import ToolchainRegistry
+@_spi(SourceKitLSP) package import ToolsProtocolsSwiftExtensions
 
 #if os(Windows)
 import WinSDK

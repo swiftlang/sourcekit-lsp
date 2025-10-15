@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import BuildServerProtocol
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import BuildServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 
 /// Handles build server events, such as file build settings changes.
 package protocol BuildServerManagerDelegate: AnyObject, Sendable {

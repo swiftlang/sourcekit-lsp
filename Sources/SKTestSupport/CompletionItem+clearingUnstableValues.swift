@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 
 extension [CompletionItem] {
   /// Remove `sortText` and `data` from all completion items as these are not stable across runs. Instead, sort items

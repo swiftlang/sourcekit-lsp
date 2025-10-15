@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 
 /// Protocol of tasks that are executed on the index task scheduler.
 ///
