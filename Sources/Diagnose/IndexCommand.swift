@@ -13,12 +13,14 @@
 public import ArgumentParser
 import Foundation
 import InProcessClient
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
 import SKOptions
 import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process

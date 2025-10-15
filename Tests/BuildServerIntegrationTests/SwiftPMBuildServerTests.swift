@@ -11,11 +11,13 @@
 //===----------------------------------------------------------------------===//
 
 #if !NO_SWIFTPM_DEPENDENCY
-import BuildServerProtocol
+@_spi(SourceKitLSP) import BuildServerProtocol
 @_spi(Testing) import BuildServerIntegration
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
 import PackageModel
+import SKLogging
 import SKOptions
 import SKTestSupport
 import SourceKitLSP
@@ -47,6 +49,11 @@ private var hostTriple: Triple {
 
 @Suite(.serialized)
 struct SwiftPMBuildServerTests {
+
+  init() {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   @Test
   func testNoPackage() async throws {
     try await withTestScratchDir { tempDir in

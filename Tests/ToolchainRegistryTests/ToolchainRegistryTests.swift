@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKLogging
 import SKTestSupport
 import SKUtilities
 import SwiftExtensions
@@ -22,6 +23,10 @@ import Android
 #endif
 
 final class ToolchainRegistryTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   func testDefaultSingleToolchain() async throws {
     let tr = ToolchainRegistry(toolchains: [
       Toolchain(identifier: "a", displayName: "a", path: URL(fileURLWithPath: "/dummy"))

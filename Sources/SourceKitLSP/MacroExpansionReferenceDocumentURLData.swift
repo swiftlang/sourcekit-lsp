@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 package import Foundation
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 import RegexBuilder
 
 /// Represents url of macro expansion reference document as follows:

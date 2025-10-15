@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
 import SwiftBasicFormat
 import SwiftParser
 import SwiftRefactor

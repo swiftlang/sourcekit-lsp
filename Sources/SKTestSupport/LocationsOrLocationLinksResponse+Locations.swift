@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 
 extension LocationsOrLocationLinksResponse {
   /// If this is the `locations` case, return the locations, otherwise return `nil`.

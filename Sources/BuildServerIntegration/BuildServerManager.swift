@@ -10,17 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import BuildServerProtocol
+@_spi(SourceKitLSP) package import BuildServerProtocol
 import Dispatch
 package import Foundation
-package import LanguageServerProtocol
-package import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) package import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 package import SKOptions
 import SKUtilities
-package import SwiftExtensions
+import SwiftExtensions
 import TSCExtensions
 package import ToolchainRegistry
+@_spi(SourceKitLSP) package import ToolsProtocolsSwiftExtensions
 
 import struct TSCBasic.RelativePath
 
@@ -1142,7 +1144,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     ) async -> (mainFile: DocumentURI, settings: FileBuildSettings)? {
       let mainFile = await self.mainFile(for: document, language: language)
       let settings: FileBuildSettings? = await orLog("Getting build settings") {
-        let target =
+        let targetResult =
           if let explicitlyRequestedTarget {
             explicitlyRequestedTarget
           } else {
@@ -1151,6 +1153,12 @@ package actor BuildServerManager: QueueBasedMessageHandler {
             } resultReceivedAfterTimeout: { _ in
               await self.filesBuildSettingsChangedDebouncer.scheduleCall([document])
             }
+          }
+        let target: BuildTargetIdentifier? =
+          switch targetResult {
+          case .none: nil
+          case .some(.none): nil
+          case .some(.some(let value)): value
           }
         var languageForFile: Language
         if let language {

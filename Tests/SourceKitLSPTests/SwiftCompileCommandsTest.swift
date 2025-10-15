@@ -11,12 +11,16 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SourceKitLSP
 import SwiftLanguageService
 import XCTest
 
 final class SwiftCompileCommandsTest: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
 
   func testWorkingDirectoryIsAdded() {
     let settings = FileBuildSettings(compilerArguments: ["a", "b"], workingDirectory: "/build/root", language: .swift)

@@ -13,8 +13,8 @@
 import Csourcekitd
 import Foundation
 package import IndexStoreDB
-package import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SKUtilities
 import SourceKitD
 package import SourceKitLSP

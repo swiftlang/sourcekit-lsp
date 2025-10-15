@@ -11,11 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 import Csourcekitd
-import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 import SKTestSupport
 import SourceKitD
 import SwiftExtensions
 import TSCBasic
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class SourceKitDRegistryTests: XCTestCase {

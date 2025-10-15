@@ -10,11 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import XCTest
 
 final class CodeLensTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   func testNoLenses() async throws {
     var codeLensCapabilities = TextDocumentClientCapabilities.CodeLens()
     codeLensCapabilities.supportedCommands = [

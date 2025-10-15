@@ -10,11 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import XCTest
 
 final class RenameTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   func testRenameVariableBaseName() async throws {
     try await assertSingleFileRename(
       """

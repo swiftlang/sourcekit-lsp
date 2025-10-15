@@ -12,7 +12,8 @@
 
 import CompletionScoring
 import Csourcekitd
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import SourceKitD
 import SwiftExtensions
@@ -42,6 +43,10 @@ final class SwiftSourceKitPluginTests: XCTestCase {
       dylibPath: sourcekitd,
       pluginPaths: try sourceKitPluginPaths
     )
+  }
+
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
   }
 
   func testBasicCompletion() async throws {

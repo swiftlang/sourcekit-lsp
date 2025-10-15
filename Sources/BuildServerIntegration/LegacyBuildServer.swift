@@ -10,15 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildServerProtocol
+@_spi(SourceKitLSP) import BuildServerProtocol
 import Foundation
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import LanguageServerProtocolJSONRPC
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import SwiftExtensions
 import ToolchainRegistry
+import ToolsProtocolsSwiftExtensions
 
 #if compiler(>=6.5)
 #warning("We have had a two year transition period to the pull based build server. Consider removing this build server")

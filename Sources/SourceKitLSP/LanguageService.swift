@@ -13,8 +13,8 @@
 package import BuildServerIntegration
 import Foundation
 package import IndexStoreDB
-package import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 package import SKOptions
 package import SwiftSyntax
 package import ToolchainRegistry

@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import SKTestSupport
 import SourceKitD
@@ -43,6 +43,10 @@ fileprivate extension HoverResponse {
 }
 
 final class CrashRecoveryTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   func testSourcekitdCrashRecovery() async throws {
     try SkipUnless.platformIsDarwin("Linux and Windows use in-process sourcekitd")
     try SkipUnless.longTestsEnabled()

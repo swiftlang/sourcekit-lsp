@@ -51,7 +51,7 @@ set_target_properties(SwiftLanguageService PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 target_link_libraries(SwiftLanguageService PUBLIC
   BuildServerIntegration
-  LanguageServerProtocol
+  SwiftToolsProtocols::LanguageServerProtocol
   SKOptions
   SourceKitD
   SourceKitLSP
@@ -62,14 +62,15 @@ target_link_libraries(SwiftLanguageService PUBLIC
 )
 
 target_link_libraries(SourceKitLSP PRIVATE
-  BuildServerProtocol
+  SwiftToolsProtocols::BuildServerProtocol
   Csourcekitd
   LanguageServerProtocolExtensions
-  LanguageServerProtocolJSONRPC
+  SwiftToolsProtocols::LanguageServerProtocolTransport
   SemanticIndex
-  SKLogging
+  SwiftToolsProtocols::SKLogging
   SKUtilities
   SwiftExtensions
+  SwiftToolsProtocols::ToolsProtocolsSwiftExtensions
   TSCExtensions
   Crypto
   TSCBasic

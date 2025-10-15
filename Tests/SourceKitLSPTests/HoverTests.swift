@@ -10,11 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import XCTest
 
 final class HoverTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   func testBasic() async throws {
     try await assertHover(
       """

@@ -11,9 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 package import Foundation
-import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 import SwiftExtensions
 import TSCExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 import struct TSCBasic.AbsolutePath

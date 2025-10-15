@@ -10,7 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
@@ -32,6 +33,10 @@ private let clientCapabilitiesWithCodeActionSupport: ClientCapabilities = {
 }()
 
 final class CodeActionTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   func testCodeActionResponseLegacySupport() throws {
     let command = Command(title: "Title", command: "Command", arguments: [1, "text", 2.2, nil])
     let codeAction = CodeAction(title: "1")

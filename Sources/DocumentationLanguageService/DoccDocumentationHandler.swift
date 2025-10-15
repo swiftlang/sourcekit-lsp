@@ -13,9 +13,9 @@
 import BuildServerIntegration
 import Foundation
 @preconcurrency import IndexStoreDB
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 import Markdown
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 import SKUtilities
 import SemanticIndex
 import SourceKitLSP

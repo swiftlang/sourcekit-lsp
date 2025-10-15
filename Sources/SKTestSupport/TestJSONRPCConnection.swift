@@ -11,10 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 import InProcessClient
-public import LanguageServerProtocol
-package import LanguageServerProtocolExtensions
-package import LanguageServerProtocolJSONRPC
+@_spi(SourceKitLSP) public import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) package import LanguageServerProtocolTransport
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 package import class Foundation.Pipe

@@ -11,14 +11,15 @@
 //===----------------------------------------------------------------------===//
 
 package import BuildServerIntegration
-import BuildServerProtocol
+@_spi(SourceKitLSP) import BuildServerProtocol
 import Csourcekitd
 import Dispatch
 import Foundation
 import IndexStoreDB
-package import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 package import SKOptions
 import SKUtilities
 import SemanticIndex
@@ -29,6 +30,7 @@ import SwiftParser
 import SwiftParserDiagnostics
 package import SwiftSyntax
 package import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 #if os(Windows)
 import WinSDK
