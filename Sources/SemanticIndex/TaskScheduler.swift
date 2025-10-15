@@ -11,9 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LanguageServerProtocolExtensions
-package import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) package import SKLogging
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// See comment on ``TaskDescriptionProtocol/dependencies(to:taskPriority:)``
 package enum TaskDependencyAction<TaskDescription: TaskDescriptionProtocol> {

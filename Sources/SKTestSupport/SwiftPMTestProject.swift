@@ -11,13 +11,14 @@
 //===----------------------------------------------------------------------===//
 
 package import Foundation
-package import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 package import SKOptions
 package import SourceKitLSP
 import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 package class SwiftPMTestProject: MultiFileTestProject {

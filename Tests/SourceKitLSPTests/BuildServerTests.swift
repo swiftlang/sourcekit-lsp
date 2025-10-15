@@ -11,9 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(Testing) import BuildServerIntegration
-import BuildServerProtocol
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import BuildServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+import SKLogging
 import SKOptions
 import SKTestSupport
 @_spi(Testing) import SemanticIndex
@@ -49,6 +50,10 @@ fileprivate actor TestBuildServer: CustomBuildServer {
 }
 
 final class BuildServerTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   func testClangdDocumentUpdatedBuildSettings() async throws {
     let project = try await CustomBuildServerTestProject(
       files: [

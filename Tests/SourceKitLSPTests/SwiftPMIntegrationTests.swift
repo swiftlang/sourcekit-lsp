@@ -12,13 +12,17 @@
 
 import BuildServerIntegration
 import Foundation
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
 import XCTest
 
 final class SwiftPMIntegrationTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
 
   func testSwiftPMIntegration() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()

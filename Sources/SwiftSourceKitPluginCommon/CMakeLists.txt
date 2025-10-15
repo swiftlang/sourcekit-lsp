@@ -13,6 +13,7 @@ set_target_properties(SwiftSourceKitPluginCommon PROPERTIES
 target_link_libraries(SwiftSourceKitPluginCommon PRIVATE
   Csourcekitd
   SourceKitDForPlugin
-  SKLoggingForPlugin
+  SwiftToolsProtocols::SKLoggingForPlugin
   SwiftExtensionsForPlugin
+  SwiftToolsProtocols::ToolsProtocolsExtensionsForPlugin
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)

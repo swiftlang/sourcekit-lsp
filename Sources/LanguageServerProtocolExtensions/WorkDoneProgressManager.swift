@@ -11,9 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-package import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+import ToolsProtocolsSwiftExtensions
 
 /// Represents a single `WorkDoneProgress` task that gets communicated with the client.
 ///

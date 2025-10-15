@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 import SourceKitD
 
 /// Represents an edit from semantic refactor response. Notionally, a subclass of `TextEdit`

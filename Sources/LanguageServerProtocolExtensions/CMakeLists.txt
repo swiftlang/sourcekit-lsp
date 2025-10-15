@@ -15,9 +15,10 @@ set_target_properties(LanguageServerProtocolExtensions PROPERTIES
 target_link_libraries(LanguageServerProtocolExtensions PUBLIC
   SourceKitD)
 target_link_libraries(LanguageServerProtocolExtensions PRIVATE
-  LanguageServerProtocol
-  LanguageServerProtocolJSONRPC
-  SKLogging
+  SwiftToolsProtocols::LanguageServerProtocol
+  SwiftToolsProtocols::LanguageServerProtocolTransport
+  SwiftToolsProtocols::SKLogging
   SwiftExtensions
+  SwiftToolsProtocols::ToolsProtocolsSwiftExtensions
   TSCBasic
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)

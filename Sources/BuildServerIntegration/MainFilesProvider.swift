@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 
 /// A type that can provide the set of main files that include a particular file.
 package protocol MainFilesProvider: Sendable {

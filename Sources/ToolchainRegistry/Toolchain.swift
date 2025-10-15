@@ -12,7 +12,7 @@
 
 package import Foundation
 import RegexBuilder
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
 import TSCExtensions
 

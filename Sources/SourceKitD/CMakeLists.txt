@@ -16,8 +16,9 @@ set_target_properties(SourceKitD PROPERTIES
 target_link_libraries(SourceKitD PUBLIC
   Csourcekitd)
 target_link_libraries(SourceKitD PRIVATE
-  SKLogging
+  SwiftToolsProtocols::SKLogging
   SwiftExtensions
+  SwiftToolsProtocols::ToolsProtocolsSwiftExtensions
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)
 
 
@@ -32,6 +33,7 @@ target_compile_options(SourceKitDForPlugin PRIVATE
 target_link_libraries(SourceKitDForPlugin PUBLIC
   Csourcekitd)
 target_link_libraries(SourceKitDForPlugin PRIVATE
-  SKLoggingForPlugin
+  SwiftToolsProtocols::SKLoggingForPlugin
   SwiftExtensionsForPlugin
+  SwiftToolsProtocols::ToolsProtocolsSwiftExtensionsForPlugin
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)

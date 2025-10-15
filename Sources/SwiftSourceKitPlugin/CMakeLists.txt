@@ -42,10 +42,11 @@ target_link_libraries(SwiftSourceKitPlugin PRIVATE
   Csourcekitd
   CompletionScoringForPlugin
   SKUtilitiesForPlugin
-  SKLoggingForPlugin
+  SwiftToolsProtocols::SKLoggingForPlugin
   SourceKitDForPlugin
   SwiftSourceKitPluginCommon
   SwiftExtensionsForPlugin
+  SwiftToolsProtocols::ToolsProtocolsSwiftExtensionsForPlugin
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
 
 install(TARGETS SwiftSourceKitPlugin DESTINATION lib)
