@@ -10,17 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import BuildServerProtocol
+@_spi(SourceKitLSP) package import BuildServerProtocol
 import Dispatch
 package import Foundation
-package import LanguageServerProtocol
-package import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) package import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 package import SKOptions
 import SKUtilities
-package import SwiftExtensions
+import SwiftExtensions
 import TSCExtensions
 package import ToolchainRegistry
+@_spi(SourceKitLSP) package import ToolsProtocolsSwiftExtensions
 
 import struct TSCBasic.RelativePath
 
@@ -1085,7 +1087,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   ) async -> FileBuildSettings? {
     let buildSettingsFromBuildServer = await orLog("Getting build settings") {
       if fallbackAfterTimeout {
-        try await withTimeout(options.buildSettingsTimeoutOrDefault) {
+        try await SwiftExtensions.withTimeout(options.buildSettingsTimeoutOrDefault) {
           return try await self.buildSettingsFromBuildServer(for: document, in: target, language: language)
         } resultReceivedAfterTimeout: { _ in
           await self.filesBuildSettingsChangedDebouncer.scheduleCall([document])
@@ -1390,7 +1392,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   private func buildTargets() async throws -> [BuildTargetIdentifier: BuildTargetInfo] {
     let request = WorkspaceBuildTargetsRequest()
     let result = try await cachedBuildTargets.get(request, isolation: self) { request in
-      let result = try await withTimeout(self.options.buildServerWorkspaceRequestsTimeoutOrDefault) {
+      let result = try await SwiftExtensions.withTimeout(self.options.buildServerWorkspaceRequestsTimeoutOrDefault) {
         guard let buildServerAdapter = try await self.buildServerAdapterAfterInitialized else {
           return [:]
         }
@@ -1458,7 +1460,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     }
 
     let response = try await cachedTargetSources.get(request, isolation: self) { request in
-      try await withTimeout(self.options.buildServerWorkspaceRequestsTimeoutOrDefault) {
+      try await SwiftExtensions.withTimeout(self.options.buildServerWorkspaceRequestsTimeoutOrDefault) {
         guard let buildServerAdapter = try await self.buildServerAdapterAfterInitialized else {
           return BuildTargetSourcesResponse(items: [])
         }

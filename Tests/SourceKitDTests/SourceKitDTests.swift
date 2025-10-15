@@ -12,8 +12,9 @@
 
 import Csourcekitd
 import Foundation
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+import SKLogging
 import SKTestSupport
 import SourceKitD
 import SwiftExtensions
@@ -24,6 +25,10 @@ import XCTest
 import class TSCBasic.Process
 
 final class SourceKitDTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   func testMultipleNotificationHandlers() async throws {
     let sourcekitdPath = await ToolchainRegistry.forTesting.default!.sourcekitd!
     let sourcekitd = try await SourceKitD.getOrCreate(

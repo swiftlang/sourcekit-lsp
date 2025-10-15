@@ -11,10 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
-import BuildServerProtocol
+@_spi(SourceKitLSP) import BuildServerProtocol
 import Foundation
-import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import SKTestSupport
 import SemanticIndex
@@ -22,9 +22,13 @@ import SourceKitLSP
 import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class WorkspaceTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
 
   func testMultipleSwiftPMWorkspaces() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()

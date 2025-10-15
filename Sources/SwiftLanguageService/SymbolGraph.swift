@@ -13,7 +13,7 @@
 import BuildServerIntegration
 import Foundation
 package import IndexStoreDB
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 package import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax

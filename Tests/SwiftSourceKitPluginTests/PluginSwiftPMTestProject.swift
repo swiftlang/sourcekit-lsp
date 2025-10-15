@@ -12,7 +12,7 @@
 
 import BuildServerIntegration
 import Foundation
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
 import SKTestSupport
 import ToolchainRegistry
 

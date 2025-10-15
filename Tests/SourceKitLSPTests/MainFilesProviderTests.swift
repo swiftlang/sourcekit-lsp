@@ -10,15 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
-import LanguageServerProtocolJSONRPC
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
 import XCTest
 
 final class MainFilesProviderTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   func testMainFileForHeaderInPackageTarget() async throws {
     let project = try await SwiftPMTestProject(
       files: [

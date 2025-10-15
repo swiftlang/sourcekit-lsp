@@ -13,7 +13,7 @@
 package import ArgumentParser
 import Csourcekitd
 import Foundation
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 import SKUtilities
 import SourceKitD
 import SwiftExtensions

@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 
 /// A `Command` that should be executed by Swift's language server.
 package protocol SwiftCommand: Codable, Hashable, LSPAnyCodable {

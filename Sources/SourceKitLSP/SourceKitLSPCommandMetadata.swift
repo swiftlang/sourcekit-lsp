@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-package import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import SKLogging
 
 /// Represents metadata that SourceKit-LSP injects at every command returned by code actions.
 /// The ExecuteCommand is not a TextDocumentRequest, so metadata is injected to allow SourceKit-LSP

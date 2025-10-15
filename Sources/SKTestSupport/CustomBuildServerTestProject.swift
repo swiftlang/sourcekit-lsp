@@ -11,15 +11,17 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
-package import BuildServerProtocol
+@_spi(SourceKitLSP) package import BuildServerProtocol
 package import Foundation
-package import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 package import SKOptions
 package import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 // MARK: - CustomBuildServer

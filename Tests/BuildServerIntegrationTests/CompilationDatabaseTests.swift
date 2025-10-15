@@ -11,9 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
-import BuildServerProtocol
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import BuildServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+import SKLogging
 import SKTestSupport
 import SwiftExtensions
 import TSCExtensions
@@ -23,6 +25,10 @@ import XCTest
 import struct TSCBasic.RelativePath
 
 final class CompilationDatabaseTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   func testEncodeCompDBCommand() throws {
     // Requires JSONEncoder.OutputFormatting.sortedKeys
     func check(

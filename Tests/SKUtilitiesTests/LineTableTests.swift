@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKLogging
 import SKUtilities
 import SwiftExtensions
 import TSCBasic
@@ -22,6 +23,10 @@ fileprivate extension LineTable {
 }
 
 final class LineTableTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   func checkLines(_ string: String, _ expected: [String], file: StaticString = #filePath, line: UInt = #line) {
     let table = LineTable(string)
     XCTAssertEqual(table.lines.map(String.init), expected, file: file, line: line)

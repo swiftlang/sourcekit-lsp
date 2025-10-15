@@ -12,7 +12,7 @@
 
 import Dispatch
 package import Foundation
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
 import TSCExtensions
 

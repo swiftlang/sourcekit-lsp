@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 package import Csourcekitd
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 
 #if canImport(Darwin)
 import Darwin

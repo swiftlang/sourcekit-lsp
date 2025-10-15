@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKLogging
 import SourceKitLSP
 import Swift
 import SwiftBasicFormat
@@ -46,6 +47,10 @@ private func assertFormatted(
 }
 
 final class ClosureCompletionFormatTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   func testSingleStatementClosureArg() {
     assertFormatted(
       source: """

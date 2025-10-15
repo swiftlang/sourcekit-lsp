@@ -13,8 +13,8 @@
 import Csourcekitd
 import Dispatch
 import Foundation
-import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import SKUtilities
 import SourceKitD
@@ -24,6 +24,7 @@ import SwiftExtensions
 import SwiftParser
 @_spi(SourceKitLSP) import SwiftRefactor
 import SwiftSyntax
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// Uniquely identifies a code completion session. We need this so that when resolving a code completion item, we can
 /// verify that the item to resolve belongs to the code completion session that is currently open.

@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 @_spi(RawSyntax) import SwiftSyntax
 
 /// Translate SourceKit placeholder syntax — `<#foo#>` — in `input` to LSP

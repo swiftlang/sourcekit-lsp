@@ -14,7 +14,7 @@ import BuildServerIntegration
 import Csourcekitd
 import Foundation
 package import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 import SourceKitD
 import SourceKitLSP
 import SwiftExtensions

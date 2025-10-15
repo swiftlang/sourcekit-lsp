@@ -13,8 +13,8 @@
 import Crypto
 import Csourcekitd
 import Foundation
-import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import SKUtilities
 import SourceKitD

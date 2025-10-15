@@ -13,6 +13,7 @@
 import SKTestSupport
 import SwiftExtensions
 import TSCExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 import struct TSCBasic.AbsolutePath

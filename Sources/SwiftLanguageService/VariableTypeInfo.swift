@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Dispatch
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitD
 import SourceKitLSP
 import SwiftSyntax
