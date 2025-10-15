@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 package import IndexStoreDB
-package import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SKUtilities
 package import SwiftSyntax
 

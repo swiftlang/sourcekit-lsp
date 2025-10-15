@@ -12,6 +12,7 @@ target_link_libraries(SwiftSourceKitClientPlugin PRIVATE
   Csourcekitd
   SourceKitD
   SwiftExtensions
+  SwiftToolsProtocols::ToolsProtocolsSwiftExtensions
   SwiftSourceKitPluginCommon
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
 

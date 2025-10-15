@@ -12,7 +12,7 @@
 
 import BuildServerIntegration
 import Foundation
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 
 package struct DummyBuildServerManagerConnectionToClient: BuildServerManagerConnectionToClient {
   package var clientSupportsWorkDoneProgress: Bool = false

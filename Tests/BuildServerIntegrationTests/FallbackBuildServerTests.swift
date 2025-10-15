@@ -11,8 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(Testing) import BuildServerIntegration
-import BuildServerProtocol
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import BuildServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKOptions
 import SKTestSupport
 import SourceKitLSP
@@ -20,6 +21,9 @@ import TSCBasic
 import XCTest
 
 final class FallbackBuildServerTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
 
   func testSwift() throws {
     let sdk = try AbsolutePath(validating: "/my/sdk").pathString

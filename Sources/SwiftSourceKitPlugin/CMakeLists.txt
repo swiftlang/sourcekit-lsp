@@ -35,17 +35,19 @@ target_compile_options(SwiftSourceKitPlugin PRIVATE
     "SHELL:-module-alias CompletionScoring=CompletionScoringForPlugin"
     "SHELL:-module-alias SKUtilities=SKUtilitiesForPlugin"
     "SHELL:-module-alias SourceKitD=SourceKitDForPlugin"
-    "SHELL:-module-alias SKLogging=SKLoggingForPlugin"
+    "SHELL:-module-alias SKLogging=_SKLoggingForPlugin"
     "SHELL:-module-alias SwiftExtensions=SwiftExtensionsForPlugin"
+    "SHELL:-module-alias ToolsProtocolsSwiftExtensions=_ToolsProtocolsSwiftExtensionsForPlugin"
   >)
 target_link_libraries(SwiftSourceKitPlugin PRIVATE
   Csourcekitd
   CompletionScoringForPlugin
   SKUtilitiesForPlugin
-  SKLoggingForPlugin
+  SwiftToolsProtocols::_SKLoggingForPlugin
   SourceKitDForPlugin
   SwiftSourceKitPluginCommon
   SwiftExtensionsForPlugin
+  SwiftToolsProtocols::_ToolsProtocolsSwiftExtensionsForPlugin
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
 
 install(TARGETS SwiftSourceKitPlugin DESTINATION lib)

@@ -11,7 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import SwiftExtensions
 import TSCBasic
@@ -20,6 +21,10 @@ import ToolchainRegistry
 import XCTest
 
 final class CompilationDatabaseTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   func testModifyCompilationDatabase() async throws {
     let project = try await MultiFileTestProject(files: [
       "main.cpp": """

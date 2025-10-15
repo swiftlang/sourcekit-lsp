@@ -10,12 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 @_spi(Testing) import SourceKitLSP
 import XCTest
 
 final class LocalClangTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   // MARK: - Tests
 
   func testSymbolInfo() async throws {

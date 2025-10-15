@@ -10,7 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import XCTest
 
@@ -87,6 +88,10 @@ func assertFoldingRanges(
 }
 
 final class FoldingRangeTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   func testNoRanges() async throws {
     try await assertFoldingRanges(markedSource: "", expectedRanges: [])
   }

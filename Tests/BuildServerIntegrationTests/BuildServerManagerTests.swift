@@ -11,10 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(Testing) import BuildServerIntegration
-import BuildServerProtocol
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) import BuildServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import SKTestSupport
 import SwiftExtensions
@@ -82,6 +83,10 @@ private func createBuildServerManager(
 }
 
 final class BuildServerManagerTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   func testMainFiles() async throws {
     let a = try DocumentURI(string: "bsm:a")
     let b = try DocumentURI(string: "bsm:b")

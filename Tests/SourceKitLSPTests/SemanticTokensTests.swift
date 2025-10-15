@@ -10,7 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKOptions
 import SKTestSupport
 import SKUtilities
@@ -22,6 +23,10 @@ import XCTest
 private typealias Token = SyntaxHighlightingToken
 
 final class SemanticTokensTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   func testIntArrayCoding() async throws {
     let tokens = SyntaxHighlightingTokens(tokens: [
       Token(

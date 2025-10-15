@@ -12,8 +12,8 @@
 
 import Foundation
 import IndexStoreDB
-import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SemanticIndex
 @_spi(Linkcompletion) @preconcurrency import SwiftDocC
 import SwiftExtensions

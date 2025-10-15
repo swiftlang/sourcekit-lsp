@@ -11,12 +11,13 @@
 //===----------------------------------------------------------------------===//
 
 package import BuildServerIntegration
-package import BuildServerProtocol
+@_spi(SourceKitLSP) package import BuildServerProtocol
 import Foundation
-package import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// The logging subsystem that should be used for all index-related logging.
 let indexLoggingSubsystem = "org.swift.sourcekit-lsp.indexing"

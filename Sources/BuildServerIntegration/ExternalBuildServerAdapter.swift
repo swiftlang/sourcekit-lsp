@@ -10,12 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildServerProtocol
+@_spi(SourceKitLSP) import BuildServerProtocol
 import Foundation
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import LanguageServerProtocolJSONRPC
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import SwiftExtensions
 import TSCExtensions
@@ -182,7 +182,7 @@ actor ExternalBuildServerAdapter {
       executable: serverPath,
       arguments: serverArgs,
       name: "BSP-Server",
-      protocol: bspRegistry,
+      protocol: MessageRegistry.bspProtocol,
       stderrLoggingCategory: "bsp-server-stderr",
       client: messagesToSourceKitLSPHandler,
       terminationHandler: { [weak self] terminationReason in

@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import SemanticIndex
 import SwiftExtensions
+import ToolsProtocolsSwiftExtensions
 
 /// Listens for index status updates from `SemanticIndexManagers`. From that information, it manages a
 /// `WorkDoneProgress` that communicates the index progress to the editor.

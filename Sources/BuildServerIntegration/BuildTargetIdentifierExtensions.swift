@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import BuildServerProtocol
+@_spi(SourceKitLSP) package import BuildServerProtocol
 import Foundation
-import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) public import SKLogging
 
 extension BuildTargetIdentifier {
   package static let dummy: BuildTargetIdentifier = BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy"))
@@ -146,7 +146,7 @@ extension BuildTargetIdentifier {
   }
 }
 
-extension BuildTargetIdentifier: CustomLogStringConvertible {
+@_spi(SourceKitLSP) extension BuildTargetIdentifier: @retroactive CustomLogStringConvertible {
   package var description: String {
     return uri.stringValue
   }
