@@ -59,7 +59,8 @@ public final class JSONRPCConnection: Connection {
   private let sendQueue: DispatchQueue = DispatchQueue(label: "jsonrpc-send-queue", qos: .userInitiated)
 
   private let inFD: FileHandle
-  private let sendIO: DispatchIO
+  private let outFD: FileHandle
+  let ioGroup: DispatchGroup
   private let messageRegistry: MessageRegistry
 
   /// If non-nil, all input received by this `JSONRPCConnection` will be written to the file handle
@@ -135,34 +136,12 @@ public final class JSONRPCConnection: Connection {
     state = .created
     self.messageRegistry = messageRegistry
 
-    let ioGroup = DispatchGroup()
+    self.ioGroup = DispatchGroup()
 
-    #if os(Windows)
-    let rawInFD = dispatch_fd_t(bitPattern: inFD._handle)
     self.inFD = inFD
-    #else
-    let rawInFD = inFD.fileDescriptor
-    #endif
+    self.outFD = outFD
 
-    ioGroup.enter()
-    #if os(Windows)
-    let rawOutFD = dispatch_fd_t(bitPattern: outFD._handle)
-    #else
-    let rawOutFD = outFD.fileDescriptor
-    #endif
-
-    ioGroup.enter()
-    sendIO = DispatchIO(
-      type: .stream,
-      fileDescriptor: rawOutFD,
-      queue: sendQueue,
-      cleanupHandler: { (error: Int32) in
-        if error != 0 {
-          logger.fault("IO error \(error)")
-        }
-        ioGroup.leave()
-      }
-    )
+    self.ioGroup.enter()
 
     ioGroup.notify(queue: queue) { [weak self] in
       guard let self else { return }
@@ -175,9 +154,6 @@ public final class JSONRPCConnection: Connection {
         await self.closeHandler?()
       }
     }
-
-    sendIO.setLimit(lowWater: 1)
-    sendIO.setLimit(highWater: Int.max)
   }
 
   /// Creates and starts a `JSONRPCConnection` that connects to a subprocess launched with the specified arguments.
@@ -280,10 +256,12 @@ public final class JSONRPCConnection: Connection {
     }
 
     self.inFD.readabilityHandler = { fileHandle in
-      let data = (try? fileHandle.read(upToCount: Int.max)) ?? Data()
+      let data = fileHandle.availableData
       if data.isEmpty {
           fileHandle.readabilityHandler = nil
-          self.close()
+          self.queue.async {
+            self.closeAssumingOnQueue()
+          }
           return
       }
 
@@ -528,16 +506,16 @@ public final class JSONRPCConnection: Connection {
     orLog("Writing output mirror file") {
       try outputMirrorFile?.write(contentsOf: dispatchData)
     }
-    sendIO.write(offset: 0, data: dispatchData, queue: sendQueue) { [weak self] done, _, errorCode in
-      if errorCode != 0 {
-        logger.fault("IO error sending message \(errorCode)")
-        if done, let self {
-          // An unrecoverable error occurs on the channel’s file descriptor.
-          // Close the connection.
-          self.queue.async {
-            self.closeAssumingOnQueue()
-          }
+    sendQueue.sync {
+      do {
+        try outFD.write(contentsOf: dispatchData)
+      } catch {
+        logger.fault("IO error sending message \(error.forLogging)")
+        self.queue.async {
+          self.ioGroup.leave()
+          self.closeAssumingOnQueue()
         }
+        return
       }
     }
   }
@@ -620,7 +598,10 @@ public final class JSONRPCConnection: Connection {
   /// The user-provided close handler will be called *asynchronously* when all outstanding I/O
   /// operations have completed. No new I/O will be accepted after `close` returns.
   public func close() {
-    queue.sync { closeAssumingOnQueue() }
+    queue.sync {
+      closeAssumingOnQueue()
+      ioGroup.leave()
+    }
   }
 
   /// Close the connection, assuming that the code is already executing on `queue`.
@@ -635,7 +616,11 @@ public final class JSONRPCConnection: Connection {
       logger.log("Closing JSONRPCConnection...")
       // Attempt to close the reader immediately; we do not need to accept remaining inputs.
       // Close the writer after it finishes outstanding work.
-      sendIO.close()
+      do {
+        try outFD.close()
+      } catch {
+        logger.error("Failed to close outFD: \(error.forLogging)")
+      }
     }
   }
 
