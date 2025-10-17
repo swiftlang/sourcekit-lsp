@@ -16,6 +16,7 @@ import Foundation
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
+package import SKOptions
 import SwiftExtensions
 
 /// The logging subsystem that should be used for all index-related logging.
@@ -154,7 +155,7 @@ private struct InProgressPrepareForEditorTask {
 }
 
 /// The reason why a target is being prepared. This is used to determine the `IndexProgressStatus`.
-private enum TargetPreparationPurpose: Comparable {
+package enum TargetPreparationPurpose: Comparable {
   /// We are preparing the target so we can index files in it.
   case forIndexing
 
@@ -232,6 +233,9 @@ package final actor SemanticIndexManager {
   /// The parameter is the number of files that were scheduled to be indexed.
   private let indexTasksWereScheduled: @Sendable (_ numberOfFileScheduled: Int) -> Void
 
+  /// The size of the batches in which the `SemanticIndexManager` should dispatch preparation tasks.
+  private let preparationBatchingStrategy: PreparationBatchingStrategy?
+
   /// Callback that is called when `progressStatus` might have changed.
   private let indexProgressStatusDidChange: @Sendable () -> Void
 
@@ -271,6 +275,7 @@ package final actor SemanticIndexManager {
     updateIndexStoreTimeout: Duration,
     hooks: IndexHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
+    preparationBatchingStrategy: PreparationBatchingStrategy?,
     logMessageToIndexLog:
       @escaping @Sendable (
         _ message: String, _ type: WindowMessageType, _ structure: LanguageServerProtocol.StructuredLogKind
@@ -283,6 +288,7 @@ package final actor SemanticIndexManager {
     self.updateIndexStoreTimeout = updateIndexStoreTimeout
     self.hooks = hooks
     self.indexTaskScheduler = indexTaskScheduler
+    self.preparationBatchingStrategy = preparationBatchingStrategy
     self.logMessageToIndexLog = logMessageToIndexLog
     self.indexTasksWereScheduled = indexTasksWereScheduled
     self.indexProgressStatusDidChange = indexProgressStatusDidChange
@@ -665,7 +671,8 @@ package final actor SemanticIndexManager {
         buildServerManager: self.buildServerManager,
         preparationUpToDateTracker: preparationUpToDateTracker,
         logMessageToIndexLog: logMessageToIndexLog,
-        hooks: hooks
+        hooks: hooks,
+        purpose: purpose
       )
     )
     if Task.isCancelled {
@@ -919,7 +926,16 @@ package final actor SemanticIndexManager {
     // TODO: When we can index multiple targets concurrently in SwiftPM, increase the batch size to half the
     // processor count, so we can get parallelism during preparation.
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1262)
-    for targetsBatch in sortedTargets.partition(intoBatchesOfSize: 1) {
+    let batchSize: Int
+    switch preparationBatchingStrategy {
+    case .target(let size):
+      batchSize = max(size, 1)
+    case nil:
+      batchSize = 1  // Default: prepare 1 target at a time
+    }
+    let partitionedTargets = sortedTargets.partition(intoBatchesOfSize: batchSize)
+
+    for targetsBatch in partitionedTargets {
       let preparationTaskID = UUID()
       let filesToIndex = targetsBatch.flatMap { (target) -> [FileIndexInfo] in
         guard let files = filesByTarget[target] else {
