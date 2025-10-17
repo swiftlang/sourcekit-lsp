@@ -111,6 +111,8 @@ final class SwiftPMIntegrationTests: XCTestCase {
       enableBackgroundIndexing: true
     )
 
+    // First, create a new in-memory file and verify that we get some basic functionality for it
+
     let newFileUrl = project.scratchDirectory
       .appending(components: "Sources", "MyLibrary", "Other.swift")
     let newFileUri = DocumentURI(newFileUrl)
@@ -118,73 +120,57 @@ final class SwiftPMIntegrationTests: XCTestCase {
     let newFileContents = """
       func baz(l: Lib)  {
         l.2️⃣foo()
+        #warning("A manual warning")
       }
       """
-    try await extractMarkers(newFileContents).textWithoutMarkers.writeWithRetry(to: newFileUrl)
-
-    // Check that we don't get cross-file code completion before we send a `DidChangeWatchedFilesNotification` to make
-    // sure we didn't include the file in the initial retrieval of build settings.
-    let (oldFileUri, oldFilePositions) = try project.openDocument("Lib.swift")
     let newFilePositions = project.testClient.openDocument(newFileContents, uri: newFileUri)
 
-    let completionsBeforeDidChangeNotification = try await project.testClient.send(
+    try await extractMarkers(newFileContents).textWithoutMarkers.writeWithRetry(to: newFileUrl)
+    let completionsBeforeSave = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(newFileUri), position: newFilePositions["2️⃣"])
     )
-    XCTAssertEqual(completionsBeforeDidChangeNotification.items, [])
+    XCTAssertEqual(Set(completionsBeforeSave.items.map(\.label)), ["foo()", "self"])
 
-    // Send a `DidChangeWatchedFilesNotification` and verify that we now get cross-file code completion.
+    // We shouldn't get diagnostics for the new file yet since we still consider the build settings inferred from a
+    // sibling file fallback settings.
+    let diagnosticsBeforeSave = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(newFileUri))
+    )
+    XCTAssertEqual(diagnosticsBeforeSave.fullReport?.items, [])
+
+    let (oldFileUri, oldFilePositions) = try project.openDocument("Lib.swift")
+    // Check that we don't get completions for `baz` (defined in the new file) in the old file yet because the new file
+    // is not part of the package manifest yet.
+    let oldFileCompletionsBeforeSave = try await project.testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(oldFileUri), position: oldFilePositions["1️⃣"])
+    )
+    XCTAssert(!oldFileCompletionsBeforeSave.items.contains(where: { $0.label == "baz(l: Lib)" }))
+
+    // Now save the file to disk, which adds it to the package graph, which should enable more functionality.
+
+    try await extractMarkers(newFileContents).textWithoutMarkers.writeWithRetry(to: newFileUrl)
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
         FileEvent(uri: newFileUri, type: .created)
       ])
     )
-
     // Ensure that the DidChangeWatchedFilesNotification is handled before we continue.
     try await project.testClient.send(SynchronizeRequest(index: true))
 
-    let completions = try await project.testClient.send(
+    // Check that we still get completions in the new file, now get diagnostics in the new file and also see functions
+    // from the new file in the old file
+    let completionsAfterSave = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(newFileUri), position: newFilePositions["2️⃣"])
     )
-
-    XCTAssertEqual(
-      completions.items.clearingUnstableValues,
-      [
-        CompletionItem(
-          label: "foo()",
-          kind: .method,
-          detail: "Void",
-          deprecated: false,
-          sortText: nil,
-          filterText: "foo()",
-          insertText: "foo()",
-          insertTextFormat: .plain,
-          textEdit: .textEdit(
-            TextEdit(range: Range(newFilePositions["2️⃣"]), newText: "foo()")
-          )
-        ),
-        CompletionItem(
-          label: "self",
-          kind: .keyword,
-          detail: "Lib",
-          deprecated: false,
-          sortText: nil,
-          filterText: "self",
-          insertText: "self",
-          insertTextFormat: .plain,
-          textEdit: .textEdit(
-            TextEdit(range: Range(newFilePositions["2️⃣"]), newText: "self")
-          )
-        ),
-      ]
+    XCTAssertEqual(Set(completionsAfterSave.items.map(\.label)), ["foo()", "self"])
+    let diagnosticsAfterSave = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(newFileUri))
     )
-
-    // Check that we get code completion for `baz` (defined in the new file) in the old file.
-    // I.e. check that the existing file's build settings have been updated to include the new file.
-
-    let oldFileCompletions = try await project.testClient.send(
+    XCTAssertEqual(diagnosticsAfterSave.fullReport?.items.map(\.message), ["A manual warning"])
+    let oldFileCompletionsAfterSave = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(oldFileUri), position: oldFilePositions["1️⃣"])
     )
-    XCTAssert(oldFileCompletions.items.contains(where: { $0.label == "baz(l: Lib)" }))
+    assertContains(oldFileCompletionsAfterSave.items.map(\.label), "baz(l: Lib)")
   }
 
   func testNestedPackage() async throws {

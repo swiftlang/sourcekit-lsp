@@ -263,23 +263,28 @@ package func withTimeout<T: Sendable>(
   }
 }
 
-/// Executes `body`. If it doesn't finish after `duration`, return `nil` and continue running body. When `body` returns
-/// a value after the timeout, `resultReceivedAfterTimeout` is called.
+package enum WithTimeoutResult<T> {
+  case result(T)
+  case timedOut
+}
+
+/// Executes `body`. If it doesn't finish after `duration`, return `.timed` and continue running body. When `body`
+/// returns a value after the timeout, `resultReceivedAfterTimeout` is called.
 ///
 /// - Important: `body` will not be cancelled when the timeout is received. Use the other overload of `withTimeout` if
 ///   `body` should be cancelled after `timeout`.
-package func withTimeout<T: Sendable>(
+package func withTimeoutResult<T: Sendable>(
   _ timeout: Duration,
   body: @escaping @Sendable () async throws -> T,
   resultReceivedAfterTimeout: @escaping @Sendable (_ result: T) async -> Void
-) async throws -> T? {
+) async throws -> WithTimeoutResult<T> {
   let didHitTimeout = AtomicBool(initialValue: false)
 
-  let stream = AsyncThrowingStream<T?, Error> { continuation in
+  let stream = AsyncThrowingStream<WithTimeoutResult<T>, Error> { continuation in
     Task {
       try await Task.sleep(for: timeout)
       didHitTimeout.value = true
-      continuation.yield(nil)
+      continuation.yield(.timedOut)
     }
 
     Task {
@@ -288,7 +293,7 @@ package func withTimeout<T: Sendable>(
         if didHitTimeout.value {
           await resultReceivedAfterTimeout(result)
         }
-        continuation.yield(result)
+        continuation.yield(.result(result))
       } catch {
         continuation.yield(with: .failure(error))
       }
@@ -304,6 +309,27 @@ package func withTimeout<T: Sendable>(
     throw CancellationError()
   } else {
     preconditionFailure("Continuation never finishes")
+  }
+}
+
+/// Executes `body`. If it doesn't finish after `duration`, return `nil` and continue running body. When `body` returns
+/// a value after the timeout, `resultReceivedAfterTimeout` is called.
+///
+/// - Important: `body` will not be cancelled when the timeout is received. Use the other overload of `withTimeout` if
+///   `body` should be cancelled after `timeout`.
+package func withTimeout<T: Sendable>(
+  _ timeout: Duration,
+  body: @escaping @Sendable () async throws -> T,
+  resultReceivedAfterTimeout: @escaping @Sendable (_ result: T) async -> Void
+) async throws -> T? {
+  let timeoutResult: WithTimeoutResult<T> = try await withTimeoutResult(
+    timeout,
+    body: body,
+    resultReceivedAfterTimeout: resultReceivedAfterTimeout
+  )
+  switch timeoutResult {
+  case .timedOut: return nil
+  case .result(let result): return result
   }
 }
 
