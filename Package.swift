@@ -559,6 +559,7 @@ var targets: [Target] = [
       "SKUtilities",
       "SourceKitD",
       "SourceKitLSP",
+      "SwiftLanguageService",
       "ToolchainRegistry",
       .product(name: "IndexStoreDB", package: "indexstore-db"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
