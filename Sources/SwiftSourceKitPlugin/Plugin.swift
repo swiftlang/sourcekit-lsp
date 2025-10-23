@@ -58,7 +58,7 @@ final class RequestHandler: Sendable {
     func produceResult(
       body: @escaping @Sendable () async throws -> SKDResponseDictionaryBuilder
     ) -> HandleRequestResult {
-      withLoggingScope("request-\(handle?.numericValue ?? 0 % 100)") {
+      withLoggingScope("request-\((handle?.numericValue ?? 0) % 100)") {
         let start = Date()
         logger.debug(
           """
