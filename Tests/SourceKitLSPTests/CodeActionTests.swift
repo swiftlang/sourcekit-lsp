@@ -14,6 +14,7 @@ import LanguageServerProtocol
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
+import SwiftLanguageService
 import XCTest
 
 private typealias CodeActionCapabilities = TextDocumentClientCapabilities.CodeAction
@@ -231,11 +232,7 @@ final class CodeActionTests: XCTestCase {
       textDocument: TextDocumentIdentifier(uri)
     )
     let result = try await testClient.send(request)
-    guard case .codeActions(let codeActions) = result else {
-      XCTFail("Expected code actions")
-      return
-    }
-    XCTAssertEqual(codeActions.map(\.title), ["Add documentation"])
+    XCTAssertEqual(result?.codeActions?.map(\.title), ["Add documentation"])
   }
 
   func testSemanticRefactorLocationCodeActionResult() async throws {
@@ -287,12 +284,7 @@ final class CodeActionTests: XCTestCase {
       command: expectedCommand
     )
 
-    guard case .codeActions(let codeActions) = result else {
-      XCTFail("Expected code actions")
-      return
-    }
-
-    XCTAssertTrue(codeActions.contains(expectedCodeAction))
+    assertContains(result?.codeActions ?? [], expectedCodeAction)
   }
 
   func testJSONCodableCodeActionResult() async throws {
@@ -325,13 +317,8 @@ final class CodeActionTests: XCTestCase {
     )
     let result = try await testClient.send(request)
 
-    guard case .codeActions(let codeActions) = result else {
-      XCTFail("Expected code actions")
-      return
-    }
-
     // Make sure we get a JSON conversion action.
-    let codableAction = codeActions.first { action in
+    let codableAction = result?.codeActions?.first { action in
       return action.title == "Create Codable structs from JSON"
     }
     XCTAssertNotNil(codableAction)
@@ -385,11 +372,7 @@ final class CodeActionTests: XCTestCase {
       kind: .refactor,
       command: expectedCommand
     )
-
-    guard case .codeActions(var resultActions) = result else {
-      XCTFail("Result doesn't have code actions: \(String(describing: result))")
-      return
-    }
+    var resultActions = try XCTUnwrap(result?.codeActions)
 
     // Filter out "Add documentation"; we test it elsewhere
     if let addDocIndex = resultActions.firstIndex(where: {
@@ -438,13 +421,9 @@ final class CodeActionTests: XCTestCase {
       )
     )
 
-    guard case .codeActions(let quickFixCodeActions) = quickFixActionResult else {
-      return XCTFail("Expected code actions, not commands as a response")
-    }
-
     // Check that the Fix-It action contains snippets
 
-    guard let quickFixAction = quickFixCodeActions.filter({ $0.kind == .quickFix }).only else {
+    guard let quickFixAction = quickFixActionResult?.codeActions?.filter({ $0.kind == .quickFix }).only else {
       return XCTFail("Expected exactly one quick fix action")
     }
     guard let change = quickFixAction.edit?.changes?[uri]?.only else {
@@ -470,11 +449,7 @@ final class CodeActionTests: XCTestCase {
       )
     )
 
-    guard case .codeActions(let refactorActions) = refactorActionResult else {
-      return XCTFail("Expected code actions, not commands as a response")
-    }
-
-    guard let refactorAction = refactorActions.filter({ $0.kind == .refactor }).only else {
+    guard let refactorAction = refactorActionResult?.codeActions?.filter({ $0.kind == .refactor }).only else {
       return XCTFail("Expected exactly one refactor action")
     }
     guard let command = refactorAction.command else {
@@ -526,13 +501,8 @@ final class CodeActionTests: XCTestCase {
     )
     let result = try await testClient.send(request)
 
-    guard case .codeActions(let codeActions) = result else {
-      XCTFail("Expected code actions")
-      return
-    }
-
     // Make sure we get an add-documentation action.
-    let addDocAction = codeActions.first { action in
+    let addDocAction = result?.codeActions?.first { action in
       return action.title == "Add documentation"
     }
     XCTAssertNotNil(addDocAction)
@@ -606,10 +576,7 @@ final class CodeActionTests: XCTestCase {
     )
     let result = try await testClient.send(request)
 
-    guard case .codeActions(let codeActions) = result else {
-      XCTFail("Expected code actions")
-      return
-    }
+    let codeActions = try XCTUnwrap(result?.codeActions)
 
     // Make sure we get the expected package manifest editing actions.
     let addTestAction = codeActions.first { action in
@@ -670,10 +637,7 @@ final class CodeActionTests: XCTestCase {
     )
     let result = try await testClient.send(request)
 
-    guard case .codeActions(let codeActions) = result else {
-      XCTFail("Expected code actions")
-      return
-    }
+    let codeActions = try XCTUnwrap(result?.codeActions)
 
     // Make sure we get the expected package manifest editing actions.
     XCTAssertTrue(
@@ -1093,6 +1057,128 @@ final class CodeActionTests: XCTestCase {
     }
   }
 
+  func testRemoveUnusedImports() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": "",
+        "LibB/LibB.swift": "",
+        "Test/Test.swift": """
+        // Some file header
+        // over multiple lines
+
+        1️⃣import LibA // LibA implements A
+        2️⃣import Foundation3️⃣
+        // LibB implements B
+        import LibB4️⃣
+
+        #warning("Removing imports should work despite warning")
+        5️⃣func test(x: Date) {}
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "LibA"),
+            .target(name: "LibB"),
+            .target(
+              name: "Test",
+              dependencies: ["LibA", "LibB"],
+              swiftSettings: [.enableUpcomingFeature("MemberImportVisibility")]
+            )
+          ]
+        )
+        """,
+      capabilities: clientCapabilitiesWithCodeActionSupport,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("Test.swift")
+
+    let functionResult = try await project.testClient.send(
+      CodeActionRequest(
+        range: Range(positions["5️⃣"]),
+        context: CodeActionContext(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    XCTAssertFalse(
+      try XCTUnwrap(functionResult?.codeActions).contains(where: {
+        $0.command?.command == RemoveUnusedImportsCommand.identifier
+      })
+    )
+
+    let importResult = try await project.testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: CodeActionContext(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let removeUnusedImportsCommand = try XCTUnwrap(
+      importResult?.codeActions?.first(where: {
+        $0.command?.command == "remove.unused.imports.command"
+      })?.command
+    )
+
+    project.testClient.handleSingleRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
+      XCTAssertEqual(
+        request.edit.changes,
+        [
+          uri: [
+            TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: ""),
+            TextEdit(range: positions["3️⃣"]..<positions["4️⃣"], newText: ""),
+          ]
+        ]
+      )
+      return ApplyEditResponse(applied: true, failureReason: nil)
+    }
+
+    _ = try await project.testClient.send(
+      ExecuteCommandRequest(
+        command: removeUnusedImportsCommand.command,
+        arguments: removeUnusedImportsCommand.arguments
+      )
+    )
+  }
+
+  func testRemoveUnusedImportsNotAvailableIfSourceFileHasError() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": """
+        1️⃣import Foundation
+
+        #error("Some error")
+        """
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "Test", swiftSettings: [.enableUpcomingFeature("MemberImportVisibility")]c)
+          ]
+        )
+        """,
+      capabilities: clientCapabilitiesWithCodeActionSupport,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("Test.swift")
+
+    let result = try await project.testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: CodeActionContext(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    XCTAssertFalse(
+      try XCTUnwrap(result?.codeActions).contains(where: {
+        $0.command?.command == RemoveUnusedImportsCommand.identifier
+      })
+    )
+  }
+
   /// Retrieves the code action at a set of markers and asserts that it matches a list of expected code actions.
   ///
   /// - Parameters:
@@ -1133,10 +1219,7 @@ final class CodeActionTests: XCTestCase {
           textDocument: TextDocumentIdentifier(uri)
         )
       )
-      guard case .codeActions(let codeActions) = result else {
-        XCTFail("Expected code actions at range \(startMarker)-\(endMarker)", file: file, line: line)
-        return
-      }
+      let codeActions = try XCTUnwrap(result?.codeActions, file: file, line: line)
       if exhaustive {
         XCTAssertEqual(
           codeActions,
@@ -1157,5 +1240,14 @@ final class CodeActionTests: XCTestCase {
         )
       }
     }
+  }
+}
+
+private extension CodeActionRequestResponse {
+  var codeActions: [CodeAction]? {
+    guard case .codeActions(let actions) = self else {
+      return nil
+    }
+    return actions
   }
 }

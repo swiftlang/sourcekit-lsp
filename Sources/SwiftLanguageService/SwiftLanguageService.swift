@@ -149,7 +149,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
 
   private var stateChangeHandlers: [(_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void] = []
 
-  private let diagnosticReportManager: DiagnosticReportManager
+  let diagnosticReportManager: DiagnosticReportManager
 
   /// - Note: Implicitly unwrapped optional so we can pass a reference of `self` to `MacroExpansionManager`.
   private(set) var macroExpansionManager: MacroExpansionManager! {
@@ -686,11 +686,6 @@ extension SwiftLanguageService {
     cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
 
     let keys = self.keys
-    struct Edit {
-      let offset: Int
-      let length: Int
-      let replacement: String
-    }
 
     for edit in edits {
       let req = sourcekitd.dictionary([
@@ -896,14 +891,15 @@ extension SwiftLanguageService {
       (retrieveSyntaxCodeActions, nil),
       (retrieveRefactorCodeActions, .refactor),
       (retrieveQuickFixCodeActions, .quickFix),
+      (retrieveRemoveUnusedImportsCodeAction, .sourceOrganizeImports),
     ]
     let wantedActionKinds = req.context.only
-    let providers: [CodeActionProvider] = providersAndKinds.compactMap {
-      if let wantedActionKinds, let kind = $0.1, !wantedActionKinds.contains(kind) {
+    let providers: [CodeActionProvider] = providersAndKinds.compactMap { (provider, kind) in
+      if let wantedActionKinds, let kind = kind, !wantedActionKinds.contains(kind) {
         return nil
       }
 
-      return $0.provider
+      return provider
     }
     let codeActionCapabilities = capabilityRegistry.clientCapabilities.textDocument?.codeAction
     let codeActions = try await retrieveCodeActions(req, providers: providers)
@@ -1097,6 +1093,8 @@ extension SwiftLanguageService {
       try await semanticRefactoring(command)
     } else if let command = req.swiftCommand(ofType: ExpandMacroCommand.self) {
       try await expandMacro(command)
+    } else if let command = req.swiftCommand(ofType: RemoveUnusedImportsCommand.self) {
+      try await removeUnusedImports(command)
     } else {
       throw ResponseError.unknown("unknown command \(req.command)")
     }

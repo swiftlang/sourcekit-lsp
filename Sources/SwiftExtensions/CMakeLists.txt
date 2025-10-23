@@ -15,6 +15,7 @@ set(sources
   Platform.swift
   Process+terminate.swift
   ResultExtensions.swift
+  RunWithCleanup.swift
   Sequence+AsyncMap.swift
   Sequence+ContainsAnyIn.swift
   Task+WithPriorityChangedHandler.swift
