@@ -10,10 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import BuildServerProtocol
-package import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) import BuildServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
 
 /// A lightweight way of describing tasks that are created from handling BSP

@@ -12,10 +12,11 @@
 
 public import Csourcekitd
 import Foundation
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 import SourceKitD
 import SwiftExtensions
 import SwiftSourceKitPluginCommon
+import ToolsProtocolsSwiftExtensions
 
 private func useNewAPI(for dict: SKDRequestDictionaryReader) -> Bool {
   guard let opts: SKDRequestDictionaryReader = dict[dict.sourcekitd.keys.codeCompleteOptions],
@@ -209,6 +210,7 @@ public func sourcekitd_plugin_initialize_2(
   _ params: sourcekitd_api_plugin_initialize_params_t,
   _ parentLibraryPath: UnsafePointer<CChar>
 ) {
+  LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp.plugin")
   let parentLibraryPath = String(cString: parentLibraryPath)
   #if canImport(Darwin)
   if parentLibraryPath == "SOURCEKIT_LSP_PLUGIN_PARENT_LIBRARY_RTLD_DEFAULT" {

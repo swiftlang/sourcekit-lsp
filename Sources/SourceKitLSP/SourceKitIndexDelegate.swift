@@ -12,9 +12,10 @@
 
 import Dispatch
 import IndexStoreDB
-import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// `IndexDelegate` for the SourceKit workspace.
 actor SourceKitIndexDelegate: IndexDelegate {

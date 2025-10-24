@@ -11,19 +11,20 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
-import BuildServerProtocol
+@_spi(SourceKitLSP) import BuildServerProtocol
 import Dispatch
 import Foundation
 import IndexStoreDB
-package import LanguageServerProtocol
-package import LanguageServerProtocolExtensions
-import LanguageServerProtocolJSONRPC
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) package import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 package import SKOptions
 import SemanticIndex
 import SourceKitD
-package import SwiftExtensions
+import SwiftExtensions
 package import ToolchainRegistry
+@_spi(SourceKitLSP) package import ToolsProtocolsSwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem

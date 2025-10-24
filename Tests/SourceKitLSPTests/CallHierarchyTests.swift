@@ -10,13 +10,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import SwiftExtensions
 import TSCBasic
 import XCTest
 
 final class CallHierarchyTests: XCTestCase {
+  override func setUp() async throws {
+    LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp-tests")
+  }
+
   func testCallHierarchy() async throws {
     let project = try await IndexedSingleSwiftFileTestProject(
       """

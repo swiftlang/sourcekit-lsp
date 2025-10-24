@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 package import Foundation
-package import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
 import TSCExtensions
 
