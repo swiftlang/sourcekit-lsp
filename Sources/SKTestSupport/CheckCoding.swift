@@ -20,10 +20,12 @@ import XCTest
 package func checkCoding<T: Codable & Equatable>(
   _ value: T,
   json: String,
+  userInfo: [CodingUserInfoKey: any Sendable] = [:],
   file: StaticString = #filePath,
   line: UInt = #line
 ) {
   let encoder = JSONEncoder()
+  encoder.userInfo = userInfo
   encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
 
   let data = try! encoder.encode(WrapFragment(value: value))
@@ -42,6 +44,7 @@ package func checkCoding<T: Codable & Equatable>(
   XCTAssertEqual(json, str, file: file, line: line)
 
   let decoder = JSONDecoder()
+  decoder.userInfo = userInfo
   let decodedValue = try! decoder.decode(WrapFragment<T>.self, from: data).value
 
   XCTAssertEqual(value, decodedValue, file: file, line: line)
