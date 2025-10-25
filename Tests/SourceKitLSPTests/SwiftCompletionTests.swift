@@ -339,7 +339,6 @@ final class SwiftCompletionTests: XCTestCase {
       XCTFail("No completion item with label 'foo()'")
       return
     }
-    // TODO: The filter text should be "foo()" (https://github.com/swiftlang/sourcekit-lsp/issues/1599)
     XCTAssertEqual(item.filterText, "func foo()")
     XCTAssertEqual(
       item.textEdit,
