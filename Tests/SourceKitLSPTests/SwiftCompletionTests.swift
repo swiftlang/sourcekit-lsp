@@ -1443,6 +1443,45 @@ final class SwiftCompletionTests: XCTestCase {
     )
     XCTAssert(completions.items.contains(where: { $0.label.contains("myFancyFunction") }))
   }
+
+  func testArgumentCompletionContainsClosingParenthesisIfNotPresentInEditor() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foo() {
+        foo(1️⃣
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.only)
+    XCTAssertEqual(completion.textEdit, .textEdit(TextEdit(range: Range(positions["1️⃣"]), newText: ")")))
+  }
+
+  func testArgumentCompletionReplacesExistingClosingParenthesis() async throws {
+    // See https://github.com/swiftlang/sourcekit-lsp/issues/782 for why this is important
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foo() {
+        foo(1️⃣)2️⃣
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.only)
+    XCTAssertEqual(completion.textEdit, .textEdit(TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: ")")))
+  }
 }
 
 private func countFs(_ response: CompletionList) -> Int {
