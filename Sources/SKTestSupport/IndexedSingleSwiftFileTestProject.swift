@@ -153,7 +153,8 @@ package struct IndexedSingleSwiftFileTestProject {
           filename: try testFileURL.filePath,
           commandLine: [try swiftc.filePath] + compilerArguments
         )
-      ]
+      ],
+      compileCommandsDirectory: testWorkspaceDirectory
     )
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]

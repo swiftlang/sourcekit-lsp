@@ -78,17 +78,33 @@ package struct CompilationDatabaseCompileCommand: Equatable, Codable {
     try container.encodeIfPresent(output, forKey: .output)
   }
 
-  /// The `DocumentURI` for this file. If `filename` is relative and `directory` is
-  /// absolute, returns the concatenation. However, if both paths are relative,
-  /// it falls back to `filename`, which is more likely to be the identifier
-  /// that a caller will be looking for.
-  package var uri: DocumentURI {
-    if filename.isAbsolutePath || !directory.isAbsolutePath {
-      return DocumentURI(filePath: filename, isDirectory: false)
-    } else {
-      return DocumentURI(URL(fileURLWithPath: directory).appending(component: filename, directoryHint: .notDirectory))
+  /// The `DocumentURI` for this file. If this a relative path, it will be interpreted relative to the compile command's
+  /// working directory, which in turn is relative to `compileCommandsDirectory`, the directory that contains the
+  /// `compile_commands.json` file.
+  package func uri(compileCommandsDirectory: URL) -> DocumentURI {
+    if filename.isAbsolutePath {
+      return DocumentURI(URL(fileURLWithPath: self.filename))
     }
+    return DocumentURI(
+      URL(
+        fileURLWithPath: self.filename,
+        relativeTo: self.directoryURL(compileCommandsDirectory: compileCommandsDirectory)
+      )
+    )
   }
+
+  /// A file URL representing `directory`. If `directory` is relative, it's interpreted relative to
+  /// `compileCommandsDirectory`, the directory that contains the `compile_commands.json` file.
+  func directoryURL(compileCommandsDirectory: URL) -> URL {
+    return URL(fileURLWithPath: directory, isDirectory: true, relativeTo: compileCommandsDirectory)
+  }
+}
+
+extension CodingUserInfoKey {
+  /// When decoding `JSONCompilationDatabase` a `URL` representing the directory that contains the
+  /// `compile_commands.json`.
+  package static let compileCommandsDirectoryKey: CodingUserInfoKey =
+    CodingUserInfoKey(rawValue: "lsp.compile-commands-dir")!
 }
 
 /// The JSON clang-compatible compilation database.
@@ -110,13 +126,26 @@ package struct JSONCompilationDatabase: Equatable, Codable {
   private var pathToCommands: [DocumentURI: [Int]] = [:]
   var commands: [CompilationDatabaseCompileCommand] = []
 
-  package init(_ commands: [CompilationDatabaseCompileCommand] = []) {
+  /// The directory that contains the `compile_commands.json` file.
+  private let compileCommandsDirectory: URL
+
+  package init(_ commands: [CompilationDatabaseCompileCommand] = [], compileCommandsDirectory: URL) {
+    self.compileCommandsDirectory = compileCommandsDirectory
     for command in commands {
       add(command)
     }
   }
 
+  /// Decode the `JSONCompilationDatabase` from a decoder.
+  ///
+  /// A `URL` representing the directory that contains the `compile_commands.json` must be passed in the decoder's
+  /// `userInfo` via the `compileCommandsDirectoryKey`.
   package init(from decoder: Decoder) throws {
+    guard let compileCommandsDirectory = decoder.userInfo[.compileCommandsDirectoryKey] as? URL else {
+      struct MissingCompileCommandsDirectoryKeyError: Error {}
+      throw MissingCompileCommandsDirectoryKeyError()
+    }
+    self.compileCommandsDirectory = compileCommandsDirectory
     var container = try decoder.unkeyedContainer()
     while !container.isAtEnd {
       self.add(try container.decode(CompilationDatabaseCompileCommand.self))
@@ -135,7 +164,9 @@ package struct JSONCompilationDatabase: Equatable, Codable {
   /// - Returns: `nil` if the file does not exist
   package init(file: URL) throws {
     let data = try Data(contentsOf: file)
-    self = try JSONDecoder().decode(JSONCompilationDatabase.self, from: data)
+    let decoder = JSONDecoder()
+    decoder.userInfo[.compileCommandsDirectoryKey] = file.deletingLastPathComponent()
+    self = try decoder.decode(JSONCompilationDatabase.self, from: data)
   }
 
   package func encode(to encoder: Encoder) throws {
@@ -156,7 +187,7 @@ package struct JSONCompilationDatabase: Equatable, Codable {
   }
 
   private mutating func add(_ command: CompilationDatabaseCompileCommand) {
-    let uri = command.uri
+    let uri = command.uri(compileCommandsDirectory: compileCommandsDirectory)
     pathToCommands[uri, default: []].append(commands.count)
 
     if let symlinkTarget = uri.symlinkTarget {

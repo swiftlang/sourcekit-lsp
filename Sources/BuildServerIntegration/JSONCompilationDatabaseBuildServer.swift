@@ -28,14 +28,14 @@ fileprivate extension CompilationDatabaseCompileCommand {
   ///
   /// If the compiler is a symlink to `swiftly`, it uses `swiftlyResolver` to find the corresponding executable in a
   /// real toolchain and returns that executable.
-  func compiler(swiftlyResolver: SwiftlyResolver) async -> String? {
+  func compiler(swiftlyResolver: SwiftlyResolver, compileCommandsDirectory: URL) async -> String? {
     guard let compiler = commandLine.first else {
       return nil
     }
     let swiftlyResolved = await orLog("Resolving swiftly") {
       try await swiftlyResolver.resolve(
         compiler: URL(fileURLWithPath: compiler),
-        workingDirectory: URL(fileURLWithPath: directory)
+        workingDirectory: directoryURL(compileCommandsDirectory: compileCommandsDirectory)
       )?.filePath
     }
     if let swiftlyResolved {
@@ -62,7 +62,17 @@ package actor JSONCompilationDatabaseBuildServer: BuiltInBuildServer {
 
   private let connectionToSourceKitLSP: any Connection
 
-  package let configPath: URL
+  /// The path of the `compile_commands.json` file
+  private let configPath: URL
+
+  /// The directory containing the `compile_commands.json` file and relative to which the working directories in the
+  /// compilation database will be interpreted.
+  ///
+  /// Note that while `configPath` might be a symlink, this is always the directory of the compilation database's
+  /// `realpath` since the user most likely wants to reference relative working directories relative to that path
+  /// instead of relative to eg. a symlink in the project's root directory, which was just placed there so SourceKit-LSP
+  /// finds the compilation database in a build directory.
+  private var configDirectory: URL
 
   private let swiftlyResolver = SwiftlyResolver()
 
@@ -107,12 +117,14 @@ package actor JSONCompilationDatabaseBuildServer: BuiltInBuildServer {
     self.toolchainRegistry = toolchainRegistry
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
     self.configPath = configPath
+    // See comment on configDirectory why we do `realpath` here
+    self.configDirectory = try configPath.realpath.deletingLastPathComponent()
   }
 
   package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
     let compilers = Set(
       await compdb.commands.asyncCompactMap { (command) -> String? in
-        await command.compiler(swiftlyResolver: swiftlyResolver)
+        await command.compiler(swiftlyResolver: swiftlyResolver, compileCommandsDirectory: configDirectory)
       }
     ).sorted { $0 < $1 }
     let targets = try await compilers.asyncMap { compiler in
@@ -142,10 +154,11 @@ package actor JSONCompilationDatabaseBuildServer: BuiltInBuildServer {
         return nil
       }
       let commandsWithRequestedCompilers = await compdb.commands.lazy.asyncFilter { command in
-        return await targetCompiler == command.compiler(swiftlyResolver: swiftlyResolver)
+        return await targetCompiler
+          == command.compiler(swiftlyResolver: swiftlyResolver, compileCommandsDirectory: configDirectory)
       }
       let sources = commandsWithRequestedCompilers.map {
-        SourceItem(uri: $0.uri, kind: .file, generated: false)
+        SourceItem(uri: $0.uri(compileCommandsDirectory: configDirectory), kind: .file, generated: false)
       }
       return SourcesItem(target: target, sources: Array(sources))
     }
@@ -172,14 +185,15 @@ package actor JSONCompilationDatabaseBuildServer: BuiltInBuildServer {
   ) async throws -> TextDocumentSourceKitOptionsResponse? {
     let targetCompiler = try request.target.compileCommandsCompiler
     let command = await compdb[request.textDocument.uri].asyncFilter {
-      return await $0.compiler(swiftlyResolver: swiftlyResolver) == targetCompiler
+      return await $0.compiler(swiftlyResolver: swiftlyResolver, compileCommandsDirectory: configDirectory)
+        == targetCompiler
     }.first
     guard let command else {
       return nil
     }
     return TextDocumentSourceKitOptionsResponse(
       compilerArguments: Array(command.commandLine.dropFirst()),
-      workingDirectory: command.directory
+      workingDirectory: try command.directoryURL(compileCommandsDirectory: configDirectory).filePath
     )
   }
 

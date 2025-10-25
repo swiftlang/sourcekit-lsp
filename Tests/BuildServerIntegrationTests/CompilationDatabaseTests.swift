@@ -121,18 +121,28 @@ final class CompilationDatabaseTests: XCTestCase {
   }
 
   func testJSONCompilationDatabaseCoding() {
+    #if os(Windows)
+    let fileSystemRoot = URL(filePath: #"C:\"#)
+    #else
+    let fileSystemRoot = URL(filePath: "/")
+    #endif
+    let userInfo = [CodingUserInfoKey.compileCommandsDirectoryKey: fileSystemRoot]
     checkCoding(
-      JSONCompilationDatabase([]),
+      JSONCompilationDatabase([], compileCommandsDirectory: fileSystemRoot),
       json: """
         [
 
         ]
-        """
+        """,
+      userInfo: userInfo
     )
-    let db = JSONCompilationDatabase([
-      .init(directory: "a", filename: "b", commandLine: [], output: nil),
-      .init(directory: "c", filename: "b", commandLine: [], output: nil),
-    ])
+    let db = JSONCompilationDatabase(
+      [
+        .init(directory: "a", filename: "b", commandLine: [], output: nil),
+        .init(directory: "c", filename: "b", commandLine: [], output: nil),
+      ],
+      compileCommandsDirectory: fileSystemRoot
+    )
     checkCoding(
       db,
       json: """
@@ -152,7 +162,8 @@ final class CompilationDatabaseTests: XCTestCase {
             "file" : "b"
           }
         ]
-        """
+        """,
+      userInfo: userInfo
     )
   }
 
@@ -177,9 +188,9 @@ final class CompilationDatabaseTests: XCTestCase {
       output: nil
     )
 
-    let db = JSONCompilationDatabase([cmd1, cmd2, cmd3])
+    let db = JSONCompilationDatabase([cmd1, cmd2, cmd3], compileCommandsDirectory: URL(filePath: fileSystemRoot))
 
-    XCTAssertEqual(db[DocumentURI(filePath: "b", isDirectory: false)], [cmd1])
+    XCTAssertEqual(db[DocumentURI(filePath: "\(fileSystemRoot)a/b", isDirectory: false)], [cmd1])
     XCTAssertEqual(db[DocumentURI(filePath: "\(fileSystemRoot)c/b", isDirectory: false)], [cmd2])
     XCTAssertEqual(db[DocumentURI(filePath: "\(fileSystemRoot)b", isDirectory: false)], [cmd3])
   }
@@ -256,28 +267,37 @@ final class CompilationDatabaseTests: XCTestCase {
   }
 
   func testCompilationDatabaseBuildServer() async throws {
-    try await checkCompilationDatabaseBuildServer(
-      """
+    #if os(Windows)
+    let fileSystemRoot = URL(filePath: #"C:\"#)
+    #else
+    let fileSystemRoot = URL(filePath: "/")
+    #endif
+    let workingDirectory = try fileSystemRoot.appending(components: "a").filePath
+    let filePath = try fileSystemRoot.appending(components: "a", "a.swift").filePath
+    let compileCommands = JSONCompilationDatabase(
       [
-        {
-          "file": "/a/a.swift",
-          "directory": "/a",
-          "arguments": ["swiftc", "-swift-version", "4", "/a/a.swift"]
-        }
-      ]
-      """
+        CompilationDatabaseCompileCommand(
+          directory: workingDirectory,
+          filename: filePath,
+          commandLine: ["swiftc", "-swift-version", "4", filePath]
+        )
+      ],
+      compileCommandsDirectory: fileSystemRoot
+    )
+    try await checkCompilationDatabaseBuildServer(
+      XCTUnwrap(String(data: JSONEncoder().encode(compileCommands), encoding: .utf8))
     ) { buildServer in
       let settings = try await buildServer.sourceKitOptions(
         request: TextDocumentSourceKitOptionsRequest(
-          textDocument: TextDocumentIdentifier(DocumentURI(URL(fileURLWithPath: "/a/a.swift"))),
+          textDocument: TextDocumentIdentifier(DocumentURI(URL(fileURLWithPath: "\(filePath)"))),
           target: BuildTargetIdentifier.createCompileCommands(compiler: "swiftc"),
           language: .swift
         )
       )
 
       XCTAssertNotNil(settings)
-      XCTAssertEqual(settings?.workingDirectory, "/a")
-      XCTAssertEqual(settings?.compilerArguments, ["-swift-version", "4", "/a/a.swift"])
+      XCTAssertEqual(settings?.workingDirectory, workingDirectory)
+      XCTAssertEqual(settings?.compilerArguments, ["-swift-version", "4", filePath])
       assertNil(await buildServer.indexStorePath)
       assertNil(await buildServer.indexDatabasePath)
     }
