@@ -787,13 +787,16 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     let swiftc = try await unwrap(ToolchainRegistry.forTesting.default?.swiftc)
     let uri = try project.uri(for: "MyTests.swift")
 
-    let compilationDatabase = JSONCompilationDatabase([
-      CompilationDatabaseCompileCommand(
-        directory: try project.scratchDirectory.filePath,
-        filename: uri.pseudoPath,
-        commandLine: [try swiftc.filePath, uri.pseudoPath]
-      )
-    ])
+    let compilationDatabase = JSONCompilationDatabase(
+      [
+        CompilationDatabaseCompileCommand(
+          directory: try project.scratchDirectory.filePath,
+          filename: uri.pseudoPath,
+          commandLine: [try swiftc.filePath, uri.pseudoPath]
+        )
+      ],
+      compileCommandsDirectory: project.scratchDirectory
+    )
 
     try await project.changeFileOnDisk(
       JSONCompilationDatabaseBuildServer.dbName,
