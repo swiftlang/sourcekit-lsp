@@ -169,7 +169,6 @@ struct SourceKitLSP: AsyncParsableCommand {
       ),
       defaultWorkspaceType: defaultWorkspaceType,
       generatedFilesPath: generatedFilesPath,
-      backgroundIndexing: experimentalFeatures.contains("background-indexing"),
       experimentalFeatures: Set(experimentalFeatures.compactMap(ExperimentalFeature.init))
     )
   }
