@@ -65,7 +65,7 @@ struct SourceKitLSP: AsyncParsableCommand {
     name: [.customLong("configuration")],
     help: "Build with configuration [debug|release]"
   )
-  var buildConfiguration = BuildConfiguration.debug
+  var buildConfiguration: BuildConfiguration?
 
   @Option(
     name: [.long, .customLong("build-path")],
@@ -78,42 +78,42 @@ struct SourceKitLSP: AsyncParsableCommand {
     parsing: .unconditionalSingleValue,
     help: "Pass flag through to all C compiler invocations"
   )
-  var buildFlagsCc = [String]()
+  var buildFlagsCc: [String] = []
 
   @Option(
     name: .customLong("Xcxx", withSingleDash: true),
     parsing: .unconditionalSingleValue,
     help: "Pass flag through to all C++ compiler invocations"
   )
-  var buildFlagsCxx = [String]()
+  var buildFlagsCxx: [String] = []
 
   @Option(
     name: .customLong("Xlinker", withSingleDash: true),
     parsing: .unconditionalSingleValue,
     help: "Pass flag through to all linker invocations"
   )
-  var buildFlagsLinker = [String]()
+  var buildFlagsLinker: [String] = []
 
   @Option(
     name: .customLong("Xswiftc", withSingleDash: true),
     parsing: .unconditionalSingleValue,
     help: "Pass flag through to all Swift compiler invocations"
   )
-  var buildFlagsSwift = [String]()
+  var buildFlagsSwift: [String] = []
 
   @Option(
     name: .customLong("Xclangd", withSingleDash: true),
     parsing: .unconditionalSingleValue,
     help: "Pass options to clangd command-line"
   )
-  var clangdOptions = [String]()
+  var clangdOptions: [String] = []
 
   @Option(
     name: .customLong("index-prefix-map", withSingleDash: true),
     parsing: .unconditionalSingleValue,
     help: "Override the prefix map from the build system, values of form 'remote=local'"
   )
-  var indexPrefixMappings = [PathPrefixMapping]()
+  var indexPrefixMappings: [PathPrefixMapping] = []
 
   @Option(
     help: "Override default workspace type selection; one of 'swiftPM', 'compilationDatabase', or 'buildServer'"
@@ -126,7 +126,7 @@ struct SourceKitLSP: AsyncParsableCommand {
     help:
       "Specify a relative path where sourcekit-lsp should search for `compile_commands.json` or `compile_flags.txt` relative to the root of a workspace. Multiple search paths may be specified by repeating this option."
   )
-  var compilationDatabaseSearchPaths = [String]()
+  var compilationDatabaseSearchPaths: [String] = []
 
   @Option(
     help: "Specify the directory where generated files will be stored"
@@ -148,29 +148,29 @@ struct SourceKitLSP: AsyncParsableCommand {
       swiftPM: SourceKitLSPOptions.SwiftPMOptions(
         configuration: buildConfiguration,
         scratchPath: scratchPath,
-        cCompilerFlags: buildFlagsCc,
-        cxxCompilerFlags: buildFlagsCxx,
-        swiftCompilerFlags: buildFlagsSwift,
-        linkerFlags: buildFlagsLinker
+        cCompilerFlags: buildFlagsCc.nilIfEmpty,
+        cxxCompilerFlags: buildFlagsCxx.nilIfEmpty,
+        swiftCompilerFlags: buildFlagsSwift.nilIfEmpty,
+        linkerFlags: buildFlagsLinker.nilIfEmpty
       ),
       fallbackBuildSystem: SourceKitLSPOptions.FallbackBuildSystemOptions(
-        cCompilerFlags: buildFlagsCc,
-        cxxCompilerFlags: buildFlagsCxx,
-        swiftCompilerFlags: buildFlagsSwift
+        cCompilerFlags: buildFlagsCc.nilIfEmpty,
+        cxxCompilerFlags: buildFlagsCxx.nilIfEmpty,
+        swiftCompilerFlags: buildFlagsSwift.nilIfEmpty
       ),
-      compilationDatabase: SourceKitLSPOptions.CompilationDatabaseOptions(searchPaths: compilationDatabaseSearchPaths),
+      compilationDatabase: SourceKitLSPOptions.CompilationDatabaseOptions(
+        searchPaths: compilationDatabaseSearchPaths.nilIfEmpty
+      ),
       clangdOptions: clangdOptions,
       index: SourceKitLSPOptions.IndexOptions(
         indexPrefixMap: [String: String](
           indexPrefixMappings.map { ($0.original, $0.replacement) },
           uniquingKeysWith: { lhs, rhs in rhs }
-        ),
-        maxCoresPercentageToUseForBackgroundIndexing: nil,
-        updateIndexStoreTimeout: nil
+        ).nilIfEmpty
       ),
       defaultWorkspaceType: defaultWorkspaceType,
       generatedFilesPath: generatedFilesPath,
-      experimentalFeatures: Set(experimentalFeatures.compactMap(ExperimentalFeature.init))
+      experimentalFeatures: Set(experimentalFeatures.compactMap(ExperimentalFeature.init)).nilIfEmpty
     )
   }
 
@@ -313,5 +313,14 @@ struct SourceKitLSP: AsyncParsableCommand {
       try? await Task.sleep(for: .seconds(60 * 60 * 24 * 365 * 10))
       logger.fault("10 year wait that's parking the main thread expired. Waiting again.")
     }
+  }
+}
+
+private extension Collection {
+  var nilIfEmpty: Self? {
+    if self.isEmpty {
+      return nil
+    }
+    return self
   }
 }
