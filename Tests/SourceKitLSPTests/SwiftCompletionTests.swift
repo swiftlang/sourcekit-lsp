@@ -1443,6 +1443,23 @@ final class SwiftCompletionTests: XCTestCase {
     )
     XCTAssert(completions.items.contains(where: { $0.label.contains("myFancyFunction") }))
   }
+
+  func testSubscriptCompletions() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foo(x: [Int: Int]) {
+        x[1️⃣
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    assertContains(completions.items.map(\.label), "[key: Int, default: Int]")
+  }
 }
 
 private func countFs(_ response: CompletionList) -> Int {
