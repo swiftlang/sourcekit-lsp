@@ -17,7 +17,7 @@ public import LanguageServerProtocol
 /// but to not exit (otherwise the response might not be delivered
 /// correctly to the client). There is a separate exit notification
 /// that asks the server to exit.
-public struct BuildShutdownRequest: RequestType {
+public struct BuildShutdownRequest: BSPRequest {
   public static let method: String = "build/shutdown"
   public typealias Response = VoidResponse
 

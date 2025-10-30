@@ -19,7 +19,7 @@ public import LanguageServerProtocol
 /// `DidChangeBuildTargetNotification` is sent for the requested target.
 ///
 /// The request may return `nil` if it doesn't have any build settings for this file in the given target.
-public struct TextDocumentSourceKitOptionsRequest: RequestType, Hashable {
+public struct TextDocumentSourceKitOptionsRequest: BSPRequest, Hashable {
   public static let method: String = "textDocument/sourceKitOptions"
   public typealias Response = TextDocumentSourceKitOptionsResponse?
 

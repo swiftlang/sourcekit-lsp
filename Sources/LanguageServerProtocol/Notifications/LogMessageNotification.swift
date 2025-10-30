@@ -15,7 +15,7 @@
 /// - Parameters:
 ///   - type: The kind of log message.
 ///   - message: The contents of the message.
-public struct LogMessageNotification: NotificationType, Hashable {
+public struct LogMessageNotification: LSPNotification, Hashable {
   public static let method: String = "window/logMessage"
 
   /// The kind of log message.

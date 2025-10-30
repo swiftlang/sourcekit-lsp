@@ -13,7 +13,7 @@
 /// New request to modify runtime options of SourceKit-LSP.
 //
 /// Any options not specified in this request will be left as-is.
-public struct SetOptionsRequest: RequestType {
+public struct SetOptionsRequest: LSPRequest {
   public static let method: String = "workspace/_setOptions"
   public typealias Response = VoidResponse
 

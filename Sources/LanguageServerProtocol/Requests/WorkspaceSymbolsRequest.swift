@@ -21,7 +21,7 @@
 ///   - query: The string that should be looked for in symbols of the workspace.
 ///
 /// - Returns: Information about each symbol with a name that contains the query string
-public struct WorkspaceSymbolsRequest: RequestType, Hashable {
+public struct WorkspaceSymbolsRequest: LSPRequest, Hashable {
 
   public static let method: String = "workspace/symbol"
   public typealias Response = [WorkspaceSymbolItem]?

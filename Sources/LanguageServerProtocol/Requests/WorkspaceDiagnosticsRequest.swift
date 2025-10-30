@@ -24,7 +24,7 @@ public struct PreviousResultId: Codable, Sendable {
   }
 }
 
-public struct WorkspaceDiagnosticsRequest: RequestType {
+public struct WorkspaceDiagnosticsRequest: LSPRequest {
   public static let method: String = "workspace/diagnostic"
   public typealias Response = WorkspaceDiagnosticReport
 

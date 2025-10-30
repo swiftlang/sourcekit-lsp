@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct WorkspaceSymbolResolveRequest: RequestType {
+public struct WorkspaceSymbolResolveRequest: LSPRequest {
   public static let method: String = "workspaceSymbol/resolve"
   public typealias Response = WorkspaceSymbol
 

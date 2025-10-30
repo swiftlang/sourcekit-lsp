@@ -25,7 +25,7 @@ public typealias OriginId = String
 ///
 /// The server communicates during the initialize handshake whether this method is supported or not by setting
 /// `prepareProvider: true` in `SourceKitInitializeBuildResponseData`.
-public struct BuildTargetPrepareRequest: RequestType, Hashable {
+public struct BuildTargetPrepareRequest: BSPRequest, Hashable {
   public static let method: String = "buildTarget/prepare"
   public typealias Response = VoidResponse
 

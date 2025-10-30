@@ -12,7 +12,7 @@
 
 /// Request sent from the server to the client to unregister a previously registered
 /// capability.
-public struct UnregisterCapabilityRequest: RequestType, Hashable {
+public struct UnregisterCapabilityRequest: LSPRequest, Hashable {
   public static let method: String = "client/unregisterCapability"
   public typealias Response = VoidResponse
 

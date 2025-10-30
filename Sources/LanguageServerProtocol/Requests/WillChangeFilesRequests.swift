@@ -20,7 +20,7 @@ public struct FileCreate: Codable, Hashable, Sendable {
   }
 }
 
-public struct WillCreateFilesRequest: RequestType {
+public struct WillCreateFilesRequest: LSPRequest {
   public static let method: String = "workspace/willCreateFiles"
   public typealias Response = WorkspaceEdit?
 
@@ -47,7 +47,7 @@ public struct FileRename: Codable, Hashable, Sendable {
   }
 }
 
-public struct WillRenameFilesRequest: RequestType {
+public struct WillRenameFilesRequest: LSPRequest {
   public static let method: String = "workspace/willRenameFiles"
   public typealias Response = WorkspaceEdit?
 
@@ -70,7 +70,7 @@ public struct FileDelete: Codable, Hashable, Sendable {
   }
 }
 
-public struct WillDeleteFilesRequest: RequestType {
+public struct WillDeleteFilesRequest: LSPRequest {
   public static let method: String = "workspace/willDeleteFiles"
   public typealias Response = WorkspaceEdit?
 

@@ -13,7 +13,7 @@
 /// The request is sent from the client to the server to resolve the subtypes for
 /// a given call hierarchy item. It is only issued if a server registers for the
 /// `textDocument/prepareTypeHierarchy` request.
-public struct TypeHierarchySubtypesRequest: RequestType {
+public struct TypeHierarchySubtypesRequest: LSPRequest {
   public static let method: String = "typeHierarchy/subtypes"
   public typealias Response = [TypeHierarchyItem]?
 

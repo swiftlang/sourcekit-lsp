@@ -16,7 +16,7 @@ public import LanguageServerProtocol
 ///
 /// If the build server is currently updating the build graph, this request should return after those updates have
 /// finished processing.
-public struct WorkspaceWaitForBuildSystemUpdatesRequest: RequestType, Hashable {
+public struct WorkspaceWaitForBuildSystemUpdatesRequest: BSPRequest, Hashable {
   public typealias Response = VoidResponse
 
   public static let method: String = "workspace/waitForBuildSystemUpdates"

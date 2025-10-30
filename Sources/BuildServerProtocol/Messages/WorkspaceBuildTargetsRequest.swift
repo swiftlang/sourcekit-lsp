@@ -14,7 +14,7 @@ public import LanguageServerProtocol
 
 /// The workspace build targets request is sent from the client to the server to
 /// ask for the list of all available build targets in the workspace.
-public struct WorkspaceBuildTargetsRequest: RequestType, Hashable {
+public struct WorkspaceBuildTargetsRequest: BSPRequest, Hashable {
   public static let method: String = "workspace/buildTargets"
   public typealias Response = WorkspaceBuildTargetsResponse
 

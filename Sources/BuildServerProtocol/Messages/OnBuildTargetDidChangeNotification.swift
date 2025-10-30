@@ -15,7 +15,7 @@ public import LanguageServerProtocol
 /// The build target changed notification is sent from the server to the client
 /// to signal a change in a build target. The server communicates during the
 /// initialize handshake whether this method is supported or not.
-public struct OnBuildTargetDidChangeNotification: NotificationType, Equatable {
+public struct OnBuildTargetDidChangeNotification: BSPNotification, Equatable {
   public static let method: String = "buildTarget/didChange"
 
   /// **(BSP Extension)**

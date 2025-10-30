@@ -17,7 +17,7 @@
 /// a workaround to re-index files when such a bug occurs where otherwise there would be no workaround.
 ///
 /// **LSP Extension**
-public struct TriggerReindexRequest: RequestType {
+public struct TriggerReindexRequest: LSPRequest {
   public static let method: String = "workspace/triggerReindex"
   public typealias Response = VoidResponse
 

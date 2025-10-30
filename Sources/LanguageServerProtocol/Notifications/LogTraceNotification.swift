@@ -13,7 +13,7 @@
 /// A notification to log the trace of the server’s execution. The amount and content of these notifications depends on the current trace configuration. If trace is 'off', the server should not send any logTrace notification. If trace is 'messages', the server should not add the 'verbose' field in the LogTraceParams.
 ///
 /// $/logTrace should be used for systematic trace reporting. For single debugging messages, the server should send window/logMessage notifications.
-public struct LogTraceNotification: NotificationType, Hashable, Codable {
+public struct LogTraceNotification: LSPNotification, Hashable, Codable {
   public static let method: String = "$/logTrace"
 
   /// The message to be logged.

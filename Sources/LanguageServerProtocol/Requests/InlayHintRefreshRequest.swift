@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct InlayHintRefreshRequest: RequestType {
+public struct InlayHintRefreshRequest: LSPRequest {
   public static let method: String = "workspace/inlayHint/refresh"
   public typealias Response = VoidResponse
 

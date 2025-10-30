@@ -15,7 +15,7 @@
 /// - Parameters:
 ///   - label: An optional label of the workspace edit.
 ///   - edit: The edits to apply.
-public struct ApplyEditRequest: RequestType {
+public struct ApplyEditRequest: LSPRequest {
   public static let method: String = "workspace/applyEdit"
   public typealias Response = ApplyEditResponse
 

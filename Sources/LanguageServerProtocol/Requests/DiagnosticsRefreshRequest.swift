@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct DiagnosticsRefreshRequest: RequestType {
+public struct DiagnosticsRefreshRequest: LSPRequest {
   public static let method: String = "workspace/diagnostic/refresh"
   public typealias Response = VoidResponse
 

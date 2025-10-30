@@ -12,7 +12,7 @@
 
 /// The request is sent from the client to the server to resolve callees for a given call hierarchy item.
 /// It is only issued if a server registers for the `textDocument/prepareCallHierarchy` request.
-public struct CallHierarchyOutgoingCallsRequest: RequestType {
+public struct CallHierarchyOutgoingCallsRequest: LSPRequest {
   public static let method: String = "callHierarchy/outgoingCalls"
   public typealias Response = [CallHierarchyOutgoingCall]?
 

@@ -28,7 +28,7 @@
 /// This request is an extension to LSP supported by SourceKit-LSP.
 /// It requires the experimental client capability `"workspace/peekDocuments"` to use.
 /// It also needs the client to handle the request and present the "peeked" editor.
-public struct PeekDocumentsRequest: RequestType {
+public struct PeekDocumentsRequest: LSPRequest {
   public static let method: String = "workspace/peekDocuments"
   public typealias Response = PeekDocumentsResponse
 

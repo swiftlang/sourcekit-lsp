@@ -23,7 +23,7 @@
 /// This request is an extension to LSP supported by SourceKit-LSP.
 /// Enable the experimental client capability `"workspace/getReferenceDocument"` so that the server responds with
 /// reference document URLs for certain requests or commands whenever possible.
-public struct GetReferenceDocumentRequest: RequestType {
+public struct GetReferenceDocumentRequest: LSPRequest {
   public static let method: String = "workspace/getReferenceDocument"
   public typealias Response = GetReferenceDocumentResponse
 

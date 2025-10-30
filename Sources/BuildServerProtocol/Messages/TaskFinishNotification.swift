@@ -14,7 +14,7 @@ public import Foundation
 public import LanguageServerProtocol
 
 /// A `build/taskFinish` notification must always be sent after a `build/taskStart`` with the same `taskId` was sent.
-public struct TaskFinishNotification: NotificationType {
+public struct TaskFinishNotification: BSPNotification {
   public static let method: String = "build/taskFinish"
 
   /// Unique id of the task with optional reference to parent task id.

@@ -18,7 +18,7 @@
 ///   - actions: Action items which the user may select (up to 1).
 ///
 /// - Returns: The action selected by the user, if any.
-public struct ShowMessageRequest: RequestType, Hashable {
+public struct ShowMessageRequest: LSPRequest, Hashable {
   public static let method: String = "window/showMessageRequest"
   public typealias Response = MessageActionItem?
 

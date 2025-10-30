@@ -15,7 +15,7 @@ public import LanguageServerProtocol
 
 /// After a `taskStart` and before `taskFinish` for a `taskId`, the server may send any number of progress
 /// notifications.
-public struct TaskProgressNotification: NotificationType {
+public struct TaskProgressNotification: BSPNotification {
   public static let method: String = "build/taskProgress"
 
   /// Unique id of the task with optional reference to parent task id

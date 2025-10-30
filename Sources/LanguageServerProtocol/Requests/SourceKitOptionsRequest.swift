@@ -17,7 +17,7 @@
 /// instead of the `textDocument/` prefix.
 ///
 /// **(LSP Extension)**.
-public struct SourceKitOptionsRequest: RequestType, Hashable {
+public struct SourceKitOptionsRequest: LSPRequest, Hashable {
   public static let method: String = "workspace/_sourceKitOptions"
   public typealias Response = SourceKitOptionsResponse
 

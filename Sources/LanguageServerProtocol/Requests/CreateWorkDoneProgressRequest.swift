@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct CreateWorkDoneProgressRequest: RequestType {
+public struct CreateWorkDoneProgressRequest: LSPRequest {
   public static let method: String = "window/workDoneProgress/create"
   public typealias Response = VoidResponse
 

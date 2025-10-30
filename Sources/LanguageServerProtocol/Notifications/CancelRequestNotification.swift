@@ -18,7 +18,7 @@
 /// As with any `$` requests, the server is free to ignore this notification.
 ///
 /// - Parameter id: The request to cancel.
-public struct CancelRequestNotification: NotificationType, Hashable {
+public struct CancelRequestNotification: LSPNotification, Hashable {
   public static let method: String = "$/cancelRequest"
 
   /// The request to cancel.

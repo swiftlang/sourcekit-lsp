@@ -16,7 +16,7 @@ public import LanguageServerProtocol
 /// query for the list of text documents and directories that belong to a
 /// build target. The sources response must not include sources that are
 /// external to the workspace.
-public struct BuildTargetSourcesRequest: RequestType, Hashable {
+public struct BuildTargetSourcesRequest: BSPRequest, Hashable {
   public static let method: String = "buildTarget/sources"
   public typealias Response = BuildTargetSourcesResponse
 

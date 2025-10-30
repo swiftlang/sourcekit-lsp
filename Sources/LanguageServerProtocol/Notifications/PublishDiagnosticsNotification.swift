@@ -24,7 +24,7 @@
 /// - Parameters:
 ///   - uri: The document in which the diagnostics should be shown.
 ///   - diagnostics: The complete list of diagnostics in the document, if any.
-public struct PublishDiagnosticsNotification: NotificationType, Hashable, Codable {
+public struct PublishDiagnosticsNotification: LSPNotification, Hashable, Codable {
   public static let method: String = "textDocument/publishDiagnostics"
 
   /// The document in which the diagnostics should be shown.

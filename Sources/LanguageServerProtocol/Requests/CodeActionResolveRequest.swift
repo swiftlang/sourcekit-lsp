@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct CodeActionResolveRequest: RequestType {
+public struct CodeActionResolveRequest: LSPRequest {
   public static let method: String = "codeAction/resolve"
   public typealias Response = CodeAction
 

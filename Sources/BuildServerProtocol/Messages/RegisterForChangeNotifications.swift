@@ -20,7 +20,7 @@ public import LanguageServerProtocol
 /// - Important: This request has been deprecated. Build servers should instead implement the
 ///   `textDocument/sourceKitOptions` request.
 ///   See https://forums.swift.org/t/extending-functionality-of-build-server-protocol-with-sourcekit-lsp/74400
-public struct RegisterForChanges: RequestType {
+public struct RegisterForChanges: BSPRequest {
   public static let method: String = "textDocument/registerForChanges"
   public typealias Response = VoidResponse
 
@@ -48,7 +48,7 @@ public enum RegisterAction: String, Hashable, Codable, Sendable {
 /// - Important: This request has been deprecated. Build servers should instead implement the
 ///   `textDocument/sourceKitOptions` request.
 ///   See https://forums.swift.org/t/extending-functionality-of-build-server-protocol-with-sourcekit-lsp/74400
-public struct FileOptionsChangedNotification: NotificationType {
+public struct FileOptionsChangedNotification: BSPNotification {
   public struct Options: ResponseType, Hashable {
     /// The compiler options required for the requested file.
     public var options: [String]

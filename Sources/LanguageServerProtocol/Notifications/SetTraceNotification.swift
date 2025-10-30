@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// A notification that should be used by the client to modify the trace setting of the server.
-public struct SetTraceNotification: NotificationType, Hashable, Codable {
+public struct SetTraceNotification: LSPNotification, Hashable, Codable {
   public static let method: String = "$/setTrace"
 
   /// The new value that should be assigned to the trace setting.

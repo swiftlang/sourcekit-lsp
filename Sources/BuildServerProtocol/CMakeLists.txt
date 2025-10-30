@@ -4,6 +4,7 @@ add_library(BuildServerProtocol STATIC
   Messages/BuildShutdownRequest.swift
   Messages/BuildTargetPrepareRequest.swift
   Messages/BuildTargetSourcesRequest.swift
+  Messages/CancelRequestNotification.swift
   Messages/InitializeBuildRequest.swift
   Messages/OnBuildExitNotification.swift
   Messages/OnBuildInitializedNotification.swift

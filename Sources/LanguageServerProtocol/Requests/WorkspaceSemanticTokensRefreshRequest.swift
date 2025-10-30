@@ -13,7 +13,7 @@
 /// Sent from the server to the client. Servers can use this to ask clients to
 /// refresh semantic tokens for editors for which this server provides semantic
 /// tokens, useful in cases of project wide configuration changes.
-public struct WorkspaceSemanticTokensRefreshRequest: RequestType, Hashable {
+public struct WorkspaceSemanticTokensRefreshRequest: LSPRequest, Hashable {
   public static let method: String = "workspace/semanticTokens/refresh"
   public typealias Response = VoidResponse
 
