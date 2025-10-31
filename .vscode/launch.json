@@ -4,7 +4,8 @@
             "type": "swift",
             "request": "launch",
             "name": "Debug sourcekit-lsp",
-            "program": "${workspaceFolder:sourcekit-lsp}/.build/debug/sourcekit-lsp",
+            "target": "sourcekit-lsp",
+            "configuration": "debug",
             "args": [],
             "cwd": "${workspaceFolder:sourcekit-lsp}",
             "preLaunchTask": "swift: Build Debug sourcekit-lsp"
@@ -13,7 +14,8 @@
             "type": "swift",
             "request": "launch",
             "name": "Release sourcekit-lsp",
-            "program": "${workspaceFolder:sourcekit-lsp}/.build/release/sourcekit-lsp",
+            "target": "sourcekit-lsp",
+            "configuration": "release",
             "args": [],
             "cwd": "${workspaceFolder:sourcekit-lsp}",
             "preLaunchTask": "swift: Build Release sourcekit-lsp"
