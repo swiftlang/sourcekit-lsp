@@ -354,6 +354,40 @@ final class CompilationDatabaseTests: XCTestCase {
       }
     }
   }
+
+  func testCompilationDatabaseWithRelativeDirectory() async throws {
+    let project = try await MultiFileTestProject(files: [
+      "projectA/headers/header.h": """
+      int 1️⃣foo2️⃣() {}
+      """,
+      "projectA/main.cpp": """
+      #include "header.h"
+
+      int main() {
+        3️⃣foo();
+      }
+      """,
+      "compile_commands.json": """
+      [
+        {
+          "directory": "projectA",
+          "arguments": [
+            "clang",
+            "-I", "headers"
+          ],
+          "file": "main.cpp"
+        }
+      ]
+      """,
+    ])
+
+    let (mainUri, positions) = try project.openDocument("main.cpp")
+
+    let definition = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(mainUri), position: positions["3️⃣"])
+    )
+    XCTAssertEqual(definition?.locations, [try project.location(from: "1️⃣", to: "2️⃣", in: "header.h")])
+  }
 }
 
 private let defaultSDKArgs: String = {
