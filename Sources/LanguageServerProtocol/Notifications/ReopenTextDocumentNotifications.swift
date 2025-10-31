@@ -17,7 +17,7 @@
 /// request for this document is executing at the same time.
 ///
 /// **(LSP Extension)**
-public struct ReopenTextDocumentNotification: NotificationType, Hashable {
+public struct ReopenTextDocumentNotification: LSPNotification, Hashable {
   public static let method: String = "textDocument/reopen"
 
   /// The document identifier and initial contents.

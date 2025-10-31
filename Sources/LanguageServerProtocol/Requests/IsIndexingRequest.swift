@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct IsIndexingRequest: RequestType {
+public struct IsIndexingRequest: LSPRequest {
   public static let method: String = "sourceKit/_isIndexing"
   public typealias Response = IsIndexingResponse
 

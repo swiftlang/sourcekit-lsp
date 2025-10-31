@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct WorkDoneProgress: NotificationType, Hashable {
+public struct WorkDoneProgress: LSPNotification, Hashable {
   public static let method: String = "$/progress"
 
   /// The progress token provided by the client or server.

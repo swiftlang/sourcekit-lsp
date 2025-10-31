@@ -13,7 +13,7 @@
 /// The request is sent from the client to the server to resolve the callers for
 /// a given call hierarchy item. It is only issued if a server registers for the
 /// `textDocument/prepareCallHierarchy` request.
-public struct CallHierarchyIncomingCallsRequest: RequestType {
+public struct CallHierarchyIncomingCallsRequest: LSPRequest {
   public static let method: String = "callHierarchy/incomingCalls"
   public typealias Response = [CallHierarchyIncomingCall]?
 

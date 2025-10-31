@@ -14,7 +14,7 @@
 /// BSP request).
 ///
 /// **(LSP Extension)**.
-public struct OutputPathsRequest: RequestType, Hashable {
+public struct OutputPathsRequest: LSPRequest, Hashable {
   public static let method: String = "workspace/_outputPaths"
   public typealias Response = OutputPathsResponse
 

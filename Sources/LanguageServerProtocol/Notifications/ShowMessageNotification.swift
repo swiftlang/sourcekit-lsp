@@ -15,7 +15,7 @@
 /// - Parameters:
 ///   - type: The kind of message.
 ///   - message: The contents of the message.
-public struct ShowMessageNotification: NotificationType, Hashable {
+public struct ShowMessageNotification: LSPNotification, Hashable {
   public static let method: String = "window/showMessage"
 
   /// The kind of message.

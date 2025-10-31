@@ -26,7 +26,7 @@
 /// is ill-suited for any kind of interactive environment. In those environments, it is preferable to quickly give the
 /// user a result based on the data that is available and (let the user) re-perform the action if the underlying index
 /// data has changed.
-public struct SynchronizeRequest: RequestType {
+public struct SynchronizeRequest: LSPRequest {
   public static let method: String = "workspace/synchronize"
   public typealias Response = VoidResponse
 

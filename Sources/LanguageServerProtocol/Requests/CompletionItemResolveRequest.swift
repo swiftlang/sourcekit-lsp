@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct CompletionItemResolveRequest: RequestType {
+public struct CompletionItemResolveRequest: LSPRequest {
   public static let method: String = "completionItem/resolve"
   public typealias Response = CompletionItem
 

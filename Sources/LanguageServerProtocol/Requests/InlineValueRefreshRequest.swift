@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct InlineValueRefreshRequest: RequestType {
+public struct InlineValueRefreshRequest: LSPRequest {
   public static let method: String = "workspace/inlineValue/refresh"
   public typealias Response = VoidResponse
 

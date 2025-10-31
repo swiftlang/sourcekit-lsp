@@ -13,7 +13,7 @@
 /// Notification that the server process should exit.
 ///
 /// This notification will come after the shutdown request finishes.
-public struct ExitNotification: NotificationType, Hashable {
+public struct ExitNotification: LSPNotification, Hashable {
   public static let method: String = "exit"
   public init() {}
 }

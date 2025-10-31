@@ -63,14 +63,17 @@ extension NotificationType {
   }
 }
 
+public protocol LSPRequest: RequestType {}
+public protocol LSPNotification: NotificationType {}
+
 /// A `textDocument/*` notification, which takes a text document identifier
 /// indicating which document it operates in or on.
-public protocol TextDocumentNotification: NotificationType {
+public protocol TextDocumentNotification: LSPNotification {
   var textDocument: TextDocumentIdentifier { get }
 }
 
 /// A `textDocument/*` request, which takes a text document identifier
 /// indicating which document it operates in or on.
-public protocol TextDocumentRequest: RequestType {
+public protocol TextDocumentRequest: LSPRequest {
   var textDocument: TextDocumentIdentifier { get }
 }

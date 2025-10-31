@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct DidCreateFilesNotification: NotificationType {
+public struct DidCreateFilesNotification: LSPNotification {
   public static let method: String = "workspace/didCreateFiles"
 
   /// An array of all files/folders created in this operation.
@@ -21,7 +21,7 @@ public struct DidCreateFilesNotification: NotificationType {
   }
 }
 
-public struct DidRenameFilesNotification: NotificationType {
+public struct DidRenameFilesNotification: LSPNotification {
   public static let method: String = "workspace/didRenameFiles"
 
   /// An array of all files/folders renamed in this operation. When a folder
@@ -33,7 +33,7 @@ public struct DidRenameFilesNotification: NotificationType {
   }
 }
 
-public struct DidDeleteFilesNotification: NotificationType {
+public struct DidDeleteFilesNotification: LSPNotification {
   public static let method: String = "workspace/didDeleteFiles"
 
   /// An array of all files/folders created in this operation.

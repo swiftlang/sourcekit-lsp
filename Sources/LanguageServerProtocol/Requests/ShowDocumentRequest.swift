@@ -12,7 +12,7 @@
 
 /// Request from the server to the client to show a document on the client
 /// side.
-public struct ShowDocumentRequest: RequestType {
+public struct ShowDocumentRequest: LSPRequest {
   public static let method: String = "window/showDocument"
   public typealias Response = ShowDocumentResponse
 

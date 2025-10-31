@@ -26,7 +26,7 @@ public import LanguageServerProtocol
 /// Until the server has responded to the initialize request with an
 /// InitializeBuildResult, the client must not send any additional
 /// requests or notifications to the server.
-public struct InitializeBuildRequest: RequestType, Hashable {
+public struct InitializeBuildRequest: BSPRequest, Hashable {
   public static let method: String = "build/initialize"
   public typealias Response = InitializeBuildResponse
 

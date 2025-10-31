@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct CodeLensRefreshRequest: RequestType {
+public struct CodeLensRefreshRequest: LSPRequest {
   public static let method: String = "workspace/codeLens/refresh"
 
   public typealias Response = VoidResponse

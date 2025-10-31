@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct DidChangeActiveDocumentNotification: NotificationType {
+public struct DidChangeActiveDocumentNotification: LSPNotification {
   public static let method: String = "window/didChangeActiveDocument"
 
   /// The document that is being displayed in the active editor  or `null` to indicate that either no document is active

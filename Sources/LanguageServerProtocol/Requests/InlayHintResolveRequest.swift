@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct InlayHintResolveRequest: RequestType {
+public struct InlayHintResolveRequest: LSPRequest {
   public static let method: String = "inlayHint/resolve"
   public typealias Response = InlayHint
 

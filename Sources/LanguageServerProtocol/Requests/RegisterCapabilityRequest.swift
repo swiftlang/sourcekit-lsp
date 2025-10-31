@@ -22,7 +22,7 @@ import Foundation
 /// and dynamically. Servers that want to support both should check the client capabilities and only
 /// register the capability statically if the client doesn't support dynamic registration for that
 /// capability.
-public struct RegisterCapabilityRequest: RequestType, Hashable {
+public struct RegisterCapabilityRequest: LSPRequest, Hashable {
   public static let method: String = "client/registerCapability"
   public typealias Response = VoidResponse
 

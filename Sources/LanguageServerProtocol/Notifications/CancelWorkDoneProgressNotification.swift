@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct CancelWorkDoneProgressNotification: NotificationType {
+public struct CancelWorkDoneProgressNotification: LSPNotification {
   public static let method: String = "window/workDoneProgress/cancel"
 
   public var token: ProgressToken

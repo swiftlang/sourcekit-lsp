@@ -21,7 +21,7 @@
 /// - Parameters:
 ///   - command: The command to be executed.
 ///   - arguments: The arguments to use when executing the command.
-public struct ExecuteCommandRequest: RequestType {
+public struct ExecuteCommandRequest: LSPRequest {
   public static let method: String = "workspace/executeCommand"
   public typealias Response = LSPAny?
 

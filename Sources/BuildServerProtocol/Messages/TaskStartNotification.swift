@@ -30,7 +30,7 @@ public import LanguageServerProtocol
 ///
 /// Tasks that are spawned by another task should reference the originating task's `taskId` in their own `taskId`'s
 /// `parent` field. Tasks spawned directly by a request should reference the request's `originId` parent.
-public struct TaskStartNotification: NotificationType {
+public struct TaskStartNotification: BSPNotification {
   public static let method: String = "build/taskStart"
 
   /// Unique id of the task with optional reference to parent task id

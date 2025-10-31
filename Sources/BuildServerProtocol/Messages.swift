@@ -12,6 +12,9 @@
 
 public import LanguageServerProtocol
 
+public protocol BSPRequest: RequestType {}
+public protocol BSPNotification: NotificationType {}
+
 private let requestTypes: [_RequestType.Type] = [
   BuildShutdownRequest.self,
   BuildTargetPrepareRequest.self,

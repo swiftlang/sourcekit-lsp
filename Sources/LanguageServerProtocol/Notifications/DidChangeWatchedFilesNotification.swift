@@ -13,7 +13,7 @@
 /// Notification from the client when changes to watched files are detected.
 ///
 /// - Parameter changes: The set of file changes.
-public struct DidChangeWatchedFilesNotification: NotificationType {
+public struct DidChangeWatchedFilesNotification: LSPNotification {
   public static let method: String = "workspace/didChangeWatchedFiles"
 
   /// The file changes.

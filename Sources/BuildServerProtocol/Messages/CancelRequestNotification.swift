@@ -10,9 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Notification from the client that its own initialization of the language server has finished.
-public struct InitializedNotification: LSPNotification, Hashable {
-  public static let method: String = "initialized"
+public import LanguageServerProtocol
 
-  public init() {}
-}
+extension CancelRequestNotification: BSPNotification {}

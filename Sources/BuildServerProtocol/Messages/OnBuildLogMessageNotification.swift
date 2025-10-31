@@ -10,12 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-public import LanguageServerProtocol
-
 /// The log message notification is sent from a server to a client to ask the client to log a particular message in its console.
 ///
 /// A `build/logMessage`` notification is similar to LSP's `window/logMessage``, except for a few additions like id and originId.
-public struct OnBuildLogMessageNotification: NotificationType {
+public struct OnBuildLogMessageNotification: BSPNotification {
   public static let method: String = "build/logMessage"
 
   /// The message type.

@@ -16,7 +16,7 @@
 /// not reach the client). See `Exit`.
 ///
 /// - Returns: Void.
-public struct ShutdownRequest: RequestType, Hashable {
+public struct ShutdownRequest: LSPRequest, Hashable {
   public static let method: String = "shutdown"
 
   public struct Response: ResponseType, Equatable {

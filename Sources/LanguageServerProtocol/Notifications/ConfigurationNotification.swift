@@ -15,7 +15,7 @@
 /// - Note: the format of the settings is implementation-defined.
 ///
 /// - Parameter settings: The changed workspace settings.
-public struct DidChangeConfigurationNotification: NotificationType {
+public struct DidChangeConfigurationNotification: LSPNotification {
   public static let method: String = "workspace/didChangeConfiguration"
 
   /// The changed workspace settings.

@@ -14,3 +14,5 @@ public import LanguageServerProtocol
 
 /// Notification sent from SourceKit-LSP to the build server to indicate that files within the project have been modified.
 public typealias OnWatchedFilesDidChangeNotification = LanguageServerProtocol.DidChangeWatchedFilesNotification
+
+extension OnWatchedFilesDidChangeNotification: BSPNotification {}

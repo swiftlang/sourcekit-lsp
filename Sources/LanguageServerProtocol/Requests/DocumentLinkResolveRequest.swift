@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// The document links request is sent from the client to the server to request the location of links in a document.
-public struct DocumentLinkResolveRequest: RequestType {
+public struct DocumentLinkResolveRequest: LSPRequest {
   public static let method: String = "documentLink/resolve"
   public typealias Response = DocumentLink
 

@@ -15,7 +15,7 @@
 /// - Parameter event: The set of changes.
 ///
 /// Requires the `workspaceFolders` capability on both the client and server.
-public struct DidChangeWorkspaceFoldersNotification: NotificationType {
+public struct DidChangeWorkspaceFoldersNotification: LSPNotification {
   public static let method: String = "workspace/didChangeWorkspaceFolders"
 
   /// The set of changes.
