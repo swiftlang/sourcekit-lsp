@@ -37,4 +37,11 @@ public struct Location: ResponseType, Hashable, Codable, CustomDebugStringConver
   public var debugDescription: String {
     return "\(uri):\(range.lowerBound)-\(range.upperBound)"
   }
+
+  public func encodeToLSPAny() -> LSPAny {
+    return .dictionary([
+      "uri": .string(uri.stringValue),
+      "range": range.encodeToLSPAny()
+    ])
+  }
 }

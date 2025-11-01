@@ -647,6 +647,10 @@ extension ClangLanguageService {
     return []
   }
 
+  package func syntacticDocumentPlaygrounds(for uri: DocumentURI, in workspace: Workspace) async throws -> [PlaygroundItem] {
+    return []
+  }
+
   package func editsToRename(
     locations renameLocations: [RenameLocation],
     in snapshot: DocumentSnapshot,

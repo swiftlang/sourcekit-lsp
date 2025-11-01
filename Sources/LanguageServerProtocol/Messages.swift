@@ -40,6 +40,7 @@ public let builtinRequests: [_RequestType.Type] = [
   DocumentLinkRequest.self,
   DocumentLinkResolveRequest.self,
   DocumentOnTypeFormattingRequest.self,
+  DocumentPlaygroundsRequest.self,
   DocumentRangeFormattingRequest.self,
   DocumentSemanticTokensDeltaRequest.self,
   DocumentSemanticTokensRangeRequest.self,

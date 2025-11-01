@@ -813,6 +813,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.documentSymbol)
     case let request as RequestAndReply<DocumentTestsRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentTests)
+    case let request as RequestAndReply<DocumentPlaygroundsRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentPlaygrounds)
     case let request as RequestAndReply<ExecuteCommandRequest>:
       await request.reply { try await executeCommand(request.params) }
     case let request as RequestAndReply<FoldingRangeRequest>:
@@ -1117,6 +1119,7 @@ extension SourceKitLSPServer {
       TriggerReindexRequest.method: .dictionary(["version": .int(1)]),
       GetReferenceDocumentRequest.method: .dictionary(["version": .int(1)]),
       DidChangeActiveDocumentNotification.method: .dictionary(["version": .int(1)]),
+      DocumentPlaygroundsRequest.method: .dictionary(["version": .int(1)]),
     ]
     for (key, value) in languageServiceRegistry.languageServices.flatMap({ $0.type.experimentalCapabilities }) {
       if let existingValue = experimentalCapabilities[key] {
@@ -1815,6 +1818,14 @@ extension SourceKitLSPServer {
     languageService: LanguageService
   ) async throws -> [TextEdit]? {
     return try await languageService.documentOnTypeFormatting(req)
+  }
+
+  func documentPlaygrounds(
+    _ req: DocumentPlaygroundsRequest,
+    workspace: Workspace,
+    languageService: LanguageService
+  ) async throws -> [PlaygroundItem] {
+    return try await languageService.syntacticDocumentPlaygrounds(for: req.textDocument.uri, in: workspace)
   }
 
   func colorPresentation(

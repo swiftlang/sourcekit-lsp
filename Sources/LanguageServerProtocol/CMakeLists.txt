@@ -48,6 +48,7 @@ add_library(LanguageServerProtocol STATIC
   Requests/DocumentHighlightRequest.swift
   Requests/DocumentLinkRequest.swift
   Requests/DocumentLinkResolveRequest.swift
+  Requests/DocumentPlaygroundsRequest.swift
   Requests/DocumentSemanticTokensDeltaRequest.swift
   Requests/DocumentSemanticTokensRangeRequest.swift
   Requests/DocumentSemanticTokensRequest.swift
@@ -122,6 +123,7 @@ add_library(LanguageServerProtocol STATIC
   SupportTypes/NotebookDocument.swift
   SupportTypes/NotebookDocumentChangeEvent.swift
   SupportTypes/NotebookDocumentIdentifier.swift
+  SupportTypes/PlaygroundItem.swift
   SupportTypes/Position.swift
   SupportTypes/PositionEncoding.swift
   SupportTypes/ProgressToken.swift

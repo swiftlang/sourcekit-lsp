@@ -320,6 +320,11 @@ package protocol LanguageService: AnyObject, Sendable {
   /// The order of the returned tests is not defined. The results should be sorted before being returned to the editor.
   static func syntacticTestItems(in uri: DocumentURI) async -> [AnnotatedTestItem]
 
+  /// Syntactically scans the file at the given URL for #Playground macro expansions within it.
+  ///
+  /// Does not write the results to the index.
+  func syntacticDocumentPlaygrounds(for uri: DocumentURI, in workspace: Workspace) async throws -> [PlaygroundItem]
+
   /// A position that is canonical for all positions within a declaration. For example, if we have the following
   /// declaration, then all `|` markers should return the same canonical position.
   /// ```
@@ -525,6 +530,10 @@ package extension LanguageService {
 
   func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [AnnotatedTestItem]? {
     throw ResponseError.internalError("syntacticDocumentTests not implemented in \(Self.self) for \(uri)")
+  }
+
+  func syntacticDocumentPlaygrounds(for uri: DocumentURI, in workspace: Workspace) async throws -> [PlaygroundItem] {
+    throw ResponseError.requestNotImplemented(DocumentPlaygroundsRequest.self)
   }
 
   func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
