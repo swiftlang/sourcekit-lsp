@@ -16,8 +16,9 @@ set_target_properties(SourceKitD PROPERTIES
 target_link_libraries(SourceKitD PUBLIC
   Csourcekitd)
 target_link_libraries(SourceKitD PRIVATE
-  SKLogging
+  SwiftToolsProtocols::SKLogging
   SwiftExtensions
+  SwiftToolsProtocols::ToolsProtocolsSwiftExtensions
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)
 
 
@@ -26,12 +27,14 @@ set_target_properties(SourceKitDForPlugin PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 target_compile_options(SourceKitDForPlugin PRIVATE
   $<$<COMPILE_LANGUAGE:Swift>:
-    "SHELL:-module-alias SKLogging=SKLoggingForPlugin"
+    "SHELL:-module-alias SKLogging=_SKLoggingForPlugin"
     "SHELL:-module-alias SwiftExtensions=SwiftExtensionsForPlugin"
+    "SHELL:-module-alias ToolsProtocolsSwiftExtensions=_ToolsProtocolsSwiftExtensionsForPlugin"
   >)
 target_link_libraries(SourceKitDForPlugin PUBLIC
   Csourcekitd)
 target_link_libraries(SourceKitDForPlugin PRIVATE
-  SKLoggingForPlugin
+  SwiftToolsProtocols::_SKLoggingForPlugin
   SwiftExtensionsForPlugin
+  SwiftToolsProtocols::_ToolsProtocolsSwiftExtensionsForPlugin
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)

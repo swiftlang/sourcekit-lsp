@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKLogging
+import SKTestSupport
 import SKUtilities
 import SwiftExtensions
 import TSCBasic
@@ -21,7 +23,7 @@ fileprivate extension LineTable {
   }
 }
 
-final class LineTableTests: XCTestCase {
+final class LineTableTests: SourceKitLSPTestCase {
   func checkLines(_ string: String, _ expected: [String], file: StaticString = #filePath, line: UInt = #line) {
     let table = LineTable(string)
     XCTAssertEqual(table.lines.map(String.init), expected, file: file, line: line)

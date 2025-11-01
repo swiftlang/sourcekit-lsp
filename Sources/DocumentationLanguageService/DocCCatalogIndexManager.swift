@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 import SKUtilities
 @_spi(LinkCompletion) @preconcurrency import SwiftDocC
 

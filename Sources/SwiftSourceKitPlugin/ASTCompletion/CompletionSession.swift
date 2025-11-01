@@ -13,7 +13,7 @@
 import CompletionScoring
 import Csourcekitd
 import Foundation
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 import SourceKitD
 
 /// Represents a code completion session.

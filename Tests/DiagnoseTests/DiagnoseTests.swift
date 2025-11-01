@@ -12,7 +12,7 @@
 
 @_spi(Testing) import Diagnose
 import Foundation
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 import SKTestSupport
 import SourceKitD
 import SwiftExtensions
@@ -43,7 +43,7 @@ private let sdkArgs: [String] = {
   }
 }()
 
-final class DiagnoseTests: XCTestCase {
+final class DiagnoseTests: SourceKitLSPTestCase {
   func testRemoveCodeItemsAndMembers() async throws {
     // We consider the test case reproducing if cursor info returns the two ambiguous results including their doc
     // comments.

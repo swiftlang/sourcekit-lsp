@@ -11,15 +11,15 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SKTestSupport
 import SKUtilities
 import SourceKitLSP
 import SwiftExtensions
 import XCTest
 
-final class SwiftInterfaceTests: XCTestCase {
+final class SwiftInterfaceTests: SourceKitLSPTestCase {
   func testSystemModuleInterface() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)

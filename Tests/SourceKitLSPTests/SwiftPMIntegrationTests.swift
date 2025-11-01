@@ -12,14 +12,14 @@
 
 import BuildServerIntegration
 import Foundation
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
 import XCTest
 
-final class SwiftPMIntegrationTests: XCTestCase {
-
+final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
   func testSwiftPMIntegration() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()
 

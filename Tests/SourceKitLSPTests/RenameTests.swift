@@ -10,11 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import XCTest
 
-final class RenameTests: XCTestCase {
+final class RenameTests: SourceKitLSPTestCase {
   func testRenameVariableBaseName() async throws {
     try await assertSingleFileRename(
       """

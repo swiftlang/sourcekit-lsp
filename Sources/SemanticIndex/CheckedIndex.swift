@@ -13,8 +13,8 @@
 package import BuildServerIntegration
 package import Foundation
 @preconcurrency package import IndexStoreDB
-package import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
 
 /// Essentially a `DocumentManager` from the `SourceKitLSP` module.

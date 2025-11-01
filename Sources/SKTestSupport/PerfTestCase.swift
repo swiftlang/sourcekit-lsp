@@ -19,7 +19,7 @@ public import XCTest
 /// executed, but no metrics are enabled, and the measured block is only run
 /// once, which is useful to avoid failures due to high variability in
 /// continuous integration.
-open class PerfTestCase: XCTestCase {
+open class PerfTestCase: SourceKitLSPTestCase {
 
   #if !ENABLE_PERF_TESTS
 

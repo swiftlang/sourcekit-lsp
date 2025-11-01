@@ -13,6 +13,7 @@
 package import CompletionScoring
 import Foundation
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 @inline(never)

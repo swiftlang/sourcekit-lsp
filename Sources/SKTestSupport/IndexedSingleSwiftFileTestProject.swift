@@ -12,13 +12,14 @@
 
 @_spi(Testing) import BuildServerIntegration
 package import Foundation
-package import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import SourceKitLSP
 import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 package struct WindowsPlatformInfo {
   package struct DefaultProperties {

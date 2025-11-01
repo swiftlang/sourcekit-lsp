@@ -10,13 +10,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 import SKTestSupport
 import SemanticIndex
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
-final class TaskSchedulerTests: XCTestCase {
+final class TaskSchedulerTests: SourceKitLSPTestCase {
   func testHighPriorityTasksGetExecutedBeforeLowPriorityTasks() async throws {
     let highPriorityTasks: Int = 4
     let lowPriorityTasks: Int = 2

@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKLogging
 import SKTestSupport
 @_spi(Testing) import SourceKitLSP
 import SwiftLanguageService
@@ -18,7 +19,7 @@ import SwiftRefactor
 import SwiftSyntax
 import XCTest
 
-final class SyntaxRefactorTests: XCTestCase {
+final class SyntaxRefactorTests: SourceKitLSPTestCase {
   func testAddDocumentationRefactor() throws {
     try assertRefactor(
       """

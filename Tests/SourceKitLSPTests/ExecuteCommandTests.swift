@@ -10,7 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKOptions
 import SKTestSupport
 @_spi(Testing) import SourceKitLSP
@@ -18,7 +19,7 @@ import SwiftExtensions
 import SwiftLanguageService
 import XCTest
 
-final class ExecuteCommandTests: XCTestCase {
+final class ExecuteCommandTests: SourceKitLSPTestCase {
   func testLocationSemanticRefactoring() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)

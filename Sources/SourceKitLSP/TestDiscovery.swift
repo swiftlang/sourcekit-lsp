@@ -13,10 +13,11 @@
 import BuildServerIntegration
 import Foundation
 package import IndexStoreDB
-import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SemanticIndex
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 package enum TestStyle {
   package static let xcTest = "XCTest"

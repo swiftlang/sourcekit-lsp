@@ -11,9 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(Testing) import BuildServerIntegration
+import SKTestSupport
 import XCTest
 
-final class CompilerCommandLineOptionMatchingTests: XCTestCase {
+final class CompilerCommandLineOptionMatchingTests: SourceKitLSPTestCase {
   func testFlags() {
     assertOption(.flag("a", [.singleDash]), "-a", .removeOption)
     assertOption(.flag("a", [.doubleDash]), "--a", .removeOption)

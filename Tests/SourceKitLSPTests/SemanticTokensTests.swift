@@ -10,7 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKOptions
 import SKTestSupport
 import SKUtilities
@@ -21,7 +22,7 @@ import XCTest
 
 private typealias Token = SyntaxHighlightingToken
 
-final class SemanticTokensTests: XCTestCase {
+final class SemanticTokensTests: SourceKitLSPTestCase {
   func testIntArrayCoding() async throws {
     let tokens = SyntaxHighlightingTokens(tokens: [
       Token(

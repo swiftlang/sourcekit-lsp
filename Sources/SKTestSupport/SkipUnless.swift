@@ -13,16 +13,18 @@
 import Csourcekitd
 import Foundation
 import InProcessClient
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
 import RegexBuilder
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 import SourceKitD
 import SourceKitLSP
 import SwiftExtensions
 import SwiftLanguageService
 import TSCExtensions
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 import struct TSCBasic.AbsolutePath

@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import SKTestSupport
 @_spi(Testing) import SourceKitLSP
@@ -19,7 +19,7 @@ import SwiftExtensions
 import SwiftLanguageService
 import XCTest
 
-final class ExpandMacroTests: XCTestCase {
+final class ExpandMacroTests: SourceKitLSPTestCase {
   func testFreestandingMacroExpansionWithoutGetReferenceDocumentWithoutPeekDocuments() async throws {
     try await testAttachedMacroExpansion(getReferenceDocument: false, peekDocuments: false)
   }

@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import XCTest
 
-final class DocumentColorTests: XCTestCase {
+final class DocumentColorTests: SourceKitLSPTestCase {
   // MARK: - Helpers
 
   private func performDocumentColorRequest(text: String) async throws -> [ColorInformation] {

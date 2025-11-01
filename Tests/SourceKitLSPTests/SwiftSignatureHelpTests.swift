@@ -10,13 +10,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
 import XCTest
 
-final class SwiftSignatureHelpTests: XCTestCase {
+final class SwiftSignatureHelpTests: SourceKitLSPTestCase {
   func testSignatureHelpFunction() async throws {
     try await SkipUnless.sourcekitdSupportsSignatureHelp()
 

@@ -12,7 +12,7 @@
 
 import Foundation
 import IndexStoreDB
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 package import SKOptions
 package import SourceKitLSP
 import SwiftExtensions

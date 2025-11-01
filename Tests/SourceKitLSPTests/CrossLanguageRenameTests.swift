@@ -10,7 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import XCTest
 
@@ -34,7 +35,7 @@ private let libAlibBCxxInteropPackageManifest = """
   )
   """
 
-final class CrossLanguageRenameTests: XCTestCase {
+final class CrossLanguageRenameTests: SourceKitLSPTestCase {
   func testZeroArgCFunction() async throws {
     try await assertMultiFileRename(
       files: [

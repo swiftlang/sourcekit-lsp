@@ -11,14 +11,14 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
-import BuildServerProtocol
-import LanguageServerProtocol
-@_spi(Testing) import SKLogging
+@_spi(SourceKitLSP) import BuildServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(Testing) @_spi(SourceKitLSP) import SKLogging
 import SKTestSupport
 import SwiftExtensions
 import XCTest
 
-class DefinitionTests: XCTestCase {
+class DefinitionTests: SourceKitLSPTestCase {
   func testJumpToDefinitionAtEndOfIdentifier() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)

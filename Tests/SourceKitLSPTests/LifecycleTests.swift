@@ -10,14 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+import SKLogging
 import SKOptions
 import SKTestSupport
 import XCTest
 
 /// Tests that test the overall state of the SourceKit-LSP server, that's not really specific to any language
-final class LifecycleTests: XCTestCase {
+final class LifecycleTests: SourceKitLSPTestCase {
   func testInitLocal() async throws {
     let testClient = try await TestSourceKitLSPClient(initialize: false)
 

@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import XCTest
 
-final class DocumentSymbolTests: XCTestCase {
+final class DocumentSymbolTests: SourceKitLSPTestCase {
   // MARK: - Tests
 
   func testEmpty() async throws {

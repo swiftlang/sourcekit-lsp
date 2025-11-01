@@ -10,16 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
 import TSCBasic
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
-final class ClangdTests: XCTestCase {
+final class ClangdTests: SourceKitLSPTestCase {
   func testClangdGoToInclude() async throws {
     let project = try await MultiFileTestProject(files: [
       "Object.h": "",

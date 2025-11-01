@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import SwiftExtensions
 import XCTest
 
-final class IndexTests: XCTestCase {
+final class IndexTests: SourceKitLSPTestCase {
   func testIndexSwiftModules() async throws {
     let project = try await SwiftPMTestProject(
       files: [

@@ -11,10 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import LanguageServerProtocolJSONRPC
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 import SKTestSupport
 import SemanticIndex
 import SourceKitLSP
@@ -27,7 +27,7 @@ import WinSDK
 import Android
 #endif
 
-final class PullDiagnosticsTests: XCTestCase {
+final class PullDiagnosticsTests: SourceKitLSPTestCase {
   func testUnknownIdentifierDiagnostic() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)

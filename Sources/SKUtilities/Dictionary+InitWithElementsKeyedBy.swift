@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 
 extension Dictionary {
   /// Create a new dictionary from the given elements, assuming that they all have a unique value identified by `keyedBy`.

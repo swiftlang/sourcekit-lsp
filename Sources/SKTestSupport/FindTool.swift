@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 package import Foundation
-import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 import TSCExtensions
 
 import class TSCBasic.Process

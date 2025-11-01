@@ -10,11 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import XCTest
 
-class WorkspaceSymbolsTests: XCTestCase {
+class WorkspaceSymbolsTests: SourceKitLSPTestCase {
   func testWorkspaceSymbolsAcrossPackages() async throws {
     let project = try await MultiFileTestProject(
       files: [

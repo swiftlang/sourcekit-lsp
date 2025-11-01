@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
+import SKTestSupport
 import XCTest
 
 /// Assert that splitting `str` into its command line components results in `expected`.
@@ -43,7 +44,7 @@ func assertEscapedCommand(
   )
 }
 
-final class SplitShellCommandTests: XCTestCase {
+final class SplitShellCommandTests: SourceKitLSPTestCase {
   func testSplitShellEscapedCommandBasic() {
     assertEscapedCommand("", [])
     assertEscapedCommand("    ", [])

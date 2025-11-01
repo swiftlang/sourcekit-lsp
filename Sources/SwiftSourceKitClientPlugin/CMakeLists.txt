@@ -7,11 +7,13 @@ target_compile_options(SwiftSourceKitClientPlugin PRIVATE
   $<$<COMPILE_LANGUAGE:Swift>:
     "SHELL:-module-alias SourceKitD=SourceKitDForPlugin"
     "SHELL:-module-alias SwiftExtensions=SwiftExtensionsForPlugin"
+    "SHELL:-module-alias ToolsProtocolsSwiftExtensions=_ToolsProtocolsSwiftExtensionsForPlugin"
   >)
 target_link_libraries(SwiftSourceKitClientPlugin PRIVATE
   Csourcekitd
   SourceKitD
   SwiftExtensions
+  SwiftToolsProtocols::ToolsProtocolsSwiftExtensions
   SwiftSourceKitPluginCommon
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
 

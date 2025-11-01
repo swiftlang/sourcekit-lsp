@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKLogging
+import SKTestSupport
 import SourceKitLSP
 import Swift
 import SwiftBasicFormat
@@ -45,7 +47,7 @@ private func assertFormatted(
   )
 }
 
-final class ClosureCompletionFormatTests: XCTestCase {
+final class ClosureCompletionFormatTests: SourceKitLSPTestCase {
   func testSingleStatementClosureArg() {
     assertFormatted(
       source: """

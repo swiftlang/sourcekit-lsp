@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import XCTest
 
-final class DocumentTestDiscoveryTests: XCTestCase {
+final class DocumentTestDiscoveryTests: SourceKitLSPTestCase {
   func testIndexBasedDocumentTests() async throws {
     try SkipUnless.longTestsEnabled()
 

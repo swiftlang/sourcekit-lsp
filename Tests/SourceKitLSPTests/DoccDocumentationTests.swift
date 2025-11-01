@@ -12,14 +12,14 @@
 
 #if canImport(SwiftDocC)
 import Foundation
-import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import SwiftDocC
 import XCTest
 
-final class DoccDocumentationTests: XCTestCase {
+final class DoccDocumentationTests: SourceKitLSPTestCase {
   func testUnsupportedLanguage() async throws {
     try await renderDocumentation(
       markedText: "1️⃣",
