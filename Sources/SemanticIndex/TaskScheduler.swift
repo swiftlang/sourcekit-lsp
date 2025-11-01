@@ -433,7 +433,7 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
       priority: priority ?? Task.currentPriority,
       description: taskDescription,
       taskPriorityChangedCallback: { [weak self] (newPriority) in
-        Task.detached(priority: newPriority) {
+        Task.detached(priority: newPriority) { [weak self] in
           // If the task's priority got elevated, there might be an execution slot for it now. Poke the scheduler
           // to run the task if possible.
           await self?.poke()
@@ -442,11 +442,11 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
       executionStateChangedCallback: executionStateChangedCallback
     )
     pendingTasks.append(queuedTask)
-    Task.detached(priority: priority ?? Task.currentPriority) {
+    Task.detached(priority: priority ?? Task.currentPriority) { [weak self] in
       // Poke the `TaskScheduler` to execute a new task. If the `TaskScheduler` is already working at its capacity
       // limit, this will not do anything. If there are execution slots available, this will start executing the freshly
       // queued task.
-      await self.poke()
+      await self?.poke()
     }
     return queuedTask
   }
