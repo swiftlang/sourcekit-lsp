@@ -441,13 +441,12 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     if let buildServerWorkspaceRequestsTimeout {
       return .seconds(buildServerWorkspaceRequestsTimeout)
     }
-    // The default value needs to strike a balance: If the build server is slow to respond, we don't want to constantly
-    // run into this timeout, which causes somewhat expensive computations because we trigger the `buildTargetsChanged`
-    // chain.
-    // At the same time, we do want to provide functionality based on fallback settings after some time.
-    // 15s seems like it should strike a balance here but there is no data backing this value up.
     return .seconds(15)
   }
+
+  /// Defines the batch size for target preparation.
+  /// If nil, defaults to preparing 1 target at a time.
+  public var preparationBatchingStrategy: PreparationBatchingStrategy?
 
   public init(
     swiftPM: SwiftPMOptions? = .init(),
@@ -462,6 +461,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     generatedFilesPath: String? = nil,
     backgroundIndexing: Bool? = nil,
     backgroundPreparationMode: BackgroundPreparationMode? = nil,
+    preparationBatchingStrategy: PreparationBatchingStrategy? = nil,
     cancelTextDocumentRequestsOnEditAndClose: Bool? = nil,
     experimentalFeatures: Set<ExperimentalFeature>? = nil,
     swiftPublishDiagnosticsDebounceDuration: Double? = nil,
@@ -482,6 +482,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     self.defaultWorkspaceType = defaultWorkspaceType
     self.backgroundIndexing = backgroundIndexing
     self.backgroundPreparationMode = backgroundPreparationMode
+    self.preparationBatchingStrategy = preparationBatchingStrategy
     self.cancelTextDocumentRequestsOnEditAndClose = cancelTextDocumentRequestsOnEditAndClose
     self.experimentalFeatures = experimentalFeatures
     self.swiftPublishDiagnosticsDebounceDuration = swiftPublishDiagnosticsDebounceDuration
@@ -545,6 +546,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       generatedFilesPath: override?.generatedFilesPath ?? base.generatedFilesPath,
       backgroundIndexing: override?.backgroundIndexing ?? base.backgroundIndexing,
       backgroundPreparationMode: override?.backgroundPreparationMode ?? base.backgroundPreparationMode,
+      preparationBatchingStrategy: override?.preparationBatchingStrategy ?? base.preparationBatchingStrategy,
       cancelTextDocumentRequestsOnEditAndClose: override?.cancelTextDocumentRequestsOnEditAndClose
         ?? base.cancelTextDocumentRequestsOnEditAndClose,
       experimentalFeatures: override?.experimentalFeatures ?? base.experimentalFeatures,
