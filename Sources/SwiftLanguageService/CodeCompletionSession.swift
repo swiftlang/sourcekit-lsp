@@ -489,17 +489,40 @@ class CodeCompletionSession {
       let text = rewriteSourceKitPlaceholders(in: insertText, clientSupportsSnippets: clientSupportsSnippets)
       let isInsertTextSnippet = clientSupportsSnippets && text != insertText
 
-      let textEdit: TextEdit?
-      let edit = self.computeCompletionTextEdit(
+      var textEdit = self.computeCompletionTextEdit(
         completionPos: completionPos,
         requestPosition: requestPosition,
         utf8CodeUnitsToErase: utf8CodeUnitsToErase,
         newText: text,
         snapshot: snapshot
       )
-      textEdit = edit
 
-      if utf8CodeUnitsToErase != 0, filterName != nil, let textEdit = textEdit {
+      let kind: sourcekitd_api_uid_t? = value[sourcekitd.keys.kind]
+      let completionKind = kind?.asCompletionItemKind(sourcekitd.values) ?? .value
+
+      if completionKind == .method || completionKind == .function, name.first == "(", name.last == ")" {
+        // sourcekitd makes an assumption that the editor inserts a matching `)` when the user types a `(` to start
+        // argument completions and thus does not contain the closing parentheses in the insert text. Since we can't
+        // make that assumption of any editor using SourceKit-LSP, add the closing parenthesis when we are completing
+        // function arguments, indicated by the completion kind and the completion's name being wrapped in parentheses.
+        textEdit.newText += ")"
+
+        let requestIndex = snapshot.index(of: requestPosition)
+        if snapshot.text[requestIndex] == ")",
+          let nextIndex = snapshot.text.index(requestIndex, offsetBy: 1, limitedBy: snapshot.text.endIndex)
+        {
+          // Now, in case the editor already added the matching closing parenthesis, replace it by the parenthesis we
+          // are adding as part of the completion above. While this might seem un-intuitive, it is the behavior that
+          // VS Code expects. If the text edit's insert text does not contain the ')' and the user types the closing
+          // parenthesis of a function that takes no arguments, VS Code's completion position is after the closing
+          // parenthesis but no new completion request is sent since no character has been inserted (only the implicitly
+          // inserted `)` has been overwritten). VS Code will now delete anything from the position that the completion
+          // request was run, leaving the user without the closing `)`.
+          textEdit.range = textEdit.range.lowerBound..<snapshot.position(of: nextIndex)
+        }
+      }
+
+      if utf8CodeUnitsToErase != 0, filterName != nil {
         // To support the case where the client is doing prefix matching on the TextEdit range,
         // we need to prepend the deleted text to filterText.
         // This also works around a behaviour in VS Code that causes completions to not show up
@@ -545,10 +568,9 @@ class CodeCompletionSession {
           nil
         }
 
-      let kind: sourcekitd_api_uid_t? = value[sourcekitd.keys.kind]
       return CompletionItem(
         label: name,
-        kind: kind?.asCompletionItemKind(sourcekitd.values) ?? .value,
+        kind: completionKind,
         detail: typeName,
         documentation: nil,
         deprecated: notRecommended,
@@ -556,7 +578,7 @@ class CodeCompletionSession {
         filterText: filterName,
         insertText: text,
         insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
-        textEdit: textEdit.map(CompletionItemEdit.textEdit),
+        textEdit: CompletionItemEdit.textEdit(textEdit),
         data: data.encodeToLSPAny()
       )
     }
