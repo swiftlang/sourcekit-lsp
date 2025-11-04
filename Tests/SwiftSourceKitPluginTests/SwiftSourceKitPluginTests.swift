@@ -2172,7 +2172,7 @@ private struct ExpectationNotFulfilledError: Error {}
 
 /// Run the given async block and block the current function until `body` terminates.
 private func runAsync<T: Sendable>(_ body: @escaping @Sendable () async throws -> T) throws -> T {
-  var result: Result<T, Error>!
+  nonisolated(unsafe) var result: Result<T, Error>!
   let expectation = XCTestExpectation(description: "")
   Task {
     do {
