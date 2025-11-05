@@ -24,6 +24,8 @@ struct OptionDocumentBuilder {
     - Initialization options passed in the initialize request
     - A `.sourcekit-lsp/config.json` file in a workspace’s root
 
+    Modifying the configuration file requires SourceKit-LSP to be restarted for the new options to take effect.
+
     The structure of the file is currently not guaranteed to be stable. Options may be removed or renamed.
 
     ## Structure
