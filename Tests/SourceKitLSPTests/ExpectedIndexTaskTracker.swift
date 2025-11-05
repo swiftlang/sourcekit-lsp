@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
-import BuildServerProtocol
-import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) import BuildServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SemanticIndex
 import XCTest
 

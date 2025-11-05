@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import IndexStoreDB
-import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 
 /// Wrapper around `LanguageService.Type`, making it conform to `Hashable`.
 struct LanguageServiceType: Hashable {

@@ -31,21 +31,22 @@ set_target_properties(SourceKitLSP PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY}
 )
 target_link_libraries(SourceKitLSP PUBLIC
-  BuildServerProtocol
+  SwiftToolsProtocols::BuildServerProtocol
   BuildServerIntegration
-  LanguageServerProtocol
+  SwiftToolsProtocols::LanguageServerProtocol
   LanguageServerProtocolExtensions
   SemanticIndex
   SKOptions
   SKUtilities
   SwiftExtensions
+  SwiftToolsProtocols::ToolsProtocolsSwiftExtensions
   ToolchainRegistry
   IndexStoreDB
   SwiftSyntax::SwiftSyntax
 )
 target_link_libraries(SourceKitLSP PRIVATE
-  LanguageServerProtocolJSONRPC
-  SKLogging
+  SwiftToolsProtocols::LanguageServerProtocolTransport
+  SwiftToolsProtocols::SKLogging
   SourceKitD
   TSCExtensions
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>

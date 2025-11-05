@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
 import SKTestSupport
 import TSCBasic
 import XCTest

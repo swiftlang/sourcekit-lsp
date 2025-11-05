@@ -11,16 +11,17 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-package import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import LanguageServerProtocolJSONRPC
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 import SKUtilities
 import SourceKitLSP
 import SwiftExtensions
 import SwiftParser
 import SwiftSyntax
 import TSCExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.LocalFileOutputByteStream

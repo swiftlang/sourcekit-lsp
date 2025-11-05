@@ -10,8 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 extension Connection {
   /// Send the given request to the connection and await its result.

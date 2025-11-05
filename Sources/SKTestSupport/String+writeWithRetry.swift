@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 package import Foundation
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 
 extension String {
   /// Write this string to the given URL using UTF-8 encoding.

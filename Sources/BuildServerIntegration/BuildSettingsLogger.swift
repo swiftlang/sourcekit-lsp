@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import LanguageServerProtocol
-package import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import SKLogging
 import SwiftExtensions
 
 // MARK: - Build settings logger

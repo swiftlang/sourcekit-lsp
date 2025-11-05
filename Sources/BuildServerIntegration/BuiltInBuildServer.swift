@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import BuildServerProtocol
+@_spi(SourceKitLSP) package import BuildServerProtocol
 package import Foundation
-package import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import ToolchainRegistry
 

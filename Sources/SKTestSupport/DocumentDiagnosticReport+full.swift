@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 
 extension DocumentDiagnosticReport {
   /// If this is a full diagnostic report, return it. Otherwise return `nil`.

@@ -5,9 +5,9 @@ target_link_libraries(sourcekit-lsp PRIVATE
   BuildServerIntegration
   Diagnose
   InProcessClient
-  LanguageServerProtocol
+  SwiftToolsProtocols::LanguageServerProtocol
   LanguageServerProtocolExtensions
-  LanguageServerProtocolJSONRPC
+  SwiftToolsProtocols::LanguageServerProtocolTransport
   SemanticIndex
   SKOptions
   SourceKitLSP

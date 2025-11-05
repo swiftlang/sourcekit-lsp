@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 package import Foundation
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 
 /// The set of known SourceKitD instances, uniqued by path.
 ///

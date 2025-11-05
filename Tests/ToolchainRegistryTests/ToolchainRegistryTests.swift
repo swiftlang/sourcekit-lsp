@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKLogging
 import SKTestSupport
 import SKUtilities
 import SwiftExtensions
@@ -21,7 +22,7 @@ import XCTest
 import Android
 #endif
 
-final class ToolchainRegistryTests: XCTestCase {
+final class ToolchainRegistryTests: SourceKitLSPTestCase {
   func testDefaultSingleToolchain() async throws {
     let tr = ToolchainRegistry(toolchains: [
       Toolchain(identifier: "a", displayName: "a", path: URL(fileURLWithPath: "/dummy"))

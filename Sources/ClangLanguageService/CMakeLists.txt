@@ -8,10 +8,11 @@ set_target_properties(ClangLanguageService PROPERTIES
 )
 
 target_link_libraries(ClangLanguageService PUBLIC
-  LanguageServerProtocol
+  SwiftToolsProtocols::LanguageServerProtocol
   SKOptions
   SourceKitLSP
   SwiftExtensions
+  SwiftToolsProtocols::ToolsProtocolsSwiftExtensions
   ToolchainRegistry
   SwiftSyntax::SwiftSyntax
 )
@@ -19,7 +20,7 @@ target_link_libraries(ClangLanguageService PUBLIC
 target_link_libraries(ClangLanguageService PRIVATE
   BuildServerIntegration
   LanguageServerProtocolExtensions
-  LanguageServerProtocolJSONRPC
-  SKLogging
+  SwiftToolsProtocols::LanguageServerProtocolTransport
+  SwiftToolsProtocols::SKLogging
   TSCExtensions
 )

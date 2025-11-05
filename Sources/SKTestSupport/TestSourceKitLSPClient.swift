@@ -12,10 +12,10 @@
 
 import Foundation
 import InProcessClient
-package import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import LanguageServerProtocolJSONRPC
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 package import SKOptions
 import SKUtilities
 import SourceKitD
@@ -23,6 +23,7 @@ package import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
 package import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 extension SourceKitLSPOptions {

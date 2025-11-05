@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 package import SourceKitD
 import SwiftExtensions
 

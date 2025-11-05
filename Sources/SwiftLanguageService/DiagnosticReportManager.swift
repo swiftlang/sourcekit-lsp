@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import SKUtilities
 import SourceKitD
@@ -20,6 +20,7 @@ import SourceKitLSP
 import SwiftDiagnostics
 import SwiftExtensions
 import SwiftParserDiagnostics
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import struct SourceKitLSP.Diagnostic
 

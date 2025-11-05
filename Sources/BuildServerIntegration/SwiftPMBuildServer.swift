@@ -13,20 +13,21 @@
 #if !NO_SWIFTPM_DEPENDENCY
 import Basics
 @preconcurrency import Build
-package import BuildServerProtocol
+@_spi(SourceKitLSP) package import BuildServerProtocol
 import Dispatch
 package import Foundation
-package import LanguageServerProtocol
-import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 @preconcurrency import PackageGraph
 import PackageLoading
 @preconcurrency import PackageModel
-import SKLogging
+@_spi(SourceKitLSP) import SKLogging
 package import SKOptions
 @preconcurrency package import SPMBuildCore
 import SourceControl
 @preconcurrency package import SourceKitLSPAPI
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import TSCExtensions
 package import ToolchainRegistry
 @preconcurrency import Workspace

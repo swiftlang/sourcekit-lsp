@@ -12,14 +12,15 @@
 
 import CompletionScoring
 import Csourcekitd
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import SourceKitD
 import SwiftExtensions
 import ToolchainRegistry
 import XCTest
 
-final class SwiftSourceKitPluginTests: XCTestCase {
+final class SwiftSourceKitPluginTests: SourceKitLSPTestCase {
   /// Returns a path to a file name that is unique to this test execution.
   ///
   /// The file does not actually exist on disk.

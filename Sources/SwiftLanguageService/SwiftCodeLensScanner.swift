@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitLSP
 import SwiftSyntax
 

@@ -11,10 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
-import BuildServerProtocol
+@_spi(SourceKitLSP) import BuildServerProtocol
 import Foundation
-package import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SemanticIndex
 package import SourceKitLSP
 import SwiftExtensions

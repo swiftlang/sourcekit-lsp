@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 /// A semaphore that, once signaled, will pass on every `wait` call. Ie. the semaphore only needs to be signaled once

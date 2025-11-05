@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 public import Foundation
-public import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) public import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import SKLogging
 
 import struct TSCBasic.AbsolutePath
 

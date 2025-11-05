@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
 import SKOptions
 
 import struct TSCBasic.ProcessResult

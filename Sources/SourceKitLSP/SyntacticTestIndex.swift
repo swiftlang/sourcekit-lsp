@@ -11,10 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// Task metadata for `SyntacticTestIndexer.indexingQueue`
 private enum TaskMetadata: DependencyTracker, Equatable {

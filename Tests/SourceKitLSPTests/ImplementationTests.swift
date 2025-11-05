@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import TSCBasic
 import XCTest
 
-final class ImplementationTests: XCTestCase {
+final class ImplementationTests: SourceKitLSPTestCase {
   // MARK: - Utilities
 
   private func testImplementation(

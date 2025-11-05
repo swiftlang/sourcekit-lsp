@@ -11,15 +11,16 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
-import BuildServerProtocol
+@_spi(SourceKitLSP) import BuildServerProtocol
 import Foundation
-import LanguageServerProtocol
-import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+import SKLogging
 import SKTestSupport
 import TSCBasic
 import XCTest
 
-final class LegacyBuildServerTests: XCTestCase {
+final class LegacyBuildServerTests: SourceKitLSPTestCase {
   func testBuildSettingsFromBuildServer() async throws {
     let project = try await ExternalBuildServerTestProject(
       files: [

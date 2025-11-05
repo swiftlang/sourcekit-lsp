@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
+import SKLogging
 import SKTestSupport
 import XCTest
 
 /// Tests that test the overall state of the SourceKit-LSP server, that's not really specific to any language
-final class ReferencesTests: XCTestCase {
+final class ReferencesTests: SourceKitLSPTestCase {
   func testReferencesInMacro() async throws {
     let project = try await IndexedSingleSwiftFileTestProject(
       """

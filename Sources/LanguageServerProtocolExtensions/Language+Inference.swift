@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 
 extension Language {
   package enum SemanticKind {

@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 import SourceKitD
 
 package struct ExpandMacroCommand: SwiftCommand {

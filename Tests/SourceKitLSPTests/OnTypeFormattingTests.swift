@@ -10,13 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import XCTest
 
-final class OnTypeFormattingTests: XCTestCase {
+final class OnTypeFormattingTests: SourceKitLSPTestCase {
   func testOnlyFormatsSpecifiedLine() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)

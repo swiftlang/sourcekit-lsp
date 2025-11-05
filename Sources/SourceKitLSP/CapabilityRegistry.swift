@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import LanguageServerProtocol
-import LanguageServerProtocolExtensions
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
 
 /// A class which tracks the client's capabilities as well as our dynamic

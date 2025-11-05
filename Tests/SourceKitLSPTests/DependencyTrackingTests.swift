@@ -10,15 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
-import LanguageServerProtocolJSONRPC
-import SKLogging
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolTransport
+@_spi(SourceKitLSP) import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
 import XCTest
 
-final class DependencyTrackingTests: XCTestCase {
+final class DependencyTrackingTests: SourceKitLSPTestCase {
   func testDependenciesUpdatedSwift() async throws {
     let project = try await SwiftPMTestProject(
       files: [

@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-package import LanguageServerProtocol
-import SKLogging
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SourceKitD
 
 /// A ranged token in the document used for syntax highlighting.

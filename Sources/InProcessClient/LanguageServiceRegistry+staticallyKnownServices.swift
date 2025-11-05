@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import ClangLanguageService
-import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocol
 package import SourceKitLSP
 import SwiftLanguageService
 
