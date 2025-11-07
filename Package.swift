@@ -540,6 +540,7 @@ var targets: [Target] = [
       .product(name: "IndexStoreDB", package: "indexstore-db"),
       .product(name: "LanguageServerProtocol", package: "swift-tools-protocols"),
       .product(name: "LanguageServerProtocolTransport", package: "swift-tools-protocols"),
+      .product(name: "Markdown", package: "swift-markdown"),
       .product(name: "SKLogging", package: "swift-tools-protocols"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),

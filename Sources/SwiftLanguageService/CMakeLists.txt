@@ -25,6 +25,7 @@ add_library(SwiftLanguageService STATIC
   InlayHints.swift
   MacroExpansion.swift
   OpenInterface.swift
+  ParametersDocumentationExtractor.swift
   RefactoringEdit.swift
   RefactoringResponse.swift
   RelatedIdentifiers.swift
@@ -61,6 +62,9 @@ target_link_libraries(SwiftLanguageService PUBLIC
   IndexStoreDB
   SwiftSyntax::SwiftBasicFormat
   SwiftSyntax::SwiftSyntax
+  SwiftMarkdown::Markdown
+  libcmark-gfm
+  libcmark-gfm-extensions
 )
 
 target_link_libraries(SwiftLanguageService PRIVATE
