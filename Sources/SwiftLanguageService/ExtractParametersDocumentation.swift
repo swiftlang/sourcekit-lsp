@@ -18,11 +18,15 @@ private struct Parameter {
   let documentation: String
 }
 
+/// Default markdown formatter options that output all Doxygen commands as separate paragraphs
+/// so they get rendered properly in markdown renderers that don't understand Doxygen.
+private let formatterOptions = MarkupFormatter.Options(adjacentDoxygenCommandsSpacing: .separateParagraphs)
+
 /// Extracts parameter documentation from a Doxygen parameter command.
 private func extractParameter(from doxygenParameter: DoxygenParameter) -> Parameter {
   return Parameter(
     name: doxygenParameter.name,
-    documentation: Document(doxygenParameter.blockChildren).format(),
+    documentation: Document(doxygenParameter.blockChildren).format(formatterOptions),
   )
 }
 
@@ -160,7 +164,7 @@ private func extractParameter(listItem: ListItem) -> Parameter? {
   let remainingFirstTextContent = String(components[1]).trimmingCharacters(in: .whitespaces)
   let remainingParagraphChildren = [Text(remainingFirstTextContent)] + paragraph.inlineChildren.dropFirst()
   let remainingChildren = [Paragraph(remainingParagraphChildren)] + listItem.blockChildren.dropFirst()
-  let documentation = Document(remainingChildren).format()
+  let documentation = Document(remainingChildren).format(formatterOptions)
 
   return Parameter(name: name, documentation: documentation)
 }
@@ -194,7 +198,7 @@ private func extractParameterWithRawIdentifier(from listItem: ListItem) -> Param
   let remainingParagraphChildren =
     [Text(remainingTextContent)] + paragraph.inlineChildren.dropFirst(2)
   let remainingChildren = [Paragraph(remainingParagraphChildren)] + listItem.blockChildren.dropFirst(1)
-  let documentation = Document(remainingChildren).format()
+  let documentation = Document(remainingChildren).format(formatterOptions)
 
   return Parameter(name: rawIdentifier.code, documentation: documentation)
 }
@@ -253,7 +257,7 @@ package func extractParametersDocumentation(
     }
   }
 
-  let remaining = Document(remainingBlocks).format()
+  let remaining = Document(remainingBlocks).format(formatterOptions)
 
   return (parameters: parameters, remaining: remaining)
 }
