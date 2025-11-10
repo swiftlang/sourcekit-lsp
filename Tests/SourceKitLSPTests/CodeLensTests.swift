@@ -414,4 +414,96 @@ final class CodeLensTests: SourceKitLSPTestCase {
     )
     XCTAssertEqual(response, [])
   }
+
+  func testEmojiPlaygroundName() async throws {
+    var codeLensCapabilities = TextDocumentClientCapabilities.CodeLens()
+    codeLensCapabilities.supportedCommands = [
+      SupportedCodeLensCommand.play: "swift.play"
+    ]
+    let capabilities = ClientCapabilities(textDocument: TextDocumentClientCapabilities(codeLens: codeLensCapabilities))
+    let toolchainRegistry = ToolchainRegistry(toolchains: [try await Toolchain.forTestingWithSwiftPlay])
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Sources/MyLibrary/Test.swift": """
+        import Playgrounds
+        1️⃣#Playground("🧑‍🧑‍🧒‍🧒") { print("Hello Playground!") }2️⃣
+        """
+      ],
+      capabilities: capabilities,
+      toolchainRegistry: toolchainRegistry
+    )
+
+    let (uri, positions) = try project.openDocument("Test.swift")
+
+    let response = try await project.testClient.send(
+      CodeLensRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+
+    XCTAssertEqual(
+      response,
+      [
+        CodeLens(
+          range: positions["1️⃣"]..<positions["2️⃣"],
+          command: Command(
+            title: #"Play "🧑‍🧑‍🧒‍🧒""#,
+            command: "swift.play",
+            arguments: [
+              TextDocumentPlayground(
+                id: "MyLibrary/Test.swift:2:1",
+                label: "🧑‍🧑‍🧒‍🧒",
+                range: positions["1️⃣"]..<positions["2️⃣"],
+              ).encodeToLSPAny()
+            ]
+          )
+        )
+      ]
+    )
+  }
+
+  func testUtf8PlaygroundOffset() async throws {
+    var codeLensCapabilities = TextDocumentClientCapabilities.CodeLens()
+    codeLensCapabilities.supportedCommands = [
+      SupportedCodeLensCommand.play: "swift.play"
+    ]
+    let capabilities = ClientCapabilities(textDocument: TextDocumentClientCapabilities(codeLens: codeLensCapabilities))
+    let toolchainRegistry = ToolchainRegistry(toolchains: [try await Toolchain.forTestingWithSwiftPlay])
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Sources/MyLibrary/Test.swift": """
+        import Playgrounds
+        /* 🧑‍🧑‍🧒‍🧒 */ 1️⃣#Playground { print("Hello Playground!") }2️⃣
+        """
+      ],
+      capabilities: capabilities,
+      toolchainRegistry: toolchainRegistry
+    )
+
+    let (uri, positions) = try project.openDocument("Test.swift")
+
+    let response = try await project.testClient.send(
+      CodeLensRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+
+    XCTAssertEqual(
+      response,
+      [
+        CodeLens(
+          range: positions["1️⃣"]..<positions["2️⃣"],
+          command: Command(
+            title: #"Play "MyLibrary/Test.swift:2:33""#,
+            command: "swift.play",
+            arguments: [
+              TextDocumentPlayground(
+                id: "MyLibrary/Test.swift:2:33",
+                label: nil,
+                range: positions["1️⃣"]..<positions["2️⃣"],
+              ).encodeToLSPAny()
+            ]
+          )
+        )
+      ]
+    )
+  }
 }

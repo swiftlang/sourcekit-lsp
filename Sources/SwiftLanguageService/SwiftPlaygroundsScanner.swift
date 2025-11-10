@@ -85,10 +85,10 @@ final class SwiftPlaygroundsScanner: SyntaxVisitor {
       return .skipChildren
     }
 
-    let startPosition = snapshot.position(of: node.positionAfterSkippingLeadingTrivia)
+    let startPosition = snapshot.sourcekitdPosition(of: snapshot.position(of: node.positionAfterSkippingLeadingTrivia))
     let stringLiteral = node.arguments.first?.expression.as(StringLiteralExprSyntax.self)
     let playgroundLabel = stringLiteral?.representedLiteralValue
-    let playgroundID = "\(baseID):\(startPosition.line + 1):\(startPosition.utf16index + 1)"
+    let playgroundID = "\(baseID):\(startPosition.line):\(startPosition.utf8Column)"
 
     record(
       id: playgroundID,
