@@ -20,8 +20,8 @@ import SourceKitLSP
 import SwiftExtensions
 import SwiftParser
 import SwiftSyntax
-import ToolchainRegistry
 import TSCExtensions
+import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import struct TSCBasic.AbsolutePath
