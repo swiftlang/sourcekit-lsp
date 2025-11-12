@@ -532,7 +532,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
         base: base.fallbackBuildSystemOrDefault,
         override: override?.fallbackBuildSystem
       ),
-      buildSettingsTimeout: override?.buildSettingsTimeout,
+      buildSettingsTimeout: override?.buildSettingsTimeout ?? base.buildSettingsTimeout,
       compilationDatabase: CompilationDatabaseOptions.merging(
         base: base.compilationDatabaseOrDefault,
         override: override?.compilationDatabase
