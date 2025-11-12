@@ -185,7 +185,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   }
 
   /// The index that syntactically scans the workspace for tests.
-  let syntacticTestIndex: SyntacticTestIndex
+  let syntacticIndex: SyntacticIndex
 
   /// Language service for an open document, if available.
   private let languageServices: ThreadSafeBox<[DocumentURI: [LanguageService]]> = ThreadSafeBox(initialValue: [:])
@@ -259,8 +259,8 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
         return nil
       }
     }
-    // Trigger an initial population of `syntacticTestIndex`.
-    self.syntacticTestIndex = SyntacticTestIndex(
+    // Trigger an initial population of `syntacticIndex`.
+    self.syntacticIndex = SyntacticIndex(
       languageServiceRegistry: sourceKitLSPServer.languageServiceRegistry,
       determineTestFiles: {
         await orLog("Getting list of test files for initial syntactic index population") {
@@ -406,7 +406,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     // Notify all clients about the reported and inferred edits.
     await buildServerManager.filesDidChange(events)
 
-    async let updateSyntacticIndex: Void = await syntacticTestIndex.filesDidChange(events)
+    async let updateSyntacticIndex: Void = await syntacticIndex.filesDidChange(events)
     async let updateSemanticIndex: Void? = await semanticIndexManager?.filesDidChange(events)
     _ = await (updateSyntacticIndex, updateSemanticIndex)
   }
@@ -472,7 +472,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     await semanticIndexManager?.buildTargetsChanged(changedTargets)
     await orLog("Scheduling syntactic test re-indexing") {
       let testFiles = try await buildServerManager.testFiles()
-      await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
+      await syntacticIndex.listOfTestFilesDidChange(testFiles)
     }
 
     await scheduleUpdateOfUnitOutputPathsInIndexIfNecessary()
