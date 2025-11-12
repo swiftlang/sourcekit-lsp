@@ -21,7 +21,6 @@ import SwiftExtensions
 import SwiftParser
 import SwiftSyntax
 import TSCExtensions
-import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import struct TSCBasic.AbsolutePath
@@ -172,7 +171,7 @@ extension SwiftLanguageService {
     options: FormattingOptions,
     range: Range<Position>? = nil
   ) async throws -> [TextEdit]? {
-    guard let swiftFormat = toolchain.swiftFormat else {
+    guard let swiftFormat else {
       throw ResponseError.unknown(
         "Formatting not supported because the toolchain is missing the swift-format executable"
       )

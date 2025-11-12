@@ -107,7 +107,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   package let sourcekitd: SourceKitD
 
   /// Path to the swift-format executable if it exists in the toolchain.
-  let toolchain: Toolchain
+  let swiftFormat: URL?
 
   /// Queue on which notifications from sourcekitd are handled to ensure we are
   /// handling them in-order.
@@ -213,7 +213,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     }
     self.sourcekitdPath = sourcekitd
     self.sourceKitLSPServer = sourceKitLSPServer
-    self.toolchain = toolchain
+    self.swiftFormat = toolchain.swiftFormat
     let pluginPaths: PluginPaths?
     if let clientPlugin = options.sourcekitdOrDefault.clientPlugin,
       let servicePlugin = options.sourcekitdOrDefault.servicePlugin
@@ -1032,13 +1032,18 @@ extension SwiftLanguageService {
 
   package func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens] {
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
-    let workspace = await sourceKitLSPServer?.workspaceForDocument(uri: req.textDocument.uri)
+    var targetDisplayName: String? = nil
+    if let workspace = await sourceKitLSPServer?.workspaceForDocument(uri: req.textDocument.uri),
+      let target = await workspace.buildServerManager.canonicalTarget(for: req.textDocument.uri),
+      let buildTarget = await workspace.buildServerManager.buildTarget(named: target)
+    {
+      targetDisplayName = buildTarget.displayName
+    }
     return await SwiftCodeLensScanner.findCodeLenses(
       in: snapshot,
-      workspace: workspace,
       syntaxTreeManager: self.syntaxTreeManager,
-      supportedCommands: self.capabilityRegistry.supportedCodeLensCommands,
-      toolchain: toolchain
+      targetName: targetDisplayName,
+      supportedCommands: self.capabilityRegistry.supportedCodeLensCommands
     )
   }
 

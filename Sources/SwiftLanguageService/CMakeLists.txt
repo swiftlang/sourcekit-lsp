@@ -25,7 +25,6 @@ add_library(SwiftLanguageService STATIC
   InlayHints.swift
   MacroExpansion.swift
   OpenInterface.swift
-  SwiftPlaygroundsScanner.swift
   RefactoringEdit.swift
   RefactoringResponse.swift
   RelatedIdentifiers.swift

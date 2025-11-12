@@ -89,9 +89,6 @@ public final class Toolchain: Sendable {
   /// The path to the swift-format executable, if available.
   package let swiftFormat: URL?
 
-  /// The path to the swift-play executable, if available.
-  package let swiftPlay: URL?
-
   /// The path to the clangd language server if available.
   package let clangd: URL?
 
@@ -206,7 +203,6 @@ public final class Toolchain: Sendable {
     swift: URL? = nil,
     swiftc: URL? = nil,
     swiftFormat: URL? = nil,
-    swiftPlay: URL? = nil,
     clangd: URL? = nil,
     sourcekitd: URL? = nil,
     sourceKitClientPlugin: URL? = nil,
@@ -220,7 +216,6 @@ public final class Toolchain: Sendable {
     self.swift = swift
     self.swiftc = swiftc
     self.swiftFormat = swiftFormat
-    self.swiftPlay = swiftPlay
     self.clangd = clangd
     self.sourcekitd = sourcekitd
     self.sourceKitClientPlugin = sourceKitClientPlugin
@@ -245,9 +240,7 @@ public final class Toolchain: Sendable {
       }
     }
     return isSuperset(for: \.clang) && isSuperset(for: \.swift) && isSuperset(for: \.swiftc)
-      && isSuperset(for: \.swiftPlay) && isSuperset(for: \.swiftFormat) && isSuperset(for: \.sourceKitClientPlugin)
-      && isSuperset(for: \.sourceKitServicePlugin) && isSuperset(for: \.clangd) && isSuperset(for: \.sourcekitd)
-      && isSuperset(for: \.libIndexStore)
+      && isSuperset(for: \.clangd) && isSuperset(for: \.sourcekitd) && isSuperset(for: \.libIndexStore)
   }
 
   /// Same as `isSuperset` but returns `false` if both toolchains have the same set of tools.
@@ -285,7 +278,6 @@ public final class Toolchain: Sendable {
     var swift: URL? = nil
     var swiftc: URL? = nil
     var swiftFormat: URL? = nil
-    var swiftPlay: URL? = nil
     var sourcekitd: URL? = nil
     var sourceKitClientPlugin: URL? = nil
     var sourceKitServicePlugin: URL? = nil
@@ -342,12 +334,6 @@ public final class Toolchain: Sendable {
       let swiftFormatPath = binPath.appending(component: "swift-format\(execExt)")
       if FileManager.default.isExecutableFile(atPath: swiftFormatPath.path) {
         swiftFormat = swiftFormatPath
-        foundAny = true
-      }
-
-      let swiftPlayPath = binPath.appending(component: "swift-play\(execExt)")
-      if FileManager.default.isExecutableFile(atPath: swiftPlayPath.path) {
-        swiftPlay = swiftPlayPath
         foundAny = true
       }
 
@@ -421,7 +407,6 @@ public final class Toolchain: Sendable {
       swift: swift,
       swiftc: swiftc,
       swiftFormat: swiftFormat,
-      swiftPlay: swiftPlay,
       clangd: clangd,
       sourcekitd: sourcekitd,
       sourceKitClientPlugin: sourceKitClientPlugin,
