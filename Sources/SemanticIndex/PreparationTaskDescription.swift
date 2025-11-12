@@ -42,9 +42,10 @@ package struct PreparationTaskDescription: IndexTaskDescription {
 
   /// See `SemanticIndexManager.logMessageToIndexLog`.
   private let logMessageToIndexLog:
-    @Sendable (
-      _ message: String, _ type: WindowMessageType, _ structure: LanguageServerProtocol.StructuredLogKind
-    ) -> Void
+    @Sendable
+      (
+        _ message: String, _ type: WindowMessageType, _ structure: LanguageServerProtocol.StructuredLogKind
+      ) -> Void
 
   /// Hooks that should be called when the preparation task finishes.
   private let hooks: IndexHooks
@@ -67,7 +68,8 @@ package struct PreparationTaskDescription: IndexTaskDescription {
     buildServerManager: BuildServerManager,
     preparationUpToDateTracker: UpToDateTracker<BuildTargetIdentifier, DummySecondaryKey>,
     logMessageToIndexLog:
-      @escaping @Sendable (
+      @escaping @Sendable
+      (
         _ message: String, _ type: WindowMessageType, _ structure: LanguageServerProtocol.StructuredLogKind
       ) -> Void,
     hooks: IndexHooks

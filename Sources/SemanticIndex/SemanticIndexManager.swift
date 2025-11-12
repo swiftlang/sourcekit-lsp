@@ -224,9 +224,10 @@ package final actor SemanticIndexManager {
 
   /// Callback that is called when an indexing task produces output it wants to log to the index log.
   private let logMessageToIndexLog:
-    @Sendable (
-      _ message: String, _ type: WindowMessageType, _ structure: LanguageServerProtocol.StructuredLogKind
-    ) -> Void
+    @Sendable
+      (
+        _ message: String, _ type: WindowMessageType, _ structure: LanguageServerProtocol.StructuredLogKind
+      ) -> Void
 
   /// Called when files are scheduled to be indexed.
   ///
@@ -273,7 +274,8 @@ package final actor SemanticIndexManager {
     hooks: IndexHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
     logMessageToIndexLog:
-      @escaping @Sendable (
+      @escaping @Sendable
+      (
         _ message: String, _ type: WindowMessageType, _ structure: LanguageServerProtocol.StructuredLogKind
       ) -> Void,
     indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,

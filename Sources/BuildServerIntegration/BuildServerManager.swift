@@ -488,7 +488,8 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     connectionToClient: BuildServerManagerConnectionToClient,
     buildServerHooks: BuildServerHooks,
     createMainFilesProvider:
-      @escaping @Sendable (
+      @escaping @Sendable
+      (
         SourceKitInitializeBuildResponseData?, _ mainFilesChangedCallback: @escaping @Sendable () async -> Void
       ) async -> MainFilesProvider?
   ) async {
