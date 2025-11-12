@@ -17,7 +17,7 @@ package import SKOptions
 package import SourceKitLSP
 import SwiftExtensions
 import TSCBasic
-import ToolchainRegistry
+package import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
@@ -184,6 +184,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
     options: SourceKitLSPOptions? = nil,
+    toolchainRegistry: ToolchainRegistry = .forTesting,
     hooks: Hooks = Hooks(),
     enableBackgroundIndexing: Bool = false,
     usePullDiagnostics: Bool = true,
@@ -225,6 +226,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
       initializationOptions: initializationOptions,
       capabilities: capabilities,
       options: options,
+      toolchainRegistry: toolchainRegistry,
       hooks: hooks,
       enableBackgroundIndexing: enableBackgroundIndexing,
       usePullDiagnostics: usePullDiagnostics,

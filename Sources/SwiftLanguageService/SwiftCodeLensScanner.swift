@@ -10,9 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+internal import BuildServerIntegration
+import BuildServerProtocol
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitLSP
 import SwiftSyntax
+import ToolchainRegistry
 
 /// Scans a source file for classes or structs annotated with `@main` and returns a code lens for them.
 final class SwiftCodeLensScanner: SyntaxVisitor {
@@ -42,19 +45,57 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
   /// and returns CodeLens's with Commands to run/debug the application.
   public static func findCodeLenses(
     in snapshot: DocumentSnapshot,
+    workspace: Workspace?,
     syntaxTreeManager: SyntaxTreeManager,
-    targetName: String? = nil,
-    supportedCommands: [SupportedCodeLensCommand: String]
+    supportedCommands: [SupportedCodeLensCommand: String],
+    toolchain: Toolchain
   ) async -> [CodeLens] {
-    guard snapshot.text.contains("@main") && !supportedCommands.isEmpty else {
-      // This is intended to filter out files that obviously do not contain an entry point.
+    guard !supportedCommands.isEmpty else {
       return []
     }
 
+    var targetDisplayName: String? = nil
+    if let workspace,
+      let target = await workspace.buildServerManager.canonicalTarget(for: snapshot.uri),
+      let buildTarget = await workspace.buildServerManager.buildTarget(named: target)
+    {
+      targetDisplayName = buildTarget.displayName
+    }
+
+    var codeLenses: [CodeLens] = []
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    let visitor = SwiftCodeLensScanner(snapshot: snapshot, targetName: targetName, supportedCommands: supportedCommands)
-    visitor.walk(syntaxTree)
-    return visitor.result
+    if snapshot.text.contains("@main") {
+      let visitor = SwiftCodeLensScanner(
+        snapshot: snapshot,
+        targetName: targetDisplayName,
+        supportedCommands: supportedCommands
+      )
+      visitor.walk(syntaxTree)
+      codeLenses += visitor.result
+    }
+
+    // "swift.play" CodeLens should be ignored if "swift-play" is not in the toolchain as the client has no way of running
+    if toolchain.swiftPlay != nil, let workspace, let playCommand = supportedCommands[SupportedCodeLensCommand.play],
+      snapshot.text.contains("#Playground")
+    {
+      let playgrounds = await SwiftPlaygroundsScanner.findDocumentPlaygrounds(
+        in: syntaxTree,
+        workspace: workspace,
+        snapshot: snapshot
+      )
+      codeLenses += playgrounds.map({
+        CodeLens(
+          range: $0.range,
+          command: Command(
+            title: "Play \"\($0.label ?? $0.id)\"",
+            command: playCommand,
+            arguments: [$0.encodeToLSPAny()]
+          )
+        )
+      })
+    }
+
+    return codeLenses
   }
 
   override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
