@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import DocCCommon
 import Foundation
 import IndexStoreDB
 @_spi(SourceKitLSP) import LanguageServerProtocol
