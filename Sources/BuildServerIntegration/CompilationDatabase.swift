@@ -206,8 +206,9 @@ enum CompilationDatabaseDecodingError: Error {
 fileprivate extension String {
   var isAbsolutePath: Bool {
     #if os(Windows)
-    Array(self.utf16).withUnsafeBufferPointer { buffer in
-      return !PathIsRelativeW(buffer.baseAddress)
+    // PathIsRelativeW requires a null-terminated UTF16 encoded string
+    return withCString(encodedAs: UTF16.self) { ptr in
+      return !PathIsRelativeW(ptr)
     }
     #else
     return self.hasPrefix("/")
