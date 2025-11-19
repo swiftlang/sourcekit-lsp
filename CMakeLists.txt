@@ -29,4 +29,6 @@ find_package(SwiftASN1 CONFIG REQUIRED)
 
 include(SwiftSupport)
 
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/config.schema.json DESTINATION share/sourcekit-lsp)
+
 add_subdirectory(Sources)
