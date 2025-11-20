@@ -54,7 +54,7 @@ package actor SourceKitLSPServer {
   private let workspaceQueue = AsyncQueue<Serial>()
 
   /// The connection to the editor.
-  package nonisolated let client: Connection
+  package nonisolated let client: any Connection
 
   /// Set to `true` after the `SourceKitLSPServer` has send the reply to the `InitializeRequest`.
   ///
@@ -74,7 +74,7 @@ package actor SourceKitLSPServer {
 
   let languageServiceRegistry: LanguageServiceRegistry
 
-  var languageServices: [LanguageServiceType: [LanguageService]] = [:]
+  var languageServices: [LanguageServiceType: [any LanguageService]] = [:]
 
   package nonisolated let documentManager = DocumentManager()
 
@@ -160,7 +160,7 @@ package actor SourceKitLSPServer {
 
   /// Creates a language server for the given client.
   package init(
-    client: Connection,
+    client: any Connection,
     toolchainRegistry: ToolchainRegistry,
     languageServerRegistry: LanguageServiceRegistry,
     options: SourceKitLSPOptions,
@@ -366,7 +366,7 @@ package actor SourceKitLSPServer {
   /// and language that handle this document.
   private func withLanguageServiceAndWorkspace<NotificationType: TextDocumentNotification>(
     for notification: NotificationType,
-    notificationHandler: @escaping (NotificationType, LanguageService) async -> Void
+    notificationHandler: @escaping (NotificationType, any LanguageService) async -> Void
   ) async {
     let doc = notification.textDocument.uri
     guard let workspace = await self.workspaceForDocument(uri: doc) else {
@@ -384,7 +384,7 @@ package actor SourceKitLSPServer {
     for request: RequestAndReply<RequestType>,
     requestHandler:
       @Sendable @escaping (
-        RequestType, Workspace, LanguageService
+        RequestType, Workspace, any LanguageService
       ) async throws ->
       RequestType.Response
   ) async {
@@ -421,7 +421,7 @@ package actor SourceKitLSPServer {
   }
 
   /// After the language service has crashed, send `DidOpenTextDocumentNotification`s to a newly instantiated language service for previously open documents.
-  package func reopenDocuments(for languageService: LanguageService) async {
+  package func reopenDocuments(for languageService: any LanguageService) async {
     for documentUri in self.documentManager.openDocuments {
       guard let workspace = await self.workspaceForDocument(uri: documentUri) else {
         continue
@@ -454,10 +454,10 @@ package actor SourceKitLSPServer {
   /// If a language service of type `serverType` that can handle `workspace` using the given toolchain has already been
   /// started, return it, otherwise return `nil`.
   private func existingLanguageService(
-    _ serverType: LanguageService.Type,
+    _ serverType: any LanguageService.Type,
     toolchain: Toolchain,
     workspace: Workspace
-  ) -> LanguageService? {
+  ) -> (any LanguageService)? {
     for languageService in languageServices[LanguageServiceType(serverType), default: []] {
       if languageService.canHandle(workspace: workspace, toolchain: toolchain) {
         return languageService
@@ -473,7 +473,7 @@ package actor SourceKitLSPServer {
     for toolchain: Toolchain,
     _ language: Language,
     in workspace: Workspace
-  ) async -> [LanguageService] {
+  ) async -> [any LanguageService] {
     var result: [any LanguageService] = []
     for serverType in languageServiceRegistry.languageServices(for: language) {
       if let languageService = existingLanguageService(serverType, toolchain: toolchain, workspace: workspace) {
@@ -565,7 +565,7 @@ package actor SourceKitLSPServer {
     for uri: DocumentURI,
     _ language: Language,
     in workspace: Workspace
-  ) async -> [LanguageService] {
+  ) async -> [any LanguageService] {
     let existingLanguageServices = workspace.languageServices(for: uri)
     if !existingLanguageServices.isEmpty {
       return existingLanguageServices
@@ -604,7 +604,7 @@ package actor SourceKitLSPServer {
     for uri: DocumentURI,
     _ language: Language,
     in workspace: Workspace
-  ) async throws -> LanguageService {
+  ) async throws -> any LanguageService {
     guard let languageService = await languageServices(for: uri, language, in: workspace).first else {
       throw ResponseError.unknown("No language service found for \(uri)")
     }
@@ -1476,14 +1476,14 @@ extension SourceKitLSPServer {
 
   func willSaveDocument(
     _ notification: WillSaveTextDocumentNotification,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async {
     await languageService.willSaveDocument(notification)
   }
 
   func didSaveDocument(
     _ notification: DidSaveTextDocumentNotification,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async {
     await languageService.didSaveDocument(notification)
   }
@@ -1611,7 +1611,7 @@ extension SourceKitLSPServer {
   func completion(
     _ req: CompletionRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> CompletionList {
     return try await languageService.completion(req)
   }
@@ -1635,7 +1635,7 @@ extension SourceKitLSPServer {
   func doccDocumentation(
     _ req: DoccDocumentationRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> DoccDocumentationResponse {
     return try await languageService.doccDocumentation(req)
   }
@@ -1643,7 +1643,7 @@ extension SourceKitLSPServer {
   func hover(
     _ req: HoverRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> HoverResponse? {
     return try await languageService.hover(req)
   }
@@ -1651,7 +1651,7 @@ extension SourceKitLSPServer {
   func signatureHelp(
     _ req: SignatureHelpRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> SignatureHelp? {
     return try await languageService.signatureHelp(req)
   }
@@ -1733,7 +1733,7 @@ extension SourceKitLSPServer {
   func symbolInfo(
     _ req: SymbolInfoRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> [SymbolDetails] {
     return try await languageService.symbolInfo(req)
   }
@@ -1741,7 +1741,7 @@ extension SourceKitLSPServer {
   func documentSymbolHighlight(
     _ req: DocumentHighlightRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> [DocumentHighlight]? {
     return try await languageService.documentSymbolHighlight(req)
   }
@@ -1749,7 +1749,7 @@ extension SourceKitLSPServer {
   func foldingRange(
     _ req: FoldingRangeRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> [FoldingRange]? {
     return try await languageService.foldingRange(req)
   }
@@ -1757,7 +1757,7 @@ extension SourceKitLSPServer {
   func documentSymbol(
     _ req: DocumentSymbolRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> DocumentSymbolResponse? {
     return try await languageService.documentSymbol(req)
   }
@@ -1765,7 +1765,7 @@ extension SourceKitLSPServer {
   func documentColor(
     _ req: DocumentColorRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> [ColorInformation] {
     return try await languageService.documentColor(req)
   }
@@ -1773,7 +1773,7 @@ extension SourceKitLSPServer {
   func documentSemanticTokens(
     _ req: DocumentSemanticTokensRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> DocumentSemanticTokensResponse? {
     return try await languageService.documentSemanticTokens(req)
   }
@@ -1781,7 +1781,7 @@ extension SourceKitLSPServer {
   func documentSemanticTokensDelta(
     _ req: DocumentSemanticTokensDeltaRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> DocumentSemanticTokensDeltaResponse? {
     return try await languageService.documentSemanticTokensDelta(req)
   }
@@ -1789,7 +1789,7 @@ extension SourceKitLSPServer {
   func documentSemanticTokensRange(
     _ req: DocumentSemanticTokensRangeRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> DocumentSemanticTokensResponse? {
     return try await languageService.documentSemanticTokensRange(req)
   }
@@ -1797,7 +1797,7 @@ extension SourceKitLSPServer {
   func documentFormatting(
     _ req: DocumentFormattingRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> [TextEdit]? {
     return try await languageService.documentFormatting(req)
   }
@@ -1805,7 +1805,7 @@ extension SourceKitLSPServer {
   func documentRangeFormatting(
     _ req: DocumentRangeFormattingRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> [TextEdit]? {
     return try await languageService.documentRangeFormatting(req)
   }
@@ -1813,7 +1813,7 @@ extension SourceKitLSPServer {
   func documentOnTypeFormatting(
     _ req: DocumentOnTypeFormattingRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> [TextEdit]? {
     return try await languageService.documentOnTypeFormatting(req)
   }
@@ -1821,7 +1821,7 @@ extension SourceKitLSPServer {
   func colorPresentation(
     _ req: ColorPresentationRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> [ColorPresentation] {
     return try await languageService.colorPresentation(req)
   }
@@ -1879,7 +1879,7 @@ extension SourceKitLSPServer {
   func codeAction(
     _ req: CodeActionRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> CodeActionRequestResponse? {
     let response = try await languageService.codeAction(req)
     return req.injectMetadata(toResponse: response)
@@ -1888,7 +1888,7 @@ extension SourceKitLSPServer {
   func codeLens(
     _ req: CodeLensRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> [CodeLens] {
     return try await languageService.codeLens(req)
   }
@@ -1896,7 +1896,7 @@ extension SourceKitLSPServer {
   func inlayHint(
     _ req: InlayHintRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> [InlayHint] {
     return try await languageService.inlayHint(req)
   }
@@ -1904,7 +1904,7 @@ extension SourceKitLSPServer {
   func documentDiagnostic(
     _ req: DocumentDiagnosticsRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> DocumentDiagnosticReport {
     return try await languageService.documentDiagnostic(req)
   }
@@ -1933,7 +1933,7 @@ extension SourceKitLSPServer {
   func declaration(
     _ req: DeclarationRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> LocationsOrLocationLinksResponse? {
     return try await languageService.declaration(req)
   }
@@ -1942,7 +1942,7 @@ extension SourceKitLSPServer {
   private func definitionLocations(
     for symbol: SymbolDetails,
     in uri: DocumentURI,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> [Location] {
     // If this symbol is a module then generate a textual interface
     if symbol.kind == .module {
@@ -2037,7 +2037,7 @@ extension SourceKitLSPServer {
   private func indexBasedDefinition(
     _ req: DefinitionRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> [Location] {
     let symbols = try await languageService.symbolInfo(
       SymbolInfoRequest(
@@ -2131,7 +2131,7 @@ extension SourceKitLSPServer {
   func definition(
     _ req: DefinitionRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> LocationsOrLocationLinksResponse? {
     let indexBasedResponse = try await indexBasedDefinition(req, workspace: workspace, languageService: languageService)
     // If we're unable to handle the definition request using our index, see if the
@@ -2159,7 +2159,7 @@ extension SourceKitLSPServer {
     groupName: String?,
     symbolUSR: String?,
     originatorUri: DocumentURI,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> Location {
     // Let openGeneratedInterface handle all the logic, including checking if we're already in the right interface
     let documentForBuildSettings = originatorUri.buildSettingsFile
@@ -2182,7 +2182,7 @@ extension SourceKitLSPServer {
   func implementation(
     _ req: ImplementationRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> LocationsOrLocationLinksResponse? {
     let symbols = try await languageService.symbolInfo(
       SymbolInfoRequest(
@@ -2208,7 +2208,7 @@ extension SourceKitLSPServer {
   func references(
     _ req: ReferencesRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> [Location] {
     let symbols = try await languageService.symbolInfo(
       SymbolInfoRequest(
@@ -2259,7 +2259,7 @@ extension SourceKitLSPServer {
   func prepareCallHierarchy(
     _ req: CallHierarchyPrepareRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> [CallHierarchyItem]? {
     let symbols = try await languageService.symbolInfo(
       SymbolInfoRequest(
@@ -2468,7 +2468,7 @@ extension SourceKitLSPServer {
   func prepareTypeHierarchy(
     _ req: TypeHierarchyPrepareRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> [TypeHierarchyItem]? {
     let symbols = try await languageService.symbolInfo(
       SymbolInfoRequest(

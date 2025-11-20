@@ -107,7 +107,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   ///
   /// `isOneShort` if the request handler should only serve a single request and should be removed from
   /// `requestHandlers` after it has been called.
-  private let requestHandlers: ThreadSafeBox<[(requestHandler: Sendable, isOneShot: Bool)]> =
+  private let requestHandlers: ThreadSafeBox<[(requestHandler: any Sendable, isOneShot: Bool)]> =
     ThreadSafeBox(initialValue: [])
 
   /// A closure that is called when the `TestSourceKitLSPClient` is destructed.

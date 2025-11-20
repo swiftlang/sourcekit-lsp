@@ -16,7 +16,7 @@ import SwiftSourceKitPluginCommon
 
 extension SourceKitD {
   nonisolated func responseDictionary(
-    _ dict: [sourcekitd_api_uid_t: SKDResponseValue]
+    _ dict: [sourcekitd_api_uid_t: any SKDResponseValue]
   ) -> SKDResponseDictionaryBuilder {
     let result = SKDResponseDictionaryBuilder(sourcekitd: self)
     for (key, value) in dict {
@@ -40,7 +40,7 @@ struct SKDResponseDictionaryBuilder {
     )
   }
 
-  func set(_ key: sourcekitd_api_uid_t, to newValue: SKDResponseValue) {
+  func set(_ key: sourcekitd_api_uid_t, to newValue: any SKDResponseValue) {
     switch newValue {
     case let newValue as String:
       sourcekitd.servicePluginApi.response_dictionary_set_string(value, key, newValue)
@@ -58,11 +58,11 @@ struct SKDResponseDictionaryBuilder {
       sourcekitd.servicePluginApi.response_dictionary_set_value(value, key, newValue.value)
     case let newValue as SKDResponseArrayBuilder:
       sourcekitd.servicePluginApi.response_dictionary_set_value(value, key, newValue.value)
-    case let newValue as [SKDResponseValue]:
+    case let newValue as [any SKDResponseValue]:
       self.set(key, to: sourcekitd.responseArray(newValue))
-    case let newValue as [sourcekitd_api_uid_t: SKDResponseValue]:
+    case let newValue as [sourcekitd_api_uid_t: any SKDResponseValue]:
       self.set(key, to: sourcekitd.responseDictionary(newValue))
-    case let newValue as SKDResponseValue?:
+    case let newValue as (any SKDResponseValue)?:
       if let newValue {
         self.set(key, to: newValue)
       }

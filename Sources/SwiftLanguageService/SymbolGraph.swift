@@ -95,7 +95,7 @@ private struct DocumentableSymbol {
   }
 
   init?(node: any SyntaxProtocol) {
-    if let namedDecl = node.asProtocol(NamedDeclSyntax.self) {
+    if let namedDecl = node.asProtocol((any NamedDeclSyntax).self) {
       self = DocumentableSymbol(node: namedDecl, position: namedDecl.name.positionAfterSkippingLeadingTrivia)
     } else if let initDecl = node.as(InitializerDeclSyntax.self) {
       self = DocumentableSymbol(node: initDecl, position: initDecl.initKeyword.positionAfterSkippingLeadingTrivia)

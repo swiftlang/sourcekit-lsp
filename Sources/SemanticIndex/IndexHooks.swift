@@ -20,7 +20,7 @@ package protocol IndexInjector: Sendable {
     storePath: URL,
     databasePath: URL,
     indexStoreLibraryPath: URL,
-    delegate: IndexDelegate,
+    delegate: any IndexDelegate,
     prefixMappings: [PathMapping]
   ) async throws -> IndexStoreDB
 
@@ -31,7 +31,7 @@ package protocol IndexInjector: Sendable {
 
 /// Callbacks that allow inspection of internal state modifications during testing.
 package struct IndexHooks: Sendable {
-  package var indexInjector: IndexInjector?
+  package var indexInjector: (any IndexInjector)?
 
   package var buildGraphGenerationDidStart: (@Sendable () async -> Void)?
 
@@ -47,7 +47,7 @@ package struct IndexHooks: Sendable {
   package var updateIndexStoreTaskDidFinish: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)?
 
   package init(
-    indexInjector: IndexInjector? = nil,
+    indexInjector: (any IndexInjector)? = nil,
     buildGraphGenerationDidStart: (@Sendable () async -> Void)? = nil,
     buildGraphGenerationDidFinish: (@Sendable () async -> Void)? = nil,
     preparationTaskDidStart: (@Sendable (PreparationTaskDescription) async -> Void)? = nil,

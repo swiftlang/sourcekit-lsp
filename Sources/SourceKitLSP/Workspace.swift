@@ -188,7 +188,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   let syntacticTestIndex: SyntacticTestIndex
 
   /// Language service for an open document, if available.
-  private let languageServices: ThreadSafeBox<[DocumentURI: [LanguageService]]> = ThreadSafeBox(initialValue: [:])
+  private let languageServices: ThreadSafeBox<[DocumentURI: [any LanguageService]]> = ThreadSafeBox(initialValue: [:])
 
   /// The task that constructs the `SemanticIndexManager`, which keeps track of whose file's index is up-to-date in the
   /// workspace and schedules indexing and preparation tasks for files with out-of-date index.
@@ -355,7 +355,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
       options: options,
       connectionToClient: ConnectionToClient(sourceKitLSPServer: sourceKitLSPServer),
       buildServerHooks: hooks.buildServerHooks,
-      createMainFilesProvider: { (initializationData, mainFilesChangedCallback) -> MainFilesProvider? in
+      createMainFilesProvider: { (initializationData, mainFilesChangedCallback) -> (any MainFilesProvider)? in
         await createIndex(
           initializationData: initializationData,
           mainFilesChangedCallback: mainFilesChangedCallback,
@@ -414,12 +414,12 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   /// The language services that can handle the given document. Callers should try to merge the results from the
   /// different language service or prefer results from language services that occur earlier in this array, whichever is
   /// more suitable.
-  func languageServices(for uri: DocumentURI) -> [LanguageService] {
+  func languageServices(for uri: DocumentURI) -> [any LanguageService] {
     return languageServices.value[uri.buildSettingsFile] ?? []
   }
 
   /// The language service with the highest precedence that can handle the given document.
-  func primaryLanguageService(for uri: DocumentURI) -> LanguageService? {
+  func primaryLanguageService(for uri: DocumentURI) -> (any LanguageService)? {
     return languageServices(for: uri).first
   }
 
@@ -428,7 +428,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   /// If language services already exist for this document, eg. because two requests start creating a language
   /// service for a document and race, `newLanguageServices` is dropped and the existing language services for the
   /// document are returned.
-  func setLanguageServices(for uri: DocumentURI, _ newLanguageService: [any LanguageService]) -> [LanguageService] {
+  func setLanguageServices(for uri: DocumentURI, _ newLanguageService: [any LanguageService]) -> [any LanguageService] {
     return languageServices.withLock { languageServices in
       if let languageService = languageServices[uri] {
         return languageService
@@ -455,7 +455,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   /// We inform the respective language services as long as the given file is open
   /// (not queued for opening).
   package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
-    var documentsByService: [ObjectIdentifier: (Set<DocumentURI>, LanguageService)] = [:]
+    var documentsByService: [ObjectIdentifier: (Set<DocumentURI>, any LanguageService)] = [:]
     for uri in changedFiles {
       logger.log("Dependencies updated for file \(uri.forLogging)")
       for languageService in languageServices(for: uri) {

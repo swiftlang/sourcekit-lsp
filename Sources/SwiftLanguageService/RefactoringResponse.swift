@@ -133,7 +133,7 @@ extension SwiftLanguageService {
       keys.length: snapshot.utf8OffsetRange(of: refactorCommand.positionRange).count,
       keys.actionUID: self.sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!,
       keys.compilerArgs: await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: true)?.compilerArgs
-        as [SKDRequestValue]?,
+        as [any SKDRequestValue]?,
     ])
 
     let dict = try await send(sourcekitdRequest: \.semanticRefactoring, skreq, snapshot: snapshot)

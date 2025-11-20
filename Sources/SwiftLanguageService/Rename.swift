@@ -361,7 +361,7 @@ extension SwiftLanguageService: NameTranslatorService {
     let req = sourcekitd.dictionary([
       keys.sourceFile: snapshot.uri.pseudoPath,
       keys.compilerArgs: await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: false)?.compilerArgs
-        as [SKDRequestValue]?,
+        as [any SKDRequestValue]?,
       keys.offset: snapshot.utf8Offset(of: snapshot.position(of: symbolLocation)),
       keys.nameKind: sourcekitd.values.nameSwift,
       keys.baseName: name.baseName,
@@ -412,7 +412,7 @@ extension SwiftLanguageService: NameTranslatorService {
     let req = sourcekitd.dictionary([
       keys.sourceFile: snapshot.uri.pseudoPath,
       keys.compilerArgs: await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: false)?.compilerArgs
-        as [SKDRequestValue]?,
+        as [any SKDRequestValue]?,
       keys.offset: snapshot.utf8Offset(of: snapshot.position(of: symbolLocation)),
       keys.nameKind: sourcekitd.values.nameObjc,
     ])

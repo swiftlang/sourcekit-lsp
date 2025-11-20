@@ -1945,7 +1945,7 @@ fileprivate extension SourceKitD {
       keys.name: name,
       keys.sourceText: textWithoutMarkers,
       keys.syntacticOnly: 1,
-      keys.compilerArgs: compilerArguments as [SKDRequestValue],
+      keys.compilerArgs: compilerArguments as [any SKDRequestValue],
     ])
     _ = try await send(\.editorOpen, req)
     return DocumentPositions(markers: markers, textWithoutMarkers: textWithoutMarkers)
@@ -1972,7 +1972,7 @@ fileprivate extension SourceKitD {
   }
 
   nonisolated func completeImpl(
-    requestUID: KeyPath<sourcekitd_api_requests, sourcekitd_api_uid_t> & Sendable,
+    requestUID: any KeyPath<sourcekitd_api_requests, sourcekitd_api_uid_t> & Sendable,
     path: String,
     position: Position,
     filter: String,
@@ -1989,7 +1989,7 @@ fileprivate extension SourceKitD {
       keys.addCallWithNoDefaultArgs: flags.contains(.addCallWithNoDefaultArgs) ? 1 : 0,
       keys.includeSemanticComponents: flags.contains(.includeSemanticComponents) ? 1 : 0,
       keys.filterText: filter,
-      keys.recentCompletions: recentCompletions as [SKDRequestValue]?,
+      keys.recentCompletions: recentCompletions as [any SKDRequestValue]?,
       keys.maxResults: maxResults,
     ])
 
@@ -1999,7 +1999,7 @@ fileprivate extension SourceKitD {
       keys.column: position.utf16index + 1,
       keys.sourceFile: path,
       keys.codeCompleteOptions: options,
-      keys.compilerArgs: compilerArguments as [SKDRequestValue]?,
+      keys.compilerArgs: compilerArguments as [any SKDRequestValue]?,
     ])
 
     let res = try await send(requestUID, req)
@@ -2080,8 +2080,8 @@ fileprivate extension SourceKitD {
   nonisolated func setPopularAPI(popular: [String], unpopular: [String]) async throws {
     let req = dictionary([
       keys.codeCompleteOptions: dictionary([keys.useNewAPI: 1]),
-      keys.popular: popular as [SKDRequestValue],
-      keys.unpopular: unpopular as [SKDRequestValue],
+      keys.popular: popular as [any SKDRequestValue],
+      keys.unpopular: unpopular as [any SKDRequestValue],
     ])
 
     let resp = try await send(\.codeCompleteSetPopularAPI, req)
@@ -2096,8 +2096,8 @@ fileprivate extension SourceKitD {
     let req = dictionary([
       keys.codeCompleteOptions: dictionary([keys.useNewAPI: 1]),
       keys.scopedPopularityTablePath: scopedPopularityDataPath,
-      keys.popularModules: popularModules as [SKDRequestValue],
-      keys.notoriousModules: notoriousModules as [SKDRequestValue],
+      keys.popularModules: popularModules as [any SKDRequestValue],
+      keys.notoriousModules: notoriousModules as [any SKDRequestValue],
     ])
 
     let resp = try await send(\.codeCompleteSetPopularAPI, req)
@@ -2119,8 +2119,8 @@ fileprivate extension SourceKitD {
     }
     let req = dictionary([
       keys.codeCompleteOptions: dictionary([keys.useNewAPI: 1]),
-      keys.symbolPopularity: symbolPopularity as [SKDRequestValue],
-      keys.modulePopularity: modulePopularity as [SKDRequestValue],
+      keys.symbolPopularity: symbolPopularity as [any SKDRequestValue],
+      keys.modulePopularity: modulePopularity as [any SKDRequestValue],
     ])
 
     let resp = try await send(\.codeCompleteSetPopularAPI, req)
@@ -2173,7 +2173,7 @@ private struct ExpectationNotFulfilledError: Error {}
 
 /// Run the given async block and block the current function until `body` terminates.
 private func runAsync<T: Sendable>(_ body: @escaping @Sendable () async throws -> T) throws -> T {
-  nonisolated(unsafe) var result: Result<T, Error>!
+  nonisolated(unsafe) var result: Result<T, any Error>!
   let expectation = XCTestExpectation(description: "")
   Task {
     do {

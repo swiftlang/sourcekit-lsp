@@ -268,7 +268,7 @@ actor CompletionProvider {
       request.sourcekitd.keys.docBrief: info.briefDocumentation,
       request.sourcekitd.keys.docFullAsXML: info.fullDocumentationAsXML,
       request.sourcekitd.keys.docComment: info.rawDocumentation,
-      request.sourcekitd.keys.associatedUSRs: info.associatedUSRs as [SKDResponseValue]?,
+      request.sourcekitd.keys.associatedUSRs: info.associatedUSRs as [any SKDResponseValue]?,
     ])
   }
 
@@ -376,7 +376,7 @@ actor CompletionProvider {
           keys.hasDiagnostic: item.hasDiagnostic ? 1 : 0,
           keys.groupId: item.groupID,
         ])
-      } as [SKDResponseValue]
+      } as [any SKDResponseValue]
     resp.set(sourcekitd.keys.results, to: results)
   }
 
@@ -417,7 +417,7 @@ actor CompletionProvider {
     let keys = sourcekitd.keys
     var response = sourcekitd.responseDictionary([
       keys.unfilteredResultCount: session.totalCount,
-      keys.memberAccessTypes: session.memberAccessTypes as [SKDResponseValue],
+      keys.memberAccessTypes: session.memberAccessTypes as [any SKDResponseValue],
     ])
 
     let filterText = options?[keys.filterText] ?? ""

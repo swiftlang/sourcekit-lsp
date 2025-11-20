@@ -76,7 +76,7 @@ package struct SemanticClassification: Equatable {
     package let scoreComponent: Double
   }
 
-  private var scoreComponents: [CompletionScoreComponent] {
+  private var scoreComponents: [any CompletionScoreComponent] {
     return [
       availability,
       completionKind,

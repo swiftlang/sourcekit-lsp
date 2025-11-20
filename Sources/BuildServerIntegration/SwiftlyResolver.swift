@@ -27,7 +27,7 @@ actor SwiftlyResolver {
     let workingDirectory: URL?
   }
 
-  private var cache: LRUCache<CacheKey, Result<URL?, Error>> = LRUCache(capacity: 100)
+  private var cache: LRUCache<CacheKey, Result<URL?, any Error>> = LRUCache(capacity: 100)
 
   /// Check if `compiler` is a symlink to `swiftly`. If so, find the executable in the toolchain that swiftly resolves
   /// to within the given working directory and return the URL of the corresponding compiler in that toolchain.
@@ -37,7 +37,7 @@ actor SwiftlyResolver {
     if let cached = cache[cacheKey] {
       return try cached.get()
     }
-    let computed: Result<URL?, Error>
+    let computed: Result<URL?, any Error>
     do {
       computed = .success(
         try await resolveSwiftlyTrampolineImpl(compiler: compiler, workingDirectory: workingDirectory)

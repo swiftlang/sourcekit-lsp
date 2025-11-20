@@ -44,7 +44,7 @@ extension Optional: SKDRequestValue where Wrapped: SKDRequestValue {}
 
 extension SourceKitD {
   /// Create a `SKDRequestDictionary` from the given dictionary.
-  nonisolated package func dictionary(_ dict: [sourcekitd_api_uid_t: SKDRequestValue]) -> SKDRequestDictionary {
+  nonisolated package func dictionary(_ dict: [sourcekitd_api_uid_t: any SKDRequestValue]) -> SKDRequestDictionary {
     let result = SKDRequestDictionary(sourcekitd: self)
     for (key, value) in dict {
       result.set(key, to: value)
@@ -66,7 +66,7 @@ package final class SKDRequestDictionary: Sendable {
     sourcekitd.api.request_release(dict)
   }
 
-  package func set(_ key: sourcekitd_api_uid_t, to newValue: SKDRequestValue) {
+  package func set(_ key: sourcekitd_api_uid_t, to newValue: any SKDRequestValue) {
     switch newValue {
     case let newValue as String:
       sourcekitd.api.request_dictionary_set_string(dict, key, newValue)
@@ -78,11 +78,11 @@ package final class SKDRequestDictionary: Sendable {
       sourcekitd.api.request_dictionary_set_value(dict, key, newValue.dict)
     case let newValue as SKDRequestArray:
       sourcekitd.api.request_dictionary_set_value(dict, key, newValue.array)
-    case let newValue as [SKDRequestValue]:
+    case let newValue as [any SKDRequestValue]:
       self.set(key, to: sourcekitd.array(newValue))
-    case let newValue as [sourcekitd_api_uid_t: SKDRequestValue]:
+    case let newValue as [sourcekitd_api_uid_t: any SKDRequestValue]:
       self.set(key, to: sourcekitd.dictionary(newValue))
-    case let newValue as SKDRequestValue?:
+    case let newValue as (any SKDRequestValue)?:
       if let newValue {
         self.set(key, to: newValue)
       }

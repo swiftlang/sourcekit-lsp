@@ -28,7 +28,7 @@ struct OSLogScraper {
       .getEntries(
         at: startPoint,
         matching: predicate
-      ).compactMap { $0 as? (OSLogEntryWithPayload & OSLogEntry) }
+      ).compactMap { $0 as? (any OSLogEntryWithPayload & OSLogEntry) }
   }
 
   private func crashedSourceKitLSPRequests() throws -> [(name: String, logCategory: String)] {

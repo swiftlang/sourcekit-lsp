@@ -120,7 +120,7 @@ actor GeneratedInterfaceManager {
       keys.name: document.sourcekitdDocumentName,
       keys.synthesizedExtension: 1,
       keys.compilerArgs: await swiftLanguageService.compileCommand(for: try document.uri, fallbackAfterTimeout: false)?
-        .compilerArgs as [SKDRequestValue]?,
+        .compilerArgs as [any SKDRequestValue]?,
     ])
 
     let dict = try await swiftLanguageService.send(sourcekitdRequest: \.editorOpenInterface, skreq, snapshot: nil)

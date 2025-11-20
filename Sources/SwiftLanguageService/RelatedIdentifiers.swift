@@ -74,7 +74,7 @@ extension SwiftLanguageService {
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
       keys.includeNonEditableBaseNames: includeNonEditableBaseNames ? 1 : 0,
       keys.compilerArgs: await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: true)?.compilerArgs
-        as [SKDRequestValue]?,
+        as [any SKDRequestValue]?,
     ])
 
     let dict = try await send(sourcekitdRequest: \.relatedIdents, skreq, snapshot: snapshot)
