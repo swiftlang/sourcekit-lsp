@@ -36,7 +36,10 @@ package final class SKDResponseDictionary: Sendable {
   }
 
   package subscript(key: sourcekitd_api_uid_t) -> String? {
-    return sourcekitd.api.variant_dictionary_get_string(dict, key).map(String.init(cString:))
+    guard let cString = sourcekitd.api.variant_dictionary_get_string(dict, key) else {
+      return nil
+    }
+    return String(cString: cString)
   }
 
   package subscript(key: sourcekitd_api_uid_t) -> Int? {

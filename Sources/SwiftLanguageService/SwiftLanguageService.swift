@@ -651,11 +651,17 @@ extension SwiftLanguageService {
           // Check that the document wasn't modified while we were getting diagnostics. This could happen because we are
           // calling `publishDiagnosticsIfNeeded` outside of `messageHandlingQueue` and thus a concurrent edit is
           // possible while we are waiting for the sourcekitd request to return a result.
+          let latestVersionString =
+            if let version = latestSnapshotID?.version {
+              String(version)
+            } else {
+              "<nil>"
+            }
           logger.log(
             """
             Document was modified while loading diagnostics. \
             Loaded diagnostics for \(snapshot.id.version, privacy: .public), \
-            latest snapshot is \((latestSnapshotID?.version).map(String.init) ?? "<nil>", privacy: .public)
+            latest snapshot is \(latestVersionString, privacy: .public)
             """
           )
           throw CancellationError()

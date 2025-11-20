@@ -442,8 +442,13 @@ extension DiagnosticStage {
     case sourcekitd.values.semaDiagStage:
       self = .sema
     default:
-      let desc = sourcekitd.api.uid_get_string_ptr(uid).map { String(cString: $0) }
-      logger.fault("Unknown diagnostic stage \(desc ?? "nil", privacy: .public)")
+      let uidDescription =
+        if let cString = sourcekitd.api.uid_get_string_ptr(uid) {
+          String(cString: cString)
+        } else {
+          "<nil>"
+        }
+      logger.fault("Unknown diagnostic stage \(uidDescription, privacy: .public)")
       return nil
     }
   }
