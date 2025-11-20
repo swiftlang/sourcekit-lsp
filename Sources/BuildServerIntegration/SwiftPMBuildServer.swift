@@ -844,7 +844,9 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     else {
       return false
     }
-    return url.deletingLastPathComponent() == self.projectRoot
+    // Compare the URLs as `DocumentURI`, which is a little more lenient to declare equality, eg. it considers paths
+    // equivalent even `url.deletingLastPathComponent()` has a trailing slash while `self.projectRoot` does not.
+    return DocumentURI(url.deletingLastPathComponent()) == DocumentURI(self.projectRoot)
   }
 
   /// An event is relevant if it modifies a file that matches one of the file rules used by the SwiftPM workspace.
