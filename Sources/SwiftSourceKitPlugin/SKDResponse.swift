@@ -55,8 +55,8 @@ final class SKDResponse: CustomStringConvertible, Sendable {
     self.init(takingUnderlyingResponse: resp, sourcekitd: sourcekitd)
   }
 
-  static func from(error: Error, sourcekitd: SourceKitD) -> SKDResponse {
-    if let error = error as? SourceKitPluginError {
+  static func from(error: any Error, sourcekitd: SourceKitD) -> SKDResponse {
+    if let error = error as? (any SourceKitPluginError) {
       return error.response(sourcekitd: sourcekitd)
     } else if error is CancellationError {
       return SKDResponse(error: .cancelled, description: "Request cancelled", sourcekitd: sourcekitd)

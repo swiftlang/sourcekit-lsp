@@ -19,7 +19,7 @@ extension RequestInfo {
   /// Returns `nil` if the issue didn't reproduce with all `.swift` files merged.
   @MainActor
   func mergeSwiftFiles(
-    using executor: SourceKitRequestExecutor,
+    using executor: any SourceKitRequestExecutor,
     progressUpdate: (_ progress: Double, _ message: String) -> Void
   ) async throws -> RequestInfo? {
     let swiftFilePaths = compilerArgs.filter { $0.hasSuffix(".swift") }

@@ -23,7 +23,7 @@ import SwiftSyntax
 extension RequestInfo {
   @MainActor
   package func reduceInputFile(
-    using executor: SourceKitRequestExecutor,
+    using executor: any SourceKitRequestExecutor,
     progressUpdate: (_ progress: Double, _ message: String) -> Void
   ) async throws -> RequestInfo {
     try await withoutActuallyEscaping(progressUpdate) { progressUpdate in
@@ -66,7 +66,7 @@ private enum ReductionStepResult {
 private class SourceReducer {
   /// The executor that is used to run a sourcekitd request and check whether it
   /// still crashes.
-  private let sourcekitdExecutor: SourceKitRequestExecutor
+  private let sourcekitdExecutor: any SourceKitRequestExecutor
 
   /// A callback to call to report progress
   private let progressUpdate: (_ progress: Double, _ message: String) -> Void
@@ -78,7 +78,7 @@ private class SourceReducer {
   private var fileSizeAfterLastImportInline: Int = 0
 
   init(
-    sourcekitdExecutor: SourceKitRequestExecutor,
+    sourcekitdExecutor: any SourceKitRequestExecutor,
     progressUpdate: @escaping (_ progress: Double, _ message: String) -> Void
   ) {
     self.sourcekitdExecutor = sourcekitdExecutor
@@ -616,7 +616,7 @@ private class FirstImportFinder: SyntaxAnyVisitor {
 @MainActor
 private func getSwiftInterface(
   _ moduleName: String,
-  executor: SourceKitRequestExecutor,
+  executor: any SourceKitRequestExecutor,
   compilerArgs: [String],
   areFallbackArgs: Bool = false
 ) async throws -> String {
@@ -690,7 +690,7 @@ private func getSwiftInterface(
 @MainActor
 private func inlineFirstImport(
   in tree: SourceFileSyntax,
-  executor: SourceKitRequestExecutor,
+  executor: any SourceKitRequestExecutor,
   compilerArgs: [String]
 ) async -> ReducerResult {
   guard let firstImport = FirstImportFinder.findFirstImport(in: tree) else {

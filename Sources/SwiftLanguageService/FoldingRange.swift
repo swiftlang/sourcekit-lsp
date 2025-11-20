@@ -127,13 +127,13 @@ private final class FoldingRangeFinder: SyntaxAnyVisitor {
   }
 
   override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
-    if let braced = node.asProtocol(BracedSyntax.self) {
+    if let braced = node.asProtocol((any BracedSyntax).self) {
       return self.addFoldingRange(
         start: braced.leftBrace.endPositionBeforeTrailingTrivia,
         end: braced.rightBrace.positionAfterSkippingLeadingTrivia
       )
     }
-    if let parenthesized = node.asProtocol(ParenthesizedSyntax.self) {
+    if let parenthesized = node.asProtocol((any ParenthesizedSyntax).self) {
       return self.addFoldingRange(
         start: parenthesized.leftParen.endPositionBeforeTrailingTrivia,
         end: parenthesized.rightParen.positionAfterSkippingLeadingTrivia

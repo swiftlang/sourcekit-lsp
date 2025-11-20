@@ -6,10 +6,15 @@ import PackageDescription
 /// Swift settings that should be applied to every Swift target.
 var globalSwiftSettings: [SwiftSetting] {
   var result: [SwiftSetting] = [
+    // Swift 7 mode upcoming features. These must be compatible with swift-tools-version.
     .enableUpcomingFeature("InternalImportsByDefault"),
     .enableUpcomingFeature("MemberImportVisibility"),
     .enableUpcomingFeature("InferIsolatedConformances"),
     .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+    .enableUpcomingFeature("ExistentialAny"),
+
+    // Warning escalation.
+    .unsafeFlags(["-Werror", "ExistentialAny"]),
   ]
   if noSwiftPMDependency {
     result += [.define("NO_SWIFTPM_DEPENDENCY")]
