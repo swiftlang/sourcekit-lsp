@@ -129,16 +129,6 @@ package actor SkipUnless {
     try XCTSkipUnless(Platform.current == .windows, message)
   }
 
-  package static func platformIsNotAmazonLinux(_ message: String) throws {
-    guard Platform.current == .linux,
-      let release = try? String(contentsOf: URL(filePath: "/etc/system-release"), encoding: .utf8)
-    else {
-      return
-    }
-
-    try XCTSkipUnless(!release.hasPrefix("Amazon"), message)
-  }
-
   package static func platformSupportsTaskPriorityElevation() throws {
     #if os(macOS)
     guard #available(macOS 14.0, *) else {
@@ -159,7 +149,6 @@ package actor SkipUnless {
       Platform.current != .windows,
       "Temporarily skipping as we need to fix these tests to use the cmake-built swift-syntax libraries on Windows."
     )
-    try SkipUnless.platformIsNotAmazonLinux("https://github.com/swiftlang/sourcekit-lsp/issues/2350")
 
     return try await shared.skipUnlessSupported(file: file, line: line) {
       do {
