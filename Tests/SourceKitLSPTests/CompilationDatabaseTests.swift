@@ -261,10 +261,10 @@ final class CompilationDatabaseTests: SourceKitLSPTestCase {
         libIndexStore: nil
       )
       let toolchainRegistry = ToolchainRegistry(toolchains: [
-        try await unwrap(ToolchainRegistry.forTesting.default), fakeToolchain,
+        defaultToolchain, fakeToolchain,
       ])
 
-      // We need to create a file for the swift executable because `SwiftlyResolver` checks for its presence.
+      // We need to create a file for the swift executable because `SwiftToolchainResolver` checks for its presence.
       try FileManager.default.createDirectory(
         at: XCTUnwrap(fakeToolchain.swift).deletingLastPathComponent(),
         withIntermediateDirectories: true
@@ -388,6 +388,43 @@ final class CompilationDatabaseTests: SourceKitLSPTestCase {
       DefinitionRequest(textDocument: TextDocumentIdentifier(mainUri), position: positions["3️⃣"])
     )
     XCTAssertEqual(definition?.locations, [try project.location(from: "1️⃣", to: "2️⃣", in: "header.h")])
+  }
+
+  func testLookThroughXcrun() async throws {
+    try SkipUnless.platformIsDarwin("xcrun is macOS only")
+
+    try await withTestScratchDir { scratchDirectory in
+      let toolchainRegistry = try XCTUnwrap(ToolchainRegistry.forTesting)
+
+      let project = try await MultiFileTestProject(
+        files: [
+          "test.swift": """
+          #warning("Test warning")
+          """,
+          "compile_commands.json": """
+          [
+            {
+              "directory": "$TEST_DIR_BACKSLASH_ESCAPED",
+              "arguments": [
+                "/usr/bin/swiftc",
+                "$TEST_DIR_BACKSLASH_ESCAPED/test.swift",
+                \(defaultSDKArgs)
+              ],
+              "file": "test.swift",
+              "output": "$TEST_DIR_BACKSLASH_ESCAPED/test.swift.o"
+            }
+          ]
+          """,
+        ],
+        toolchainRegistry: toolchainRegistry
+      )
+
+      let (uri, _) = try project.openDocument("test.swift")
+      let diagnostics = try await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+      )
+      XCTAssertEqual(diagnostics.fullReport?.items.map(\.message), ["Test warning"])
+    }
   }
 }
 
