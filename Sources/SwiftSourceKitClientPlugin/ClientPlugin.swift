@@ -12,6 +12,7 @@
 
 public import Csourcekitd
 import Foundation
+@_spi(SourceKitLSP) import SKLogging
 import SourceKitD
 import SwiftExtensions
 import SwiftSourceKitPluginCommon
@@ -20,7 +21,8 @@ import SwiftSourceKitPluginCommon
 /// loaded from.
 @_cdecl("sourcekitd_plugin_initialize")
 public func sourcekitd_plugin_initialize(_ params: sourcekitd_api_plugin_initialize_params_t) {
-  fatalError("sourcekitd_plugin_initialize has been removed in favor of sourcekitd_plugin_initialize_2")
+  LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp.client-plugin")
+  logger.fault("sourcekitd_plugin_initialize has been removed in favor of sourcekitd_plugin_initialize_2")
 }
 
 @_cdecl("sourcekitd_plugin_initialize_2")

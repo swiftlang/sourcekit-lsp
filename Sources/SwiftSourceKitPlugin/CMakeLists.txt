@@ -33,9 +33,9 @@ set_target_properties(SwiftSourceKitPlugin PROPERTIES
 target_compile_options(SwiftSourceKitPlugin PRIVATE 
   $<$<COMPILE_LANGUAGE:Swift>:
     "SHELL:-module-alias CompletionScoring=CompletionScoringForPlugin"
+    "SHELL:-module-alias SKLogging=_SKLoggingForPlugin"
     "SHELL:-module-alias SKUtilities=SKUtilitiesForPlugin"
     "SHELL:-module-alias SourceKitD=SourceKitDForPlugin"
-    "SHELL:-module-alias SKLogging=_SKLoggingForPlugin"
     "SHELL:-module-alias SwiftExtensions=SwiftExtensionsForPlugin"
     "SHELL:-module-alias ToolsProtocolsSwiftExtensions=_ToolsProtocolsSwiftExtensionsForPlugin"
   >)

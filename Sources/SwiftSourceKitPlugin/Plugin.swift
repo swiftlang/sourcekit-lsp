@@ -162,7 +162,8 @@ final class RequestHandler: Sendable {
 /// loaded from.
 @_cdecl("sourcekitd_plugin_initialize")
 public func sourcekitd_plugin_initialize(_ params: sourcekitd_api_plugin_initialize_params_t) {
-  fatalError("sourcekitd_plugin_initialize has been removed in favor of sourcekitd_plugin_initialize_2")
+  LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp.service-plugin")
+  logger.fault("sourcekitd_plugin_initialize has been removed in favor of sourcekitd_plugin_initialize_2")
 }
 
 #if canImport(Darwin)
@@ -210,7 +211,8 @@ public func sourcekitd_plugin_initialize_2(
   _ params: sourcekitd_api_plugin_initialize_params_t,
   _ parentLibraryPath: UnsafePointer<CChar>
 ) {
-  LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp.plugin")
+  LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp.service-plugin")
+
   let parentLibraryPath = String(cString: parentLibraryPath)
   #if canImport(Darwin)
   if parentLibraryPath == "SOURCEKIT_LSP_PLUGIN_PARENT_LIBRARY_RTLD_DEFAULT" {

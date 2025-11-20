@@ -26,20 +26,20 @@ fileprivate extension CompilationDatabaseCompileCommand {
   ///
   /// The absence of a compiler means we have an empty command line, which should never happen.
   ///
-  /// If the compiler is a symlink to `swiftly`, it uses `swiftlyResolver` to find the corresponding executable in a
-  /// real toolchain and returns that executable.
-  func compiler(swiftlyResolver: SwiftlyResolver, compileCommandsDirectory: URL) async -> String? {
+  /// If the compiler is a symlink to `swiftly` or in `/usr/bin` on macOS, it uses `toolchainResolver` to find the
+  /// corresponding executable in a real toolchain and returns that executable.
+  func compiler(toolchainResolver: SwiftToolchainResolver, compileCommandsDirectory: URL) async -> String? {
     guard let compiler = commandLine.first else {
       return nil
     }
-    let swiftlyResolved = await orLog("Resolving swiftly") {
-      try await swiftlyResolver.resolve(
+    let resolved = await orLog("Resolving compiler") {
+      try await toolchainResolver.resolve(
         compiler: URL(fileURLWithPath: compiler),
         workingDirectory: directoryURL(compileCommandsDirectory: compileCommandsDirectory)
       )?.filePath
     }
-    if let swiftlyResolved {
-      return swiftlyResolved
+    if let resolved {
+      return resolved
     }
     return compiler
   }
@@ -74,7 +74,7 @@ package actor JSONCompilationDatabaseBuildServer: BuiltInBuildServer {
   /// finds the compilation database in a build directory.
   private var configDirectory: URL
 
-  private let swiftlyResolver = SwiftlyResolver()
+  private let toolchainResolver = SwiftToolchainResolver()
 
   // Watch for all all changes to `compile_commands.json` and `compile_flags.txt` instead of just the one at
   // `configPath` so that we cover the following semi-common scenario:
@@ -124,7 +124,7 @@ package actor JSONCompilationDatabaseBuildServer: BuiltInBuildServer {
   package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
     let compilers = Set(
       await compdb.commands.asyncCompactMap { (command) -> String? in
-        await command.compiler(swiftlyResolver: swiftlyResolver, compileCommandsDirectory: configDirectory)
+        await command.compiler(toolchainResolver: toolchainResolver, compileCommandsDirectory: configDirectory)
       }
     ).sorted { $0 < $1 }
     let targets = try await compilers.asyncMap { compiler in
@@ -155,7 +155,7 @@ package actor JSONCompilationDatabaseBuildServer: BuiltInBuildServer {
       }
       let commandsWithRequestedCompilers = await compdb.commands.lazy.asyncFilter { command in
         return await targetCompiler
-          == command.compiler(swiftlyResolver: swiftlyResolver, compileCommandsDirectory: configDirectory)
+          == command.compiler(toolchainResolver: toolchainResolver, compileCommandsDirectory: configDirectory)
       }
       let sources = commandsWithRequestedCompilers.map {
         SourceItem(uri: $0.uri(compileCommandsDirectory: configDirectory), kind: .file, generated: false)
@@ -171,7 +171,7 @@ package actor JSONCompilationDatabaseBuildServer: BuiltInBuildServer {
       self.reloadCompilationDatabase()
     }
     if notification.changes.contains(where: { $0.uri.fileURL?.lastPathComponent == ".swift-version" }) {
-      await swiftlyResolver.clearCache()
+      await toolchainResolver.clearCache()
       connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
     }
   }
@@ -185,7 +185,7 @@ package actor JSONCompilationDatabaseBuildServer: BuiltInBuildServer {
   ) async throws -> TextDocumentSourceKitOptionsResponse? {
     let targetCompiler = try request.target.compileCommandsCompiler
     let command = await compdb[request.textDocument.uri].asyncFilter {
-      return await $0.compiler(swiftlyResolver: swiftlyResolver, compileCommandsDirectory: configDirectory)
+      return await $0.compiler(toolchainResolver: toolchainResolver, compileCommandsDirectory: configDirectory)
         == targetCompiler
     }.first
     guard let command else {
