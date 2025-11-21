@@ -697,4 +697,69 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
       return diagnosticsAfterUpdate.fullReport?.items.map(\.message) == ["MY_FLAG set"]
     }
   }
+
+  func testClearPreparationStatusWhenPackageManifestIsModifiedAndPackageIsOpenedWithoutTrailingSlash() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/MyLibrary.swift": """
+        #if MY_FLAG
+        public func foo() -> String { "" }
+        #else
+        public func foo() -> Int { "" }
+        #endif
+        """,
+        "MyExecutable/MyExecutable.swift": """
+        import MyLibrary
+
+        let 1️⃣x = foo()
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "MyLibrary"),
+            .executableTarget(name: "MyExecutable", dependencies: ["MyLibrary"])
+          ]
+        )
+        """,
+      workspaces: {
+        [WorkspaceFolder(uri: DocumentURI(try URL(filePath: $0.filePath, directoryHint: .notDirectory)))]
+      },
+      enableBackgroundIndexing: true
+    )
+    let (uri, positions) = try project.openDocument("MyExecutable.swift")
+    let preEditHoverResponse = try await project.testClient.send(
+      HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    assertContains(try XCTUnwrap(preEditHoverResponse?.contents.markupContent?.value), "let x: Int")
+
+    try await project.changeFileOnDisk(
+      "Package.swift",
+      newMarkedContents: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "MyLibrary", swiftSettings: [.define("MY_FLAG")]),
+            .executableTarget(name: "MyExecutable", dependencies: ["MyLibrary"])
+          ]
+        )
+        """
+    )
+
+    try await repeatUntilExpectedResult {
+      let postEditHoverResponse = try await project.testClient.send(
+        HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      )
+      return try XCTUnwrap(postEditHoverResponse?.contents.markupContent?.value).contains("let x: String")
+    }
+  }
 }
