@@ -91,7 +91,7 @@ extension SwiftLanguageService {
       keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
       keys.compilerArgs: await self.compileCommand(for: uri, fallbackAfterTimeout: false)?.compilerArgs
-        as [SKDRequestValue]?,
+        as [any SKDRequestValue]?,
     ])
 
     if let range = range {

@@ -90,7 +90,7 @@ extension XCToolchainPlist: Codable {
     case DisplayName
   }
 
-  package init(from decoder: Decoder) throws {
+  package init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     if let identifier = try container.decodeIfPresent(String.self, forKey: .Identifier) {
       self.identifier = identifier
@@ -103,7 +103,7 @@ extension XCToolchainPlist: Codable {
   /// Encode the info plist.
   ///
   /// For testing purposes only.
-  package func encode(to encoder: Encoder) throws {
+  package func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     if identifier.starts(with: "com.apple") {
       try container.encode(identifier, forKey: .Identifier)

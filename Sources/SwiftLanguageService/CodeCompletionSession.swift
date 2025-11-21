@@ -378,7 +378,7 @@ class CodeCompletionSession {
   // MARK: - Helpers
 
   private func send(
-    sourceKitDRequest requestUid: KeyPath<sourcekitd_api_requests, sourcekitd_api_uid_t> & Sendable,
+    sourceKitDRequest requestUid: any KeyPath<sourcekitd_api_requests, sourcekitd_api_uid_t> & Sendable,
     _ request: SKDRequestDictionary,
     snapshot: DocumentSnapshot?
   ) async throws -> SKDResponseDictionary {

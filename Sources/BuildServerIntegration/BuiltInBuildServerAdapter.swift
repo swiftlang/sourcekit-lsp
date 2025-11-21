@@ -59,7 +59,7 @@ actor BuiltInBuildServerAdapter: QueueBasedMessageHandler {
   package let messageHandlingQueue = AsyncQueue<BuildServerMessageDependencyTracker>()
 
   /// The underlying build server
-  private var underlyingBuildServer: BuiltInBuildServer
+  private var underlyingBuildServer: any BuiltInBuildServer
 
   /// The connection with which messages are sent to `BuildServerManager`.
   private let connectionToSourceKitLSP: LocalConnection
@@ -69,7 +69,7 @@ actor BuiltInBuildServerAdapter: QueueBasedMessageHandler {
   /// Create a `BuiltInBuildServerAdapter` form an existing `BuiltInBuildServer` and connection to communicate messages
   /// from the build server to SourceKit-LSP.
   init(
-    underlyingBuildServer: BuiltInBuildServer,
+    underlyingBuildServer: any BuiltInBuildServer,
     connectionToSourceKitLSP: LocalConnection,
     buildServerHooks: BuildServerHooks
   ) {

@@ -16,7 +16,7 @@ public func expectThrowsError<T>(
   _ expression: @autoclosure () async throws -> T,
   _ message: @autoclosure () -> String = "",
   sourceLocation: SourceLocation = #_sourceLocation,
-  errorHandler: (_ error: Error) -> Void = { _ in }
+  errorHandler: (_ error: any Error) -> Void = { _ in }
 ) async {
   do {
     _ = try await expression()

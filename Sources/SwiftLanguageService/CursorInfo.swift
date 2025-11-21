@@ -165,7 +165,7 @@ extension SwiftLanguageService {
       keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
       keys.retrieveSymbolGraph: includeSymbolGraph ? 1 : 0,
-      keys.compilerArgs: compileCommand?.compilerArgs as [SKDRequestValue]?,
+      keys.compilerArgs: compileCommand?.compilerArgs as [any SKDRequestValue]?,
     ])
 
     appendAdditionalParameters?(skreq)

@@ -220,7 +220,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
   /// extended type. For example, `extension Foo.Bar {}` passes `["Foo", "Bar"]` as `typeNames`.
   /// `typeNames` must not be empty.
   private func visitTypeOrExtensionDecl(
-    _ node: DeclGroupSyntax,
+    _ node: any DeclGroupSyntax,
     typeNames: [String]
   ) -> SyntaxVisitorContinueKind {
     precondition(!typeNames.isEmpty)

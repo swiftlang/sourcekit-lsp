@@ -317,7 +317,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   }
 
   func send(
-    sourcekitdRequest requestUid: KeyPath<sourcekitd_api_requests, sourcekitd_api_uid_t> & Sendable,
+    sourcekitdRequest requestUid: any KeyPath<sourcekitd_api_requests, sourcekitd_api_uid_t> & Sendable,
     _ request: SKDRequestDictionary,
     snapshot: DocumentSnapshot?
   ) async throws -> SKDResponseDictionary {
@@ -534,7 +534,7 @@ extension SwiftLanguageService {
       keys.enableStructure: 0,
       keys.enableDiagnostics: 0,
       keys.syntacticOnly: 1,
-      keys.compilerArgs: compileCommand?.compilerArgs as [SKDRequestValue]?,
+      keys.compilerArgs: compileCommand?.compilerArgs as [any SKDRequestValue]?,
     ])
   }
 

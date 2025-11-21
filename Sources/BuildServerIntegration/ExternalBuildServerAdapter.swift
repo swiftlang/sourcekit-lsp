@@ -93,7 +93,7 @@ actor ExternalBuildServerAdapter {
   private let configPath: URL
 
   /// The `BuildServerManager` that handles messages from the BSP server to SourceKit-LSP.
-  var messagesToSourceKitLSPHandler: MessageHandler
+  var messagesToSourceKitLSPHandler: any MessageHandler
 
   /// The JSON-RPC connection between SourceKit-LSP and the BSP server.
   private(set) var connectionToBuildServer: JSONRPCConnection?
@@ -124,7 +124,7 @@ actor ExternalBuildServerAdapter {
   init(
     projectRoot: URL,
     configPath: URL,
-    messagesToSourceKitLSPHandler: MessageHandler
+    messagesToSourceKitLSPHandler: any MessageHandler
   ) async throws {
     self.projectRoot = projectRoot
     self.configPath = configPath
@@ -135,7 +135,7 @@ actor ExternalBuildServerAdapter {
   /// Change the handler that handles messages from the build server.
   ///
   /// The intended use of this is to intercept messages from the build server by `LegacyBuildServer`.
-  func changeMessageToSourceKitLSPHandler(to newHandler: MessageHandler) {
+  func changeMessageToSourceKitLSPHandler(to newHandler: any MessageHandler) {
     messagesToSourceKitLSPHandler = newHandler
     connectionToBuildServer?.changeReceiveHandler(messagesToSourceKitLSPHandler)
   }
