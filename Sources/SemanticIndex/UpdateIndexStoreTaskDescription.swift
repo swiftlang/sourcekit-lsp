@@ -521,7 +521,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         indexFiles: indexFiles,
         buildSettings: buildSettings,
         processArguments: args,
-        workingDirectory: buildSettings.workingDirectory.map(AbsolutePath.init(validating:))
+        workingDirectory: buildSettings.workingDirectoryPath
       )
     case .singleFile(let file, let buildSettings):
       // We only end up in this case if the file's build settings didn't contain `-index-unit-output-path` and the build
@@ -532,7 +532,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         indexFiles: [file.mainFile],
         buildSettings: buildSettings,
         processArguments: args,
-        workingDirectory: buildSettings.workingDirectory.map(AbsolutePath.init(validating:))
+        workingDirectory: buildSettings.workingDirectoryPath
       )
     }
   }
@@ -556,7 +556,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       indexFiles: [uri],
       buildSettings: buildSettings,
       processArguments: args,
-      workingDirectory: buildSettings.workingDirectory.map(AbsolutePath.init(validating:))
+      workingDirectory: buildSettings.workingDirectoryPath
     )
   }
 
@@ -777,6 +777,17 @@ fileprivate extension Process {
         workingDirectory: workingDirectory,
         outputRedirection: outputRedirection
       )
+    }
+  }
+}
+
+fileprivate extension FileBuildSettings {
+  var workingDirectoryPath: AbsolutePath? {
+    get throws {
+      guard let workingDirectory else {
+        return nil
+      }
+      return try AbsolutePath(validating: workingDirectory)
     }
   }
 }
