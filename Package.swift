@@ -12,6 +12,7 @@ var globalSwiftSettings: [SwiftSetting] {
     .enableUpcomingFeature("InferIsolatedConformances"),
     .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
     .enableUpcomingFeature("ExistentialAny"),
+    .enableUpcomingFeature("ImmutableWeakCaptures"),
 
     // Warning escalation.
     .unsafeFlags(["-Werror", "ExistentialAny"]),
