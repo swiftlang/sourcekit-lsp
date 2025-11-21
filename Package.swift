@@ -3,26 +3,6 @@
 import Foundation
 import PackageDescription
 
-/// Swift settings that should be applied to every Swift target.
-var globalSwiftSettings: [SwiftSetting] {
-  var result: [SwiftSetting] = [
-    // Swift 7 mode upcoming features. These must be compatible with swift-tools-version.
-    .enableUpcomingFeature("InternalImportsByDefault"),
-    .enableUpcomingFeature("MemberImportVisibility"),
-    .enableUpcomingFeature("InferIsolatedConformances"),
-    .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
-    .enableUpcomingFeature("ExistentialAny"),
-    .enableUpcomingFeature("ImmutableWeakCaptures"),
-
-    // Warning escalation.
-    .unsafeFlags(["-Werror", "ExistentialAny"]),
-  ]
-  if noSwiftPMDependency {
-    result += [.define("NO_SWIFTPM_DEPENDENCY")]
-  }
-  return result
-}
-
 var products: [Product] = [
   .executable(name: "sourcekit-lsp", targets: ["sourcekit-lsp"]),
   .library(name: "_SourceKitLSP", targets: ["SourceKitLSP"]),
@@ -56,7 +36,6 @@ var targets: [Target] = [
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ],
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings,
     linkerSettings: sourcekitLSPLinkSettings
   ),
 
@@ -84,7 +63,6 @@ var targets: [Target] = [
         .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
       ]),
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings
   ),
 
   .testTarget(
@@ -98,7 +76,6 @@ var targets: [Target] = [
       "TSCExtensions",
       .product(name: "LanguageServerProtocol", package: "swift-tools-protocols"),
     ],
-    swiftSettings: globalSwiftSettings
   ),
 
   .target(
@@ -124,7 +101,6 @@ var targets: [Target] = [
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
     ] + swiftSyntaxDependencies(["SwiftSyntax"]),
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: CompletionScoring
@@ -133,26 +109,22 @@ var targets: [Target] = [
     name: "CompletionScoring",
     dependencies: ["CCompletionScoring"],
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings
   ),
 
   .target(
     name: "CompletionScoringForPlugin",
     dependencies: ["CCompletionScoring"],
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings
   ),
 
   .testTarget(
     name: "CompletionScoringTests",
     dependencies: ["CompletionScoring", "CompletionScoringTestSupport", "SwiftExtensions"],
-    swiftSettings: globalSwiftSettings
   ),
 
   .testTarget(
     name: "CompletionScoringPerfTests",
     dependencies: ["CompletionScoring", "CompletionScoringTestSupport", "SwiftExtensions"],
-    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: CompletionScoringTestSupport
@@ -165,7 +137,6 @@ var targets: [Target] = [
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
     ],
     resources: [.copy("INPUTS")],
-    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: CSKTestSupport
@@ -204,7 +175,6 @@ var targets: [Target] = [
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
     ] + swiftSyntaxDependencies(["SwiftIDEUtils", "SwiftSyntax", "SwiftParser"]),
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings
   ),
 
   .testTarget(
@@ -218,7 +188,6 @@ var targets: [Target] = [
       .product(name: "SKLogging", package: "swift-tools-protocols"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ],
-    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: DocumentationLanguageService
@@ -240,7 +209,6 @@ var targets: [Target] = [
       .product(name: "SymbolKit", package: "swift-docc-symbolkit"),
     ],
     exclude: [],
-    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: InProcessClient
@@ -261,7 +229,6 @@ var targets: [Target] = [
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
     ],
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: LanguageServerProtocolExtensions
@@ -278,7 +245,6 @@ var targets: [Target] = [
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
     ],
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: SemanticIndex
@@ -298,7 +264,6 @@ var targets: [Target] = [
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
     ],
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings
   ),
 
   .testTarget(
@@ -309,7 +274,6 @@ var targets: [Target] = [
       .product(name: "SKLogging", package: "swift-tools-protocols"),
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
     ],
-    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: SKOptions
@@ -323,7 +287,6 @@ var targets: [Target] = [
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
     ],
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: SKUtilities
@@ -335,7 +298,6 @@ var targets: [Target] = [
       .product(name: "SKLogging", package: "swift-tools-protocols"),
     ],
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings
   ),
 
   .target(
@@ -345,7 +307,7 @@ var targets: [Target] = [
       .product(name: "_SKLoggingForPlugin", package: "swift-tools-protocols"),
     ],
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings + [
+    swiftSettings: [
       .unsafeFlags([
         "-module-alias", "SKLogging=_SKLoggingForPlugin",
         "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
@@ -360,7 +322,6 @@ var targets: [Target] = [
       "SKUtilities",
       "SKTestSupport",
     ],
-    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: SKTestSupport
@@ -388,7 +349,6 @@ var targets: [Target] = [
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
     ],
     resources: [.copy("INPUTS")],
-    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: SourceKitD
@@ -402,7 +362,6 @@ var targets: [Target] = [
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
     ],
     exclude: ["CMakeLists.txt", "sourcekitd_uids.swift.gyb"],
-    swiftSettings: globalSwiftSettings
   ),
 
   .target(
@@ -414,7 +373,7 @@ var targets: [Target] = [
       .product(name: "_ToolsProtocolsSwiftExtensionsForPlugin", package: "swift-tools-protocols"),
     ],
     exclude: ["CMakeLists.txt", "sourcekitd_uids.swift.gyb"],
-    swiftSettings: globalSwiftSettings + [
+    swiftSettings: [
       .unsafeFlags([
         "-module-alias", "SKLogging=_SKLoggingForPlugin",
         "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
@@ -433,7 +392,6 @@ var targets: [Target] = [
       "ToolchainRegistry",
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
     ],
-    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: SourceKitLSP
@@ -459,7 +417,6 @@ var targets: [Target] = [
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
     ] + swiftSyntaxDependencies(["SwiftSyntax"]),
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings
   ),
 
   .testTarget(
@@ -487,7 +444,6 @@ var targets: [Target] = [
       + swiftSyntaxDependencies([
         "SwiftIfConfig", "SwiftParser", "SwiftSyntax", "SwiftCompilerPlugin", "SwiftSyntaxMacros",
       ]),
-    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: SwiftExtensions
@@ -498,7 +454,6 @@ var targets: [Target] = [
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols")
     ],
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings
   ),
 
   .target(
@@ -507,7 +462,7 @@ var targets: [Target] = [
       .product(name: "_ToolsProtocolsSwiftExtensionsForPlugin", package: "swift-tools-protocols")
     ],
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings + [
+    swiftSettings: [
       .unsafeFlags([
         "-module-alias", "ToolsProtocolsSwiftExtensions=_ToolsProtocolsSwiftExtensionsForPlugin",
       ])
@@ -522,7 +477,6 @@ var targets: [Target] = [
       .product(name: "SKLogging", package: "swift-tools-protocols"),
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
     ],
-    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: SwiftLanguageService
@@ -561,7 +515,6 @@ var targets: [Target] = [
         "SwiftSyntaxBuilder",
       ]),
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: SwiftSourceKitClientPlugin
@@ -575,7 +528,7 @@ var targets: [Target] = [
       "SwiftSourceKitPluginCommon",
     ],
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings + [
+    swiftSettings: [
       .unsafeFlags([
         "-module-alias", "SourceKitD=SourceKitDForPlugin",
         "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
@@ -596,7 +549,7 @@ var targets: [Target] = [
       .product(name: "_SKLoggingForPlugin", package: "swift-tools-protocols"),
     ],
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings + [
+    swiftSettings: [
       .unsafeFlags([
         "-module-alias", "SourceKitD=SourceKitDForPlugin",
         "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
@@ -621,7 +574,7 @@ var targets: [Target] = [
       .product(name: "_ToolsProtocolsSwiftExtensionsForPlugin", package: "swift-tools-protocols"),
     ],
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings + [
+    swiftSettings: [
       .unsafeFlags([
         "-module-alias", "CompletionScoring=CompletionScoringForPlugin",
         "-module-alias", "SKUtilities=SKUtilitiesForPlugin",
@@ -646,7 +599,6 @@ var targets: [Target] = [
       "ToolchainRegistry",
       .product(name: "LanguageServerProtocol", package: "swift-tools-protocols"),
     ],
-    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: ToolchainRegistry
@@ -660,7 +612,6 @@ var targets: [Target] = [
       .product(name: "SKLogging", package: "swift-tools-protocols"),
     ],
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings
   ),
 
   .testTarget(
@@ -669,7 +620,6 @@ var targets: [Target] = [
       "SKTestSupport",
       "ToolchainRegistry",
     ],
-    swiftSettings: globalSwiftSettings
   ),
 
   // MARK: TSCExtensions
@@ -683,7 +633,6 @@ var targets: [Target] = [
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
     ],
     exclude: ["CMakeLists.txt"],
-    swiftSettings: globalSwiftSettings
   ),
 
   .testTarget(
@@ -694,9 +643,38 @@ var targets: [Target] = [
       "TSCExtensions",
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
     ],
-    swiftSettings: globalSwiftSettings
   ),
 ]
+
+// MARK: - Apply global Swift settings
+
+// Apply global Swift settings to targets.
+do {
+  var globalSwiftSettings: [SwiftSetting] = [
+    // Swift 7 mode upcoming features. These must be compatible with swift-tools-version.
+    .enableUpcomingFeature("InternalImportsByDefault"),
+    .enableUpcomingFeature("MemberImportVisibility"),
+    .enableUpcomingFeature("InferIsolatedConformances"),
+    .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+    .enableUpcomingFeature("ExistentialAny"),
+    .enableUpcomingFeature("ImmutableWeakCaptures"),
+
+    // Warning escalation.
+    .unsafeFlags(["-Werror", "ExistentialAny"]),
+  ]
+  if noSwiftPMDependency {
+    globalSwiftSettings.append(.define("NO_SWIFTPM_DEPENDENCY"))
+  }
+
+  for target in targets where target.type != .plugin {
+    if let swiftSettings = target.swiftSettings {
+      // Target-specific settings should come last.
+      target.swiftSettings = globalSwiftSettings + swiftSettings
+    } else {
+      target.swiftSettings = globalSwiftSettings
+    }
+  }
+}
 
 if buildOnlyTests {
   products = []
