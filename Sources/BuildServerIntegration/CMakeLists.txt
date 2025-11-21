@@ -20,8 +20,8 @@ add_library(BuildServerIntegration STATIC
   LegacyBuildServer.swift
   MainFilesProvider.swift
   SplitShellCommand.swift
-  SwiftlyResolver.swift
-  SwiftPMBuildServer.swift)
+  SwiftPMBuildServer.swift
+  SwiftToolchainResolver.swift)
 set_target_properties(BuildServerIntegration PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 target_link_libraries(BuildServerIntegration PUBLIC
