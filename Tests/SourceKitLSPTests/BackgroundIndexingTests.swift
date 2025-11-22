@@ -2983,6 +2983,93 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
       ]
     )
   }
+
+  func testBuildServerUsesCustomTaskBatchSize() async throws {
+    actor BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+      private let projectRoot: URL
+      private var testFileURL: URL { projectRoot.appendingPathComponent("test.swift").standardized }
+      private var preparedTargetBatches = [[BuildTargetIdentifier]]()
+
+      init(projectRoot: URL, connectionToSourceKitLSP _: any LanguageServerProtocol.Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: false,
+        )
+      }
+
+      func buildTargetSourcesRequest(_: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        var dummyTargets = [BuildTargetIdentifier]()
+        for i in 0..<10 {
+          dummyTargets.append(BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-\(i)")))
+        }
+        return BuildTargetSourcesResponse(
+          items: dummyTargets.map {
+            SourcesItem(target: $0, sources: [SourceItem(uri: URI(testFileURL), kind: .file, generated: false)])
+          }
+        )
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: [request.textDocument.uri.pseudoPath])
+      }
+
+      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+        preparedTargetBatches.append(request.targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
+        return VoidResponse()
+      }
+
+      fileprivate func getPreparedBatches() async -> [[BuildTargetIdentifier]] {
+        return preparedTargetBatches.sorted { $0[0].uri.stringValue < $1[0].uri.stringValue }
+      }
+    }
+
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "test.swift": """
+        func testFunction() {}
+        """
+      ],
+      buildServer: BuildServer.self,
+      options: SourceKitLSPOptions(preparationBatchingStrategy: .fixedTargetBatchSize(batchSize: 3)),
+      enableBackgroundIndexing: true,
+    )
+
+    try await project.testClient.send(SynchronizeRequest(index: true))
+
+    let buildServer = try project.buildServer()
+    let preparedBatches = await buildServer.getPreparedBatches()
+
+    XCTAssertEqual(
+      preparedBatches,
+      [
+        [
+          BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-0")),
+          BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-1")),
+          BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-2")),
+        ],
+        [
+          BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-3")),
+          BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-4")),
+          BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-5")),
+        ],
+        [
+          BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-6")),
+          BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-7")),
+          BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-8")),
+        ],
+        [
+          BuildTargetIdentifier(uri: try! URI(string: "dummy://dummy-9"))
+        ],
+      ]
+    )
+  }
 }
 
 extension HoverResponseContents {
