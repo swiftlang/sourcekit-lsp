@@ -245,7 +245,9 @@ extension SourceKitLSPServer {
 
     let semanticTestSymbolOccurrences = index?.unitTests().filter { return $0.canBeTestDefinition } ?? []
 
-    let testsFromSyntacticIndex = await workspace.syntacticIndex.tests()
+    let testsFromSyntacticIndex = await languageServices.values.asyncFlatMap {
+      await $0.asyncFlatMap { await $0.syntacticTests(in: workspace) }
+    }
     let testsFromSemanticIndex = testItems(
       for: semanticTestSymbolOccurrences,
       index: index,
@@ -292,7 +294,7 @@ extension SourceKitLSPServer {
         return nil
       }
 
-    // We don't need to sort the tests here because they will get
+    // We don't need to sort the tests here because they will get sorted by `workspaceTests` request handler
     return testsFromSemanticIndex + syntacticTestsToInclude + testsFromFilesWithInMemoryState
   }
 

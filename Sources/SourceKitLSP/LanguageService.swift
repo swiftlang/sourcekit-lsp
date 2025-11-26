@@ -313,12 +313,15 @@ package protocol LanguageService: AnyObject, Sendable {
   /// A return value of `nil` indicates that this language service does not support syntactic test discovery.
   func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [AnnotatedTestItem]?
 
-  /// Syntactically scans the file at the given URL for tests declared within it.
-  ///
-  /// Does not write the results to the index.
+  /// Returns the syntactically scanned tests declared within the workspace.
   ///
   /// The order of the returned tests is not defined. The results should be sorted before being returned to the editor.
-  static func syntacticTestItems(in uri: DocumentURI) async -> [AnnotatedTestItem]
+  func syntacticTests(in workspace: Workspace) async -> [AnnotatedTestItem]
+
+  /// Returns the syntactically scanned playgrounds declared within the workspace.
+  ///
+  /// The order of the returned playgrounds is not defined. The results should be sorted before being returned to the editor.
+  func syntacticPlaygrounds(in workspace: Workspace) async -> [Playground]
 
   /// A position that is canonical for all positions within a declaration. For example, if we have the following
   /// declaration, then all `|` markers should return the same canonical position.

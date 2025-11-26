@@ -88,7 +88,11 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     // The DocumentationLanguageService does not do anything with document events
   }
 
-  package static func syntacticTestItems(in uri: DocumentURI) async -> [AnnotatedTestItem] {
+  package func syntacticTests(in workspace: Workspace) async -> [AnnotatedTestItem] {
+    return []
+  }
+
+  package func syntacticPlaygrounds(in workspace: Workspace) async -> [Playground] {
     return []
   }
 

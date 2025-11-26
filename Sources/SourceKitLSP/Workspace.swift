@@ -184,11 +184,12 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     }
   }
 
-  /// The index that syntactically scans the workspace for tests.
-  let syntacticIndex: SyntacticIndex
-
   /// Language service for an open document, if available.
   private let languageServices: ThreadSafeBox<[DocumentURI: [any LanguageService]]> = ThreadSafeBox(initialValue: [:])
+
+  /// Build target listeners
+  private let buildTargetListeners: ThreadSafeBox<[ObjectIdentifier: BuildTargetListener]> = ThreadSafeBox(
+    initialValue: [:])
 
   /// The task that constructs the `SemanticIndexManager`, which keeps track of whose file's index is up-to-date in the
   /// workspace and schedules indexing and preparation tasks for files with out-of-date index.
@@ -260,15 +261,6 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
         return nil
       }
     }
-    // Trigger an initial population of `syntacticIndex`.
-    self.syntacticIndex = SyntacticIndex(
-      languageServiceRegistry: sourceKitLSPServer.languageServiceRegistry,
-      determineTestFiles: {
-        await orLog("Getting list of test files for initial syntactic index population") {
-          try await buildServerManager.testFiles()
-        } ?? []
-      }
-    )
   }
 
   /// Creates a workspace for a given root `DocumentURI`, inferring the `ExternalWorkspace` if possible.
@@ -407,9 +399,9 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     // Notify all clients about the reported and inferred edits.
     await buildServerManager.filesDidChange(events)
 
-    async let updateSyntacticIndex: Void = await syntacticIndex.filesDidChange(events)
+    async let updateServer: Void? = await sourceKitLSPServer?.filesDidChange(events)
     async let updateSemanticIndex: Void? = await semanticIndexManager?.filesDidChange(events)
-    _ = await (updateSyntacticIndex, updateSemanticIndex)
+    _ = await (updateServer, updateSemanticIndex)
   }
 
   /// The language services that can handle the given document. Callers should try to merge the results from the
@@ -471,12 +463,25 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   package func buildTargetsChanged(_ changedTargets: Set<BuildTargetIdentifier>?) async {
     await sourceKitLSPServer?.fileHandlingCapabilityChanged()
     await semanticIndexManager?.buildTargetsChanged(changedTargets)
-    await orLog("Scheduling syntactic test re-indexing") {
-      let testFiles = try await buildServerManager.testFiles()
-      await syntacticIndex.listOfTestFilesDidChange(testFiles)
+    await orLog("Scheduling syntactic file re-indexing") {
+      _ = await buildTargetListeners.value.values.asyncMap {
+        await $0.buildTargetsChanged(changedTargets)
+      }
     }
 
     await scheduleUpdateOfUnitOutputPathsInIndexIfNecessary()
+  }
+
+  package func addBuiltTargetListener(_ listener: any BuildTargetListener) {
+    buildTargetListeners.withLock {
+      $0[ObjectIdentifier(listener)] = listener
+    }
+  }
+
+  package func removeBuiltTargetListener(_ listener: any BuildTargetListener) {
+    buildTargetListeners.withLock {
+      $0[ObjectIdentifier(listener)] = nil
+    }
   }
 
   private func scheduleUpdateOfUnitOutputPathsInIndexIfNecessary() async {

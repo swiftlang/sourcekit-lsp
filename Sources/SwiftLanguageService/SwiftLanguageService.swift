@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 package import BuildServerIntegration
-@_spi(SourceKitLSP) import BuildServerProtocol
 import Csourcekitd
 import Dispatch
 import Foundation
@@ -137,7 +136,14 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   ///   might have finished. This isn't an issue since the tasks do not retain `self`.
   private var inFlightPublishDiagnosticsTasks: [DocumentURI: Task<Void, Never>] = [:]
 
-  let syntaxTreeManager = SyntaxTreeManager()
+  /// Shared syntax tree manager to share syntax trees when syntactically parsing different types
+  let syntaxTreeManager: SyntaxTreeManager
+
+  /// The index that syntactically scans the workspace.
+  let syntacticIndex: SwiftSyntacticIndex
+
+  /// Workspace this language service was created for
+  let workspace: Workspace
 
   /// The `semanticIndexManager` of the workspace this language service was created for.
   private let semanticIndexManagerTask: Task<SemanticIndexManager?, Never>
@@ -211,9 +217,12 @@ package actor SwiftLanguageService: LanguageService, Sendable {
         "Cannot create SwiftLanguage service because \(toolchain.identifier) does not contain sourcekitd"
       )
     }
+    let syntaxTreeManager = SyntaxTreeManager()
+    self.syntaxTreeManager = syntaxTreeManager
     self.sourcekitdPath = sourcekitd
     self.sourceKitLSPServer = sourceKitLSPServer
     self.toolchain = toolchain
+    self.workspace = workspace
     let pluginPaths: PluginPaths?
     if let clientPlugin = options.sourcekitdOrDefault.clientPlugin,
       let servicePlugin = options.sourcekitdOrDefault.servicePlugin
@@ -269,6 +278,27 @@ package actor SwiftLanguageService: LanguageService, Sendable {
       documentManager: sourceKitLSPServer.documentManager,
       clientHasDiagnosticsCodeDescriptionSupport: await capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
     )
+
+    // Trigger an initial population of `syntacticIndex`.
+    self.syntacticIndex = SwiftSyntacticIndex(
+      determineFilesToScan: { targets in
+        await orLog("Getting list of files for syntactic index population") {
+          try await workspace.buildServerManager.projectSourceFiles(in: targets)
+        } ?? []
+      },
+      syntacticTests: {
+        await SwiftLanguageService.syntacticTestItems(for: $0, using: syntaxTreeManager)
+      },
+      syntacticPlaygrounds: {
+        await SwiftLanguageService.syntacticPlaygrounds(
+          for: $0,
+          in: workspace,
+          using: syntaxTreeManager,
+          toolchain: toolchain
+        )
+      }
+    )
+    workspace.addBuiltTargetListener(syntacticIndex)
 
     self.macroExpansionManager = MacroExpansionManager(swiftLanguageService: self)
     self.generatedInterfaceManager = GeneratedInterfaceManager(swiftLanguageService: self)
@@ -367,6 +397,10 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   ) {
     self.stateChangeHandlers.append(handler)
   }
+
+  package func filesDidChange(_ events: [FileEvent]) async {
+    await syntacticIndex.filesDidChange(events)
+  }
 }
 
 extension SwiftLanguageService {
@@ -424,6 +458,7 @@ extension SwiftLanguageService {
   }
 
   package func shutdown() async {
+    self.workspace.removeBuiltTargetListener(syntacticIndex)
     await self.sourcekitd.removeNotificationHandler(self)
   }
 
@@ -1118,6 +1153,14 @@ extension SwiftLanguageService {
         content: try await generatedInterfaceManager.snapshot(of: data).text
       )
     }
+  }
+
+  package func syntacticTests(in workspace: Workspace) async -> [AnnotatedTestItem] {
+    await syntacticIndex.tests()
+  }
+
+  package func syntacticPlaygrounds(in workspace: Workspace) async -> [Playground] {
+    await syntacticIndex.playgrounds()
   }
 }
 
