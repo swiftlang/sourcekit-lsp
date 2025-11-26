@@ -864,6 +864,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await request.reply { try await workspaceSymbols(request.params) }
     case let request as RequestAndReply<WorkspaceTestsRequest>:
       await request.reply { try await workspaceTests(request.params) }
+    case let request as RequestAndReply<WorkspacePlaygroundsRequest>:
+      await request.reply { try await workspacePlaygrounds(request.params) }
     // IMPORTANT: When adding a new entry to this switch, also add it to the `MessageHandlingDependencyTracker` initializer.
     default:
       await request.reply { throw ResponseError.methodNotFound(Request.method) }
@@ -1118,6 +1120,7 @@ extension SourceKitLSPServer {
       TriggerReindexRequest.method: .dictionary(["version": .int(1)]),
       GetReferenceDocumentRequest.method: .dictionary(["version": .int(1)]),
       DidChangeActiveDocumentNotification.method: .dictionary(["version": .int(1)]),
+      WorkspacePlaygroundsRequest.method: .dictionary(["version": .int(1)]),
     ]
     for (key, value) in languageServiceRegistry.languageServices.flatMap({ $0.type.experimentalCapabilities }) {
       if let existingValue = experimentalCapabilities[key] {
@@ -1531,8 +1534,12 @@ extension SourceKitLSPServer {
     // settings). Inform the build server about all file changes.
     await workspaces.concurrentForEach { await $0.filesDidChange(notification.changes) }
 
+    await filesDidChange(notification.changes)
+  }
+
+  func filesDidChange(_ events: [FileEvent]) async {
     for languageService in languageServices.values.flatMap(\.self) {
-      await languageService.filesDidChange(notification.changes)
+      await languageService.filesDidChange(events)
     }
   }
 

@@ -644,7 +644,11 @@ extension ClangLanguageService {
     return nil
   }
 
-  package static func syntacticTestItems(in uri: DocumentURI) async -> [AnnotatedTestItem] {
+  package func syntacticTests(in workspace: Workspace) async -> [AnnotatedTestItem] {
+    return []
+  }
+
+  package func syntacticPlaygrounds(in workspace: Workspace) async -> [Playground] {
     return []
   }
 

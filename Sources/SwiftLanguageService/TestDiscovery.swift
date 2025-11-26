@@ -47,18 +47,15 @@ extension SwiftLanguageService {
     return (xctestSymbols + swiftTestingSymbols).sorted { $0.testItem.location < $1.testItem.location }
   }
 
-  package static func syntacticTestItems(in uri: DocumentURI) async -> [AnnotatedTestItem] {
-    guard let url = uri.fileURL else {
-      logger.log("Not indexing \(uri.forLogging) for tests because it is not a file URL")
-      return []
-    }
-    let syntaxTreeManager = SyntaxTreeManager()
-    let snapshot = orLog("Getting document snapshot for syntactic Swift test scanning") {
-      try DocumentSnapshot(withContentsFromDisk: url, language: .swift)
-    }
-    guard let snapshot else {
-      return []
-    }
+  /// Syntactically scans the snapshot for tests declared within it.
+  ///
+  /// Does not write the results to the index.
+  ///
+  /// The order of the returned tests is not defined. The results should be sorted before being returned to the editor.
+  static package func syntacticTestItems(
+    for snapshot: DocumentSnapshot,
+    using syntaxTreeManager: SyntaxTreeManager
+  ) async -> [AnnotatedTestItem] {
     async let swiftTestingTests = SyntacticSwiftTestingTestScanner.findTestSymbols(
       in: snapshot,
       syntaxTreeManager: syntaxTreeManager
