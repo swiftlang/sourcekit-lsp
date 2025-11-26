@@ -38,7 +38,7 @@ package enum ReferenceDocumentURL {
 
   var url: URL {
     get throws {
-      let data: ReferenceURLData =
+      let data: any ReferenceURLData =
         switch self {
         case .macroExpansion(let data): data
         case .generatedInterface(let data): data

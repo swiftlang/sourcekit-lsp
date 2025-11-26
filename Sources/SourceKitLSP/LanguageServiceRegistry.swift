@@ -16,7 +16,7 @@ import IndexStoreDB
 
 /// Wrapper around `LanguageService.Type`, making it conform to `Hashable`.
 struct LanguageServiceType: Hashable {
-  let type: LanguageService.Type
+  let type: any LanguageService.Type
 
   init(_ type: any LanguageService.Type) {
     self.type = type
@@ -38,7 +38,7 @@ package struct LanguageServiceRegistry {
 
   package init() {}
 
-  package mutating func register(_ languageService: LanguageService.Type, for languages: [Language]) {
+  package mutating func register(_ languageService: any LanguageService.Type, for languages: [Language]) {
     for language in languages {
       let services = byLanguage[language] ?? []
       if services.contains(LanguageServiceType(languageService)) {
@@ -57,7 +57,7 @@ package struct LanguageServiceRegistry {
   /// services), that's the preferred choice.
   /// Otherwise the language services occurring early in the array should be given precedence and the results of the
   /// first language service that produces some should be returned.
-  func languageServices(for language: Language) -> [LanguageService.Type] {
+  func languageServices(for language: Language) -> [any LanguageService.Type] {
     return byLanguage[language]?.map(\.type) ?? []
   }
 

@@ -113,7 +113,7 @@ actor DiagnosticReportManager {
     let skreq = sourcekitd.dictionary([
       keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
-      keys.compilerArgs: compilerArgs as [SKDRequestValue],
+      keys.compilerArgs: compilerArgs as [any SKDRequestValue],
     ])
 
     let dict: SKDResponseDictionary

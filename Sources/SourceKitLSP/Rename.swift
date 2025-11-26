@@ -107,7 +107,7 @@ extension SourceKitLSPServer {
     usr: String,
     index: CheckedIndex,
     workspace: Workspace
-  ) async -> (swiftLanguageService: NameTranslatorService, snapshot: DocumentSnapshot, location: SymbolLocation)? {
+  ) async -> (swiftLanguageService: any NameTranslatorService, snapshot: DocumentSnapshot, location: SymbolLocation)? {
     var reference: SymbolOccurrence? = nil
     index.forEachSymbolOccurrence(byUSR: usr, roles: renameRoles) {
       if $0.symbolProvider == .swift {
@@ -126,7 +126,7 @@ extension SourceKitLSPServer {
       return nil
     }
     let swiftLanguageService = await orLog("Getting NameTranslatorService") {
-      try await self.primaryLanguageService(for: uri, .swift, in: workspace) as? NameTranslatorService
+      try await self.primaryLanguageService(for: uri, .swift, in: workspace) as? (any NameTranslatorService)
     }
     guard let swiftLanguageService else {
       return nil
@@ -217,7 +217,7 @@ extension SourceKitLSPServer {
           for: definitionDocumentUri,
           definitionLanguage,
           in: workspace
-        ) as? NameTranslatorService
+        ) as? (any NameTranslatorService)
       else {
         throw ResponseError.unknown("Failed to get language service for the document defining \(usr)")
       }
@@ -435,7 +435,7 @@ extension SourceKitLSPServer {
   func prepareRename(
     _ request: PrepareRenameRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> PrepareRenameResponse? {
     guard let languageServicePrepareRename = try await languageService.prepareRename(request) else {
       return nil
@@ -464,7 +464,7 @@ extension SourceKitLSPServer {
   func indexedRename(
     _ request: IndexedRenameRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> WorkspaceEdit? {
     return try await languageService.indexedRename(request)
   }

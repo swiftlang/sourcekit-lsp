@@ -174,12 +174,12 @@ struct ConvertResponse: Sendable, Codable {
 
 /// Represents a potential error that the ``DocCServer`` could encounter while processing requests
 enum DocCServerError: LocalizedError {
-  case encodingFailure(_ encodingError: Error)
-  case decodingFailure(_ decodingError: Error)
-  case messagePayloadDecodingFailure(messageType: String, decodingError: Error)
+  case encodingFailure(_ encodingError: any Error)
+  case decodingFailure(_ decodingError: any Error)
+  case messagePayloadDecodingFailure(messageType: String, decodingError: any Error)
   case unknownMessageType(_ messageType: String)
   case unexpectedlyNilPayload(_ messageType: String)
-  case internalError(_ underlyingError: LocalizedError)
+  case internalError(_ underlyingError: any LocalizedError)
 
   var errorDescription: String? {
     switch self {

@@ -13,7 +13,7 @@
 @MainActor
 package func reduceFrontendIssue(
   frontendArgs: [String],
-  using executor: SourceKitRequestExecutor,
+  using executor: any SourceKitRequestExecutor,
   progressUpdate: (_ progress: Double, _ message: String) -> Void
 ) async throws -> RequestInfo {
   let requestInfo = try RequestInfo(frontendArgs: frontendArgs)

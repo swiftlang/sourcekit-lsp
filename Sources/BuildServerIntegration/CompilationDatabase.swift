@@ -52,7 +52,7 @@ package struct CompilationDatabaseCompileCommand: Equatable, Codable {
     case output
   }
 
-  package init(from decoder: Decoder) throws {
+  package init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     self.directory = try container.decode(String.self, forKey: .directory)
     self.filename = try container.decode(String.self, forKey: .file)
@@ -70,7 +70,7 @@ package struct CompilationDatabaseCompileCommand: Equatable, Codable {
     }
   }
 
-  package func encode(to encoder: Encoder) throws {
+  package func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(directory, forKey: .directory)
     try container.encode(filename, forKey: .file)
@@ -140,7 +140,7 @@ package struct JSONCompilationDatabase: Equatable, Codable {
   ///
   /// A `URL` representing the directory that contains the `compile_commands.json` must be passed in the decoder's
   /// `userInfo` via the `compileCommandsDirectoryKey`.
-  package init(from decoder: Decoder) throws {
+  package init(from decoder: any Decoder) throws {
     guard let compileCommandsDirectory = decoder.userInfo[.compileCommandsDirectoryKey] as? URL else {
       struct MissingCompileCommandsDirectoryKeyError: Error {}
       throw MissingCompileCommandsDirectoryKeyError()
@@ -169,7 +169,7 @@ package struct JSONCompilationDatabase: Equatable, Codable {
     self = try decoder.decode(JSONCompilationDatabase.self, from: data)
   }
 
-  package func encode(to encoder: Encoder) throws {
+  package func encode(to encoder: any Encoder) throws {
     var container = encoder.unkeyedContainer()
     for command in commands {
       try container.encode(command)

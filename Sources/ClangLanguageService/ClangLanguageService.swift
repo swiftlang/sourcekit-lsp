@@ -54,7 +54,7 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
   private weak var sourceKitLSPServer: SourceKitLSPServer?
 
   /// The connection to the clangd LSP. `nil` until `startClangdProcesss` has been called.
-  var clangd: Connection!
+  var clangd: (any Connection)!
 
   /// Capabilities of the clangd LSP, if received.
   var capabilities: ServerCapabilities? = nil

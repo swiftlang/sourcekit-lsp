@@ -159,7 +159,7 @@ extension SwiftLanguageService {
         sourcekitdRequest: \.diagnostics,
         sourcekitd.dictionary([
           keys.sourceFile: temporaryDocUri.pseudoPath,
-          keys.compilerArgs: patchedCompileCommand.compilerArgs as [SKDRequestValue],
+          keys.compilerArgs: patchedCompileCommand.compilerArgs as [any SKDRequestValue],
         ]),
         snapshot: nil
       )
