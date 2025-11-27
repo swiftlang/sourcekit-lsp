@@ -139,9 +139,6 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   /// Shared syntax tree manager to share syntax trees when syntactically parsing different types
   let syntaxTreeManager: SyntaxTreeManager
 
-  /// The index that syntactically scans the workspace.
-  let syntacticIndex: SwiftSyntacticIndex
-
   /// Workspace this language service was created for
   let workspace: Workspace
 
@@ -279,27 +276,6 @@ package actor SwiftLanguageService: LanguageService, Sendable {
       clientHasDiagnosticsCodeDescriptionSupport: await capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
     )
 
-    // Trigger an initial population of `syntacticIndex`.
-    self.syntacticIndex = SwiftSyntacticIndex(
-      determineFilesToScan: { targets in
-        await orLog("Getting list of files for syntactic index population") {
-          try await workspace.buildServerManager.projectSourceFiles(in: targets)
-        } ?? []
-      },
-      syntacticTests: {
-        await SwiftLanguageService.syntacticTestItems(for: $0, using: syntaxTreeManager)
-      },
-      syntacticPlaygrounds: {
-        await SwiftLanguageService.syntacticPlaygrounds(
-          for: $0,
-          in: workspace,
-          using: syntaxTreeManager,
-          toolchain: toolchain
-        )
-      }
-    )
-    workspace.addBuiltTargetListener(syntacticIndex)
-
     self.macroExpansionManager = MacroExpansionManager(swiftLanguageService: self)
     self.generatedInterfaceManager = GeneratedInterfaceManager(swiftLanguageService: self)
 
@@ -397,10 +373,6 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   ) {
     self.stateChangeHandlers.append(handler)
   }
-
-  package func filesDidChange(_ events: [FileEvent]) async {
-    await syntacticIndex.filesDidChange(events)
-  }
 }
 
 extension SwiftLanguageService {
@@ -458,7 +430,6 @@ extension SwiftLanguageService {
   }
 
   package func shutdown() async {
-    self.workspace.removeBuiltTargetListener(syntacticIndex)
     await self.sourcekitd.removeNotificationHandler(self)
   }
 
@@ -1153,14 +1124,6 @@ extension SwiftLanguageService {
         content: try await generatedInterfaceManager.snapshot(of: data).text
       )
     }
-  }
-
-  package func syntacticTests(in workspace: Workspace) async -> [AnnotatedTestItem] {
-    await syntacticIndex.tests()
-  }
-
-  package func syntacticPlaygrounds(in workspace: Workspace) async -> [Playground] {
-    await syntacticIndex.playgrounds()
   }
 }
 

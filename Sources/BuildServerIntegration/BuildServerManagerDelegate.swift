@@ -30,16 +30,6 @@ package protocol BuildServerManagerDelegate: AnyObject, Sendable {
   /// Notify the delegate that some information about the given build targets has changed and that it should recompute
   /// any information based on top of it.
   func buildTargetsChanged(_ changedTargets: Set<BuildTargetIdentifier>?) async
-
-  func addBuiltTargetListener(_ listener: any BuildTargetListener)
-
-  func removeBuiltTargetListener(_ listener: any BuildTargetListener)
-}
-
-package protocol BuildTargetListener: AnyObject, Sendable {
-  /// Notify the listener that some information about the given build targets has changed and that it should recompute
-  /// any information based on top of it.
-  func buildTargetsChanged(_ changedTargets: Set<BuildTargetIdentifier>?) async
 }
 
 /// Methods with which the `BuildServerManager` can send messages to the client (aka. editor).

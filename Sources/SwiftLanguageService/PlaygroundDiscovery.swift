@@ -13,24 +13,18 @@
 import BuildServerIntegration
 @_spi(SourceKitLSP) import BuildServerProtocol
 import Foundation
-@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
 import SemanticIndex
-import SourceKitLSP
+package import SourceKitLSP
 import SwiftExtensions
-import ToolchainRegistry
 
 extension SwiftLanguageService {
-  static func syntacticPlaygrounds(
+  package func syntacticPlaygrounds(
     for snapshot: DocumentSnapshot,
-    in workspace: Workspace,
-    using syntaxTreeManager: SyntaxTreeManager,
-    toolchain: Toolchain
+    in workspace: Workspace
   ) async -> [TextDocumentPlayground] {
-    guard toolchain.swiftPlay != nil else {
-      return []
-    }
-    return await SwiftPlaygroundsScanner.findDocumentPlaygrounds(
+    await SwiftPlaygroundsScanner.findDocumentPlaygrounds(
       for: snapshot,
       workspace: workspace,
       syntaxTreeManager: syntaxTreeManager

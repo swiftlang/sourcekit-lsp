@@ -83,7 +83,7 @@ private struct IndexedSourceFile {
 ///
 /// The index does not get persisted to disk but instead gets rebuilt every time a workspace is opened (ie. usually when
 /// sourcekit-lsp is launched). Building it takes only a few seconds, even for large projects.
-package actor SwiftSyntacticIndex: BuildTargetListener, Sendable {
+package actor SwiftSyntacticIndex: Sendable {
   /// The tests discovered by the index.
   private var indexedSources: [DocumentURI: IndexedSourceFile] = [:]
 
@@ -104,20 +104,23 @@ package actor SwiftSyntacticIndex: BuildTargetListener, Sendable {
   /// Fetch the list of source files to scan for a given set of build targets
   private let determineFilesToScan: @Sendable (Set<BuildTargetIdentifier>?) async -> [DocumentURI]
 
-  // Syntactically parse tests from the given snapshot
-  private let syntacticTests: @Sendable (DocumentSnapshot) async -> [AnnotatedTestItem]
+  /// Syntactically parse tests from the given snapshot
+  private let syntacticTests: @Sendable (DocumentSnapshot, Workspace) async -> [AnnotatedTestItem]
 
-  // Syntactically parse playgrounds from the given snapshot
-  private let syntacticPlaygrounds: @Sendable (DocumentSnapshot) async -> [TextDocumentPlayground]
+  /// Syntactically parse playgrounds from the given snapshot
+  private let syntacticPlaygrounds: @Sendable (DocumentSnapshot, Workspace) async -> [TextDocumentPlayground]
 
   package init(
     determineFilesToScan: @Sendable @escaping (Set<BuildTargetIdentifier>?) async -> [DocumentURI],
-    syntacticTests: @Sendable @escaping (DocumentSnapshot) async -> [AnnotatedTestItem],
-    syntacticPlaygrounds: @Sendable @escaping (DocumentSnapshot) async -> [TextDocumentPlayground]
+    syntacticTests: @Sendable @escaping (DocumentSnapshot, Workspace) async -> [AnnotatedTestItem],
+    syntacticPlaygrounds: @Sendable @escaping (DocumentSnapshot, Workspace) async -> [TextDocumentPlayground]
   ) {
     self.determineFilesToScan = determineFilesToScan
     self.syntacticTests = syntacticTests
     self.syntacticPlaygrounds = syntacticPlaygrounds
+  }
+
+  func scan(workspace: Workspace) {
     indexingQueue.async(priority: .low, metadata: .initialPopulation) {
       let filesToScan = await self.determineFilesToScan(nil)
       // Divide the files into multiple batches. This is more efficient than spawning a new task for every file, mostly
@@ -128,7 +131,7 @@ package actor SwiftSyntacticIndex: BuildTargetListener, Sendable {
       let batches = filesToScan.partition(intoNumberOfBatches: ProcessInfo.processInfo.activeProcessorCount * 4)
       await batches.concurrentForEach { filesInBatch in
         for uri in filesInBatch {
-          await self.rescanFileAssumingOnQueue(uri)
+          await self.rescanFileAssumingOnQueue(uri, workspace)
         }
       }
     }
@@ -144,15 +147,15 @@ package actor SwiftSyntacticIndex: BuildTargetListener, Sendable {
   /// Called when the list of targets is updated.
   ///
   /// All files that are not in the new list of buildable files will be removed from the index.
-  package func buildTargetsChanged(_ changedTargets: Set<BuildTargetIdentifier>?) async {
+  package func buildTargetsChanged(_ changedTargets: Set<BuildTargetIdentifier>?, _ workspace: Workspace) async {
     let changedFiles = await determineFilesToScan(changedTargets)
     let removedFiles = Set(self.indexedSources.keys).subtracting(changedFiles)
     removeFilesFromIndex(removedFiles)
 
-    rescanFiles(changedFiles)
+    rescanFiles(changedFiles, workspace)
   }
 
-  package func filesDidChange(_ events: [FileEvent]) {
+  package func filesDidChange(_ events: [FileEvent], _ workspace: Workspace) {
     var removedFiles: Set<DocumentURI> = []
     var filesToRescan: [DocumentURI] = []
     for fileEvent in events {
@@ -168,11 +171,11 @@ package actor SwiftSyntacticIndex: BuildTargetListener, Sendable {
       }
     }
     removeFilesFromIndex(removedFiles)
-    rescanFiles(filesToRescan)
+    rescanFiles(filesToRescan, workspace)
   }
 
   /// Called when a list of files was updated. Re-scans those files
-  private func rescanFiles(_ uris: [DocumentURI]) {
+  private func rescanFiles(_ uris: [DocumentURI], _ workspace: Workspace) {
     // If we scan a file again, it might have been added after being removed before. Remove it from the list of removed
     // files.
     removedFiles.subtract(uris)
@@ -212,7 +215,7 @@ package actor SwiftSyntacticIndex: BuildTargetListener, Sendable {
     for batch in batches {
       self.indexingQueue.async(priority: .low, metadata: .index(Set(batch))) {
         for uri in batch {
-          await self.rescanFileAssumingOnQueue(uri)
+          await self.rescanFileAssumingOnQueue(uri, workspace)
         }
       }
     }
@@ -221,7 +224,7 @@ package actor SwiftSyntacticIndex: BuildTargetListener, Sendable {
   /// Re-scans a single file.
   ///
   /// - Important: This method must be called in a task that is executing on `indexingQueue`.
-  private func rescanFileAssumingOnQueue(_ uri: DocumentURI) async {
+  private func rescanFileAssumingOnQueue(_ uri: DocumentURI, _ workspace: Workspace) async {
     guard let url = uri.fileURL else {
       logger.log("Not indexing \(uri.forLogging) because it is not a file URL")
       return
@@ -254,10 +257,6 @@ package actor SwiftSyntacticIndex: BuildTargetListener, Sendable {
       return
     }
 
-    guard let url = uri.fileURL else {
-      logger.log("Not indexing \(uri.forLogging) because it is not a file URL")
-      return
-    }
     let snapshot: DocumentSnapshot? = orLog("Getting document snapshot for syntactic Swift scanning") {
       try DocumentSnapshot(withContentsFromDisk: url, language: .swift)
     }
@@ -265,7 +264,9 @@ package actor SwiftSyntacticIndex: BuildTargetListener, Sendable {
       return
     }
 
-    let (testItems, playgrounds) = await (syntacticTests(snapshot), syntacticPlaygrounds(snapshot))
+    let (testItems, playgrounds) = await (
+      syntacticTests(snapshot, workspace), syntacticPlaygrounds(snapshot, workspace)
+    )
 
     guard !removedFiles.contains(uri) else {
       // Check whether the file got removed while we were scanning it for tests. If so, don't add it back to
