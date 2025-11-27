@@ -68,14 +68,39 @@ struct OptionDocumentBuilder {
           try appendProperty(property, indentLevel: indentLevel + 1)
         }
       case .enum(let schema):
-        for caseInfo in schema.cases {
-          // Add detailed description for each case if available
-          guard let description = caseInfo.description else {
-            continue
+        let hasAssociatedTypes = schema.cases.contains {
+          $0.associatedProperties != nil && !$0.associatedProperties!.isEmpty
+        }
+
+        if hasAssociatedTypes {
+          let discriminatorFieldName = schema.discriminatorFieldName ?? "type"
+          doc +=
+            "\(indent)  - This is a tagged union discriminated by the `\(discriminatorFieldName)` field. Each case has the following structure:\n"
+
+          for caseInfo in schema.cases {
+            doc += """
+              \(indent)  - `\(discriminatorFieldName): "\(caseInfo.name)"`
+              """
+            if let description = caseInfo.description {
+              doc += ": " + description.split(separator: "\n").joined(separator: "\n\(indent)    ")
+            }
+            doc += "\n"
+
+            if let associatedProperties = caseInfo.associatedProperties {
+              for assocProp in associatedProperties {
+                try appendProperty(assocProp, indentLevel: indentLevel + 2)
+              }
+            }
           }
-          doc += "\(indent)  - `\(caseInfo.name)`"
-          doc += ": " + description.split(separator: "\n").joined(separator: "\n\(indent)    ")
-          doc += "\n"
+        } else {
+          for caseInfo in schema.cases {
+            guard let description = caseInfo.description else {
+              continue
+            }
+            doc += "\(indent)  - `\(caseInfo.name)`"
+            doc += ": " + description.split(separator: "\n").joined(separator: "\n\(indent)    ")
+            doc += "\n"
+          }
         }
       default: break
       }
@@ -102,8 +127,15 @@ struct OptionDocumentBuilder {
     case .struct(let structInfo):
       return structInfo.name
     case .enum(let enumInfo):
-      let cases = enumInfo.cases.map { "\"\($0.name)\"" }.joined(separator: "|")
-      return shouldWrap ? "(\(cases))" : cases
+      let hasAssociatedTypes = enumInfo.cases.contains {
+        $0.associatedProperties != nil && !$0.associatedProperties!.isEmpty
+      }
+      if hasAssociatedTypes {
+        return "object"
+      } else {
+        let cases = enumInfo.cases.map { "\"\($0.name)\"" }.joined(separator: "|")
+        return shouldWrap ? "(\(cases))" : cases
+      }
     }
   }
 }
