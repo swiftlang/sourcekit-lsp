@@ -52,9 +52,8 @@ extension SwiftLanguageService {
   /// Does not write the results to the index.
   ///
   /// The order of the returned tests is not defined. The results should be sorted before being returned to the editor.
-  static package func syntacticTestItems(
+  package func syntacticTestItems(
     for snapshot: DocumentSnapshot,
-    using syntaxTreeManager: SyntaxTreeManager
   ) async -> [AnnotatedTestItem] {
     async let swiftTestingTests = SyntacticSwiftTestingTestScanner.findTestSymbols(
       in: snapshot,

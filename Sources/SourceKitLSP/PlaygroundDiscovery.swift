@@ -28,9 +28,7 @@ extension SourceKitLSPServer {
     // playgrounds.
     await workspace.buildServerManager.waitForUpToDateBuildGraph()
 
-    let playgroundsFromSyntacticIndex = await languageServices.values.asyncFlatMap {
-      await $0.asyncFlatMap { await $0.syntacticPlaygrounds(in: workspace) }
-    }
+    let playgroundsFromSyntacticIndex = await workspace.syntacticIndex.playgrounds()
 
     // We don't need to sort the playgrounds here because they will get sorted by `workspacePlaygrounds` request handler
     return playgroundsFromSyntacticIndex

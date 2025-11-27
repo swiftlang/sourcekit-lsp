@@ -245,9 +245,7 @@ extension SourceKitLSPServer {
 
     let semanticTestSymbolOccurrences = index?.unitTests().filter { return $0.canBeTestDefinition } ?? []
 
-    let testsFromSyntacticIndex = await languageServices.values.asyncFlatMap {
-      await $0.asyncFlatMap { await $0.syntacticTests(in: workspace) }
-    }
+    let testsFromSyntacticIndex = await workspace.syntacticIndex.tests()
     let testsFromSemanticIndex = testItems(
       for: semanticTestSymbolOccurrences,
       index: index,
