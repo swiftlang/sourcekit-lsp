@@ -142,6 +142,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     enableBackgroundIndexing: Bool = false,
     workspaceFolders: [WorkspaceFolder]? = nil,
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
+    postInitialization: (@Sendable (InitializeResult) -> Void)? = nil,
     cleanUp: @Sendable @escaping () -> Void = {}
   ) async throws {
     var options =
@@ -201,7 +202,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     if initialize {
       let capabilities = capabilities
       try await withTimeout(defaultTimeoutDuration) {
-        _ = try await self.send(
+        let initializeResult = try await self.send(
           InitializeRequest(
             processId: nil,
             rootPath: nil,
@@ -212,6 +213,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
             workspaceFolders: workspaceFolders
           )
         )
+        postInitialization?(initializeResult)
       }
     }
   }
