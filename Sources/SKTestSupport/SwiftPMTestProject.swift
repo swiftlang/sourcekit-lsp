@@ -190,6 +190,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
     usePullDiagnostics: Bool = true,
     pollIndex: Bool = true,
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
+    postInitialization: (@Sendable (InitializeResult) -> Void)? = nil,
     cleanUp: (@Sendable () -> Void)? = nil,
     testName: String = #function
   ) async throws {
@@ -231,6 +232,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
       enableBackgroundIndexing: enableBackgroundIndexing,
       usePullDiagnostics: usePullDiagnostics,
       preInitialization: preInitialization,
+      postInitialization: postInitialization,
       cleanUp: cleanUp,
       testName: testName
     )

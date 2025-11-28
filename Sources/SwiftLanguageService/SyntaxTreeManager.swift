@@ -18,7 +18,7 @@ import SwiftSyntax
 
 /// Keeps track of SwiftSyntax trees for document snapshots and computes the
 /// SwiftSyntax trees on demand.
-actor SyntaxTreeManager {
+package actor SyntaxTreeManager {
   /// A task that parses a SwiftSyntax tree from a source file, producing both
   /// the syntax tree and the lookahead ranges that are needed for a subsequent
   /// incremental parse.

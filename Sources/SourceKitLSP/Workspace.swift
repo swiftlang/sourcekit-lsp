@@ -184,8 +184,8 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     }
   }
 
-  /// The index that syntactically scans the workspace for tests.
-  let syntacticTestIndex: SyntacticTestIndex
+  /// The index that syntactically scans the workspace for Swift symbols.
+  let syntacticIndex: SwiftSyntacticIndex
 
   /// Language service for an open document, if available.
   private let languageServices: ThreadSafeBox<[DocumentURI: [LanguageService]]> = ThreadSafeBox(initialValue: [:])
@@ -259,15 +259,25 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
         return nil
       }
     }
-    // Trigger an initial population of `syntacticTestIndex`.
-    self.syntacticTestIndex = SyntacticTestIndex(
-      languageServiceRegistry: sourceKitLSPServer.languageServiceRegistry,
-      determineTestFiles: {
-        await orLog("Getting list of test files for initial syntactic index population") {
-          try await buildServerManager.testFiles()
+    // Trigger an initial population of `syntacticIndex`.
+    self.syntacticIndex = SwiftSyntacticIndex(
+      determineFilesToScan: { targets in
+        await orLog("Getting list of files for syntactic index population") {
+          try await buildServerManager.projectSourceFiles(in: targets)
         } ?? []
+      },
+      syntacticTests: { (snapshot, workspace) in
+        await sourceKitLSPServer.languageServices(for: snapshot.uri, snapshot.language, in: workspace).asyncFlatMap {
+          await $0.syntacticTestItems(for: snapshot)
+        }
+      },
+      syntacticPlaygrounds: { (snapshot, workspace) in
+        await sourceKitLSPServer.languageServices(for: snapshot.uri, snapshot.language, in: workspace).asyncFlatMap {
+          await $0.syntacticPlaygrounds(for: snapshot, in: workspace)
+        }
       }
     )
+    await syntacticIndex.scan(workspace: self)
   }
 
   /// Creates a workspace for a given root `DocumentURI`, inferring the `ExternalWorkspace` if possible.
@@ -406,7 +416,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     // Notify all clients about the reported and inferred edits.
     await buildServerManager.filesDidChange(events)
 
-    async let updateSyntacticIndex: Void = await syntacticTestIndex.filesDidChange(events)
+    async let updateSyntacticIndex: Void = await syntacticIndex.filesDidChange(events, self)
     async let updateSemanticIndex: Void? = await semanticIndexManager?.filesDidChange(events)
     _ = await (updateSyntacticIndex, updateSemanticIndex)
   }
@@ -470,9 +480,8 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   package func buildTargetsChanged(_ changedTargets: Set<BuildTargetIdentifier>?) async {
     await sourceKitLSPServer?.fileHandlingCapabilityChanged()
     await semanticIndexManager?.buildTargetsChanged(changedTargets)
-    await orLog("Scheduling syntactic test re-indexing") {
-      let testFiles = try await buildServerManager.testFiles()
-      await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
+    await orLog("Scheduling syntactic file re-indexing") {
+      await syntacticIndex.buildTargetsChanged(changedTargets, self)
     }
 
     await scheduleUpdateOfUnitOutputPathsInIndexIfNecessary()
