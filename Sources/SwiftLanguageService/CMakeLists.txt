@@ -39,7 +39,6 @@ add_library(SwiftLanguageService STATIC
   SwiftCodeLensScanner.swift
   SwiftCommand.swift
   SwiftLanguageService.swift
-  SwiftSyntacticIndex.swift
   SwiftTestingScanner.swift
   SymbolGraph.swift
   SymbolInfo.swift

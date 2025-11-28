@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2023 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2025 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -10,19 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(Testing) import BuildServerIntegration
 import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
-import SKLogging
 import SKTestSupport
-import SemanticIndex
-@_spi(Testing) import SourceKitLSP
 import SwiftExtensions
 import ToolchainRegistry
-@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
-
-import struct TSCBasic.AbsolutePath
 
 extension Toolchain {
   #if compiler(>=6.4)
