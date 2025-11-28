@@ -1120,8 +1120,10 @@ extension SourceKitLSPServer {
       TriggerReindexRequest.method: .dictionary(["version": .int(1)]),
       GetReferenceDocumentRequest.method: .dictionary(["version": .int(1)]),
       DidChangeActiveDocumentNotification.method: .dictionary(["version": .int(1)]),
-      WorkspacePlaygroundsRequest.method: .dictionary(["version": .int(1)]),
     ]
+    if let toolchain = await toolchainRegistry.preferredToolchain(containing: [\.swiftc]), toolchain.swiftPlay != nil {
+      experimentalCapabilities[WorkspacePlaygroundsRequest.method] = .dictionary(["version": .int(1)])
+    }
     for (key, value) in languageServiceRegistry.languageServices.flatMap({ $0.type.experimentalCapabilities }) {
       if let existingValue = experimentalCapabilities[key] {
         logger.error(
