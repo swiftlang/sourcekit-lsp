@@ -73,9 +73,11 @@ final class SKDRequestDictionaryReader: Sendable, CustomStringConvertible {
   }
 
   subscript(key: sourcekitd_api_uid_t) -> String? {
-    return sourcekitd.servicePluginApi.request_dictionary_get_string(sourcekitd_api_object_t(dict), key).map(
-      String.init(cString:)
-    )
+    guard let cString = sourcekitd.servicePluginApi.request_dictionary_get_string(sourcekitd_api_object_t(dict), key)
+    else {
+      return nil
+    }
+    return String(cString: cString)
   }
 
   subscript(key: sourcekitd_api_uid_t) -> Int64? {

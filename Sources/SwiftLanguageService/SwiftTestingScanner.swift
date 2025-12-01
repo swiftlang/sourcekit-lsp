@@ -232,7 +232,12 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     let suiteAttribute = node.attributes
       .compactMap { $0.as(AttributeSyntax.self) }
       .first { $0.isNamed("Suite", inModuleNamed: "Testing") }
-    let attributeData = suiteAttribute.map(TestingAttributeData.init(attribute:))
+    let attributeData: TestingAttributeData? =
+      if let suiteAttribute {
+        TestingAttributeData(attribute: suiteAttribute)
+      } else {
+        nil
+      }
 
     if attributeData?.isHidden ?? false {
       return .skipChildren

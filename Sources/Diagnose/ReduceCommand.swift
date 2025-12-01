@@ -50,7 +50,12 @@ package struct ReduceCommand: AsyncParsableCommand {
   )
   var predicate: String?
 
-  private var nsPredicate: NSPredicate? { predicate.map { NSPredicate(format: $0) } }
+  private var nsPredicate: NSPredicate? {
+    guard let predicate else {
+      return nil
+    }
+    return NSPredicate(format: predicate)
+  }
   #else
   private var nsPredicate: NSPredicate? { nil }
   #endif

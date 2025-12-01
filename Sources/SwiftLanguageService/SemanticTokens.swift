@@ -62,8 +62,8 @@ extension SwiftLanguageService {
     let semanticTokens = await orLog("Loading semantic tokens") { try await semanticHighlightingTokens(for: snapshot) }
 
     let range =
-      if let range = range.flatMap({ snapshot.byteSourceRange(of: $0) }) {
-        range
+      if let range {
+        snapshot.byteSourceRange(of: range)
       } else {
         await tree.range
       }

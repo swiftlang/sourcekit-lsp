@@ -957,7 +957,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let result = try await project.testClient.send(
       RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"], newName: "height")
     )
-    XCTAssertEqual((result?.changes?.keys).map(Set.init), [uri, try project.uri(for: "Client.swift")])
+    XCTAssertEqual(Set(try XCTUnwrap(result?.changes?.keys)), [uri, try project.uri(for: "Client.swift")])
   }
 
   func testDontPreparePackageManifest() async throws {

@@ -34,7 +34,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
     )
     let location = try XCTUnwrap(resp?.locations?.only)
     XCTAssertTrue(location.uri.pseudoPath.hasSuffix("Foundation.swiftinterface"))
-    let fileContents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
+    let fileContents = try XCTUnwrap(String(contentsOf: try XCTUnwrap(location.uri.fileURL), encoding: .utf8))
     // Smoke test that the generated Swift Interface contains Swift code
     XCTAssert(
       fileContents.hasPrefix("import "),
@@ -173,7 +173,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       )
     let location = try XCTUnwrap(response?.locations?.only)
     XCTAssertTrue(location.uri.pseudoPath.hasSuffix("MyLibrary.swiftinterface"))
-    let fileContents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
+    let fileContents = try XCTUnwrap(String(contentsOf: try XCTUnwrap(location.uri.fileURL), encoding: .utf8))
     XCTAssertTrue(
       fileContents.contains(
         """
@@ -420,13 +420,9 @@ private func assertSystemSwiftInterface(
     )
   )
   let location = try XCTUnwrap(definition?.locations?.only)
-  XCTAssert(
-    (location.uri.fileURL?.lastPathComponent).map(swiftInterfaceFiles.contains) ?? false,
-    "Path '\(location.uri.pseudoPath)' did not match any of \(String(reflecting: swiftInterfaceFiles))",
-    line: line
-  )
+  assertContains(swiftInterfaceFiles, try XCTUnwrap(location.uri.fileURL?.lastPathComponent), line: line)
   // load contents of swiftinterface
-  let contents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
+  let contents = try XCTUnwrap(String(contentsOf: try XCTUnwrap(location.uri.fileURL), encoding: .utf8))
   let lineTable = LineTable(contents)
   let destinationLine = try XCTUnwrap(lineTable.line(at: location.range.lowerBound.line))
     .trimmingCharacters(in: .whitespaces)

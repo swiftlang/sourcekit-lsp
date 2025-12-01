@@ -215,19 +215,29 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     let hostSDK = try SwiftSDK.hostSwiftSDK(AbsolutePath(validating: destinationToolchainBinDir.filePath))
     let hostSwiftPMToolchain = try UserToolchain(swiftSDK: hostSDK)
 
+    let triple: Triple? =
+      if let triple = options.swiftPMOrDefault.triple {
+        try Triple(triple)
+      } else {
+        nil
+      }
+    let swiftSDKsDirectory: AbsolutePath? =
+      if let swiftSDKsDirectory = options.swiftPMOrDefault.swiftSDKsDirectory {
+        try AbsolutePath(validating: swiftSDKsDirectory, relativeTo: absProjectRoot)
+      } else {
+        nil
+      }
     let destinationSDK = try SwiftSDK.deriveTargetSwiftSDK(
       hostSwiftSDK: hostSDK,
       hostTriple: hostSwiftPMToolchain.targetTriple,
       customToolsets: options.swiftPMOrDefault.toolsets?.map {
         try AbsolutePath(validating: $0, relativeTo: absProjectRoot)
       } ?? [],
-      customCompileTriple: options.swiftPMOrDefault.triple.map { try Triple($0) },
+      customCompileTriple: triple,
       swiftSDKSelector: options.swiftPMOrDefault.swiftSDK,
       store: SwiftSDKBundleStore(
         swiftSDKsDirectory: localFileSystem.getSharedSwiftSDKsDirectory(
-          explicitDirectory: options.swiftPMOrDefault.swiftSDKsDirectory.map {
-            try AbsolutePath(validating: $0, relativeTo: absProjectRoot)
-          }
+          explicitDirectory: swiftSDKsDirectory
         ),
         hostToolchainBinDir: hostSwiftPMToolchain.swiftCompilerPath.parentDirectory,
         fileSystem: localFileSystem,
@@ -320,9 +330,13 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       disableSandbox: options.swiftPMOrDefault.disableSandbox ?? false
     )
 
-    self.traitConfiguration = TraitConfiguration(
-      enabledTraits: options.swiftPMOrDefault.traits.flatMap(Set.init)
-    )
+    let enabledTraits: Set<String>? =
+      if let traits = options.swiftPMOrDefault.traits {
+        Set(traits)
+      } else {
+        nil
+      }
+    self.traitConfiguration = TraitConfiguration(enabledTraits: enabledTraits)
 
     packageLoadingQueue.async {
       await orLog("Initial package loading") {
