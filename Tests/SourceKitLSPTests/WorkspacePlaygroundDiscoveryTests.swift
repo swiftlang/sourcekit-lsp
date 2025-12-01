@@ -66,85 +66,78 @@ extension Toolchain {
 
 final class WorkspacePlaygroundDiscoveryTests: SourceKitLSPTestCase {
 
-  private var workspaceFiles: [RelativeFileLocation: String] = [
-    "Sources/MyLibrary/Test.swift": """
-    import Playgrounds
-
-    public func foo() -> String {
-      "bar"
-    }
-
-    1️⃣#Playground("foo") {
-      print(foo())
-    }2️⃣
-
-    3️⃣#Playground {
-      print(foo())
-    }4️⃣
-
-    public func bar(_ i: Int, _ j: Int) -> Int {
-      i + j
-    }
-
-    5️⃣#Playground("bar") {
-      var i = bar(1, 2)
-      i = i + 1
-      print(i)
-    }6️⃣
-    """,
-    "Sources/MyLibrary/TestNoImport.swift": """
-    #Playground("fooNoImport") {
-      print(foo())
-    }
-
-    #Playground {
-      print(foo())
-    }
-
-    #Playground("barNoImport") {
-      var i = bar(1, 2)
-      i = i + 1
-      print(i)
-    }
-    """,
-    "Sources/MyLibrary/bar.swift": """
-    import Playgrounds
-
-    1️⃣#Playground("bar2") {
-      print(foo())
-    }2️⃣
-    """,
-    "Sources/MyApp/baz.swift": """
-    import Playgrounds
-
-     1️⃣#Playground("baz") {
-      print("baz")
-    }2️⃣
-    """,
-  ]
-
-  private let packageManifestWithTestTarget = """
-    let package = Package(
-      name: "MyLibrary",
-      targets: [.target(name: "MyLibrary"), .target(name: "MyApp")]
-    )
-    """
-
   func testWorkspacePlaygroundsScanned() async throws {
     let toolchainRegistry = ToolchainRegistry(toolchains: [try await Toolchain.forTestingWithSwiftPlay])
     let project = try await SwiftPMTestProject(
-      files: workspaceFiles,
-      manifest: packageManifestWithTestTarget,
+      files: [
+        "Sources/MyLibrary/Test.swift": """
+        import Playgrounds
+
+        public func foo() -> String {
+          "bar"
+        }
+
+        1️⃣#Playground("foo") {
+          print(foo())
+        }2️⃣
+
+        3️⃣#Playground {
+          print(foo())
+        }4️⃣
+
+        public func bar(_ i: Int, _ j: Int) -> Int {
+          i + j
+        }
+
+        5️⃣#Playground("bar") {
+          var i = bar(1, 2)
+          i = i + 1
+          print(i)
+        }6️⃣
+        """,
+        "Sources/MyLibrary/TestNoImport.swift": """
+        #Playground("fooNoImport") {
+          print(foo())
+        }
+
+        #Playground {
+          print(foo())
+        }
+
+        #Playground("barNoImport") {
+          var i = bar(1, 2)
+          i = i + 1
+          print(i)
+        }
+        """,
+        "Sources/MyLibrary/bar.swift": """
+        import Playgrounds
+
+        7️⃣#Playground("bar2") {
+          print(foo())
+        }8️⃣
+        """,
+        "Sources/MyApp/baz.swift": """
+        import Playgrounds
+
+         9️⃣#Playground("baz") {
+          print("baz")
+        }🔟
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "MyLibrary"),
+            .target(name: "MyApp")
+          ]
+        )
+        """,
       toolchainRegistry: toolchainRegistry
     )
 
-    let response = try await project.testClient.send(
-      WorkspacePlaygroundsRequest()
-    )
-
-    let (testUri, testPositions) = try project.openDocument("Test.swift")
-    let (barUri, barPositions) = try project.openDocument("bar.swift")
-    let (bazUri, bazPositions) = try project.openDocument("baz.swift")
+    let response = try await project.testClient.send(WorkspacePlaygroundsRequest())
 
     // Notice sorted order
     XCTAssertEqual(
@@ -153,27 +146,27 @@ final class WorkspacePlaygroundDiscoveryTests: SourceKitLSPTestCase {
         Playground(
           id: "MyApp/baz.swift:3:2",
           label: "baz",
-          location: .init(uri: bazUri, range: bazPositions["1️⃣"]..<bazPositions["2️⃣"]),
+          location: try project.location(from: "9️⃣", to: "🔟", in: "baz.swift")
         ),
         Playground(
           id: "MyLibrary/Test.swift:7:1",
           label: "foo",
-          location: .init(uri: testUri, range: testPositions["1️⃣"]..<testPositions["2️⃣"]),
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "Test.swift")
         ),
         Playground(
           id: "MyLibrary/Test.swift:11:1",
           label: nil,
-          location: .init(uri: testUri, range: testPositions["3️⃣"]..<testPositions["4️⃣"]),
+          location: try project.location(from: "3️⃣", to: "4️⃣", in: "Test.swift")
         ),
         Playground(
           id: "MyLibrary/Test.swift:19:1",
           label: "bar",
-          location: .init(uri: testUri, range: testPositions["5️⃣"]..<testPositions["6️⃣"]),
+          location: try project.location(from: "5️⃣", to: "6️⃣", in: "Test.swift")
         ),
         Playground(
           id: "MyLibrary/bar.swift:3:1",
           label: "bar2",
-          location: .init(uri: barUri, range: barPositions["1️⃣"]..<barPositions["2️⃣"]),
+          location: try project.location(from: "7️⃣", to: "8️⃣", in: "bar.swift")
         ),
       ]
     )
@@ -181,45 +174,25 @@ final class WorkspacePlaygroundDiscoveryTests: SourceKitLSPTestCase {
 
   func testWorkspacePlaygroundsCapability() async throws {
     let toolchainRegistry = ToolchainRegistry(toolchains: [try await Toolchain.forTestingWithSwiftPlay])
-    let initializeResult = ThreadSafeBox<InitializeResult?>(initialValue: nil)
-    let _ = try await SwiftPMTestProject(
-      files: workspaceFiles,
-      manifest: packageManifestWithTestTarget,
-      toolchainRegistry: toolchainRegistry,
-      postInitialization: { result in
-        initializeResult.withLock {
-          $0 = result
-        }
-      }
-    )
-
-    switch initializeResult.value?.capabilities.experimental {
+    let testClient = try await TestSourceKitLSPClient(toolchainRegistry: toolchainRegistry)
+    let experimentalCapabilities = testClient.initializeResult?.capabilities.experimental
+    switch experimentalCapabilities {
     case .dictionary(let dict):
       XCTAssertNotEqual(dict[WorkspacePlaygroundsRequest.method], nil)
     default:
-      XCTFail("Experminental capabilities is not a dictionary")
+      XCTFail("Experimental capabilities expected to be a dictionary, got \(experimentalCapabilities as Any)")
     }
   }
 
   func testWorkspacePlaygroundsCapabilityNoSwiftPlay() async throws {
     let toolchainRegistry = ToolchainRegistry(toolchains: [try await Toolchain.forTestingWithoutSwiftPlay])
-    let initializeResult = ThreadSafeBox<InitializeResult?>(initialValue: nil)
-    let _ = try await SwiftPMTestProject(
-      files: workspaceFiles,
-      manifest: packageManifestWithTestTarget,
-      toolchainRegistry: toolchainRegistry,
-      postInitialization: { result in
-        initializeResult.withLock {
-          $0 = result
-        }
-      }
-    )
-
-    switch initializeResult.value?.capabilities.experimental {
+    let testClient = try await TestSourceKitLSPClient(toolchainRegistry: toolchainRegistry)
+    let experimentalCapabilities = testClient.initializeResult?.capabilities.experimental
+    switch experimentalCapabilities {
     case .dictionary(let dict):
       XCTAssertEqual(dict[WorkspacePlaygroundsRequest.method], nil)
     default:
-      XCTFail("Experminental capabilities is not a dictionary")
+      XCTFail("Experimental capabilities expected to be a dictionary, got \(experimentalCapabilities as Any)")
     }
   }
 }

@@ -136,11 +136,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   ///   might have finished. This isn't an issue since the tasks do not retain `self`.
   private var inFlightPublishDiagnosticsTasks: [DocumentURI: Task<Void, Never>] = [:]
 
-  /// Shared syntax tree manager to share syntax trees when syntactically parsing different types
-  let syntaxTreeManager: SyntaxTreeManager
-
-  /// Workspace this language service was created for
-  let workspace: Workspace
+  let syntaxTreeManager = SyntaxTreeManager()
 
   /// The `semanticIndexManager` of the workspace this language service was created for.
   private let semanticIndexManagerTask: Task<SemanticIndexManager?, Never>
@@ -214,12 +210,9 @@ package actor SwiftLanguageService: LanguageService, Sendable {
         "Cannot create SwiftLanguage service because \(toolchain.identifier) does not contain sourcekitd"
       )
     }
-    let syntaxTreeManager = SyntaxTreeManager()
-    self.syntaxTreeManager = syntaxTreeManager
     self.sourcekitdPath = sourcekitd
     self.sourceKitLSPServer = sourceKitLSPServer
     self.toolchain = toolchain
-    self.workspace = workspace
     let pluginPaths: PluginPaths?
     if let clientPlugin = options.sourcekitdOrDefault.clientPlugin,
       let servicePlugin = options.sourcekitdOrDefault.servicePlugin

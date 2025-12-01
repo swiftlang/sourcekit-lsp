@@ -45,6 +45,10 @@ final class SwiftPlaygroundsScanner: SyntaxVisitor {
     workspace: Workspace,
     syntaxTreeManager: SyntaxTreeManager,
   ) async -> [TextDocumentPlayground] {
+    guard snapshot.text.contains("#Playground") else {
+      return []
+    }
+
     guard let canonicalTarget = await workspace.buildServerManager.canonicalTarget(for: snapshot.uri),
       let moduleName = await workspace.buildServerManager.moduleName(for: snapshot.uri, in: canonicalTarget),
       let baseName = snapshot.uri.fileURL?.lastPathComponent
@@ -52,9 +56,6 @@ final class SwiftPlaygroundsScanner: SyntaxVisitor {
       return []
     }
 
-    guard snapshot.text.contains("#Playground") else {
-      return []
-    }
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
 
     let visitor = SwiftPlaygroundsScanner(baseID: "\(moduleName)/\(baseName)", snapshot: snapshot)

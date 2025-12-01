@@ -97,6 +97,11 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   /// The connection via which the server sends requests and notifications to us.
   private let serverToClientConnection: LocalConnection
 
+  /// The response of the initialize request.
+  ///
+  /// Must only be set from the initializer and not be accessed before the initializer has finished.
+  package private(set) nonisolated(unsafe) var initializeResult: InitializeResult?
+
   /// Stream of the notifications that the server has sent to the client.
   private let notifications: PendingNotifications
 
@@ -142,7 +147,6 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     enableBackgroundIndexing: Bool = false,
     workspaceFolders: [WorkspaceFolder]? = nil,
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
-    postInitialization: (@Sendable (InitializeResult) -> Void)? = nil,
     cleanUp: @Sendable @escaping () -> Void = {}
   ) async throws {
     var options =
@@ -201,8 +205,8 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     preInitialization?(self)
     if initialize {
       let capabilities = capabilities
-      try await withTimeout(defaultTimeoutDuration) {
-        let initializeResult = try await self.send(
+      self.initializeResult = try await withTimeout(defaultTimeoutDuration) {
+        try await self.send(
           InitializeRequest(
             processId: nil,
             rootPath: nil,
@@ -213,7 +217,6 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
             workspaceFolders: workspaceFolders
           )
         )
-        postInitialization?(initializeResult)
       }
     }
   }
