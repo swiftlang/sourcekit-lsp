@@ -139,7 +139,6 @@ package class MultiFileTestProject {
     enableBackgroundIndexing: Bool = false,
     usePullDiagnostics: Bool = true,
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
-    postInitialization: (@Sendable (InitializeResult) -> Void)? = nil,
     testScratchDir overrideTestScratchDir: URL? = nil,
     cleanUp: (@Sendable () -> Void)? = nil,
     testName: String = #function
@@ -157,7 +156,6 @@ package class MultiFileTestProject {
       enableBackgroundIndexing: enableBackgroundIndexing,
       workspaceFolders: workspaces(scratchDirectory),
       preInitialization: preInitialization,
-      postInitialization: postInitialization,
       cleanUp: { [scratchDirectory] in
         if cleanScratchDirectories {
           try? FileManager.default.removeItem(at: scratchDirectory)

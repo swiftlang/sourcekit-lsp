@@ -1536,12 +1536,8 @@ extension SourceKitLSPServer {
     // settings). Inform the build server about all file changes.
     await workspaces.concurrentForEach { await $0.filesDidChange(notification.changes) }
 
-    await filesDidChange(notification.changes)
-  }
-
-  func filesDidChange(_ events: [FileEvent]) async {
     for languageService in languageServices.values.flatMap(\.self) {
-      await languageService.filesDidChange(events)
+      await languageService.filesDidChange(notification.changes)
     }
   }
 

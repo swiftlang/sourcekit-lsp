@@ -105,22 +105,20 @@ package actor SwiftSyntacticIndex: Sendable {
   private let determineFilesToScan: @Sendable (Set<BuildTargetIdentifier>?) async -> [DocumentURI]
 
   /// Syntactically parse tests from the given snapshot
-  private let syntacticTests: @Sendable (DocumentSnapshot, Workspace) async -> [AnnotatedTestItem]
+  private let syntacticTests: @Sendable (DocumentSnapshot) async -> [AnnotatedTestItem]
 
   /// Syntactically parse playgrounds from the given snapshot
-  private let syntacticPlaygrounds: @Sendable (DocumentSnapshot, Workspace) async -> [TextDocumentPlayground]
+  private let syntacticPlaygrounds: @Sendable (DocumentSnapshot) async -> [TextDocumentPlayground]
 
   package init(
     determineFilesToScan: @Sendable @escaping (Set<BuildTargetIdentifier>?) async -> [DocumentURI],
-    syntacticTests: @Sendable @escaping (DocumentSnapshot, Workspace) async -> [AnnotatedTestItem],
-    syntacticPlaygrounds: @Sendable @escaping (DocumentSnapshot, Workspace) async -> [TextDocumentPlayground]
+    syntacticTests: @Sendable @escaping (DocumentSnapshot) async -> [AnnotatedTestItem],
+    syntacticPlaygrounds: @Sendable @escaping (DocumentSnapshot) async -> [TextDocumentPlayground]
   ) {
     self.determineFilesToScan = determineFilesToScan
     self.syntacticTests = syntacticTests
     self.syntacticPlaygrounds = syntacticPlaygrounds
-  }
 
-  func scan(workspace: Workspace) {
     indexingQueue.async(priority: .low, metadata: .initialPopulation) {
       let filesToScan = await self.determineFilesToScan(nil)
       // Divide the files into multiple batches. This is more efficient than spawning a new task for every file, mostly
@@ -131,7 +129,7 @@ package actor SwiftSyntacticIndex: Sendable {
       let batches = filesToScan.partition(intoNumberOfBatches: ProcessInfo.processInfo.activeProcessorCount * 4)
       await batches.concurrentForEach { filesInBatch in
         for uri in filesInBatch {
-          await self.rescanFileAssumingOnQueue(uri, workspace)
+          await self.rescanFileAssumingOnQueue(uri)
         }
       }
     }
@@ -147,15 +145,15 @@ package actor SwiftSyntacticIndex: Sendable {
   /// Called when the list of targets is updated.
   ///
   /// All files that are not in the new list of buildable files will be removed from the index.
-  package func buildTargetsChanged(_ changedTargets: Set<BuildTargetIdentifier>?, _ workspace: Workspace) async {
+  package func buildTargetsChanged(_ changedTargets: Set<BuildTargetIdentifier>?) async {
     let changedFiles = await determineFilesToScan(changedTargets)
     let removedFiles = Set(self.indexedSources.keys).subtracting(changedFiles)
     removeFilesFromIndex(removedFiles)
 
-    rescanFiles(changedFiles, workspace)
+    rescanFiles(changedFiles)
   }
 
-  package func filesDidChange(_ events: [FileEvent], _ workspace: Workspace) {
+  package func filesDidChange(_ events: [FileEvent]) {
     var removedFiles: Set<DocumentURI> = []
     var filesToRescan: [DocumentURI] = []
     for fileEvent in events {
@@ -171,11 +169,11 @@ package actor SwiftSyntacticIndex: Sendable {
       }
     }
     removeFilesFromIndex(removedFiles)
-    rescanFiles(filesToRescan, workspace)
+    rescanFiles(filesToRescan)
   }
 
   /// Called when a list of files was updated. Re-scans those files
-  private func rescanFiles(_ uris: [DocumentURI], _ workspace: Workspace) {
+  private func rescanFiles(_ uris: [DocumentURI]) {
     // If we scan a file again, it might have been added after being removed before. Remove it from the list of removed
     // files.
     removedFiles.subtract(uris)
@@ -215,7 +213,7 @@ package actor SwiftSyntacticIndex: Sendable {
     for batch in batches {
       self.indexingQueue.async(priority: .low, metadata: .index(Set(batch))) {
         for uri in batch {
-          await self.rescanFileAssumingOnQueue(uri, workspace)
+          await self.rescanFileAssumingOnQueue(uri)
         }
       }
     }
@@ -224,7 +222,7 @@ package actor SwiftSyntacticIndex: Sendable {
   /// Re-scans a single file.
   ///
   /// - Important: This method must be called in a task that is executing on `indexingQueue`.
-  private func rescanFileAssumingOnQueue(_ uri: DocumentURI, _ workspace: Workspace) async {
+  private func rescanFileAssumingOnQueue(_ uri: DocumentURI) async {
     guard let url = uri.fileURL else {
       logger.log("Not indexing \(uri.forLogging) because it is not a file URL")
       return
@@ -264,16 +262,15 @@ package actor SwiftSyntacticIndex: Sendable {
       return
     }
 
-    let (testItems, playgrounds) = await (
-      syntacticTests(snapshot, workspace), syntacticPlaygrounds(snapshot, workspace)
-    )
+    async let testItems = syntacticTests(snapshot)
+    async let playgrounds = syntacticPlaygrounds(snapshot)
 
     guard !removedFiles.contains(uri) else {
       // Check whether the file got removed while we were scanning it for tests. If so, don't add it back to
       // `indexedSources`.
       return
     }
-    self.indexedSources[uri] = IndexedSourceFile(
+    self.indexedSources[uri] = await IndexedSourceFile(
       tests: testItems,
       playgrounds: playgrounds,
       sourceFileModificationDate: fileModificationDate
