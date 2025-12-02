@@ -266,15 +266,17 @@ package actor SyntacticIndex: Sendable {
       return
     }
 
-    async let testItems = syntacticTests(snapshot)
-    async let playgrounds = syntacticPlaygrounds(snapshot)
+    let (testItems, playgrounds) = await (
+      syntacticTests(snapshot), syntacticPlaygrounds(snapshot)
+    )
 
     guard !removedFiles.contains(uri) else {
       // Check whether the file got removed while we were scanning it for tests. If so, don't add it back to
       // `indexedSources`.
       return
     }
-    self.indexedSources[uri] = await IndexedSourceFile(
+
+    self.indexedSources[uri] = IndexedSourceFile(
       tests: testItems,
       playgrounds: playgrounds,
       sourceFileModificationDate: fileModificationDate
