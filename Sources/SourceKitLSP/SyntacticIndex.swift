@@ -19,10 +19,10 @@ import Foundation
 import SwiftExtensions
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
-/// Task metadata for `SwiftSyntacticIndex.indexingQueue`
+/// Task metadata for `SyntacticIndex.indexingQueue`
 private enum TaskMetadata: DependencyTracker, Equatable {
   /// Determine the list of files from the build server and scan them for tests / playgrounds. Only created when the
-  /// `SwiftSyntacticIndex` is created
+  /// `SyntacticIndex` is created
   case initialPopulation
 
   /// Index the files in the given set for tests / playgrounds
@@ -83,7 +83,7 @@ private struct IndexedSourceFile {
 ///
 /// The index does not get persisted to disk but instead gets rebuilt every time a workspace is opened (ie. usually when
 /// sourcekit-lsp is launched). Building it takes only a few seconds, even for large projects.
-package actor SwiftSyntacticIndex: Sendable {
+package actor SyntacticIndex: Sendable {
   /// The tests discovered by the index.
   private var indexedSources: [DocumentURI: IndexedSourceFile] = [:]
 
@@ -165,7 +165,7 @@ package actor SwiftSyntacticIndex: Sendable {
       case .deleted:
         removedFiles.insert(fileEvent.uri)
       default:
-        logger.error("Ignoring unknown FileEvent type \(fileEvent.type.rawValue) in SwiftSyntacticIndex")
+        logger.error("Ignoring unknown FileEvent type \(fileEvent.type.rawValue) in SyntacticIndex")
       }
     }
     removeFilesFromIndex(removedFiles)
