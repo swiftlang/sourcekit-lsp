@@ -187,7 +187,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   /// The index that syntactically scans the workspace for Swift symbols.
   ///
   /// Force-unwrapped optional because initializing it requires access to `self`.
-  private(set) nonisolated(unsafe) var syntacticIndex: SwiftSyntacticIndex! {
+  private(set) nonisolated(unsafe) var syntacticIndex: SyntacticIndex! {
     didSet {
       precondition(oldValue == nil)
       precondition(syntacticIndex != nil)
@@ -268,7 +268,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
       }
     }
     // Trigger an initial population of `syntacticIndex`.
-    self.syntacticIndex = SwiftSyntacticIndex(
+    self.syntacticIndex = SyntacticIndex(
       determineFilesToScan: { targets in
         await orLog("Getting list of files for syntactic index population") {
           try await buildServerManager.projectSourceFiles(in: targets)
