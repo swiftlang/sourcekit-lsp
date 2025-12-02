@@ -223,6 +223,10 @@ package actor SwiftSyntacticIndex: Sendable {
   ///
   /// - Important: This method must be called in a task that is executing on `indexingQueue`.
   private func rescanFileAssumingOnQueue(_ uri: DocumentURI) async {
+    guard let language = Language(inferredFromFileExtension: uri) else {
+      return
+    }
+
     guard let url = uri.fileURL else {
       logger.log("Not indexing \(uri.forLogging) because it is not a file URL")
       return
@@ -255,8 +259,8 @@ package actor SwiftSyntacticIndex: Sendable {
       return
     }
 
-    let snapshot: DocumentSnapshot? = orLog("Getting document snapshot for syntactic Swift scanning") {
-      try DocumentSnapshot(withContentsFromDisk: url, language: .swift)
+    let snapshot: DocumentSnapshot? = orLog("Getting document snapshot for syntactic scanning") {
+      try DocumentSnapshot(withContentsFromDisk: url, language: language)
     }
     guard let snapshot else {
       return
