@@ -115,7 +115,7 @@ package actor SourceKitD {
   /// This must not be referenced outside of `SwiftSourceKitPlugin`, `SwiftSourceKitPluginCommon`, or
   /// `SwiftSourceKitClientPlugin`.
   package nonisolated var pluginApi: sourcekitd_plugin_api_functions_t { try! pluginApiResult.get() }
-  private let pluginApiResult: Result<sourcekitd_plugin_api_functions_t, Error>
+  private let pluginApiResult: Result<sourcekitd_plugin_api_functions_t, any Error>
 
   /// The API with which the SourceKit plugin handles requests.
   ///
@@ -123,13 +123,13 @@ package actor SourceKitD {
   package nonisolated var servicePluginApi: sourcekitd_service_plugin_api_functions_t {
     try! servicePluginApiResult.get()
   }
-  private let servicePluginApiResult: Result<sourcekitd_service_plugin_api_functions_t, Error>
+  private let servicePluginApiResult: Result<sourcekitd_service_plugin_api_functions_t, any Error>
 
   /// The API with which the SourceKit plugin communicates with the type-checker in-process.
   ///
   /// This must not be referenced outside of `SwiftSourceKitPlugin`.
   package nonisolated var ideApi: sourcekitd_ide_api_functions_t { try! ideApiResult.get() }
-  private let ideApiResult: Result<sourcekitd_ide_api_functions_t, Error>
+  private let ideApiResult: Result<sourcekitd_ide_api_functions_t, any Error>
 
   /// Convenience for accessing known keys.
   ///
@@ -247,13 +247,13 @@ package actor SourceKitD {
   }
 
   /// Adds a new notification handler (referenced weakly).
-  package func addNotificationHandler(_ handler: SKDNotificationHandler) {
+  package func addNotificationHandler(_ handler: any SKDNotificationHandler) {
     notificationHandlers.removeAll(where: { $0.value == nil })
     notificationHandlers.append(.init(handler))
   }
 
   /// Removes a previously registered notification handler.
-  package func removeNotificationHandler(_ handler: SKDNotificationHandler) {
+  package func removeNotificationHandler(_ handler: any SKDNotificationHandler) {
     notificationHandlers.removeAll(where: { $0.value == nil || $0.value === handler })
   }
 
@@ -475,8 +475,8 @@ package protocol SKDNotificationHandler: AnyObject, Sendable {
 }
 
 struct WeakSKDNotificationHandler: Sendable {
-  weak private(set) var value: SKDNotificationHandler?
-  init(_ value: SKDNotificationHandler) {
+  weak private(set) var value: (any SKDNotificationHandler)?
+  init(_ value: any SKDNotificationHandler) {
     self.value = value
   }
 }

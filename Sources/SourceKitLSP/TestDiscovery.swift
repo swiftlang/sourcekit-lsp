@@ -308,7 +308,7 @@ extension SourceKitLSPServer {
   func documentTests(
     _ req: DocumentTestsRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> [TestItem] {
     return try await documentTestsWithoutMergingExtensions(req, workspace: workspace, languageService: languageService)
       .prefixTestsWithModuleName(workspace: workspace)
@@ -319,7 +319,7 @@ extension SourceKitLSPServer {
   private func documentTestsWithoutMergingExtensions(
     _ req: DocumentTestsRequest,
     workspace: Workspace,
-    languageService: LanguageService
+    languageService: any LanguageService
   ) async throws -> [AnnotatedTestItem] {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
     let mainFileUri = await workspace.buildServerManager.mainFile(

@@ -42,7 +42,7 @@ package enum IndexCheckLevel {
 
   /// Consider the index out-of-date if the source file has been deleted or modified on disk or if there are
   /// in-memory modifications in the given `DocumentManager`.
-  case inMemoryModifiedFiles(InMemoryDocumentManager)
+  case inMemoryModifiedFiles(any InMemoryDocumentManager)
 }
 
 /// A wrapper around `IndexStoreDB` that checks if returned symbol occurrences are up-to-date with regard to a
@@ -496,7 +496,7 @@ private struct IndexOutOfDateChecker {
   /// `CheckLevel.imMemoryModifiedFiles`, which is constant.
   private mutating func fileHasInMemoryModifications(
     _ uri: DocumentURI,
-    documentManager: InMemoryDocumentManager
+    documentManager: any InMemoryDocumentManager
   ) -> Bool {
     if let cached = fileHasInMemoryModificationsCache[uri] {
       return cached

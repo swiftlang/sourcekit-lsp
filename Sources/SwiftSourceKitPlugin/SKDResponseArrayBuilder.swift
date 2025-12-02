@@ -14,7 +14,7 @@ import Csourcekitd
 import SourceKitD
 
 extension SourceKitD {
-  nonisolated func responseArray(_ array: [SKDResponseValue]) -> SKDResponseArrayBuilder {
+  nonisolated func responseArray(_ array: [any SKDResponseValue]) -> SKDResponseArrayBuilder {
     let result = SKDResponseArrayBuilder(sourcekitd: self)
     for element in array {
       result.append(element)
@@ -37,7 +37,7 @@ struct SKDResponseArrayBuilder {
     )
   }
 
-  func append(_ newValue: SKDResponseValue) {
+  func append(_ newValue: any SKDResponseValue) {
     switch newValue {
     case let newValue as String:
       sourcekitd.servicePluginApi.response_array_set_string(value, -1, newValue)
@@ -55,11 +55,11 @@ struct SKDResponseArrayBuilder {
       sourcekitd.servicePluginApi.response_array_set_value(value, -1, newValue.value)
     case let newValue as SKDResponseArrayBuilder:
       sourcekitd.servicePluginApi.response_array_set_value(value, -1, newValue.value)
-    case let newValue as [SKDResponseValue]:
+    case let newValue as [any SKDResponseValue]:
       self.append(sourcekitd.responseArray(newValue))
-    case let newValue as [sourcekitd_api_uid_t: SKDResponseValue]:
+    case let newValue as [sourcekitd_api_uid_t: any SKDResponseValue]:
       self.append(sourcekitd.responseDictionary(newValue))
-    case let newValue as SKDResponseValue?:
+    case let newValue as (any SKDResponseValue)?:
       if let newValue {
         self.append(newValue)
       }

@@ -18,7 +18,7 @@ import Foundation
 extension RequestInfo {
   @MainActor
   func reduceCommandLineArguments(
-    using executor: SourceKitRequestExecutor,
+    using executor: any SourceKitRequestExecutor,
     progressUpdate: (_ progress: Double, _ message: String) -> Void
   ) async throws -> RequestInfo {
     try await withoutActuallyEscaping(progressUpdate) { progressUpdate in
@@ -34,7 +34,7 @@ extension RequestInfo {
 private class CommandLineArgumentReducer {
   /// The executor that is used to run a sourcekitd request and check whether it
   /// still crashes.
-  private let sourcekitdExecutor: SourceKitRequestExecutor
+  private let sourcekitdExecutor: any SourceKitRequestExecutor
 
   /// A callback to be called when the reducer has made progress reducing the request
   private let progressUpdate: (_ progress: Double, _ message: String) -> Void
@@ -43,7 +43,7 @@ private class CommandLineArgumentReducer {
   private var initialCommandLineCount: Int = 0
 
   init(
-    sourcekitdExecutor: SourceKitRequestExecutor,
+    sourcekitdExecutor: any SourceKitRequestExecutor,
     progressUpdate: @escaping (_ progress: Double, _ message: String) -> Void
   ) {
     self.sourcekitdExecutor = sourcekitdExecutor

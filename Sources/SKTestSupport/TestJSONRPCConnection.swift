@@ -97,7 +97,7 @@ package struct TestLocalConnection {
 
 package actor TestClient: MessageHandler {
   /// The connection to the LSP server.
-  package let connectionToServer: Connection
+  package let connectionToServer: any Connection
 
   private let messageHandlingQueue = AsyncQueue<Serial>()
 
@@ -105,7 +105,7 @@ package actor TestClient: MessageHandler {
 
   private let allowUnexpectedNotification: Bool
 
-  package init(connectionToServer: Connection, allowUnexpectedNotification: Bool = true) {
+  package init(connectionToServer: any Connection, allowUnexpectedNotification: Bool = true) {
     self.connectionToServer = connectionToServer
     self.allowUnexpectedNotification = allowUnexpectedNotification
   }
@@ -159,9 +159,9 @@ package actor TestClient: MessageHandler {
 }
 
 package final class TestServer: MessageHandler {
-  package let client: Connection
+  package let client: any Connection
 
-  init(client: Connection) {
+  init(client: any Connection) {
     self.client = client
   }
 

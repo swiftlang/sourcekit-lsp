@@ -135,7 +135,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
   private var buildDescription: SourceKitLSPAPI.BuildDescription?
 
   /// Maps target ids to their SwiftPM build target.
-  private var swiftPMTargets: [BuildTargetIdentifier: SwiftBuildTarget] = [:]
+  private var swiftPMTargets: [BuildTargetIdentifier: any SwiftBuildTarget] = [:]
 
   private var targetDependencies: [BuildTargetIdentifier: Set<BuildTargetIdentifier>] = [:]
 

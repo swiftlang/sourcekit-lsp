@@ -12,7 +12,7 @@
 
 /// Essentially a dictionary where results are asynchronously computed on access.
 package class Cache<Key: Sendable & Hashable, Result: Sendable> {
-  private var storage: [Key: Task<Result, Error>] = [:]
+  private var storage: [Key: Task<Result, any Error>] = [:]
 
   package init() {}
 
@@ -21,7 +21,7 @@ package class Cache<Key: Sendable & Hashable, Result: Sendable> {
     isolation: isolated any Actor,
     compute: @Sendable @escaping (Key) async throws -> Result
   ) async throws -> Result {
-    let task: Task<Result, Error>
+    let task: Task<Result, any Error>
     if let cached = storage[key] {
       task = cached
     } else {

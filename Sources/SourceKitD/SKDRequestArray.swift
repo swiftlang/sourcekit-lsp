@@ -26,7 +26,7 @@ import Bionic
 
 extension SourceKitD {
   /// Create a `SKDRequestArray` from the given array.
-  nonisolated package func array(_ array: [SKDRequestValue]) -> SKDRequestArray {
+  nonisolated package func array(_ array: [any SKDRequestValue]) -> SKDRequestArray {
     let result = SKDRequestArray(sourcekitd: self)
     for element in array {
       result.append(element)
@@ -48,7 +48,7 @@ package final class SKDRequestArray: Sendable {
     sourcekitd.api.request_release(array)
   }
 
-  package func append(_ newValue: SKDRequestValue) {
+  package func append(_ newValue: any SKDRequestValue) {
     switch newValue {
     case let newValue as String:
       sourcekitd.api.request_array_set_string(array, -1, newValue)
@@ -60,11 +60,11 @@ package final class SKDRequestArray: Sendable {
       sourcekitd.api.request_array_set_value(array, -1, newValue.dict)
     case let newValue as SKDRequestArray:
       sourcekitd.api.request_array_set_value(array, -1, newValue.array)
-    case let newValue as [SKDRequestValue]:
+    case let newValue as [any SKDRequestValue]:
       self.append(sourcekitd.array(newValue))
-    case let newValue as [sourcekitd_api_uid_t: SKDRequestValue]:
+    case let newValue as [sourcekitd_api_uid_t: any SKDRequestValue]:
       self.append(sourcekitd.dictionary(newValue))
-    case let newValue as SKDRequestValue?:
+    case let newValue as (any SKDRequestValue)?:
       if let newValue {
         self.append(newValue)
       }
@@ -73,7 +73,7 @@ package final class SKDRequestArray: Sendable {
     }
   }
 
-  package static func += (array: SKDRequestArray, other: some Sequence<SKDRequestValue>) {
+  package static func += (array: SKDRequestArray, other: some Sequence<any SKDRequestValue>) {
     for item in other {
       array.append(item)
     }

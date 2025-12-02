@@ -205,7 +205,10 @@ private extension BuildServerSpec {
   private func createBuiltInBuildServerAdapter(
     messagesToSourceKitLSPHandler: any MessageHandler,
     buildServerHooks: BuildServerHooks,
-    _ createBuildServer: @Sendable (_ connectionToSourceKitLSP: any Connection) async throws -> BuiltInBuildServer?
+    _ createBuildServer:
+      @Sendable (
+        _ connectionToSourceKitLSP: any Connection
+      ) async throws -> (any BuiltInBuildServer)?
   ) async -> BuildServerAdapter? {
     let connectionToSourceKitLSP = LocalConnection(
       receiverName: "BuildServerManager for \(projectRoot.lastPathComponent)",
@@ -327,7 +330,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   /// get `fileBuildSettingsChanged` and `filesDependenciesUpdated` callbacks.
   private var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
 
-  private var connectionToClient: BuildServerManagerConnectionToClient
+  private var connectionToClient: any BuildServerManagerConnectionToClient
 
   /// The build serer adapter that is used to answer build server queries.
   private var buildServerAdapter: BuildServerAdapter?
@@ -347,7 +350,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   /// Provider of file to main file mappings.
   ///
   /// Force-unwrapped optional because initializing it requires access to `self`.
-  private var mainFilesProvider: Task<MainFilesProvider?, Never>! {
+  private var mainFilesProvider: Task<(any MainFilesProvider)?, Never>! {
     didSet {
       // Must only be set once
       precondition(oldValue == nil)
@@ -367,7 +370,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   }
 
   /// Build server delegate that will receive notifications about setting changes, etc.
-  private weak var delegate: BuildServerManagerDelegate?
+  private weak var delegate: (any BuildServerManagerDelegate)?
 
   private let buildSettingsLogger = BuildSettingsLogger()
 
@@ -485,12 +488,12 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     buildServerSpec: BuildServerSpec?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
-    connectionToClient: BuildServerManagerConnectionToClient,
+    connectionToClient: any BuildServerManagerConnectionToClient,
     buildServerHooks: BuildServerHooks,
     createMainFilesProvider:
       @escaping @Sendable (
         SourceKitInitializeBuildResponseData?, _ mainFilesChangedCallback: @escaping @Sendable () async -> Void
-      ) async -> MainFilesProvider?
+      ) async -> (any MainFilesProvider)?
   ) async {
     self.toolchainRegistry = toolchainRegistry
     self.options = options
@@ -656,7 +659,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
 
   /// - Note: Needed because `BuildSererManager` is created before `Workspace` is initialized and `Workspace` needs to
   ///   create the `BuildServerManager`, then initialize itself and then set itself as the delegate.
-  package func setDelegate(_ delegate: BuildServerManagerDelegate?) {
+  package func setDelegate(_ delegate: (any BuildServerManagerDelegate)?) {
     self.delegate = delegate
   }
 

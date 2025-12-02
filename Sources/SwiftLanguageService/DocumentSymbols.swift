@@ -100,7 +100,7 @@ private final class DocumentSymbolsFinder: SyntaxAnyVisitor {
   }
 
   override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
-    guard let node = node.asProtocol(NamedDeclSyntax.self) else {
+    guard let node = node.asProtocol((any NamedDeclSyntax).self) else {
       return .visitChildren
     }
     let symbolKind: SymbolKind? =
