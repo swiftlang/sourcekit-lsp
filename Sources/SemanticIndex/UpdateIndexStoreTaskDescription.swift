@@ -632,7 +632,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       // Indexing will frequently fail if the source code is in an invalid state. Thus, log the failure at a low level.
       logger.debug(
         """
-        Updating index store for terminated with non-zero exit code \(code) for \(indexFiles)
+        Updating index store terminated with non-zero exit code \(code) for \(indexFiles)
         Stderr:
         \(stderr)
         Stdout:
@@ -645,7 +645,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         // The indexing job finished with a signal. Could be because the compiler crashed.
         // Ignore signal exit codes if this task has been cancelled because the compiler exits with SIGINT if it gets
         // interrupted.
-        logger.error("Updating index store for signaled \(signal) for \(indexFiles)")
+        logger.error("Updating index store signaled \(signal) for \(indexFiles)")
         BuildSettingsLogger.log(level: .error, settings: buildSettings, for: indexFiles)
       }
     case .abnormal(let exception):

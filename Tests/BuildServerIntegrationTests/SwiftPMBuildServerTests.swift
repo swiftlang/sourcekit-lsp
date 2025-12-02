@@ -1111,6 +1111,74 @@ struct SwiftPMBuildServerTests {
       #expect(compilerArgs.contains(try manifestURL.filePath))
     }
   }
+
+  @Test(
+    .enabled(if: Platform.current != .windows, "Toolsets are not working on Windows, see swift-package-manager#9438.")
+  )
+  func testToolsets() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Foo/foo.swift": """
+        import Bar
+
+        func foo() {
+          bar()
+        }
+        """,
+        "Bar/bar.swift": """
+        #if BAR
+        public func bar() {}
+        #endif
+        """,
+        "/toolset.json": """
+        {
+          "schemaVersion": "1.0",
+          "swiftCompiler": {
+            "extraCLIOptions": [
+              "-DBAR"
+            ]
+          }
+        }
+        """,
+        "/.sourcekit-lsp/config.json": """
+        {
+          "swiftPM": {
+            "toolsets": ["toolset.json"]
+          }
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "Foo", dependencies: ["Bar"]),
+            .target(name: "Bar"),
+          ]
+        )
+        """,
+      options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest]),
+      enableBackgroundIndexing: true,
+    )
+
+    let (uri, _) = try project.openDocument("foo.swift")
+
+    let options = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        prepareTarget: false,
+        allowFallbackSettings: false
+      )
+    )
+    #expect(options.compilerArguments.contains("-DBAR"))
+
+    let diagnostics = try #require(
+      await project.testClient.send(
+        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+      ).fullReport?.items
+    )
+    #expect(diagnostics.isEmpty)
+  }
 }
 
 private func expectArgumentsDoNotContain(

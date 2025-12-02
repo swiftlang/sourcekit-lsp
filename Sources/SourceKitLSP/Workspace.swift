@@ -524,8 +524,14 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
       await buildServerManager.scheduleRecomputeCopyFileMap().value
     }
     if request.index ?? false {
-      await semanticIndexManager?.waitForUpToDateIndex()
-      await uncheckedIndex?.pollForUnitChangesAndWait()
+      if let semanticIndexManager = await semanticIndexManager {
+        await semanticIndexManager.waitForUpToDateIndex()
+      } else {
+        logger.debug("Skipping wait for background index in synchronize as it's disabled")
+
+        // Might have index while building, so still need to poll for any changes
+        await uncheckedIndex?.pollForUnitChangesAndWait()
+      }
     }
   }
 }
