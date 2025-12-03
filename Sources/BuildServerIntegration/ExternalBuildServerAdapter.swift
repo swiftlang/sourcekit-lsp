@@ -19,6 +19,7 @@ import Foundation
 import SKOptions
 import SwiftExtensions
 import TSCExtensions
+import ToolchainRegistry
 
 import func TSCBasic.getEnvSearchPaths
 import var TSCBasic.localFileSystem
@@ -61,7 +62,7 @@ enum BuildServerNotFoundError: Error {
 /// BSP configuration
 ///
 /// See https://build-server-protocol.github.io/docs/overview/server-discovery#the-bsp-connection-details
-private struct BuildServerConfig: Codable {
+struct BuildServerConfig: Codable {
   /// The name of the build tool.
   let name: String
 
@@ -82,6 +83,83 @@ private struct BuildServerConfig: Codable {
     let fileData = try Data(contentsOf: path)
     return try decoder.decode(BuildServerConfig.self, from: fileData)
   }
+
+  static func forSwiftPMBuildServer(
+    projectRoot: URL,
+    swiftPMOptions: SourceKitLSPOptions.SwiftPMOptions,
+    toolchainRegistry: ToolchainRegistry
+  ) async throws -> BuildServerConfig {
+    let toolchain = await toolchainRegistry.preferredToolchain(containing: [\.swift])
+    guard let swiftPath = try toolchain?.swift?.filePath else {
+      throw ExecutableNotFoundError(executableName: "swift")
+    }
+    var args: [String] = [swiftPath, "package", "experimental-build-server"]
+    // The build server requires use of the Swift Build backend.
+    args.append(contentsOf: ["--build-system", "swiftbuild"])
+    // Explicitly specify the package path.
+    try args.append(contentsOf: ["--package-path", projectRoot.filePath])
+    // Map LSP SwiftPM options to build server flags
+    if let configuration = swiftPMOptions.configuration {
+      args.append(contentsOf: ["--configuration", configuration.rawValue])
+    }
+    if let scratchPath = swiftPMOptions.scratchPath {
+      args.append(contentsOf: ["--scratch-path", scratchPath])
+    }
+    if let swiftSDKsDirectory = swiftPMOptions.swiftSDKsDirectory {
+      args.append(contentsOf: ["--swift-sdks-path", swiftSDKsDirectory])
+    }
+    if let swiftSDK = swiftPMOptions.swiftSDK {
+      args.append(contentsOf: ["--swift-sdk", swiftSDK])
+    }
+    if let triple = swiftPMOptions.triple {
+      args.append(contentsOf: ["--triple", triple])
+    }
+    if let toolsets = swiftPMOptions.toolsets {
+      for toolset in toolsets {
+        args.append(contentsOf: ["--toolset", toolset])
+      }
+    }
+    if let traits = swiftPMOptions.traits {
+      args.append(contentsOf: ["--traits", traits.joined(separator: ",")])
+    }
+    if let cCompilerFlags = swiftPMOptions.cCompilerFlags {
+      for flag in cCompilerFlags {
+        args.append(contentsOf: ["-Xcc", flag])
+      }
+    }
+    if let cxxCompilerFlags = swiftPMOptions.cxxCompilerFlags {
+      for flag in cxxCompilerFlags {
+        args.append(contentsOf: ["-Xcxx", flag])
+      }
+    }
+    if let swiftCompilerFlags = swiftPMOptions.swiftCompilerFlags {
+      for flag in swiftCompilerFlags {
+        args.append(contentsOf: ["-Xswiftc", flag])
+      }
+    }
+    if let linkerFlags = swiftPMOptions.linkerFlags {
+      for flag in linkerFlags {
+        args.append(contentsOf: ["-Xlinker", flag])
+      }
+    }
+    if let buildToolsSwiftCompilerFlags = swiftPMOptions.buildToolsSwiftCompilerFlags {
+      for flag in buildToolsSwiftCompilerFlags {
+        args.append(contentsOf: ["-Xbuild-tools-swiftc", flag])
+      }
+    }
+    if swiftPMOptions.disableSandbox == true {
+      args.append("--disable-sandbox")
+    }
+    // The skipPlugins option isn't currently respected because the underlying build server does not support it.
+    // We may want to reconsider this in the future, or remove the option entirely.
+    return BuildServerConfig(
+      name: "SwiftPM Build Server",
+      version: "",
+      bspVersion: "2.2.0",
+      languages: [Language.c, .cpp, .objective_c, .objective_cpp, .swift].map(\.rawValue),
+      argv: args
+    )
+  }
 }
 
 /// Launches a subprocess that is a BSP server and manages the process's lifetime.
@@ -89,8 +167,8 @@ actor ExternalBuildServerAdapter {
   /// The root folder of the project. Used to resolve relative server paths.
   private let projectRoot: URL
 
-  /// The file that specifies the configuration for this build server.
-  private let configPath: URL
+  /// The configuration for this build server.
+  private let serverConfig: BuildServerConfig
 
   /// The `BuildServerManager` that handles messages from the BSP server to SourceKit-LSP.
   var messagesToSourceKitLSPHandler: MessageHandler
@@ -123,13 +201,26 @@ actor ExternalBuildServerAdapter {
 
   init(
     projectRoot: URL,
-    configPath: URL,
-    messagesToSourceKitLSPHandler: MessageHandler
+    config: BuildServerConfig,
+    messagesToSourceKitLSPHandler: any MessageHandler
   ) async throws {
     self.projectRoot = projectRoot
-    self.configPath = configPath
+    self.serverConfig = config
     self.messagesToSourceKitLSPHandler = messagesToSourceKitLSPHandler
     self.connectionToBuildServer = try await self.createConnectionToBspServer()
+  }
+
+  init(
+    projectRoot: URL,
+    configPath: URL,
+    messagesToSourceKitLSPHandler: any MessageHandler
+  ) async throws {
+    let serverConfig = try BuildServerConfig.load(from: configPath)
+    try await self.init(
+      projectRoot: projectRoot,
+      config: serverConfig,
+      messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
+    )
   }
 
   /// Change the handler that handles messages from the build server.
@@ -165,7 +256,6 @@ actor ExternalBuildServerAdapter {
 
   /// Create a new JSONRPCConnection to the build server.
   private func createConnectionToBspServer() async throws -> JSONRPCConnection {
-    let serverConfig = try BuildServerConfig.load(from: configPath)
     var serverPath = URL(fileURLWithPath: serverConfig.argv[0], relativeTo: projectRoot.ensuringCorrectTrailingSlash)
     var serverArgs = Array(serverConfig.argv[1...])
 
