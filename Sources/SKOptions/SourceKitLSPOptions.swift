@@ -76,6 +76,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     ///   background indexing.
     public var skipPlugins: Bool?
 
+    /// Which SwiftPM build system should be used when opening a package.
+    public var buildSystem: SwiftPMBuildSystem?
+
     public init(
       configuration: BuildConfiguration? = nil,
       scratchPath: String? = nil,
@@ -90,7 +93,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       linkerFlags: [String]? = nil,
       buildToolsSwiftCompilerFlags: [String]? = nil,
       disableSandbox: Bool? = nil,
-      skipPlugins: Bool? = nil
+      skipPlugins: Bool? = nil,
+      buildSystem: SwiftPMBuildSystem? = nil
     ) {
       self.configuration = configuration
       self.scratchPath = scratchPath
@@ -105,6 +109,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       self.linkerFlags = linkerFlags
       self.buildToolsSwiftCompilerFlags = buildToolsSwiftCompilerFlags
       self.disableSandbox = disableSandbox
+      self.buildSystem = buildSystem
     }
 
     static func merging(base: SwiftPMOptions, override: SwiftPMOptions?) -> SwiftPMOptions {
@@ -122,7 +127,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
         linkerFlags: override?.linkerFlags ?? base.linkerFlags,
         buildToolsSwiftCompilerFlags: override?.buildToolsSwiftCompilerFlags ?? base.buildToolsSwiftCompilerFlags,
         disableSandbox: override?.disableSandbox ?? base.disableSandbox,
-        skipPlugins: override?.skipPlugins ?? base.skipPlugins
+        skipPlugins: override?.skipPlugins ?? base.skipPlugins,
+        buildSystem: override?.buildSystem ?? base.buildSystem
       )
     }
   }
