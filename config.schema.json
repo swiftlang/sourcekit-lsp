@@ -230,6 +230,15 @@
       "description" : "Options for SwiftPM workspaces.",
       "markdownDescription" : "Options for SwiftPM workspaces.",
       "properties" : {
+        "buildSystem" : {
+          "description" : "Which SwiftPM build system should be used when opening a package.",
+          "enum" : [
+            "native",
+            "swiftbuild"
+          ],
+          "markdownDescription" : "Which SwiftPM build system should be used when opening a package.",
+          "type" : "string"
+        },
         "buildToolsSwiftCompilerFlags" : {
           "description" : "Extra arguments passed to the compiler for Swift files or plugins. Equivalent to SwiftPM's `-Xbuild-tools-swiftc` option.",
           "items" : {
