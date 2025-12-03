@@ -126,6 +126,10 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
   private let pluginConfiguration: PluginConfiguration
   private let traitConfiguration: TraitConfiguration
 
+  /// Paths to any toolsets provided in `SourceKitLSPOptions`, with any relative paths resolved based on the project
+  /// root.
+  private let toolsets: [AbsolutePath]
+
   /// A `ObservabilitySystem` from `SwiftPM` that logs.
   private let observabilitySystem: ObservabilitySystem
 
@@ -212,6 +216,11 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     }
 
     let absProjectRoot = try AbsolutePath(validating: projectRoot.filePath)
+    self.toolsets =
+      try options.swiftPMOrDefault.toolsets?.map {
+        try AbsolutePath(validating: $0, relativeTo: absProjectRoot)
+      } ?? []
+
     let hostSDK = try SwiftSDK.hostSwiftSDK(AbsolutePath(validating: destinationToolchainBinDir.filePath))
     let hostSwiftPMToolchain = try UserToolchain(swiftSDK: hostSDK)
 
@@ -230,9 +239,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     let destinationSDK = try SwiftSDK.deriveTargetSwiftSDK(
       hostSwiftSDK: hostSDK,
       hostTriple: hostSwiftPMToolchain.targetTriple,
-      customToolsets: options.swiftPMOrDefault.toolsets?.map {
-        try AbsolutePath(validating: $0, relativeTo: absProjectRoot)
-      } ?? [],
+      customToolsets: toolsets,
       customCompileTriple: triple,
       swiftSDKSelector: options.swiftPMOrDefault.swiftSDK,
       store: SwiftSDKBundleStore(
@@ -753,6 +760,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     if let traits = options.swiftPMOrDefault.traits {
       arguments += ["--traits", traits.joined(separator: ",")]
     }
+    arguments += toolsets.flatMap { ["--toolset", $0.pathString] }
     arguments += options.swiftPMOrDefault.cCompilerFlags?.flatMap { ["-Xcc", $0] } ?? []
     arguments += options.swiftPMOrDefault.cxxCompilerFlags?.flatMap { ["-Xcxx", $0] } ?? []
     arguments += options.swiftPMOrDefault.swiftCompilerFlags?.flatMap { ["-Xswiftc", $0] } ?? []
