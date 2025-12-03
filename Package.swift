@@ -526,13 +526,14 @@ var targets: [Target] = [
       "SourceKitDForPlugin",
       "SwiftExtensionsForPlugin",
       "SwiftSourceKitPluginCommon",
+      .product(name: "_SKLoggingForPlugin", package: "swift-tools-protocols"),
     ],
     exclude: ["CMakeLists.txt"],
     swiftSettings: [
       .unsafeFlags([
+        "-module-alias", "SKLogging=_SKLoggingForPlugin",
         "-module-alias", "SourceKitD=SourceKitDForPlugin",
         "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
-        "-module-alias", "ToolsProtocolsSwiftExtensions=_ToolsProtocolsSwiftExtensionsForPlugin",
       ])
     ],
     linkerSettings: sourcekitLSPLinkSettings
@@ -546,15 +547,12 @@ var targets: [Target] = [
       "Csourcekitd",
       "SourceKitDForPlugin",
       "SwiftExtensionsForPlugin",
-      .product(name: "_SKLoggingForPlugin", package: "swift-tools-protocols"),
     ],
     exclude: ["CMakeLists.txt"],
     swiftSettings: [
       .unsafeFlags([
         "-module-alias", "SourceKitD=SourceKitDForPlugin",
         "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
-        "-module-alias", "ToolsProtocolsSwiftExtensions=_ToolsProtocolsSwiftExtensionsForPlugin",
-        "-module-alias", "SKLogging=_SKLoggingForPlugin",
       ])
     ]
   ),
@@ -577,9 +575,9 @@ var targets: [Target] = [
     swiftSettings: [
       .unsafeFlags([
         "-module-alias", "CompletionScoring=CompletionScoringForPlugin",
+        "-module-alias", "SKLogging=_SKLoggingForPlugin",
         "-module-alias", "SKUtilities=SKUtilitiesForPlugin",
         "-module-alias", "SourceKitD=SourceKitDForPlugin",
-        "-module-alias", "SKLogging=_SKLoggingForPlugin",
         "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
         "-module-alias", "ToolsProtocolsSwiftExtensions=_ToolsProtocolsSwiftExtensionsForPlugin",
       ])
