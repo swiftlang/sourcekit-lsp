@@ -272,7 +272,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
       determineFilesToScan: { targets in
         await orLog("Getting list of files for syntactic index population") {
           try await buildServerManager.projectSourceFiles(in: targets)
-        } ?? []
+        } ?? [:]
       },
       syntacticTests: { [weak self] (snapshot) in
         guard let self else {
@@ -429,7 +429,16 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     // Notify all clients about the reported and inferred edits.
     await buildServerManager.filesDidChange(events)
 
-    async let updateSyntacticIndex: Void = await syntacticIndex.filesDidChange(events)
+    let eventsWithSourceFileInfo: [FileEvent: SourceFileInfo] = await Dictionary(
+      uniqueKeysWithValues: events.asyncCompactMap({
+        guard let sourceFileInfo = await buildServerManager.sourceFileInfo(for: $0.uri) else {
+          return nil
+        }
+        return ($0, sourceFileInfo)
+      })
+    )
+
+    async let updateSyntacticIndex: Void = await syntacticIndex.filesDidChange(eventsWithSourceFileInfo)
     async let updateSemanticIndex: Void? = await semanticIndexManager?.filesDidChange(events)
     _ = await (updateSyntacticIndex, updateSemanticIndex)
   }

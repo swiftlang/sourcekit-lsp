@@ -1110,10 +1110,10 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
     )
   }
 
-  func testSwiftTestingTestsAreNotDiscoveredInNonRootFiles() async throws {
+  func testSwiftTestingTestsAreNotDiscoveredInNonTestTargets() async throws {
     let project = try await SwiftPMTestProject(
       files: [
-        "/not/root/FileA.swift": """
+        "FileA.swift": """
           @Suite struct MyTests {
           @Test func inStruct() {}
         }

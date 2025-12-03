@@ -1574,16 +1574,18 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   ///
   /// - Parameter include: If `nil` will include all targets, otherwise only return files who are part of at least one matching target
   /// - Returns: List of filtered source files in root project
-  package func projectSourceFiles(in include: Set<BuildTargetIdentifier>? = nil) async throws -> [DocumentURI] {
-    return try await sourceFiles(includeNonBuildableFiles: false).compactMap { (uri, info) -> DocumentURI? in
+  package func projectSourceFiles(
+    in include: Set<BuildTargetIdentifier>? = nil
+  ) async throws -> [DocumentURI: SourceFileInfo] {
+    return try await sourceFiles(includeNonBuildableFiles: false).filter { (uri, info) -> Bool in
       var includeTarget = true
       if let include {
         includeTarget = info.targets.contains(anyIn: include)
       }
       guard info.isPartOfRootProject, includeTarget else {
-        return nil
+        return false
       }
-      return uri
+      return true
     }
   }
 
