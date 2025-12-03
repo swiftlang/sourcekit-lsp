@@ -35,4 +35,6 @@ find_package(SwiftToolsProtocols CONFIG REQUIRED)
 
 include(SwiftSupport)
 
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/config.schema.json DESTINATION share/sourcekit-lsp)
+
 add_subdirectory(Sources)
