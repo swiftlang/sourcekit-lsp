@@ -257,7 +257,7 @@ def copy_file(source: str, destination_dir: str, verbose: bool) -> None:
     """
     Copies the file at `source` into `destination_dir`.
     """
-    os.makedirs(destination_dir)
+    os.makedirs(destination_dir, exist_ok=True)
     check_call(['rsync', '-a', source, destination_dir], verbose=verbose)
 
 
