@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(SourceKitLSP) import BuildServerIntegration
+@_spi(SourceKitLSP) package import BuildServerIntegration
 @_spi(SourceKitLSP) package import BuildServerProtocol
 import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
@@ -102,7 +102,7 @@ package actor SyntacticIndex: Sendable {
   private let indexingQueue = AsyncQueue<TaskMetadata>()
 
   /// Fetch the list of source files to scan for a given set of build targets
-  private let determineFilesToScan: @Sendable (Set<BuildTargetIdentifier>?) async -> [DocumentURI]
+  private let determineFilesToScan: @Sendable (Set<BuildTargetIdentifier>?) async -> [DocumentURI: SourceFileInfo]
 
   /// Syntactically parse tests from the given snapshot
   private let syntacticTests: @Sendable (DocumentSnapshot) async -> [AnnotatedTestItem]
@@ -111,7 +111,7 @@ package actor SyntacticIndex: Sendable {
   private let syntacticPlaygrounds: @Sendable (DocumentSnapshot) async -> [TextDocumentPlayground]
 
   package init(
-    determineFilesToScan: @Sendable @escaping (Set<BuildTargetIdentifier>?) async -> [DocumentURI],
+    determineFilesToScan: @Sendable @escaping (Set<BuildTargetIdentifier>?) async -> [DocumentURI: SourceFileInfo],
     syntacticTests: @Sendable @escaping (DocumentSnapshot) async -> [AnnotatedTestItem],
     syntacticPlaygrounds: @Sendable @escaping (DocumentSnapshot) async -> [TextDocumentPlayground]
   ) {
@@ -126,10 +126,14 @@ package actor SyntacticIndex: Sendable {
       // in O(number of pending tasks), since we need to scan for dependency edges to add, which would make scanning files
       // be O(number of files).
       // Over-subscribe the processor count in case one batch finishes more quickly than another.
-      let batches = filesToScan.partition(intoNumberOfBatches: ProcessInfo.processInfo.activeProcessorCount * 4)
+      let uris = Array(filesToScan.keys)
+      let batches = uris.partition(intoNumberOfBatches: ProcessInfo.processInfo.activeProcessorCount * 4)
       await batches.concurrentForEach { filesInBatch in
         for uri in filesInBatch {
-          await self.rescanFileAssumingOnQueue(uri)
+          guard let sourceFileInfo = filesToScan[uri] else {
+            continue
+          }
+          await self.rescanFileAssumingOnQueue(uri, scanForTests: sourceFileInfo.mayContainTests)
         }
       }
     }
@@ -147,21 +151,21 @@ package actor SyntacticIndex: Sendable {
   /// All files that are not in the new list of buildable files will be removed from the index.
   package func buildTargetsChanged(_ changedTargets: Set<BuildTargetIdentifier>?) async {
     let changedFiles = await determineFilesToScan(changedTargets)
-    let removedFiles = Set(self.indexedSources.keys).subtracting(changedFiles)
+    let removedFiles = Set(self.indexedSources.keys).subtracting(changedFiles.keys)
     removeFilesFromIndex(removedFiles)
 
     rescanFiles(changedFiles)
   }
 
-  package func filesDidChange(_ events: [FileEvent]) {
+  package func filesDidChange(_ events: [FileEvent: SourceFileInfo]) {
     var removedFiles: Set<DocumentURI> = []
-    var filesToRescan: [DocumentURI] = []
-    for fileEvent in events {
+    var filesToRescan: [DocumentURI: SourceFileInfo] = [:]
+    for (fileEvent, sourceFileInfo) in events {
       switch fileEvent.type {
       case .created:
-        filesToRescan.append(fileEvent.uri)
+        filesToRescan[fileEvent.uri] = sourceFileInfo
       case .changed:
-        filesToRescan.append(fileEvent.uri)
+        filesToRescan[fileEvent.uri] = sourceFileInfo
       case .deleted:
         removedFiles.insert(fileEvent.uri)
       default:
@@ -173,10 +177,10 @@ package actor SyntacticIndex: Sendable {
   }
 
   /// Called when a list of files was updated. Re-scans those files
-  private func rescanFiles(_ uris: [DocumentURI]) {
+  private func rescanFiles(_ filesToScan: [DocumentURI: SourceFileInfo]) {
     // If we scan a file again, it might have been added after being removed before. Remove it from the list of removed
     // files.
-    removedFiles.subtract(uris)
+    removedFiles.subtract(filesToScan.keys)
 
     // If we already know that the file has an up-to-date index, avoid re-scheduling it to be indexed. This ensures
     // that we don't bloat `indexingQueue` if the build server is sending us repeated `buildTarget/didChange`
@@ -184,7 +188,7 @@ package actor SyntacticIndex: Sendable {
     // This check does not need to be perfect and there might be an in-progress index operation that is about to index
     // the file. In that case we still schedule anothe rescan of that file and notice in `rescanFilesAssumingOnQueue`
     // that the index is already up-to-date, which makes the rescan a no-op.
-    let uris = uris.filter { uri in
+    let filesToScan = filesToScan.filter { (uri, _) in
       if let url = uri.fileURL,
         let indexModificationDate = self.indexedSources[uri]?.sourceFileModificationDate,
         let fileModificationDate = try? FileManager.default.attributesOfItem(atPath: url.filePath)[.modificationDate]
@@ -196,12 +200,12 @@ package actor SyntacticIndex: Sendable {
       return true
     }
 
-    guard !uris.isEmpty else {
+    guard !filesToScan.isEmpty else {
       return
     }
 
     logger.info(
-      "Syntactically scanning \(uris.count) files: \(uris.map(\.arbitrarySchemeURL.lastPathComponent).joined(separator: ", "))"
+      "Syntactically scanning \(filesToScan.count) files: \(filesToScan.map(\.key).map(\.arbitrarySchemeURL.lastPathComponent).joined(separator: ", "))"
     )
 
     // Divide the files into multiple batches. This is more efficient than spawning a new task for every file, mostly
@@ -209,11 +213,15 @@ package actor SyntacticIndex: Sendable {
     // in O(number of pending tasks), since we need to scan for dependency edges to add, which would make scanning files
     // be O(number of files).
     // Over-subscribe the processor count in case one batch finishes more quickly than another.
+    let uris = Array(filesToScan.keys)
     let batches = uris.partition(intoNumberOfBatches: ProcessInfo.processInfo.activeProcessorCount * 4)
     for batch in batches {
       self.indexingQueue.async(priority: .low, metadata: .index(Set(batch))) {
         for uri in batch {
-          await self.rescanFileAssumingOnQueue(uri)
+          guard let sourceFileInfo = filesToScan[uri] else {
+            continue
+          }
+          await self.rescanFileAssumingOnQueue(uri, scanForTests: sourceFileInfo.mayContainTests)
         }
       }
     }
@@ -222,7 +230,7 @@ package actor SyntacticIndex: Sendable {
   /// Re-scans a single file.
   ///
   /// - Important: This method must be called in a task that is executing on `indexingQueue`.
-  private func rescanFileAssumingOnQueue(_ uri: DocumentURI) async {
+  private func rescanFileAssumingOnQueue(_ uri: DocumentURI, scanForTests: Bool) async {
     guard let language = Language(inferredFromFileExtension: uri) else {
       return
     }
@@ -266,9 +274,11 @@ package actor SyntacticIndex: Sendable {
       return
     }
 
-    let (testItems, playgrounds) = await (
-      syntacticTests(snapshot), syntacticPlaygrounds(snapshot)
-    )
+    async let asyncTestItems = scanForTests ? syntacticTests(snapshot) : []
+    async let asyncPlaygrounds = syntacticPlaygrounds(snapshot)
+
+    let testItems = await asyncTestItems
+    let playgrounds = await asyncPlaygrounds
 
     guard !removedFiles.contains(uri) else {
       // Check whether the file got removed while we were scanning it for tests. If so, don't add it back to
