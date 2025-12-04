@@ -700,7 +700,7 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.willSaveDocument)
     // IMPORTANT: When adding a new entry to this switch, also add it to the `MessageHandlingDependencyTracker` initializer.
     default:
-      break
+      logger.error("Ignoring unknown notification \(type(of: notification).method)")
     }
   }
 
