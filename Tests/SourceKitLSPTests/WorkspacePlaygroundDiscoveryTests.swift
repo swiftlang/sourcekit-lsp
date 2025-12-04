@@ -113,16 +113,16 @@ final class WorkspacePlaygroundDiscoveryTests: SourceKitLSPTestCase {
         "Sources/MyLibrary/bar.swift": """
         import Playgrounds
 
-        7️⃣#Playground("bar2") {
+        1️⃣#Playground("bar2") {
           print(foo())
-        }8️⃣
+        }2️⃣
         """,
         "Sources/MyApp/baz.swift": """
         import Playgrounds
 
-         9️⃣#Playground("baz") {
+         1️⃣#Playground("baz") {
           print("baz")
-        }🔟
+        }2️⃣
         """,
       ],
       manifest: """
@@ -146,7 +146,7 @@ final class WorkspacePlaygroundDiscoveryTests: SourceKitLSPTestCase {
         Playground(
           id: "MyApp/baz.swift:3:2",
           label: "baz",
-          location: try project.location(from: "9️⃣", to: "🔟", in: "baz.swift")
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "baz.swift")
         ),
         Playground(
           id: "MyLibrary/Test.swift:7:1",
@@ -166,7 +166,351 @@ final class WorkspacePlaygroundDiscoveryTests: SourceKitLSPTestCase {
         Playground(
           id: "MyLibrary/bar.swift:3:1",
           label: "bar2",
-          location: try project.location(from: "7️⃣", to: "8️⃣", in: "bar.swift")
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "bar.swift")
+        ),
+      ]
+    )
+  }
+
+  func testWorkspacePlaygroundsInTestTarget() async throws {
+    let toolchainRegistry = ToolchainRegistry(toolchains: [try await Toolchain.forTestingWithSwiftPlay])
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/MyLibraryTests/MyTests.swift": """
+        import Playgrounds
+        import XCTest
+
+        public func foo() -> String {
+          "bar"
+        }
+
+        1️⃣#Playground("foo") {
+          print(foo())
+        }2️⃣
+
+        3️⃣#Playground("bar") {
+          print(foo())
+        }4️⃣
+
+        class MyTests: XCTestCase {
+          func testMyLibrary() {
+            XCTAssertEqual(foo(), "bar)
+          }
+        }
+        """
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [.testTarget(name: "MyLibraryTests")]
+        )
+        """,
+      toolchainRegistry: toolchainRegistry
+    )
+
+    let response = try await project.testClient.send(WorkspacePlaygroundsRequest())
+
+    XCTAssertEqual(
+      response,
+      [
+        Playground(
+          id: "MyLibraryTests/MyTests.swift:8:1",
+          label: "foo",
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "MyTests.swift")
+        ),
+        Playground(
+          id: "MyLibraryTests/MyTests.swift:12:1",
+          label: "bar",
+          location: try project.location(from: "3️⃣", to: "4️⃣", in: "MyTests.swift")
+        ),
+      ]
+    )
+  }
+
+  func testWorkspacePlaygroundsFileChange() async throws {
+    let toolchainRegistry = ToolchainRegistry(toolchains: [try await Toolchain.forTestingWithSwiftPlay])
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Sources/MyLibrary/Test.swift": """
+        import Playgrounds
+
+        public func foo() -> String {
+          "bar"
+        }
+
+        1️⃣#Playground("foo") {
+          print(foo())
+        }2️⃣
+
+        3️⃣#Playground {
+          print(foo())
+        }4️⃣
+
+        public func bar(_ i: Int, _ j: Int) -> Int {
+          i + j
+        }
+
+        5️⃣#Playground("bar") {
+          var i = bar(1, 2)
+          i = i + 1
+          print(i)
+        }6️⃣
+        """,
+        "Sources/MyLibrary/TestNoImport.swift": """
+        #Playground("fooNoImport") {
+          print(foo())
+        }
+
+        #Playground {
+          print(foo())
+        }
+
+        #Playground("barNoImport") {
+          var i = bar(1, 2)
+          i = i + 1
+          print(i)
+        }
+        """,
+        "Sources/MyLibrary/bar.swift": """
+        import Playgrounds
+
+        1️⃣#Playground("bar2") {
+          print(foo())
+        }2️⃣
+        """,
+        "Sources/MyApp/baz.swift": """
+        import Playgrounds
+
+         1️⃣#Playground("baz") {
+          print("baz")
+        }2️⃣
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "MyLibrary"),
+            .target(name: "MyApp")
+          ]
+        )
+        """,
+      toolchainRegistry: toolchainRegistry,
+    )
+
+    let response = try await project.testClient.send(WorkspacePlaygroundsRequest())
+
+    XCTAssertEqual(
+      response,
+      [
+        Playground(
+          id: "MyApp/baz.swift:3:2",
+          label: "baz",
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "baz.swift")
+        ),
+        Playground(
+          id: "MyLibrary/Test.swift:7:1",
+          label: "foo",
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "Test.swift")
+        ),
+        Playground(
+          id: "MyLibrary/Test.swift:11:1",
+          label: nil,
+          location: try project.location(from: "3️⃣", to: "4️⃣", in: "Test.swift")
+        ),
+        Playground(
+          id: "MyLibrary/Test.swift:19:1",
+          label: "bar",
+          location: try project.location(from: "5️⃣", to: "6️⃣", in: "Test.swift")
+        ),
+        Playground(
+          id: "MyLibrary/bar.swift:3:1",
+          label: "bar2",
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "bar.swift")
+        ),
+      ]
+    )
+
+    _ = try await project.changeFileOnDisk(
+      "Test.swift",
+      newMarkedContents: """
+        // No more playgrounds import
+        public func foo() -> String {
+          "bar"
+        }
+
+        1️⃣#Playground("baz") {
+          print(foo())
+        }2️⃣
+
+        3️⃣#Playground("qux") {
+          print(foo())
+        }4️⃣
+        """
+    )
+
+    let (uri, newPositions) = try await project.changeFileOnDisk(
+      "baz.swift",
+      newMarkedContents: """
+        import Playgrounds
+        1️⃣#Playground("newBaz") {
+          print("baz")
+        }2️⃣
+        """
+    )
+
+    let newResponse = try await project.testClient.send(WorkspacePlaygroundsRequest())
+
+    XCTAssertEqual(
+      newResponse,
+      [
+        Playground(
+          id: "MyApp/baz.swift:2:1",
+          label: "newBaz",
+          location: Location(uri: uri, range: newPositions["1️⃣"]..<newPositions["2️⃣"])
+        ),
+        Playground(
+          id: "MyLibrary/bar.swift:3:1",
+          label: "bar2",
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "bar.swift")
+        ),
+      ]
+    )
+  }
+
+  func testWorkspacePlaygroundsFileRemove() async throws {
+    let toolchainRegistry = ToolchainRegistry(toolchains: [try await Toolchain.forTestingWithSwiftPlay])
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Sources/MyLibrary/Test.swift": """
+        import Playgrounds
+
+        public func foo() -> String {
+          "bar"
+        }
+
+        1️⃣#Playground("foo") {
+          print(foo())
+        }2️⃣
+
+        3️⃣#Playground {
+          print(foo())
+        }4️⃣
+
+        public func bar(_ i: Int, _ j: Int) -> Int {
+          i + j
+        }
+
+        5️⃣#Playground("bar") {
+          var i = bar(1, 2)
+          i = i + 1
+          print(i)
+        }6️⃣
+        """,
+        "Sources/MyLibrary/TestNoImport.swift": """
+        #Playground("fooNoImport") {
+          print(foo())
+        }
+
+        #Playground {
+          print(foo())
+        }
+
+        #Playground("barNoImport") {
+          var i = bar(1, 2)
+          i = i + 1
+          print(i)
+        }
+        """,
+        "Sources/MyLibrary/bar.swift": """
+        import Playgrounds
+
+        1️⃣#Playground("bar2") {
+          print(foo())
+        }2️⃣
+        """,
+        "Sources/MyApp/baz.swift": """
+        import Playgrounds
+
+         1️⃣#Playground("baz") {
+          print("baz")
+        }2️⃣
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "MyLibrary"),
+            .target(name: "MyApp")
+          ]
+        )
+        """,
+      toolchainRegistry: toolchainRegistry
+    )
+
+    let response = try await project.testClient.send(WorkspacePlaygroundsRequest())
+
+    XCTAssertEqual(
+      response,
+      [
+        Playground(
+          id: "MyApp/baz.swift:3:2",
+          label: "baz",
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "baz.swift")
+        ),
+        Playground(
+          id: "MyLibrary/Test.swift:7:1",
+          label: "foo",
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "Test.swift")
+        ),
+        Playground(
+          id: "MyLibrary/Test.swift:11:1",
+          label: nil,
+          location: try project.location(from: "3️⃣", to: "4️⃣", in: "Test.swift")
+        ),
+        Playground(
+          id: "MyLibrary/Test.swift:19:1",
+          label: "bar",
+          location: try project.location(from: "5️⃣", to: "6️⃣", in: "Test.swift")
+        ),
+        Playground(
+          id: "MyLibrary/bar.swift:3:1",
+          label: "bar2",
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "bar.swift")
+        ),
+      ]
+    )
+
+    _ = try await project.changeFileOnDisk(
+      "baz.swift",
+      newMarkedContents: nil
+    )
+
+    let newResponse = try await project.testClient.send(WorkspacePlaygroundsRequest())
+
+    XCTAssertEqual(
+      newResponse,
+      [
+        Playground(
+          id: "MyLibrary/Test.swift:7:1",
+          label: "foo",
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "Test.swift")
+        ),
+        Playground(
+          id: "MyLibrary/Test.swift:11:1",
+          label: nil,
+          location: try project.location(from: "3️⃣", to: "4️⃣", in: "Test.swift")
+        ),
+        Playground(
+          id: "MyLibrary/Test.swift:19:1",
+          label: "bar",
+          location: try project.location(from: "5️⃣", to: "6️⃣", in: "Test.swift")
+        ),
+        Playground(
+          id: "MyLibrary/bar.swift:3:1",
+          label: "bar2",
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "bar.swift")
         ),
       ]
     )
