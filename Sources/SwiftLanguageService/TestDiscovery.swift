@@ -55,6 +55,9 @@ extension SwiftLanguageService {
   package func syntacticTestItems(
     for snapshot: DocumentSnapshot,
   ) async -> [AnnotatedTestItem] {
+    // Don't use the `syntaxTreeManager` instance variable in `SwiftLanguageService` in `DocumentSnapshot`
+    // loaded from the disk will always have version number 0
+    let syntaxTreeManager = SyntaxTreeManager()
     async let swiftTestingTests = SyntacticSwiftTestingTestScanner.findTestSymbols(
       in: snapshot,
       syntaxTreeManager: syntaxTreeManager
