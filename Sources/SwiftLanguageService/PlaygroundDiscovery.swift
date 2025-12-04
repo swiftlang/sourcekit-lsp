@@ -24,7 +24,10 @@ extension SwiftLanguageService {
     for snapshot: DocumentSnapshot,
     in workspace: Workspace
   ) async -> [TextDocumentPlayground] {
-    await SwiftPlaygroundsScanner.findDocumentPlaygrounds(
+    // Don't use the `syntaxTreeManager` instance variable in `SwiftLanguageService` in `DocumentSnapshot`
+    // loaded from the disk will always have version number 0
+    let syntaxTreeManager = SyntaxTreeManager()
+    return await SwiftPlaygroundsScanner.findDocumentPlaygrounds(
       for: snapshot,
       workspace: workspace,
       syntaxTreeManager: syntaxTreeManager
