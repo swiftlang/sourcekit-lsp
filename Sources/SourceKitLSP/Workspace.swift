@@ -271,8 +271,8 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     self.syntacticIndex = SyntacticIndex(
       determineFilesToScan: { targets in
         await orLog("Getting list of files for syntactic index population") {
-          try await buildServerManager.projectSourceFiles(in: targets)
-        } ?? [:]
+          try await buildServerManager.projectSourceFiles(in: targets).compactMap { ($0, $1) }
+        } ?? []
       },
       syntacticTests: { [weak self] (snapshot) in
         guard let self else {
