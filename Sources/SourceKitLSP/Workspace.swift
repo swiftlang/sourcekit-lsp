@@ -429,14 +429,12 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     // Notify all clients about the reported and inferred edits.
     await buildServerManager.filesDidChange(events)
 
-    let eventsWithSourceFileInfo: [FileEvent: SourceFileInfo] = await Dictionary(
-      uniqueKeysWithValues: events.asyncCompactMap({
-        guard let sourceFileInfo = await buildServerManager.sourceFileInfo(for: $0.uri) else {
-          return nil
-        }
-        return ($0, sourceFileInfo)
-      })
-    )
+    let eventsWithSourceFileInfo: [(FileEvent, SourceFileInfo)] = await events.asyncCompactMap {
+      guard let sourceFileInfo = await buildServerManager.sourceFileInfo(for: $0.uri) else {
+        return nil
+      }
+      return ($0, sourceFileInfo)
+    }
 
     async let updateSyntacticIndex: Void = await syntacticIndex.filesDidChange(eventsWithSourceFileInfo)
     async let updateSemanticIndex: Void? = await semanticIndexManager?.filesDidChange(events)
