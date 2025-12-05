@@ -429,14 +429,10 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     // Notify all clients about the reported and inferred edits.
     await buildServerManager.filesDidChange(events)
 
-    var foundEventsSourceFileInfo = Set<FileEvent>()
     let eventsWithSourceFileInfo: [(FileEvent, SourceFileInfo)] = await events.asyncCompactMap {
-      guard !foundEventsSourceFileInfo.contains($0),
-        let sourceFileInfo = await buildServerManager.sourceFileInfo(for: $0.uri)
-      else {
+      guard let sourceFileInfo = await buildServerManager.sourceFileInfo(for: $0.uri) else {
         return nil
       }
-      foundEventsSourceFileInfo.insert($0)
       return ($0, sourceFileInfo)
     }
 
