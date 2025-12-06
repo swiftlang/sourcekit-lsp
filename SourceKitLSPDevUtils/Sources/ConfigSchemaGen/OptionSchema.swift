@@ -31,11 +31,13 @@ struct OptionTypeSchama {
   struct Case {
     var name: String
     var description: String?
+    var associatedProperties: [Property]?
   }
 
   struct Enum {
     var name: String
     var cases: [Case]
+    var discriminatorFieldName: String?
   }
 
   enum Kind {
@@ -146,14 +148,13 @@ struct OptionSchemaContext {
   }
 
   private func buildEnumCases(_ node: EnumDeclSyntax) throws -> OptionTypeSchama.Enum {
+    let discriminatorFieldName = Self.extractDiscriminatorFieldName(node.leadingTrivia)
+
     let cases = try node.memberBlock.members.flatMap { member -> [OptionTypeSchama.Case] in
       guard let caseDecl = member.decl.as(EnumCaseDeclSyntax.self) else {
         return []
       }
       return try caseDecl.elements.compactMap {
-        guard $0.parameterClause == nil else {
-          throw ConfigSchemaGenError("Associated values in enum cases are not supported: \(caseDecl)")
-        }
         let name: String
         if let rawValue = $0.rawValue?.value {
           if let stringLiteral = rawValue.as(StringLiteralExprSyntax.self),
@@ -172,11 +173,45 @@ struct OptionSchemaContext {
         if description?.contains("- Note: Internal option") ?? false {
           return nil
         }
-        return OptionTypeSchama.Case(name: name, description: description)
+
+        var associatedProperties: [OptionTypeSchama.Property]? = nil
+        if let parameterClause = $0.parameterClause {
+          let caseDescription = description
+          associatedProperties = try parameterClause.parameters.map { param in
+            let propertyName: String
+            if let firstName = param.firstName, firstName.tokenKind != .wildcard {
+              propertyName = firstName.text
+            } else if let secondName = param.secondName {
+              propertyName = secondName.text
+            } else {
+              propertyName = name
+            }
+
+            let propertyType = try resolveType(param.type)
+            let propertyDescription =
+              Self.extractParameterDescription(
+                from: caseDescription,
+                parameterName: propertyName
+              ) ?? Self.extractDocComment(param.leadingTrivia)
+
+            return OptionTypeSchama.Property(
+              name: propertyName,
+              type: propertyType,
+              description: propertyDescription,
+              defaultValue: nil
+            )
+          }
+        }
+
+        return OptionTypeSchama.Case(
+          name: name,
+          description: description,
+          associatedProperties: associatedProperties
+        )
       }
     }
     let typeName = node.name.text
-    return .init(name: typeName, cases: cases)
+    return .init(name: typeName, cases: cases, discriminatorFieldName: discriminatorFieldName)
   }
 
   private func buildStructProperties(_ node: StructDeclSyntax) throws -> OptionTypeSchama.Struct {
@@ -233,5 +268,50 @@ struct OptionSchemaContext {
       return trimmed
     }
     return docLines.joined(separator: " ")
+  }
+
+  private static func extractDiscriminatorFieldName(_ trivia: Trivia) -> String? {
+    let docLines = trivia.flatMap { piece -> [Substring] in
+      switch piece {
+      case .docBlockComment(let text):
+        assert(text.hasPrefix("/**") && text.hasSuffix("*/"), "Unexpected doc block comment format: \(text)")
+        return text.dropFirst(3).dropLast(2).split { $0.isNewline }
+      case .docLineComment(let text):
+        assert(text.hasPrefix("///"), "Unexpected doc line comment format: \(text)")
+        let text = text.dropFirst(3)
+        return [text]
+      default:
+        return []
+      }
+    }
+
+    for line in docLines {
+      let trimmed = line.drop(while: \.isWhitespace)
+      if trimmed.hasPrefix("- discriminator:") {
+        let fieldName = trimmed.dropFirst("- discriminator:".count).trimmingCharacters(in: .whitespaces)
+        return fieldName.isEmpty ? nil : fieldName
+      }
+    }
+    return nil
+  }
+
+  private static func extractParameterDescription(from docComment: String?, parameterName: String) -> String? {
+    guard let docComment = docComment else {
+      return nil
+    }
+
+    let pattern = "`\(parameterName)`:"
+    guard let range = docComment.range(of: pattern) else {
+      return nil
+    }
+
+    let afterPattern = docComment[range.upperBound...]
+    let lines = afterPattern.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
+    guard let firstLine = lines.first else {
+      return nil
+    }
+
+    let description = firstLine.trimmingCharacters(in: .whitespaces)
+    return description.isEmpty ? nil : description
   }
 }

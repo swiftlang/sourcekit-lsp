@@ -49,6 +49,8 @@ package struct PreparationTaskDescription: IndexTaskDescription {
   /// Hooks that should be called when the preparation task finishes.
   private let hooks: IndexHooks
 
+  private let purpose: TargetPreparationPurpose
+
   /// The task is idempotent because preparing the same target twice produces the same result as preparing it once.
   package var isIdempotent: Bool { true }
 
@@ -70,13 +72,15 @@ package struct PreparationTaskDescription: IndexTaskDescription {
       @escaping @Sendable (
         _ message: String, _ type: WindowMessageType, _ structure: LanguageServerProtocol.StructuredLogKind
       ) -> Void,
-    hooks: IndexHooks
+    hooks: IndexHooks,
+    purpose: TargetPreparationPurpose
   ) {
     self.targetsToPrepare = targetsToPrepare
     self.buildServerManager = buildServerManager
     self.preparationUpToDateTracker = preparationUpToDateTracker
     self.logMessageToIndexLog = logMessageToIndexLog
     self.hooks = hooks
+    self.purpose = purpose
   }
 
   package func execute() async {
@@ -122,11 +126,9 @@ package struct PreparationTaskDescription: IndexTaskDescription {
     to currentlyExecutingTasks: [PreparationTaskDescription]
   ) -> [TaskDependencyAction<PreparationTaskDescription>] {
     return currentlyExecutingTasks.compactMap { (other) -> TaskDependencyAction<PreparationTaskDescription>? in
-      if other.targetsToPrepare.count > self.targetsToPrepare.count {
-        // If there is an prepare operation with more targets already running, suspend it.
-        // The most common use case for this is if we prepare all targets simultaneously during the initial preparation
-        // when a project is opened and need a single target indexed for user interaction. We should suspend the
-        // workspace-wide preparation and just prepare the currently needed target.
+      if other.purpose == .forIndexing && self.purpose == .forEditorFunctionality {
+        // If we're running a background indexing operation but need a target indexed for user interaction,
+        // we should prioritize the latter.
         return .cancelAndRescheduleDependency(other)
       }
       return .waitAndElevatePriorityOfDependency(other)
