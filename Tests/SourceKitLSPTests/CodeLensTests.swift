@@ -16,53 +16,6 @@ import SKTestSupport
 import ToolchainRegistry
 import XCTest
 
-fileprivate extension Toolchain {
-  #if compiler(>=6.4)
-  #warning(
-    "Once we require swift-play in the toolchain that's used to test SourceKit-LSP, we can just use `forTesting`"
-  )
-  #endif
-  static var forTestingWithSwiftPlay: Toolchain {
-    get async throws {
-      let toolchain = try await unwrap(ToolchainRegistry.forTesting.default)
-      return Toolchain(
-        identifier: "\(toolchain.identifier)-swift-swift",
-        displayName: "\(toolchain.identifier) with swift-play",
-        path: toolchain.path,
-        clang: toolchain.clang,
-        swift: toolchain.swift,
-        swiftc: toolchain.swiftc,
-        swiftPlay: URL(fileURLWithPath: "/dummy/usr/bin/swift-play"),
-        clangd: toolchain.clangd,
-        sourcekitd: toolchain.sourcekitd,
-        sourceKitClientPlugin: toolchain.sourceKitClientPlugin,
-        sourceKitServicePlugin: toolchain.sourceKitServicePlugin,
-        libIndexStore: toolchain.libIndexStore
-      )
-    }
-  }
-
-  static var forTestingWithoutSwiftPlay: Toolchain {
-    get async throws {
-      let toolchain = try await unwrap(ToolchainRegistry.forTesting.default)
-      return Toolchain(
-        identifier: "\(toolchain.identifier)-no-swift-swift",
-        displayName: "\(toolchain.identifier) without swift-play",
-        path: toolchain.path,
-        clang: toolchain.clang,
-        swift: toolchain.swift,
-        swiftc: toolchain.swiftc,
-        swiftPlay: nil,
-        clangd: toolchain.clangd,
-        sourcekitd: toolchain.sourcekitd,
-        sourceKitClientPlugin: toolchain.sourceKitClientPlugin,
-        sourceKitServicePlugin: toolchain.sourceKitServicePlugin,
-        libIndexStore: toolchain.libIndexStore
-      )
-    }
-  }
-}
-
 final class CodeLensTests: SourceKitLSPTestCase {
 
   func testNoLenses() async throws {

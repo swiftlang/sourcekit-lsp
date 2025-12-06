@@ -14,6 +14,7 @@ add_library(SourceKitLSP STATIC
   MacroExpansionReferenceDocumentURLData.swift
   MessageHandlingDependencyTracker.swift
   OnDiskDocumentManager.swift
+  PlaygroundDiscovery.swift
   ReferenceDocumentURL.swift
   Rename.swift
   SemanticTokensLegend+SourceKitLSPLegend.swift
@@ -22,7 +23,7 @@ add_library(SourceKitLSP STATIC
   SourceKitLSPCommandMetadata.swift
   SourceKitLSPServer.swift
   SymbolLocation+DocumentURI.swift
-  SyntacticTestIndex.swift
+  SyntacticIndex.swift
   TestDiscovery.swift
   TextEdit+IsNoop.swift
   Workspace.swift
