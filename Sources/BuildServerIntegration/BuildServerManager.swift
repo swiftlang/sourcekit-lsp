@@ -962,6 +962,96 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     return locations.map { locationAdjustedForCopiedFiles($0) }
   }
 
+  package func workspaceEditAdjustedForCopiedFiles(_ workspaceEdit: WorkspaceEdit?) async -> WorkspaceEdit? {
+    guard var edit = workspaceEdit else {
+      return nil
+    }
+    if let changes = edit.changes {
+      var newChanges: [DocumentURI: [TextEdit]] = [:]
+      for (uri, edits) in changes {
+        let newUri = self.locationAdjustedForCopiedFiles(
+          Location(uri: uri, range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0))
+        ).uri
+        newChanges[newUri, default: []].append(contentsOf: edits)
+      }
+      edit.changes = newChanges
+    }
+    if let documentChanges = edit.documentChanges {
+      var newDocumentChanges: [WorkspaceEditDocumentChange] = []
+      for change in documentChanges {
+        switch change {
+        case .textDocumentEdit(var textEdit):
+          let newUri = self.locationAdjustedForCopiedFiles(
+            Location(uri: textEdit.textDocument.uri, range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0))
+          ).uri
+          textEdit.textDocument.uri = newUri
+          newDocumentChanges.append(.textDocumentEdit(textEdit))
+        case .createFile(var create):
+          let newUri = self.locationAdjustedForCopiedFiles(
+            Location(uri: create.uri, range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0))
+          ).uri
+          create.uri = newUri
+          newDocumentChanges.append(.createFile(create))
+        case .renameFile(var rename):
+          let newOldUri = self.locationAdjustedForCopiedFiles(
+            Location(uri: rename.oldUri, range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0))
+          ).uri
+          let newNewUri = self.locationAdjustedForCopiedFiles(
+            Location(uri: rename.newUri, range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0))
+          ).uri
+          rename.oldUri = newOldUri
+          rename.newUri = newNewUri
+          newDocumentChanges.append(.renameFile(rename))
+        case .deleteFile(var delete):
+          let newUri = self.locationAdjustedForCopiedFiles(
+            Location(uri: delete.uri, range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0))
+          ).uri
+          delete.uri = newUri
+          newDocumentChanges.append(.deleteFile(delete))
+        }
+      }
+      edit.documentChanges = newDocumentChanges
+    }
+    return edit
+  }
+
+  package func locationsOrLocationLinksAdjustedForCopiedFiles(_ response: LocationsOrLocationLinksResponse?) async -> LocationsOrLocationLinksResponse? {
+    guard let response = response else {
+      return nil
+    }
+    switch response {
+    case .locations(let locations):
+      let remappedLocations = await self.locationsAdjustedForCopiedFiles(locations)
+      return .locations(remappedLocations)
+    case .locationLinks(let locationLinks):
+      var remappedLinks: [LocationLink] = []
+      for link in locationLinks {
+        let newUri = self.locationAdjustedForCopiedFiles(Location(uri: link.targetUri, range: link.targetRange)).uri
+        remappedLinks.append(LocationLink(
+          originSelectionRange: link.originSelectionRange,
+          targetUri: newUri,
+          targetRange: link.targetRange,
+          targetSelectionRange: link.targetSelectionRange
+        ))
+      }
+      return .locationLinks(remappedLinks)
+    }
+  }
+
+  package func typeHierarchyItemAdjustedForCopiedFiles(_ item: TypeHierarchyItem) async -> TypeHierarchyItem {
+    let adjustedLocation = await self.locationAdjustedForCopiedFiles(Location(uri: item.uri, range: item.range))
+    return TypeHierarchyItem(
+      name: item.name,
+      kind: item.kind,
+      tags: item.tags,
+      detail: item.detail,
+      uri: adjustedLocation.uri,
+      range: adjustedLocation.range,
+      selectionRange: item.selectionRange,
+      data: item.data
+    )
+  }
+
   @discardableResult
   package func scheduleRecomputeCopyFileMap() -> Task<Void, Never> {
     let task = Task { [previousUpdateTask = copiedFileMapUpdateTask] in
