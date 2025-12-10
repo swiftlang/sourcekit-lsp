@@ -962,17 +962,22 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     return locations.map { locationAdjustedForCopiedFiles($0) }
   }
 
-  package func workspaceEditAdjustedForCopiedFiles(_ workspaceEdit: WorkspaceEdit?) async -> WorkspaceEdit? {
+  private func uriAdjustedForCopiedFiles(_ uri: DocumentURI) -> DocumentURI {
+    guard let originalUri = cachedCopiedFileMap[uri] else {
+      return uri
+    }
+    return originalUri
+  }
+
+  package func workspaceEditAdjustedForCopiedFiles(_ workspaceEdit: WorkspaceEdit?) -> WorkspaceEdit? {
     guard var edit = workspaceEdit else {
       return nil
     }
     if let changes = edit.changes {
       var newChanges: [DocumentURI: [TextEdit]] = [:]
       for (uri, edits) in changes {
-        let newUri = self.locationAdjustedForCopiedFiles(
-          Location(uri: uri, range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0))
-        ).uri
-        newChanges[newUri, default: []].append(contentsOf: edits)
+        let newUri = self.uriAdjustedForCopiedFiles(uri)
+        newChanges[newUri, default: []] += edits
       }
       edit.changes = newChanges
     }
@@ -981,32 +986,17 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       for change in documentChanges {
         switch change {
         case .textDocumentEdit(var textEdit):
-          let newUri = self.locationAdjustedForCopiedFiles(
-            Location(uri: textEdit.textDocument.uri, range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0))
-          ).uri
-          textEdit.textDocument.uri = newUri
+          textEdit.textDocument.uri = self.uriAdjustedForCopiedFiles(textEdit.textDocument.uri)
           newDocumentChanges.append(.textDocumentEdit(textEdit))
         case .createFile(var create):
-          let newUri = self.locationAdjustedForCopiedFiles(
-            Location(uri: create.uri, range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0))
-          ).uri
-          create.uri = newUri
+          create.uri = self.uriAdjustedForCopiedFiles(create.uri)
           newDocumentChanges.append(.createFile(create))
         case .renameFile(var rename):
-          let newOldUri = self.locationAdjustedForCopiedFiles(
-            Location(uri: rename.oldUri, range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0))
-          ).uri
-          let newNewUri = self.locationAdjustedForCopiedFiles(
-            Location(uri: rename.newUri, range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0))
-          ).uri
-          rename.oldUri = newOldUri
-          rename.newUri = newNewUri
+          rename.oldUri = self.uriAdjustedForCopiedFiles(rename.oldUri)
+          rename.newUri = self.uriAdjustedForCopiedFiles(rename.newUri)
           newDocumentChanges.append(.renameFile(rename))
         case .deleteFile(var delete):
-          let newUri = self.locationAdjustedForCopiedFiles(
-            Location(uri: delete.uri, range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0))
-          ).uri
-          delete.uri = newUri
+          delete.uri = self.uriAdjustedForCopiedFiles(delete.uri)
           newDocumentChanges.append(.deleteFile(delete))
         }
       }
@@ -1015,31 +1005,33 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     return edit
   }
 
-  package func locationsOrLocationLinksAdjustedForCopiedFiles(_ response: LocationsOrLocationLinksResponse?) async -> LocationsOrLocationLinksResponse? {
+  package func locationsOrLocationLinksAdjustedForCopiedFiles(_ response: LocationsOrLocationLinksResponse?) -> LocationsOrLocationLinksResponse? {
     guard let response = response else {
       return nil
     }
     switch response {
     case .locations(let locations):
-      let remappedLocations = await self.locationsAdjustedForCopiedFiles(locations)
+      let remappedLocations = self.locationsAdjustedForCopiedFiles(locations)
       return .locations(remappedLocations)
     case .locationLinks(let locationLinks):
       var remappedLinks: [LocationLink] = []
       for link in locationLinks {
-        let newUri = self.locationAdjustedForCopiedFiles(Location(uri: link.targetUri, range: link.targetRange)).uri
+        let adjustedTargetLocation = self.locationAdjustedForCopiedFiles(Location(uri: link.targetUri, range: link.targetRange))
+        let adjustedTargetSelectionLocation = self.locationAdjustedForCopiedFiles(Location(uri: link.targetUri, range: link.targetSelectionRange))
         remappedLinks.append(LocationLink(
           originSelectionRange: link.originSelectionRange,
-          targetUri: newUri,
-          targetRange: link.targetRange,
-          targetSelectionRange: link.targetSelectionRange
+          targetUri: adjustedTargetLocation.uri,
+          targetRange: adjustedTargetLocation.range,
+          targetSelectionRange: adjustedTargetSelectionLocation.range
         ))
       }
       return .locationLinks(remappedLinks)
     }
   }
 
-  package func typeHierarchyItemAdjustedForCopiedFiles(_ item: TypeHierarchyItem) async -> TypeHierarchyItem {
-    let adjustedLocation = await self.locationAdjustedForCopiedFiles(Location(uri: item.uri, range: item.range))
+  package func typeHierarchyItemAdjustedForCopiedFiles(_ item: TypeHierarchyItem) -> TypeHierarchyItem {
+    let adjustedLocation = self.locationAdjustedForCopiedFiles(Location(uri: item.uri, range: item.range))
+    let adjustedSelectionLocation = self.locationAdjustedForCopiedFiles(Location(uri: item.uri, range: item.selectionRange))
     return TypeHierarchyItem(
       name: item.name,
       kind: item.kind,
@@ -1047,7 +1039,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       detail: item.detail,
       uri: adjustedLocation.uri,
       range: adjustedLocation.range,
-      selectionRange: item.selectionRange,
+      selectionRange: adjustedSelectionLocation.range,
       data: item.data
     )
   }

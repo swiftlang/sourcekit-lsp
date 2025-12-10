@@ -642,9 +642,9 @@ extension ClangLanguageService {
       position: renameRequest.position
     )
     let symbolDetail = try await forwardRequestToClangd(symbolInfoRequest).only
-    let workspaceEdit = try await edits
+    let workspaceEdit = try await edits ?? WorkspaceEdit()
     guard let workspace = self.workspace.value else {
-      return (workspaceEdit ?? WorkspaceEdit(), symbolDetail?.usr)
+      return (workspaceEdit, symbolDetail?.usr)
     }
     let remappedEdit = await workspace.buildServerManager.workspaceEditAdjustedForCopiedFiles(workspaceEdit)
     return (remappedEdit ?? WorkspaceEdit(), symbolDetail?.usr)

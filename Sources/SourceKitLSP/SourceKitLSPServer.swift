@@ -2260,6 +2260,36 @@ extension SourceKitLSPServer {
     )
   }
 
+  private func callHierarchyItemAdjustedForCopiedFiles(
+    _ item: CallHierarchyItem,
+    workspace: Workspace
+  ) async -> CallHierarchyItem {
+    let adjustedLocation = await workspace.buildServerManager.locationAdjustedForCopiedFiles(
+      Location(uri: item.uri, range: item.range)
+    )
+    let adjustedSelectionLocation = await workspace.buildServerManager.locationAdjustedForCopiedFiles(
+      Location(uri: item.uri, range: item.selectionRange)
+    )
+    return CallHierarchyItem(
+      name: item.name,
+      kind: item.kind,
+      tags: item.tags,
+      detail: item.detail,
+      uri: adjustedLocation.uri,
+      range: adjustedLocation.range,
+      selectionRange: adjustedSelectionLocation.range,
+      data: .dictionary([
+        "usr": item.data.flatMap { data in
+          if case let .dictionary(dict) = data {
+            return dict["usr"]
+          }
+          return nil
+        } ?? .null,
+        "uri": .string(adjustedLocation.uri.stringValue),
+      ])
+    )
+  }
+
   func prepareCallHierarchy(
     _ req: CallHierarchyPrepareRequest,
     workspace: Workspace,
@@ -2284,31 +2314,11 @@ extension SourceKitLSPServer {
       guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
         continue
       }
-      let location = indexToLSPLocation(definition.location)
-      guard let originalLocation = location else {
+      guard let item = indexToLSPCallHierarchyItem(definition: definition, index: index) else {
         continue
       }
-      let remappedLocation = await workspace.buildServerManager.locationAdjustedForCopiedFiles(originalLocation)
-
-      // Create a new CallHierarchyItem with the remapped location (similar to how we handle TypeHierarchyItem)
-      let name = index.fullyQualifiedName(of: definition)
-      let symbol = definition.symbol
-
-      let item = CallHierarchyItem(
-        name: name,
-        kind: symbol.kind.asLspSymbolKind(),
-        tags: nil,
-        detail: nil,
-        uri: remappedLocation.uri,
-        range: remappedLocation.range,
-        selectionRange: remappedLocation.range,
-        // We encode usr and uri for incoming/outgoing call lookups in the implementation-specific data field
-        data: .dictionary([
-          "usr": .string(symbol.usr),
-          "uri": .string(remappedLocation.uri.stringValue),
-        ])
-      )
-      callHierarchyItems.append(item)
+      let adjustedItem = await callHierarchyItemAdjustedForCopiedFiles(item, workspace: workspace)
+      callHierarchyItems.append(adjustedItem)
     }
     callHierarchyItems.sort(by: { Location(uri: $0.uri, range: $0.range) < Location(uri: $1.uri, range: $1.range) })
 
@@ -2358,7 +2368,7 @@ extension SourceKitLSPServer {
     var callersToCalls: [Symbol: [SymbolOccurrence]] = [:]
 
     for call in callOccurrences {
-      // Callers are all `calledBy` relations of a call to a USR in `callableUSrs`, ie. all the functions that contain a
+      // Callers are all `containedBy` relations of a call to a USR in `callableUSrs`, ie. all the functions that contain a
       // call to a USR in callableUSRs. In practice, this should always be a single item.
       let callers = call.relations.filter { $0.roles.contains(.containedBy) }.map(\.symbol)
       for caller in callers {
@@ -2506,32 +2516,22 @@ extension SourceKitLSPServer {
     }
 
     let symbol = definition.symbol
-      switch symbol.kind {
-      case .extension:
-        // Query the conformance added by this extension
-        let conformances = index.occurrences(relatedToUSR: symbol.usr, roles: .baseOf)
-        if conformances.isEmpty {
-          name = symbol.name
-        } else {
-          name = "\(symbol.name): \(conformances.map(\.symbol.name).sorted().joined(separator: ", "))"
-        }
-        // Add the file name and line to the detail string
-        if let url = remappedLocation.uri.fileURL,
-          let basename = (try? AbsolutePath(validating: url.filePath))?.basename
-        {
-          detail = "Extension at \(basename):\(remappedLocation.range.lowerBound.line + 1)"
-        } else if !definition.location.moduleName.isEmpty {
-          detail = "Extension in \(definition.location.moduleName)"
-        } else {
-          detail = "Extension"
-        }
+    switch symbol.kind {
+    case .extension:
+      // Query the conformance added by this extension
+      let conformances = index.occurrences(relatedToUSR: symbol.usr, roles: .baseOf)
+      if conformances.isEmpty {
+        name = symbol.name
+      } else {
+        name = "\(symbol.name): \(conformances.map(\.symbol.name).sorted().joined(separator: ", "))"
+      }
       // Add the file name and line to the detail string
       if let url = location.uri.fileURL,
         let basename = (try? AbsolutePath(validating: url.filePath))?.basename
       {
         detail = "Extension at \(basename):\(location.range.lowerBound.line + 1)"
-      } else if let moduleName = moduleName {
-        detail = "Extension in \(moduleName)"
+      } else if !definition.location.moduleName.isEmpty {
+        detail = "Extension in \(definition.location.moduleName)"
       } else {
         detail = "Extension"
       }
@@ -2602,55 +2602,16 @@ extension SourceKitLSPServer {
       }
 
       let location = indexToLSPLocation(info.location)
-      guard let originalLocation = location else {
+      guard location != nil else {
         continue
       }
-      let remappedLocation = await workspace.buildServerManager.locationAdjustedForCopiedFiles(originalLocation)
-
-      // Create a new TypeHierarchyItem with the original location, then adjust for copied files
-      let name: String
-      let detail: String?
-      let symbol = info.symbol
-      switch symbol.kind {
-      case .extension:
-        // Query the conformance added by this extension
-        let conformances = index.occurrences(relatedToUSR: symbol.usr, roles: .baseOf)
-        if conformances.isEmpty {
-          name = symbol.name
-        } else {
-          name = "\(symbol.name): \(conformances.map(\.symbol.name).sorted().joined(separator: ", "))"
-        }
-        // Add the file name and line to the detail string
-        if let url = remappedLocation.uri.fileURL,
-          let basename = (try? AbsolutePath(validating: url.filePath))?.basename
-        {
-          detail = "Extension at \(basename):\(remappedLocation.range.lowerBound.line + 1)"
-        } else if !info.location.moduleName.isEmpty {
-          detail = "Extension in \(info.location.moduleName)"
-        } else {
-          detail = "Extension"
-        }
-      default:
-        name = index.fullyQualifiedName(of: info)
-        detail = info.location.moduleName
+      
+      let moduleName = info.location.moduleName.isEmpty ? nil : info.location.moduleName
+      guard let item = indexToLSPTypeHierarchyItem(definition: info, moduleName: moduleName, index: index) else {
+        continue
       }
-
-       let item = TypeHierarchyItem(
-         name: name,
-         kind: symbol.kind.asLspSymbolKind(),
-         tags: nil,
-         detail: detail,
-         uri: originalLocation.uri,
-         range: originalLocation.range,
-         selectionRange: originalLocation.range,
-         // We encode usr and uri for incoming/outgoing type lookups in the implementation-specific data field
-         data: .dictionary([
-           "usr": .string(symbol.usr),
-           "uri": .string(originalLocation.uri.stringValue),
-         ])
-       )
-       let remappedItem = await workspace.buildServerManager.typeHierarchyItemAdjustedForCopiedFiles(item)
-       typeHierarchyItems.append(remappedItem)
+      let remappedItem = await workspace.buildServerManager.typeHierarchyItemAdjustedForCopiedFiles(item)
+      typeHierarchyItems.append(remappedItem)
     }
     typeHierarchyItems.sort(by: { $0.name < $1.name })
 
@@ -2754,10 +2715,10 @@ extension SourceKitLSPServer {
           name = "\(symbol.name): \(conformances.map(\.symbol.name).sorted().joined(separator: ", "))"
         }
         // Add the file name and line to the detail string
-        if let url = adjustedLocation.uri.fileURL,
+        if let url = remappedLocation.uri.fileURL,
           let basename = (try? AbsolutePath(validating: url.filePath))?.basename
         {
-          detail = "Extension at \(basename):\(adjustedLocation.range.lowerBound.line + 1)"
+          detail = "Extension at \(basename):\(remappedLocation.range.lowerBound.line + 1)"
         } else if !definition.location.moduleName.isEmpty {
           detail = "Extension in \(definition.location.moduleName)"
         } else {

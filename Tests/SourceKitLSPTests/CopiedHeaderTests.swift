@@ -120,16 +120,14 @@ class CopiedHeaderTests: SourceKitLSPTestCase {
         context: ReferencesContext(includeDeclaration: true)
       )
     )
-    response.sort()
     var expected = [
       try project.location(from: "1️⃣", to: "1️⃣", in: "Test.h"),
       try project.location(from: "2️⃣", to: "2️⃣", in: "Test.c"),
     ]
-    expected.sort()
     XCTAssertEqual(response, expected)
   }
 
-  func DISABLED_testFindImplementationInCopiedHeader() async throws {
+  func testFindImplementationInCopiedHeader() async throws {
     let project = try await CustomBuildServerTestProject(
       files: [
         "Test.h": """
