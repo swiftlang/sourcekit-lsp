@@ -8,4 +8,4 @@
 # Order is important. The last matching pattern has the most precedence.
 
 # Owner of anything in SourceKit-LSP not owned by anyone else.
-* @ahoppen @bnbarham @hamishknight @rintaro
+* @ahoppen @hamishknight @rintaro
