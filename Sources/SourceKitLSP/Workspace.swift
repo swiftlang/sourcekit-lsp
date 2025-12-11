@@ -283,7 +283,10 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
         }
       },
       syntacticPlaygrounds: { [weak self] (snapshot) in
-        guard let self else {
+        guard let self,
+          let toolchain = await sourceKitLSPServer.toolchainRegistry.preferredToolchain(containing: [\.swiftc]),
+          toolchain.swiftPlay != nil
+        else {
           return []
         }
         return await sourceKitLSPServer.languageServices(for: snapshot.uri, snapshot.language, in: self).asyncFlatMap {
