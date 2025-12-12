@@ -47,6 +47,12 @@ private var hostTriple: Triple {
   }
 }
 
+fileprivate extension SourceKitLSPOptions {
+  static var forTestingExperimentalSwiftPMBuildServer: Self {
+    SourceKitLSPOptions(swiftPM: SwiftPMOptions(buildSystem: .swiftbuild))
+  }
+}
+
 @Suite(.serialized, .configureLogging)
 struct SwiftPMBuildServerTests {
   @Test
@@ -132,8 +138,11 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test
-  func testBasicSwiftArgs() async throws {
+  @Test(
+    arguments: Platform.current == .windows
+      ? [SourceKitLSPOptions()] : [SourceKitLSPOptions(), .forTestingExperimentalSwiftPMBuildServer]
+  )
+  func testBasicSwiftArgs(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -153,7 +162,7 @@ struct SwiftPMBuildServerTests {
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -181,18 +190,34 @@ struct SwiftPMBuildServerTests {
       expectArgumentsContain("-target", arguments: arguments)  // Only one!
       #if os(macOS)
       let versionString = PackageModel.Platform.macOS.oldestSupportedVersion.versionString
+      if options.swiftPMOrDefault.buildSystem == .swiftbuild {
+        expectArgumentsContain(
+          "-target",
+          // Account for differences in macOS naming canonicalization
+          try await hostTriple.tripleString(forPlatformVersion: versionString).replacing("macosx", with: "macos"),
+          arguments: arguments
+        )
+      } else {
+        expectArgumentsContain(
+          "-target",
+          try await hostTriple.tripleString(forPlatformVersion: versionString),
+          arguments: arguments
+        )
+      }
       expectArgumentsContain(
-        "-target",
-        try await hostTriple.tripleString(forPlatformVersion: versionString),
-        arguments: arguments
+        "-sdk",
+        arguments: arguments,
+        allowMultiple: options.swiftPMOrDefault.buildSystem == .swiftbuild
       )
-      expectArgumentsContain("-sdk", arguments: arguments)
       expectArgumentsContain("-F", arguments: arguments, allowMultiple: true)
       #else
       expectArgumentsContain("-target", try await hostTriple.tripleString, arguments: arguments)
       #endif
 
-      expectArgumentsContain("-I", try build.appending(component: "Modules").filePath, arguments: arguments)
+      if options.swiftPMOrDefault.buildSystem != .swiftbuild {
+        // Swift Build and the native build system setup search paths differently. We deliberately avoid testing implementation details of Swift Build here.
+        expectArgumentsContain("-I", try build.appending(component: "Modules").filePath, arguments: arguments)
+      }
 
       expectArgumentsContain(try aswift.filePath, arguments: arguments)
     }

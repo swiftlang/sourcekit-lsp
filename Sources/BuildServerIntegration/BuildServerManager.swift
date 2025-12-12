@@ -280,22 +280,43 @@ private extension BuildServerSpec {
         )
       }
     case .swiftPM:
-      #if !NO_SWIFTPM_DEPENDENCY
-      return await createBuiltInBuildServerAdapter(
-        messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
-        buildServerHooks: buildServerHooks
-      ) { connectionToSourceKitLSP in
-        try await SwiftPMBuildServer(
-          projectRoot: projectRoot,
-          toolchainRegistry: toolchainRegistry,
-          options: options,
-          connectionToSourceKitLSP: connectionToSourceKitLSP,
-          testHooks: buildServerHooks.swiftPMTestHooks
-        )
+      switch options.swiftPMOrDefault.buildSystem {
+      case .swiftbuild:
+        let buildServer = await orLog("Creating external SwiftPM build server") {
+          try await ExternalBuildServerAdapter(
+            projectRoot: projectRoot,
+            config: BuildServerConfig.forSwiftPMBuildServer(
+              projectRoot: projectRoot,
+              swiftPMOptions: options.swiftPMOrDefault,
+              toolchainRegistry: toolchainRegistry
+            ),
+            messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
+          )
+        }
+        guard let buildServer else {
+          logger.log("Failed to create external SwiftPM build server at \(projectRoot)")
+          return nil
+        }
+        logger.log("Created external SwiftPM build server at \(projectRoot)")
+        return .external(buildServer)
+      case .native, nil:
+        #if !NO_SWIFTPM_DEPENDENCY
+        return await createBuiltInBuildServerAdapter(
+          messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
+          buildServerHooks: buildServerHooks
+        ) { connectionToSourceKitLSP in
+          try await SwiftPMBuildServer(
+            projectRoot: projectRoot,
+            toolchainRegistry: toolchainRegistry,
+            options: options,
+            connectionToSourceKitLSP: connectionToSourceKitLSP,
+            testHooks: buildServerHooks.swiftPMTestHooks
+          )
+        }
+        #else
+        return nil
+        #endif
       }
-      #else
-      return nil
-      #endif
     case .injected(let injector):
       let connectionToSourceKitLSP = LocalConnection(
         receiverName: "BuildServerManager for \(projectRoot.lastPathComponent)",
