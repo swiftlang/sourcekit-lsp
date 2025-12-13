@@ -501,6 +501,21 @@ class CodeCompletionSession {
       let kind: sourcekitd_api_uid_t? = value[sourcekitd.keys.kind]
       let completionKind = kind?.asCompletionItemKind(sourcekitd.values) ?? .value
 
+      // Check if this is a keyword that should be converted to a snippet
+      var isKeywordSnippet = false
+      if completionKind == .keyword, let snippetText = keywordSnippet(for: name) {
+        let snippetTextEdit = self.computeCompletionTextEdit(
+          completionPos: completionPos,
+          requestPosition: requestPosition,
+          utf8CodeUnitsToErase: utf8CodeUnitsToErase,
+          newText: snippetText,
+          snapshot: snapshot
+        )
+        textEdit = snippetTextEdit
+        insertText = snippetText
+        isKeywordSnippet = true
+      }
+
       if completionKind == .method || completionKind == .function, name.first == "(", name.last == ")" {
         // sourcekitd makes an assumption that the editor inserts a matching `)` when the user types a `(` to start
         // argument completions and thus does not contain the closing parentheses in the insert text. Since we can't
@@ -577,8 +592,8 @@ class CodeCompletionSession {
         deprecated: notRecommended,
         sortText: sortText,
         filterText: filterName,
-        insertText: text,
-        insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
+        insertText: insertText,
+        insertTextFormat: (isInsertTextSnippet || isKeywordSnippet) ? .snippet : .plain,
         textEdit: CompletionItemEdit.textEdit(textEdit),
         data: data.encodeToLSPAny()
       )
@@ -703,6 +718,29 @@ class CodeCompletionSession {
     precondition(deletionStartUtf16Offset >= 0)
 
     return Position(line: completionPos.line, utf16index: deletionStartUtf16Offset)
+  }
+
+  /// Generate a snippet for control flow keywords like if, for, while, etc.
+  /// Returns the snippet text if the keyword is a control flow keyword and snippets are supported, otherwise nil.
+  private func keywordSnippet(for keyword: String) -> String? {
+    guard clientSupportsSnippets else { return nil }
+
+    switch keyword {
+    case "if":
+      return "if ${1:condition} {\n\t${0:}\n}"
+    case "for":
+      return "for ${1:item} in ${2:sequence} {\n\t${0:}\n}"
+    case "while":
+      return "while ${1:condition} {\n\t${0:}\n}"
+    case "guard":
+      return "guard ${1:condition} else {\n\t${0:}\n}"
+    case "switch":
+      return "switch ${1:value} {\n\tcase ${2:pattern}:\n\t\t${0:}\n}"
+    case "repeat":
+      return "repeat {\n\t${0:}\n} while ${1:condition}"
+    default:
+      return nil
+    }
   }
 }
 
