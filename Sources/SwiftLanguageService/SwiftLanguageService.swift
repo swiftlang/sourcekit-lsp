@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 package import BuildServerIntegration
-@_spi(SourceKitLSP) import BuildServerProtocol
 import Csourcekitd
 import Dispatch
 import Foundation

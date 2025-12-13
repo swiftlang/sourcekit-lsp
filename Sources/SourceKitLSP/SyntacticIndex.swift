@@ -10,23 +10,25 @@
 //
 //===----------------------------------------------------------------------===//
 
+@_spi(SourceKitLSP) package import BuildServerIntegration
+@_spi(SourceKitLSP) package import BuildServerProtocol
 import Foundation
-@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
-/// Task metadata for `SyntacticTestIndexer.indexingQueue`
+/// Task metadata for `SyntacticIndex.indexingQueue`
 private enum TaskMetadata: DependencyTracker, Equatable {
-  /// Determine the list of test files from the build server and scan them for tests. Only created when the
-  /// `SyntacticTestIndex` is created
+  /// Determine the list of files from the build server and scan them for tests / playgrounds. Only created when the
+  /// `SyntacticIndex` is created
   case initialPopulation
 
-  /// Index the files in the given set for tests
+  /// Index the files in the given set for tests / playgrounds
   case index(Set<DocumentURI>)
 
-  /// Retrieve information about syntactically discovered tests from the index.
+  /// Retrieve information about syntactically discovered tests / playgrounds from the index.
   case read
 
   /// Reads can be concurrent and files can be indexed concurrently. But we need to wait for all files to finish
@@ -38,7 +40,7 @@ private enum TaskMetadata: DependencyTracker, Equatable {
       return true
     case (_, .initialPopulation):
       // Should never happen because the initial population should only be scheduled once before any other operations
-      // on the test index. But be conservative in case we do get an `initialPopulation` somewhere in between and use it
+      // on the index. But be conservative in case we do get an `initialPopulation` somewhere in between and use it
       // as a full blocker on the queue.
       return true
     case (.read, .read):
@@ -64,25 +66,26 @@ private enum TaskMetadata: DependencyTracker, Equatable {
   }
 }
 
-/// Data from a syntactic scan of a source file for tests.
-private struct IndexedTests {
+/// Data from a syntactic scan of a source file for tests or playgrounds.
+private struct IndexedSourceFile {
   /// The tests within the source file.
   let tests: [AnnotatedTestItem]
+
+  /// The playgrounds within the source file.
+  let playgrounds: [TextDocumentPlayground]
 
   /// The modification date of the source file when it was scanned. A file won't get re-scanned if its modification date
   /// is older or the same as this date.
   let sourceFileModificationDate: Date
 }
 
-/// An in-memory syntactic index of test items within a workspace.
+/// An in-memory syntactic index of test and playground items within a workspace.
 ///
 /// The index does not get persisted to disk but instead gets rebuilt every time a workspace is opened (ie. usually when
 /// sourcekit-lsp is launched). Building it takes only a few seconds, even for large projects.
-actor SyntacticTestIndex {
-  private let languageServiceRegistry: LanguageServiceRegistry
-
+package actor SyntacticIndex: Sendable {
   /// The tests discovered by the index.
-  private var indexedTests: [DocumentURI: IndexedTests] = [:]
+  private var indexedSources: [DocumentURI: IndexedSourceFile] = [:]
 
   /// Files that have been removed using `removeFileForIndex`.
   ///
@@ -98,23 +101,37 @@ actor SyntacticTestIndex {
   /// indexing tasks to finish.
   private let indexingQueue = AsyncQueue<TaskMetadata>()
 
-  init(
-    languageServiceRegistry: LanguageServiceRegistry,
-    determineTestFiles: @Sendable @escaping () async -> [DocumentURI]
-  ) {
-    self.languageServiceRegistry = languageServiceRegistry
-    indexingQueue.async(priority: .low, metadata: .initialPopulation) {
-      let testFiles = await determineTestFiles()
+  /// Fetch the list of source files to scan for a given set of build targets
+  private let determineFilesToScan:
+    @Sendable (Set<BuildTargetIdentifier>?) async -> [(uri: DocumentURI, info: SourceFileInfo)]
 
+  /// Syntactically parse tests from the given snapshot
+  private let syntacticTests: @Sendable (DocumentSnapshot) async -> [AnnotatedTestItem]
+
+  /// Syntactically parse playgrounds from the given snapshot
+  private let syntacticPlaygrounds: @Sendable (DocumentSnapshot) async -> [TextDocumentPlayground]
+
+  package init(
+    determineFilesToScan:
+      @Sendable @escaping (Set<BuildTargetIdentifier>?) async -> [(uri: DocumentURI, info: SourceFileInfo)],
+    syntacticTests: @Sendable @escaping (DocumentSnapshot) async -> [AnnotatedTestItem],
+    syntacticPlaygrounds: @Sendable @escaping (DocumentSnapshot) async -> [TextDocumentPlayground]
+  ) {
+    self.determineFilesToScan = determineFilesToScan
+    self.syntacticTests = syntacticTests
+    self.syntacticPlaygrounds = syntacticPlaygrounds
+
+    indexingQueue.async(priority: .low, metadata: .initialPopulation) {
+      let filesToScan = await self.determineFilesToScan(nil)
       // Divide the files into multiple batches. This is more efficient than spawning a new task for every file, mostly
       // because it keeps the number of pending items in `indexingQueue` low and adding a new task to `indexingQueue` is
       // in O(number of pending tasks), since we need to scan for dependency edges to add, which would make scanning files
       // be O(number of files).
       // Over-subscribe the processor count in case one batch finishes more quickly than another.
-      let batches = testFiles.partition(intoNumberOfBatches: ProcessInfo.processInfo.activeProcessorCount * 4)
+      let batches = filesToScan.partition(intoNumberOfBatches: ProcessInfo.processInfo.activeProcessorCount * 4)
       await batches.concurrentForEach { filesInBatch in
-        for uri in filesInBatch {
-          await self.rescanFileAssumingOnQueue(uri)
+        for (uri, info) in filesInBatch {
+          await self.rescanFileAssumingOnQueue(uri, scanForTests: info.mayContainTests)
         }
       }
     }
@@ -123,35 +140,32 @@ actor SyntacticTestIndex {
   private func removeFilesFromIndex(_ removedFiles: Set<DocumentURI>) {
     self.removedFiles.formUnion(removedFiles)
     for removedFile in removedFiles {
-      self.indexedTests[removedFile] = nil
+      self.indexedSources[removedFile] = nil
     }
   }
 
-  /// Called when the list of files that may contain tests is updated.
+  /// Called when the list of targets is updated.
   ///
-  /// All files that are not in the new list of test files will be removed from the index.
-  func listOfTestFilesDidChange(_ testFiles: [DocumentURI]) {
-    let removedFiles = Set(self.indexedTests.keys).subtracting(testFiles)
+  /// All files that are not in the new list of buildable files will be removed from the index.
+  package func buildTargetsChanged(_ changedTargets: Set<BuildTargetIdentifier>?) async {
+    let changedFiles = await determineFilesToScan(changedTargets)
+    let removedFiles = Set(self.indexedSources.keys).subtracting(changedFiles.map(\.uri))
     removeFilesFromIndex(removedFiles)
 
-    rescanFiles(testFiles)
+    rescanFiles(changedFiles)
   }
 
-  func filesDidChange(_ events: [FileEvent]) {
+  package func filesDidChange(_ events: [(FileEvent, SourceFileInfo)]) {
     var removedFiles: Set<DocumentURI> = []
-    var filesToRescan: [DocumentURI] = []
-    for fileEvent in events {
+    var filesToRescan: [(DocumentURI, SourceFileInfo)] = []
+    for (fileEvent, sourceFileInfo) in events {
       switch fileEvent.type {
-      case .created:
-        // We don't know if this is a potential test file. It would need to be added to the index via
-        // `listOfTestFilesDidChange`
-        break
-      case .changed:
-        filesToRescan.append(fileEvent.uri)
+      case .created, .changed:
+        filesToRescan.append((fileEvent.uri, sourceFileInfo))
       case .deleted:
         removedFiles.insert(fileEvent.uri)
       default:
-        logger.error("Ignoring unknown FileEvent type \(fileEvent.type.rawValue) in SyntacticTestIndex")
+        logger.error("Ignoring unknown FileEvent type \(fileEvent.type.rawValue) in SyntacticIndex")
       }
     }
     removeFilesFromIndex(removedFiles)
@@ -159,20 +173,20 @@ actor SyntacticTestIndex {
   }
 
   /// Called when a list of files was updated. Re-scans those files
-  private func rescanFiles(_ uris: [DocumentURI]) {
+  private func rescanFiles(_ filesToScan: [(uri: DocumentURI, info: SourceFileInfo)]) {
     // If we scan a file again, it might have been added after being removed before. Remove it from the list of removed
     // files.
-    removedFiles.subtract(uris)
+    removedFiles.subtract(filesToScan.map(\.uri))
 
     // If we already know that the file has an up-to-date index, avoid re-scheduling it to be indexed. This ensures
     // that we don't bloat `indexingQueue` if the build server is sending us repeated `buildTarget/didChange`
     // notifications.
     // This check does not need to be perfect and there might be an in-progress index operation that is about to index
-    // the file. In that case we still schedule anothe rescan of that file and notice in `rescanFilesAssumingOnQueue`
+    // the file. In that case we still schedule another rescan of that file and notice in `rescanFilesAssumingOnQueue`
     // that the index is already up-to-date, which makes the rescan a no-op.
-    let uris = uris.filter { uri in
+    let filesToScan = filesToScan.filter { (uri, _) in
       if let url = uri.fileURL,
-        let indexModificationDate = self.indexedTests[uri]?.sourceFileModificationDate,
+        let indexModificationDate = self.indexedSources[uri]?.sourceFileModificationDate,
         let fileModificationDate = try? FileManager.default.attributesOfItem(atPath: url.filePath)[.modificationDate]
           as? Date,
         indexModificationDate >= fileModificationDate
@@ -182,12 +196,12 @@ actor SyntacticTestIndex {
       return true
     }
 
-    guard !uris.isEmpty else {
+    guard !filesToScan.isEmpty else {
       return
     }
 
     logger.info(
-      "Syntactically scanning \(uris.count) files for tests: \(uris.map(\.arbitrarySchemeURL.lastPathComponent).joined(separator: ", "))"
+      "Syntactically scanning \(filesToScan.count) files: \(filesToScan.map(\.uri).map(\.arbitrarySchemeURL.lastPathComponent).joined(separator: ", "))"
     )
 
     // Divide the files into multiple batches. This is more efficient than spawning a new task for every file, mostly
@@ -195,11 +209,11 @@ actor SyntacticTestIndex {
     // in O(number of pending tasks), since we need to scan for dependency edges to add, which would make scanning files
     // be O(number of files).
     // Over-subscribe the processor count in case one batch finishes more quickly than another.
-    let batches = uris.partition(intoNumberOfBatches: ProcessInfo.processInfo.activeProcessorCount * 4)
+    let batches = filesToScan.partition(intoNumberOfBatches: ProcessInfo.processInfo.activeProcessorCount * 4)
     for batch in batches {
-      self.indexingQueue.async(priority: .low, metadata: .index(Set(batch))) {
-        for uri in batch {
-          await self.rescanFileAssumingOnQueue(uri)
+      self.indexingQueue.async(priority: .low, metadata: .index(Set(batch.map(\.uri)))) {
+        for (uri, info) in batch {
+          await self.rescanFileAssumingOnQueue(uri, scanForTests: info.mayContainTests)
         }
       }
     }
@@ -208,9 +222,13 @@ actor SyntacticTestIndex {
   /// Re-scans a single file.
   ///
   /// - Important: This method must be called in a task that is executing on `indexingQueue`.
-  private func rescanFileAssumingOnQueue(_ uri: DocumentURI) async {
+  private func rescanFileAssumingOnQueue(_ uri: DocumentURI, scanForTests: Bool) async {
+    guard let language = Language(inferredFromFileExtension: uri) else {
+      return
+    }
+
     guard let url = uri.fileURL else {
-      logger.log("Not indexing \(uri.forLogging) for tests because it is not a file URL")
+      logger.log("Not indexing \(uri.forLogging) because it is not a file URL")
       return
     }
     if Task.isCancelled {
@@ -221,17 +239,17 @@ actor SyntacticTestIndex {
     }
     guard FileManager.default.fileExists(at: url) else {
       // File no longer exists. Probably deleted since we scheduled it for indexing. Nothing to worry about.
-      logger.info("Not indexing \(uri.forLogging) for tests because it does not exist")
+      logger.info("Not indexing \(uri.forLogging) because it does not exist")
       return
     }
     guard
       let fileModificationDate = try? FileManager.default.attributesOfItem(atPath: url.filePath)[.modificationDate]
         as? Date
     else {
-      logger.fault("Not indexing \(uri.forLogging) for tests because the modification date could not be determined")
+      logger.fault("Not indexing \(uri.forLogging) because the modification date could not be determined")
       return
     }
-    if let indexModificationDate = self.indexedTests[uri]?.sourceFileModificationDate,
+    if let indexModificationDate = self.indexedSources[uri]?.sourceFileModificationDate,
       indexModificationDate >= fileModificationDate
     {
       // Index already up to date.
@@ -240,28 +258,53 @@ actor SyntacticTestIndex {
     if Task.isCancelled {
       return
     }
-    guard let language = Language(inferredFromFileExtension: uri) else {
-      logger.log("Not indexing \(uri.forLogging) because the language service could not be inferred")
+
+    let snapshot: DocumentSnapshot? = orLog("Getting document snapshot for syntactic scanning") {
+      try DocumentSnapshot(withContentsFromDisk: url, language: language)
+    }
+    guard let snapshot else {
       return
     }
-    let testItems = await languageServiceRegistry.languageServices(for: language).asyncFlatMap {
-      await $0.syntacticTestItems(in: uri)
-    }
+
+    async let asyncTestItems = scanForTests ? syntacticTests(snapshot) : []
+    async let asyncPlaygrounds = syntacticPlaygrounds(snapshot)
+
+    let testItems = await asyncTestItems
+    let playgrounds = await asyncPlaygrounds
 
     guard !removedFiles.contains(uri) else {
       // Check whether the file got removed while we were scanning it for tests. If so, don't add it back to
-      // `indexedTests`.
+      // `indexedSources`.
       return
     }
-    self.indexedTests[uri] = IndexedTests(tests: testItems, sourceFileModificationDate: fileModificationDate)
+
+    self.indexedSources[uri] = IndexedSourceFile(
+      tests: testItems,
+      playgrounds: playgrounds,
+      sourceFileModificationDate: fileModificationDate
+    )
   }
 
   /// Gets all the tests in the syntactic index.
   ///
   /// This waits for any pending document updates to be indexed before returning a result.
-  nonisolated func tests() async -> [AnnotatedTestItem] {
+  nonisolated package func tests() async -> [AnnotatedTestItem] {
     let readTask = indexingQueue.async(metadata: .read) {
-      return await self.indexedTests.values.flatMap { $0.tests }
+      return await self.indexedSources.values.flatMap(\.tests)
+    }
+    return await readTask.value
+  }
+
+  /// Gets all the playgrounds in the syntactic index.
+  ///
+  /// This waits for any pending document updates to be indexed before returning a result.
+  nonisolated package func playgrounds() async -> [Playground] {
+    let readTask = indexingQueue.async(metadata: .read) {
+      return await self.indexedSources.flatMap { (uri, indexedFile) in
+        indexedFile.playgrounds.map {
+          Playground(id: $0.id, label: $0.label, location: Location(uri: uri, range: $0.range))
+        }
+      }
     }
     return await readTask.value
   }

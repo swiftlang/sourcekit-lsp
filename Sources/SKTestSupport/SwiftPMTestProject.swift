@@ -266,7 +266,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
     }
     logger.debug(
       """
-      'swift build' output: 
+      'swift build' output:
       \(output)
       """
     )
@@ -288,7 +288,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
     }
     logger.debug(
       """
-      'swift package resolve' output: 
+      'swift package resolve' output:
       \(output)
       """
     )

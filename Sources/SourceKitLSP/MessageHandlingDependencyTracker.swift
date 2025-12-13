@@ -248,6 +248,8 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
       self = .freestanding
     case is WorkspaceTestsRequest:
       self = .workspaceRequest
+    case is WorkspacePlaygroundsRequest:
+      self = .workspaceRequest
     case let request as any TextDocumentRequest:
       self = .documentRequest(request.textDocument.uri)
     default:

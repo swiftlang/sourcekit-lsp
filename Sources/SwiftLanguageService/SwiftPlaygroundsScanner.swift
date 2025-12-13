@@ -41,18 +41,25 @@ final class SwiftPlaygroundsScanner: SyntaxVisitor {
 
   /// Designated entry point for `SwiftPlaygroundsScanner`.
   static func findDocumentPlaygrounds(
-    in node: some SyntaxProtocol,
+    for snapshot: DocumentSnapshot,
     workspace: Workspace,
-    snapshot: DocumentSnapshot
+    syntaxTreeManager: SyntaxTreeManager,
   ) async -> [TextDocumentPlayground] {
+    guard snapshot.text.contains("#Playground") else {
+      return []
+    }
+
     guard let canonicalTarget = await workspace.buildServerManager.canonicalTarget(for: snapshot.uri),
       let moduleName = await workspace.buildServerManager.moduleName(for: snapshot.uri, in: canonicalTarget),
       let baseName = snapshot.uri.fileURL?.lastPathComponent
     else {
       return []
     }
+
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+
     let visitor = SwiftPlaygroundsScanner(baseID: "\(moduleName)/\(baseName)", snapshot: snapshot)
-    visitor.walk(node)
+    visitor.walk(syntaxTree)
     return visitor.isPlaygroundImported ? visitor.result : []
   }
 

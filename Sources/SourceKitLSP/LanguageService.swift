@@ -318,7 +318,15 @@ package protocol LanguageService: AnyObject, Sendable {
   /// Does not write the results to the index.
   ///
   /// The order of the returned tests is not defined. The results should be sorted before being returned to the editor.
-  static func syntacticTestItems(in uri: DocumentURI) async -> [AnnotatedTestItem]
+  func syntacticTestItems(for snapshot: DocumentSnapshot) async -> [AnnotatedTestItem]
+
+  /// Returns the syntactically scanned playgrounds declared within the workspace.
+  ///
+  /// The order of the returned playgrounds is not defined. The results should be sorted before being returned to the editor.
+  func syntacticPlaygrounds(
+    for snapshot: DocumentSnapshot,
+    in workspace: Workspace
+  ) async -> [TextDocumentPlayground]
 
   /// A position that is canonical for all positions within a declaration. For example, if we have the following
   /// declaration, then all `|` markers should return the same canonical position.

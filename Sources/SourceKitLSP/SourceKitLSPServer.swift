@@ -864,6 +864,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await request.reply { try await workspaceSymbols(request.params) }
     case let request as RequestAndReply<WorkspaceTestsRequest>:
       await request.reply { try await workspaceTests(request.params) }
+    case let request as RequestAndReply<WorkspacePlaygroundsRequest>:
+      await request.reply { try await workspacePlaygrounds(request.params) }
     // IMPORTANT: When adding a new entry to this switch, also add it to the `MessageHandlingDependencyTracker` initializer.
     default:
       await request.reply { throw ResponseError.methodNotFound(Request.method) }
@@ -1119,6 +1121,9 @@ extension SourceKitLSPServer {
       GetReferenceDocumentRequest.method: .dictionary(["version": .int(1)]),
       DidChangeActiveDocumentNotification.method: .dictionary(["version": .int(1)]),
     ]
+    if let toolchain = await toolchainRegistry.preferredToolchain(containing: [\.swiftc]), toolchain.swiftPlay != nil {
+      experimentalCapabilities[WorkspacePlaygroundsRequest.method] = .dictionary(["version": .int(1)])
+    }
     for (key, value) in languageServiceRegistry.languageServices.flatMap({ $0.type.experimentalCapabilities }) {
       if let existingValue = experimentalCapabilities[key] {
         logger.error(

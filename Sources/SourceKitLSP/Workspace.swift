@@ -184,8 +184,15 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     }
   }
 
-  /// The index that syntactically scans the workspace for tests.
-  let syntacticTestIndex: SyntacticTestIndex
+  /// The index that syntactically scans the workspace for Swift symbols.
+  ///
+  /// Force-unwrapped optional because initializing it requires access to `self`.
+  private(set) nonisolated(unsafe) var syntacticIndex: SyntacticIndex! {
+    didSet {
+      precondition(oldValue == nil)
+      precondition(syntacticIndex != nil)
+    }
+  }
 
   /// Language service for an open document, if available.
   private let languageServices: ThreadSafeBox<[DocumentURI: [any LanguageService]]> = ThreadSafeBox(initialValue: [:])
@@ -260,13 +267,31 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
         return nil
       }
     }
-    // Trigger an initial population of `syntacticTestIndex`.
-    self.syntacticTestIndex = SyntacticTestIndex(
-      languageServiceRegistry: sourceKitLSPServer.languageServiceRegistry,
-      determineTestFiles: {
-        await orLog("Getting list of test files for initial syntactic index population") {
-          try await buildServerManager.testFiles()
+    // Trigger an initial population of `syntacticIndex`.
+    self.syntacticIndex = SyntacticIndex(
+      determineFilesToScan: { targets in
+        await orLog("Getting list of files for syntactic index population") {
+          try await buildServerManager.projectSourceFiles(in: targets).compactMap { ($0, $1) }
         } ?? []
+      },
+      syntacticTests: { [weak self] (snapshot) in
+        guard let self else {
+          return []
+        }
+        return await sourceKitLSPServer.languageServices(for: snapshot.uri, snapshot.language, in: self).asyncFlatMap {
+          await $0.syntacticTestItems(for: snapshot)
+        }
+      },
+      syntacticPlaygrounds: { [weak self] (snapshot) in
+        guard let self,
+          let toolchain = await sourceKitLSPServer.toolchainRegistry.preferredToolchain(containing: [\.swiftc]),
+          toolchain.swiftPlay != nil
+        else {
+          return []
+        }
+        return await sourceKitLSPServer.languageServices(for: snapshot.uri, snapshot.language, in: self).asyncFlatMap {
+          await $0.syntacticPlaygrounds(for: snapshot, in: self)
+        }
       }
     )
   }
@@ -407,7 +432,14 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     // Notify all clients about the reported and inferred edits.
     await buildServerManager.filesDidChange(events)
 
-    async let updateSyntacticIndex: Void = await syntacticTestIndex.filesDidChange(events)
+    let eventsWithSourceFileInfo: [(FileEvent, SourceFileInfo)] = await events.asyncCompactMap {
+      guard let sourceFileInfo = await buildServerManager.sourceFileInfo(for: $0.uri) else {
+        return nil
+      }
+      return ($0, sourceFileInfo)
+    }
+
+    async let updateSyntacticIndex: Void = await syntacticIndex.filesDidChange(eventsWithSourceFileInfo)
     async let updateSemanticIndex: Void? = await semanticIndexManager?.filesDidChange(events)
     _ = await (updateSyntacticIndex, updateSemanticIndex)
   }
@@ -471,9 +503,8 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   package func buildTargetsChanged(_ changedTargets: Set<BuildTargetIdentifier>?) async {
     await sourceKitLSPServer?.fileHandlingCapabilityChanged()
     await semanticIndexManager?.buildTargetsChanged(changedTargets)
-    await orLog("Scheduling syntactic test re-indexing") {
-      let testFiles = try await buildServerManager.testFiles()
-      await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
+    await orLog("Scheduling syntactic file re-indexing") {
+      await syntacticIndex.buildTargetsChanged(changedTargets)
     }
 
     await scheduleUpdateOfUnitOutputPathsInIndexIfNecessary()
