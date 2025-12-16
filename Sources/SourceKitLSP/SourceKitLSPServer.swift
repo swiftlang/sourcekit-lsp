@@ -2621,8 +2621,7 @@ extension SourceKitLSPServer {
         break
       }
 
-      let location = indexToLSPLocation(info.location)
-      guard location != nil else {
+      guard indexToLSPLocation(info.location) != nil else {
         continue
       }
 
