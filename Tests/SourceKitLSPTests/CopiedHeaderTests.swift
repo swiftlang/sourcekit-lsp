@@ -113,16 +113,16 @@ class CopiedHeaderTests: SourceKitLSPTestCase {
     try await project.testClient.send(SynchronizeRequest(copyFileMap: true))
 
     let (uri, positions) = try project.openDocument("Test.c")
-    var response = try await project.testClient.send(
+    let response = try await project.testClient.send(
       ReferencesRequest(
         textDocument: TextDocumentIdentifier(uri),
         position: positions["2️⃣"],
         context: ReferencesContext(includeDeclaration: true)
       )
     )
-    var expected = [
-      try project.location(from: "1️⃣", to: "1️⃣", in: "Test.h"),
+    let expected = [
       try project.location(from: "2️⃣", to: "2️⃣", in: "Test.c"),
+      try project.location(from: "1️⃣", to: "1️⃣", in: "Test.h"),
     ]
     XCTAssertEqual(response, expected)
   }
@@ -158,7 +158,7 @@ class CopiedHeaderTests: SourceKitLSPTestCase {
     XCTAssertEqual(
       response?.locations,
       [
-        try project.location(from: "2️⃣", to: "2️⃣", in: "Test.c"),
+        try project.location(from: "2️⃣", to: "2️⃣", in: "Test.c")
       ]
     )
   }
@@ -194,7 +194,7 @@ class CopiedHeaderTests: SourceKitLSPTestCase {
     XCTAssertEqual(
       response?.locations,
       [
-        try project.location(from: "1️⃣", to: "2️⃣", in: "Test.h"),
+        try project.location(from: "1️⃣", to: "2️⃣", in: "Test.h")
       ]
     )
   }
@@ -203,7 +203,7 @@ class CopiedHeaderTests: SourceKitLSPTestCase {
     let project = try await CustomBuildServerTestProject(
       files: [
         "Test.h": """
-        void 1️⃣hello2️⃣();
+        void 1️⃣hello();
         """,
         "Test.c": """
         #include <CopiedTest.h>
@@ -227,6 +227,6 @@ class CopiedHeaderTests: SourceKitLSPTestCase {
       XCTFail("Expected a symbol information")
       return
     }
-    XCTAssertEqual(info.location, try project.location(from: "1️⃣", to: "2️⃣", in: "Test.h"))
+    XCTAssertEqual(info.location, try project.location(from: "1️⃣", to: "1️⃣", in: "Test.h"))
   }
 }

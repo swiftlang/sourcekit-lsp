@@ -2201,6 +2201,22 @@ extension SourceKitLSPServer {
       if occurrences.isEmpty {
         occurrences = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
       }
+      // for C/C++/objC functions with separate declaration and definition,
+      // "implementation" means the definition. Only use this fallback if there's
+      // a declaration without a definition at the same location.
+      if occurrences.isEmpty {
+        let declarations = index.occurrences(ofUSR: usr, roles: .declaration)
+        let definitions = index.occurrences(ofUSR: usr, roles: .definition)
+        // check if there are declarations that don't have a definition at the same location
+        let hasDeclarationOnlyLocations = declarations.contains { decl in
+          !definitions.contains { def in
+            def.location.path == decl.location.path && def.location.line == decl.location.line
+          }
+        }
+        if hasDeclarationOnlyLocations {
+          occurrences = definitions
+        }
+      }
 
       return occurrences.compactMap { indexToLSPLocation($0.location) }
     }
@@ -2407,7 +2423,9 @@ extension SourceKitLSPServer {
       guard let originalDefinitionLocation = definitionLocation else {
         continue
       }
-      let remappedDefinitionLocation = await workspace.buildServerManager.locationAdjustedForCopiedFiles(originalDefinitionLocation)
+      let remappedDefinitionLocation = await workspace.buildServerManager.locationAdjustedForCopiedFiles(
+        originalDefinitionLocation
+      )
 
       // Create a new CallHierarchyItem with the remapped location
       let name = index.fullyQualifiedName(of: definition)
@@ -2477,7 +2495,9 @@ extension SourceKitLSPServer {
       guard let originalDefinitionLocation = definitionLocation else {
         continue
       }
-      let remappedDefinitionLocation = await workspace.buildServerManager.locationAdjustedForCopiedFiles(originalDefinitionLocation)
+      let remappedDefinitionLocation = await workspace.buildServerManager.locationAdjustedForCopiedFiles(
+        originalDefinitionLocation
+      )
 
       // Create a new CallHierarchyItem with the remapped location
       let name = index.fullyQualifiedName(of: definition)
@@ -2605,7 +2625,7 @@ extension SourceKitLSPServer {
       guard location != nil else {
         continue
       }
-      
+
       let moduleName = info.location.moduleName.isEmpty ? nil : info.location.moduleName
       guard let item = indexToLSPTypeHierarchyItem(definition: info, moduleName: moduleName, index: index) else {
         continue
@@ -2668,24 +2688,6 @@ extension SourceKitLSPServer {
       return index.occurrences(relatedToUSR: related.symbol.usr, roles: .baseOf)
     }
 
-    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
-    func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
-      return self.indexToLSPLocation(location)
-    }
-
-    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
-    func indexToLSPTypeHierarchyItem2(
-      definition: SymbolOccurrence,
-      moduleName: String?,
-      index: CheckedIndex
-    ) -> TypeHierarchyItem? {
-      return self.indexToLSPTypeHierarchyItem(
-        definition: definition,
-        moduleName: moduleName,
-        index: index
-      )
-    }
-
     // Convert occurrences to type hierarchy items
     let occurs = baseOccurs + retroactiveConformanceOccurs
     var types: [TypeHierarchyItem] = []
@@ -2695,54 +2697,10 @@ extension SourceKitLSPServer {
         continue
       }
 
-      let location = indexToLSPLocation2(definition.location)
-      guard let originalLocation = location else {
+      let moduleName = definition.location.moduleName.isEmpty ? nil : definition.location.moduleName
+      guard let item = indexToLSPTypeHierarchyItem(definition: definition, moduleName: moduleName, index: index) else {
         continue
       }
-      let remappedLocation = await workspace.buildServerManager.locationAdjustedForCopiedFiles(originalLocation)
-
-      // Create a new TypeHierarchyItem with the original location, then adjust for copied files
-      let name: String
-      let detail: String?
-      let symbol = definition.symbol
-      switch symbol.kind {
-      case .extension:
-        // Query the conformance added by this extension
-        let conformances = index.occurrences(relatedToUSR: symbol.usr, roles: .baseOf)
-        if conformances.isEmpty {
-          name = symbol.name
-        } else {
-          name = "\(symbol.name): \(conformances.map(\.symbol.name).sorted().joined(separator: ", "))"
-        }
-        // Add the file name and line to the detail string
-        if let url = remappedLocation.uri.fileURL,
-          let basename = (try? AbsolutePath(validating: url.filePath))?.basename
-        {
-          detail = "Extension at \(basename):\(remappedLocation.range.lowerBound.line + 1)"
-        } else if !definition.location.moduleName.isEmpty {
-          detail = "Extension in \(definition.location.moduleName)"
-        } else {
-          detail = "Extension"
-        }
-      default:
-        name = index.fullyQualifiedName(of: definition)
-        detail = definition.location.moduleName
-      }
-
-      let item = TypeHierarchyItem(
-        name: name,
-        kind: symbol.kind.asLspSymbolKind(),
-        tags: nil,
-        detail: detail,
-        uri: originalLocation.uri,
-        range: originalLocation.range,
-        selectionRange: originalLocation.range,
-        // We encode usr and uri for incoming/outgoing type lookups in the implementation-specific data field
-        data: .dictionary([
-          "usr": .string(symbol.usr),
-          "uri": .string(originalLocation.uri.stringValue),
-        ])
-      )
       let remappedItem = await workspace.buildServerManager.typeHierarchyItemAdjustedForCopiedFiles(item)
       types.append(remappedItem)
     }
@@ -2759,24 +2717,6 @@ extension SourceKitLSPServer {
 
     // Resolve child types and extensions
     let occurs = index.occurrences(ofUSR: data.usr, roles: [.baseOf, .extendedBy])
-
-    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
-    func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
-      return self.indexToLSPLocation(location)
-    }
-
-    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
-    func indexToLSPTypeHierarchyItem2(
-      definition: SymbolOccurrence,
-      moduleName: String?,
-      index: CheckedIndex
-    ) -> TypeHierarchyItem? {
-      return self.indexToLSPTypeHierarchyItem(
-        definition: definition,
-        moduleName: moduleName,
-        index: index
-      )
-    }
 
     // Convert occurrences to type hierarchy items
     var types: [TypeHierarchyItem] = []
@@ -2796,54 +2736,10 @@ extension SourceKitLSPServer {
         continue
       }
 
-      let location = indexToLSPLocation2(definition.location)
-      guard let originalLocation = location else {
+      let moduleName = definition.location.moduleName.isEmpty ? nil : definition.location.moduleName
+      guard let item = indexToLSPTypeHierarchyItem(definition: definition, moduleName: moduleName, index: index) else {
         continue
       }
-      let adjustedLocation = await workspace.buildServerManager.locationAdjustedForCopiedFiles(originalLocation)
-
-      // Create a new TypeHierarchyItem with the original location, then adjust for copied files
-      let name: String
-      let detail: String?
-      let symbol = definition.symbol
-      switch symbol.kind {
-      case .extension:
-        // Query the conformance added by this extension
-        let conformances = index.occurrences(relatedToUSR: symbol.usr, roles: .baseOf)
-        if conformances.isEmpty {
-          name = symbol.name
-        } else {
-          name = "\(symbol.name): \(conformances.map(\.symbol.name).sorted().joined(separator: ", "))"
-        }
-        // Add the file name and line to the detail string
-        if let url = adjustedLocation.uri.fileURL,
-          let basename = (try? AbsolutePath(validating: url.filePath))?.basename
-        {
-          detail = "Extension at \(basename):\(adjustedLocation.range.lowerBound.line + 1)"
-        } else if !definition.location.moduleName.isEmpty {
-          detail = "Extension in \(definition.location.moduleName)"
-        } else {
-          detail = "Extension"
-        }
-      default:
-        name = index.fullyQualifiedName(of: definition)
-        detail = definition.location.moduleName
-      }
-
-      let item = TypeHierarchyItem(
-        name: name,
-        kind: symbol.kind.asLspSymbolKind(),
-        tags: nil,
-        detail: detail,
-        uri: originalLocation.uri,
-        range: originalLocation.range,
-        selectionRange: originalLocation.range,
-        // We encode usr and uri for incoming/outgoing type lookups in the implementation-specific data field
-        data: .dictionary([
-          "usr": .string(symbol.usr),
-          "uri": .string(originalLocation.uri.stringValue),
-        ])
-      )
       let remappedItem = await workspace.buildServerManager.typeHierarchyItemAdjustedForCopiedFiles(item)
       types.append(remappedItem)
     }
