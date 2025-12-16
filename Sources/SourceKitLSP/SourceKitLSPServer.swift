@@ -2550,8 +2550,8 @@ extension SourceKitLSPServer {
         let basename = (try? AbsolutePath(validating: url.filePath))?.basename
       {
         detail = "Extension at \(basename):\(location.range.lowerBound.line + 1)"
-      } else if !definition.location.moduleName.isEmpty {
-        detail = "Extension in \(definition.location.moduleName)"
+      } else if let moduleName = moduleName, !moduleName.isEmpty {
+        detail = "Extension in \(moduleName)"
       } else {
         detail = "Extension"
       }
