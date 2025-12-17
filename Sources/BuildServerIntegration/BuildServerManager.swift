@@ -1005,7 +1005,9 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     return edit
   }
 
-  package func locationsOrLocationLinksAdjustedForCopiedFiles(_ response: LocationsOrLocationLinksResponse?) -> LocationsOrLocationLinksResponse? {
+  package func locationsOrLocationLinksAdjustedForCopiedFiles(
+    _ response: LocationsOrLocationLinksResponse?
+  ) -> LocationsOrLocationLinksResponse? {
     guard let response = response else {
       return nil
     }
@@ -1016,14 +1018,20 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     case .locationLinks(let locationLinks):
       var remappedLinks: [LocationLink] = []
       for link in locationLinks {
-        let adjustedTargetLocation = self.locationAdjustedForCopiedFiles(Location(uri: link.targetUri, range: link.targetRange))
-        let adjustedTargetSelectionLocation = self.locationAdjustedForCopiedFiles(Location(uri: link.targetUri, range: link.targetSelectionRange))
-        remappedLinks.append(LocationLink(
-          originSelectionRange: link.originSelectionRange,
-          targetUri: adjustedTargetLocation.uri,
-          targetRange: adjustedTargetLocation.range,
-          targetSelectionRange: adjustedTargetSelectionLocation.range
-        ))
+        let adjustedTargetLocation = self.locationAdjustedForCopiedFiles(
+          Location(uri: link.targetUri, range: link.targetRange)
+        )
+        let adjustedTargetSelectionLocation = self.locationAdjustedForCopiedFiles(
+          Location(uri: link.targetUri, range: link.targetSelectionRange)
+        )
+        remappedLinks.append(
+          LocationLink(
+            originSelectionRange: link.originSelectionRange,
+            targetUri: adjustedTargetLocation.uri,
+            targetRange: adjustedTargetLocation.range,
+            targetSelectionRange: adjustedTargetSelectionLocation.range
+          )
+        )
       }
       return .locationLinks(remappedLinks)
     }
@@ -1031,7 +1039,9 @@ package actor BuildServerManager: QueueBasedMessageHandler {
 
   package func typeHierarchyItemAdjustedForCopiedFiles(_ item: TypeHierarchyItem) -> TypeHierarchyItem {
     let adjustedLocation = self.locationAdjustedForCopiedFiles(Location(uri: item.uri, range: item.range))
-    let adjustedSelectionLocation = self.locationAdjustedForCopiedFiles(Location(uri: item.uri, range: item.selectionRange))
+    let adjustedSelectionLocation = self.locationAdjustedForCopiedFiles(
+      Location(uri: item.uri, range: item.selectionRange)
+    )
     return TypeHierarchyItem(
       name: item.name,
       kind: item.kind,
@@ -1041,6 +1051,31 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       range: adjustedLocation.range,
       selectionRange: adjustedSelectionLocation.range,
       data: item.data
+    )
+  }
+
+  package func callHierarchyItemAdjustedForCopiedFiles(_ item: CallHierarchyItem) -> CallHierarchyItem {
+    let adjustedLocation = self.locationAdjustedForCopiedFiles(Location(uri: item.uri, range: item.range))
+    let adjustedSelectionLocation = self.locationAdjustedForCopiedFiles(
+      Location(uri: item.uri, range: item.selectionRange)
+    )
+    return CallHierarchyItem(
+      name: item.name,
+      kind: item.kind,
+      tags: item.tags,
+      detail: item.detail,
+      uri: adjustedLocation.uri,
+      range: adjustedLocation.range,
+      selectionRange: adjustedSelectionLocation.range,
+      data: .dictionary([
+        "usr": item.data.flatMap { data in
+          if case let .dictionary(dict) = data {
+            return dict["usr"]
+          }
+          return nil
+        } ?? .null,
+        "uri": .string(adjustedLocation.uri.stringValue),
+      ])
     )
   }
 

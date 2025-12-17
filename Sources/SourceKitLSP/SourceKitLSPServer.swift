@@ -1666,7 +1666,7 @@ extension SourceKitLSPServer {
     guard req.query.count >= minWorkspaceSymbolPatternLength else {
       return []
     }
-    var symbolsAndIndex: [(symbol: SymbolOccurrence, index: CheckedIndex, workspace: Workspace)] = []
+    var symbolsIndexAndLocations: [(symbol: SymbolOccurrence, index: CheckedIndex, location: Location)] = []
     for workspace in workspaces {
       guard let index = await workspace.index(checkedFor: .deletedFiles) else {
         continue
@@ -1689,23 +1689,24 @@ extension SourceKitLSPServer {
         return true
       }
       try Task.checkCancellation()
-      symbolsAndIndex += symbolOccurrences.map {
-        return ($0, index, workspace)
+
+      // Batch all locations for this workspace and remap them in one call
+      let locations = symbolOccurrences.map { symbolOccurrence -> Location in
+        let symbolPosition = Position(
+          line: symbolOccurrence.location.line - 1,  // 1-based -> 0-based
+          // Technically we would need to convert the UTF-8 column to a UTF-16 column. This would require reading the
+          // file. In practice they almost always coincide, so we accept the incorrectness here to avoid the file read.
+          utf16index: symbolOccurrence.location.utf8Column - 1
+        )
+        return Location(uri: symbolOccurrence.location.documentUri, range: Range(symbolPosition))
+      }
+      let remappedLocations = await workspace.buildServerManager.locationsAdjustedForCopiedFiles(locations)
+
+      for (symbolOccurrence, remappedLocation) in zip(symbolOccurrences, remappedLocations) {
+        symbolsIndexAndLocations.append((symbolOccurrence, index, remappedLocation))
       }
     }
-    return await symbolsAndIndex.sorted(by: { $0.symbol < $1.symbol }).asyncMap { symbolOccurrence, index, workspace in
-      let symbolPosition = Position(
-        line: symbolOccurrence.location.line - 1,  // 1-based -> 0-based
-        // Technically we would need to convert the UTF-8 column to a UTF-16 column. This would require reading the
-        // file. In practice they almost always coincide, so we accept the incorrectness here to avoid the file read.
-        utf16index: symbolOccurrence.location.utf8Column - 1
-      )
-
-      let symbolLocation = Location(
-        uri: symbolOccurrence.location.documentUri,
-        range: Range(symbolPosition)
-      )
-
+    return symbolsIndexAndLocations.sorted(by: { $0.symbol < $1.symbol }).map { symbolOccurrence, index, location in
       let containerNames = index.containerNames(of: symbolOccurrence)
       let containerName: String?
       if containerNames.isEmpty {
@@ -1717,13 +1718,12 @@ extension SourceKitLSPServer {
         }
       }
 
-      let remappedLocation = await workspace.buildServerManager.locationAdjustedForCopiedFiles(symbolLocation)
       return WorkspaceSymbolItem.symbolInformation(
         SymbolInformation(
           name: symbolOccurrence.symbol.name,
           kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
           deprecated: nil,
-          location: remappedLocation,
+          location: location,
           containerName: containerName
         )
       )
@@ -2276,36 +2276,6 @@ extension SourceKitLSPServer {
     )
   }
 
-  private func callHierarchyItemAdjustedForCopiedFiles(
-    _ item: CallHierarchyItem,
-    workspace: Workspace
-  ) async -> CallHierarchyItem {
-    let adjustedLocation = await workspace.buildServerManager.locationAdjustedForCopiedFiles(
-      Location(uri: item.uri, range: item.range)
-    )
-    let adjustedSelectionLocation = await workspace.buildServerManager.locationAdjustedForCopiedFiles(
-      Location(uri: item.uri, range: item.selectionRange)
-    )
-    return CallHierarchyItem(
-      name: item.name,
-      kind: item.kind,
-      tags: item.tags,
-      detail: item.detail,
-      uri: adjustedLocation.uri,
-      range: adjustedLocation.range,
-      selectionRange: adjustedSelectionLocation.range,
-      data: .dictionary([
-        "usr": item.data.flatMap { data in
-          if case let .dictionary(dict) = data {
-            return dict["usr"]
-          }
-          return nil
-        } ?? .null,
-        "uri": .string(adjustedLocation.uri.stringValue),
-      ])
-    )
-  }
-
   func prepareCallHierarchy(
     _ req: CallHierarchyPrepareRequest,
     workspace: Workspace,
@@ -2333,7 +2303,7 @@ extension SourceKitLSPServer {
       guard let item = indexToLSPCallHierarchyItem(definition: definition, index: index) else {
         continue
       }
-      let adjustedItem = await callHierarchyItemAdjustedForCopiedFiles(item, workspace: workspace)
+      let adjustedItem = await workspace.buildServerManager.callHierarchyItemAdjustedForCopiedFiles(item)
       callHierarchyItems.append(adjustedItem)
     }
     callHierarchyItems.sort(by: { Location(uri: $0.uri, range: $0.range) < Location(uri: $1.uri, range: $1.range) })
@@ -2384,7 +2354,7 @@ extension SourceKitLSPServer {
     var callersToCalls: [Symbol: [SymbolOccurrence]] = [:]
 
     for call in callOccurrences {
-      // Callers are all `containedBy` relations of a call to a USR in `callableUSrs`, ie. all the functions that contain a
+      // Callers are all `calledBy` relations of a call to a USR in `callableUsrs`, ie. all the functions that contain a
       // call to a USR in callableUSRs. In practice, this should always be a single item.
       let callers = call.relations.filter { $0.roles.contains(.containedBy) }.map(\.symbol)
       for caller in callers {
@@ -2418,33 +2388,10 @@ extension SourceKitLSPServer {
         continue
       }
 
-      // Now we need to get the remapped location for the definition item itself
-      let definitionLocation = indexToLSPLocation2(definition.location)
-      guard let originalDefinitionLocation = definitionLocation else {
+      guard let item = indexToLSPCallHierarchyItem2(definition: definition, index: index) else {
         continue
       }
-      let remappedDefinitionLocation = await workspace.buildServerManager.locationAdjustedForCopiedFiles(
-        originalDefinitionLocation
-      )
-
-      // Create a new CallHierarchyItem with the remapped location
-      let name = index.fullyQualifiedName(of: definition)
-      let symbol = definition.symbol
-
-      let remappedItem = CallHierarchyItem(
-        name: name,
-        kind: symbol.kind.asLspSymbolKind(),
-        tags: nil,
-        detail: nil,
-        uri: remappedDefinitionLocation.uri,
-        range: remappedDefinitionLocation.range,
-        selectionRange: remappedDefinitionLocation.range,
-        // We encode usr and uri for incoming/outgoing call lookups in the implementation-specific data field
-        data: .dictionary([
-          "usr": .string(symbol.usr),
-          "uri": .string(remappedDefinitionLocation.uri.stringValue),
-        ])
-      )
+      let remappedItem = await workspace.buildServerManager.callHierarchyItemAdjustedForCopiedFiles(item)
 
       calls.append(CallHierarchyIncomingCall(from: remappedItem, fromRanges: remappedLocations.map(\.range)))
     }
@@ -2490,33 +2437,10 @@ extension SourceKitLSPServer {
         continue
       }
 
-      // Get the remapped location for the definition item itself
-      let definitionLocation = indexToLSPLocation2(definition.location)
-      guard let originalDefinitionLocation = definitionLocation else {
+      guard let item = indexToLSPCallHierarchyItem2(definition: definition, index: index) else {
         continue
       }
-      let remappedDefinitionLocation = await workspace.buildServerManager.locationAdjustedForCopiedFiles(
-        originalDefinitionLocation
-      )
-
-      // Create a new CallHierarchyItem with the remapped location
-      let name = index.fullyQualifiedName(of: definition)
-      let symbol = definition.symbol
-
-      let remappedItem = CallHierarchyItem(
-        name: name,
-        kind: symbol.kind.asLspSymbolKind(),
-        tags: nil,
-        detail: nil,
-        uri: remappedDefinitionLocation.uri,
-        range: remappedDefinitionLocation.range,
-        selectionRange: remappedDefinitionLocation.range,
-        // We encode usr and uri for incoming/outgoing call lookups in the implementation-specific data field
-        data: .dictionary([
-          "usr": .string(symbol.usr),
-          "uri": .string(remappedDefinitionLocation.uri.stringValue),
-        ])
-      )
+      let remappedItem = await workspace.buildServerManager.callHierarchyItemAdjustedForCopiedFiles(item)
 
       calls.append(CallHierarchyOutgoingCall(to: remappedItem, fromRanges: [remappedLocation.range]))
     }
