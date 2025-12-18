@@ -321,7 +321,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       expected: [
         TokenSpec(marker: "1️⃣", length: 4, kind: .keyword),
         TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
-        TokenSpec(marker: "3️⃣", length: 1, kind: .function),
+        TokenSpec(marker: "3️⃣", length: 1, kind: .function, modifiers: .parameterLabel),
         TokenSpec(marker: "4️⃣", length: 3, kind: .struct, modifiers: .defaultLibrary),
         TokenSpec(marker: "5️⃣", length: 1, kind: .identifier),
         TokenSpec(marker: "6️⃣", length: 6, kind: .struct, modifiers: .defaultLibrary),
@@ -844,7 +844,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         TokenSpec(marker: "2️⃣", length: 7, kind: .identifier),
         TokenSpec(marker: "3️⃣", length: 4, kind: .keyword),
         TokenSpec(marker: "4️⃣", length: 1, kind: .identifier),
-        TokenSpec(marker: "5️⃣", length: 1, kind: .function),
+        TokenSpec(marker: "5️⃣", length: 1, kind: .function, modifiers: .parameterLabel),
         TokenSpec(marker: "6️⃣", length: 7, kind: .actor),
       ]
     )
@@ -859,10 +859,10 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       expected: [
         TokenSpec(marker: "1️⃣", length: 4, kind: .keyword),
         TokenSpec(marker: "2️⃣", length: 3, kind: .identifier),
-        TokenSpec(marker: "3️⃣", length: 3, kind: .function),
+        TokenSpec(marker: "3️⃣", length: 3, kind: .function, modifiers: .parameterLabel),
         TokenSpec(marker: "4️⃣", length: 3, kind: .struct, modifiers: .defaultLibrary),
         TokenSpec(marker: "5️⃣", length: 3, kind: .function),
-        TokenSpec(marker: "6️⃣", length: 3, kind: .function),
+        TokenSpec(marker: "6️⃣", length: 3, kind: .function, modifiers: .parameterLabel),
         TokenSpec(marker: "7️⃣", length: 1, kind: .number),
       ]
     )
@@ -876,7 +876,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       expected: [
         TokenSpec(marker: "1️⃣", length: 4, kind: .keyword),
         TokenSpec(marker: "2️⃣", length: 3, kind: .identifier),
-        TokenSpec(marker: "3️⃣", length: 3, kind: .function),
+        TokenSpec(marker: "3️⃣", length: 3, kind: .function, modifiers: .parameterLabel),
         TokenSpec(marker: "4️⃣", length: 12, kind: .identifier),
         TokenSpec(marker: "5️⃣", length: 3, kind: .struct, modifiers: .defaultLibrary),
       ]

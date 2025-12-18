@@ -172,7 +172,7 @@ struct SyntaxHighlightingTokenParser {
       // therefore we don't use .parameter here (which LSP clients like
       // VSCode seem to interpret as variable identifiers, however
       // causing a 'wrong highlighting' e.g. of `x` in `f(x y: Int) {}`)
-      return (.function, [.declaration])
+      return (.function, [.declaration, .parameterLabel])
     case values.refVarStatic,
       values.refVarClass,
       values.refVarInstance:
