@@ -1666,12 +1666,11 @@ extension SourceKitLSPServer {
     guard req.query.count >= minWorkspaceSymbolPatternLength else {
       return []
     }
-    var symbolsIndexAndLocations: [(symbol: SymbolOccurrence, index: CheckedIndex, location: Location)] = []
+    var symbolsIndexAndWorkspaces: [(symbol: SymbolOccurrence, index: CheckedIndex, workspace: Workspace)] = []
     for workspace in workspaces {
       guard let index = await workspace.index(checkedFor: .deletedFiles) else {
         continue
       }
-      var symbolOccurrences: [SymbolOccurrence] = []
       index.forEachCanonicalSymbolOccurrence(
         containing: req.query,
         anchorStart: false,
@@ -1685,28 +1684,23 @@ extension SourceKitLSPServer {
         guard !symbol.location.isSystem && !symbol.roles.contains(.accessorOf) else {
           return true
         }
-        symbolOccurrences.append(symbol)
+        symbolsIndexAndWorkspaces.append((symbol, index, workspace))
         return true
       }
       try Task.checkCancellation()
-
-      // Batch all locations for this workspace and remap them in one call
-      let locations = symbolOccurrences.map { symbolOccurrence -> Location in
-        let symbolPosition = Position(
-          line: symbolOccurrence.location.line - 1,  // 1-based -> 0-based
-          // Technically we would need to convert the UTF-8 column to a UTF-16 column. This would require reading the
-          // file. In practice they almost always coincide, so we accept the incorrectness here to avoid the file read.
-          utf16index: symbolOccurrence.location.utf8Column - 1
-        )
-        return Location(uri: symbolOccurrence.location.documentUri, range: Range(symbolPosition))
-      }
-      let remappedLocations = await workspace.buildServerManager.locationsAdjustedForCopiedFiles(locations)
-
-      for (symbolOccurrence, remappedLocation) in zip(symbolOccurrences, remappedLocations) {
-        symbolsIndexAndLocations.append((symbolOccurrence, index, remappedLocation))
-      }
     }
-    return symbolsIndexAndLocations.sorted(by: { $0.symbol < $1.symbol }).map { symbolOccurrence, index, location in
+
+    var result: [WorkspaceSymbolItem] = []
+    for (symbolOccurrence, index, workspace) in symbolsIndexAndWorkspaces.sorted(by: { $0.symbol < $1.symbol }) {
+      let symbolPosition = Position(
+        line: symbolOccurrence.location.line - 1,  // 1-based -> 0-based
+        // Technically we would need to convert the UTF-8 column to a UTF-16 column. This would require reading the
+        // file. In practice they almost always coincide, so we accept the incorrectness here to avoid the file read.
+        utf16index: symbolOccurrence.location.utf8Column - 1
+      )
+      let symbolLocation = Location(uri: symbolOccurrence.location.documentUri, range: Range(symbolPosition))
+      let location = await workspace.buildServerManager.locationAdjustedForCopiedFiles(symbolLocation)
+
       let containerNames = index.containerNames(of: symbolOccurrence)
       let containerName: String?
       if containerNames.isEmpty {
@@ -1718,16 +1712,19 @@ extension SourceKitLSPServer {
         }
       }
 
-      return WorkspaceSymbolItem.symbolInformation(
-        SymbolInformation(
-          name: symbolOccurrence.symbol.name,
-          kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
-          deprecated: nil,
-          location: location,
-          containerName: containerName
+      result.append(
+        WorkspaceSymbolItem.symbolInformation(
+          SymbolInformation(
+            name: symbolOccurrence.symbol.name,
+            kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
+            deprecated: nil,
+            location: location,
+            containerName: containerName
+          )
         )
       )
     }
+    return result
   }
 
   /// Forwards a SymbolInfoRequest to the appropriate toolchain service for this document.
@@ -2293,20 +2290,25 @@ extension SourceKitLSPServer {
     // For call hierarchy preparation we only locate the definition
     let usrs = symbols.compactMap(\.usr)
 
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
+    func indexToLSPCallHierarchyItem2(
+      definition: SymbolOccurrence,
+      index: CheckedIndex
+    ) -> CallHierarchyItem? {
+      return self.indexToLSPCallHierarchyItem(definition: definition, index: index)
+    }
+
     // Only return a single call hierarchy item. Returning multiple doesn't make sense because they will all have the
     // same USR (because we query them by USR) and will thus expand to the exact same call hierarchy.
-    var callHierarchyItems: [CallHierarchyItem] = []
-    for usr in usrs {
+    let callHierarchyItems = await usrs.asyncCompactMap { (usr) -> CallHierarchyItem? in
       guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
-        continue
+        return nil
       }
-      guard let item = indexToLSPCallHierarchyItem(definition: definition, index: index) else {
-        continue
+      guard let item = indexToLSPCallHierarchyItem2(definition: definition, index: index) else {
+        return nil
       }
-      let adjustedItem = await workspace.buildServerManager.callHierarchyItemAdjustedForCopiedFiles(item)
-      callHierarchyItems.append(adjustedItem)
-    }
-    callHierarchyItems.sort(by: { Location(uri: $0.uri, range: $0.range) < Location(uri: $1.uri, range: $1.range) })
+      return await workspace.buildServerManager.callHierarchyItemAdjustedForCopiedFiles(item)
+    }.sorted(by: { Location(uri: $0.uri, range: $0.range) < Location(uri: $1.uri, range: $1.range) })
 
     // Ideally, we should show multiple symbols. But VS Code fails to display call hierarchies with multiple root items,
     // failing with `Cannot read properties of undefined (reading 'map')`. Pick the first one.
@@ -2375,25 +2377,24 @@ extension SourceKitLSPServer {
       return self.indexToLSPCallHierarchyItem(definition: definition, index: index)
     }
 
-    var calls: [CallHierarchyIncomingCall] = []
-    for (caller, callsList) in callersToCalls {
+    let calls = await callersToCalls.asyncCompactMap { (caller, callsList) -> CallHierarchyIncomingCall? in
       // Resolve the caller's definition to find its location
       guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: caller.usr) else {
-        continue
+        return nil
       }
 
       let locations = callsList.compactMap { indexToLSPLocation2($0.location) }.sorted()
       let remappedLocations = await workspace.buildServerManager.locationsAdjustedForCopiedFiles(locations)
       guard !remappedLocations.isEmpty else {
-        continue
+        return nil
       }
 
       guard let item = indexToLSPCallHierarchyItem2(definition: definition, index: index) else {
-        continue
+        return nil
       }
       let remappedItem = await workspace.buildServerManager.callHierarchyItemAdjustedForCopiedFiles(item)
 
-      calls.append(CallHierarchyIncomingCall(from: remappedItem, fromRanges: remappedLocations.map(\.range)))
+      return CallHierarchyIncomingCall(from: remappedItem, fromRanges: remappedLocations.map(\.range))
     }
     return calls.sorted(by: { $0.from.name < $1.from.name })
   }
@@ -2422,27 +2423,26 @@ extension SourceKitLSPServer {
     let callableUsrs = [data.usr] + index.occurrences(relatedToUSR: data.usr, roles: .accessorOf).map(\.symbol.usr)
     let callOccurrences = callableUsrs.flatMap { index.occurrences(relatedToUSR: $0, roles: .containedBy) }
       .filter(\.shouldShowInCallHierarchy)
-    var calls: [CallHierarchyOutgoingCall] = []
-    for occurrence in callOccurrences {
+    let calls = await callOccurrences.asyncCompactMap { occurrence -> CallHierarchyOutgoingCall? in
       guard occurrence.symbol.kind.isCallable else {
-        continue
+        return nil
       }
       guard let location = indexToLSPLocation2(occurrence.location) else {
-        continue
+        return nil
       }
       let remappedLocation = await workspace.buildServerManager.locationAdjustedForCopiedFiles(location)
 
       // Resolve the callee's definition to find its location
       guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr) else {
-        continue
+        return nil
       }
 
       guard let item = indexToLSPCallHierarchyItem2(definition: definition, index: index) else {
-        continue
+        return nil
       }
       let remappedItem = await workspace.buildServerManager.callHierarchyItemAdjustedForCopiedFiles(item)
 
-      calls.append(CallHierarchyOutgoingCall(to: remappedItem, fromRanges: [remappedLocation.range]))
+      return CallHierarchyOutgoingCall(to: remappedItem, fromRanges: [remappedLocation.range])
     }
     return calls.sorted(by: { $0.to.name < $1.to.name })
   }
@@ -2474,7 +2474,7 @@ extension SourceKitLSPServer {
         let basename = (try? AbsolutePath(validating: url.filePath))?.basename
       {
         detail = "Extension at \(basename):\(location.range.lowerBound.line + 1)"
-      } else if let moduleName = moduleName, !moduleName.isEmpty {
+      } else if let moduleName = moduleName {
         detail = "Extension in \(moduleName)"
       } else {
         detail = "Extension"
@@ -2528,10 +2528,27 @@ extension SourceKitLSPServer {
       }
     }.compactMap(\.usr)
 
-    var typeHierarchyItems: [TypeHierarchyItem] = []
-    for usr in usrs {
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
+    func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
+      return self.indexToLSPLocation(location)
+    }
+
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
+    func indexToLSPTypeHierarchyItem2(
+      definition: SymbolOccurrence,
+      moduleName: String?,
+      index: CheckedIndex
+    ) -> TypeHierarchyItem? {
+      return self.indexToLSPTypeHierarchyItem(
+        definition: definition,
+        moduleName: moduleName,
+        index: index
+      )
+    }
+
+    let typeHierarchyItems = await usrs.asyncCompactMap { (usr) -> TypeHierarchyItem? in
       guard let info = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
-        continue
+        return nil
       }
       // Filter symbols based on their kind in the index since the filter on the symbol info response might have
       // returned `nil` for the kind, preventing us from doing any filtering there.
@@ -2539,24 +2556,22 @@ extension SourceKitLSPServer {
       case .unknown, .macro, .function, .variable, .field, .enumConstant, .instanceMethod, .classMethod, .staticMethod,
         .instanceProperty, .classProperty, .staticProperty, .constructor, .destructor, .conversionFunction, .parameter,
         .concept, .commentTag:
-        continue
+        return nil
       case .module, .namespace, .namespaceAlias, .enum, .struct, .class, .protocol, .extension, .union, .typealias,
         .using:
         break
       }
 
-      guard indexToLSPLocation(info.location) != nil else {
-        continue
+      guard indexToLSPLocation2(info.location) != nil else {
+        return nil
       }
 
       let moduleName = info.location.moduleName.isEmpty ? nil : info.location.moduleName
-      guard let item = indexToLSPTypeHierarchyItem(definition: info, moduleName: moduleName, index: index) else {
-        continue
+      guard let item = indexToLSPTypeHierarchyItem2(definition: info, moduleName: moduleName, index: index) else {
+        return nil
       }
-      let remappedItem = await workspace.buildServerManager.typeHierarchyItemAdjustedForCopiedFiles(item)
-      typeHierarchyItems.append(remappedItem)
-    }
-    typeHierarchyItems.sort(by: { $0.name < $1.name })
+      return await workspace.buildServerManager.typeHierarchyItemAdjustedForCopiedFiles(item)
+    }.sorted(by: { $0.name < $1.name })
 
     if typeHierarchyItems.isEmpty {
       // When returning an empty array, VS Code fails with the following two errors. Returning `nil` works around those
@@ -2611,21 +2626,32 @@ extension SourceKitLSPServer {
       return index.occurrences(relatedToUSR: related.symbol.usr, roles: .baseOf)
     }
 
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
+    func indexToLSPTypeHierarchyItem2(
+      definition: SymbolOccurrence,
+      moduleName: String?,
+      index: CheckedIndex
+    ) -> TypeHierarchyItem? {
+      return self.indexToLSPTypeHierarchyItem(
+        definition: definition,
+        moduleName: moduleName,
+        index: index
+      )
+    }
+
     // Convert occurrences to type hierarchy items
     let occurs = baseOccurs + retroactiveConformanceOccurs
-    var types: [TypeHierarchyItem] = []
-    for occurrence in occurs {
+    let types = await occurs.asyncCompactMap { occurrence -> TypeHierarchyItem? in
       // Resolve the supertype's definition to find its location
       guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr) else {
-        continue
+        return nil
       }
 
       let moduleName = definition.location.moduleName.isEmpty ? nil : definition.location.moduleName
-      guard let item = indexToLSPTypeHierarchyItem(definition: definition, moduleName: moduleName, index: index) else {
-        continue
+      guard let item = indexToLSPTypeHierarchyItem2(definition: definition, moduleName: moduleName, index: index) else {
+        return nil
       }
-      let remappedItem = await workspace.buildServerManager.typeHierarchyItemAdjustedForCopiedFiles(item)
-      types.append(remappedItem)
+      return await workspace.buildServerManager.typeHierarchyItemAdjustedForCopiedFiles(item)
     }
     return types.sorted(by: { $0.name < $1.name })
   }
@@ -2641,9 +2667,21 @@ extension SourceKitLSPServer {
     // Resolve child types and extensions
     let occurs = index.occurrences(ofUSR: data.usr, roles: [.baseOf, .extendedBy])
 
+    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
+    func indexToLSPTypeHierarchyItem2(
+      definition: SymbolOccurrence,
+      moduleName: String?,
+      index: CheckedIndex
+    ) -> TypeHierarchyItem? {
+      return self.indexToLSPTypeHierarchyItem(
+        definition: definition,
+        moduleName: moduleName,
+        index: index
+      )
+    }
+
     // Convert occurrences to type hierarchy items
-    var types: [TypeHierarchyItem] = []
-    for occurrence in occurs {
+    let types = await occurs.asyncCompactMap { occurrence -> TypeHierarchyItem? in
       if occurrence.relations.count > 1 {
         // An occurrence with a `baseOf` or `extendedBy` relation is an occurrence inside an inheritance clause.
         // Such an occurrence can only be the source of a single type, namely the one that the inheritance clause belongs
@@ -2651,20 +2689,19 @@ extension SourceKitLSPServer {
         logger.fault("Expected at most extendedBy or baseOf relation but got \(occurrence.relations.count)")
       }
       guard let related = occurrence.relations.sorted().first else {
-        continue
+        return nil
       }
 
       // Resolve the subtype's definition to find its location
       guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: related.symbol.usr) else {
-        continue
+        return nil
       }
 
       let moduleName = definition.location.moduleName.isEmpty ? nil : definition.location.moduleName
-      guard let item = indexToLSPTypeHierarchyItem(definition: definition, moduleName: moduleName, index: index) else {
-        continue
+      guard let item = indexToLSPTypeHierarchyItem2(definition: definition, moduleName: moduleName, index: index) else {
+        return nil
       }
-      let remappedItem = await workspace.buildServerManager.typeHierarchyItemAdjustedForCopiedFiles(item)
-      types.append(remappedItem)
+      return await workspace.buildServerManager.typeHierarchyItemAdjustedForCopiedFiles(item)
     }
     return types.sorted { $0.name < $1.name }
   }
