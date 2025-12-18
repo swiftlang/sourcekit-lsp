@@ -1,3 +1,15 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the Swift.org open source project
+//
+// Copyright (c) 2014 - 2025 Apple Inc. and the Swift project authors
+// Licensed under Apache License v2.0 with Runtime Library Exception
+//
+// See https://swift.org/LICENSE.txt for license information
+// See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+//
+//===----------------------------------------------------------------------===//
+
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SKLogging
 import SKTestSupport
@@ -32,20 +44,14 @@ final class SwiftCompletionSnippetTests: SourceKitLSPTestCase {
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
 
-    guard let ifItem = completions.items.first(where: { $0.label == "if" }) else {
-      XCTFail("No completion item with label 'if'")
-      return
-    }
+    let ifItem = try XCTUnwrap(completions.items.first(where: { $0.label == "if" }))
 
     XCTAssertEqual(ifItem.kind, .keyword)
     XCTAssertEqual(ifItem.insertTextFormat, .snippet)
 
-    guard let insertText = ifItem.insertText else {
-      XCTFail("Completion item for 'if' has no insertText")
-      return
-    }
+    let insertText = try XCTUnwrap(ifItem.insertText)
     XCTAssertTrue(insertText.contains("${1:condition}"))
-    XCTAssertTrue(insertText.contains("${0:"))
+    XCTAssertTrue(insertText.contains("${0:}"))
   }
 
   func testKeywordForProvidesSnippet() async throws {
@@ -66,18 +72,12 @@ final class SwiftCompletionSnippetTests: SourceKitLSPTestCase {
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
 
-    guard let forItem = completions.items.first(where: { $0.label == "for" }) else {
-      XCTFail("No completion item with label 'for'")
-      return
-    }
+    let forItem = try XCTUnwrap(completions.items.first(where: { $0.label == "for" }))
 
     XCTAssertEqual(forItem.kind, .keyword)
     XCTAssertEqual(forItem.insertTextFormat, .snippet)
 
-    guard let insertText = forItem.insertText else {
-      XCTFail("Completion item for 'for' has no insertText")
-      return
-    }
+    let insertText = try XCTUnwrap(forItem.insertText)
     XCTAssertTrue(insertText.contains("${1:item}"))
     XCTAssertTrue(insertText.contains("${2:sequence}"))
   }
@@ -100,18 +100,12 @@ final class SwiftCompletionSnippetTests: SourceKitLSPTestCase {
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
 
-    guard let whileItem = completions.items.first(where: { $0.label == "while" }) else {
-      XCTFail("No completion item with label 'while'")
-      return
-    }
+    let whileItem = try XCTUnwrap(completions.items.first(where: { $0.label == "while" }))
 
     XCTAssertEqual(whileItem.kind, .keyword)
     XCTAssertEqual(whileItem.insertTextFormat, .snippet)
 
-    guard let insertText = whileItem.insertText else {
-      XCTFail("Completion item for 'while' has no insertText")
-      return
-    }
+    let insertText = try XCTUnwrap(whileItem.insertText)
     XCTAssertTrue(insertText.contains("${1:condition}"))
   }
 
@@ -133,18 +127,12 @@ final class SwiftCompletionSnippetTests: SourceKitLSPTestCase {
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
 
-    guard let guardItem = completions.items.first(where: { $0.label == "guard" }) else {
-      XCTFail("No completion item with label 'guard'")
-      return
-    }
+    let guardItem = try XCTUnwrap(completions.items.first(where: { $0.label == "guard" }))
 
     XCTAssertEqual(guardItem.kind, .keyword)
     XCTAssertEqual(guardItem.insertTextFormat, .snippet)
 
-    guard let insertText = guardItem.insertText else {
-      XCTFail("Completion item for 'guard' has no insertText")
-      return
-    }
+    let insertText = try XCTUnwrap(guardItem.insertText)
     XCTAssertTrue(insertText.contains("${1:condition}"))
     XCTAssertTrue(insertText.contains("else"))
   }
@@ -167,18 +155,12 @@ final class SwiftCompletionSnippetTests: SourceKitLSPTestCase {
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
 
-    guard let switchItem = completions.items.first(where: { $0.label == "switch" }) else {
-      XCTFail("No completion item with label 'switch'")
-      return
-    }
+    let switchItem = try XCTUnwrap(completions.items.first(where: { $0.label == "switch" }))
 
     XCTAssertEqual(switchItem.kind, .keyword)
     XCTAssertEqual(switchItem.insertTextFormat, .snippet)
 
-    guard let insertText = switchItem.insertText else {
-      XCTFail("Completion item for 'switch' has no insertText")
-      return
-    }
+    let insertText = try XCTUnwrap(switchItem.insertText)
     XCTAssertTrue(insertText.contains("${1:value}"))
     XCTAssertTrue(insertText.contains("case"))
   }
@@ -201,18 +183,12 @@ final class SwiftCompletionSnippetTests: SourceKitLSPTestCase {
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
 
-    guard let repeatItem = completions.items.first(where: { $0.label == "repeat" }) else {
-      XCTFail("No completion item with label 'repeat'")
-      return
-    }
+    let repeatItem = try XCTUnwrap(completions.items.first(where: { $0.label == "repeat" }))
 
     XCTAssertEqual(repeatItem.kind, .keyword)
     XCTAssertEqual(repeatItem.insertTextFormat, .snippet)
 
-    guard let insertText = repeatItem.insertText else {
-      XCTFail("Completion item for 'repeat' has no insertText")
-      return
-    }
+    let insertText = try XCTUnwrap(repeatItem.insertText)
     XCTAssertTrue(insertText.contains("while"))
   }
 
@@ -235,13 +211,92 @@ final class SwiftCompletionSnippetTests: SourceKitLSPTestCase {
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
 
-    guard let ifItem = completions.items.first(where: { $0.label == "if" }) else {
-      XCTFail("No completion item with label 'if'")
-      return
-    }
+    let ifItem = try XCTUnwrap(completions.items.first(where: { $0.label == "if" }))
 
     XCTAssertEqual(ifItem.kind, .keyword)
     XCTAssertEqual(ifItem.insertTextFormat, .plain)
     XCTAssertEqual(ifItem.insertText, "if")
+  }
+
+  func testInsertTextAndTextEditAreConsistent() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
+    let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func test() {
+        1️⃣
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+
+    for item in completions.items {
+      guard let insertText = item.insertText else { continue }
+      // Skip SourceKit's implicit method call labels (e.g. "funcName()")
+      if item.label.contains("(") && item.label.contains(")") { continue }
+
+      if case .textEdit(let te) = item.textEdit {
+        XCTAssertEqual(insertText, te.newText, "insertText and textEdit.newText differ for item '\(item.label)'")
+      }
+    }
+  }
+
+  func testKeywordSnippetUsesInferredSpacesIndentation() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
+    let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func test() {
+        let a = 1
+        let b = 2
+        1️⃣
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+
+    let ifItem = try XCTUnwrap(completions.items.first(where: { $0.label == "if" }))
+    let insertText = try XCTUnwrap(ifItem.insertText)
+
+    // Expect newline + two spaces before the final placeholder
+    XCTAssertTrue(insertText.contains("\n  ${0:}"), "expected two-space indentation in snippet, got: '\(insertText)'")
+  }
+
+  func testKeywordSnippetUsesInferredTabsIndentation() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
+    let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
+    let uri = DocumentURI(for: .swift)
+    // Use raw tabs \t for indentation to ensure server picks up Tab style.
+    let positions = testClient.openDocument(
+      """
+      func test() {
+      \tlet a = 1
+      \tlet b = 2
+      \t1️⃣
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+
+    let ifItem = try XCTUnwrap(completions.items.first(where: { $0.label == "if" }))
+    let insertText = try XCTUnwrap(ifItem.insertText)
+    XCTAssertTrue(insertText.contains("\n\t"), "expected tab indentation in snippet, got: '\(insertText)'")
   }
 }

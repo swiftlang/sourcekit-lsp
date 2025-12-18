@@ -490,31 +490,26 @@ class CodeCompletionSession {
       let text = rewriteSourceKitPlaceholders(in: insertText, clientSupportsSnippets: clientSupportsSnippets)
       let isInsertTextSnippet = clientSupportsSnippets && text != insertText
 
+      let kind: sourcekitd_api_uid_t? = value[sourcekitd.keys.kind]
+      let completionKind = kind?.asCompletionItemKind(sourcekitd.values) ?? .value
+
+      // Check if this is a keyword that should be converted to a snippet. If so, prefer the snippet text
+      // as the completion insert text and only compute the `TextEdit` once below.
+      var isKeywordSnippet = false
+      if completionKind == .keyword, let snippetText = keywordSnippet(for: name) {
+        insertText = snippetText
+        isKeywordSnippet = true
+      } else {
+        insertText = text
+      }
+
       var textEdit = self.computeCompletionTextEdit(
         completionPos: completionPos,
         requestPosition: requestPosition,
         utf8CodeUnitsToErase: utf8CodeUnitsToErase,
-        newText: text,
+        newText: insertText,
         snapshot: snapshot
       )
-
-      let kind: sourcekitd_api_uid_t? = value[sourcekitd.keys.kind]
-      let completionKind = kind?.asCompletionItemKind(sourcekitd.values) ?? .value
-
-      // Check if this is a keyword that should be converted to a snippet
-      var isKeywordSnippet = false
-      if completionKind == .keyword, let snippetText = keywordSnippet(for: name) {
-        let snippetTextEdit = self.computeCompletionTextEdit(
-          completionPos: completionPos,
-          requestPosition: requestPosition,
-          utf8CodeUnitsToErase: utf8CodeUnitsToErase,
-          newText: snippetText,
-          snapshot: snapshot
-        )
-        textEdit = snippetTextEdit
-        insertText = snippetText
-        isKeywordSnippet = true
-      }
 
       if completionKind == .method || completionKind == .function, name.first == "(", name.last == ")" {
         // sourcekitd makes an assumption that the editor inserts a matching `)` when the user types a `(` to start
@@ -725,19 +720,40 @@ class CodeCompletionSession {
   private func keywordSnippet(for keyword: String) -> String? {
     guard clientSupportsSnippets else { return nil }
 
+    func indentationUnitString() -> String {
+      // Convert the inferred Trivia (spaces/tabs) to a string we can embed into snippets.
+      if let trivia = indentationWidth {
+        for piece in trivia {
+          switch piece {
+          case .spaces(let n):
+            return String(repeating: " ", count: n)
+          case .tabs(let n):
+            return String(repeating: "\t", count: n)
+          default:
+            continue
+          }
+        }
+      }
+      // Fallback to a single tab to preserve previous behaviour when indentation cannot be inferred.
+      return "\t"
+    }
+
+    let indent = indentationUnitString()
+    let doubleIndent = indent + indent
+
     switch keyword {
     case "if":
-      return "if ${1:condition} {\n\t${0:}\n}"
+      return "if ${1:condition} {\n\(indent)${0:}\n}"
     case "for":
-      return "for ${1:item} in ${2:sequence} {\n\t${0:}\n}"
+      return "for ${1:item} in ${2:sequence} {\n\(indent)${0:}\n}"
     case "while":
-      return "while ${1:condition} {\n\t${0:}\n}"
+      return "while ${1:condition} {\n\(indent)${0:}\n}"
     case "guard":
-      return "guard ${1:condition} else {\n\t${0:}\n}"
+      return "guard ${1:condition} else {\n\(indent)${0:}\n}"
     case "switch":
-      return "switch ${1:value} {\n\tcase ${2:pattern}:\n\t\t${0:}\n}"
+      return "switch ${1:value} {\n\(indent)case ${2:pattern}:\n\(doubleIndent)${0:}\n}"
     case "repeat":
-      return "repeat {\n\t${0:}\n} while ${1:condition}"
+      return "repeat {\n\(indent)${0:}\n} while ${1:condition}"
     default:
       return nil
     }
