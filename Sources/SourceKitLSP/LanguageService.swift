@@ -216,6 +216,11 @@ package protocol LanguageService: AnyObject, Sendable {
     manager: OnDiskDocumentManager
   ) async throws -> String
 
+  /// Check if the given position is on a literal value (string, integer, boolean, etc.).
+  ///
+  /// Literal values should not support jump-to-definition since they don't have a "definition" location.
+  func isPositionOnLiteral(_ position: Position, in uri: DocumentURI) async -> Bool
+
   /// Request a generated interface of a module to display in the IDE.
   ///
   /// - Parameters:
@@ -393,6 +398,10 @@ package extension LanguageService {
 
   func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails] {
     throw ResponseError.requestNotImplemented(SymbolInfoRequest.self)
+  }
+
+  func isPositionOnLiteral(_ position: Position, in uri: DocumentURI) async -> Bool {
+    return false
   }
 
   func symbolGraph(

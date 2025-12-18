@@ -689,4 +689,43 @@ class DefinitionTests: SourceKitLSPTestCase {
     )
     XCTAssertEqual(response?.locations?.map(\.uri), [try project.uri(for: "Test.h")])
   }
+
+  func testDefinitionOnLiteralsShouldReturnEmpty() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      let message = "Hello"1️⃣
+      let count = 422️⃣
+      let flag = true3️⃣
+      let items = [1, 2, 3]4️⃣
+      """,
+      uri: uri
+    )
+
+    // Test string literal
+    let stringResponse = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertNil(stringResponse, "Jump-to-definition should not work on string literals")
+
+    // Test integer literal
+    let intResponse = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    XCTAssertNil(intResponse, "Jump-to-definition should not work on integer literals")
+
+    // Test boolean literal
+    let boolResponse = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+    )
+    XCTAssertNil(boolResponse, "Jump-to-definition should not work on boolean literals")
+
+    // Test array literal
+    let arrayResponse = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["4️⃣"])
+    )
+    XCTAssertNil(arrayResponse, "Jump-to-definition should not work on array literals")
+  }
 }

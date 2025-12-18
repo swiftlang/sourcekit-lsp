@@ -1293,3 +1293,63 @@ extension sourcekitd_api_uid_t {
     }
   }
 }
+
+// MARK: - Literal Detection
+
+extension SwiftLanguageService {
+  /// Check if the given position in the document is on a literal expression.
+  ///
+  /// Literal expressions (string, integer, boolean, float, array, dictionary) should not support
+  /// jump-to-definition since they don't have a "definition" location - they are values typed
+  /// directly in the code.
+  ///
+  package func isPositionOnLiteral(
+    _ position: Position,
+    in uri: DocumentURI
+  ) async -> Bool {
+    guard let snapshot = try? await latestSnapshot(for: uri) else {
+      return false
+    }
+
+    let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    let absolutePosition = snapshot.absolutePosition(of: position)
+
+    // Helper function to check if a token is part of a literal expression
+    func isTokenInLiteral(_ token: TokenSyntax) -> Bool {
+      var currentNode: Syntax? = Syntax(token)
+      while let node = currentNode {
+        // Check all literal expression types
+        if node.is(StringLiteralExprSyntax.self)
+          || node.is(IntegerLiteralExprSyntax.self)
+          || node.is(FloatLiteralExprSyntax.self)
+          || node.is(BooleanLiteralExprSyntax.self)
+          || node.is(ArrayExprSyntax.self)
+          || node.is(DictionaryExprSyntax.self)
+          || node.is(NilLiteralExprSyntax.self)
+        {
+          return true
+        }
+        currentNode = node.parent
+      }
+      return false
+    }
+
+    // Find the token at this position
+    if let token = tree.token(at: absolutePosition) {
+      if isTokenInLiteral(token) {
+        return true
+      }
+    }
+
+    // Also check the token before the cursor position, as users might click right after a literal
+    if absolutePosition.utf8Offset > 0,
+      let tokenBefore = tree.token(at: AbsolutePosition(utf8Offset: absolutePosition.utf8Offset - 1))
+    {
+      if isTokenInLiteral(tokenBefore) {
+        return true
+      }
+    }
+
+    return false
+  }
+}
