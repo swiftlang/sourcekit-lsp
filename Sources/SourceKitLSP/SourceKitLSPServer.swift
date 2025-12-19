@@ -1690,8 +1690,8 @@ extension SourceKitLSPServer {
       try Task.checkCancellation()
     }
 
-    var result: [WorkspaceSymbolItem] = []
-    for (symbolOccurrence, index, workspace) in symbolsIndexAndWorkspaces.sorted(by: { $0.symbol < $1.symbol }) {
+    return await symbolsIndexAndWorkspaces.sorted(by: { $0.symbol < $1.symbol }).asyncMap {
+      (symbolOccurrence, index, workspace) in
       let symbolPosition = Position(
         line: symbolOccurrence.location.line - 1,  // 1-based -> 0-based
         // Technically we would need to convert the UTF-8 column to a UTF-16 column. This would require reading the
@@ -1712,19 +1712,16 @@ extension SourceKitLSPServer {
         }
       }
 
-      result.append(
-        WorkspaceSymbolItem.symbolInformation(
-          SymbolInformation(
-            name: symbolOccurrence.symbol.name,
-            kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
-            deprecated: nil,
-            location: location,
-            containerName: containerName
-          )
+      return WorkspaceSymbolItem.symbolInformation(
+        SymbolInformation(
+          name: symbolOccurrence.symbol.name,
+          kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
+          deprecated: nil,
+          location: location,
+          containerName: containerName
         )
       )
     }
-    return result
   }
 
   /// Forwards a SymbolInfoRequest to the appropriate toolchain service for this document.
@@ -2198,22 +2195,6 @@ extension SourceKitLSPServer {
       if occurrences.isEmpty {
         occurrences = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
       }
-      // for C/C++/objC functions with separate declaration and definition,
-      // "implementation" means the definition. Only use this fallback if there's
-      // a declaration without a definition at the same location.
-      if occurrences.isEmpty {
-        let declarations = index.occurrences(ofUSR: usr, roles: .declaration)
-        let definitions = index.occurrences(ofUSR: usr, roles: .definition)
-        // check if there are declarations that don't have a definition at the same location
-        let hasDeclarationOnlyLocations = declarations.contains { decl in
-          !definitions.contains { def in
-            def.location.path == decl.location.path && def.location.line == decl.location.line
-          }
-        }
-        if hasDeclarationOnlyLocations {
-          occurrences = definitions
-        }
-      }
 
       return occurrences.compactMap { indexToLSPLocation($0.location) }
     }
@@ -2566,7 +2547,7 @@ extension SourceKitLSPServer {
         return nil
       }
 
-      let moduleName = info.location.moduleName.isEmpty ? nil : info.location.moduleName
+      let moduleName = info.location.moduleName
       guard let item = indexToLSPTypeHierarchyItem2(definition: info, moduleName: moduleName, index: index) else {
         return nil
       }
@@ -2647,7 +2628,7 @@ extension SourceKitLSPServer {
         return nil
       }
 
-      let moduleName = definition.location.moduleName.isEmpty ? nil : definition.location.moduleName
+      let moduleName = definition.location.moduleName
       guard let item = indexToLSPTypeHierarchyItem2(definition: definition, moduleName: moduleName, index: index) else {
         return nil
       }
@@ -2697,7 +2678,7 @@ extension SourceKitLSPServer {
         return nil
       }
 
-      let moduleName = definition.location.moduleName.isEmpty ? nil : definition.location.moduleName
+      let moduleName = definition.location.moduleName
       guard let item = indexToLSPTypeHierarchyItem2(definition: definition, moduleName: moduleName, index: index) else {
         return nil
       }

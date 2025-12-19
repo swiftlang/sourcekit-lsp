@@ -127,42 +127,6 @@ class CopiedHeaderTests: SourceKitLSPTestCase {
     XCTAssertEqual(response, expected)
   }
 
-  func testFindImplementationInCopiedHeader() async throws {
-    let project = try await CustomBuildServerTestProject(
-      files: [
-        "Test.h": """
-        void 1️⃣hello();
-        """,
-        "Test.c": """
-        #include <CopiedTest.h>
-
-        void 2️⃣hello() {}
-
-        void test() {
-          3️⃣hello();
-        }
-        """,
-      ],
-      buildServer: BuildServer.self,
-      enableBackgroundIndexing: true
-    )
-    try await project.testClient.send(SynchronizeRequest(copyFileMap: true))
-
-    let (uri, positions) = try project.openDocument("Test.c")
-    let response = try await project.testClient.send(
-      ImplementationRequest(
-        textDocument: TextDocumentIdentifier(uri),
-        position: positions["3️⃣"]
-      )
-    )
-    XCTAssertEqual(
-      response?.locations,
-      [
-        try project.location(from: "2️⃣", to: "2️⃣", in: "Test.c")
-      ]
-    )
-  }
-
   func testFindDeclarationInCopiedHeader() async throws {
     let project = try await CustomBuildServerTestProject(
       files: [

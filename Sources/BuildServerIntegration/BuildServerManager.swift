@@ -982,25 +982,23 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       edit.changes = newChanges
     }
     if let documentChanges = edit.documentChanges {
-      var newDocumentChanges: [WorkspaceEditDocumentChange] = []
-      for change in documentChanges {
+      edit.documentChanges = documentChanges.map { change in
         switch change {
         case .textDocumentEdit(var textEdit):
           textEdit.textDocument.uri = self.uriAdjustedForCopiedFiles(textEdit.textDocument.uri)
-          newDocumentChanges.append(.textDocumentEdit(textEdit))
+          return .textDocumentEdit(textEdit)
         case .createFile(var create):
           create.uri = self.uriAdjustedForCopiedFiles(create.uri)
-          newDocumentChanges.append(.createFile(create))
+          return .createFile(create)
         case .renameFile(var rename):
           rename.oldUri = self.uriAdjustedForCopiedFiles(rename.oldUri)
           rename.newUri = self.uriAdjustedForCopiedFiles(rename.newUri)
-          newDocumentChanges.append(.renameFile(rename))
+          return .renameFile(rename)
         case .deleteFile(var delete):
           delete.uri = self.uriAdjustedForCopiedFiles(delete.uri)
-          newDocumentChanges.append(.deleteFile(delete))
+          return .deleteFile(delete)
         }
       }
-      edit.documentChanges = newDocumentChanges
     }
     return edit
   }
@@ -1016,21 +1014,18 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       let remappedLocations = self.locationsAdjustedForCopiedFiles(locations)
       return .locations(remappedLocations)
     case .locationLinks(let locationLinks):
-      var remappedLinks: [LocationLink] = []
-      for link in locationLinks {
+      let remappedLinks = locationLinks.map { link -> LocationLink in
         let adjustedTargetLocation = self.locationAdjustedForCopiedFiles(
           Location(uri: link.targetUri, range: link.targetRange)
         )
         let adjustedTargetSelectionLocation = self.locationAdjustedForCopiedFiles(
           Location(uri: link.targetUri, range: link.targetSelectionRange)
         )
-        remappedLinks.append(
-          LocationLink(
-            originSelectionRange: link.originSelectionRange,
-            targetUri: adjustedTargetLocation.uri,
-            targetRange: adjustedTargetLocation.range,
-            targetSelectionRange: adjustedTargetSelectionLocation.range
-          )
+        return LocationLink(
+          originSelectionRange: link.originSelectionRange,
+          targetUri: adjustedTargetLocation.uri,
+          targetRange: adjustedTargetLocation.range,
+          targetSelectionRange: adjustedTargetSelectionLocation.range
         )
       }
       return .locationLinks(remappedLinks)
