@@ -720,40 +720,48 @@ class CodeCompletionSession {
   private func keywordSnippet(for keyword: String) -> String? {
     guard clientSupportsSnippets else { return nil }
 
-    func indentationUnitString() -> String {
-      // Convert the inferred Trivia (spaces/tabs) to a string we can embed into snippets.
-      if let trivia = indentationWidth {
-        for piece in trivia {
-          switch piece {
-          case .spaces(let n):
-            return String(repeating: " ", count: n)
-          case .tabs(let n):
-            return String(repeating: "\t", count: n)
-          default:
-            continue
-          }
-        }
-      }
-      // Fallback to a single tab to preserve previous behaviour when indentation cannot be inferred.
-      return "\t"
-    }
-
-    let indent = indentationUnitString()
-    let doubleIndent = indent + indent
+    // Use the `description` of inferred `Trivia` (e.g. "    " or "\t").
+    // Fall back to four spaces to match `BasicFormat`.
+    let indent = indentationWidth?.description ?? "    "
 
     switch keyword {
     case "if":
-      return "if ${1:condition} {\n\(indent)${0:}\n}"
+      return """
+        if ${1:condition} {
+        \(indent)${0:body}
+        }
+        """
     case "for":
-      return "for ${1:item} in ${2:sequence} {\n\(indent)${0:}\n}"
+      return """
+        for ${1:item} in ${2:sequence} {
+        \(indent)${0:body}
+        }
+        """
     case "while":
-      return "while ${1:condition} {\n\(indent)${0:}\n}"
+      return """
+        while ${1:condition} {
+        \(indent)${0:body}
+        }
+        """
     case "guard":
-      return "guard ${1:condition} else {\n\(indent)${0:}\n}"
+      return """
+        guard ${1:condition} else {
+        \(indent)${0:body}
+        }
+        """
     case "switch":
-      return "switch ${1:value} {\n\(indent)case ${2:pattern}:\n\(doubleIndent)${0:}\n}"
+      return """
+        switch ${1:value} {
+        case ${2:pattern}:
+        \(indent)${0:body}
+        }
+        """
     case "repeat":
-      return "repeat {\n\(indent)${0:}\n} while ${1:condition}"
+      return """
+        repeat {
+        \(indent)${0:body}
+        } while ${1:condition}
+        """
     default:
       return nil
     }

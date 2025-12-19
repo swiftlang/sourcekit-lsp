@@ -51,7 +51,7 @@ final class SwiftCompletionSnippetTests: SourceKitLSPTestCase {
 
     let insertText = try XCTUnwrap(ifItem.insertText)
     XCTAssertTrue(insertText.contains("${1:condition}"))
-    XCTAssertTrue(insertText.contains("${0:}"))
+    XCTAssertTrue(insertText.contains("${0:body}"))
   }
 
   func testKeywordForProvidesSnippet() async throws {
@@ -163,6 +163,9 @@ final class SwiftCompletionSnippetTests: SourceKitLSPTestCase {
     let insertText = try XCTUnwrap(switchItem.insertText)
     XCTAssertTrue(insertText.contains("${1:value}"))
     XCTAssertTrue(insertText.contains("case"))
+    // Expect `case` to be not indented and the body placeholder to exist (indentation tested elsewhere).
+    XCTAssertTrue(insertText.contains("case ${2:pattern}:"))
+    XCTAssertTrue(insertText.contains("${0:body}"))
   }
 
   func testKeywordRepeatProvidesSnippet() async throws {
@@ -271,7 +274,10 @@ final class SwiftCompletionSnippetTests: SourceKitLSPTestCase {
     let insertText = try XCTUnwrap(ifItem.insertText)
 
     // Expect newline + two spaces before the final placeholder
-    XCTAssertTrue(insertText.contains("\n  ${0:}"), "expected two-space indentation in snippet, got: '\(insertText)'")
+    XCTAssertTrue(
+      insertText.contains("\n  ${0:body}"),
+      "expected two-space indentation in snippet, got: '\(insertText)'"
+    )
   }
 
   func testKeywordSnippetUsesInferredTabsIndentation() async throws {
@@ -297,6 +303,7 @@ final class SwiftCompletionSnippetTests: SourceKitLSPTestCase {
 
     let ifItem = try XCTUnwrap(completions.items.first(where: { $0.label == "if" }))
     let insertText = try XCTUnwrap(ifItem.insertText)
-    XCTAssertTrue(insertText.contains("\n\t"), "expected tab indentation in snippet, got: '\(insertText)'")
+    // Expect newline + tab then the body placeholder
+    XCTAssertTrue(insertText.contains("\n\t${0:body}"), "expected tab indentation in snippet, got: '\(insertText)'")
   }
 }
