@@ -12,10 +12,10 @@
 
 import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
-import SwiftExtensions
 @_spi(SourceKitLSP) import SKLogging
 package import SKUtilities
 import SemanticIndex
+import SwiftExtensions
 package import SwiftSyntax
 
 /// An immutable snapshot of a document at a given time.
@@ -61,7 +61,7 @@ package struct DocumentSnapshot: Identifiable, Sendable {
   }
 }
 
-package final class Document {
+package final class Document: @unchecked Sendable {
   package let uri: DocumentURI
   package let language: Language
   var latestVersion: Int
