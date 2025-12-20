@@ -123,6 +123,11 @@ private func collectAllImports(from node: Syntax) -> [ImportDeclSyntax] {
   return imports
 }
 
+/// Overload for SourceFileSyntax
+private func collectAllImports(from sourceFile: SourceFileSyntax) -> [ImportDeclSyntax] {
+  return collectAllImports(from: Syntax(sourceFile))
+}
+
 // MARK: - Command Execution
 
 extension SwiftLanguageService {
