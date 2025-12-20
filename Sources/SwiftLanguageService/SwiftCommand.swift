@@ -53,6 +53,6 @@ extension SwiftLanguageService {
       ExpandMacroCommand.self,
     ].map { (command: any SwiftCommand.Type) in
       command.identifier
-    }
+    } + ["objective-c.add.method.implementation"]
   }
 }
