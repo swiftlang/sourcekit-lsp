@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Dispatch
 import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
+import SwiftExtensions
 @_spi(SourceKitLSP) import SKLogging
 package import SKUtilities
 import SemanticIndex
@@ -92,18 +92,15 @@ package final class DocumentManager: InMemoryDocumentManager, Sendable {
     case missingDocument(DocumentURI)
   }
 
-  // TODO: Migrate this to be an AsyncQueue (https://github.com/swiftlang/sourcekit-lsp/issues/1597)
-  private let queue: DispatchQueue = DispatchQueue(label: "document-manager-queue")
-
-  // `nonisolated(unsafe)` is fine because `documents` is guarded by queue.
-  private nonisolated(unsafe) var documents: [DocumentURI: Document] = [:]
+  // Documents storage, protected by a `ThreadSafeBox` to ensure thread safety without making APIs async.
+  private let documents: ThreadSafeBox<[DocumentURI: Document]> = ThreadSafeBox(initialValue: [:])
 
   package init() {}
 
   /// All currently opened documents.
   package var openDocuments: Set<DocumentURI> {
-    return queue.sync {
-      return Set(documents.keys)
+    return documents.withLock { docs in
+      return Set(docs.keys)
     }
   }
 
@@ -113,9 +110,9 @@ package final class DocumentManager: InMemoryDocumentManager, Sendable {
   /// - throws: Error.alreadyOpen if the document is already open.
   @discardableResult
   package func open(_ uri: DocumentURI, language: Language, version: Int, text: String) throws -> DocumentSnapshot {
-    return try queue.sync {
+    return try documents.withLock { docs in
       let document = Document(uri: uri, language: language, version: version, text: text)
-      if nil != documents.updateValue(document, forKey: uri) {
+      if nil != docs.updateValue(document, forKey: uri) {
         throw Error.alreadyOpen(uri)
       }
       return document.latestSnapshot
@@ -127,8 +124,8 @@ package final class DocumentManager: InMemoryDocumentManager, Sendable {
   /// - returns: The initial contents of the file.
   /// - throws: Error.missingDocument if the document is not open.
   package func close(_ uri: DocumentURI) throws {
-    try queue.sync {
-      if nil == documents.removeValue(forKey: uri) {
+    try documents.withLock { docs in
+      if nil == docs.removeValue(forKey: uri) {
         throw Error.missingDocument(uri)
       }
     }
@@ -151,8 +148,8 @@ package final class DocumentManager: InMemoryDocumentManager, Sendable {
     newVersion: Int,
     edits: [TextDocumentContentChangeEvent]
   ) throws -> (preEditSnapshot: DocumentSnapshot, postEditSnapshot: DocumentSnapshot, edits: [SourceEdit]) {
-    return try queue.sync {
-      guard let document = documents[uri] else {
+    return try documents.withLock { docs in
+      guard let document = docs[uri] else {
         throw Error.missingDocument(uri)
       }
       let preEditSnapshot = document.latestSnapshot
@@ -184,8 +181,8 @@ package final class DocumentManager: InMemoryDocumentManager, Sendable {
   }
 
   package func latestSnapshot(_ uri: DocumentURI) throws -> DocumentSnapshot {
-    return try queue.sync {
-      guard let document = documents[uri] else {
+    return try documents.withLock { docs in
+      guard let document = docs[uri] else {
         throw ResponseError.unknown("Failed to find snapshot for '\(uri)'")
       }
       return document.latestSnapshot
