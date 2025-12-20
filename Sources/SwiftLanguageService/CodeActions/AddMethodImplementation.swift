@@ -59,6 +59,51 @@ public struct AddMethodImplementation {
       return []
     }
     
+    // Detect file language
+    let fileExtension = URL(fileURLWithPath: snapshot.uri.pseudoPath).pathExtension
+    let isObjectiveC = fileExtension == "m" || fileExtension == "mm" || fileExtension == "h"
+    
+    if isObjectiveC {
+      return generateObjectiveCMethodActions(snapshot: snapshot, workspace: workspace)
+    } else {
+      // Swift implementation
+      return generateSwiftMethodActions(snapshot: snapshot, workspace: workspace)
+    }
+  }
+  
+  private static func generateObjectiveCMethodActions(
+    snapshot: DocumentSnapshot,
+    workspace: Workspace
+  ) -> [CodeAction] {
+    let text = snapshot.text
+    
+    // For Objective-C, look for incomplete implementation patterns
+    let missingMethods = findObjectiveCMissingMethods(in: text)
+    guard !missingMethods.isEmpty else {
+      return []
+    }
+    
+    return missingMethods.map { method in
+      let insertPosition = findObjectiveCInsertionPosition(in: text)
+      let edit = TextEdit(
+        range: insertPosition..<insertPosition,
+        newText: generateObjectiveCMethodImplementation(method: method)
+      )
+      
+      return CodeAction(
+        title: "Add implementation for '\(method.selector)'",
+        kind: .quickFix,
+        edit: WorkspaceEdit(changes: [snapshot.uri: [edit]])
+      )
+    }
+  }
+  
+  private static func generateSwiftMethodActions(
+    snapshot: DocumentSnapshot,
+    workspace: Workspace
+  ) -> [CodeAction] {
+    let text = snapshot.text
+    
     // Parse the syntax tree to find incomplete implementations
     let parseResult = Parser.parse(source: text)
     let syntaxTree = parseResult
@@ -66,20 +111,20 @@ public struct AddMethodImplementation {
       return []
     }
     
-    let missingMethods = findMissingMethods(in: syntaxTree, sourceText: text)
+    let missingMethods = findSwiftMissingMethods(in: syntaxTree, sourceText: text)
     guard !missingMethods.isEmpty else {
       return []
     }
     
     // Find a good insertion point (end of class/struct)
-    guard let insertPosition = findInsertionPosition(in: syntaxTree, sourceText: text) else {
+    guard let insertPosition = findSwiftInsertionPosition(in: syntaxTree, sourceText: text) else {
       return []
     }
     
     return missingMethods.map { method in
       let edit = TextEdit(
         range: insertPosition..<insertPosition,
-        newText: generateMethodImplementation(method: method)
+        newText: generateSwiftMethodImplementation(method: method)
       )
       
       return CodeAction(
@@ -98,7 +143,15 @@ public struct AddMethodImplementation {
     let accessLevel: String
   }
   
-  private static func findMissingMethods(
+  private struct ObjectiveCMissingMethod {
+    let selector: String
+    let returnType: String
+    let parameters: [(name: String, type: String)]
+    let isClassMethod: Bool
+    let className: String
+  }
+  
+  private static func findSwiftMissingMethods(
     in syntaxTree: SourceFileSyntax,
     sourceText: String
   ) -> [MissingMethod] {
@@ -140,7 +193,49 @@ public struct AddMethodImplementation {
     return missingMethods
   }
   
-  private static func findInsertionPosition(
+  private static func findObjectiveCMissingMethods(in text: String) -> [ObjectiveCMissingMethod] {
+    var missingMethods: [ObjectiveCMissingMethod] = []
+    
+    // Simple pattern matching for incomplete implementation warnings
+    // In a real implementation, this would be more sophisticated
+    let patterns = [
+      // Match patterns like "Method 'methodName:' in class 'ClassName' not found"
+      "Method '([^']+)' in class '([^']+)' not found",
+      // Match patterns like "Instance method 'methodName:' not implemented"
+      "Instance method '([^']+)' not implemented",
+      // Match patterns like "Class method 'methodName:' not implemented"
+      "Class method '([^']+)' not implemented"
+    ]
+    
+    for pattern in patterns {
+      guard let regex = try? NSRegularExpression(pattern: pattern) else {
+        continue
+      }
+      
+      let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count))
+      
+      for match in matches {
+        if match.numberOfRanges >= 3 {
+          let methodName = (text as NSString).substring(with: match.range(at: 1))
+          let className = (text as NSString).substring(with: match.range(at: 2))
+          
+          // Create a basic missing method structure
+          let missingMethod = ObjectiveCMissingMethod(
+            selector: methodName,
+            returnType: "void",
+            parameters: [],
+            isClassMethod: methodName.hasPrefix("+"),
+            className: className
+          )
+          missingMethods.append(missingMethod)
+        }
+      }
+    }
+    
+    return missingMethods
+  }
+  
+  private static func findSwiftInsertionPosition(
     in syntaxTree: SourceFileSyntax,
     sourceText: String
   ) -> Position? {
@@ -154,7 +249,18 @@ public struct AddMethodImplementation {
     return Position(line: 0, utf16index: 0)
   }
   
-  private static func generateMethodImplementation(method: MissingMethod) -> String {
+  private static func findObjectiveCInsertionPosition(in text: String) -> Position {
+    // Find the end of the last @implementation block or return beginning of file
+    if let range = text.range(of: "@end", options: .backwards) {
+      let lineStart = range.lowerBound
+      let lineNumber = text[..<lineStart].components(separatedBy: .newlines).count - 1
+      return Position(line: lineNumber, utf16index: 0)
+    }
+    
+    return Position(line: 0, utf16index: 0)
+  }
+  
+  private static func generateSwiftMethodImplementation(method: MissingMethod) -> String {
     let accessPrefix = method.accessLevel.isEmpty ? "" : "\(method.accessLevel) "
     let staticPrefix = method.isStatic ? "static " : ""
     let parameters = method.parameters.map { "\($0.name): \($0.type)" }.joined(separator: ", ")
@@ -164,6 +270,20 @@ public struct AddMethodImplementation {
     \(accessPrefix)\(staticPrefix)func \(method.name)(\(parameters)) -> \(method.returnType) {
         // TODO: implement
         fatalError("Not implemented")
+    }
+
+    """
+  }
+  
+  private static func generateObjectiveCMethodImplementation(method: ObjectiveCMissingMethod) -> String {
+    let methodPrefix = method.isClassMethod ? "+" : "-"
+    let parameters = method.parameters.map { "\($0.name):(\($0.type))\($0.name)" }.joined(separator: " ")
+    
+    return """
+
+    \(methodPrefix) (\(method.returnType))\(parameters) {
+        // TODO: implement
+        NSAssert(NO, @"Method not yet implemented");
     }
 
     """
