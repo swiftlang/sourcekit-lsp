@@ -490,16 +490,26 @@ class CodeCompletionSession {
       let text = rewriteSourceKitPlaceholders(in: insertText, clientSupportsSnippets: clientSupportsSnippets)
       let isInsertTextSnippet = clientSupportsSnippets && text != insertText
 
+      let kind: sourcekitd_api_uid_t? = value[sourcekitd.keys.kind]
+      let completionKind = kind?.asCompletionItemKind(sourcekitd.values) ?? .value
+
+      // Check if this is a keyword that should be converted to a snippet. If so, prefer the snippet text
+      // as the completion insert text and only compute the `TextEdit` once below.
+      var isKeywordSnippet = false
+      if completionKind == .keyword, let snippetText = keywordSnippet(for: name) {
+        insertText = snippetText
+        isKeywordSnippet = true
+      } else {
+        insertText = text
+      }
+
       var textEdit = self.computeCompletionTextEdit(
         completionPos: completionPos,
         requestPosition: requestPosition,
         utf8CodeUnitsToErase: utf8CodeUnitsToErase,
-        newText: text,
+        newText: insertText,
         snapshot: snapshot
       )
-
-      let kind: sourcekitd_api_uid_t? = value[sourcekitd.keys.kind]
-      let completionKind = kind?.asCompletionItemKind(sourcekitd.values) ?? .value
 
       if completionKind == .method || completionKind == .function, name.first == "(", name.last == ")" {
         // sourcekitd makes an assumption that the editor inserts a matching `)` when the user types a `(` to start
@@ -577,8 +587,8 @@ class CodeCompletionSession {
         deprecated: notRecommended,
         sortText: sortText,
         filterText: filterName,
-        insertText: text,
-        insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
+        insertText: insertText,
+        insertTextFormat: (isInsertTextSnippet || isKeywordSnippet) ? .snippet : .plain,
         textEdit: CompletionItemEdit.textEdit(textEdit),
         data: data.encodeToLSPAny()
       )
@@ -703,6 +713,58 @@ class CodeCompletionSession {
     precondition(deletionStartUtf16Offset >= 0)
 
     return Position(line: completionPos.line, utf16index: deletionStartUtf16Offset)
+  }
+
+  /// Generate a snippet for control flow keywords like if, for, while, etc.
+  /// Returns the snippet text if the keyword is a control flow keyword and snippets are supported, otherwise nil.
+  private func keywordSnippet(for keyword: String) -> String? {
+    guard clientSupportsSnippets else { return nil }
+
+    // Use the `description` of inferred `Trivia` (e.g. "    " or "\t").
+    // Fall back to four spaces to match `BasicFormat`.
+    let indent = indentationWidth?.description ?? "    "
+
+    switch keyword {
+    case "if":
+      return """
+        if ${1:condition} {
+        \(indent)${0:body}
+        }
+        """
+    case "for":
+      return """
+        for ${1:item} in ${2:sequence} {
+        \(indent)${0:body}
+        }
+        """
+    case "while":
+      return """
+        while ${1:condition} {
+        \(indent)${0:body}
+        }
+        """
+    case "guard":
+      return """
+        guard ${1:condition} else {
+        \(indent)${0:body}
+        }
+        """
+    case "switch":
+      return """
+        switch ${1:value} {
+        case ${2:pattern}:
+        \(indent)${0:body}
+        }
+        """
+    case "repeat":
+      return """
+        repeat {
+        \(indent)${0:body}
+        } while ${1:condition}
+        """
+    default:
+      return nil
+    }
   }
 }
 
