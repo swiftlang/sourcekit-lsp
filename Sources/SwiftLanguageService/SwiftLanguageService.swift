@@ -963,13 +963,13 @@ extension SwiftLanguageService {
 
     var canInlineMacro = false
 
-    var refactorActions = cursorInfoResponse.refactorActions.compactMap {
-      let lspCommand = $0.asCommand()
+    var refactorActions: [CodeAction] = cursorInfoResponse.refactorActions.compactMap { action in
+      let lspCommand = action.asCommand()
       if !canInlineMacro {
-        canInlineMacro = $0.actionString == "source.refactoring.kind.inline.macro"
+        canInlineMacro = action.actionString == "source.refactoring.kind.inline.macro"
       }
 
-      return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
+      return CodeAction(title: action.title, kind: .refactor, command: lspCommand)
     }
 
     if canInlineMacro {
@@ -977,6 +977,22 @@ extension SwiftLanguageService {
         .asCommand()
 
       refactorActions.append(CodeAction(title: expandMacroCommand.title, kind: .refactor, command: expandMacroCommand))
+    }
+
+    let methodKinds: [SymbolKind] = [.method, .function, .constructor]
+    let isOnMethod = cursorInfoResponse.cursorInfo.contains { cursorInfo in
+      if let kind = cursorInfo.symbolInfo.kind {
+        return methodKinds.contains(kind)
+      }
+      return false
+    }
+
+    if isOnMethod {
+      let showCommand = ShowObjCSelectorCommand(
+        positionRange: params.range,
+        textDocument: params.textDocument
+      ).asCommand()
+      refactorActions.append(CodeAction(title: "Show Objective-C Selector", kind: .refactor, command: showCommand))
     }
 
     return refactorActions
@@ -1096,6 +1112,8 @@ extension SwiftLanguageService {
       try await semanticRefactoring(command)
     } else if let command = req.swiftCommand(ofType: ExpandMacroCommand.self) {
       try await expandMacro(command)
+    } else if let command = req.swiftCommand(ofType: ShowObjCSelectorCommand.self) {
+      return try await showObjCSelector(command)
     } else if let command = req.swiftCommand(ofType: RemoveUnusedImportsCommand.self) {
       try await removeUnusedImports(command)
     } else {
