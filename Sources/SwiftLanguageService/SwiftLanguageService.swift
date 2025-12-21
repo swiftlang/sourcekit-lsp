@@ -954,6 +954,8 @@ extension SwiftLanguageService {
       skreq.set(self.keys.retrieveRefactorActions, to: 1)
     }
 
+    let snapshot = try documentManager.latestSnapshot(params.textDocument.uri)
+
     let cursorInfoResponse = try await cursorInfo(
       params.textDocument.uri,
       params.range,
@@ -963,13 +965,23 @@ extension SwiftLanguageService {
 
     var canInlineMacro = false
 
-    var refactorActions = cursorInfoResponse.refactorActions.compactMap {
-      let lspCommand = $0.asCommand()
-      if !canInlineMacro {
-        canInlineMacro = $0.actionString == "source.refactoring.kind.inline.macro"
+    var refactorActions: [CodeAction] = cursorInfoResponse.refactorActions.compactMap { action in
+      if action.actionString == "source.refactoring.kind.copy.objc.selector" {
+        let showCommand = ShowObjCSelectorCommand(
+          title: "Show Objective-C Selector",
+          actionString: action.actionString,
+          positionRange: params.range,
+          textDocument: params.textDocument
+        ).asCommand()
+        return CodeAction(title: "Show Objective-C Selector", kind: .refactor, command: showCommand)
       }
 
-      return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
+      let lspCommand = action.asCommand()
+      if !canInlineMacro {
+        canInlineMacro = action.actionString == "source.refactoring.kind.inline.macro"
+      }
+
+      return CodeAction(title: action.title, kind: .refactor, command: lspCommand)
     }
 
     if canInlineMacro {
@@ -1096,6 +1108,8 @@ extension SwiftLanguageService {
       try await semanticRefactoring(command)
     } else if let command = req.swiftCommand(ofType: ExpandMacroCommand.self) {
       try await expandMacro(command)
+    } else if let command = req.swiftCommand(ofType: ShowObjCSelectorCommand.self) {
+      return try await showObjCSelector(command)
     } else if let command = req.swiftCommand(ofType: RemoveUnusedImportsCommand.self) {
       try await removeUnusedImports(command)
     } else {
