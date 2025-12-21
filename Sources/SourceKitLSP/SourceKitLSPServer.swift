@@ -2527,9 +2527,10 @@ extension SourceKitLSPServer {
       )
     }
 
-    let typeHierarchyItems = await usrs.asyncCompactMap { (usr) -> TypeHierarchyItem? in
+    var typeHierarchyItems: [TypeHierarchyItem] = []
+    for usr in usrs {
       guard let info = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
-        return nil
+        continue
       }
       // Filter symbols based on their kind in the index since the filter on the symbol info response might have
       // returned `nil` for the kind, preventing us from doing any filtering there.
@@ -2537,22 +2538,23 @@ extension SourceKitLSPServer {
       case .unknown, .macro, .function, .variable, .field, .enumConstant, .instanceMethod, .classMethod, .staticMethod,
         .instanceProperty, .classProperty, .staticProperty, .constructor, .destructor, .conversionFunction, .parameter,
         .concept, .commentTag:
-        return nil
+        continue
       case .module, .namespace, .namespaceAlias, .enum, .struct, .class, .protocol, .extension, .union, .typealias,
         .using:
         break
       }
 
       guard indexToLSPLocation2(info.location) != nil else {
-        return nil
+        continue
       }
 
       let moduleName = info.location.moduleName
       guard let item = indexToLSPTypeHierarchyItem2(definition: info, moduleName: moduleName, index: index) else {
-        return nil
+        continue
       }
-      return await workspace.buildServerManager.typeHierarchyItemAdjustedForCopiedFiles(item)
-    }.sorted(by: { $0.name < $1.name })
+      typeHierarchyItems.append(await workspace.buildServerManager.typeHierarchyItemAdjustedForCopiedFiles(item))
+    }
+    typeHierarchyItems.sort(by: { $0.name < $1.name })
 
     if typeHierarchyItems.isEmpty {
       // When returning an empty array, VS Code fails with the following two errors. Returning `nil` works around those
