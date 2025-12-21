@@ -61,7 +61,7 @@ package struct DocumentSnapshot: Identifiable, Sendable {
   }
 }
 
-package final class Document: @unchecked Sendable {
+package final class Document {
   package let uri: DocumentURI
   package let language: Language
   var latestVersion: Int
