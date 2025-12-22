@@ -726,32 +726,32 @@ func hasEnvironmentVariable(_ name: String) -> Bool {
 ///
 /// This is useful when running tests using `swift test` because xctest will not display the output from `os_log` on the
 /// command line.
-var forceNonDarwinLogger: Bool { hasEnvironmentVariable("SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER") }
+internal var forceNonDarwinLogger: Bool { hasEnvironmentVariable("SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER") }
 
 // When building the toolchain on the CI, don't add the CI's runpath for the
 // final build before installing.
-var installAction: Bool { hasEnvironmentVariable("SOURCEKIT_LSP_CI_INSTALL") }
+internal var installAction: Bool { hasEnvironmentVariable("SOURCEKIT_LSP_CI_INSTALL") }
 
 /// Assume that all the package dependencies are checked out next to sourcekit-lsp and use that instead of fetching a
 /// remote dependency.
-var useLocalDependencies: Bool { hasEnvironmentVariable("SWIFTCI_USE_LOCAL_DEPS") }
+internal var useLocalDependencies: Bool { hasEnvironmentVariable("SWIFTCI_USE_LOCAL_DEPS") }
 
 /// Whether swift-syntax is being built as a single dynamic library instead of as a separate library per module.
 ///
 /// This means that the swift-syntax symbols don't need to be statically linked, which allows us to stay below the
 /// maximum number of exported symbols on Windows, in turn allowing us to build sourcekit-lsp using SwiftPM on Windows
 /// and run its tests.
-var buildDynamicSwiftSyntaxLibrary: Bool { hasEnvironmentVariable("SWIFTSYNTAX_BUILD_DYNAMIC_LIBRARY") }
+internal var buildDynamicSwiftSyntaxLibrary: Bool { hasEnvironmentVariable("SWIFTSYNTAX_BUILD_DYNAMIC_LIBRARY") }
 
 /// Build only tests targets and test support modules.
 ///
 /// This is used to test swift-format on Windows, where the modules required for the `swift-format` executable are
 /// built using CMake. When using this setting, the caller is responsible for passing the required search paths to
 /// the `swift test` invocation so that all pre-built modules can be found.
-var buildOnlyTests: Bool { hasEnvironmentVariable("SOURCEKIT_LSP_BUILD_ONLY_TESTS") }
+internal var buildOnlyTests: Bool { hasEnvironmentVariable("SOURCEKIT_LSP_BUILD_ONLY_TESTS") }
 
 /// Build SourceKit-LSP without a dependency on SwiftPM, ie. without support for SwiftPM projects.
-var noSwiftPMDependency: Bool { hasEnvironmentVariable("SOURCEKIT_LSP_NO_SWIFTPM_DEPENDENCY") }
+internal var noSwiftPMDependency: Bool { hasEnvironmentVariable("SOURCEKIT_LSP_NO_SWIFTPM_DEPENDENCY") }
 
 // MARK: - Dependencies
 
@@ -759,7 +759,7 @@ var noSwiftPMDependency: Bool { hasEnvironmentVariable("SOURCEKIT_LSP_NO_SWIFTPM
 // by the external environment. This allows sourcekit-lsp to take advantage of the automation used
 // for building the swift toolchain, such as `update-checkout`, or cross-repo PR tests.
 
-var dependencies: [Package.Dependency] {
+internal var dependencies: [Package.Dependency] {
   if buildOnlyTests {
     return []
   } else if useLocalDependencies {
@@ -798,7 +798,7 @@ var dependencies: [Package.Dependency] {
 
 // MARK: - Compute custom build settings
 
-var sourcekitLSPLinkSettings: [LinkerSetting] {
+internal var sourcekitLSPLinkSettings: [LinkerSetting] {
   if installAction {
     return [.unsafeFlags(["-no-toolchain-stdlib-rpath"], .when(platforms: [.linux, .android]))]
   } else {
@@ -806,7 +806,7 @@ var sourcekitLSPLinkSettings: [LinkerSetting] {
   }
 }
 
-var lspLoggingSwiftSettings: [SwiftSetting] {
+internal var lspLoggingSwiftSettings: [SwiftSetting] {
   if forceNonDarwinLogger {
     return [.define("SOURCEKIT_LSP_FORCE_NON_DARWIN_LOGGER")]
   } else {
