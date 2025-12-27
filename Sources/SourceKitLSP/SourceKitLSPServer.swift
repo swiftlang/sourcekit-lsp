@@ -2044,11 +2044,6 @@ extension SourceKitLSPServer {
     workspace: Workspace,
     languageService: any LanguageService
   ) async throws -> [Location] {
-    // Check if the position is on a literal value (string, integer, etc.)
-    if await languageService.isPositionOnLiteral(req.position, in: req.textDocument.uri) {
-      return []
-    }
-
     let symbols = try await languageService.symbolInfo(
       SymbolInfoRequest(
         textDocument: req.textDocument,

@@ -696,36 +696,66 @@ class DefinitionTests: SourceKitLSPTestCase {
 
     let positions = testClient.openDocument(
       """
-      let message = "Hello"1️⃣
-      let count = 422️⃣
-      let flag = true3️⃣
-      let items = [1, 2, 3]4️⃣
+      let 1️⃣myVar = 10
+      let message = "Hello"2️⃣
+      let interpolated = "Value: \\(3️⃣myVar)"
+      let count = 424️⃣
+      let pi = 3.145️⃣
+      let flag = true6️⃣
+      let nothing: Int? = nil7️⃣
+      let items = [8️⃣myVar]
       """,
       uri: uri
     )
 
-    // Test string literal
+    // Test string literal - should return nil
     let stringResponse = try await testClient.send(
-      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
     XCTAssertNil(stringResponse, "Jump-to-definition should not work on string literals")
 
-    // Test integer literal
+    // Test string interpolation variable - should work and jump to definition
+    let interpolationResponse = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+    )
+    XCTAssertEqual(
+      interpolationResponse?.locations,
+      [Location(uri: uri, range: Range(positions["1️⃣"]))],
+      "Jump-to-definition should work on variables inside string interpolation"
+    )
+
+    // Test integer literal - should return nil
     let intResponse = try await testClient.send(
-      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["4️⃣"])
     )
     XCTAssertNil(intResponse, "Jump-to-definition should not work on integer literals")
 
-    // Test boolean literal
+    // Test float literal - should return nil
+    let floatResponse = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["5️⃣"])
+    )
+    XCTAssertNil(floatResponse, "Jump-to-definition should not work on float literals")
+
+    // Test boolean literal - should return nil
     let boolResponse = try await testClient.send(
-      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["6️⃣"])
     )
     XCTAssertNil(boolResponse, "Jump-to-definition should not work on boolean literals")
 
-    // Test array literal
-    let arrayResponse = try await testClient.send(
-      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["4️⃣"])
+    // Test nil literal - should return nil
+    let nilResponse = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["7️⃣"])
     )
-    XCTAssertNil(arrayResponse, "Jump-to-definition should not work on array literals")
+    XCTAssertNil(nilResponse, "Jump-to-definition should not work on nil literals")
+
+    // Test variable inside array literal - should work and jump to definition
+    let arrayVariableResponse = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["8️⃣"])
+    )
+    XCTAssertEqual(
+      arrayVariableResponse?.locations,
+      [Location(uri: uri, range: Range(positions["1️⃣"]))],
+      "Jump-to-definition should work on variables inside array literals"
+    )
   }
 }

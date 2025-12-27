@@ -1297,12 +1297,25 @@ extension sourcekitd_api_uid_t {
 // MARK: - Literal Detection
 
 extension SwiftLanguageService {
-  /// Check if the given position in the document is on a literal expression.
+  /// Determines whether the given document position is on (or immediately after) a literal value token.
   ///
-  /// Literal expressions (string, integer, boolean, float, array, dictionary) should not support
-  /// jump-to-definition since they don't have a "definition" location - they are values typed
-  /// directly in the code.
+  /// This check is used to disable jump-to-definition on values that do not have a meaningful definition location
+  /// in source code. By using `tokenKind` to check for literal tokens directly, this avoids incorrectly blocking
+  /// jump-to-definition for identifiers inside literals (e.g., variables in string interpolation like `"\(foo)"`
+  /// or array literals like `[myVar]`).
   ///
+  /// The function returns `true` when the position resolves to:
+  /// - A literal token at the exact position, or
+  /// - A literal token immediately preceding the position (to handle cursor placements just after the literal).
+  ///
+  /// Supported literal kinds:
+  /// - String segments (`.stringSegment`)
+  /// - Integer literals (`.integerLiteral`)
+  /// - Floating-point literals (`.floatLiteral`)
+  /// - Boolean keywords (`.keyword(.true)`, `.keyword(.false)`)
+  /// - The nil keyword (`.keyword(.nil)`)
+  ///
+  /// If the document snapshot or syntax tree cannot be resolved, the function conservatively returns `false`.
   package func isPositionOnLiteral(
     _ position: Position,
     in uri: DocumentURI
@@ -1314,40 +1327,30 @@ extension SwiftLanguageService {
     let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
     let absolutePosition = snapshot.absolutePosition(of: position)
 
-    // Helper function to check if a token is part of a literal expression
-    func isTokenInLiteral(_ token: TokenSyntax) -> Bool {
-      var currentNode: Syntax? = Syntax(token)
-      while let node = currentNode {
-        // Check all literal expression types
-        if node.is(StringLiteralExprSyntax.self)
-          || node.is(IntegerLiteralExprSyntax.self)
-          || node.is(FloatLiteralExprSyntax.self)
-          || node.is(BooleanLiteralExprSyntax.self)
-          || node.is(ArrayExprSyntax.self)
-          || node.is(DictionaryExprSyntax.self)
-          || node.is(NilLiteralExprSyntax.self)
-        {
-          return true
-        }
-        currentNode = node.parent
+    // Helper function to check if a token kind represents a literal value
+    func isLiteralToken(_ token: TokenSyntax) -> Bool {
+      switch token.tokenKind {
+      case .stringSegment, .integerLiteral, .floatLiteral:
+        return true
+      case .keyword(let keyword) where keyword == .true || keyword == .false || keyword == .nil:
+        return true
+      default:
+        return false
       }
-      return false
     }
 
-    // Find the token at this position
-    if let token = tree.token(at: absolutePosition) {
-      if isTokenInLiteral(token) {
-        return true
-      }
+    // Check the token at the current position
+    if let token = tree.token(at: absolutePosition), isLiteralToken(token) {
+      return true
     }
 
     // Also check the token before the cursor position, as users might click right after a literal
-    if absolutePosition.utf8Offset > 0,
-      let tokenBefore = tree.token(at: AbsolutePosition(utf8Offset: absolutePosition.utf8Offset - 1))
+    // Use previousToken for efficient O(1) navigation instead of re-traversing the tree
+    if let token = tree.token(at: absolutePosition),
+       let previousToken = token.previousToken(viewMode: .sourceAccurate),
+       isLiteralToken(previousToken)
     {
-      if isTokenInLiteral(tokenBefore) {
-        return true
-      }
+      return true
     }
 
     return false

@@ -16,6 +16,15 @@ import SourceKitLSP
 extension SwiftLanguageService {
   package func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
     let uri = req.textDocument.uri
+    
+    // Check if position is on a literal token - return empty if so.
+    // This prevents jump-to-definition for literals like "hello", 42, 3.14, true, false, nil, etc.
+    // By checking tokenKind directly, we avoid blocking jump-to-definition for identifiers inside
+    // literals (e.g., variables in string interpolation or array literals).
+    if await isPositionOnLiteral(req.position, in: uri) {
+      return []
+    }
+    
     let snapshot = try documentManager.latestSnapshot(uri)
     let position = await self.adjustPositionToStartOfIdentifier(req.position, in: snapshot)
     return try await cursorInfo(uri, position..<position, fallbackSettingsAfterTimeout: false)
