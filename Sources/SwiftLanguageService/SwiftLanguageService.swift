@@ -878,7 +878,7 @@ extension SwiftLanguageService {
   package func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
     let snapshot = try await self.latestSnapshot(for: req.textDocument.uri)
     
-    if let highlights = try await documentSymbolHighlightHelper(
+    if let highlights = try await controlFlowExitKeywordHighlight(
       at: req.position,
       in: snapshot
     ) {
@@ -898,7 +898,7 @@ extension SwiftLanguageService {
     }
   }
 
-  private func documentSymbolHighlightHelper(
+  private func controlFlowExitKeywordHighlight(
     at position: Position,
     in snapshot: DocumentSnapshot
   ) async throws -> [DocumentHighlight]? {
