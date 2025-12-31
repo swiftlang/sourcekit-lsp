@@ -908,7 +908,7 @@ extension SwiftLanguageService {
       return nil
     }
 
-    guard let targetStructure = Syntax(tokenSyntax).parent!.lookupControlStructure() else {
+    guard let parent = Syntax(tokenSyntax).parent, let targetStructure = parent.lookupControlStructure() else {
       return nil
     }
     class ControlFlowHighlighter: SyntaxVisitor {
