@@ -926,7 +926,7 @@ extension SwiftLanguageService {
         if node.lookupControlStructure() == targetStructure {
           highlights.append(
             DocumentHighlight(
-              range: snapshot.absolutePositionRange(of: node.positionAfterSkippingLeadingTrivia..<node.endPosition),
+                range: snapshot.absolutePositionRange(of: node.firstToken(viewMode: .sourceAccurate).map { $0.positionAfterSkippingLeadingTrivia..<$0.endPositionBeforeTrailingTrivia } ?? node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia),
               kind: .read
             )
           )
