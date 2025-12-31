@@ -2027,8 +2027,23 @@ extension SourceKitLSPServer {
       }
     }
 
-    if occurrences.isEmpty, let bestLocalDeclaration = symbol.bestLocalDeclaration {
-      return [bestLocalDeclaration]
+    if occurrences.isEmpty {
+      if let bestLocalDeclaration = symbol.bestLocalDeclaration {
+        return [bestLocalDeclaration]
+      }
+      // Fallback: The symbol was not found in the index. This often happens with 
+      // third-party binary frameworks or libraries where indexing data is missing.
+      // If module info is available, fallback to generating the textual interface.
+      if let systemModule = symbol.systemModule {
+        let location = try await self.definitionInInterface(
+          moduleName: systemModule.moduleName,
+          groupName: systemModule.groupName,
+          symbolUSR: symbol.usr,
+          originatorUri: uri,
+          languageService: languageService
+        )
+        return [location]
+      }
     }
 
     return occurrences.compactMap { indexToLSPLocation($0.location) }.sorted()
