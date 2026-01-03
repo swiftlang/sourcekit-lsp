@@ -18,7 +18,7 @@ import SKTestSupport
 import SwiftExtensions
 import XCTest
 
-class CopiedHeaderTests: SourceKitLSPTestCase {
+class CopyDestinationTests: SourceKitLSPTestCase {
   actor BuildServer: CustomBuildServer {
     let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
     private let projectRoot: URL
@@ -51,8 +51,6 @@ class CopiedHeaderTests: SourceKitLSPTestCase {
               data: SourceKitSourceItemData(
                 language: .c,
                 kind: .source,
-                outputPath: nil,
-                copyDestinations: nil
               ).encodeToLSPAny()
             ),
             SourceItem(
@@ -63,7 +61,6 @@ class CopiedHeaderTests: SourceKitLSPTestCase {
               data: SourceKitSourceItemData(
                 language: .c,
                 kind: .header,
-                outputPath: nil,
                 copyDestinations: [DocumentURI(headerCopyDestination)]
               ).encodeToLSPAny()
             ),
@@ -91,6 +88,32 @@ class CopiedHeaderTests: SourceKitLSPTestCase {
       )
       return VoidResponse()
     }
+  }
+
+  func testJumpToCopiedHeader() async throws {
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "Test.h": """
+        void hello();
+        """,
+        "Test.c": """
+        #include <CopiedTest.h>
+
+        void test() {
+          1️⃣hello();
+        }
+        """,
+      ],
+      buildServer: BuildServer.self,
+      enableBackgroundIndexing: true,
+    )
+    try await project.testClient.send(SynchronizeRequest(copyFileMap: true))
+
+    let (uri, positions) = try project.openDocument("Test.c")
+    let response = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertEqual(response?.locations?.map(\.uri), [try project.uri(for: "Test.h")])
   }
 
   func testFindReferencesInCopiedHeader() async throws {
