@@ -592,7 +592,7 @@ package actor SourceKitLSPServer {
       """
     )
 
-    return workspace.setLanguageServices(for: uri, languageServices)
+    return languageServices
   }
 
   /// The language service with the highest precedence that can handle the given document.
@@ -1345,6 +1345,7 @@ extension SourceKitLSPServer {
     let language = textDocument.language
 
     let languageServices = await languageServices(for: uri, language, in: workspace)
+    workspace.setLanguageServices(for: uri, languageServices)
 
     if languageServices.isEmpty {
       // If we can't create a service, this document is unsupported and we can bail here.
@@ -1398,6 +1399,8 @@ extension SourceKitLSPServer {
     for languageService in workspace.languageServices(for: uri) {
       await languageService.closeDocument(notification)
     }
+
+    workspace.removeLanguageServices(for: uri)
 
     workspaceQueue.async {
       self.workspaceForUri[notification.textDocument.uri] = nil
