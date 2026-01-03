@@ -23,7 +23,7 @@ class CopyDestinationTests: SourceKitLSPTestCase {
     let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
     private let projectRoot: URL
 
-    private var headerCopyDestination: URL {
+    var headerCopyDestination: URL {
       projectRoot.appending(components: "header-copy", "CopiedTest.h")
     }
 
@@ -73,7 +73,9 @@ class CopyDestinationTests: SourceKitLSPTestCase {
       _ request: TextDocumentSourceKitOptionsRequest
     ) throws -> TextDocumentSourceKitOptionsResponse? {
       return TextDocumentSourceKitOptionsResponse(compilerArguments: [
-        request.textDocument.uri.pseudoPath, "-I", try headerCopyDestination.deletingLastPathComponent().filePath,
+        request.textDocument.uri.pseudoPath,
+        "-I", try headerCopyDestination.deletingLastPathComponent().filePath,
+        "-D", "FOO",
       ])
     }
 
@@ -215,5 +217,30 @@ class CopyDestinationTests: SourceKitLSPTestCase {
       return
     }
     XCTAssertEqual(info.location, try project.location(from: "1️⃣", to: "1️⃣", in: "Test.h"))
+  }
+
+  func testSemanticFunctionalityInCopiedHeader() async throws {
+    let contents = """
+      #ifdef FOO
+      typedef void 1️⃣MY_VOID2️⃣;
+      #else
+      typedef void MY_VOID;
+      #endif
+      3️⃣MY_VOID hello();
+      """
+
+    let project = try await CustomBuildServerTestProject(
+      files: ["Test.h": contents],
+      buildServer: BuildServer.self,
+      enableBackgroundIndexing: false,
+    )
+    try await project.testClient.send(SynchronizeRequest(copyFileMap: true))
+    let headerUri = try await DocumentURI(project.buildServer().headerCopyDestination)
+
+    let positions = project.testClient.openDocument(contents, uri: headerUri, language: .c)
+    let response = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(headerUri), position: positions["3️⃣"])
+    )
+    XCTAssertEqual(response?.locations, [try project.location(from: "1️⃣", to: "2️⃣", in: "Test.h")])
   }
 }

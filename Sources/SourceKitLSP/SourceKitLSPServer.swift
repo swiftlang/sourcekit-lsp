@@ -291,7 +291,7 @@ package actor SourceKitLSPServer {
     // Pick the workspace with the best FileHandlingCapability for this file.
     // If there is a tie, use the workspace that occurred first in the list.
     var bestWorkspace = await self.workspaces.asyncFirst {
-      await !$0.buildServerManager.targets(for: uri).isEmpty
+      await $0.buildServerManager.canHandle(uri)
     }
     if bestWorkspace == nil {
       // We weren't able to handle the document with any of the known workspaces. See if any of the document's parent

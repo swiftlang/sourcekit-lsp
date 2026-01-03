@@ -486,17 +486,15 @@ package actor BuildServerManager: QueueBasedMessageHandler {
 
   private let cachedSourceFilesAndDirectories = Cache<SourceFilesAndDirectoriesKey, SourceFilesAndDirectories>()
 
-  /// The latest map of copied file URIs to their original source locations.
-  ///
-  /// We don't use a `Cache` for this because we can provide reasonable functionality even without or with an
-  /// out-of-date copied file map - in the worst case we jump to a file in the build directory instead of the source
-  /// directory.
-  /// We don't want to block requests like definition on receiving up-to-date index information from the build server.
-  private var cachedCopiedFileMap: [DocumentURI: DocumentURI] = [:]
+  /// Task that computes the latest map of copied file URIs to their original source locations.
+  private var copiedFileMap: Task<[DocumentURI: DocumentURI], Never>?
 
-  /// The latest task to update the `cachedCopiedFileMap`. This allows us to cancel previous tasks to update the copied
-  /// file map when a new update is requested.
-  private var copiedFileMapUpdateTask: Task<Void, Never>?
+  /// The last computed copied file map, which may be out-of-date.
+  ///
+  /// Even with out-of-date information for the copied file map,we can provide reasonable functionality - in the worst
+  /// case we jump to a file in the build directory instead of the source directory. We don't want to block requests
+  /// like definition on receiving up-to-date build target information from the build server.
+  private var cachedCopiedFileMap: [DocumentURI: DocumentURI] = [:]
 
   /// The `SourceKitInitializeBuildResponseData` received from the `build/initialize` request, if any.
   package var initializationData: SourceKitInitializeBuildResponseData? {
@@ -1096,10 +1094,10 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   }
 
   @discardableResult
-  package func scheduleRecomputeCopyFileMap() -> Task<Void, Never> {
-    let task = Task { [previousUpdateTask = copiedFileMapUpdateTask] in
+  package func scheduleRecomputeCopyFileMap() -> Task<[DocumentURI: DocumentURI], Never> {
+    let task = Task<[DocumentURI: DocumentURI], Never> { [previousUpdateTask = copiedFileMap] in
       previousUpdateTask?.cancel()
-      await orLog("Re-computing copy file map") {
+      return await orLog("Re-computing copy file map") {
         let sourceFilesAndDirectories = try await self.sourceFilesAndDirectories()
         try Task.checkCancellation()
         var copiedFileMap: [DocumentURI: DocumentURI] = [:]
@@ -1109,10 +1107,23 @@ package actor BuildServerManager: QueueBasedMessageHandler {
           }
         }
         self.cachedCopiedFileMap = copiedFileMap
-      }
+        return copiedFileMap
+      } ?? [:]
     }
-    copiedFileMapUpdateTask = task
+    copiedFileMap = task
     return task
+  }
+
+  /// Whether the build server knows about the document with the given URI. This can be either because the file is part
+  /// of one of the targets or because the document is a copy destination of a source file.
+  package func canHandle(_ document: DocumentURI) async -> Bool {
+    if await !targets(for: document).isEmpty {
+      return true
+    }
+    if await self.copiedFileMap?.value[document] != nil {
+      return true
+    }
+    return false
   }
 
   /// Returns all the targets that the document is part of.
@@ -1240,7 +1251,32 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       )
     }
     return buildSettingsFromBuildServer
+  }
 
+  /// If the given document is the copy destination of a source file, return fallback build settings based on the
+  /// original file. This allows us to provide semantic functionality in the destinations of copied files.
+  private func fallbackBuildSettingsInferredFromCopySource(
+    of document: DocumentURI,
+    target explicitlyRequestedTarget: BuildTargetIdentifier?,
+    language: Language?,
+    fallbackAfterTimeout: Bool
+  ) async throws -> FileBuildSettings? {
+    guard let copySource = cachedCopiedFileMap[document] else {
+      return nil
+    }
+    let copySourceSettings = await self.buildSettingsInferredFromMainFile(
+      for: copySource,
+      target: explicitlyRequestedTarget,
+      language: language,
+      fallbackAfterTimeout: fallbackAfterTimeout,
+      allowInferenceFromRelatedFile: false
+    )
+    guard var copySourceSettings, !copySourceSettings.isFallback else {
+      return nil
+    }
+    copySourceSettings.isFallback = true
+    copySourceSettings = copySourceSettings.patching(newFile: document, originalFile: copySource)
+    return copySourceSettings
   }
 
   /// Try finding a source file with the same language as `document` in the same directory as `document` and patch its
@@ -1258,22 +1294,25 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     guard let language = language ?? Language(inferredFromFileExtension: document) else {
       return nil
     }
-    let siblingFile = try await self.sourceFilesAndDirectories().files.compactMap { (uri, info) -> DocumentURI? in
-      guard info.isBuildable, uri.fileURL?.deletingLastPathComponent() == directory else {
-        return nil
-      }
-      if let explicitlyRequestedTarget, !info.targets.contains(explicitlyRequestedTarget) {
-        return nil
-      }
-      // Only consider build settings from sibling files that appear to have the same language. In theory, we might skip
-      // valid sibling files because of this since non-standard file extension might be mapped to `language` by the
-      // build server, but this is a good first check to avoid requesting build settings for too many documents. And
-      // since all of this is fallback-logic, skipping over possibly valid files is not a correctness issue.
-      guard let siblingLanguage = Language(inferredFromFileExtension: uri), siblingLanguage == language else {
-        return nil
-      }
-      return uri
-    }.sorted(by: { $0.pseudoPath < $1.pseudoPath }).first
+    var siblingFile: DocumentURI? = cachedCopiedFileMap[document]
+    if siblingFile == nil {
+      siblingFile = try await self.sourceFilesAndDirectories().files.compactMap { (uri, info) -> DocumentURI? in
+        guard info.isBuildable, uri.fileURL?.deletingLastPathComponent() == directory else {
+          return nil
+        }
+        if let explicitlyRequestedTarget, !info.targets.contains(explicitlyRequestedTarget) {
+          return nil
+        }
+        // Only consider build settings from sibling files that appear to have the same language. In theory, we might skip
+        // valid sibling files because of this since non-standard file extension might be mapped to `language` by the
+        // build server, but this is a good first check to avoid requesting build settings for too many documents. And
+        // since all of this is fallback-logic, skipping over possibly valid files is not a correctness issue.
+        guard let siblingLanguage = Language(inferredFromFileExtension: uri), siblingLanguage == language else {
+          return nil
+        }
+        return uri
+      }.sorted(by: { $0.pseudoPath < $1.pseudoPath }).first
+    }
 
     guard let siblingFile else {
       return nil
@@ -1284,7 +1323,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       target: explicitlyRequestedTarget,
       language: language,
       fallbackAfterTimeout: fallbackAfterTimeout,
-      allowInferenceFromSiblingFile: false
+      allowInferenceFromRelatedFile: false
     )
     guard var siblingSettings, !siblingSettings.isFallback else {
       return nil
@@ -1318,7 +1357,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     target explicitlyRequestedTarget: BuildTargetIdentifier? = nil,
     language: Language?,
     fallbackAfterTimeout: Bool,
-    allowInferenceFromSiblingFile: Bool = true
+    allowInferenceFromRelatedFile: Bool = true
   ) async -> FileBuildSettings? {
     if buildServerAdapter == nil {
       guard let language = language ?? Language(inferredFromFileExtension: document) else {
@@ -1377,7 +1416,19 @@ package actor BuildServerManager: QueueBasedMessageHandler {
             fallbackAfterTimeout: fallbackAfterTimeout
           )
         case .result(nil):
-          if allowInferenceFromSiblingFile {
+          if allowInferenceFromRelatedFile {
+            let settingsFromCopySource = await orLog("Inferring build settings from copy source") {
+              try await self.fallbackBuildSettingsInferredFromCopySource(
+                of: document,
+                target: explicitlyRequestedTarget,
+                language: language,
+                fallbackAfterTimeout: fallbackAfterTimeout
+              )
+            }
+            if let settingsFromCopySource {
+              return settingsFromCopySource
+            }
+
             let settingsFromSibling = await orLog("Inferring build settings from sibling file") {
               try await self.fallbackBuildSettingsInferredFromSiblingFile(
                 of: document,
