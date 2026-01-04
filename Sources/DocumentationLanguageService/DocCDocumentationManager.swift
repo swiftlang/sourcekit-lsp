@@ -19,20 +19,13 @@ import SwiftDocC
 
 struct DocCDocumentationManager: Sendable {
   private let doccServer: DocCServer
-  private let referenceResolutionService: DocCReferenceResolutionService
   private let catalogIndexManager: DocCCatalogIndexManager
 
   private let buildServerManager: BuildServerManager
 
   init(buildServerManager: BuildServerManager) {
-    let symbolResolutionServer = DocumentationServer(qualityOfService: .unspecified)
-    doccServer = DocCServer(
-      peer: symbolResolutionServer,
-      qualityOfService: .default
-    )
-    catalogIndexManager = DocCCatalogIndexManager(server: doccServer)
-    referenceResolutionService = DocCReferenceResolutionService()
-    symbolResolutionServer.register(service: referenceResolutionService)
+    self.doccServer = DocCServer(qualityOfService: .default)
+    self.catalogIndexManager = DocCCatalogIndexManager(server: doccServer)
     self.buildServerManager = buildServerManager
   }
 
@@ -95,17 +88,6 @@ struct DocCDocumentationManager: Sendable {
     }
     // Store the convert request identifier in order to fulfill index requests from SwiftDocC
     let convertRequestIdentifier = UUID().uuidString
-    var catalogIndex: DocCCatalogIndex? = nil
-    if let catalogURL {
-      catalogIndex = try await catalogIndexManager.index(for: catalogURL)
-    }
-    referenceResolutionService.addContext(
-      DocCReferenceResolutionContext(
-        catalogURL: catalogURL,
-        catalogIndex: catalogIndex
-      ),
-      withKey: convertRequestIdentifier
-    )
     // Send the convert request to SwiftDocC and wait for the response
     let convertResponse = try await doccServer.convert(
       externalIDsToConvert: externalIDsToConvert,
