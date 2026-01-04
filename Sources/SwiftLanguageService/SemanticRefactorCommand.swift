@@ -72,6 +72,20 @@ package struct SemanticRefactorCommand: SwiftCommand {
       CodingKeys.textDocument.stringValue: textDocument.encodeToLSPAny(),
     ])
   }
+
+  /// Maps the SourceKit action string to an appropriate LSP CodeActionKind.
+  ///
+  /// SourceKit uses identifiers like `source.refactoring.kind.extract.expr`
+  /// which this property maps to LSP kinds like `refactor.extract`.
+  package var lspKind: CodeActionKind {
+    if actionString.contains(".extract.") {
+      return .refactorExtract
+    } else if actionString.contains(".inline.") {
+      return .refactorInline
+    } else {
+      return .refactor
+    }
+  }
 }
 
 extension Array where Element == SemanticRefactorCommand {

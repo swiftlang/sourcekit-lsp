@@ -968,7 +968,7 @@ extension SwiftLanguageService {
         canInlineMacro = $0.actionString == "source.refactoring.kind.inline.macro"
       }
 
-      return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
+      return CodeAction(title: $0.title, kind: $0.lspKind, command: lspCommand)
     }
 
     if canInlineMacro {
