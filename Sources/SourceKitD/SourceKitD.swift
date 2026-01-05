@@ -23,8 +23,8 @@ extension sourcekitd_api_values: @unchecked Sendable {}
 fileprivate extension ThreadSafeBox {
   /// If the wrapped value is `nil`, run `compute` and store the computed value. If it is not `nil`, return the stored
   /// value.
-  func computeIfNil<WrappedValue>(compute: () -> WrappedValue) -> WrappedValue where T == WrappedValue? {
-    return withLock { value in
+  func computeIfNil<WrappedValue: Sendable>(compute: () -> WrappedValue) -> WrappedValue where T == WrappedValue? {
+    return withLock { (value: inout WrappedValue?) -> WrappedValue in
       if let value {
         return value
       }
