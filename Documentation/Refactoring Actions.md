@@ -91,4 +91,4 @@ Refactoring capabilities come from two places:
 1. **sourcekitd**: Part of the Swift toolchain compiler infrastructure
 2. **SwiftSyntax**: The `swift-syntax` library's `SwiftRefactor` module
 
-To add purely syntactic refactorings, you can contribute to [swift-syntax](https://github.com/swiftlang/swift-syntax). Semantic refactorings require changes to [sourcekit](https://github.com/swiftlang/swift).
+To add purely syntactic refactorings, you can contribute to [swift-syntax](https://github.com/swiftlang/swift-syntax). Semantic refactorings require changes to [sourcekitd](https://github.com/swiftlang/swift).
