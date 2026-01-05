@@ -8,7 +8,6 @@ Code actions show up automatically in LSP-compatible editors. Common ways to tri
 
 - **VS Code**: `Cmd+.` (macOS) or `Ctrl+.` (Windows/Linux)
 - **Neovim** (with nvim-lspconfig): `:lua vim.lsp.buf.code_action()`
-- **Xcode**: Right-click → Refactor menu
 
 The specific refactorings available depend on what code is selected or where the cursor is positioned.
 
@@ -18,14 +17,49 @@ SourceKit-LSP provides refactoring actions from multiple sources:
 
 ### Semantic Refactorings (via sourcekitd)
 
-These refactorings require full semantic analysis of the code:
+These refactorings require full semantic analysis of the code and are provided by the Swift compiler's sourcekitd.
 
-| Action | Description | Trigger |
-|--------|-------------|---------|
-| **Extract Method** | Extracts selected statements into a new function | Select a range of complete statements |
-| **Localize String** | Wraps a string literal for localization | Cursor inside a string literal |
-| **Expand Macro** | Shows the expanded form of a macro | Cursor on a macro invocation |
-| **Inline Macro** | Inlines the expansion of a freestanding macro | Cursor on a macro invocation |
+#### Cursor-Based Refactorings
+
+These are triggered when the cursor is on a specific location:
+
+| Action | Description |
+|--------|-------------|
+| **Add Missing Protocol Requirements** | Adds stubs for unimplemented protocol requirements |
+| **Expand Default** | Expands a `default` case in a switch statement |
+| **Expand Switch Cases** | Expands a switch to include all enum cases |
+| **Localize String** | Wraps a string literal with `NSLocalizedString` |
+| **Simplify Long Number Literal** | Simplifies a long number literal |
+| **Collapse Nested If Statements** | Combines nested if statements into one |
+| **Convert To Do/Catch** | Converts a throwing expression to do/catch |
+| **Convert To Trailing Closure** | Converts a closure argument to trailing closure syntax |
+| **Generate Memberwise Initializer** | Creates an initializer with all stored properties |
+| **Add Equatable Conformance** | Generates `Equatable` conformance |
+| **Add Explicit Codable Implementation** | Generates explicit `Codable` encode/decode methods |
+| **Convert Call to Async Alternative** | Converts a completion handler call to async/await |
+| **Convert Function to Async** | Converts a function with completion handler to async |
+| **Add Async Alternative** | Adds an async version of a completion handler function |
+| **Add Async Wrapper** | Adds an async wrapper around a completion handler function |
+| **Expand Macro** | Shows the expanded form of a macro |
+| **Inline Macro** | Inlines the expansion of a freestanding macro |
+
+#### Range-Based Refactorings
+
+These are triggered when you select a range of code:
+
+| Action | Description |
+|--------|-------------|
+| **Extract Expression** | Extracts an expression into a local variable |
+| **Extract Method** | Extracts selected statements into a new function |
+| **Extract Repeated Expression** | Extracts a repeated expression into a variable |
+| **Move To Extension** | Moves selected members to an extension |
+| **Convert to String Interpolation** | Converts string concatenation to interpolation |
+| **Expand Ternary Expression** | Expands a ternary `?:` to an if/else statement |
+| **Convert To Ternary Expression** | Converts an if/else to a ternary expression |
+| **Convert To Guard Expression** | Converts an if-let to a guard-let |
+| **Convert To IfLet Expression** | Converts a guard-let to an if-let |
+| **Convert To Computed Property** | Converts a stored property to a computed property |
+| **Convert To Switch Statement** | Converts if/else chains to a switch statement |
 
 ### Syntactic Refactorings (via SwiftSyntax)
 
