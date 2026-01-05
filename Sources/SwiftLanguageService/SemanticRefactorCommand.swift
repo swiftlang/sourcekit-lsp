@@ -78,10 +78,12 @@ package struct SemanticRefactorCommand: SwiftCommand {
   /// SourceKit uses identifiers like `source.refactoring.kind.extract.expr`
   /// which this property maps to LSP kinds like `refactor.extract`.
   package var lspKind: CodeActionKind {
-    if actionString.contains(".extract.") {
+    if actionString.contains(".extract.") || actionString.contains(".move.") {
       return .refactorExtract
     } else if actionString.contains(".inline.") {
       return .refactorInline
+    } else if actionString.contains(".convert.") {
+      return .refactorRewrite
     } else {
       return .refactor
     }
