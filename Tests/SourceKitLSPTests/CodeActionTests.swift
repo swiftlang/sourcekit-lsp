@@ -370,7 +370,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
     let expectedCodeAction = CodeAction(
       title: "Extract Method",
-      kind: .refactor,
+      kind: .refactorExtract,
       command: expectedCommand
     )
     var resultActions = try XCTUnwrap(result?.codeActions)
