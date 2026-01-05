@@ -782,7 +782,7 @@ var dependencies: [Package.Dependency] {
       .package(url: "https://github.com/swiftlang/swift-docc.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/swiftlang/swift-docc-symbolkit.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/swiftlang/swift-markdown.git", branch: relatedDependenciesBranch),
-      .package(url: "https://github.com/swiftlang/swift-tools-protocols.git", exact: "0.0.9"),
+      .package(url: "https://github.com/swiftlang/swift-tools-protocols.git", exact: "0.0.10"),
       .package(url: "https://github.com/swiftlang/swift-tools-support-core.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.1"),
       .package(url: "https://github.com/swiftlang/swift-syntax.git", branch: relatedDependenciesBranch),
