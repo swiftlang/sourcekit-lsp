@@ -528,13 +528,8 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
   func testPrepareTargetAfterEditToDependency() async throws {
     var testHooks = Hooks()
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
-      [
-        try ExpectedPreparation(target: "LibA", destination: .target),
-        try ExpectedPreparation(target: "LibB", destination: .target),
-      ],
-      [
-        try ExpectedPreparation(target: "LibB", destination: .target)
-      ],
+      [try ExpectedPreparation(target: "LibB", destination: .target)],
+      [try ExpectedPreparation(target: "LibB", destination: .target)],
     ])
     testHooks.indexHooks = expectedPreparationTracker.testHooks
 
@@ -626,9 +621,8 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
 
     var testHooks = Hooks()
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
-      // Preparation of targets during the initial of the target
+      // Preparation of targets during the initial indexing of the target
       [
-        try ExpectedPreparation(target: "LibA", destination: .target),
         try ExpectedPreparation(target: "LibB", destination: .target),
         try ExpectedPreparation(target: "LibC", destination: .target),
         try ExpectedPreparation(target: "LibD", destination: .target),
@@ -2634,33 +2628,58 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
         }
       })
     )
-    let project = try await SwiftPMTestProject(
+    let project = try await MultiFileTestProject(
       files: [
-        "LibA/LibA.swift": "",
-        "LibB/LibB.swift": "",
-      ],
-      manifest: """
+        "MyDependency/Sources/DependencyA/DependencyA.swift": "",
+        "MyDependency/Package.swift": """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
         let package = Package(
-          name: "MyLibrary",
+          name: "MyDependency",
+          products: [.library(name: "DependencyA", targets: ["DependencyA"])],
           targets: [
-           .target(name: "LibA"),
-           .target(name: "LibB", dependencies: ["LibA"])
+            .target(name: "DependencyA"),
           ]
         )
         """,
+
+        "MyPackage/Sources/LibA/LibA.swift": "",
+        "MyPackage/Sources/LibB/LibB.swift": "",
+        "MyPackage/Sources/LibC/LibC.swift": "",
+        "MyPackage/Package.swift": """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyPackage",
+          dependencies: [.package(path: "../MyDependency")],
+          targets: [
+           .target(name: "LibA", dependencies: [.product(name: "DependencyA", package: "MyDependency")]),
+           .target(name: "LibB", dependencies: ["LibA"]),
+           .target(name: "LibC")
+          ]
+        )
+        """,
+      ],
+      workspaces: { scratchDirectory in
+        [WorkspaceFolder(uri: DocumentURI(scratchDirectory.appending(component: "MyPackage")))]
+      },
       hooks: testHooks,
-      enableBackgroundIndexing: true,
-      pollIndex: false
+      enableBackgroundIndexing: true
     )
     // We can't poll the index using `workspace/synchronize` because that elevates the priority of the indexing requests
-    // in a non-deterministic order (due to the way ). If LibB's priority gets elevated before LibA's, then LibB will
-    // get prepared first, which is contrary to the background behavior we want to check here.
+    // in a non-deterministic order (due to the way `withTaskPriorityChangedHandler` is implemented). If LibB's priority
+    // gets elevated before LibA's, then LibB will get prepared first, which is contrary to the background behavior we
+    // want to check here.
     try await fulfillmentOfOrThrow(twoPreparationRequestsReceived)
     XCTAssertEqual(
       preparationRequests.value.flatMap(\.targets),
       [
-        try BuildTargetIdentifier(target: "LibA", destination: .target),
         try BuildTargetIdentifier(target: "LibB", destination: .target),
+        try BuildTargetIdentifier(target: "LibC", destination: .target),
       ]
     )
     withExtendedLifetime(project) {}
@@ -2714,8 +2733,8 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
         return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
       }
 
-      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse {
-        return VoidResponse()
+      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
+        return BuildTargetPrepareResponse()
       }
     }
 
@@ -3020,9 +3039,9 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
         return TextDocumentSourceKitOptionsResponse(compilerArguments: [request.textDocument.uri.pseudoPath])
       }
 
-      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
         preparedTargetBatches.append(request.targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
-        return VoidResponse()
+        return BuildTargetPrepareResponse()
       }
 
       fileprivate func getPreparedBatches() async -> [[BuildTargetIdentifier]] {
