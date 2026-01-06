@@ -1260,9 +1260,9 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testApplyDeMorganLawNestedActionAvailability() async throws {
     try await assertCodeActions(
       """
-      let x = 2️⃣!3️⃣(4️⃣!(1️⃣a && b) 5️⃣|| c6️⃣)7️⃣
+      let x = 1️⃣!2️⃣(3️⃣!(4️⃣a && b) 5️⃣|| c6️⃣)7️⃣
       """,
-      markers: ["1️⃣"],
+      markers: ["4️⃣"],
       exhaustive: false
     ) { uri, positions in
       [
@@ -1273,7 +1273,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
             changes: [
               uri: [
                 TextEdit(
-                  range: positions["4️⃣"]..<positions["5️⃣"],
+                  range: positions["3️⃣"]..<positions["5️⃣"],
                   newText: "(!a || !b) "
                 )
               ]
@@ -1287,7 +1287,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
             changes: [
               uri: [
                 TextEdit(
-                  range: positions["4️⃣"]..<positions["6️⃣"],
+                  range: positions["3️⃣"]..<positions["6️⃣"],
                   newText: "!((a && b) && !c)"
                 )
               ]
@@ -1301,7 +1301,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
             changes: [
               uri: [
                 TextEdit(
-                  range: positions["3️⃣"]..<positions["7️⃣"],
+                  range: positions["2️⃣"]..<positions["7️⃣"],
                   newText: "!((a && b) && !c)"
                 )
               ]
@@ -1315,7 +1315,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
             changes: [
               uri: [
                 TextEdit(
-                  range: positions["2️⃣"]..<positions["7️⃣"],
+                  range: positions["1️⃣"]..<positions["7️⃣"],
                   newText: "((a && b) && !c)"
                 )
               ]
