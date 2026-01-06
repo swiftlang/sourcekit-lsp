@@ -12,9 +12,9 @@
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitLSP
-import SwiftOperators
-@_spi(Testing) public import SwiftSyntax
 import SwiftExtensions
+import SwiftOperators
+package import SwiftSyntax
 
 /// A code action to convert between complement expressions by applying De Morgan's law.
 ///
@@ -144,9 +144,9 @@ private struct DeMorganCandidateSequence: Sequence, IteratorProtocol {
 }
 
 /// Encapsulates all De Morgan transformation logic.
-@_spi(Testing) public struct DeMorganTransformer {
+package struct DeMorganTransformer {
 
-  public init() {}
+  package init() {}
 
   /// Maps AND/OR operators to their flipped counterparts.
   private static let operatorFlipMap: [String: String] = [
@@ -177,7 +177,7 @@ private struct DeMorganCandidateSequence: Sequence, IteratorProtocol {
   /// two complement strategies:
   /// 1. Negation expansion: `!(a && b)` → `!a || !b`
   /// 2. Proposition collection: `!a || !b` → `!(a && b)`
-  public func computeComplement(of unstructuredExpr: ExprSyntax) -> ExprSyntax? {
+  package func computeComplement(of unstructuredExpr: ExprSyntax) -> ExprSyntax? {
     guard
       let structuredExpr = OperatorTable.standardOperators.foldAll(
         unstructuredExpr,
