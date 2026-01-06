@@ -1240,8 +1240,14 @@ final class CodeActionTests: SourceKitLSPTestCase {
 
     // Line comments
     try assertDeMorganTransform(
-      input: "!(a && b // check\n)",
-      expected: "(!a || !b // check\n)"
+      input: """
+        !(a && b // check
+        )
+        """,
+      expected: """
+        (!a || !b // check
+        )
+        """
     )
 
     // Comments attached to inner operators
