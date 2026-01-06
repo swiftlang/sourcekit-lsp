@@ -2029,7 +2029,7 @@ extension SourceKitLSPServer {
       if let bestLocalDeclaration = symbol.bestLocalDeclaration {
         return [bestLocalDeclaration]
       }
-      // Fallback: The symbol was not found in the index. This often happens with 
+      // Fallback: The symbol was not found in the index. This often happens with
       // third-party binary frameworks or libraries where indexing data is missing.
       // If module info is available, fallback to generating the textual interface.
       if let systemModule = symbol.systemModule {
