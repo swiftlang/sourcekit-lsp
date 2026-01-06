@@ -29,32 +29,28 @@ struct ApplyDeMorganLaw: SyntaxCodeActionProvider {
       return []
     }
 
-    for candidate in DeMorganCandidateSequence(node: node, snapshot: scope.snapshot) {
+    return DeMorganCandidateSequence(node: node, snapshot: scope.snapshot).compactMap { candidate in
       let transformer = DeMorganTransformer()
       guard let complement = transformer.computeComplement(of: candidate.expr) else {
-        continue
+        return nil
       }
 
       let complementText = complement.description
-      return [
-        CodeAction(
-          title: "Apply De Morgan’s law, converting '\(candidate.expr)' to '\(complementText)'",
-          kind: .refactorInline,
-          edit: WorkspaceEdit(
-            changes: [
-              scope.snapshot.uri: [
-                TextEdit(
-                  range: candidate.range,
-                  newText: complementText
-                )
-              ]
+      return CodeAction(
+        title: "Apply De Morgan’s law, converting '\(candidate.expr)' to '\(complementText)'",
+        kind: .refactorInline,
+        edit: WorkspaceEdit(
+          changes: [
+            scope.snapshot.uri: [
+              TextEdit(
+                range: candidate.range,
+                newText: complementText
+              )
             ]
-          )
+          ]
         )
-      ]
+      )
     }
-
-    return []
   }
 }
 
@@ -120,7 +116,7 @@ private struct NegatedResult {
 }
 
 /// A sequence that yields candidate De Morgan expressions by walking up the syntax tree.
-private struct DeMorganCandidateSequence: Sequence, IteratorProtocol {
+private struct DeMorganCandidateSequence: Sequence {
   private let snapshot: DocumentSnapshot
   private var candidates: [ExprSyntax]
 
@@ -135,11 +131,14 @@ private struct DeMorganCandidateSequence: Sequence, IteratorProtocol {
     }
   }
 
-  mutating func next() -> (expr: ExprSyntax, range: Range<Position>)? {
-    guard let expr = candidates.popLast() else {
-      return nil
+  func makeIterator() -> AnyIterator<(expr: ExprSyntax, range: Range<Position>)> {
+    var iterator = candidates.makeIterator()
+    return AnyIterator {
+      guard let expr = iterator.next() else {
+        return nil
+      }
+      return (expr, snapshot.range(of: expr))
     }
-    return (expr, snapshot.range(of: expr))
   }
 }
 

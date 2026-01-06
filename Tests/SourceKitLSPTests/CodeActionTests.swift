@@ -1257,20 +1257,59 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
-  /// Test that DeMorganCandidateSequence correctly selects the outermost applicable expression based on cursor position
-  func testApplyDeMorganLawMultipleCandidates() async throws {
+  func testApplyDeMorganLawNestedActionAvailability() async throws {
     try await assertCodeActions(
       """
-      let x = 1️⃣!(2️⃣!(3️⃣a && b4️⃣) || c5️⃣)6️⃣
+      let x = !(!(1️⃣a && b) || c)
       """,
       ranges: [
-        ("3️⃣", "3️⃣"),  // Cursor on "a" - should transform outermost
-        ("2️⃣", "2️⃣"),  // Cursor on inner "!" - should transform outermost
-        ("1️⃣", "1️⃣"),  // Cursor on outer "!" - should transform outermost
+        ("1️⃣", "1️⃣")
       ],
       exhaustive: false
     ) { uri, positions in
       [
+        CodeAction(
+          title: "Apply De Morgan’s law, converting '!(a && b) ' to '(!a || !b) '",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: Position(line: 0, utf16index: 10)..<Position(line: 0, utf16index: 20),
+                  newText: "(!a || !b) "
+                )
+              ]
+            ]
+          )
+        ),
+        CodeAction(
+          title: "Apply De Morgan’s law, converting '!(a && b) || c' to '!((a && b) && !c)'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: Position(line: 0, utf16index: 10)..<Position(line: 0, utf16index: 24),
+                  newText: "!((a && b) && !c)"
+                )
+              ]
+            ]
+          )
+        ),
+        CodeAction(
+          title: "Apply De Morgan’s law, converting '(!(a && b) || c)' to '!((a && b) && !c)'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: Position(line: 0, utf16index: 9)..<Position(line: 0, utf16index: 25),
+                  newText: "!((a && b) && !c)"
+                )
+              ]
+            ]
+          )
+        ),
         CodeAction(
           title: "Apply De Morgan’s law, converting '!(!(a && b) || c)' to '((a && b) && !c)'",
           kind: .refactorInline,
@@ -1278,13 +1317,13 @@ final class CodeActionTests: SourceKitLSPTestCase {
             changes: [
               uri: [
                 TextEdit(
-                  range: positions["1️⃣"]..<positions["6️⃣"],
+                  range: Position(line: 0, utf16index: 8)..<Position(line: 0, utf16index: 25),
                   newText: "((a && b) && !c)"
                 )
               ]
             ]
           )
-        )
+        ),
       ]
     }
   }
