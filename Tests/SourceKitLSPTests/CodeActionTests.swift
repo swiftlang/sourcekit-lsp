@@ -1061,7 +1061,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
   }
 
   func testApplyDeMorganLawNegatedAnd() async throws {
-    // !(a && b) -> !a || !b
     try await assertCodeActions(
       """
       let x = 1️⃣!(a && b)2️⃣
@@ -1089,7 +1088,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
   }
 
   func testApplyDeMorganLawNegatedOr() throws {
-    // !(a || b) -> !a && !b
     try assertDeMorganTransform(
       input: "!(a || b)",
       expected: "(!a && !b)"
@@ -1097,7 +1095,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
   }
 
   func testApplyDeMorganLawDoubleNegation() throws {
-    // !(!a && !b) -> a || b
     try assertDeMorganTransform(
       input: "!(!a && !b)",
       expected: "(a || b)"
@@ -1105,7 +1102,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
   }
 
   func testApplyDeMorganLawComparisonFlip() throws {
-    // !(a < b) -> a >= b
     try assertDeMorganTransform(
       input: "!(a < b)",
       expected: "(a >= b)"
@@ -1113,7 +1109,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
   }
 
   func testApplyDeMorganLawPrecedencePreservation() throws {
-    // !(a && b || c) -> (!a || !b) && !c
     try assertDeMorganTransform(
       input: "!(a && b || c)",
       expected: "((!a || !b) && !c)"
@@ -1121,7 +1116,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
   }
 
   func testApplyDeMorganLawBitwise() throws {
-    // ~(a | b) -> ~a & ~b
     try assertDeMorganTransform(
       input: "~(a | b)",
       expected: "(~a & ~b)"
@@ -1129,7 +1123,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
   }
 
   func testApplyDeMorganLawPropositionsToNegation() throws {
-    // !a || !b -> !(a && b)
     try assertDeMorganTransform(
       input: "!a || !b",
       expected: "!(a && b)"
@@ -1137,7 +1130,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
   }
 
   func testApplyDeMorganLawNestedNegation() throws {
-    // !(!(a && b) || c) -> (a && b) && !c
     try assertDeMorganTransform(
       input: "!(!(a && b) || c)",
       expected: "((a && b) && !c)"
@@ -1145,7 +1137,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
   }
 
   func testApplyDeMorganLawOrToAnd() throws {
-    // !((a || b) && c) -> (!a && !b) || !c
     try assertDeMorganTransform(
       input: "!((a || b) && c)",
       expected: "((!a && !b) || !c)"
@@ -1153,7 +1144,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
   }
 
   func testApplyDeMorganLawTernaryPropagation() throws {
-    // !(a ? !b : c) -> (a ? b : !c)
     try assertDeMorganTransform(
       input: "!(a ? !b : c)",
       expected: "(a ? b : !c)"
@@ -1161,7 +1151,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
   }
 
   func testApplyDeMorganLawWithIsExpression() throws {
-    // !a || !(s is String) -> !(a && (s is String))
     try assertDeMorganTransform(
       input: "!a || !(s is String)",
       expected: "!(a && (s is String))"
