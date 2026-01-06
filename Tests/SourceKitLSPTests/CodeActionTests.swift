@@ -18,6 +18,7 @@ import SwiftExtensions
 @_spi(Testing) import SwiftLanguageService
 import SwiftParser
 import SwiftSyntax
+import SwiftSyntaxBuilder
 import XCTest
 
 private typealias CodeActionCapabilities = TextDocumentClientCapabilities.CodeAction
@@ -1257,13 +1258,10 @@ final class CodeActionTests: SourceKitLSPTestCase {
     file: StaticString = #filePath,
     line: UInt = #line
   ) throws {
-    let sourceFile = Parser.parse(source: "let x = \(input)")
-    let varDecl = sourceFile.statements.first?.item.as(VariableDeclSyntax.self)
-    let binding = varDecl?.bindings.first
-    let expr = binding?.initializer?.value
+    let expr = ExprSyntax("\(raw: input)")
 
     let transformer = DeMorganTransformer()
-    guard let result = transformer.computeComplement(of: try XCTUnwrap(expr, file: file, line: line)) else {
+    guard let result = transformer.computeComplement(of: expr) else {
       XCTFail("Failed to compute De Morgan complement", file: file, line: line)
       return
     }
