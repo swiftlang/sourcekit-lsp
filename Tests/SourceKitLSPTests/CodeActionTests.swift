@@ -1251,23 +1251,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
-  /// Tests De Morgan transformation directly without LSP overhead.
-  private func assertDeMorganTransform(
-    input: String,
-    expected: String,
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) throws {
-    let expr = ExprSyntax("\(raw: input)")
-
-    let transformer = DeMorganTransformer()
-    guard let result = transformer.computeComplement(of: expr) else {
-      XCTFail("Failed to compute De Morgan complement", file: file, line: line)
-      return
-    }
-
-    XCTAssertEqual(result.description, expected, file: file, line: line)
-  }
   /// Test that DeMorganCandidateSequence correctly selects the outermost applicable expression based on cursor position
   func testApplyDeMorganLawMultipleCandidates() async throws {
     try await assertCodeActions(
@@ -1609,4 +1592,22 @@ private extension CodeActionRequestResponse {
     }
     return actions
   }
+}
+
+/// Tests De Morgan transformation directly without LSP overhead.
+private func assertDeMorganTransform(
+  input: String,
+  expected: String,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) throws {
+  let expr = ExprSyntax("\(raw: input)")
+
+  let transformer = DeMorganTransformer()
+  guard let result = transformer.computeComplement(of: expr) else {
+    XCTFail("Failed to compute De Morgan complement", file: file, line: line)
+    return
+  }
+
+  XCTAssertEqual(result.description, expected, file: file, line: line)
 }
