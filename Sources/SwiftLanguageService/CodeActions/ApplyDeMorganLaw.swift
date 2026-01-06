@@ -500,10 +500,12 @@ package struct DeMorganTransformer {
 
 /// Maps a replacement through parentheses, preserving the outer structure.
 private func mapThroughParentheses(_ expr: ExprSyntax, replacement: ExprSyntax) -> ExprSyntax {
-  if let inner = expr.as(TupleExprSyntax.self)?.singleUnlabeledExpression {
+  if let tuple = expr.as(TupleExprSyntax.self),
+    let inner = tuple.singleUnlabeledExpression
+  {
     let mappedInner = mapThroughParentheses(inner, replacement: replacement)
     return ExprSyntax(
-      expr.cast(TupleExprSyntax.self).with(\.elements, [LabeledExprSyntax(expression: mappedInner)])
+      tuple.with(\.elements, [LabeledExprSyntax(expression: mappedInner)])
     )
   }
   return replacement
