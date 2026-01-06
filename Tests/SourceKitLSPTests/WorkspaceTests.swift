@@ -1386,6 +1386,160 @@ final class WorkspaceTests: SourceKitLSPTestCase {
     )
     XCTAssertEqual(outputPaths.outputPaths.map { $0.suffix(13) }.sorted(), ["FileA.swift.o", "FileB.swift.o"])
   }
+
+  func testOrphanedClangLanguageServiceShutdown() async throws {
+    // test that when we remove a workspace, the ClangLanguageService for that workspace is shut down.
+    //  verify this by checking that the language service is removed from the server's languageServices.
+
+    let project = try await MultiFileTestProject(
+      files: [
+        "WorkspaceA/compile_flags.txt": "",
+        "WorkspaceA/dummy.c": "",
+        "WorkspaceB/main.c": """
+        int main() { return 0; }
+        """,
+        "WorkspaceB/compile_flags.txt": "",
+      ],
+      workspaces: { scratchDir in
+        return [
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "WorkspaceA"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "WorkspaceB"))),
+        ]
+      },
+      usePullDiagnostics: false
+    )
+
+    // open a .c file in WorkspaceB to launch clangd
+    let (mainUri, _) = try project.openDocument("main.c")
+
+    // send a request to ensure clangd is up and running
+    _ = try await project.testClient.send(
+      DocumentSymbolRequest(textDocument: TextDocumentIdentifier(mainUri))
+    )
+
+    // get the language service for WorkspaceB before closing
+    let clangdServerBeforeClose = try await project.testClient.server.primaryLanguageService(
+      for: mainUri,
+      .c,
+      in: unwrap(project.testClient.server.workspaceForDocument(uri: mainUri))
+    )
+
+    // close the document
+    project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(mainUri)))
+    _ = try await project.testClient.send(SynchronizeRequest())
+
+    // remove WorkspaceB
+    let workspaceBUri = DocumentURI(project.scratchDirectory.appending(component: "WorkspaceB"))
+    project.testClient.send(
+      DidChangeWorkspaceFoldersNotification(
+        event: WorkspaceFoldersChangeEvent(removed: [WorkspaceFolder(uri: workspaceBUri)])
+      )
+    )
+    _ = try await project.testClient.send(SynchronizeRequest())
+
+  
+    try await Task.sleep(for: .seconds(3))
+
+
+    let workspaceAfterRemoval = await project.testClient.server.workspaceForDocument(uri: mainUri)
+    if let workspaceUri = workspaceAfterRemoval?.rootUri?.fileURL?.lastPathComponent {
+      XCTAssertFalse(workspaceUri == "WorkspaceB", "WorkspaceB should have been removed")
+    }
+
+    // verify the language service is orphaned - opening a file in WorkspaceA should get a different language service
+    let (dummyUri, _) = try project.openDocument("dummy.c")
+    _ = try await project.testClient.send(
+      DocumentSymbolRequest(textDocument: TextDocumentIdentifier(dummyUri))
+    )
+
+    let clangdServerForWorkspaceA = try await project.testClient.server.primaryLanguageService(
+      for: dummyUri,
+      .c,
+      in: unwrap(project.testClient.server.workspaceForDocument(uri: dummyUri))
+    )
+
+
+    XCTAssertFalse(clangdServerBeforeClose === clangdServerForWorkspaceA, "WorkspaceB's clangd should have been shut down and a new one created for WorkspaceA")
+  }
+
+  func testOrphanedSwiftLanguageServiceShutdownAndRelaunch() async throws {
+  
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
+    let project = try await MultiFileTestProject(
+      files: [
+        "WorkspaceA/Sources/LibA/LibA.swift": """
+        public struct LibA {
+          public func 1️⃣foo() {}
+          public init() {}
+        }
+        """,
+        "WorkspaceA/Package.swift": """
+        // swift-tools-version: 5.7
+        import PackageDescription
+        let package = Package(
+          name: "LibA",
+          targets: [.target(name: "LibA")]
+        )
+        """,
+        "WorkspaceB/Sources/LibB/LibB.swift": """
+        public struct LibB {
+          public func bar() {}
+          public init() {}
+        }
+        """,
+        "WorkspaceB/Package.swift": """
+        // swift-tools-version: 5.7
+        import PackageDescription
+        let package = Package(
+          name: "LibB",
+          targets: [.target(name: "LibB")]
+        )
+        """,
+      ],
+      workspaces: { scratchDir in
+        return [
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "WorkspaceA"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "WorkspaceB"))),
+        ]
+      }
+    )
+
+
+    let (libBUri, _) = try project.openDocument("LibB.swift")
+
+  
+    let initialHover = try await project.testClient.send(
+      HoverRequest(textDocument: TextDocumentIdentifier(libBUri), position: Position(line: 1, utf16index: 14))
+    )
+    XCTAssertNotNil(initialHover, "Should get hover response for LibB.swift")
+
+    // close the document in WorkspaceB
+    project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(libBUri)))
+    _ = try await project.testClient.send(SynchronizeRequest())
+
+    // remove WorkspaceB
+    let workspaceBUri = DocumentURI(project.scratchDirectory.appending(component: "WorkspaceB"))
+    project.testClient.send(
+      DidChangeWorkspaceFoldersNotification(
+        event: WorkspaceFoldersChangeEvent(removed: [WorkspaceFolder(uri: workspaceBUri)])
+      )
+    )
+    _ = try await project.testClient.send(SynchronizeRequest())
+
+    //  orphaned service to be shut down in the background
+    try await Task.sleep(for: .milliseconds(500))
+
+    // open a file in WorkspaceA
+    let (libAUri, positions) = try project.openDocument("LibA.swift")
+
+    // verify that the language service in WorkspaceA still works correctly
+    let hover = try await project.testClient.send(
+      HoverRequest(textDocument: TextDocumentIdentifier(libAUri), position: positions["1️⃣"])
+    )
+    XCTAssertNotNil(hover, "Should still get hover response after removing WorkspaceB")
+    assertContains(hover?.contents.markupContent?.value ?? "", "foo")
+  }
 }
 
 private let defaultSDKArgs: String = {

@@ -1560,10 +1560,15 @@ extension SourceKitLSPServer {
       }
     }
 
-    // Shut down orphaned services
-    for service in orphanedServices {
-      logger.info("Shutting down orphaned language service: \(type(of: service))")
-      await service.shutdown()
+    // Shut down orphaned services in a background task to avoid blocking other requests.
+    
+    if !orphanedServices.isEmpty {
+      Task {
+        for service in orphanedServices {
+          logger.info("Shutting down orphaned language service: \(type(of: service))")
+          await service.shutdown()
+        }
+      }
     }
   }
 
