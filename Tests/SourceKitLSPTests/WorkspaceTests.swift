@@ -1389,7 +1389,10 @@ final class WorkspaceTests: SourceKitLSPTestCase {
 
   func testOrphanedClangLanguageServiceShutdown() async throws {
     // test that when we remove a workspace, the ClangLanguageService for that workspace is shut down.
-    //  verify this by checking that the language service is removed from the server's languageServices.
+    // verify this by checking that clangd receives a ShutdownRequest.
+
+    let clangdReceivedShutdown = self.expectation(description: "clangd received shutdown request")
+    clangdReceivedShutdown.assertForOverFulfill = false
 
     let project = try await MultiFileTestProject(
       files: [
@@ -1406,6 +1409,11 @@ final class WorkspaceTests: SourceKitLSPTestCase {
           WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "WorkspaceB"))),
         ]
       },
+      hooks: Hooks(preForwardRequestToClangd: { request in
+        if request is ShutdownRequest {
+          clangdReceivedShutdown.fulfill()
+        }
+      }),
       usePullDiagnostics: false
     )
 
@@ -1426,7 +1434,6 @@ final class WorkspaceTests: SourceKitLSPTestCase {
 
     // close the document
     project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(mainUri)))
-    _ = try await project.testClient.send(SynchronizeRequest())
 
     // remove WorkspaceB
     let workspaceBUri = DocumentURI(project.scratchDirectory.appending(component: "WorkspaceB"))
@@ -1436,15 +1443,15 @@ final class WorkspaceTests: SourceKitLSPTestCase {
       )
     )
     _ = try await project.testClient.send(SynchronizeRequest())
-
-  
-    try await Task.sleep(for: .seconds(3))
-
+    // wait for clangd to receive the shutdown request
+    try await fulfillmentOfOrThrow(clangdReceivedShutdown)
 
     let workspaceAfterRemoval = await project.testClient.server.workspaceForDocument(uri: mainUri)
-    if let workspaceUri = workspaceAfterRemoval?.rootUri?.fileURL?.lastPathComponent {
-      XCTAssertFalse(workspaceUri == "WorkspaceB", "WorkspaceB should have been removed")
-    }
+    XCTAssertNotEqual(
+      try XCTUnwrap(workspaceAfterRemoval?.rootUri?.fileURL?.lastPathComponent),
+      "WorkspaceB",
+      "WorkspaceB should have been removed"
+    )
 
     // verify the language service is orphaned - opening a file in WorkspaceA should get a different language service
     let (dummyUri, _) = try project.openDocument("dummy.c")
@@ -1516,7 +1523,6 @@ final class WorkspaceTests: SourceKitLSPTestCase {
 
     // close the document in WorkspaceB
     project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(libBUri)))
-    _ = try await project.testClient.send(SynchronizeRequest())
 
     // remove WorkspaceB
     let workspaceBUri = DocumentURI(project.scratchDirectory.appending(component: "WorkspaceB"))
