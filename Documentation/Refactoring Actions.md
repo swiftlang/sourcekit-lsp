@@ -24,14 +24,37 @@ The specific refactorings available depend on what code is selected or where the
 | **Convert integer literal** | Cursor on an integer literal (converts between decimal, hex, octal, binary) |
 | **Convert string literal to minimal number of '#'s** | Cursor on a raw string literal with unnecessary `#` delimiters |
 | **Create Codable structs from JSON** | Cursor inside JSON content in a Swift file |
+| **Convert to String Interpolation** | Select a string concatenation expression (`"a" + b + "c"`) |
+
+### Control Flow
+
+| Action | Trigger |
+|--------|---------|
+| **Expand Default** | Cursor on the `default` keyword in a switch over an enum |
+| **Expand Switch Cases** | Cursor on the `switch` keyword when switching over an enum with unhandled cases |
+| **Collapse Nested If Statements** | Cursor on the `if` keyword of an if-statement that contains only another if statement |
+| **Convert To Do/Catch** | Cursor on the `try` keyword of a `try!` expression |
+| **Expand Ternary Expression** | Select an assignment where the right-hand side is a ternary expression |
+| **Convert To Ternary Expression** | Select an if/else that assigns or returns a value |
+| **Convert To Guard Expression** | Select an if-let statement |
+| **Convert To IfLet Expression** | Select a guard-let statement |
+| **Convert To Switch Statement** | Select an if/else-if chain comparing the same value |
+| **Migrate to shorthand 'if let' syntax** | Cursor on `if let x = x` |
+
+### Macros
+
+| Action | Trigger |
+|--------|---------|
+| **Expand Macro** | Cursor on a macro invocation |
+| **Inline Macro** | Cursor on a freestanding macro expansion |
 
 ### Functions and Closures
 
 | Action | Trigger |
 |--------|---------|
-| **Extract Method** | Select one or more statements |
+| **Extract Method** | Select an expression or one or more statements |
 | **Extract Expression** | Select a single expression |
-| **Extract Repeated Expression** | Select an expression that appears multiple times |
+| **Extract Repeated Expression** | Select a single expression |
 | **Convert To Trailing Closure** | Cursor inside a function call where the last argument is a non-trailing closure |
 | **Convert to computed property** | Cursor on a zero-parameter function declaration |
 | **Convert to zero parameter function** | Cursor on a read-only computed property |
@@ -42,60 +65,21 @@ The specific refactorings available depend on what code is selected or where the
 | Action | Trigger |
 |--------|---------|
 | **Convert Call to Async Alternative** | Cursor on a call to a function with a completion handler |
-| **Convert Function to Async** | Cursor on a function declaration with a completion handler parameter |
-| **Add Async Alternative** | Cursor on a function declaration with a completion handler parameter |
-| **Add Async Wrapper** | Cursor on a function declaration with a completion handler parameter |
-
-### Control Flow
-
-| Action | Trigger |
-|--------|---------|
-| **Expand Default** | Cursor on a `default:` case in a switch over an enum |
-| **Expand Switch Cases** | Cursor on the `switch` keyword when switching over an enum with unhandled cases |
-| **Collapse Nested If Statements** | Cursor on an if statement that contains only another if statement |
-| **Convert To Do/Catch** | Cursor on a `try?` or `try!` expression |
-| **Expand Ternary Expression** | Select a ternary conditional expression (`a ? b : c`) |
-| **Convert To Ternary Expression** | Select an if/else that assigns or returns a value |
-| **Convert To Guard Expression** | Select an if-let binding |
-| **Convert To IfLet Expression** | Select a guard-let statement |
-| **Convert To Switch Statement** | Select an if/else-if chain comparing the same value |
-| **Migrate to shorthand 'if let' syntax** | Cursor on `if let x = x` (converts to `if let x`) |
+| **Convert Function to Async** | Cursor on base name of a function not marked as `async` |
+| **Add Async Alternative** | Cursor on base name of a function with an escaping completion handler parameter |
+| **Add Async Wrapper** | Cursor on base name of a function with an escaping completion handler parameter |
 
 ### Types and Protocols
 
 | Action | Trigger |
 |--------|---------|
 | **Add Missing Protocol Requirements** | Cursor on a type name that has unsatisfied protocol requirements |
-| **Generate Memberwise Initializer** | Cursor on a struct or class name that has stored properties |
-| **Add Equatable Conformance** | Cursor on a struct or class declaration |
-| **Add Explicit Codable Implementation** | Cursor on a type with `Codable` conformance |
-| **Move To Extension** | Select one or more member declarations inside a type |
-| **Convert To Computed Property** | Select a stored property with an initializer |
-| **Expand 'some' parameters to generic parameters** | Cursor on a function using `some` opaque parameter types |
-
-### Macros
-
-| Action | Trigger |
-|--------|---------|
-| **Expand Macro** | Cursor on a macro invocation |
-| **Inline Macro** | Cursor on a freestanding macro expansion |
-
-### String Concatenation
-
-| Action | Trigger |
-|--------|---------|
-| **Convert to String Interpolation** | Select a string concatenation expression (`"a" + b + "c"`) |
-
-### Package.swift Manifest Editing
-
-| Action | Trigger |
-|--------|---------|
-| **Add library target** | Cursor anywhere in Package.swift |
-| **Add executable target** | Cursor anywhere in Package.swift |
-| **Add macro target** | Cursor anywhere in Package.swift |
-| **Add test target (Swift Testing)** | Cursor on a `.target()`, `.executableTarget()`, or `.macro()` call |
-| **Add test target (XCTest)** | Cursor on a `.target()`, `.executableTarget()`, or `.macro()` call |
-| **Add product to export this target** | Cursor on a `.target()` or `.executableTarget()` call |
+| **Generate Memberwise Initializer** | Cursor on a type name that has stored properties |
+| **Add Equatable Conformance** | Cursor on a type name that has stored properties and does not conform to `Equatable` |
+| **Add Explicit Codable Implementation** | Cursor on a type name with `Codable` conformance |
+| **Move To Extension** | Select one or more member declarations inside a type which aren't stored properties |
+| **Convert To Computed Property** | Select a variable declaration with an initializer |
+| **Expand 'some' parameters to generic parameters** | Cursor on a function declaration using `some` opaque parameter types |
 
 ### Source Organization
 
@@ -103,12 +87,20 @@ The specific refactorings available depend on what code is selected or where the
 |--------|---------|
 | **Remove Unused Imports** | Cursor on an import declaration (only available when file has no errors) |
 
+### Package.swift Manifest Editing
+
+| Action | Trigger |
+|--------|---------|
+| **Add library target** | Cursor anywhere in the call to the `Package` initializer |
+| **Add executable target** | Cursor anywhere in the call to the `Package` initializer |
+| **Add macro target** | Cursor anywhere in the call to the `Package` initializer |
+| **Add test target (Swift Testing)** | Cursor on a `.target()`, `.executableTarget()`, or `.macro()` call |
+| **Add test target (XCTest)** | Cursor on a `.target()`, `.executableTarget()`, or `.macro()` call |
+| **Add product to export this target** | Cursor on a `.target()` or `.executableTarget()` call |
+
 ## Quick Fixes
 
-Beyond refactorings, SourceKit-LSP also provides quick fixes for diagnostics:
-
-- **Fix-Its from the compiler**: Automatic corrections for compile errors and warnings
-- **Fix-Its from SwiftSyntax**: Syntax-level corrections for parsing issues
+Beyond refactorings, SourceKit-LSP also provides quick fixes for diagnostics.
 
 Quick fixes appear alongside refactorings in the code actions menu but have the `quickfix` kind rather than `refactor`.
 
