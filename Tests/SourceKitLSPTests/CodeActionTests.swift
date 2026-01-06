@@ -1225,6 +1225,60 @@ final class CodeActionTests: SourceKitLSPTestCase {
     XCTAssertTrue(codeActions.contains(expectedCodeAction))
   }
 
+  func testConvertFunctionToComputedPropertyPreservesDocComment() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      struct Foo {0️⃣
+        /// documentation
+        1️⃣func test() -> Int2️⃣ {
+          0
+        }3️⃣
+      }
+      """,
+      uri: uri
+    )
+
+    let request = CodeActionRequest(
+      range: positions["1️⃣"]..<positions["2️⃣"],
+      context: .init(),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let result = try await testClient.send(request)
+
+    guard case .codeActions(let codeActions) = result else {
+      XCTFail("Expected code actions")
+      return
+    }
+
+    let expectedCodeAction = CodeAction(
+      title: "Convert to computed property",
+      kind: .refactorInline,
+      diagnostics: nil,
+      edit: WorkspaceEdit(
+        changes: [
+          uri: [
+            TextEdit(
+              range: positions["0️⃣"]..<positions["3️⃣"],
+              newText: """
+
+                  /// documentation
+                  var test: Int {
+                    0
+                  }
+                """
+            )
+          ]
+        ]
+      ),
+      command: nil
+    )
+
+    XCTAssertTrue(codeActions.contains(expectedCodeAction))
+  }
+
   func testConvertZeroParameterFunctionToComputedPropertyIsNotShownFromTheBody() async throws {
     try await assertCodeActions(
       ##"""
