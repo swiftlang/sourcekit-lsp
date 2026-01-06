@@ -101,13 +101,6 @@ package struct ConvertJSONToCodableStruct: EditRefactoringProvider {
     // Render the top-level object as a struct.
     // Infer indentation from the entire file to match the source file's style.
     let indentation = BasicFormat.inferIndentation(of: Syntax(syntax.root))
-    let format = BasicFormat(indentationWidth: indentation)
-    let decls = topLevelObject.asDeclSyntax(name: "JSONValue")
-      .formatted(using: format)
-
-    // Apply base indentation to the generated struct.
-    // The first line inherits the existing indentation from the source file.
-    // Subsequent lines need to be explicitly indented.
     let jsonNode: Syntax
     switch preflight {
     case .closure(let closure): jsonNode = Syntax(closure)
@@ -115,13 +108,11 @@ package struct ConvertJSONToCodableStruct: EditRefactoringProvider {
     case .stringLiteral(let literal, _): jsonNode = Syntax(literal)
     }
     let baseIndentation = getBaseIndentation(from: jsonNode)
-    let indentedDecls = decls.description.split(separator: "\n", omittingEmptySubsequences: false)
-      .enumerated()
-      .map { (index, line) in
-        if index == 0 { return String(line) }
-        return baseIndentation.description + line
-      }
-      .joined(separator: "\n")
+
+    let format = BasicFormat(indentationWidth: indentation, initialIndentation: baseIndentation)
+    let indentedDecls = topLevelObject.asDeclSyntax(name: "JSONValue")
+      .formatted(using: format)
+      .description
 
     // Render the change into a set of source edits.
     switch preflight {
