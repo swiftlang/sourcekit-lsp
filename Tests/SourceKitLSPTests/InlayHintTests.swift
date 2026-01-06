@@ -59,6 +59,23 @@ final class InlayHintTests: SourceKitLSPTestCase {
     )
   }
 
+  /// compares hints ignoring the data field (which contains implementation-specific resolve data)
+  private func assertHintsEqual(
+    _ actual: [InlayHint],
+    _ expected: [InlayHint],
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) {
+    XCTAssertEqual(actual.count, expected.count, "Hint count mismatch", file: file, line: line)
+    for (actualHint, expectedHint) in zip(actual, expected) {
+      XCTAssertEqual(actualHint.position, expectedHint.position, file: file, line: line)
+      XCTAssertEqual(actualHint.label, expectedHint.label, file: file, line: line)
+      XCTAssertEqual(actualHint.kind, expectedHint.kind, file: file, line: line)
+      XCTAssertEqual(actualHint.textEdits, expectedHint.textEdits, file: file, line: line)
+      XCTAssertEqual(actualHint.tooltip, expectedHint.tooltip, file: file, line: line)
+    }
+  }
+
   // MARK: - Tests
 
   func testEmpty() async throws {
@@ -73,7 +90,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
         var y2️⃣ = "test" + "123"
         """
     )
-    XCTAssertEqual(
+    assertHintsEqual(
       hints,
       [
         makeInlayHint(
@@ -106,7 +123,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
         """,
       range: ("1️⃣", "4️⃣")
     )
-    XCTAssertEqual(
+    assertHintsEqual(
       hints,
       [
         makeInlayHint(
@@ -141,7 +158,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
         }
         """
     )
-    XCTAssertEqual(
+    assertHintsEqual(
       hints,
       [
         makeInlayHint(
@@ -198,7 +215,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
         }
         """
     )
-    XCTAssertEqual(
+    assertHintsEqual(
       hints,
       [
         makeInlayHint(
@@ -266,5 +283,37 @@ final class InlayHintTests: SourceKitLSPTestCase {
         """
     )
     XCTAssertEqual(hints, [])
+  }
+
+  func testInlayHintResolve() async throws {
+    // test that resolving an inlay hint returns label parts with type location
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct MyType {}
+      let x1️⃣ = MyType()
+      """
+    )
+
+    // get inlay hints
+    let request = InlayHintRequest(textDocument: TextDocumentIdentifier(project.fileURI), range: nil)
+    let hints = try await project.testClient.send(request)
+
+    // find thee type hint for x
+    guard let typeHint = hints.first(where: { $0.kind == .type }) else {
+      XCTFail("Expected type hint")
+      return
+    }
+
+    XCTAssertNotNil(typeHint.data, "Expected type hint to have data for resolution")
+
+    // resolve the hint to get type location
+    let resolvedHint = try await project.testClient.send(InlayHintResolveRequest(inlayHint: typeHint))
+
+    if case .parts(let parts) = resolvedHint.label {
+      XCTAssertEqual(parts.count, 1)
+      XCTAssertNotNil(parts.first?.location, "Expected label part to have location for go-to-definition")
+    } else if case .string = resolvedHint.label {
+     
+    }
   }
 }

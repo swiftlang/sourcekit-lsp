@@ -11,9 +11,18 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(SourceKitLSP) package import LanguageServerProtocol
+import Foundation
 import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
+
+
+package struct InlayHintResolveData: Codable {
+  /// the document uri containing the variable
+  package let uri: DocumentURI
+  
+  package let position: Position
+}
 
 private class IfConfigCollector: SyntaxVisitor {
   private var ifConfigDecls: [IfConfigDeclSyntax] = []
@@ -40,6 +49,7 @@ extension SwiftLanguageService {
       .filter { !$0.hasExplicitType }
       .map { info -> InlayHint in
         let position = info.range.upperBound
+        let variableStart = info.range.lowerBound
         let label = ": \(info.printedType)"
         let textEdits: [TextEdit]?
         if info.canBeFollowedByTypeAnnotation {
@@ -47,11 +57,20 @@ extension SwiftLanguageService {
         } else {
           textEdits = nil
         }
+        // store resolve data so we can look up type definition later
+        let data: LSPAny = .dictionary([
+          "uri": .string(uri.stringValue),
+          "position": .dictionary([
+            "line": .int(variableStart.line),
+            "character": .int(variableStart.utf16index)
+          ])
+        ])
         return InlayHint(
           position: position,
           label: .string(label),
           kind: .type,
-          textEdits: textEdits
+          textEdits: textEdits,
+          data: data
         )
       }
 
