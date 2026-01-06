@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitLSP
 import SwiftRefactor
@@ -117,10 +118,21 @@ extension ConvertZeroParameterFunctionToComputedProperty: SyntaxRefactoringCodeA
   package static var title: String { "Convert to computed property" }
 
   static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
-    return scope.innermostNodeContainingRange?.findParentOfSelf(
-      ofType: FunctionDeclSyntax.self,
-      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
-    )
+    guard
+      let functionDecl = scope.innermostNodeContainingRange?.findParentOfSelf(
+        ofType: FunctionDeclSyntax.self,
+        stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+      )
+    else {
+      return nil
+    }
+
+    // Only offer the conversion if the function has a return type and it's not Void
+    guard !isVoidReturnType(functionDecl.signature.returnClause?.type) else {
+      return nil
+    }
+
+    return functionDecl
   }
 }
 
@@ -177,4 +189,19 @@ extension [SourceEdit] {
       changes: [snapshot.uri: textEdits]
     )
   }
+}
+
+// MARK: - Helper Functions
+
+/// Checks if a return type is effectively Void (no return type, explicit Void, or empty tuple)
+private func isVoidReturnType(_ returnType: TypeSyntax?) -> Bool {
+  guard let returnType else {
+    return true  // No explicit return type is implicitly Void
+  }
+
+  // Remove all whitespace to normalize the type description
+  let typeDescription = returnType.description.filter { !$0.isWhitespace }
+
+  // Check for explicit Void or empty tuple ()
+  return typeDescription == "Void" || typeDescription == "()"
 }

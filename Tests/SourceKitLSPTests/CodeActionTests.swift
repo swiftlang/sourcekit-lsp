@@ -1238,6 +1238,96 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testConvertZeroParameterFunctionToComputedPropertyNotOfferedForImplicitVoid() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      1️⃣func test()2️⃣ { }3️⃣
+      """,
+      uri: uri
+    )
+
+    let request = CodeActionRequest(
+      range: positions["1️⃣"]..<positions["2️⃣"],
+      context: .init(),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let result = try await testClient.send(request)
+
+    guard case .codeActions(let codeActions) = result else {
+      XCTFail("Expected code actions")
+      return
+    }
+
+    let convertToComputedPropertyAction = codeActions.first { $0.title == "Convert to computed property" }
+    XCTAssertNil(
+      convertToComputedPropertyAction,
+      "Convert to computed property should not be offered for implicit Void"
+    )
+  }
+
+  func testConvertZeroParameterFunctionToComputedPropertyNotOfferedForExplicitVoid() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      1️⃣func test() -> Void2️⃣ { }3️⃣
+      """,
+      uri: uri
+    )
+
+    let request = CodeActionRequest(
+      range: positions["1️⃣"]..<positions["2️⃣"],
+      context: .init(),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let result = try await testClient.send(request)
+
+    guard case .codeActions(let codeActions) = result else {
+      XCTFail("Expected code actions")
+      return
+    }
+
+    let convertToComputedPropertyAction = codeActions.first { $0.title == "Convert to computed property" }
+    XCTAssertNil(
+      convertToComputedPropertyAction,
+      "Convert to computed property should not be offered for explicit Void"
+    )
+  }
+
+  func testConvertZeroParameterFunctionToComputedPropertyNotOfferedForEmptyTuple() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      1️⃣func test() -> ()2️⃣ { }3️⃣
+      """,
+      uri: uri
+    )
+
+    let request = CodeActionRequest(
+      range: positions["1️⃣"]..<positions["2️⃣"],
+      context: .init(),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let result = try await testClient.send(request)
+
+    guard case .codeActions(let codeActions) = result else {
+      XCTFail("Expected code actions")
+      return
+    }
+
+    let convertToComputedPropertyAction = codeActions.first { $0.title == "Convert to computed property" }
+    XCTAssertNil(
+      convertToComputedPropertyAction,
+      "Convert to computed property should not be offered for empty tuple return"
+    )
+  }
+
   func testConvertComputedPropertyToZeroParameterFunction() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI(for: .swift)
