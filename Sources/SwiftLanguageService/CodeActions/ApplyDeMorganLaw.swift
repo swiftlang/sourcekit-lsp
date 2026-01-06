@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2025 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -37,7 +37,7 @@ struct ApplyDeMorganLaw: SyntaxCodeActionProvider {
 
       let complementText = complement.description
       return CodeAction(
-        title: "Apply De Morgan’s law, converting '\(candidate.expr)' to '\(complementText)'",
+        title: "Apply De Morgan's law, converting '\(candidate.expr)' to '\(complementText)'",
         kind: .refactorInline,
         edit: WorkspaceEdit(
           changes: [

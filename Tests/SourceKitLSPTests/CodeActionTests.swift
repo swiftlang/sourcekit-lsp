@@ -1071,7 +1071,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
     ) { uri, positions in
       [
         CodeAction(
-          title: "Apply De Morgan’s law, converting '!(a && b)' to '(!a || !b)'",
+          title: "Apply De Morgan's law, converting '!(a && b)' to '(!a || !b)'",
           kind: .refactorInline,
           edit: WorkspaceEdit(
             changes: [
@@ -1260,22 +1260,20 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testApplyDeMorganLawNestedActionAvailability() async throws {
     try await assertCodeActions(
       """
-      let x = !(!(1️⃣a && b) || c)
+      let x = 2️⃣!3️⃣(4️⃣!(1️⃣a && b) 5️⃣|| c6️⃣)7️⃣
       """,
-      ranges: [
-        ("1️⃣", "1️⃣")
-      ],
+      markers: ["1️⃣"],
       exhaustive: false
     ) { uri, positions in
       [
         CodeAction(
-          title: "Apply De Morgan’s law, converting '!(a && b) ' to '(!a || !b) '",
+          title: "Apply De Morgan's law, converting '!(a && b) ' to '(!a || !b) '",
           kind: .refactorInline,
           edit: WorkspaceEdit(
             changes: [
               uri: [
                 TextEdit(
-                  range: Position(line: 0, utf16index: 10)..<Position(line: 0, utf16index: 20),
+                  range: positions["4️⃣"]..<positions["5️⃣"],
                   newText: "(!a || !b) "
                 )
               ]
@@ -1283,13 +1281,13 @@ final class CodeActionTests: SourceKitLSPTestCase {
           )
         ),
         CodeAction(
-          title: "Apply De Morgan’s law, converting '!(a && b) || c' to '!((a && b) && !c)'",
+          title: "Apply De Morgan's law, converting '!(a && b) || c' to '!((a && b) && !c)'",
           kind: .refactorInline,
           edit: WorkspaceEdit(
             changes: [
               uri: [
                 TextEdit(
-                  range: Position(line: 0, utf16index: 10)..<Position(line: 0, utf16index: 24),
+                  range: positions["4️⃣"]..<positions["6️⃣"],
                   newText: "!((a && b) && !c)"
                 )
               ]
@@ -1297,13 +1295,13 @@ final class CodeActionTests: SourceKitLSPTestCase {
           )
         ),
         CodeAction(
-          title: "Apply De Morgan’s law, converting '(!(a && b) || c)' to '!((a && b) && !c)'",
+          title: "Apply De Morgan's law, converting '(!(a && b) || c)' to '!((a && b) && !c)'",
           kind: .refactorInline,
           edit: WorkspaceEdit(
             changes: [
               uri: [
                 TextEdit(
-                  range: Position(line: 0, utf16index: 9)..<Position(line: 0, utf16index: 25),
+                  range: positions["3️⃣"]..<positions["7️⃣"],
                   newText: "!((a && b) && !c)"
                 )
               ]
@@ -1311,13 +1309,13 @@ final class CodeActionTests: SourceKitLSPTestCase {
           )
         ),
         CodeAction(
-          title: "Apply De Morgan’s law, converting '!(!(a && b) || c)' to '((a && b) && !c)'",
+          title: "Apply De Morgan's law, converting '!(!(a && b) || c)' to '((a && b) && !c)'",
           kind: .refactorInline,
           edit: WorkspaceEdit(
             changes: [
               uri: [
                 TextEdit(
-                  range: Position(line: 0, utf16index: 8)..<Position(line: 0, utf16index: 25),
+                  range: positions["2️⃣"]..<positions["7️⃣"],
                   newText: "((a && b) && !c)"
                 )
               ]
