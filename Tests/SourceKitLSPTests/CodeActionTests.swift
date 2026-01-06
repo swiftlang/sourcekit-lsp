@@ -1295,6 +1295,44 @@ final class CodeActionTests: SourceKitLSPTestCase {
       []
     }
   }
+  /// Test Create Codable structs JSON base indentation
+  func testJSONCodableCodeActionResultIndentation() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func test() {
+          1️⃣{
+              "a": 1
+          }
+      }
+      """,
+      uri: uri
+    )
+
+    let testPosition = positions["1️⃣"]
+    let request = CodeActionRequest(
+      range: Range(testPosition),
+      context: .init(),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let result = try await testClient.send(request)
+
+    let codableAction = result?.codeActions?.first { action in
+      return action.title == "Create Codable structs from JSON"
+    }
+
+    guard let codableAction = codableAction, let changes = codableAction.edit?.changes?[uri] else {
+      XCTFail("Could not find 'Create Codable structs from JSON' action or its edits")
+      return
+    }
+
+    let replacement = changes.first?.newText
+    XCTAssertTrue(
+      replacement?.contains("    var a: Double") ?? false,
+      "Expected 4 spaces indentation, got: \(replacement ?? "nil")"
+    )
+  }
 
   /// Retrieves the code action at a set of markers and asserts that it matches a list of expected code actions.
   ///
