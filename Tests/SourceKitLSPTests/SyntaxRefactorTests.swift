@@ -88,19 +88,19 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
           range: AbsolutePosition(utf8Offset: 0)..<AbsolutePosition(utf8Offset: 267),
           replacement: """
             struct JSONValue: Codable {
-              var name: String
-              var shelves: [Shelves]
-
-              struct Shelves: Codable {
                 var name: String
-                var product: Product
+                var shelves: [Shelves]
 
-                struct Product: Codable {
-                  var description: String
-                  var name: String
-                  var points: Double
+                struct Shelves: Codable {
+                    var name: String
+                    var product: Product
+
+                    struct Product: Codable {
+                        var description: String
+                        var name: String
+                        var points: Double
+                    }
                 }
-              }
             }
             """
         )
@@ -135,19 +135,19 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
           replacement: """
 
             struct JSONValue: Codable {
-              var name: String
-              var shelves: [Shelves]
-
-              struct Shelves: Codable {
                 var name: String
-                var product: Product
+                var shelves: [Shelves]
 
-                struct Product: Codable {
-                  var description: String
-                  var name: String
-                  var points: Double
+                struct Shelves: Codable {
+                    var name: String
+                    var product: Product
+
+                    struct Product: Codable {
+                        var description: String
+                        var name: String
+                        var points: Double
+                    }
                 }
-              }
             }
             """
         )
