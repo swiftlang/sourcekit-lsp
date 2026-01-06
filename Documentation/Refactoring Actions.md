@@ -13,89 +13,95 @@ The specific refactorings available depend on what code is selected or where the
 
 ## Available Refactorings
 
-SourceKit-LSP provides refactoring actions from multiple sources:
+### Strings and Literals
 
-### Semantic Refactorings (via sourcekitd)
+| Action | Trigger |
+|--------|---------|
+| **Localize String** | Cursor on a string literal |
+| **Simplify Long Number Literal** | Cursor on a long number literal (e.g. `1_000_000`) |
+| **Add digit separators** | Cursor on an integer literal without separators |
+| **Remove digit separators** | Cursor on an integer literal with separators |
+| **Convert integer literal** | Cursor on an integer literal (converts between decimal, hex, octal, binary) |
+| **Convert string literal to minimal number of '#'s** | Cursor on a raw string literal with unnecessary `#` delimiters |
+| **Create Codable structs from JSON** | Cursor inside JSON content in a Swift file |
 
-These refactorings require full semantic analysis of the code and are provided by the Swift compiler's sourcekitd.
+### Functions and Closures
 
-#### Cursor-Based Refactorings
+| Action | Trigger |
+|--------|---------|
+| **Extract Method** | Select one or more statements |
+| **Extract Expression** | Select a single expression |
+| **Extract Repeated Expression** | Select an expression that appears multiple times |
+| **Convert To Trailing Closure** | Cursor inside a function call where the last argument is a non-trailing closure |
+| **Convert to computed property** | Cursor on a zero-parameter function declaration |
+| **Convert to zero parameter function** | Cursor on a read-only computed property |
+| **Add documentation** | Cursor on a function, type, property, or macro declaration |
 
-These are triggered when the cursor is on a specific location:
+### Async/Await
 
-| Action | Description |
-|--------|-------------|
-| **Add Missing Protocol Requirements** | Adds stubs for unimplemented protocol requirements |
-| **Expand Default** | Expands a `default` case in a switch statement |
-| **Expand Switch Cases** | Expands a switch to include all enum cases |
-| **Localize String** | Wraps a string literal with `NSLocalizedString` |
-| **Simplify Long Number Literal** | Simplifies a long number literal |
-| **Collapse Nested If Statements** | Combines nested if statements into one |
-| **Convert To Do/Catch** | Converts a throwing expression to do/catch |
-| **Convert To Trailing Closure** | Converts a closure argument to trailing closure syntax |
-| **Generate Memberwise Initializer** | Creates an initializer with all stored properties |
-| **Add Equatable Conformance** | Generates `Equatable` conformance |
-| **Add Explicit Codable Implementation** | Generates explicit `Codable` encode/decode methods |
-| **Convert Call to Async Alternative** | Converts a completion handler call to async/await |
-| **Convert Function to Async** | Converts a function with completion handler to async |
-| **Add Async Alternative** | Adds an async version of a completion handler function |
-| **Add Async Wrapper** | Adds an async wrapper around a completion handler function |
-| **Expand Macro** | Shows the expanded form of a macro |
-| **Inline Macro** | Inlines the expansion of a freestanding macro |
+| Action | Trigger |
+|--------|---------|
+| **Convert Call to Async Alternative** | Cursor on a call to a function with a completion handler |
+| **Convert Function to Async** | Cursor on a function declaration with a completion handler parameter |
+| **Add Async Alternative** | Cursor on a function declaration with a completion handler parameter |
+| **Add Async Wrapper** | Cursor on a function declaration with a completion handler parameter |
 
-#### Range-Based Refactorings
+### Control Flow
 
-These are triggered when you select a range of code:
+| Action | Trigger |
+|--------|---------|
+| **Expand Default** | Cursor on a `default:` case in a switch over an enum |
+| **Expand Switch Cases** | Cursor on the `switch` keyword when switching over an enum with unhandled cases |
+| **Collapse Nested If Statements** | Cursor on an if statement that contains only another if statement |
+| **Convert To Do/Catch** | Cursor on a `try?` or `try!` expression |
+| **Expand Ternary Expression** | Select a ternary conditional expression (`a ? b : c`) |
+| **Convert To Ternary Expression** | Select an if/else that assigns or returns a value |
+| **Convert To Guard Expression** | Select an if-let binding |
+| **Convert To IfLet Expression** | Select a guard-let statement |
+| **Convert To Switch Statement** | Select an if/else-if chain comparing the same value |
+| **Migrate to shorthand 'if let' syntax** | Cursor on `if let x = x` (converts to `if let x`) |
 
-| Action | Description |
-|--------|-------------|
-| **Extract Expression** | Extracts an expression into a local variable |
-| **Extract Method** | Extracts selected statements into a new function |
-| **Extract Repeated Expression** | Extracts a repeated expression into a variable |
-| **Move To Extension** | Moves selected members to an extension |
-| **Convert to String Interpolation** | Converts string concatenation to interpolation |
-| **Expand Ternary Expression** | Expands a ternary `?:` to an if/else statement |
-| **Convert To Ternary Expression** | Converts an if/else to a ternary expression |
-| **Convert To Guard Expression** | Converts an if-let to a guard-let |
-| **Convert To IfLet Expression** | Converts a guard-let to an if-let |
-| **Convert To Computed Property** | Converts a stored property to a computed property |
-| **Convert To Switch Statement** | Converts if/else chains to a switch statement |
+### Types and Protocols
 
-### Syntactic Refactorings (via SwiftSyntax)
+| Action | Trigger |
+|--------|---------|
+| **Add Missing Protocol Requirements** | Cursor on a type name that has unsatisfied protocol requirements |
+| **Generate Memberwise Initializer** | Cursor on a struct or class name that has stored properties |
+| **Add Equatable Conformance** | Cursor on a struct or class declaration |
+| **Add Explicit Codable Implementation** | Cursor on a type with `Codable` conformance |
+| **Move To Extension** | Select one or more member declarations inside a type |
+| **Convert To Computed Property** | Select a stored property with an initializer |
+| **Expand 'some' parameters to generic parameters** | Cursor on a function using `some` opaque parameter types |
 
-These work purely on syntax and don't require compilation:
+### Macros
 
-| Action | Description | Trigger |
-|--------|-------------|---------|
-| **Add digit separators** | Converts `1000000` to `1_000_000` | Cursor on an integer literal |
-| **Remove digit separators** | Converts `1_000_000` to `1000000` | Cursor on an integer literal with separators |
-| **Convert integer literal** | Converts between decimal, hex, octal, binary | Cursor on an integer literal |
-| **Convert to minimal # count** | Simplifies raw string delimiters like `#"..."#` | Cursor on a raw string literal |
-| **Migrate to shorthand 'if let'** | Converts `if let x = x` to `if let x` | Cursor on an if-let statement |
-| **Expand 'some' parameters** | Converts opaque types to generics | Cursor on a function with `some` parameters |
-| **Convert to computed property** | Changes zero-parameter function to computed property | Cursor on a function with no parameters |
-| **Convert to function** | Changes computed property to zero-parameter function | Cursor on a computed property |
-| **Add documentation** | Generates a doc comment stub | Cursor on a declaration |
-| **Create Codable structs from JSON** | Generates Swift structs from JSON data | Cursor on JSON content in a Swift file |
-| **Convert String Concatenation to Interpolation** | Converts `"a" + b + "c"` to `"a\(b)c"` | Cursor on a string concatenation |
+| Action | Trigger |
+|--------|---------|
+| **Expand Macro** | Cursor on a macro invocation |
+| **Inline Macro** | Cursor on a freestanding macro expansion |
+
+### String Concatenation
+
+| Action | Trigger |
+|--------|---------|
+| **Convert to String Interpolation** | Select a string concatenation expression (`"a" + b + "c"`) |
 
 ### Package.swift Manifest Editing
 
-When editing a `Package.swift` file, additional refactorings are available:
-
-| Action | Description | Trigger |
-|--------|-------------|---------|
-| **Add library target** | Adds a new library target to the package | Cursor on a `.target()` declaration |
-| **Add test target (Swift Testing)** | Adds a test target using Swift Testing | Cursor on a `.target()` declaration |
-| **Add product to export this target** | Creates a product entry for the target | Cursor on a `.target()` declaration |
+| Action | Trigger |
+|--------|---------|
+| **Add library target** | Cursor anywhere in Package.swift |
+| **Add executable target** | Cursor anywhere in Package.swift |
+| **Add macro target** | Cursor anywhere in Package.swift |
+| **Add test target (Swift Testing)** | Cursor on a `.target()`, `.executableTarget()`, or `.macro()` call |
+| **Add test target (XCTest)** | Cursor on a `.target()`, `.executableTarget()`, or `.macro()` call |
+| **Add product to export this target** | Cursor on a `.target()` or `.executableTarget()` call |
 
 ### Source Organization
 
-| Action | Description | Trigger |
-|--------|-------------|---------|
-| **Remove Unused Imports** | Removes import statements that aren't needed | Cursor on an import declaration |
-
-> **Note**: Remove Unused Imports works by iteratively removing imports and checking if the file still compiles. It's only offered when the file has no existing errors.
+| Action | Trigger |
+|--------|---------|
+| **Remove Unused Imports** | Cursor on an import declaration (only available when file has no errors) |
 
 ## Quick Fixes
 
@@ -108,7 +114,7 @@ Quick fixes appear alongside refactorings in the code actions menu but have the 
 
 ## Editor Support
 
-Most LSP-compatible editors filter code actions by kind. Make sure your editor requests both `refactor` and `quickfix` kinds to see all available actions. You can verify this in your editor's LSP client configuration.
+Most LSP-compatible editors filter code actions by kind. Make sure your editor requests both `refactor` and `quickfix` kinds to see all available actions.
 
 ### Checking Available Actions
 
