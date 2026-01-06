@@ -202,27 +202,77 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
           range: AbsolutePosition(utf8Offset: 0)..<AbsolutePosition(utf8Offset: 931),
           replacement: """
             struct JSONValue: Codable {
-              var name: String
-              var shelves: [Shelves]
-
-              struct Shelves: Codable {
                 var name: String
-                var product: Product
+                var shelves: [Shelves]
 
-                struct Product: Codable {
-                  var categories: [String]
-                  var delicious: String
-                  var description: String?
-                  var healthy: Bool
-                  var name: String
-                  var points: Double
+                struct Shelves: Codable {
+                    var name: String
+                    var product: Product
+
+                    struct Product: Codable {
+                        var categories: [String]
+                        var delicious: String
+                        var description: String?
+                        var healthy: Bool
+                        var name: String
+                        var points: Double
+                    }
                 }
-              }
             }
             """
         )
       ]
     )
+  }
+
+  func testConvertJSONToCodableStructIndentation() throws {
+    try assertRefactor(
+      """
+      func test() {
+          1️⃣{
+              "a": 1
+          }
+      }
+      """,
+      context: (),
+      provider: ConvertJSONToCodableStruct.self,
+      expected: [
+        SourceEdit(
+          range: AbsolutePosition(utf8Offset: 18)..<AbsolutePosition(utf8Offset: 40),
+          replacement: """
+            struct JSONValue: Codable {
+                    var a: Double
+                }
+            """
+        )
+      ]
+    )
+    func testJSONIndentedWith4SpacesButFileWith2Spaces() throws {
+      try assertRefactor(
+        """
+        func test() {
+          if true {
+            1️⃣{
+                   "a": 1
+               }
+          }
+        }
+        """,
+        context: (),
+        provider: ConvertJSONToCodableStruct.self,
+        expected: [
+          SourceEdit(
+            range: AbsolutePosition(utf8Offset: 30)..<AbsolutePosition(utf8Offset: 52),
+            replacement: """
+              struct JSONValue: Codable {
+                var a: Double
+              }
+              """
+          )
+        ]
+      )
+    }
+
   }
 
 }

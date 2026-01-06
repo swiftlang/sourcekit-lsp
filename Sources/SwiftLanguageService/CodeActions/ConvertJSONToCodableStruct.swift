@@ -110,9 +110,10 @@ package struct ConvertJSONToCodableStruct: EditRefactoringProvider {
     let baseIndentation = getBaseIndentation(from: jsonNode)
 
     let format = BasicFormat(indentationWidth: indentation, initialIndentation: baseIndentation)
-    let indentedDecls = topLevelObject.asDeclSyntax(name: "JSONValue")
+    var formattedDecls = topLevelObject.asDeclSyntax(name: "JSONValue")
       .formatted(using: format)
-      .description
+    formattedDecls.leadingTrivia = []
+    let indentedDecls = formattedDecls.description
 
     // Render the change into a set of source edits.
     switch preflight {
