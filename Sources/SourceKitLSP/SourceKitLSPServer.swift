@@ -1544,12 +1544,12 @@ extension SourceKitLSPServer {
       }
     }
 
-    // Find and remove orphaned language services
+    // Find and remove orphaned language services, skipping immortal ones
     var orphanedServices: [any LanguageService] = []
     for (serviceType, services) in languageServices {
       var remainingServices: [any LanguageService] = []
       for service in services {
-        if referencedServices.contains(ObjectIdentifier(service)) {
+        if referencedServices.contains(ObjectIdentifier(service)) || type(of: service).isImmortal {
           remainingServices.append(service)
         } else {
           orphanedServices.append(service)

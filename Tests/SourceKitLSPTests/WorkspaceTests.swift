@@ -1425,8 +1425,8 @@ final class WorkspaceTests: SourceKitLSPTestCase {
       DocumentSymbolRequest(textDocument: TextDocumentIdentifier(mainUri))
     )
 
-    // get the language service for WorkspaceB before closing
-    let clangdServerBeforeClose = try await project.testClient.server.primaryLanguageService(
+    // Get the language service for WorkspaceB before closing
+    let clangLanguageServiceBeforeClose = try await project.testClient.server.primaryLanguageService(
       for: mainUri,
       .c,
       in: unwrap(project.testClient.server.workspaceForDocument(uri: mainUri))
@@ -1459,18 +1459,19 @@ final class WorkspaceTests: SourceKitLSPTestCase {
       DocumentSymbolRequest(textDocument: TextDocumentIdentifier(dummyUri))
     )
 
-    let clangdServerForWorkspaceA = try await project.testClient.server.primaryLanguageService(
+    let clangLanguageServiceForWorkspaceA = try await project.testClient.server.primaryLanguageService(
       for: dummyUri,
       .c,
       in: unwrap(project.testClient.server.workspaceForDocument(uri: dummyUri))
     )
 
-
-    XCTAssertFalse(clangdServerBeforeClose === clangdServerForWorkspaceA, "WorkspaceB's clangd should have been shut down and a new one created for WorkspaceA")
+    XCTAssertFalse(
+      clangLanguageServiceBeforeClose === clangLanguageServiceForWorkspaceA,
+      "WorkspaceB's ClangLanguageService should have been shut down and a new one created for WorkspaceA"
+    )
   }
 
-  func testOrphanedSwiftLanguageServiceShutdownAndRelaunch() async throws {
-  
+  func testOrphanedSwiftLanguageServiceIsImmortal() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()
 
     let project = try await MultiFileTestProject(
@@ -1491,7 +1492,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
         """,
         "WorkspaceB/Sources/LibB/LibB.swift": """
         public struct LibB {
-          public func bar() {}
+          public func 2️⃣bar() {}
           public init() {}
         }
         """,
@@ -1512,19 +1513,24 @@ final class WorkspaceTests: SourceKitLSPTestCase {
       }
     )
 
+    let (libBUri, libBPositions) = try project.openDocument("LibB.swift")
 
-    let (libBUri, _) = try project.openDocument("LibB.swift")
-
-  
     let initialHover = try await project.testClient.send(
-      HoverRequest(textDocument: TextDocumentIdentifier(libBUri), position: Position(line: 1, utf16index: 14))
+      HoverRequest(textDocument: TextDocumentIdentifier(libBUri), position: libBPositions["2️⃣"])
     )
     XCTAssertNotNil(initialHover, "Should get hover response for LibB.swift")
 
-    // close the document in WorkspaceB
+    // Get the SwiftLanguageService before closing WorkspaceB
+    let swiftLanguageServiceBeforeClose = try await project.testClient.server.primaryLanguageService(
+      for: libBUri,
+      .swift,
+      in: unwrap(project.testClient.server.workspaceForDocument(uri: libBUri))
+    )
+
+    // Close the document in WorkspaceB
     project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(libBUri)))
 
-    // remove WorkspaceB
+    // Remove WorkspaceB
     let workspaceBUri = DocumentURI(project.scratchDirectory.appending(component: "WorkspaceB"))
     project.testClient.send(
       DidChangeWorkspaceFoldersNotification(
@@ -1533,18 +1539,27 @@ final class WorkspaceTests: SourceKitLSPTestCase {
     )
     _ = try await project.testClient.send(SynchronizeRequest())
 
-    //  orphaned service to be shut down in the background
-    try await Task.sleep(for: .milliseconds(500))
+    // Open a file in WorkspaceA
+    let (libAUri, libAPositions) = try project.openDocument("LibA.swift")
 
-    // open a file in WorkspaceA
-    let (libAUri, positions) = try project.openDocument("LibA.swift")
-
-    // verify that the language service in WorkspaceA still works correctly
+    // Verify that the language service in WorkspaceA still works correctly
     let hover = try await project.testClient.send(
-      HoverRequest(textDocument: TextDocumentIdentifier(libAUri), position: positions["1️⃣"])
+      HoverRequest(textDocument: TextDocumentIdentifier(libAUri), position: libAPositions["1️⃣"])
     )
     XCTAssertNotNil(hover, "Should still get hover response after removing WorkspaceB")
     assertContains(hover?.contents.markupContent?.value ?? "", "foo")
+
+    // Verify that the same SwiftLanguageService is reused (immortal, not shut down)
+    let swiftLanguageServiceForWorkspaceA = try await project.testClient.server.primaryLanguageService(
+      for: libAUri,
+      .swift,
+      in: unwrap(project.testClient.server.workspaceForDocument(uri: libAUri))
+    )
+
+    XCTAssertTrue(
+      swiftLanguageServiceBeforeClose === swiftLanguageServiceForWorkspaceA,
+      "SwiftLanguageService should be immortal and reused across workspaces"
+    )
   }
 }
 
