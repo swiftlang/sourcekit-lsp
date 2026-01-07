@@ -107,7 +107,7 @@ package struct ConvertJSONToCodableStruct: EditRefactoringProvider {
     case .endingClosure(let closure, _): jsonNode = Syntax(closure)
     case .stringLiteral(let literal, _): jsonNode = Syntax(literal)
     }
-    let baseIndentation = getBaseIndentation(from: jsonNode)
+    let baseIndentation = jsonNode.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
 
     let format = BasicFormat(indentationWidth: indentation, initialIndentation: baseIndentation)
     var formattedDecls = topLevelObject.asDeclSyntax(name: "JSONValue")
@@ -142,17 +142,6 @@ package struct ConvertJSONToCodableStruct: EditRefactoringProvider {
         )
       ]
     }
-  }
-
-  /// Get the indentation of the given node from the source file.
-  private static func getBaseIndentation(from node: Syntax) -> Trivia {
-    guard let startToken = node.firstToken(viewMode: .sourceAccurate) else { return [] }
-    var indentationPieces: [TriviaPiece] = []
-    for piece in startToken.leadingTrivia.reversed() {
-      if case .newlines = piece { break }
-      indentationPieces.append(piece)
-    }
-    return Trivia(pieces: indentationPieces.reversed())
   }
 
   /// The result of preflighting a syntax node to try to find potential JSON
