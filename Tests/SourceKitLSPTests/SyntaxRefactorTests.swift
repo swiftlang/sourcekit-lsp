@@ -247,32 +247,32 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
         )
       ]
     )
-    func testJSONIndentedWith4SpacesButFileWith2Spaces() throws {
-      try assertRefactor(
-        """
-        func test() {
-          if true {
-            1️⃣{
-                   "a": 1
-               }
-          }
-        }
-        """,
-        context: (),
-        provider: ConvertJSONToCodableStruct.self,
-        expected: [
-          SourceEdit(
-            range: AbsolutePosition(utf8Offset: 30)..<AbsolutePosition(utf8Offset: 52),
-            replacement: """
-              struct JSONValue: Codable {
-                var a: Double
-              }
-              """
-          )
-        ]
-      )
-    }
+  }
 
+  func testJSONIndentedWith4SpacesButFileWith2Spaces() throws {
+    try assertRefactor(
+      """
+      func test() {
+        if true {
+          1️⃣{
+                 "a": 1
+             }
+        }
+      }
+      """,
+      context: (),
+      provider: ConvertJSONToCodableStruct.self,
+      expected: [
+        SourceEdit(
+          range: AbsolutePosition(utf8Offset: 30)..<AbsolutePosition(utf8Offset: 58),
+          replacement: """
+            struct JSONValue: Codable {
+                    var a: Double
+                }
+            """
+        )
+      ]
+    )
   }
 
 }

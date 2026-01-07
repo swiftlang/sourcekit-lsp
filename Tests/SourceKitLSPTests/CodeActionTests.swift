@@ -864,8 +864,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
                   range: positions["1️⃣"]..<positions["5️⃣"],
                   newText: """
                     struct JSONValue: Codable {
-                      var id: Double
-                      var values: [String]
+                        var id: Double
+                        var values: [String]
                     }
                     """
                 )
