@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitLSP
 import SwiftRefactor
@@ -118,20 +117,13 @@ extension ConvertZeroParameterFunctionToComputedProperty: SyntaxRefactoringCodeA
   package static var title: String { "Convert to computed property" }
 
   static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
-    guard
-      let functionDecl = scope.innermostNodeContainingRange?.findParentOfSelf(
-        ofType: FunctionDeclSyntax.self,
-        stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
-      )
-    else {
+    let functionDecl = scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: FunctionDeclSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+    )
+    guard let functionDecl, !isVoidReturnType(functionDecl.signature.returnClause?.type) else {
       return nil
     }
-
-    // Only offer the conversion if the function has a return type and it's not Void
-    guard !isVoidReturnType(functionDecl.signature.returnClause?.type) else {
-      return nil
-    }
-
     return functionDecl
   }
 }
@@ -194,14 +186,31 @@ extension [SourceEdit] {
 // MARK: - Helper Functions
 
 /// Checks if a return type is effectively Void (no return type, explicit Void, or empty tuple)
-private func isVoidReturnType(_ returnType: TypeSyntax?) -> Bool {
+func isVoidReturnType(_ returnType: TypeSyntax?) -> Bool {
   guard let returnType else {
-    return true  // No explicit return type is implicitly Void
+    return true
   }
+  switch returnType.as(TypeSyntaxEnum.self) {
+  case .identifierType(let identifierType) where identifierType.name.text == "Void":
+    return true
+  case .tupleType(let tupleType) where tupleType.elements.isEmpty:
+    return true
+  default:
+    return false
+  }
+}
 
-  // Remove all whitespace to normalize the type description
-  let typeDescription = returnType.description.filter { !$0.isWhitespace }
+// MARK: - Helper Extensions
 
-  // Check for explicit Void or empty tuple ()
-  return typeDescription == "Void" || typeDescription == "()"
+private extension TypeSyntax {
+  var isVoid: Bool {
+    switch self.as(TypeSyntaxEnum.self) {
+    case .identifierType(let identifierType) where identifierType.name.text == "Void":
+      return true
+    case .tupleType(let tupleType) where tupleType.elements.isEmpty:
+      return true
+    default:
+      return false
+    }
+  }
 }
