@@ -202,10 +202,9 @@ import SwiftSyntaxBuilder
         return thenExits && elseExits
       }
 
-      // Check for switch expressions
-      // TODO: Implement proper switch exhaustiveness checking.
-      // A full implementation would verify all cases contain exit statements.
-      // For now, conservatively return false to avoid incorrect transformations.
+      // Switch expressions are conservatively treated as non-exiting.
+      // Determining exhaustiveness requires semantic analysis (e.g., knowing all enum cases),
+      // which is not available in a syntactic code action provider.
       if expr.is(SwitchExprSyntax.self) {
         return false
       }
