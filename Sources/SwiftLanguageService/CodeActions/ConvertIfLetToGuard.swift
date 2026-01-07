@@ -134,7 +134,7 @@ import SwiftSyntaxBuilder
   /// - Bodies that don't guarantee an early exit
   @_spi(Testing)
   public static func isConvertibleToGuard(_ ifExpr: IfExprSyntax) -> Bool {
-    guard ifExpr.elseKeyword == nil && ifExpr.elseBody == nil else {
+    guard ifExpr.elseKeyword == nil, ifExpr.elseBody == nil else {
       return false
     }
 
@@ -150,22 +150,11 @@ import SwiftSyntaxBuilder
       }
     }
 
-    if containsDefer(ifExpr.body) {
+    if ifExpr.body.statements.contains(where: { $0.item.is(DeferStmtSyntax.self) }) {
       return false
     }
 
     return bodyGuaranteesExit(ifExpr.body)
-  }
-
-  /// Checks for defer statements at the top level of the code block only.
-  /// Does not recurse into nested blocks.
-  private static func containsDefer(_ codeBlock: CodeBlockSyntax) -> Bool {
-    for statement in codeBlock.statements {
-      if statement.item.is(DeferStmtSyntax.self) {
-        return true
-      }
-    }
-    return false
   }
 
   /// Check if the code block guarantees an early exit on all paths.
@@ -385,10 +374,8 @@ import SwiftSyntaxBuilder
       }
     }
 
-    for statement in guardStmt.body.statements {
-      if statement.item.is(DeferStmtSyntax.self) {
-        return false
-      }
+    if guardStmt.body.statements.contains(where: { $0.item.is(DeferStmtSyntax.self) }) {
+      return false
     }
 
     return true
