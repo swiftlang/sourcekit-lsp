@@ -15,7 +15,10 @@ import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
-import SwiftLanguageService
+@_spi(Testing) import SwiftLanguageService
+import SwiftParser
+import SwiftSyntax
+import SwiftSyntaxBuilder
 import XCTest
 
 private typealias CodeActionCapabilities = TextDocumentClientCapabilities.CodeAction
@@ -1058,6 +1061,271 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testApplyDeMorganLawNegatedAnd() async throws {
+    try await assertCodeActions(
+      """
+      let x = 1️⃣!(a && b)2️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Apply De Morgan's law, converting '!(a && b)' to '(!a || !b)'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "(!a || !b)"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testApplyDeMorganLawNegatedOr() throws {
+    try assertDeMorganTransform(
+      input: "!(a || b)",
+      expected: "(!a && !b)"
+    )
+  }
+
+  func testApplyDeMorganLawDoubleNegation() throws {
+    try assertDeMorganTransform(
+      input: "!(!a && !b)",
+      expected: "(a || b)"
+    )
+  }
+
+  func testApplyDeMorganLawComparisonFlip() throws {
+    try assertDeMorganTransform(
+      input: "!(a < b)",
+      expected: "(a >= b)"
+    )
+  }
+
+  func testApplyDeMorganLawPrecedencePreservation() throws {
+    try assertDeMorganTransform(
+      input: "!(a && b || c)",
+      expected: "((!a || !b) && !c)"
+    )
+  }
+
+  func testApplyDeMorganLawBitwise() throws {
+    try assertDeMorganTransform(
+      input: "~(a | b)",
+      expected: "(~a & ~b)"
+    )
+  }
+
+  func testApplyDeMorganLawPropositionsToNegation() throws {
+    try assertDeMorganTransform(
+      input: "!a || !b",
+      expected: "!(a && b)"
+    )
+  }
+
+  func testApplyDeMorganLawNestedNegation() throws {
+    try assertDeMorganTransform(
+      input: "!(!(a && b) || c)",
+      expected: "((a && b) && !c)"
+    )
+  }
+
+  func testApplyDeMorganLawOrToAnd() throws {
+    try assertDeMorganTransform(
+      input: "!((a || b) && c)",
+      expected: "((!a && !b) || !c)"
+    )
+  }
+
+  func testApplyDeMorganLawTernaryPropagation() throws {
+    try assertDeMorganTransform(
+      input: "!(a ? !b : c)",
+      expected: "(a ? b : !c)"
+    )
+  }
+
+  func testApplyDeMorganLawWithIsExpression() throws {
+    try assertDeMorganTransform(
+      input: "!a || !(s is String)",
+      expected: "!(a && (s is String))"
+    )
+  }
+
+  func testApplyDeMorganLawReducedBoolean() throws {
+    try assertDeMorganTransform(
+      input: "((((((a !== !(b || c)))) && !d)))",
+      expected: "!((((((a === !(b || c)))) || d)))"
+    )
+  }
+
+  func testApplyDeMorganLawReducedBooleanNonNested() throws {
+    try assertDeMorganTransform(
+      input: "!a || ((!((b)))) || s is String || c != d",
+      expected: "!(a && ((((b)))) && !(s is String) && c == d)"
+    )
+  }
+
+  func testApplyDeMorganLawSpreadBitwise() throws {
+    try assertDeMorganTransform(
+      input: "~((b | ((c)) | d | e & ~f | (~g & h)))",
+      expected: "((~b & ~((c)) & ~d & (~e | f) & (g | ~h)))"
+    )
+  }
+
+  func testApplyDeMorganLawTernaryExpansion() throws {
+    try assertDeMorganTransform(
+      input: "!((a ? b : !c) || (!d ? !e : f) && (g ? h : i))",
+      expected: "((a ? !b : c) && ((!d ? e : !f) || !(g ? h : i)))"
+    )
+  }
+
+  func testApplyDeMorganLawTernaryNoPropagation() throws {
+    // Negating the ternary (b ? !c : !d) adds complexity (2 negations) vs wrapping (1 negation).
+    // So we expect the ternary to be wrapped in parens and negated.
+    try assertDeMorganTransform(
+      input: "!(a && (b ? c : d))",
+      expected: "(!a || !(b ? c : d))"
+    )
+  }
+
+  func testApplyDeMorganLawBooleanLiteral() throws {
+    // !true -> false
+    try assertDeMorganTransform(
+      input: "!true",
+      expected: "false"
+    )
+
+    // !(a && false) -> !a || true
+    try assertDeMorganTransform(
+      input: "!(a && false)",
+      expected: "(!a || true)"
+    )
+  }
+
+  func testApplyDeMorganLawTrivia() throws {
+    // /*c1*/!(/*c2*/a /*c3*/&& /*c4*/b/*c5*/)/*c6*/
+    // Note: Comments attached to the removed '!' (/*c1*/) are dropped.
+    // Comment between '!' and '(' is illegal in swift.
+    try assertDeMorganTransform(
+      input: "/*c1*/!(/*c2*/a /*c3*/&& /*c4*/b/*c5*/)/*c6*/",
+      expected: "(/*c2*/!a /*c3*/|| /*c4*/!b/*c5*/)/*c6*/"
+    )
+  }
+
+  func testApplyDeMorganLawAdvancedTrivia() throws {
+    // Multiline preservation
+    try assertDeMorganTransform(
+      input: """
+        !(
+          a
+          &&
+          b
+        )
+        """,
+      expected: """
+        (
+          !a
+          ||
+          !b
+        )
+        """
+    )
+
+    // Line comments
+    try assertDeMorganTransform(
+      input: """
+        !(a && b // check
+        )
+        """,
+      expected: """
+        (!a || !b // check
+        )
+        """
+    )
+
+    // Comments attached to inner operators
+    try assertDeMorganTransform(
+      input: "!(a /*op*/ && b)",
+      expected: "(!a /*op*/ || !b)"
+    )
+  }
+
+  func testApplyDeMorganLawNestedActionAvailability() async throws {
+    try await assertCodeActions(
+      """
+      let x = 1️⃣!2️⃣(3️⃣!(4️⃣a && b) 5️⃣|| c6️⃣)7️⃣
+      """,
+      markers: ["4️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Apply De Morgan's law, converting '!(a && b) ' to '(!a || !b) '",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["5️⃣"],
+                  newText: "(!a || !b) "
+                )
+              ]
+            ]
+          )
+        ),
+        CodeAction(
+          title: "Apply De Morgan's law, converting '!(a && b) || c' to '!((a && b) && !c)'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["6️⃣"],
+                  newText: "!((a && b) && !c)"
+                )
+              ]
+            ]
+          )
+        ),
+        CodeAction(
+          title: "Apply De Morgan's law, converting '(!(a && b) || c)' to '!((a && b) && !c)'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["7️⃣"],
+                  newText: "!((a && b) && !c)"
+                )
+              ]
+            ]
+          )
+        ),
+        CodeAction(
+          title: "Apply De Morgan's law, converting '!(!(a && b) || c)' to '((a && b) && !c)'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["7️⃣"],
+                  newText: "((a && b) && !c)"
+                )
+              ]
+            ]
+          )
+        ),
+      ]
+    }
+  }
+
   func testRemoveUnusedImports() async throws {
     let project = try await SwiftPMTestProject(
       files: [
@@ -1367,4 +1635,22 @@ private extension CodeActionRequestResponse {
     }
     return actions
   }
+}
+
+/// Tests De Morgan transformation directly without LSP overhead.
+private func assertDeMorganTransform(
+  input: String,
+  expected: String,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) throws {
+  let expr = ExprSyntax("\(raw: input)")
+
+  let transformer = DeMorganTransformer()
+  guard let result = transformer.computeComplement(of: expr) else {
+    XCTFail("Failed to compute De Morgan complement", file: file, line: line)
+    return
+  }
+
+  XCTAssertEqual(result.description, expected, file: file, line: line)
 }

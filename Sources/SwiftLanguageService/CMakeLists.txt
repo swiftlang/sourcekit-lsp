@@ -3,6 +3,7 @@ add_library(SwiftLanguageService STATIC
   AdjustPositionToStartOfIdentifier.swift
   ClosureCompletionFormat.swift
   CodeActions/AddDocumentation.swift
+  CodeActions/ApplyDeMorganLaw.swift
   CodeActions/ConvertIntegerLiteral.swift
   CodeActions/ConvertJSONToCodableStruct.swift
   CodeActions/ConvertStringConcatenationToStringInterpolation.swift
@@ -79,6 +80,7 @@ target_link_libraries(SwiftLanguageService PRIVATE
   TSCBasic
   SwiftSyntax::SwiftDiagnostics
   SwiftSyntax::SwiftIDEUtils
+  SwiftSyntax::SwiftOperators
   SwiftSyntax::SwiftParser
   SwiftSyntax::SwiftParserDiagnostics
   SwiftSyntax::SwiftRefactor
