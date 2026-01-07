@@ -31,6 +31,8 @@ package import SwiftSyntax
 package import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
+@_spi(Experimental) import SwiftLexicalLookup
+
 #if os(Windows)
 import WinSDK
 #endif
@@ -875,6 +877,13 @@ extension SwiftLanguageService {
 
   package func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
     let snapshot = try await self.latestSnapshot(for: req.textDocument.uri)
+    
+    if let highlights = try await controlFlowExitKeywordHighlight(
+      at: req.position,
+      in: snapshot
+    ) {
+      return highlights
+    }
 
     let relatedIdentifiers = try await self.relatedIdentifiers(
       at: req.position,
@@ -887,6 +896,67 @@ extension SwiftLanguageService {
         kind: .read  // unknown
       )
     }
+  }
+
+  private func controlFlowExitKeywordHighlight(
+    at position: Position,
+    in snapshot: DocumentSnapshot
+  ) async throws -> [DocumentHighlight]? {
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    
+    guard let tokenSyntax = syntaxTree.token(at: snapshot.absolutePosition(of: position)) else {
+      return nil
+    }
+
+    guard let parent = Syntax(tokenSyntax).parent, let targetStructure = parent.lookupControlStructure() else {
+      return nil
+    }
+    class ControlFlowHighlighter: SyntaxVisitor {
+      var highlights: [DocumentHighlight] = []
+      let targetStructure: Syntax
+      let snapshot: DocumentSnapshot
+      
+      init(targetStructure: Syntax, snapshot: DocumentSnapshot) {
+        self.targetStructure = targetStructure
+        self.snapshot = snapshot
+        super.init(viewMode: .sourceAccurate)
+      }
+      
+      private func addHighlightIfMatches(_ node: some SyntaxProtocol) {
+        if node.lookupControlStructure() == targetStructure {
+          highlights.append(
+            DocumentHighlight(
+                range: snapshot.absolutePositionRange(of: node.firstToken(viewMode: .sourceAccurate).map { $0.positionAfterSkippingLeadingTrivia..<$0.endPositionBeforeTrailingTrivia } ?? node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia),
+              kind: .read
+            )
+          )
+        }
+      }
+      
+      override func visit(_ node: BreakStmtSyntax) -> SyntaxVisitorContinueKind {
+        addHighlightIfMatches(node)
+        return .skipChildren
+      }
+      
+      override func visit(_ node: ContinueStmtSyntax) -> SyntaxVisitorContinueKind {
+        addHighlightIfMatches(node)
+        return .skipChildren
+      }
+      
+      override func visit(_ node: ReturnStmtSyntax) -> SyntaxVisitorContinueKind {
+        addHighlightIfMatches(node)
+        return .skipChildren
+      }
+      
+      override func visit(_ node: ThrowStmtSyntax) -> SyntaxVisitorContinueKind {
+        addHighlightIfMatches(node)
+        return .skipChildren
+      }
+    }
+    
+    let highlighter = ControlFlowHighlighter(targetStructure: targetStructure, snapshot: snapshot)
+    highlighter.walk(targetStructure)
+    return highlighter.highlights.isEmpty ? nil : highlighter.highlights
   }
 
   package func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {

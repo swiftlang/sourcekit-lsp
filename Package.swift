@@ -508,6 +508,7 @@ var targets: [Target] = [
         "SwiftBasicFormat",
         "SwiftDiagnostics",
         "SwiftIDEUtils",
+        "SwiftLexicalLookup",
         "SwiftParser",
         "SwiftParserDiagnostics",
         "SwiftRefactor",
@@ -785,7 +786,8 @@ var dependencies: [Package.Dependency] {
       .package(url: "https://github.com/swiftlang/swift-tools-protocols.git", exact: "0.0.9"),
       .package(url: "https://github.com/swiftlang/swift-tools-support-core.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.1"),
-      .package(url: "https://github.com/swiftlang/swift-syntax.git", branch: relatedDependenciesBranch),
+      // .package(url: "https://github.com/swiftlang/swift-syntax.git", branch: relatedDependenciesBranch),
+      .package(path: "../swift-syntax"),
       .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
       // Not a build dependency. Used so the "Format Source Code" command plugin can be used to format sourcekit-lsp
       .package(url: "https://github.com/swiftlang/swift-format.git", branch: relatedDependenciesBranch),
