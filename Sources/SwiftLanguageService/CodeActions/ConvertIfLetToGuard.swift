@@ -41,19 +41,22 @@ import SwiftSyntaxBuilder
       return []
     }
 
-    // ifExpr might be in a CodeBlockItem directly, or wrapped in an ExpressionStmt
-    let codeBlockItem: CodeBlockItemSyntax
-    if let parent = ifExpr.parent?.as(CodeBlockItemSyntax.self) {
-      codeBlockItem = parent
-    } else if let exprStmt = ifExpr.parent?.as(ExpressionStmtSyntax.self),
-      let parent = exprStmt.parent?.as(CodeBlockItemSyntax.self)
-    {
-      codeBlockItem = parent
-    } else {
+    // Navigate up to find CodeBlockItemSyntax, looking through any ExpressionStmtSyntax wrapper.
+    var current = Syntax(ifExpr)
+    while let parent = current.parent {
+      if parent.is(CodeBlockItemSyntax.self) {
+        break
+      }
+      if parent.is(ExpressionStmtSyntax.self) {
+        current = parent
+        continue
+      }
       return []
     }
 
-    guard let codeBlockItemList = codeBlockItem.parent?.as(CodeBlockItemListSyntax.self) else {
+    guard let codeBlockItem = current.parent?.as(CodeBlockItemSyntax.self),
+      let codeBlockItemList = codeBlockItem.parent?.as(CodeBlockItemListSyntax.self)
+    else {
       return []
     }
 
@@ -202,9 +205,8 @@ import SwiftSyntaxBuilder
         return thenExits && elseExits
       }
 
-      // Switch expressions are conservatively treated as non-exiting.
-      // Determining exhaustiveness requires semantic analysis (e.g., knowing all enum cases),
-      // which is not available in a syntactic code action provider.
+      // Switch expressions are treated as non-exiting since determining exhaustiveness
+      // requires semantic analysis (e.g., knowing all enum cases).
       if expr.is(SwitchExprSyntax.self) {
         return false
       }
