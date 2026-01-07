@@ -1326,7 +1326,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
       ]
     }
   }
-  
+
   private func validateCodeAction(
     input: String,
     expectedOutput: String,

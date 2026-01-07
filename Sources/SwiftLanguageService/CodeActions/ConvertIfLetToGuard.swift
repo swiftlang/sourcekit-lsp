@@ -187,11 +187,11 @@ import SwiftSyntaxBuilder
 
     case .expr(let expr):
       // Check for if-else where both branches exit
-      if let ifExpr = expr.as(IfExprSyntax.self), ifExpr.elseKeyword != nil {
+      if let ifExpr = expr.as(IfExprSyntax.self),
+        ifExpr.elseKeyword != nil,
+        let elseBody = ifExpr.elseBody
+      {
         let thenExits = bodyGuaranteesExit(ifExpr.body)
-        guard let elseBody = ifExpr.elseBody else {
-          return false
-        }
         let elseExits: Bool
         switch elseBody {
         case .codeBlock(let block):
