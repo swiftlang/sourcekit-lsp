@@ -168,10 +168,11 @@ import SwiftSyntaxBuilder
 
   /// Checks if a statement guarantees control flow will not continue past it.
   ///
-  /// Recognizes direct exit statements (`return`, `throw`, `break`, `continue`),
-  /// known never-returning functions (`fatalError`, `preconditionFailure`, `assertionFailure`),
+  /// Recognizes direct exit statements (`return`, `throw`, `break`, `continue`)
   /// and if-else chains where both branches exit.
   ///
+  /// - Note: Does not attempt to detect never-returning functions like `fatalError`
+  ///   because that requires type information to verify the return type is `Never`.
   /// - Note: Switch statements are conservatively treated as non-exiting since
   ///   checking all cases for guaranteed exit is complex.
   private static func statementGuaranteesExit(_ statement: CodeBlockItemSyntax.Item) -> Bool {
@@ -179,27 +180,6 @@ import SwiftSyntaxBuilder
       || statement.is(ContinueStmtSyntax.self)
     {
       return true
-    }
-
-    // Check for fatalError, preconditionFailure, etc. (never-returning function calls)
-    if let exprStmt = statement.as(ExpressionStmtSyntax.self),
-      let funcCall = exprStmt.expression.as(FunctionCallExprSyntax.self),
-      let callee = funcCall.calledExpression.as(DeclReferenceExprSyntax.self)
-    {
-      let neverReturning = ["fatalError", "preconditionFailure", "assertionFailure"]
-      if neverReturning.contains(callee.baseName.text) {
-        return true
-      }
-    }
-
-    // Also check if it's a direct function call (not wrapped in ExpressionStmtSyntax)
-    if let funcCall = statement.as(FunctionCallExprSyntax.self),
-      let callee = funcCall.calledExpression.as(DeclReferenceExprSyntax.self)
-    {
-      let neverReturning = ["fatalError", "preconditionFailure", "assertionFailure"]
-      if neverReturning.contains(callee.baseName.text) {
-        return true
-      }
     }
 
     // If-else where both branches exit
