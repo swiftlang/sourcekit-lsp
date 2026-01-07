@@ -176,53 +176,42 @@ import SwiftSyntaxBuilder
   /// - Note: Switch statements are conservatively treated as non-exiting since
   ///   checking all cases for guaranteed exit is complex.
   private static func statementGuaranteesExit(_ statement: CodeBlockItemSyntax.Item) -> Bool {
-    if statement.is(ReturnStmtSyntax.self) || statement.is(ThrowStmtSyntax.self) || statement.is(BreakStmtSyntax.self)
-      || statement.is(ContinueStmtSyntax.self)
-    {
-      return true
-    }
+    switch statement {
+    case .stmt(let stmt):
+      switch stmt.kind {
+      case .returnStmt, .throwStmt, .breakStmt, .continueStmt:
+        return true
+      default:
+        break
+      }
 
-    // If-else where both branches exit
-    if let ifExpr = statement.as(IfExprSyntax.self) {
-      if ifExpr.elseKeyword != nil {
+    case .expr(let expr):
+      // Check for if-else where both branches exit
+      if let ifExpr = expr.as(IfExprSyntax.self), ifExpr.elseKeyword != nil {
         let thenExits = bodyGuaranteesExit(ifExpr.body)
-        var elseExits = false
-        if let elseBody = ifExpr.elseBody {
-          switch elseBody {
-          case .codeBlock(let block):
-            elseExits = bodyGuaranteesExit(block)
-          case .ifExpr(let elseIf):
-            elseExits = statementGuaranteesExit(CodeBlockItemSyntax.Item(elseIf))
-          }
+        guard let elseBody = ifExpr.elseBody else {
+          return false
+        }
+        let elseExits: Bool
+        switch elseBody {
+        case .codeBlock(let block):
+          elseExits = bodyGuaranteesExit(block)
+        case .ifExpr(let elseIf):
+          elseExits = statementGuaranteesExit(CodeBlockItemSyntax.Item(elseIf))
         }
         return thenExits && elseExits
       }
-    }
 
-    // Also check for if-else wrapped in ExpressionStmtSyntax
-    if let exprStmt = statement.as(ExpressionStmtSyntax.self),
-      let ifExpr = exprStmt.expression.as(IfExprSyntax.self)
-    {
-      if ifExpr.elseKeyword != nil {
-        let thenExits = bodyGuaranteesExit(ifExpr.body)
-        var elseExits = false
-        if let elseBody = ifExpr.elseBody {
-          switch elseBody {
-          case .codeBlock(let block):
-            elseExits = bodyGuaranteesExit(block)
-          case .ifExpr(let elseIf):
-            elseExits = statementGuaranteesExit(CodeBlockItemSyntax.Item(elseIf))
-          }
-        }
-        return thenExits && elseExits
+      // Check for switch expressions
+      // TODO: Implement proper switch exhaustiveness checking.
+      // A full implementation would verify all cases contain exit statements.
+      // For now, conservatively return false to avoid incorrect transformations.
+      if expr.is(SwitchExprSyntax.self) {
+        return false
       }
-    }
 
-    // TODO: Implement proper switch exhaustiveness checking.
-    // A full implementation would verify all cases contain exit statements.
-    // For now, conservatively return false to avoid incorrect transformations.
-    if statement.is(SwitchExprSyntax.self) {
-      return false
+    case .decl:
+      break
     }
 
     return false
