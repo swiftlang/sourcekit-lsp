@@ -689,4 +689,40 @@ class DefinitionTests: SourceKitLSPTestCase {
     )
     XCTAssertEqual(response?.locations?.map(\.uri), [try project.uri(for: "Test.h")])
   }
+
+  func testJumpToSwiftInterfaceIfIndexLookupFails() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib/Lib.swift": """
+        public func abc() {}
+        """,
+        "Executable/Executable.swift": """
+        import Lib
+
+        func test() {
+          1️⃣abc()
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "Lib"),
+            .executableTarget(name: "Executable", dependencies: ["Lib"])
+          ]
+        )
+        """
+    )
+    try await SwiftPMTestProject.build(
+      at: project.scratchDirectory,
+      extraArguments: ["--disable-index-store", "-Xswiftc", "-avoid-emit-module-source-info"]
+    )
+
+    let (uri, positions) = try project.openDocument("Executable.swift")
+    let definitions = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertTrue(definitions?.locations?.first?.uri.pseudoPath.hasSuffix("Lib.swiftinterface") ?? false)
+  }
 }
