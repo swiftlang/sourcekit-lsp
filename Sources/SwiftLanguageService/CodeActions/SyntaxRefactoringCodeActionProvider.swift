@@ -121,7 +121,7 @@ extension ConvertZeroParameterFunctionToComputedProperty: SyntaxRefactoringCodeA
       ofType: FunctionDeclSyntax.self,
       stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
     )
-    guard let functionDecl, !isVoidReturnType(functionDecl.signature.returnClause?.type) else {
+    guard let functionDecl, !(functionDecl.signature.returnClause?.type.isVoid ?? true) else {
       return nil
     }
     return functionDecl
@@ -183,19 +183,17 @@ extension [SourceEdit] {
   }
 }
 
-// MARK: - Helper Functions
+// MARK: - Helper Extensions
 
-/// Checks if a return type is effectively Void (no return type, explicit Void, or empty tuple)
-func isVoidReturnType(_ returnType: TypeSyntax?) -> Bool {
-  guard let returnType else {
-    return true
-  }
-  switch returnType.as(TypeSyntaxEnum.self) {
-  case .identifierType(let identifierType) where identifierType.name.text == "Void":
-    return true
-  case .tupleType(let tupleType) where tupleType.elements.isEmpty:
-    return true
-  default:
-    return false
+private extension TypeSyntax {
+  var isVoid: Bool {
+    switch self.as(TypeSyntaxEnum.self) {
+    case .identifierType(let identifierType) where identifierType.name.text == "Void":
+      return true
+    case .tupleType(let tupleType) where tupleType.elements.isEmpty:
+      return true
+    default:
+      return false
+    }
   }
 }
