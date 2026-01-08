@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -117,10 +117,14 @@ extension ConvertZeroParameterFunctionToComputedProperty: SyntaxRefactoringCodeA
   package static var title: String { "Convert to computed property" }
 
   static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
-    return scope.innermostNodeContainingRange?.findParentOfSelf(
+    let functionDecl = scope.innermostNodeContainingRange?.findParentOfSelf(
       ofType: FunctionDeclSyntax.self,
       stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
     )
+    guard let functionDecl, !(functionDecl.signature.returnClause?.type.isVoid ?? true) else {
+      return nil
+    }
+    return functionDecl
   }
 }
 
@@ -176,5 +180,20 @@ extension [SourceEdit] {
     return WorkspaceEdit(
       changes: [snapshot.uri: textEdits]
     )
+  }
+}
+
+// MARK: - Helper Extensions
+
+private extension TypeSyntax {
+  var isVoid: Bool {
+    switch self.as(TypeSyntaxEnum.self) {
+    case .identifierType(let identifierType) where identifierType.name.text == "Void":
+      return true
+    case .tupleType(let tupleType) where tupleType.elements.isEmpty:
+      return true
+    default:
+      return false
+    }
   }
 }

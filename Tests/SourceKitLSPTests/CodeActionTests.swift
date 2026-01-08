@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -1506,6 +1506,41 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testConvertZeroParameterFunctionToComputedPropertyNotOfferedForImplicitVoid() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣func test()2️⃣ { }3️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { _, _ in
+      []
+    }
+  }
+
+  func testConvertZeroParameterFunctionToComputedPropertyNotOfferedForExplicitVoid() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣func test() -> Void2️⃣ { }3️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { _, _ in
+      []
+    }
+  }
+
+  func testConvertZeroParameterFunctionToComputedPropertyNotOfferedForEmptyTuple() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣func test() -> ()2️⃣ { }3️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { _, _ in
+      []
+    }
+  }
   func testConvertComputedPropertyToZeroParameterFunction() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI(for: .swift)
