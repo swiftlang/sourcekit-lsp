@@ -1561,7 +1561,7 @@ extension SourceKitLSPServer {
     }
 
     // Shut down orphaned services in a background task to avoid blocking other requests.
-    
+
     if !orphanedServices.isEmpty {
       Task {
         for service in orphanedServices {
