@@ -234,6 +234,7 @@ package protocol LanguageService: AnyObject, Sendable {
   func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse?
 
   func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse?
+  func typeDefinition(_ request: TypeDefinitionRequest) async throws -> LocationsOrLocationLinksResponse?
   func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]?
   func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]?
   func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse?
@@ -426,6 +427,10 @@ package extension LanguageService {
 
   func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse? {
     throw ResponseError.requestNotImplemented(DeclarationRequest.self)
+  }
+
+  func typeDefinition(_ request: TypeDefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
+    throw ResponseError.requestNotImplemented(TypeDefinitionRequest.self)
   }
 
   func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {

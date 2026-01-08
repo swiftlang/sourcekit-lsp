@@ -790,6 +790,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.declaration)
     case let request as RequestAndReply<DefinitionRequest>:
       await self.handleRequest(for: request, requestHandler: self.definition)
+    case let request as RequestAndReply<TypeDefinitionRequest>:
+      await self.handleRequest(for: request, requestHandler: self.typeDefinition)
     case let request as RequestAndReply<DoccDocumentationRequest>:
       await self.handleRequest(for: request, requestHandler: self.doccDocumentation)
     case let request as RequestAndReply<DocumentColorRequest>:
@@ -1146,6 +1148,7 @@ extension SourceKitLSPServer {
       completionProvider: completionOptions,
       signatureHelpProvider: signatureHelpOptions,
       definitionProvider: .bool(true),
+      typeDefinitionProvider: .bool(true),
       implementationProvider: .bool(true),
       referencesProvider: .bool(true),
       documentHighlightProvider: .bool(true),
@@ -1909,8 +1912,8 @@ extension SourceKitLSPServer {
     // inlay hints store the uri in data for resolution
     // extract uri from the lspany dictionary
     guard case .dictionary(let dict) = request.inlayHint.data,
-          case .string(let uriString) = dict["uri"],
-          let uri = try? DocumentURI(string: uriString)
+      case .string(let uriString) = dict["uri"],
+      let uri = try? DocumentURI(string: uriString)
     else {
       return request.inlayHint
     }
@@ -2168,6 +2171,14 @@ extension SourceKitLSPServer {
     }
     let remappedLocations = await workspace.buildServerManager.locationsAdjustedForCopiedFiles(indexBasedResponse)
     return .locations(remappedLocations)
+  }
+
+  func typeDefinition(
+    _ req: TypeDefinitionRequest,
+    workspace: Workspace,
+    languageService: any LanguageService
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    return try await languageService.typeDefinition(req)
   }
 
   /// Generate the generated interface for the given module, write it to disk and return the location to which to jump

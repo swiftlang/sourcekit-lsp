@@ -63,8 +63,10 @@ extension SwiftLanguageService {
     return hint
   }
 
-  /// looks up the definition location for the type at the given position
-  private func lookupTypeDefinitionLocation(
+  /// Looks up the definition location for the type at the given position.
+  ///
+  /// This is used by both inlay hint resolution and the typeDefinition request.
+  func lookupTypeDefinitionLocation(
     uri: DocumentURI,
     position: Position
   ) async throws -> Location? {
