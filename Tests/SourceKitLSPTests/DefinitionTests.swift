@@ -723,6 +723,6 @@ class DefinitionTests: SourceKitLSPTestCase {
     let definitions = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
-    XCTAssertTrue(definitions?.locations?.first?.uri.pseudoPath.hasSuffix("/Lib.swiftinterface") ?? false)
+    XCTAssertTrue(definitions?.locations?.first?.uri.pseudoPath.hasSuffix("Lib.swiftinterface") ?? false)
   }
 }
