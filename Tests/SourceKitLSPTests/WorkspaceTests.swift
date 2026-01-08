@@ -1413,8 +1413,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
         if request is ShutdownRequest {
           clangdReceivedShutdown.fulfill()
         }
-      }),
-      usePullDiagnostics: false
+      })
     )
 
     // open a .c file in WorkspaceB to launch clangd
