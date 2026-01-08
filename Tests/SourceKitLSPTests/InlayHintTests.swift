@@ -289,8 +289,8 @@ final class InlayHintTests: SourceKitLSPTestCase {
     // test that resolving an inlay hint returns label parts with type location
     let project = try await IndexedSingleSwiftFileTestProject(
       """
-      struct MyType {}
-      let x1️⃣ = MyType()
+      1️⃣struct MyType {}
+      let x2️⃣ = MyType()
       """
     )
 
@@ -298,7 +298,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
     let request = InlayHintRequest(textDocument: TextDocumentIdentifier(project.fileURI), range: nil)
     let hints = try await project.testClient.send(request)
 
-    // find thee type hint for x
+    // find the type hint for x
     guard let typeHint = hints.first(where: { $0.kind == .type }) else {
       XCTFail("Expected type hint")
       return
@@ -309,11 +309,19 @@ final class InlayHintTests: SourceKitLSPTestCase {
     // resolve the hint to get type location
     let resolvedHint = try await project.testClient.send(InlayHintResolveRequest(inlayHint: typeHint))
 
-    if case .parts(let parts) = resolvedHint.label {
-      XCTAssertEqual(parts.count, 1)
-      XCTAssertNotNil(parts.first?.location, "Expected label part to have location for go-to-definition")
-    } else if case .string = resolvedHint.label {
-     
+    guard case .parts(let parts) = resolvedHint.label else {
+      XCTFail("Expected resolved hint to have label parts, got: \(resolvedHint.label)")
+      return
     }
+
+    XCTAssertEqual(parts.count, 1, "Expected exactly one label part")
+
+    guard let location = parts.first?.location else {
+      XCTFail("Expected label part to have location for go-to-definition")
+      return
+    }
+
+    XCTAssertEqual(location.uri, project.fileURI)
+    XCTAssertEqual(location.range.lowerBound, project.positions["1️⃣"])
   }
 }

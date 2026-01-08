@@ -111,9 +111,7 @@
     # Maintained from initializeService in Requests.cpp
     KIND('SemaEnabledNotification', 'source.notification.sema_enabled'),
     KIND('DocumentUpdateNotification', 'source.notification.editor.documentupdate'),
-
-    # Used exclusively within the SourceKit Plugin
-    KIND('DiagRemark', 'source.diagnostic.severity.remark'),
+    # Note: DiagRemark was moved to UID_KINDS in UIDs.py
   ]
 
   TYPES_AND_KEYS = [

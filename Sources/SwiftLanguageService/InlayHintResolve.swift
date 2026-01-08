@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(SourceKitLSP) package import LanguageServerProtocol
 import Foundation
 import IndexStoreDB
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 import SemanticIndex
 import SourceKitD
 import SourceKitLSP
@@ -25,12 +25,12 @@ extension SwiftLanguageService {
     // only resolve type hints that have stored data
     // extract uri and position from the lspany dictionary
     guard hint.kind == .type,
-          case .dictionary(let dict) = hint.data,
-          case .string(let uriString) = dict["uri"],
-          let uri = try? DocumentURI(string: uriString),
-          case .dictionary(let posDict) = dict["position"],
-          case .int(let line) = posDict["line"],
-          case .int(let character) = posDict["character"]
+      case .dictionary(let dict) = hint.data,
+      case .string(let uriString) = dict["uri"],
+      let uri = try? DocumentURI(string: uriString),
+      case .dictionary(let posDict) = dict["position"],
+      case .int(let line) = posDict["line"],
+      case .int(let character) = posDict["character"]
     else {
       return hint
     }
@@ -71,7 +71,7 @@ extension SwiftLanguageService {
     let snapshot = try await self.latestSnapshot(for: uri)
     let compileCommand = await self.compileCommand(for: uri, fallbackAfterTimeout: false)
 
-    // call cursor info at the variable position to get the type usr
+    // call cursor info at the variable position to get the type declaration location
     let skreq = sourcekitd.dictionary([
       keys.cancelOnSubsequentRequest: 0,
       keys.offset: snapshot.utf8Offset(of: position),
@@ -82,18 +82,29 @@ extension SwiftLanguageService {
 
     let dict = try await send(sourcekitdRequest: \.cursorInfo, skreq, snapshot: snapshot)
 
-    guard let typeUsr: String = dict[keys.typeUsr] else {
+    if let filepath: String = dict[keys.typeDeclFilePath],
+      let line: Int = dict[keys.typeDeclLine],
+      let column: Int = dict[keys.typeDeclColumn]
+    {
+      let definitionUri = DocumentURI(filePath: filepath, isDirectory: false)
+      let definitionPosition = Position(line: line - 1, utf16index: column - 1)
+      return Location(uri: definitionUri, range: Range(definitionPosition))
+    }
+
+    // fallback: use the type declaration USR with index lookup
+
+    guard let typeDeclUsr: String = dict[keys.typeDeclUsr] else {
       return nil
     }
 
     // look up the type definition in the index
     guard let workspace = await sourceKitLSPServer?.workspaceForDocument(uri: uri),
-          let index = await workspace.index(checkedFor: .deletedFiles)
+      let index = await workspace.index(checkedFor: .deletedFiles)
     else {
       return nil
     }
 
-    guard let occurrence = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: typeUsr) else {
+    guard let occurrence = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: typeDeclUsr) else {
       return nil
     }
 
