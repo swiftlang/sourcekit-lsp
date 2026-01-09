@@ -161,7 +161,7 @@ extension SyntaxClassification {
     case .docLineComment, .docBlockComment:
       return (.comment, .documentation)
     case .argumentLabel:
-      return (.function, [])
+      return (.function, .parameterLabel)
     #if RESILIENT_LIBRARIES
     @unknown default:
       fatalError("Unknown case")
