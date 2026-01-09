@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -484,7 +484,9 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     self.swiftPMTargets = [:]
     self.targetDependencies = [:]
 
-    buildDescription.traverseModules { buildTarget, parent in
+    // Use the filtered traversal to only index reachable modules from dependencies.
+    // All modules from the root package are included regardless of reachability.
+    buildDescription.traverseReachableModules(in: modulesGraph) { buildTarget, parent in
       let targetIdentifier = orLog("Getting build target identifier") { try BuildTargetIdentifier(buildTarget) }
       guard let targetIdentifier else {
         return
