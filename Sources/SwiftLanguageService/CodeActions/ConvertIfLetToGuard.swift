@@ -90,7 +90,7 @@ import SwiftSyntaxBuilder
         // at the base indentation level. We strip any leading newlines and indentation
         // and replace them with a single newline + base indentation.
         var pieces = Array(adjustedStmt.leadingTrivia)
-        while let first = pieces.first, first.isNewline || first.isWhitespace {
+        while let first = pieces.first, first.isWhitespace {
           pieces.removeFirst()
         }
         adjustedStmt = adjustedStmt.with(\.leadingTrivia, .newline + baseIndentation + Trivia(pieces: pieces))
