@@ -113,6 +113,9 @@ extension Array where Element == SemanticRefactorCommand {
         guard !actionName.hasPrefix("source.refactoring.kind.rename.") else {
           return true
         }
+        guard !supersededSourcekitdRefactoringActions.contains(actionName) else {
+          return true
+        }
         commands.append(
           SemanticRefactorCommand(
             title: name,
