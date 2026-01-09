@@ -1584,7 +1584,9 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
-  func testConvertIfLetToGuardShownWithFatalError() throws {
+  // fatalError requires type information to verify Never return type,
+  // so we conservatively treat it as non-exiting (see statementGuaranteesExit docs).
+  func testConvertIfLetToGuardNotShownWithFatalError() throws {
     try assertConvertibleToGuard(
       """
       func test() -> Int {
@@ -1593,11 +1595,13 @@ final class CodeActionTests: SourceKitLSPTestCase {
         }
       }
       """,
-      expected: true
+      expected: false
     )
   }
 
   func testConvertIfLetToGuardShownWithIfElseBothExiting() throws {
+    // Note: Nested if-else as last statement should be detected as exiting
+    // when both branches guarantee exit.
     try assertConvertibleToGuard(
       """
       func test() -> Int? {

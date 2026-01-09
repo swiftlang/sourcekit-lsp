@@ -185,7 +185,10 @@ import SwiftSyntaxBuilder
       case .returnStmt, .throwStmt, .breakStmt, .continueStmt:
         return true
       default:
-        break
+        // Check if this is an ExpressionStmtSyntax containing an if-else
+        if let exprStmt = stmt.as(ExpressionStmtSyntax.self) {
+          return statementGuaranteesExit(.expr(exprStmt.expression))
+        }
       }
 
     case .expr(let expr):
