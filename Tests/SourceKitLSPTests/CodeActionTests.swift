@@ -1379,7 +1379,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
     let lineTable = LineTable(cleanInput)
 
     let sortedEdits = changes.sorted {
-      (a: LanguageServerProtocol.TextEdit, b: LanguageServerProtocol.TextEdit) -> Bool in
+      (a: TextEdit, b: TextEdit) -> Bool in
       if a.range.lowerBound.line != b.range.lowerBound.line {
         return a.range.lowerBound.line > b.range.lowerBound.line
       }
