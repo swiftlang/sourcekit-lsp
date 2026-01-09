@@ -13,7 +13,7 @@
 import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitLSP
-@_spi(Testing) public import SwiftSyntax
+import SwiftSyntax
 import SwiftSyntaxBuilder
 
 /// Syntactic code action provider to convert an if-let with early-exit pattern to a guard-let statement.
@@ -119,8 +119,7 @@ import SwiftSyntaxBuilder
   /// - `if case let` patterns (matching patterns not supported)
   /// - Bodies containing `defer` (would change defer lifetime semantics)
   /// - Bodies that don't guarantee an early exit
-  @_spi(Testing)
-  public static func isConvertibleToGuard(_ ifExpr: IfExprSyntax) -> Bool {
+  private static func isConvertibleToGuard(_ ifExpr: IfExprSyntax) -> Bool {
     guard ifExpr.elseKeyword == nil, ifExpr.elseBody == nil else {
       return false
     }
