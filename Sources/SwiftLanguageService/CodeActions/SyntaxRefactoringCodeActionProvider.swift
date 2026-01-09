@@ -140,20 +140,12 @@ extension ConvertComputedPropertyToZeroParameterFunction: SyntaxRefactoringCodeA
 }
 
 extension SyntaxProtocol {
-  /// Finds the innermost parent of the given type while not walking outside of nodes that satisfy `stoppingIf`.
-  func findParentOfSelf<ParentType: SyntaxProtocol>(
-    ofType: ParentType.Type,
-    stoppingIf: (Syntax) -> Bool
-  ) -> ParentType? {
-    findParentOfSelf(ofType: ofType, stoppingIf: stoppingIf, matching: { _ in true })
-  }
-
   /// Finds the innermost parent of the given type that satisfies `matching`,
   /// while not walking outside of nodes that satisfy `stoppingIf`.
   func findParentOfSelf<ParentType: SyntaxProtocol>(
     ofType: ParentType.Type,
     stoppingIf: (Syntax) -> Bool,
-    matching: (ParentType) -> Bool
+    matching: (ParentType) -> Bool = { _ in true }
   ) -> ParentType? {
     var node: Syntax? = Syntax(self)
     while let unwrappedNode = node, !stoppingIf(unwrappedNode) {
