@@ -46,7 +46,7 @@ import SwiftSyntaxBuilder
       current = parent
     }
 
-    guard current.parent?.is(CodeBlockItemSyntax.self) == true else {
+    guard current.parent?.is(CodeBlockItemSyntax.self) ?? false else {
       return []
     }
 
