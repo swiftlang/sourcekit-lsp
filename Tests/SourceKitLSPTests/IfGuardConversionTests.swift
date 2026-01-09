@@ -93,10 +93,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
 
     let sortedEdits = changes.sorted {
       (a: TextEdit, b: TextEdit) -> Bool in
-      if a.range.lowerBound.line != b.range.lowerBound.line {
-        return a.range.lowerBound.line > b.range.lowerBound.line
-      }
-      return a.range.lowerBound.utf16index > b.range.lowerBound.utf16index
+      return a.range.lowerBound > b.range.lowerBound
     }
 
     for edit in sortedEdits {
