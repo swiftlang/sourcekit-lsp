@@ -37,7 +37,7 @@ private let clientCapabilitiesWithCodeActionSupport: ClientCapabilities = {
 final class IfGuardConversionTests: SourceKitLSPTestCase {
   private func validateCodeAction(
     input: String,
-    expectedOutput: String,
+    expectedOutput: String?,
     title: String,
     file: StaticString = #filePath,
     line: UInt = #line
@@ -70,93 +70,32 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
       return
     }
 
-    guard let action = codeActions.first(where: { $0.title == title }) else {
-      let available = codeActions.map { $0.title }
-      XCTFail("Action '\(title)' not found. Available: \(available)", file: file, line: line)
-      return
-    }
-
-    guard let edit = action.edit else {
-      XCTFail("Action '\(title)' has no edit", file: file, line: line)
-      return
-    }
-
-    let changes = edit.changes?[uri] ?? []
-
-    let cleanInput =
-      input
-      .replacingOccurrences(of: "1️⃣", with: "")
-      .replacingOccurrences(of: "2️⃣", with: "")
-
-    let resultingText = apply(edits: changes, to: cleanInput)
-
-    XCTAssertEqual(resultingText, expectedOutput, file: file, line: line)
-  }
-
-  /// Tests if-to-guard conversion eligibility directly without LSP overhead.
-  private func assertConvertibleToGuard(
-    _ input: String,
-    expected: Bool,
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) throws {
-    let sourceFile = Parser.parse(source: input)
-    guard let ifExpr = findFirstIfExpr(in: sourceFile) else {
-      XCTFail("Could not find if expression in input", file: file, line: line)
-      return
-    }
-    XCTAssertEqual(
-      ConvertIfLetToGuard.isConvertibleToGuard(ifExpr),
-      expected,
-      file: file,
-      line: line
-    )
-  }
-
-  /// Recursively find the first if expression in a syntax tree.
-  private func findFirstIfExpr(in node: some SyntaxProtocol) -> IfExprSyntax? {
-    if let ifExpr = node.as(IfExprSyntax.self) {
-      return ifExpr
-    }
-    for child in node.children(viewMode: .sourceAccurate) {
-      if let found = findFirstIfExpr(in: child) {
-        return found
+    let action = codeActions.first(where: { $0.title == title })
+    if let expectedOutput {
+      guard let action else {
+        let available = codeActions.map { $0.title }
+        XCTFail("Action '\(title)' not found. Available: \(available)", file: file, line: line)
+        return
       }
-    }
-    return nil
-  }
 
-  /// Tests guard-to-if conversion eligibility directly without LSP overhead.
-  private func assertConvertibleToIfLet(
-    _ input: String,
-    expected: Bool,
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) throws {
-    let sourceFile = Parser.parse(source: input)
-    guard let guardStmt = findFirstGuardStmt(in: sourceFile) else {
-      XCTFail("Could not find guard statement in input", file: file, line: line)
-      return
-    }
-    XCTAssertEqual(
-      ConvertGuardToIfLet.isConvertibleToIfLet(guardStmt),
-      expected,
-      file: file,
-      line: line
-    )
-  }
-
-  /// Recursively find the first guard statement in a syntax tree.
-  private func findFirstGuardStmt(in node: some SyntaxProtocol) -> GuardStmtSyntax? {
-    if let guardStmt = node.as(GuardStmtSyntax.self) {
-      return guardStmt
-    }
-    for child in node.children(viewMode: .sourceAccurate) {
-      if let found = findFirstGuardStmt(in: child) {
-        return found
+      guard let edit = action.edit else {
+        XCTFail("Action '\(title)' has no edit", file: file, line: line)
+        return
       }
+
+      let changes = edit.changes?[uri] ?? []
+
+      let cleanInput =
+        input
+        .replacingOccurrences(of: "1️⃣", with: "")
+        .replacingOccurrences(of: "2️⃣", with: "")
+
+      let resultingText = apply(edits: changes, to: cleanInput)
+
+      XCTAssertEqual(resultingText, expectedOutput, file: file, line: line)
+    } else {
+      XCTAssertNil(action, "Expected action '\(title)' to be not offered", file: file, line: line)
     }
-    return nil
   }
 
   func testConvertIfLetToGuard() async throws {
@@ -207,230 +146,278 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
     )
   }
 
-  func testConvertIfLetToGuardNotShownWithoutEarlyExit() throws {
-    try assertConvertibleToGuard(
-      """
-      func test() {
-        if let value = optional {
-          print(value)
+  func testConvertIfLetToGuardNotShownWithoutEarlyExit() async throws {
+    try await validateCodeAction(
+      input: """
+        func test() {
+          1️⃣if let value = optional {
+            print(value)
+          }
+          return
         }
-      }
-      """,
-      expected: false
+        """,
+      expectedOutput: nil,
+      title: "Convert to guard"
     )
   }
 
-  func testConvertIfLetToGuardShownWithReturn() throws {
-    try assertConvertibleToGuard(
-      """
-      func test() -> Int? {
-        if let value = optional {
+  func testConvertIfLetToGuardShownWithReturn() async throws {
+    try await validateCodeAction(
+      input: """
+        func test() -> Int? {
+          1️⃣if let value = optional {
+            return value
+          }
+          return nil
+        }
+        """,
+      expectedOutput: """
+        func test() -> Int? {
+          guard let value = optional  else {
+            return nil
+          }
           return value
         }
-      }
-      """,
-      expected: true
+        """,
+      title: "Convert to guard"
     )
   }
 
-  func testConvertIfLetToGuardShownWithThrow() throws {
-    try assertConvertibleToGuard(
-      """
-      func test() throws -> Int {
-        if let value = optional {
+  func testConvertIfLetToGuardShownWithThrow() async throws {
+    try await validateCodeAction(
+      input: """
+        func test() throws -> Int {
+          1️⃣if let value = optional {
+            throw MyError()
+          }
+          return 0
+        }
+        """,
+      expectedOutput: """
+        func test() throws -> Int {
+          guard let value = optional  else {
+            return 0
+          }
           throw MyError()
         }
-      }
-      """,
-      expected: true
+        """,
+      title: "Convert to guard"
     )
   }
 
-  func testConvertIfLetToGuardShownWithBreak() throws {
-    try assertConvertibleToGuard(
-      """
-      func test() {
-        while true {
-          if let value = optional {
+  func testConvertIfLetToGuardShownWithBreak() async throws {
+    try await validateCodeAction(
+      input: """
+        func test() {
+          while true {
+            1️⃣if let value = optional {
+              break
+            }
+            print("loop")
+          }
+        }
+        """,
+      expectedOutput: """
+        func test() {
+          while true {
+            guard let value = optional  else {
+              print("loop")
+            }
             break
           }
         }
-      }
-      """,
-      expected: true
+        """,
+      title: "Convert to guard"
     )
   }
 
-  func testConvertIfLetToGuardShownWithContinue() throws {
-    try assertConvertibleToGuard(
-      """
-      func test() {
-        while true {
-          if let value = optional {
+  func testConvertIfLetToGuardShownWithContinue() async throws {
+    try await validateCodeAction(
+      input: """
+        func test() {
+          while true {
+            1️⃣if let value = optional {
+              continue
+            }
+            print("loop")
+          }
+        }
+        """,
+      expectedOutput: """
+        func test() {
+          while true {
+            guard let value = optional  else {
+              print("loop")
+            }
             continue
           }
         }
-      }
-      """,
-      expected: true
+        """,
+      title: "Convert to guard"
     )
   }
 
-  // fatalError requires type information to verify Never return type,
-  // so we conservatively treat it as non-exiting (see statementGuaranteesExit docs).
-  func testConvertIfLetToGuardNotShownWithFatalError() throws {
-    try assertConvertibleToGuard(
-      """
-      func test() -> Int {
-        if let value = optional {
-          fatalError("unreachable")
+  func testConvertIfLetToGuardNotShownWithFatalError() async throws {
+    try await validateCodeAction(
+      input: """
+        func test() -> Int {
+          1️⃣if let value = optional {
+            fatalError("unreachable")
+          }
+          return 0
         }
-      }
-      """,
-      expected: false
+        """,
+      expectedOutput: nil,
+      title: "Convert to guard"
     )
   }
 
-  func testConvertIfLetToGuardShownWithIfElseBothExiting() throws {
+  func testConvertIfLetToGuardShownWithIfElseBothExiting() async throws {
     // Note: Nested if-else as last statement should be detected as exiting
     // when both branches guarantee exit.
-    try assertConvertibleToGuard(
-      """
-      func test() -> Int? {
-        if let value = optional {
+    try await validateCodeAction(
+      input: """
+        func test() -> Int? {
+          1️⃣if let value = optional {
+            if value > 0 {
+              return value
+            } else {
+              return nil
+            }
+          }
+          return nil
+        }
+        """,
+      expectedOutput: """
+        func test() -> Int? {
+          guard let value = optional  else {
+            return nil
+          }
           if value > 0 {
             return value
           } else {
             return nil
           }
         }
-      }
-      """,
-      expected: true
+        """,
+      title: "Convert to guard"
     )
   }
 
-  func testConvertIfLetToGuardNotShownWithElse() throws {
-    try assertConvertibleToGuard(
-      """
-      func test() {
-        if let value = optional {
-          print(value)
-        } else {
-          print("none")
+  func testConvertIfLetToGuardNotShownWithElse() async throws {
+    try await validateCodeAction(
+      input: """
+        func test() {
+          1️⃣if let value = optional {
+            print(value)
+          } else {
+            print("none")
+          }
+          return
         }
-      }
-      """,
-      expected: false
+        """,
+      expectedOutput: nil,
+      title: "Convert to guard"
     )
   }
 
-  func testConvertIfLetToGuardNotShownWithDefer() throws {
-    try assertConvertibleToGuard(
-      """
-      func test() -> Int? {
-        if let value = optional {
-          defer { cleanup(value) }
-          return value
+  func testConvertIfLetToGuardNotShownWithDefer() async throws {
+    try await validateCodeAction(
+      input: """
+        func test() -> Int? {
+          1️⃣if let value = optional {
+            defer { cleanup(value) }
+            return value
+          }
+          return nil
         }
-      }
-      """,
-      expected: false
+        """,
+      expectedOutput: nil,
+      title: "Convert to guard"
     )
   }
 
-  func testConvertIfLetToGuardNotShownWithCasePattern() throws {
-    try assertConvertibleToGuard(
-      """
-      func test() -> Int? {
-        if case let .some(value) = optional {
-          return value
+  func testConvertIfLetToGuardNotShownWithCasePattern() async throws {
+    try await validateCodeAction(
+      input: """
+        func test() -> Int? {
+          1️⃣if case let .some(value) = optional {
+            return value
+          }
+          return nil
         }
-      }
-      """,
-      expected: false
+        """,
+      expectedOutput: nil,
+      title: "Convert to guard"
     )
   }
 
-  func testConvertIfLetToGuardNotShownWithSwitchExit() throws {
+  func testConvertIfLetToGuardNotShownWithSwitchExit() async throws {
     // Switch statements are conservatively treated as not guaranteeing exit
     // even if all cases return, because checking exhaustiveness is complex.
     // TODO: A future implementation could analyze switch exhaustiveness.
-    try assertConvertibleToGuard(
-      """
-      func test() -> Int? {
-        if let value = optional {
-          switch value {
-          case 0: return nil
-          default: return value
+    try await validateCodeAction(
+      input: """
+        func test() -> Int? {
+          1️⃣if let value = optional {
+            switch value {
+            case 0: return nil
+            default: return value
+            }
           }
+          return nil
         }
-      }
-      """,
-      expected: false
+        """,
+      expectedOutput: nil,
+      title: "Convert to guard"
     )
   }
 
-  func testConvertGuardToIfNotShownWithCasePattern() throws {
-    try assertConvertibleToIfLet(
-      """
-      func test() {
-        guard case let .some(value) = optional else {
-          return
+  func testConvertGuardToIfNotShownWithCasePattern() async throws {
+    try await validateCodeAction(
+      input: """
+        func test() {
+          1️⃣guard case let .some(value) = optional else {
+            return
+          }
+          print(value)
         }
-        print(value)
-      }
-      """,
-      expected: false
+        """,
+      expectedOutput: nil,
+      title: "Convert to if"
     )
   }
 
-  func testConvertGuardToIfNotShownWithDefer() throws {
-    try assertConvertibleToIfLet(
-      """
-      func test() {
-        guard let value = optional else {
-          defer { cleanup() }
-          return
+  func testConvertGuardToIfNotShownWithDefer() async throws {
+    try await validateCodeAction(
+      input: """
+        func test() {
+          1️⃣guard let value = optional else {
+            defer { cleanup() }
+            return
+          }
+          print(value)
         }
-        print(value)
-      }
-      """,
-      expected: false
+        """,
+      expectedOutput: nil,
+      title: "Convert to if"
     )
   }
 
   func testConvertGuardToIfNotShownWithoutFollowingCode() async throws {
     // This test must remain an integration test because "no following code"
-    // is checked at the codeActions() level, not in isConvertibleToIfLet().
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI(for: .swift)
-    let positions = testClient.openDocument(
-      """
-      func test() {
-        1️⃣guard let value = optional else {
-          return
+    // is checked at the codeActions() level.
+    try await validateCodeAction(
+      input: """
+        func test() {
+          1️⃣guard let value = optional else {
+            return
+          }
         }
-      }
-      """,
-      uri: uri
+        """,
+      expectedOutput: nil,
+      title: "Convert to if"
     )
-
-    let request = CodeActionRequest(
-      range: Range(positions["1️⃣"]),
-      context: .init(),
-      textDocument: TextDocumentIdentifier(uri)
-    )
-    let result = try await testClient.send(request)
-    guard case .codeActions(let codeActions) = result else {
-      XCTFail("Expected code actions response")
-      return
-    }
-
-    let convertAction = codeActions.first { action in
-      action.title == "Convert to if"
-    }
-    XCTAssertNil(convertAction, "Should NOT offer 'Convert to if' without following code")
   }
 
   func testConvertIfLetToGuardWithComments() async throws {
