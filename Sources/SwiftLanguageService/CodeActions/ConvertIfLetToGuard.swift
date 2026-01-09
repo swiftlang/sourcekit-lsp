@@ -67,7 +67,7 @@ import SwiftSyntaxBuilder
     }
 
     let baseIndentation = ifExpr.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
-    let indentStep = BasicFormat.inferIndentation(of: ifExpr.body) ?? .spaces(4)
+    let indentStep = BasicFormat.inferIndentation(of: ifExpr.body) ?? .spaces(2)
 
     let guardStmt = buildGuardStatement(
       from: ifExpr,
@@ -84,7 +84,7 @@ import SwiftSyntaxBuilder
 
     let remover = IndentationRemover(indentation: indentStep)
     for (index, stmt) in newBodyStatements.enumerated() {
-      var adjustedStmt = remover.rewrite(stmt).cast(CodeBlockItemSyntax.self)
+      var adjustedStmt = remover.rewrite(stmt)
       if index == 0 {
         // The first statement moved out of the if-block should be placed on a new line
         // at the base indentation level. We strip any leading newlines and indentation
@@ -183,9 +183,7 @@ import SwiftSyntaxBuilder
       }
 
     case .expr(let expr):
-      if let ifExpr = expr.as(IfExprSyntax.self),
-        let elseBody = ifExpr.elseBody
-      {
+      if let ifExpr = expr.as(IfExprSyntax.self), let elseBody = ifExpr.elseBody {
         guard bodyGuaranteesExit(ifExpr.body) else {
           return false
         }
@@ -195,10 +193,6 @@ import SwiftSyntaxBuilder
         case .ifExpr(let elseIf):
           return statementGuaranteesExit(CodeBlockItemSyntax.Item(elseIf))
         }
-      }
-
-      if expr.is(SwitchExprSyntax.self) {
-        return false
       }
 
     case .decl:
@@ -245,8 +239,9 @@ import SwiftSyntaxBuilder
 
   /// Normalize conditions trivia by stripping trailing whitespace from the end of the last condition.
   /// This prevents double spaces before the `else` keyword while preserving spaces before comments.
-  private static func normalizeConditionsTrivia(_ conditions: ConditionElementListSyntax) -> ConditionElementListSyntax
-  {
+  private static func normalizeConditionsTrivia(
+    _ conditions: ConditionElementListSyntax
+  ) -> ConditionElementListSyntax {
     guard var lastCondition = conditions.last else {
       return conditions
     }

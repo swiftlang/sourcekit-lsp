@@ -22,6 +22,10 @@ class IndentationRemover: SyntaxRewriter {
     super.init(viewMode: .sourceAccurate)
   }
 
+  func rewrite<T: SyntaxProtocol>(_ node: T) -> T {
+    return super.rewrite(Syntax(node)).cast(T.self)
+  }
+
   override func visit(_ token: TokenSyntax) -> TokenSyntax {
     var pieces = Array(token.leadingTrivia)
 
