@@ -57,7 +57,6 @@ import SwiftSyntaxBuilder
       return []
     }
 
-    // Get statements following the if statement
     guard let ifIndex = codeBlockItemList.index(of: codeBlockItem) else {
       return []
     }
@@ -67,11 +66,8 @@ import SwiftSyntaxBuilder
       return []
     }
 
-    // Get indentation info
     let baseIndentation = ifExpr.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
-    let indentStep =
-      BasicFormat.inferIndentation(of: ifExpr.body)
-      ?? inferIndentStep(from: ifExpr.body, baseIndentation: baseIndentation)
+    let indentStep = BasicFormat.inferIndentation(of: ifExpr.body) ?? .spaces(2)
 
     let guardStmt = buildGuardStatement(
       from: ifExpr,
@@ -86,12 +82,9 @@ import SwiftSyntaxBuilder
 
     var replacementText = guardStmt.description
 
-    // Use SyntaxRewriter to safely adjust indentation
     let adjuster = IndentationAdjuster(remove: indentStep)
     for stmt in newBodyStatements {
-      // Ensure the statement starts on a new line with base indentation
-      // We first adjust internal indentation, then force the leading trivia
-      let adjustedStmt = adjuster.rewrite(stmt)
+      let adjustedStmt = adjuster.rewrite(stmt).cast(CodeBlockItemSyntax.self)
       let finalStmt = adjustedStmt.with(\.leadingTrivia, .newline + baseIndentation)
       replacementText += finalStmt.description
     }
@@ -228,7 +221,6 @@ import SwiftSyntaxBuilder
   ) -> GuardStmtSyntax {
     let innerIndentation = baseIndentation + indentStep
 
-    // Build else body statements with proper indentation
     let elseStatements = CodeBlockItemListSyntax(
       elseBody.enumerated().map { index, stmt in
         let leadingTrivia: Trivia = index == 0 ? innerIndentation : .newline + innerIndentation
@@ -275,8 +267,6 @@ import SwiftSyntaxBuilder
     }
 
     lastCondition = lastCondition.with(\.trailingTrivia, Trivia(pieces: pieces))
-
-    // Rebuild conditions list with normalized last element
     var newConditions = Array(conditions.dropLast())
     newConditions.append(lastCondition)
     return ConditionElementListSyntax(newConditions)
@@ -287,33 +277,6 @@ import SwiftSyntaxBuilder
 /// (function, initializer, accessor, subscript, or closure).
 private func isFunctionBoundary(_ syntax: Syntax) -> Bool {
   [.functionDecl, .initializerDecl, .accessorDecl, .subscriptDecl, .closureExpr].contains(syntax.kind)
-}
-
-/// Fallback inference of indent step when BasicFormat.inferIndentation returns nil.
-private func inferIndentStep(from codeBlock: CodeBlockSyntax, baseIndentation: Trivia) -> Trivia {
-  guard let firstStmt = codeBlock.statements.first else {
-    return .spaces(2)
-  }
-
-  let stmtIndentation = firstStmt.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
-  let baseCount = baseIndentation.sourceLength.utf8Length
-  let stmtCount = stmtIndentation.sourceLength.utf8Length
-
-  if stmtCount > baseCount {
-    let diff = stmtCount - baseCount
-    // Preserve the type of whitespace (spaces vs tabs) from the statement
-    if case .tabs(let n) = stmtIndentation.pieces.first, n > 0 {
-      let baseTabs =
-        baseIndentation.pieces.first.map { piece -> Int in
-          if case .tabs(let t) = piece { return t }
-          return 0
-        } ?? 0
-      return .tabs(stmtCount / 8 - baseTabs)
-    }
-    return .spaces(diff)
-  }
-
-  return .spaces(2)
 }
 
 /// SyntaxRewriter that reduces indentation by a specified amount for lines starting with a newline.
@@ -327,8 +290,6 @@ private class IndentationAdjuster: SyntaxRewriter {
 
   override func visit(_ token: TokenSyntax) -> TokenSyntax {
     var pieces = Array(token.leadingTrivia)
-
-    // Find the last newline in the trivia
     guard let lastNewlineIndex = pieces.lastIndex(where: { $0.isNewline }) else {
       return token
     }
@@ -338,7 +299,6 @@ private class IndentationAdjuster: SyntaxRewriter {
     let searchIndex = indentationPieces.startIndex
     var removeIndex = 0
 
-    // Check if the indentation starts with the indentToRemove
     let pattern = indentToRemove.pieces
     var matched = true
 
@@ -360,7 +320,6 @@ private class IndentationAdjuster: SyntaxRewriter {
 
       // Handle case where we remove 2 spaces from 4 spaces
       if case .spaces(let currentN) = currentPiece, case .spaces(let patternN) = patternPiece, currentN >= patternN {
-        // Modify the piece in place to subtract
         pieces[lastNewlineIndex + 1 + removeIndex] = .spaces(currentN - patternN)
         // We successfully consumed the pattern "logically", but we modified the stream
         // so we don't need to remove subsequent pieces for this pattern piece.

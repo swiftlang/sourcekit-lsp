@@ -416,24 +416,29 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
     )
   }
 
-  func testConvertIfLetToGuardPreserves3SpaceIndent() async throws {
+  func testConvertIfLetToGuardPreserves4SpaceIndent() async throws {
+    // BasicFormat.inferIndentation requires at least 3 lines of code to infer indentation.
     try await validateCodeAction(
       input: """
         func test() -> Int? {
-           1️⃣if let value = optional {
-              print(value)
-              return value
-           }
-           return nil
+            1️⃣if let value = optional {
+                print(value)
+                print(value)
+                print(value)
+                return value
+            }
+            return nil
         }
         """,
       expectedOutput: """
         func test() -> Int? {
-           guard let value = optional else {
-              return nil
-           }
-           print(value)
-           return value
+            guard let value = optional else {
+                return nil
+            }
+            print(value)
+            print(value)
+            print(value)
+            return value
         }
         """,
       title: "Convert to guard"
