@@ -176,7 +176,7 @@ package actor JSONCompilationDatabaseBuildServer: BuiltInBuildServer {
     }
   }
 
-  package func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+  package func prepare(request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
     throw ResponseError.methodNotFound(BuildTargetPrepareRequest.method)
   }
 
