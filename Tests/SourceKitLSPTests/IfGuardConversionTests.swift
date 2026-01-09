@@ -88,25 +88,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
       .replacingOccurrences(of: "1️⃣", with: "")
       .replacingOccurrences(of: "2️⃣", with: "")
 
-    var resultingText = cleanInput
-    let lineTable = LineTable(cleanInput)
-
-    let sortedEdits = changes.sorted {
-      (a: TextEdit, b: TextEdit) -> Bool in
-      return a.range.lowerBound > b.range.lowerBound
-    }
-
-    for edit in sortedEdits {
-      let startIndex = lineTable.stringIndexOf(
-        line: edit.range.lowerBound.line,
-        utf16Column: edit.range.lowerBound.utf16index
-      )
-      let endIndex = lineTable.stringIndexOf(
-        line: edit.range.upperBound.line,
-        utf16Column: edit.range.upperBound.utf16index
-      )
-      resultingText.replaceSubrange(startIndex..<endIndex, with: edit.newText)
-    }
+    let resultingText = apply(edits: changes, to: cleanInput)
 
     XCTAssertEqual(resultingText, expectedOutput, file: file, line: line)
   }
