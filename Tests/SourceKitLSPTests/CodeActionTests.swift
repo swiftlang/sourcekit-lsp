@@ -1919,6 +1919,29 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testConvertGuardToIfLetWithSingleLineBody() async throws {
+    // When guard body is on a single line, ensure proper indentation is applied
+    try await validateCodeAction(
+      input: """
+        func test() -> Int? {
+          1️⃣guard let value = optional else { return nil }
+          print(value)
+          return value
+        }
+        """,
+      expectedOutput: """
+        func test() -> Int? {
+          if let value = optional {
+            print(value)
+            return value
+          }
+          return nil
+        }
+        """,
+      title: "Convert to if"
+    )
+  }
+
   func testConvertGuardToIfSelectsInnermostCandidate() async throws {
     // When there are multiple guards, cursor position determines which one
     try await validateCodeAction(
