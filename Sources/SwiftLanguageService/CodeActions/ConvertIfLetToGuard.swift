@@ -179,15 +179,15 @@ import SwiftSyntaxBuilder
       if let ifExpr = expr.as(IfExprSyntax.self),
         let elseBody = ifExpr.elseBody
       {
-        let thenExits = bodyGuaranteesExit(ifExpr.body)
-        let elseExits: Bool
+        guard bodyGuaranteesExit(ifExpr.body) else {
+          return false
+        }
         switch elseBody {
         case .codeBlock(let block):
-          elseExits = bodyGuaranteesExit(block)
+          return bodyGuaranteesExit(block)
         case .ifExpr(let elseIf):
-          elseExits = statementGuaranteesExit(CodeBlockItemSyntax.Item(elseIf))
+          return statementGuaranteesExit(CodeBlockItemSyntax.Item(elseIf))
         }
-        return thenExits && elseExits
       }
 
       // Switch expressions are treated as non-exiting since determining exhaustiveness
