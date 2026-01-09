@@ -774,11 +774,12 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       }
     } else {
       // try to use the user's build module cache first
-      let userBuildCache = projectRoot
+      let userBuildCache =
+        projectRoot
         .appending(component: ".build")
         .appending(component: destinationBuildParameters.triple.tripleString)
         .appending(component: "ModuleCache")
-      
+
       let cacheToUse: URL
       if FileManager.default.fileExists(atPath: userBuildCache.path) {
         // reuse existing user build cache
@@ -788,12 +789,12 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
         let globalCache = FileManager.default.homeDirectoryForCurrentUser
           .appending(components: ".cache", "sourcekit-lsp", "module-cache")
         try? FileManager.default.createDirectory(at: globalCache, withIntermediateDirectories: true)
-        
+
         // clean up stale modules older than 30 days
         Self.cleanupStaleModules(in: globalCache, olderThan: 30)
         cacheToUse = globalCache
       }
-      
+
       arguments += ["-Xswiftc", "-module-cache-path", "-Xswiftc", cacheToUse.path]
     }
 
@@ -947,19 +948,21 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
   /// removes cached modules older than specified days
   private static func cleanupStaleModules(in cacheDir: URL, olderThan days: Int) {
     let cutoffDate = Date().addingTimeInterval(-Double(days * 24 * 60 * 60))
-    
-    guard let enumerator = FileManager.default.enumerator(
-      at: cacheDir,
-      includingPropertiesForKeys: [.contentModificationDateKey],
-      options: [.skipsHiddenFiles]
-    ) else { return }
-    
+
+    guard
+      let enumerator = FileManager.default.enumerator(
+        at: cacheDir,
+        includingPropertiesForKeys: [.contentModificationDateKey],
+        options: [.skipsHiddenFiles]
+      )
+    else { return }
+
     for case let fileURL as URL in enumerator {
       guard let resourceValues = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]),
-            let modificationDate = resourceValues.contentModificationDate,
-            modificationDate < cutoffDate
+        let modificationDate = resourceValues.contentModificationDate,
+        modificationDate < cutoffDate
       else { continue }
-      
+
       try? FileManager.default.removeItem(at: fileURL)
     }
   }
