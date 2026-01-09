@@ -122,30 +122,6 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
     )
   }
 
-  func testConvertGuardToIfLet() async throws {
-    try await validateCodeAction(
-      input: """
-        func test() -> Int? {
-          1️⃣guard let value = optional else {
-            return nil
-          }
-          print(value)
-          return value
-        }
-        """,
-      expectedOutput: """
-        func test() -> Int? {
-          if let value = optional {
-            print(value)
-            return value
-          }
-          return nil
-        }
-        """,
-      title: "Convert to if"
-    )
-  }
-
   func testConvertIfLetToGuardNotShownWithoutEarlyExit() async throws {
     try await validateCodeAction(
       input: """
@@ -389,53 +365,6 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
     )
   }
 
-  func testConvertGuardToIfNotShownWithCasePattern() async throws {
-    try await validateCodeAction(
-      input: """
-        func test() {
-          1️⃣guard case let .some(value) = optional else {
-            return
-          }
-          print(value)
-        }
-        """,
-      expectedOutput: nil,
-      title: "Convert to if"
-    )
-  }
-
-  func testConvertGuardToIfNotShownWithDefer() async throws {
-    try await validateCodeAction(
-      input: """
-        func test() {
-          1️⃣guard let value = optional else {
-            defer { cleanup() }
-            return
-          }
-          print(value)
-        }
-        """,
-      expectedOutput: nil,
-      title: "Convert to if"
-    )
-  }
-
-  func testConvertGuardToIfNotShownWithoutFollowingCode() async throws {
-    // This test must remain an integration test because "no following code"
-    // is checked at the codeActions() level.
-    try await validateCodeAction(
-      input: """
-        func test() {
-          1️⃣guard let value = optional else {
-            return
-          }
-        }
-        """,
-      expectedOutput: nil,
-      title: "Convert to if"
-    )
-  }
-
   func testConvertIfLetToGuardWithComments() async throws {
     // Note: Comments inside the if body have their leading trivia replaced
     // during the transformation, so inline comments are preserved but
@@ -462,34 +391,6 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
         }
         """,
       title: "Convert to guard"
-    )
-  }
-
-  func testConvertGuardToIfLetWithComments() async throws {
-    // Note: Comments on statements have their leading trivia replaced
-    // during the transformation. Inline/trailing comments are preserved.
-    try await validateCodeAction(
-      input: """
-        func test() -> Int? {
-          // Ensure we have a value
-          1️⃣guard let value = optional /* unwrap */ else {
-            return nil // early exit
-          }
-          print(value) // Process the value
-          return value // success
-        }
-        """,
-      expectedOutput: """
-        func test() -> Int? {
-          // Ensure we have a value
-          if let value = optional /* unwrap */ {
-            print(value) // Process the value
-            return value // success
-          }
-          return nil // early exit
-        }
-        """,
-      title: "Convert to if"
     )
   }
 
@@ -536,30 +437,6 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
         }
         """,
       title: "Convert to guard"
-    )
-  }
-
-  func testConvertGuardToIfLetPreserves3SpaceIndent() async throws {
-    try await validateCodeAction(
-      input: """
-        func test() -> Int? {
-           1️⃣guard let value = optional else {
-              return nil
-           }
-           print(value)
-           return value
-        }
-        """,
-      expectedOutput: """
-        func test() -> Int? {
-           if let value = optional {
-              print(value)
-              return value
-           }
-           return nil
-        }
-        """,
-      title: "Convert to if"
     )
   }
 
@@ -618,49 +495,4 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
     )
   }
 
-  func testConvertGuardToIfLetWithSingleLineBody() async throws {
-    // When guard body is on a single line, ensure proper indentation is applied
-    try await validateCodeAction(
-      input: """
-        func test() -> Int? {
-          1️⃣guard let value = optional else { return nil }
-          print(value)
-          return value
-        }
-        """,
-      expectedOutput: """
-        func test() -> Int? {
-          if let value = optional {
-            print(value)
-            return value
-          }
-          return nil
-        }
-        """,
-      title: "Convert to if"
-    )
-  }
-
-  func testConvertGuardToIfSelectsInnermostCandidate() async throws {
-    // When there are multiple guards, cursor position determines which one
-    try await validateCodeAction(
-      input: """
-        func test() -> Int? {
-          guard let a = optA else { return nil }
-          1️⃣guard let b = optB else { return nil }
-          return a + b
-        }
-        """,
-      expectedOutput: """
-        func test() -> Int? {
-          guard let a = optA else { return nil }
-          if let b = optB {
-            return a + b
-          }
-          return nil
-        }
-        """,
-      title: "Convert to if"
-    )
-  }
 }

@@ -20,7 +20,6 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
     AddSeparatorsToIntegerLiteral.self,
     ApplyDeMorganLaw.self,
     ConvertComputedPropertyToZeroParameterFunction.self,
-    ConvertGuardToIfLet.self,
     ConvertIfLetToGuard.self,
     ConvertIntegerLiteral.self,
     ConvertJSONToCodableStruct.self,
