@@ -66,14 +66,18 @@ extension SwiftLanguageService {
   /// Looks up the definition location for the type at the given position.
   ///
   /// This is used by both inlay hint resolution and the typeDefinition request.
+  /// It works by:
+  /// 1. Getting the type USR (mangled name) from cursorInfo at the position
+  /// 2. Converting the mangled type ($s prefix) to a proper USR (s: prefix)
+  /// 3. Looking up the type definition in the index or via cursorInfo 
   func lookupTypeDefinitionLocation(
     uri: DocumentURI,
     position: Position
   ) async throws -> Location? {
+    // Step 1: Get type USR from cursor info at the position
     let snapshot = try await self.latestSnapshot(for: uri)
     let compileCommand = await self.compileCommand(for: uri, fallbackAfterTimeout: false)
 
-    // call cursor info at the variable position to get the type declaration location
     let skreq = sourcekitd.dictionary([
       keys.cancelOnSubsequentRequest: 0,
       keys.offset: snapshot.utf8Offset(of: position),
@@ -84,38 +88,46 @@ extension SwiftLanguageService {
 
     let dict = try await send(sourcekitdRequest: \.cursorInfo, skreq, snapshot: snapshot)
 
-    if let filepath: String = dict[keys.typeDeclFilePath],
-      let line: Int = dict[keys.typeDeclLine],
-      let column: Int = dict[keys.typeDeclColumn]
+    // Get the type USR (this is of a mangled type like "$sSS" for String)
+    guard let typeUsr: String = dict[keys.typeUsr] else {
+      return nil
+    }
+
+    // step 2: Convert mangled type to proper USR
+    // The typeUsr is a mangled type like "$s4test6MyTypeVD" for struct MyType
+    // To get the declaration USR, we need to:
+    // 1. Replace "$s" prefix with "s:"
+    // 2. Strip the trailing "D" which is a mangling suffix (type descriptor)
+    var mangledName = typeUsr
+    if mangledName.hasPrefix("$s") {
+      mangledName = "s:" + mangledName.dropFirst(2)
+    }
+    // Strip trailing 'D' (type descriptor suffix in mangling)
+    if mangledName.hasSuffix("D") {
+      mangledName = String(mangledName.dropLast())
+    }
+    let usr = mangledName
+
+    // step 3: Try index lookup first (works well for local and external types)
+    if let workspace = await sourceKitLSPServer?.workspaceForDocument(uri: uri),
+      let index = await workspace.index(checkedFor: .deletedFiles),
+      let occurrence = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr)
     {
-      let definitionUri = DocumentURI(filePath: filepath, isDirectory: false)
-      let definitionPosition = Position(line: line - 1, utf16index: column - 1)
+      let definitionUri = DocumentURI(filePath: occurrence.location.path, isDirectory: false)
+      let definitionPosition = Position(
+        line: occurrence.location.line - 1,
+        utf16index: occurrence.location.utf8Column - 1
+      )
       return Location(uri: definitionUri, range: Range(definitionPosition))
     }
 
-    // fallback: use the type declaration USR with index lookup
-
-    guard let typeDeclUsr: String = dict[keys.typeDeclUsr] else {
-      return nil
+    // Fallback: Try cursorInfo with USR (for types not in index)
+    if let typeInfo = try await cursorInfoFromTypeUSR(typeUsr, in: uri),
+      let location = typeInfo.symbolInfo.bestLocalDeclaration
+    {
+      return location
     }
 
-    // look up the type definition in the index
-    guard let workspace = await sourceKitLSPServer?.workspaceForDocument(uri: uri),
-      let index = await workspace.index(checkedFor: .deletedFiles)
-    else {
-      return nil
-    }
-
-    guard let occurrence = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: typeDeclUsr) else {
-      return nil
-    }
-
-    let definitionUri = DocumentURI(filePath: occurrence.location.path, isDirectory: false)
-    let definitionPosition = Position(
-      line: occurrence.location.line - 1,
-      utf16index: occurrence.location.utf8Column - 1
-    )
-
-    return Location(uri: definitionUri, range: Range(definitionPosition))
+    return nil
   }
 }

@@ -207,4 +207,48 @@ extension SwiftLanguageService {
       additionalParameters: appendAdditionalParameters
     )
   }
+
+  /// converts a mangled type string to a USR format.
+  /// mangled types start with `$s` while USRs start with `s:`.
+  /// for instance `$sSS` becomes `s:SS` (for String type).
+  private func convertMangledTypeToUSR(_ mangledType: String) -> String {
+    if mangledType.hasPrefix("$s") {
+      return "s:" + mangledType.dropFirst(2)
+    }
+    // already in USR format or unknown format, return as-is
+    return mangledType
+  }
+
+  /// get cursor info for a type by looking up its USR.
+  /// this takes a mangled type (from `key.typeusr`) and converts it to a proper USR
+  /// (by replacing `$s` prefix with `s:`), then queries cursorInfo with that USR.
+  ///
+  /// - parameters:
+  ///   - mangledType: the mangled type string (e.g., `$sSS` for String)
+  ///   - uri: document URI for context (used to get compile command)
+  /// - returns: cursorInfo for the type declaration, or nil if not found
+  func cursorInfoFromTypeUSR(
+    _ mangledType: String,
+    in uri: DocumentURI
+  ) async throws -> CursorInfo? {
+    let usr = convertMangledTypeToUSR(mangledType)
+
+    let snapshot = try await self.latestSnapshot(for: uri)
+    let compileCommand = await self.compileCommand(for: uri, fallbackAfterTimeout: true)
+    let documentManager = try self.documentManager
+
+    let keys = self.keys
+
+    let skreq = sourcekitd.dictionary([
+      keys.cancelOnSubsequentRequest: 0,
+      keys.usr: usr,
+      keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
+      keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
+      keys.compilerArgs: compileCommand?.compilerArgs as [any SKDRequestValue]?,
+    ])
+
+    let dict = try await send(sourcekitdRequest: \.cursorInfo, skreq, snapshot: snapshot)
+
+    return CursorInfo(dict, snapshot: snapshot, documentManager: documentManager, sourcekitd: sourcekitd)
+  }
 }

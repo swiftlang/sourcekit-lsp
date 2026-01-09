@@ -289,7 +289,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
     // test that resolving an inlay hint returns label parts with type location
     let project = try await IndexedSingleSwiftFileTestProject(
       """
-      1️⃣struct MyType {}
+      struct 1️⃣MyType {}
       let x2️⃣ = MyType()
       """
     )

@@ -12,7 +12,6 @@
 // Automatically Generated From UIDs.swift.gyb.
 // Do Not Edit Directly! To regenerate run Utilities/generate-uids.py
 
-
 package import Csourcekitd
 
 package struct sourcekitd_api_keys {
@@ -232,16 +231,6 @@ package struct sourcekitd_api_keys {
   package let typeUsr: sourcekitd_api_uid_t
   /// `key.containertypeusr`
   package let containerTypeUsr: sourcekitd_api_uid_t
-  /// `key.typedecl_usr`
-  package let typeDeclUsr: sourcekitd_api_uid_t
-  /// `key.typedecl_filepath`
-  package let typeDeclFilePath: sourcekitd_api_uid_t
-  /// `key.typedecl_line`
-  package let typeDeclLine: sourcekitd_api_uid_t
-  /// `key.typedecl_column`
-  package let typeDeclColumn: sourcekitd_api_uid_t
-  /// `key.typedecl_modulename`
-  package let typeDeclModuleName: sourcekitd_api_uid_t
   /// `key.modulegroups`
   package let moduleGroups: sourcekitd_api_uid_t
   /// `key.basename`
@@ -650,11 +639,6 @@ package struct sourcekitd_api_keys {
     removeCache = api.uid_get_from_cstr("key.removecache")!
     typeUsr = api.uid_get_from_cstr("key.typeusr")!
     containerTypeUsr = api.uid_get_from_cstr("key.containertypeusr")!
-    typeDeclUsr = api.uid_get_from_cstr("key.typedecl_usr")!
-    typeDeclFilePath = api.uid_get_from_cstr("key.typedecl_filepath")!
-    typeDeclLine = api.uid_get_from_cstr("key.typedecl_line")!
-    typeDeclColumn = api.uid_get_from_cstr("key.typedecl_column")!
-    typeDeclModuleName = api.uid_get_from_cstr("key.typedecl_modulename")!
     moduleGroups = api.uid_get_from_cstr("key.modulegroups")!
     baseName = api.uid_get_from_cstr("key.basename")!
     argNames = api.uid_get_from_cstr("key.argnames")!
