@@ -393,7 +393,9 @@ extension ClangLanguageService {
       guard let clangd else { return }
       // Give clangd 2 seconds to shut down by itself. If it doesn't shut down within that time, terminate it.
       try await withTimeout(.seconds(2)) {
-        _ = try await clangd.send(ShutdownRequest())
+        let shutdownRequest = ShutdownRequest()
+        await self.sourceKitLSPServer?.hooks.preForwardRequestToClangd?(shutdownRequest)
+        _ = try await clangd.send(shutdownRequest)
         clangd.send(ExitNotification())
       }
     }

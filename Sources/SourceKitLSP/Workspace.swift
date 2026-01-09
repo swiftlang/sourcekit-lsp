@@ -197,6 +197,11 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   /// Language service for an open document, if available.
   private let languageServices: ThreadSafeBox<[DocumentURI: [any LanguageService]]> = ThreadSafeBox(initialValue: [:])
 
+  /// All language services that are registered with this workspace.
+  var allLanguageServices: [any LanguageService] {
+    return languageServices.value.values.flatMap { $0 }
+  }
+
   /// The task that constructs the `SemanticIndexManager`, which keeps track of whose file's index is up-to-date in the
   /// workspace and schedules indexing and preparation tasks for files with out-of-date index.
   ///

@@ -1529,6 +1529,50 @@ extension SourceKitLSPServer {
         self.workspacesAndIsImplicit += newWorkspaces.map { (workspace: $0, isImplicit: false) }
       }
     }.value
+
+    // Shut down any language services that are no longer referenced by any workspace.
+    await self.shutdownOrphanedLanguageServices()
+  }
+
+  /// Shuts down any language services that are no longer referenced by any open workspace.
+  ///
+  /// This method gathers all language services that are currently referenced by open workspaces
+  /// and shuts down any language services that are not in that set.
+  private func shutdownOrphanedLanguageServices() async {
+    // Gather all language services referenced by open workspaces
+    var referencedServices: Set<ObjectIdentifier> = []
+    for workspace in workspaces {
+      for languageService in workspace.allLanguageServices {
+        referencedServices.insert(ObjectIdentifier(languageService))
+      }
+    }
+
+    // Find and remove orphaned language services, skipping immortal ones
+    var orphanedServices: [any LanguageService] = []
+    for (serviceType, services) in languageServices {
+      var remainingServices: [any LanguageService] = []
+      for service in services {
+        if referencedServices.contains(ObjectIdentifier(service)) || type(of: service).isImmortal {
+          remainingServices.append(service)
+        } else {
+          orphanedServices.append(service)
+        }
+      }
+      if remainingServices.count != services.count {
+        languageServices[serviceType] = remainingServices.isEmpty ? nil : remainingServices
+      }
+    }
+
+    // Shut down orphaned services in a background task to avoid blocking other requests.
+
+    if !orphanedServices.isEmpty {
+      Task {
+        for service in orphanedServices {
+          logger.info("Shutting down orphaned language service: \(type(of: service))")
+          await service.shutdown()
+        }
+      }
+    }
   }
 
   func didChangeWatchedFiles(_ notification: DidChangeWatchedFilesNotification) async {
