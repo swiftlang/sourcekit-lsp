@@ -107,25 +107,11 @@ import SwiftSyntaxBuilder
   /// - Must not contain defer statements
   /// - Body must guarantee exit (all code paths must exit)
   private static func findConvertibleIfExpr(in scope: SyntaxCodeActionScope) -> IfExprSyntax? {
-    guard let node = scope.innermostNodeContainingRange else {
-      return nil
-    }
-
-    var current: Syntax? = node
-    while let syntax = current {
-      if let ifExpr = syntax.as(IfExprSyntax.self) {
-        if isConvertibleToGuard(ifExpr) {
-          return ifExpr
-        }
-      }
-
-      if isFunctionBoundary(syntax) {
-        break
-      }
-
-      current = syntax.parent
-    }
-    return nil
+    scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: IfExprSyntax.self,
+      stoppingIf: isFunctionBoundary,
+      matching: isConvertibleToGuard
+    )
   }
 
   /// Checks if an if expression can be converted to a guard statement.
