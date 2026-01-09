@@ -573,4 +573,28 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
       title: "Convert to guard"
     )
   }
+
+  func testConvertIfLetToGuardWithFirstStatementLineComment() async throws {
+    try await validateCodeAction(
+      input: """
+        func test() -> Int? {
+          1️⃣if let value = optional {
+            // This comment is attached to 'return'
+            return value
+          }
+          return nil
+        }
+        """,
+      expectedOutput: """
+        func test() -> Int? {
+          guard let value = optional else {
+            return nil
+          }
+          // This comment is attached to 'return'
+          return value
+        }
+        """,
+      title: "Convert to guard"
+    )
+  }
 }

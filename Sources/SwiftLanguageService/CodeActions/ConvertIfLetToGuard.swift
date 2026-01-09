@@ -138,18 +138,16 @@ import SwiftSyntaxBuilder
   }
 
   private static func isConvertibleToGuard(_ ifExpr: IfExprSyntax) -> Bool {
-    guard ifExpr.elseKeyword == nil, ifExpr.elseBody == nil else {
+    guard ifExpr.elseBody == nil else {
       return false
     }
 
     for condition in ifExpr.conditions {
-      guard let optionalBinding = condition.condition.as(OptionalBindingConditionSyntax.self) else {
-        if condition.condition.is(MatchingPatternConditionSyntax.self) {
+      if let optionalBinding = condition.condition.as(OptionalBindingConditionSyntax.self) {
+        if optionalBinding.pattern.is(ExpressionPatternSyntax.self) {
           return false
         }
-        continue
-      }
-      if optionalBinding.pattern.is(ExpressionPatternSyntax.self) {
+      } else if condition.condition.is(MatchingPatternConditionSyntax.self) {
         return false
       }
     }
@@ -163,11 +161,7 @@ import SwiftSyntaxBuilder
   }
 
   private static func bodyGuaranteesExit(_ codeBlock: CodeBlockSyntax) -> Bool {
-    guard let lastStatement = codeBlock.statements.last else {
-      return false
-    }
-
-    return statementGuaranteesExit(lastStatement.item)
+    return codeBlock.statements.reversed().contains { statementGuaranteesExit($0.item) }
   }
 
   /// Checks if a statement guarantees control flow will not continue past it.
@@ -222,7 +216,7 @@ import SwiftSyntaxBuilder
   ) -> GuardStmtSyntax {
     let elseStatements = CodeBlockItemListSyntax(
       elseBody.enumerated().map { index, stmt in
-        var adjusted = stmt.indented(by: indentStep).cast(CodeBlockItemSyntax.self)
+        var adjusted = stmt.indented(by: indentStep)
         if index == 0 {
           // Strip the first newline from the first statement since CodeBlockSyntax provides it
           var pieces = Array(adjusted.leadingTrivia)
