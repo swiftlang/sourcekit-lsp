@@ -111,7 +111,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
         """,
       expectedOutput: """
         func test() -> Int? {
-          guard let value = optional  else {
+          guard let value = optional else {
             return nil
           }
           print(value)
@@ -165,7 +165,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
         """,
       expectedOutput: """
         func test() -> Int? {
-          guard let value = optional  else {
+          guard let value = optional else {
             return nil
           }
           return value
@@ -187,7 +187,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
         """,
       expectedOutput: """
         func test() throws -> Int {
-          guard let value = optional  else {
+          guard let value = optional else {
             return 0
           }
           throw MyError()
@@ -212,7 +212,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
       expectedOutput: """
         func test() {
           while true {
-            guard let value = optional  else {
+            guard let value = optional else {
               print("loop")
             }
             break
@@ -238,7 +238,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
       expectedOutput: """
         func test() {
           while true {
-            guard let value = optional  else {
+            guard let value = optional else {
               print("loop")
             }
             continue
@@ -282,7 +282,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
         """,
       expectedOutput: """
         func test() -> Int? {
-          guard let value = optional  else {
+          guard let value = optional else {
             return nil
           }
           if value > 0 {
@@ -383,7 +383,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
       expectedOutput: """
         func test() -> Int? {
           // Check if we have a value
-          guard let value = optional /* unwrap */  else {
+          guard let value = optional /* unwrap */ else {
             return nil // fallback
           }
           print(value) // Use the value
@@ -406,7 +406,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
         """,
       expectedOutput: """
         func test() -> Int? {
-          guard let a = optA, let b = optB, a > 0  else {
+          guard let a = optA, let b = optB, a > 0 else {
             return nil
           }
           return a + b
@@ -429,7 +429,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
         """,
       expectedOutput: """
         func test() -> Int? {
-           guard let value = optional  else {
+           guard let value = optional else {
               return nil
            }
            print(value)
@@ -457,7 +457,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
       expectedOutput: """
         func test() -> Int? {
           if let outer = optA {
-            guard let inner = optB  else {
+            guard let inner = optB else {
               return outer
             }
             return inner
@@ -484,7 +484,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
         """,
       expectedOutput: """
         func test() -> Int? {
-          guard let outer = optA  else {
+          guard let outer = optA else {
             return nil
           }
           print(outer)
