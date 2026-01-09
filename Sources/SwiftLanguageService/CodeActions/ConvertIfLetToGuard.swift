@@ -41,16 +41,12 @@ import SwiftSyntaxBuilder
       return []
     }
 
-    // Navigate up to find CodeBlockItemSyntax, looking through any ExpressionStmtSyntax wrapper.
     var current = Syntax(ifExpr)
-    while let parent = current.parent {
-      if parent.is(CodeBlockItemSyntax.self) {
-        break
-      }
-      if parent.is(ExpressionStmtSyntax.self) {
-        current = parent
-        continue
-      }
+    if let parent = current.parent, parent.is(ExpressionStmtSyntax.self) {
+      current = parent
+    }
+
+    guard current.parent?.is(CodeBlockItemSyntax.self) == true else {
       return []
     }
 
@@ -107,11 +103,14 @@ import SwiftSyntaxBuilder
   /// - Must not contain defer statements
   /// - Body must guarantee exit (all code paths must exit)
   private static func findConvertibleIfExpr(in scope: SyntaxCodeActionScope) -> IfExprSyntax? {
-    scope.innermostNodeContainingRange?.findParentOfSelf(
+    let ifExpr = scope.innermostNodeContainingRange?.findParentOfSelf(
       ofType: IfExprSyntax.self,
-      stoppingIf: isFunctionBoundary,
-      matching: isConvertibleToGuard
+      stoppingIf: isFunctionBoundary
     )
+    guard let ifExpr, isConvertibleToGuard(ifExpr) else {
+      return nil
+    }
+    return ifExpr
   }
 
   /// Checks if an if expression can be converted to a guard statement.

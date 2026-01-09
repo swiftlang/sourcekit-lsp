@@ -161,6 +161,22 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testConvertIfLetToGuardNotShownWhenPartOfExpression() async throws {
+    try await validateCodeAction(
+      input: """
+        func test() -> Int? {
+          if let a = optional {
+            let x = 1️⃣if let b = optional { b } else { nil }
+            return a
+          }
+          return nil
+        }
+        """,
+      expectedOutput: nil,
+      title: "Convert to guard"
+    )
+  }
+
   func testConvertIfLetToGuardShownWithReturn() async throws {
     try await validateCodeAction(
       input: """
