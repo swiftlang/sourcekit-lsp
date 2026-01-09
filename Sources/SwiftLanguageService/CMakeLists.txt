@@ -24,6 +24,7 @@ add_library(SwiftLanguageService STATIC
   ExpandMacroCommand.swift
   FoldingRange.swift
   GeneratedInterfaceManager.swift
+  IndentationRemover.swift
   InlayHints.swift
   MacroExpansion.swift
   OpenInterface.swift

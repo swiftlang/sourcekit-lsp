@@ -82,9 +82,9 @@ import SwiftSyntaxBuilder
 
     var replacementText = guardStmt.description
 
-    let adjuster = IndentationAdjuster(mode: .remove(indentStep))
+    let remover = IndentationRemover(indentation: indentStep)
     for (index, stmt) in newBodyStatements.enumerated() {
-      var adjustedStmt = adjuster.rewrite(stmt).cast(CodeBlockItemSyntax.self)
+      var adjustedStmt = remover.rewrite(stmt).cast(CodeBlockItemSyntax.self)
       if index == 0 {
         // The first statement moved out of the if-block should be placed on a new line
         // at the base indentation level. We strip any leading newlines and indentation
@@ -220,11 +220,9 @@ import SwiftSyntaxBuilder
     baseIndentation: Trivia,
     indentStep: Trivia
   ) -> GuardStmtSyntax {
-    let adjuster = IndentationAdjuster(mode: .add(indentStep))
-
     let elseStatements = CodeBlockItemListSyntax(
       elseBody.enumerated().map { index, stmt in
-        var adjusted = adjuster.rewrite(stmt).cast(CodeBlockItemSyntax.self)
+        var adjusted = stmt.indented(by: indentStep).cast(CodeBlockItemSyntax.self)
         if index == 0 {
           // Strip the first newline from the first statement since CodeBlockSyntax provides it
           var pieces = Array(adjusted.leadingTrivia)
