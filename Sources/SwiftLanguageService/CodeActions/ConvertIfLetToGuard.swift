@@ -387,8 +387,7 @@ import SwiftSyntaxBuilder
 /// Check if the given syntax node represents a function-level boundary
 /// (function, initializer, accessor, or closure).
 private func isFunctionBoundary(_ syntax: Syntax) -> Bool {
-  syntax.is(FunctionDeclSyntax.self) || syntax.is(InitializerDeclSyntax.self) || syntax.is(AccessorDeclSyntax.self)
-    || syntax.is(ClosureExprSyntax.self)
+  [.functionDecl, .initializerDecl, .accessorDecl, .closureExpr].contains(syntax.kind)
 }
 
 /// Apply indentation to a list of statements, with the first statement
