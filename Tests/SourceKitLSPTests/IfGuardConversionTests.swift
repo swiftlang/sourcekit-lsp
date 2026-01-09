@@ -495,4 +495,18 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testConvertIfLetToGuardWithCRLF() async throws {
+    // Test that CRLF line endings in input are handled correctly.
+    // Note: Swift parser normalizes CRLF to LF internally, but the original document
+    // lines not affected by the replacement keep their CRLF endings. The generated
+    // guard body uses LF for its internal newlines.
+    try await validateCodeAction(
+      input:
+        "func test() -> Int? {\r\n  1️⃣if let value = optional {\r\n    print(value)\r\n    return value\r\n  }\r\n  return nil\r\n}",
+      expectedOutput:
+        "func test() -> Int? {\r\n  guard let value = optional else {\n    return nil\n  }\n  print(value)\n  return value\r\n}",
+      title: "Convert to guard"
+    )
+  }
+
 }

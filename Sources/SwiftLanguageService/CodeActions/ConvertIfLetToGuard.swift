@@ -67,20 +67,33 @@ import SwiftSyntaxBuilder
       return []
     }
 
-    let guardStmt = buildGuardStatement(from: ifExpr, elseBody: Array(followingStatements))
+    // Get indentation info
+    let baseIndentation = ifExpr.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
+    let indentStep =
+      BasicFormat.inferIndentation(of: ifExpr.body)
+      ?? inferIndentStep(from: ifExpr.body, baseIndentation: baseIndentation)
+
+    let guardStmt = buildGuardStatement(
+      from: ifExpr,
+      elseBody: Array(followingStatements),
+      baseIndentation: baseIndentation,
+      indentStep: indentStep
+    )
     let newBodyStatements = ifExpr.body.statements
 
     let rangeStart = ifExpr.positionAfterSkippingLeadingTrivia
     let rangeEnd = lastStatement.endPosition
 
     var replacementText = guardStmt.description
-    let baseIndentation = ifExpr.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
-    // Infer the inner block's indentation from the first statement
-    let innerIndentation =
-      newBodyStatements.first?.firstToken(viewMode: .sourceAccurate)?.indentationOfLine
-      ?? (baseIndentation + .spaces(2))
+
+    // Use SyntaxRewriter to safely adjust indentation
+    let adjuster = IndentationAdjuster(remove: indentStep)
     for stmt in newBodyStatements {
-      replacementText += adjustingIndentation(of: stmt, from: innerIndentation, to: baseIndentation)
+      // Ensure the statement starts on a new line with base indentation
+      // We first adjust internal indentation, then force the leading trivia
+      let adjustedStmt = adjuster.rewrite(stmt)
+      let finalStmt = adjustedStmt.with(\.leadingTrivia, .newline + baseIndentation)
+      replacementText += finalStmt.description
     }
 
     let edit = TextEdit(
@@ -207,16 +220,21 @@ import SwiftSyntaxBuilder
   }
 
   /// Builds a guard statement from an if expression.
-  /// Infers indentation from the if body's existing indentation.
   private static func buildGuardStatement(
     from ifExpr: IfExprSyntax,
-    elseBody: [CodeBlockItemSyntax]
+    elseBody: [CodeBlockItemSyntax],
+    baseIndentation: Trivia,
+    indentStep: Trivia
   ) -> GuardStmtSyntax {
-    let baseIndentation = ifExpr.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
-    let indentStep = inferIndentStep(from: ifExpr.body, baseIndentation: baseIndentation)
     let innerIndentation = baseIndentation + indentStep
 
-    let elseStatements = applyIndentation(to: elseBody, indentation: innerIndentation)
+    // Build else body statements with proper indentation
+    let elseStatements = CodeBlockItemListSyntax(
+      elseBody.enumerated().map { index, stmt in
+        let leadingTrivia: Trivia = index == 0 ? innerIndentation : .newline + innerIndentation
+        return stmt.with(\.leadingTrivia, leadingTrivia)
+      }
+    )
 
     let elseBlock = CodeBlockSyntax(
       leftBrace: .leftBraceToken(trailingTrivia: .newline),
@@ -271,22 +289,7 @@ private func isFunctionBoundary(_ syntax: Syntax) -> Bool {
   [.functionDecl, .initializerDecl, .accessorDecl, .subscriptDecl, .closureExpr].contains(syntax.kind)
 }
 
-/// Apply indentation to a list of statements, with the first statement
-/// getting just indentation and subsequent statements getting newline + indentation.
-private func applyIndentation(
-  to statements: [CodeBlockItemSyntax],
-  indentation: Trivia
-) -> CodeBlockItemListSyntax {
-  CodeBlockItemListSyntax(
-    statements.enumerated().map { index, stmt in
-      stmt.with(\.leadingTrivia, index == 0 ? indentation : .newline + indentation)
-    }
-  )
-}
-
-/// Infer the indentation step used in a code block by comparing
-/// the first statement's indentation to the base indentation.
-/// Falls back to 2 spaces if indentation cannot be determined.
+/// Fallback inference of indent step when BasicFormat.inferIndentation returns nil.
 private func inferIndentStep(from codeBlock: CodeBlockSyntax, baseIndentation: Trivia) -> Trivia {
   guard let firstStmt = codeBlock.statements.first else {
     return .spaces(2)
@@ -305,7 +308,7 @@ private func inferIndentStep(from codeBlock: CodeBlockSyntax, baseIndentation: T
           if case .tabs(let t) = piece { return t }
           return 0
         } ?? 0
-      return .tabs(stmtCount / 8 - baseTabs)  // Rough estimate for tabs
+      return .tabs(stmtCount / 8 - baseTabs)
     }
     return .spaces(diff)
   }
@@ -313,49 +316,81 @@ private func inferIndentStep(from codeBlock: CodeBlockSyntax, baseIndentation: T
   return .spaces(2)
 }
 
-/// Adjusts indentation of a statement by replacing occurrences of `oldIndent`
-/// with `newIndent` after each newline. This preserves comments and other non-whitespace
-/// trivia while properly unindenting all lines (including multi-line statements).
-///
-/// - Parameters:
-///   - stmt: The statement to adjust indentation for
-///   - oldIndent: The indentation to replace (typically the inner block's indentation)
-///   - newIndent: The new indentation to use (typically the outer scope's indentation)
-/// - Returns: The statement's description with adjusted indentation, with leading newline
-private func adjustingIndentation(
-  of stmt: CodeBlockItemSyntax,
-  from oldIndent: Trivia,
-  to newIndent: Trivia
-) -> String {
-  let oldIndentStr = oldIndent.description
-  let newIndentStr = newIndent.description
+/// SyntaxRewriter that reduces indentation by a specified amount for lines starting with a newline.
+private class IndentationAdjuster: SyntaxRewriter {
+  let indentToRemove: Trivia
 
-  var result = stmt.description
-
-  // Replace all occurrences of \n<oldIndent> with \n<newIndent>
-  // This handles both leading trivia newlines and internal newlines in multi-line statements
-  if !oldIndentStr.isEmpty {
-    result = result.replacingOccurrences(of: "\n" + oldIndentStr, with: "\n" + newIndentStr)
+  init(remove indent: Trivia) {
+    self.indentToRemove = indent
+    super.init(viewMode: .sourceAccurate)
   }
 
-  // Handle first line indentation
-  if result.hasPrefix(oldIndentStr) && !oldIndentStr.isEmpty {
-    // Standard case: replace old indentation with new
-    result = newIndentStr + String(result.dropFirst(oldIndentStr.count))
-  } else if !result.hasPrefix("\n") {
-    // Single-line block case: strip any leading whitespace and use new indentation
-    // This handles cases like `{ return nil }` where statement has minimal leading trivia
-    var trimmed = result
-    while trimmed.hasPrefix(" ") || trimmed.hasPrefix("\t") {
-      trimmed.removeFirst()
+  override func visit(_ token: TokenSyntax) -> TokenSyntax {
+    var pieces = Array(token.leadingTrivia)
+
+    // Find the last newline in the trivia
+    guard let lastNewlineIndex = pieces.lastIndex(where: { $0.isNewline }) else {
+      return token
     }
-    result = newIndentStr + trimmed
-  }
 
-  // Ensure result starts with newline for proper statement separation
-  if !result.hasPrefix("\n") {
-    result = "\n" + result
-  }
+    // The indentation follows the last newline
+    let indentationPieces = pieces[(lastNewlineIndex + 1)...]
+    let searchIndex = indentationPieces.startIndex
+    var removeIndex = 0
 
-  return result
+    // Check if the indentation starts with the indentToRemove
+    let pattern = indentToRemove.pieces
+    var matched = true
+
+    // Simple matching: check if pieces match
+    // Note: This matches exact pieces (e.g. .spaces(4) matches .spaces(4))
+    // Logic could be improved to handle splitted spaces (e.g. remove 2 from 4) if needed,
+    // but typically IndentationInferrer returns consistent units.
+    for patternPiece in pattern {
+      if removeIndex >= indentationPieces.count {
+        matched = false
+        break
+      }
+      let currentPiece = indentationPieces[searchIndex + removeIndex]
+
+      if currentPiece == patternPiece {
+        removeIndex += 1
+        continue
+      }
+
+      // Handle case where we remove 2 spaces from 4 spaces
+      if case .spaces(let currentN) = currentPiece, case .spaces(let patternN) = patternPiece, currentN >= patternN {
+        // Modify the piece in place to subtract
+        pieces[lastNewlineIndex + 1 + removeIndex] = .spaces(currentN - patternN)
+        // We successfully consumed the pattern "logically", but we modified the stream
+        // so we don't need to remove subsequent pieces for this pattern piece.
+        // However, we need to match the rest of the pattern?
+        // Usually indentStep is just spaces(2) or spaces(4) or tabs(1).
+        // So a single piece match is common.
+        matched = true
+        break
+      }
+      if case .tabs(let currentN) = currentPiece, case .tabs(let patternN) = patternPiece, currentN >= patternN {
+        pieces[lastNewlineIndex + 1 + removeIndex] = .tabs(currentN - patternN)
+        matched = true
+        break
+      }
+
+      matched = false
+      break
+    }
+
+    if matched {
+      // If we matched exact pieces, remove them.
+      // If we matched by subtraction (break case above), we modified 'pieces' already
+      // and don't need to remove indices, just filtered out empty pieces?
+
+      // Simplified logic assuming common case of exact match or simple subtraction of one piece
+      if removeIndex > 0 {
+        pieces.removeSubrange((lastNewlineIndex + 1)..<(lastNewlineIndex + 1 + removeIndex))
+      }
+    }
+
+    return token.with(\.leadingTrivia, Trivia(pieces: pieces))
+  }
 }
