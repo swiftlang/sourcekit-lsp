@@ -467,18 +467,4 @@ private extension Trivia {
     }
     return pieces.isEmpty ? nil : Trivia(pieces: pieces)
   }
-
-  /// Remove trailing spaces and tabs, preserving comments and other trivia.
-  var trimmingTrailingWhitespace: Trivia {
-    var pieces = self.pieces
-    while let last = pieces.last {
-      switch last {
-      case .spaces, .tabs:
-        pieces.removeLast()
-      default:
-        return Trivia(pieces: pieces)
-      }
-    }
-    return Trivia(pieces: pieces)
-  }
 }
