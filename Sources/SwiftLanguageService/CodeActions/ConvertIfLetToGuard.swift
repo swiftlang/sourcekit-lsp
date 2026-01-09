@@ -429,6 +429,53 @@ private func inferIndentStep(from codeBlock: CodeBlockSyntax, baseIndentation: T
   return .spaces(2)
 }
 
+/// Adjusts indentation of a statement by replacing occurrences of `oldIndent`
+/// with `newIndent` after each newline. This preserves comments and other non-whitespace
+/// trivia while properly unindenting all lines (including multi-line statements).
+///
+/// - Parameters:
+///   - stmt: The statement to adjust indentation for
+///   - oldIndent: The indentation to replace (typically the inner block's indentation)
+///   - newIndent: The new indentation to use (typically the outer scope's indentation)
+/// - Returns: The statement's description with adjusted indentation, with leading newline
+private func adjustingIndentation(
+  of stmt: CodeBlockItemSyntax,
+  from oldIndent: Trivia,
+  to newIndent: Trivia
+) -> String {
+  let oldIndentStr = oldIndent.description
+  let newIndentStr = newIndent.description
+
+  var result = stmt.description
+
+  // Replace all occurrences of \n<oldIndent> with \n<newIndent>
+  // This handles both leading trivia newlines and internal newlines in multi-line statements
+  if !oldIndentStr.isEmpty {
+    result = result.replacingOccurrences(of: "\n" + oldIndentStr, with: "\n" + newIndentStr)
+  }
+
+  // Handle first line indentation
+  if result.hasPrefix(oldIndentStr) && !oldIndentStr.isEmpty {
+    // Standard case: replace old indentation with new
+    result = newIndentStr + String(result.dropFirst(oldIndentStr.count))
+  } else if !result.hasPrefix("\n") {
+    // Single-line block case: strip any leading whitespace and use new indentation
+    // This handles cases like `{ return nil }` where statement has minimal leading trivia
+    var trimmed = result
+    while trimmed.hasPrefix(" ") || trimmed.hasPrefix("\t") {
+      trimmed.removeFirst()
+    }
+    result = newIndentStr + trimmed
+  }
+
+  // Ensure result starts with newline for proper statement separation
+  if !result.hasPrefix("\n") {
+    result = "\n" + result
+  }
+
+  return result
+}
+
 private extension Trivia {
   /// Extract the indentation from trivia (spaces and tabs at the end).
   var indentation: Trivia? {
