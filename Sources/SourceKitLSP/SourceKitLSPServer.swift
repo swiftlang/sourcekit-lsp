@@ -656,10 +656,25 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
   /// - Important: Should be invoked on `textDocumentTrackingQueue` to ensure that new text document requests are
   ///   registered before a notification that triggers cancellation might come in.
   private func cancelTextDocumentRequests(for uri: DocumentURI, reason: ImplicitTextDocumentRequestCancellationReason) {
-    guard self.options.cancelTextDocumentRequestsOnEditAndCloseOrDefault else {
-      return
-    }
+    let staleRequestSupport = self.capabilityRegistry?.clientCapabilities.general?.staleRequestSupport
     for (requestID, requestMethod) in self.inProgressTextDocumentRequests[uri, default: []] {
+      // Implicitly cancel text document requests if:
+      //  - We have enabled implicit text document request cancellation in the SourceKit options
+      //  - The client has indicated that it does not cancel stale requests. Defaults to `true` because this is an
+      //    option introduced in LSP 3.17 and most clients cancel requests diligently without setting
+      //    `staleRequestSupport.cancel = true`
+      //  - `staleRequestSupport.retryOnContentModified` contains this request method. Documentation for this behavior
+      //    is very limited but it appears that if a request is included in that array, the client (VS Code in
+      //    particular) expects to receive a `ContentModified` response when the LSP server detects an edit, in which
+      //    case it will re-run the request with the new file contents.
+      guard
+        self.options.cancelTextDocumentRequestsOnEditAndCloseOrDefault
+          || !(staleRequestSupport?.cancel ?? true)
+          || staleRequestSupport?.retryOnContentModified.contains(requestMethod) ?? false
+      else {
+        continue
+      }
+
       if reason == .documentChanged && requestMethod == CompletionRequest.method {
         // As the user types, we filter the code completion results. Cancelling the completion request on every
         // keystroke means that we will never build the initial list of completion results for this code
@@ -668,7 +683,7 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
         continue
       }
       logger.info("Implicitly cancelling request \(requestID)")
-      self.messageHandlingHelper.cancelRequest(id: requestID)
+      self.messageHandlingHelper.cancelRequest(id: requestID, error: .contentModified)
     }
   }
 
@@ -722,7 +737,7 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
   package func handle<Request: RequestType>(
     request params: Request,
     id: RequestID,
-    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
+    reply: @Sendable @escaping (Result<Request.Response, any Error>) -> Void
   ) async {
     defer {
       if let request = params as? any TextDocumentRequest {
