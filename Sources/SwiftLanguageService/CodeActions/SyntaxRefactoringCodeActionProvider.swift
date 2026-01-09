@@ -145,9 +145,19 @@ extension SyntaxProtocol {
     ofType: ParentType.Type,
     stoppingIf: (Syntax) -> Bool
   ) -> ParentType? {
+    findParentOfSelf(ofType: ofType, stoppingIf: stoppingIf, matching: { _ in true })
+  }
+
+  /// Finds the innermost parent of the given type that satisfies `matching`,
+  /// while not walking outside of nodes that satisfy `stoppingIf`.
+  func findParentOfSelf<ParentType: SyntaxProtocol>(
+    ofType: ParentType.Type,
+    stoppingIf: (Syntax) -> Bool,
+    matching: (ParentType) -> Bool
+  ) -> ParentType? {
     var node: Syntax? = Syntax(self)
     while let unwrappedNode = node, !stoppingIf(unwrappedNode) {
-      if let expectedType = unwrappedNode.as(ParentType.self) {
+      if let expectedType = unwrappedNode.as(ParentType.self), matching(expectedType) {
         return expectedType
       }
       node = unwrappedNode.parent
