@@ -62,14 +62,13 @@ import SwiftSyntaxBuilder
     }
 
     let followingStatements = codeBlockItemList[codeBlockItemList.index(after: ifIndex)...]
-    guard !followingStatements.isEmpty else {
+    guard let lastStatement = followingStatements.last else {
       return []
     }
 
     let guardStmt = buildGuardStatement(from: ifExpr, elseBody: Array(followingStatements))
     let newBodyStatements = ifExpr.body.statements
 
-    let lastStatement = followingStatements[followingStatements.index(before: followingStatements.endIndex)]
     let rangeStart = ifExpr.positionAfterSkippingLeadingTrivia
     let rangeEnd = lastStatement.endPosition
 
@@ -250,14 +249,13 @@ import SwiftSyntaxBuilder
     }
 
     let followingStatements = codeBlockItemList[codeBlockItemList.index(after: guardIndex)...]
-    guard !followingStatements.isEmpty else {
+    guard let lastStatement = followingStatements.last else {
       return []
     }
 
     let ifExpr = buildIfExpression(from: guardStmt, thenBody: Array(followingStatements))
     let elseStatements = guardStmt.body.statements
 
-    let lastStatement = followingStatements[followingStatements.index(before: followingStatements.endIndex)]
     let rangeStart = guardStmt.positionAfterSkippingLeadingTrivia
     let rangeEnd = lastStatement.endPosition
 
