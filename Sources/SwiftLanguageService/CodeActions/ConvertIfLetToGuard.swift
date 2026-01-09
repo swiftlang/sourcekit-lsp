@@ -79,10 +79,10 @@ import SwiftSyntaxBuilder
 
     var replacementText = guardStmt.description
     let baseIndentation = ifExpr.leadingTrivia.indentation ?? []
+    // Infer the inner block's indentation from the first statement
+    let innerIndentation = newBodyStatements.first?.leadingTrivia.indentation ?? (baseIndentation + .spaces(2))
     for stmt in newBodyStatements {
-      let newTrivia: Trivia = .newline + baseIndentation
-      let unindentedStmt = stmt.with(\.leadingTrivia, newTrivia)
-      replacementText += unindentedStmt.description
+      replacementText += adjustingIndentation(of: stmt, from: innerIndentation, to: baseIndentation)
     }
 
     let edit = TextEdit(
@@ -280,16 +280,20 @@ import SwiftSyntaxBuilder
 
     // Statements from guard body move to outer scope, so unindent them
     let baseIndentation = guardStmt.leadingTrivia.indentation ?? []
+    // Infer the inner block's indentation from the first statement
+    let innerIndentation = elseStatements.first?.leadingTrivia.indentation ?? (baseIndentation + .spaces(2))
     let stmtArray = Array(elseStatements)
 
     for (index, stmt) in stmtArray.enumerated() {
-      let newTrivia: Trivia = .newline + baseIndentation
-      var unindentedStmt = stmt.with(\.leadingTrivia, newTrivia)
+      var adjustedText = adjustingIndentation(of: stmt, from: innerIndentation, to: baseIndentation)
       // Strip only trailing whitespace (not comments) from the last statement
       if index == stmtArray.count - 1 {
-        unindentedStmt = unindentedStmt.with(\.trailingTrivia, stmt.trailingTrivia.trimmingTrailingWhitespace)
+        // Trim trailing whitespace from the adjusted text
+        while adjustedText.hasSuffix(" ") || adjustedText.hasSuffix("\t") {
+          adjustedText.removeLast()
+        }
       }
-      replacementText += unindentedStmt.description
+      replacementText += adjustedText
     }
 
     let edit = TextEdit(
