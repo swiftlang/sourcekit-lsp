@@ -194,6 +194,12 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     /// Number of seconds to wait for an update index store task to finish before terminating it.
     public var updateIndexStoreTimeout: Int?
 
+    /// Path to the Swift module cache for background preparation.
+    ///
+    /// If `nil` (default), SourceKit-LSP uses a global module cache at `~/.cache/sourcekit-lsp/module-cache`.
+    /// Set to empty string to disable module cache sharing.
+    public var swiftModuleCachePath: String?
+
     public var maxCoresPercentageToUseForBackgroundIndexingOrDefault: Double {
       return maxCoresPercentageToUseForBackgroundIndexing ?? 1
     }
@@ -209,11 +215,13 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     public init(
       indexPrefixMap: [String: String]? = nil,
       maxCoresPercentageToUseForBackgroundIndexing: Double? = nil,
-      updateIndexStoreTimeout: Int? = nil
+      updateIndexStoreTimeout: Int? = nil,
+      swiftModuleCachePath: String? = nil
     ) {
       self.indexPrefixMap = indexPrefixMap
       self.maxCoresPercentageToUseForBackgroundIndexing = maxCoresPercentageToUseForBackgroundIndexing
       self.updateIndexStoreTimeout = updateIndexStoreTimeout
+      self.swiftModuleCachePath = swiftModuleCachePath
     }
 
     static func merging(base: IndexOptions, override: IndexOptions?) -> IndexOptions {
@@ -221,7 +229,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
         indexPrefixMap: override?.indexPrefixMap ?? base.indexPrefixMap,
         maxCoresPercentageToUseForBackgroundIndexing: override?.maxCoresPercentageToUseForBackgroundIndexing
           ?? base.maxCoresPercentageToUseForBackgroundIndexing,
-        updateIndexStoreTimeout: override?.updateIndexStoreTimeout ?? base.updateIndexStoreTimeout
+        updateIndexStoreTimeout: override?.updateIndexStoreTimeout ?? base.updateIndexStoreTimeout,
+        swiftModuleCachePath: override?.swiftModuleCachePath ?? base.swiftModuleCachePath
       )
     }
   }

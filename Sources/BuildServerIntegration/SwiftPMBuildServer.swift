@@ -766,6 +766,37 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     arguments += options.swiftPMOrDefault.swiftCompilerFlags?.flatMap { ["-Xswiftc", $0] } ?? []
     arguments += options.swiftPMOrDefault.linkerFlags?.flatMap { ["-Xlinker", $0] } ?? []
     arguments += options.swiftPMOrDefault.buildToolsSwiftCompilerFlags?.flatMap { ["-Xbuild-tools-swiftc", $0] } ?? []
+
+    // add module cache path for faster preparation
+    if let customCachePath = options.indexOrDefault.swiftModuleCachePath {
+      if !customCachePath.isEmpty {
+        arguments += ["-Xswiftc", "-module-cache-path", "-Xswiftc", customCachePath]
+      }
+    } else {
+      // try to use the user's build module cache first
+      let userBuildCache = projectRoot
+        .appending(component: ".build")
+        .appending(component: destinationBuildParameters.triple.tripleString)
+        .appending(component: "ModuleCache")
+      
+      let cacheToUse: URL
+      if FileManager.default.fileExists(atPath: userBuildCache.path) {
+        // reuse existing user build cache
+        cacheToUse = userBuildCache
+      } else {
+        // fall back to global module cache
+        let globalCache = FileManager.default.homeDirectoryForCurrentUser
+          .appending(components: ".cache", "sourcekit-lsp", "module-cache")
+        try? FileManager.default.createDirectory(at: globalCache, withIntermediateDirectories: true)
+        
+        // clean up stale modules older than 30 days
+        Self.cleanupStaleModules(in: globalCache, olderThan: 30)
+        cacheToUse = globalCache
+      }
+      
+      arguments += ["-Xswiftc", "-module-cache-path", "-Xswiftc", cacheToUse.path]
+    }
+
     switch options.backgroundPreparationModeOrDefault {
     case .build: break
     case .noLazy: arguments += ["--experimental-prepare-for-indexing", "--experimental-prepare-for-indexing-no-lazy"]
@@ -911,6 +942,26 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
   private func settings(forPackageManifest path: AbsolutePath) throws -> TextDocumentSourceKitOptionsResponse? {
     let compilerArgs = try swiftPMWorkspace.interpreterFlags(for: path) + [path.pathString]
     return TextDocumentSourceKitOptionsResponse(compilerArguments: compilerArgs)
+  }
+
+  /// removes cached modules older than specified days
+  private static func cleanupStaleModules(in cacheDir: URL, olderThan days: Int) {
+    let cutoffDate = Date().addingTimeInterval(-Double(days * 24 * 60 * 60))
+    
+    guard let enumerator = FileManager.default.enumerator(
+      at: cacheDir,
+      includingPropertiesForKeys: [.contentModificationDateKey],
+      options: [.skipsHiddenFiles]
+    ) else { return }
+    
+    for case let fileURL as URL in enumerator {
+      guard let resourceValues = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]),
+            let modificationDate = resourceValues.contentModificationDate,
+            modificationDate < cutoffDate
+      else { continue }
+      
+      try? FileManager.default.removeItem(at: fileURL)
+    }
   }
 }
 

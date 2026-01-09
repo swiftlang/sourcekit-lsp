@@ -43,6 +43,7 @@ The structure of the file is currently not guaranteed to be stable. Options may 
 - `index`: Options related to indexing.
   - `indexPrefixMap: [string: string]`: Path remappings for remapping index data for local use.
   - `updateIndexStoreTimeout: integer`: Number of seconds to wait for an update index store task to finish before terminating it.
+  - `swiftModuleCachePath: string`: Path to the Swift module cache for background preparation. If `nil` (default), SourceKit-LSP uses a global module cache at `~/.cache/sourcekit-lsp/module-cache`. Set to empty string to disable module cache sharing.
 - `logging`: Options related to logging, changing SourceKit-LSP’s logging behavior on non-Apple platforms. On Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging). These options can only be set globally and not per workspace.
   - `level: "debug"|"info"|"default"|"error"|"fault"`: The level from which one onwards log messages should be written.
   - `privacyLevel: "public"|"private"|"sensitive"`: Whether potentially sensitive information should be redacted. Default is `public`, which redacts potentially sensitive information.
