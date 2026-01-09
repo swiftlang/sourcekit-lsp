@@ -82,11 +82,20 @@ import SwiftSyntaxBuilder
 
     var replacementText = guardStmt.description
 
-    let adjuster = IndentationAdjuster(remove: indentStep)
-    for stmt in newBodyStatements {
-      let adjustedStmt = adjuster.rewrite(stmt).cast(CodeBlockItemSyntax.self)
-      let finalStmt = adjustedStmt.with(\.leadingTrivia, .newline + baseIndentation)
-      replacementText += finalStmt.description
+    let adjuster = IndentationAdjuster(mode: .remove(indentStep))
+    for (index, stmt) in newBodyStatements.enumerated() {
+      var adjustedStmt = adjuster.rewrite(stmt).cast(CodeBlockItemSyntax.self)
+      if index == 0 {
+        // The first statement moved out of the if-block should be placed on a new line
+        // at the base indentation level. We strip any leading newlines and indentation
+        // and replace them with a single newline + base indentation.
+        var pieces = Array(adjustedStmt.leadingTrivia)
+        while let first = pieces.first, first.isNewline || first.isWhitespace {
+          pieces.removeFirst()
+        }
+        adjustedStmt = adjustedStmt.with(\.leadingTrivia, .newline + baseIndentation + Trivia(pieces: pieces))
+      }
+      replacementText += adjustedStmt.description
     }
 
     let edit = TextEdit(
@@ -103,31 +112,31 @@ import SwiftSyntaxBuilder
     ]
   }
 
-  /// Find an if expression that can be converted to guard.
-  /// Requirements:
-  /// - Must be an `if let` or `if var` (optional binding conditions only, no `case let`)
-  /// - No else clause
-  /// - Body must end with an early exit (return/throw/break/continue)
-  /// - Must not contain defer statements
-  /// - Body must guarantee exit (all code paths must exit)
   private static func findConvertibleIfExpr(in scope: SyntaxCodeActionScope) -> IfExprSyntax? {
-    let ifExpr = scope.innermostNodeContainingRange?.findParentOfSelf(
-      ofType: IfExprSyntax.self,
-      stoppingIf: isFunctionBoundary
-    )
-    guard let ifExpr, isConvertibleToGuard(ifExpr) else {
-      return nil
+    var node: Syntax? = scope.innermostNodeContainingRange
+    while let c = node, !isFunctionBoundary(c) {
+      if let ifExpr = c.as(IfExprSyntax.self) {
+        if isConvertibleToGuard(ifExpr) && isTopLevelInCodeBlock(ifExpr) {
+          return ifExpr
+        }
+        // If we found an IfExpr but it's not the one we want, stop here
+        // to avoid picking an outer one when the user is in an inner expression-if.
+        return nil
+      }
+      node = c.parent
     }
-    return ifExpr
+    return nil
   }
 
-  /// Checks if an if expression can be converted to a guard statement.
-  ///
-  /// Returns `false` for:
-  /// - If statements with an else clause
-  /// - `if case let` patterns (matching patterns not supported)
-  /// - Bodies containing `defer` (would change defer lifetime semantics)
-  /// - Bodies that don't guarantee an early exit
+  private static func isTopLevelInCodeBlock(_ ifExpr: IfExprSyntax?) -> Bool {
+    guard let ifExpr else { return false }
+    var current = Syntax(ifExpr)
+    if let parent = current.parent, parent.is(ExpressionStmtSyntax.self) {
+      current = parent
+    }
+    return current.parent?.is(CodeBlockItemSyntax.self) ?? false
+  }
+
   private static func isConvertibleToGuard(_ ifExpr: IfExprSyntax) -> Bool {
     guard ifExpr.elseKeyword == nil, ifExpr.elseBody == nil else {
       return false
@@ -145,6 +154,7 @@ import SwiftSyntaxBuilder
       }
     }
 
+    // Changing if-let to guard would change the lifetime of deferred blocks.
     if ifExpr.body.statements.contains(where: { $0.item.is(DeferStmtSyntax.self) }) {
       return false
     }
@@ -152,7 +162,6 @@ import SwiftSyntaxBuilder
     return bodyGuaranteesExit(ifExpr.body)
   }
 
-  /// Check if the code block guarantees an early exit on all paths.
   private static func bodyGuaranteesExit(_ codeBlock: CodeBlockSyntax) -> Bool {
     guard let lastStatement = codeBlock.statements.last else {
       return false
@@ -163,13 +172,10 @@ import SwiftSyntaxBuilder
 
   /// Checks if a statement guarantees control flow will not continue past it.
   ///
-  /// Recognizes direct exit statements (`return`, `throw`, `break`, `continue`)
-  /// and if-else chains where both branches exit.
-  ///
   /// - Note: Does not attempt to detect never-returning functions like `fatalError`
-  ///   because that requires type information to verify the return type is `Never`.
+  ///   because that requires semantic information (return type `Never`).
   /// - Note: Switch statements are conservatively treated as non-exiting since
-  ///   checking all cases for guaranteed exit is complex.
+  ///   checking exhaustiveness is complex.
   private static func statementGuaranteesExit(_ statement: CodeBlockItemSyntax.Item) -> Bool {
     switch statement {
     case .stmt(let stmt):
@@ -177,14 +183,12 @@ import SwiftSyntaxBuilder
       case .returnStmt, .throwStmt, .breakStmt, .continueStmt:
         return true
       default:
-        // Check if this is an ExpressionStmtSyntax containing an if-else
         if let exprStmt = stmt.as(ExpressionStmtSyntax.self) {
           return statementGuaranteesExit(.expr(exprStmt.expression))
         }
       }
 
     case .expr(let expr):
-      // Check for if-else where both branches exit
       if let ifExpr = expr.as(IfExprSyntax.self),
         let elseBody = ifExpr.elseBody
       {
@@ -199,8 +203,6 @@ import SwiftSyntaxBuilder
         }
       }
 
-      // Switch expressions are treated as non-exiting since determining exhaustiveness
-      // requires semantic analysis (e.g., knowing all enum cases).
       if expr.is(SwitchExprSyntax.self) {
         return false
       }
@@ -212,19 +214,26 @@ import SwiftSyntaxBuilder
     return false
   }
 
-  /// Builds a guard statement from an if expression.
   private static func buildGuardStatement(
     from ifExpr: IfExprSyntax,
     elseBody: [CodeBlockItemSyntax],
     baseIndentation: Trivia,
     indentStep: Trivia
   ) -> GuardStmtSyntax {
-    let innerIndentation = baseIndentation + indentStep
+    let adjuster = IndentationAdjuster(mode: .add(indentStep))
 
     let elseStatements = CodeBlockItemListSyntax(
       elseBody.enumerated().map { index, stmt in
-        let leadingTrivia: Trivia = index == 0 ? innerIndentation : .newline + innerIndentation
-        return stmt.with(\.leadingTrivia, leadingTrivia)
+        var adjusted = adjuster.rewrite(stmt).cast(CodeBlockItemSyntax.self)
+        if index == 0 {
+          // Strip the first newline from the first statement since CodeBlockSyntax provides it
+          var pieces = Array(adjusted.leadingTrivia)
+          if let firstNewlineIndex = pieces.firstIndex(where: { $0.isNewline }) {
+            pieces.remove(at: firstNewlineIndex)
+          }
+          adjusted = adjusted.with(\.leadingTrivia, Trivia(pieces: pieces))
+        }
+        return adjusted
       }
     )
 
@@ -250,8 +259,6 @@ import SwiftSyntaxBuilder
       return conditions
     }
 
-    // Strip trailing spaces/tabs only from the END of the trivia
-    // E.g., [space, blockComment, space] -> [space, blockComment]
     var pieces = Array(lastCondition.trailingTrivia)
     while let last = pieces.last {
       switch last {
@@ -260,7 +267,6 @@ import SwiftSyntaxBuilder
       default:
         break
       }
-      // Exit loop once we've hit non-whitespace
       if case .spaces = last { continue }
       if case .tabs = last { continue }
       break
@@ -273,83 +279,6 @@ import SwiftSyntaxBuilder
   }
 }
 
-/// Check if the given syntax node represents a function-level boundary
-/// (function, initializer, accessor, subscript, or closure).
 private func isFunctionBoundary(_ syntax: Syntax) -> Bool {
   [.functionDecl, .initializerDecl, .accessorDecl, .subscriptDecl, .closureExpr].contains(syntax.kind)
-}
-
-/// SyntaxRewriter that reduces indentation by a specified amount for lines starting with a newline.
-private class IndentationAdjuster: SyntaxRewriter {
-  let indentToRemove: Trivia
-
-  init(remove indent: Trivia) {
-    self.indentToRemove = indent
-    super.init(viewMode: .sourceAccurate)
-  }
-
-  override func visit(_ token: TokenSyntax) -> TokenSyntax {
-    var pieces = Array(token.leadingTrivia)
-    guard let lastNewlineIndex = pieces.lastIndex(where: { $0.isNewline }) else {
-      return token
-    }
-
-    // The indentation follows the last newline
-    let indentationPieces = pieces[(lastNewlineIndex + 1)...]
-    let searchIndex = indentationPieces.startIndex
-    var removeIndex = 0
-
-    let pattern = indentToRemove.pieces
-    var matched = true
-
-    // Simple matching: check if pieces match
-    // Note: This matches exact pieces (e.g. .spaces(4) matches .spaces(4))
-    // Logic could be improved to handle splitted spaces (e.g. remove 2 from 4) if needed,
-    // but typically IndentationInferrer returns consistent units.
-    for patternPiece in pattern {
-      if removeIndex >= indentationPieces.count {
-        matched = false
-        break
-      }
-      let currentPiece = indentationPieces[searchIndex + removeIndex]
-
-      if currentPiece == patternPiece {
-        removeIndex += 1
-        continue
-      }
-
-      // Handle case where we remove 2 spaces from 4 spaces
-      if case .spaces(let currentN) = currentPiece, case .spaces(let patternN) = patternPiece, currentN >= patternN {
-        pieces[lastNewlineIndex + 1 + removeIndex] = .spaces(currentN - patternN)
-        // We successfully consumed the pattern "logically", but we modified the stream
-        // so we don't need to remove subsequent pieces for this pattern piece.
-        // However, we need to match the rest of the pattern?
-        // Usually indentStep is just spaces(2) or spaces(4) or tabs(1).
-        // So a single piece match is common.
-        matched = true
-        break
-      }
-      if case .tabs(let currentN) = currentPiece, case .tabs(let patternN) = patternPiece, currentN >= patternN {
-        pieces[lastNewlineIndex + 1 + removeIndex] = .tabs(currentN - patternN)
-        matched = true
-        break
-      }
-
-      matched = false
-      break
-    }
-
-    if matched {
-      // If we matched exact pieces, remove them.
-      // If we matched by subtraction (break case above), we modified 'pieces' already
-      // and don't need to remove indices, just filtered out empty pieces?
-
-      // Simplified logic assuming common case of exact match or simple subtraction of one piece
-      if removeIndex > 0 {
-        pieces.removeSubrange((lastNewlineIndex + 1)..<(lastNewlineIndex + 1 + removeIndex))
-      }
-    }
-
-    return token.with(\.leadingTrivia, Trivia(pieces: pieces))
-  }
 }
