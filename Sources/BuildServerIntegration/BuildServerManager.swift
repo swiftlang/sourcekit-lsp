@@ -380,11 +380,11 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   }
 
   package func mainFilesProvider<T: MainFilesProvider>(as: T.Type) async -> T? {
-    guard let mainFilesProvider = mainFilesProvider else {
+    guard let mainFilesProvider = await mainFilesProvider.value else {
       return nil
     }
-    guard let index = await mainFilesProvider.value as? T else {
-      logger.fault("Expected the main files provider of the build server manager to be an `\(T.self)`")
+    guard let index = mainFilesProvider as? T else {
+      logger.fault("Expected the main files provider of the build server manager to be a '\(T.self)'")
       return nil
     }
     return index
