@@ -13,6 +13,7 @@
 import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitLSP
+import SwiftBasicFormat
 import SwiftSyntax
 import SwiftSyntaxBuilder
 
@@ -73,9 +74,11 @@ import SwiftSyntaxBuilder
     let rangeEnd = lastStatement.endPosition
 
     var replacementText = guardStmt.description
-    let baseIndentation = ifExpr.leadingTrivia.indentation ?? []
+    let baseIndentation = ifExpr.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
     // Infer the inner block's indentation from the first statement
-    let innerIndentation = newBodyStatements.first?.leadingTrivia.indentation ?? (baseIndentation + .spaces(2))
+    let innerIndentation =
+      newBodyStatements.first?.firstToken(viewMode: .sourceAccurate)?.indentationOfLine
+      ?? (baseIndentation + .spaces(2))
     for stmt in newBodyStatements {
       replacementText += adjustingIndentation(of: stmt, from: innerIndentation, to: baseIndentation)
     }
@@ -209,7 +212,7 @@ import SwiftSyntaxBuilder
     from ifExpr: IfExprSyntax,
     elseBody: [CodeBlockItemSyntax]
   ) -> GuardStmtSyntax {
-    let baseIndentation = ifExpr.leadingTrivia.indentation ?? []
+    let baseIndentation = ifExpr.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
     let indentStep = inferIndentStep(from: ifExpr.body, baseIndentation: baseIndentation)
     let innerIndentation = baseIndentation + indentStep
 
@@ -223,10 +226,42 @@ import SwiftSyntaxBuilder
 
     return GuardStmtSyntax(
       guardKeyword: .keyword(.guard, trailingTrivia: .space),
-      conditions: ifExpr.conditions,
+      conditions: normalizeConditionsTrivia(ifExpr.conditions),
       elseKeyword: .keyword(.else, leadingTrivia: .space, trailingTrivia: .space),
       body: elseBlock
     )
+  }
+
+  /// Normalize conditions trivia by stripping trailing whitespace from the end of the last condition.
+  /// This prevents double spaces before the `else` keyword while preserving spaces before comments.
+  private static func normalizeConditionsTrivia(_ conditions: ConditionElementListSyntax) -> ConditionElementListSyntax
+  {
+    guard var lastCondition = conditions.last else {
+      return conditions
+    }
+
+    // Strip trailing spaces/tabs only from the END of the trivia
+    // E.g., [space, blockComment, space] -> [space, blockComment]
+    var pieces = Array(lastCondition.trailingTrivia)
+    while let last = pieces.last {
+      switch last {
+      case .spaces, .tabs:
+        pieces.removeLast()
+      default:
+        break
+      }
+      // Exit loop once we've hit non-whitespace
+      if case .spaces = last { continue }
+      if case .tabs = last { continue }
+      break
+    }
+
+    lastCondition = lastCondition.with(\.trailingTrivia, Trivia(pieces: pieces))
+
+    // Rebuild conditions list with normalized last element
+    var newConditions = Array(conditions.dropLast())
+    newConditions.append(lastCondition)
+    return ConditionElementListSyntax(newConditions)
   }
 }
 
@@ -257,7 +292,7 @@ private func inferIndentStep(from codeBlock: CodeBlockSyntax, baseIndentation: T
     return .spaces(2)
   }
 
-  let stmtIndentation = firstStmt.leadingTrivia.indentation ?? []
+  let stmtIndentation = firstStmt.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
   let baseCount = baseIndentation.sourceLength.utf8Length
   let stmtCount = stmtIndentation.sourceLength.utf8Length
 
@@ -323,22 +358,4 @@ private func adjustingIndentation(
   }
 
   return result
-}
-
-private extension Trivia {
-  /// Extract the indentation from trivia (spaces and tabs at the end).
-  var indentation: Trivia? {
-    var pieces: [TriviaPiece] = []
-    for piece in reversed() {
-      switch piece {
-      case .spaces, .tabs:
-        pieces.insert(piece, at: 0)
-      case .newlines:
-        break
-      default:
-        pieces.removeAll()
-      }
-    }
-    return pieces.isEmpty ? nil : Trivia(pieces: pieces)
-  }
 }
