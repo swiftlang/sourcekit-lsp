@@ -13,7 +13,6 @@
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SKLogging
 import SKTestSupport
-import SKUtilities
 import SourceKitLSP
 import SwiftExtensions
 @_spi(Testing) import SwiftLanguageService
