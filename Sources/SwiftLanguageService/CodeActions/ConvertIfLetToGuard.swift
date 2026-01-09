@@ -297,25 +297,11 @@ import SwiftSyntaxBuilder
   }
 
   private static func findConvertibleGuardStmt(in scope: SyntaxCodeActionScope) -> GuardStmtSyntax? {
-    guard let node = scope.innermostNodeContainingRange else {
-      return nil
-    }
-
-    var current: Syntax? = node
-    while let syntax = current {
-      if let guardStmt = syntax.as(GuardStmtSyntax.self) {
-        if isConvertibleToIfLet(guardStmt) {
-          return guardStmt
-        }
-      }
-
-      if isFunctionBoundary(syntax) {
-        break
-      }
-
-      current = syntax.parent
-    }
-    return nil
+    scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: GuardStmtSyntax.self,
+      stoppingIf: isFunctionBoundary,
+      matching: isConvertibleToIfLet
+    )
   }
 
   /// Checks if a guard statement can be converted to an if-let.
