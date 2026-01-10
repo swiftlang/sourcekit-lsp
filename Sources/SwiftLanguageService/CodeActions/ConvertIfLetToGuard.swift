@@ -209,15 +209,22 @@ import SwiftSyntaxBuilder
     baseIndentation: Trivia,
     indentStep: Trivia
   ) -> GuardStmtSyntax {
-    let elseStatements = CodeBlockItemListSyntax(
-      elseBody.enumerated().map { index, stmt in
-        return stmt.indented(by: indentStep)
-      }
-    )
+    var elseStatementsList = elseBody.enumerated().map { index, stmt in
+      return stmt.indented(by: indentStep)
+    }
+
+    if var lastStmt = elseStatementsList.last,
+      let lastPiece = lastStmt.trailingTrivia.pieces.last,
+      lastPiece.isNewline
+    {
+      let newTrivia = Trivia(pieces: lastStmt.trailingTrivia.pieces.dropLast())
+      lastStmt = lastStmt.with(\.trailingTrivia, newTrivia)
+      elseStatementsList[elseStatementsList.count - 1] = lastStmt
+    }
 
     let elseBlock = CodeBlockSyntax(
       leftBrace: .leftBraceToken(),
-      statements: elseStatements,
+      statements: CodeBlockItemListSyntax(elseStatementsList),
       rightBrace: .rightBraceToken(leadingTrivia: .newline + baseIndentation)
     )
 

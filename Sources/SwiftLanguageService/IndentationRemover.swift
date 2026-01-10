@@ -11,107 +11,83 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import SwiftSyntax
+@_spi(RawSyntax) @_spi(SwiftSyntax) import SwiftSyntax
 
 /// SyntaxRewriter that removes indentation for lines starting with a newline.
 class IndentationRemover: SyntaxRewriter {
-  private let indentationToRemove: Trivia
+  private let indentation: [TriviaPiece]
+  private var shouldUnindent: Bool
 
-  init(indentation: Trivia) {
-    self.indentationToRemove = indentation
+  init(indentation: Trivia, indentFirstLine: Bool = false) {
+    self.indentation = indentation.decomposed.pieces
+    self.shouldUnindent = indentFirstLine
     super.init(viewMode: .sourceAccurate)
   }
 
-  func rewrite<T: SyntaxProtocol>(_ node: T) -> T {
-    return super.rewrite(Syntax(node)).cast(T.self)
+  private func unindentAfterNewlines(_ content: String) -> String {
+    let lines = content.components(separatedBy: .newlines)
+    var result: [String] = []
+
+    if let first = lines.first {
+      result.append(first)
+    }
+
+    let pattern = Trivia(pieces: indentation).description
+    for line in lines.dropFirst() {
+      if line.hasPrefix(pattern) {
+        result.append(String(line.dropFirst(pattern.count)))
+      } else {
+        result.append(line)
+      }
+    }
+    return result.joined(separator: "\n")
+  }
+
+  private func unindent(_ trivia: Trivia) -> Trivia {
+    var result: [TriviaPiece] = []
+    result.reserveCapacity(trivia.count)
+
+    var remainingPieces = trivia.decomposed.pieces
+    while let piece = remainingPieces.first {
+      remainingPieces.removeFirst()
+      switch piece {
+      case .newlines, .carriageReturns, .carriageReturnLineFeeds:
+        shouldUnindent = true
+        result.append(piece)
+      case .blockComment(let content):
+        result.append(.blockComment(unindentAfterNewlines(content)))
+      case .docBlockComment(let content):
+        result.append(.docBlockComment(unindentAfterNewlines(content)))
+      case .unexpectedText(let content):
+        result.append(.unexpectedText(unindentAfterNewlines(content)))
+      default:
+        result.append(piece)
+      }
+
+      if shouldUnindent {
+        if remainingPieces.starts(with: indentation) {
+          remainingPieces.removeFirst(indentation.count)
+        }
+        shouldUnindent = false
+      }
+    }
+    shouldUnindent = false
+    return Trivia(pieces: result)
   }
 
   override func visit(_ token: TokenSyntax) -> TokenSyntax {
-    var pieces = Array(token.leadingTrivia)
+    let indentedLeadingTrivia = unindent(token.leadingTrivia)
 
-    // Pass 1: Adjust indentation after newlines
-    var i = 0
-    while i < pieces.count {
-      if pieces[i].isNewline {
-        // Normalize all newlines to \n to match expected output in tests and
-        // common SourceKit-LSP behavior.
-        pieces[i] = .newlines(1)
-        i += 1
-
-        let pattern = indentationToRemove.pieces
-        var piecesToRemove = 0
-        var lastPieceAdjusted: TriviaPiece? = nil
-        var matched = true
-
-        for p in pattern {
-          if i + piecesToRemove >= pieces.count {
-            matched = false
-            break
-          }
-          let c = pieces[i + piecesToRemove]
-          if p == c {
-            piecesToRemove += 1
-          } else {
-            switch (p, c) {
-            case (.spaces(let pn), .spaces(let cn)) where cn >= pn:
-              lastPieceAdjusted = .spaces(cn - pn)
-              piecesToRemove += 1
-            case (.tabs(let pn), .tabs(let cn)) where cn >= pn:
-              lastPieceAdjusted = .tabs(cn - pn)
-              piecesToRemove += 1
-            default:
-              matched = false
-            }
-            break
-          }
-        }
-
-        if matched {
-          if let adjusted = lastPieceAdjusted {
-            pieces.removeSubrange(i..<(i + piecesToRemove - 1))
-            let isZero: Bool
-            switch adjusted {
-            case .spaces(0), .tabs(0): isZero = true
-            default: isZero = false
-            }
-            if isZero {
-              pieces.remove(at: i)
-            } else {
-              pieces[i] = adjusted
-              i += 1
-            }
-          } else {
-            pieces.removeSubrange(i..<(i + piecesToRemove))
-          }
-        }
-      } else {
-        i += 1
-      }
+    if case .stringSegment(let content) = token.tokenKind,
+      let last = content.last,
+      last.isNewline
+    {
+      shouldUnindent = true
     }
 
-    // Pass 2: Adjust internal block comment content
-    for j in 0..<pieces.count {
-      if case .blockComment(let text) = pieces[j] {
-        pieces[j] = .blockComment(removeInternalIndentation(from: text))
-      }
-    }
-
-    return token.with(\.leadingTrivia, Trivia(pieces: pieces))
-  }
-
-  private func removeInternalIndentation(from text: String) -> String {
-    let lines = text.components(separatedBy: .newlines)
-    guard lines.count > 1 else { return text }
-
-    var adjustedLines: [String] = [lines[0]]
-    for line in lines.dropFirst() {
-      var adjustedLine = line
-      let pattern = indentationToRemove.description
-      if adjustedLine.hasPrefix(pattern) {
-        adjustedLine.removeFirst(pattern.count)
-      }
-      adjustedLines.append(adjustedLine)
-    }
-    return adjustedLines.joined(separator: "\n")
+    return
+      token
+      .with(\.leadingTrivia, indentedLeadingTrivia)
+      .with(\.trailingTrivia, unindent(token.trailingTrivia))
   }
 }

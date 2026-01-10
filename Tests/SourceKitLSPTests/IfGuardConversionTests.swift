@@ -545,12 +545,11 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
           return value
         }
         """.replacingOccurrences(of: "\n", with: "\r\n")
-          // 'IndentationRemover' normalizes newlines to LF for moved statements.
-          // Generated code blocks also use LF.
-          // However, original source lines and preserved leading trivia of 'return nil' retain CRLF.
-          .replacingOccurrences(of: "return nil\r\n", with: "return nil\n")
-          .replacingOccurrences(of: "  }\r\n", with: "  }\n")
-          .replacingOccurrences(of: "print(value)\r\n", with: "print(value)\n"),
+          // 'IndentationRemover' faithfully preserves source line endings (CRLF).
+          // However, the generated 'guard' right brace uses default LF (from .newline).
+          // The first statement moved out of the 'if' block is also currently forced to LF.
+          .replacingOccurrences(of: "return nil\r\n", with: "return nil\n")  // LF before right brace
+          .replacingOccurrences(of: "  }\r\n", with: "  }\n"),  // LF before print
       title: "Convert to guard"
     )
   }
