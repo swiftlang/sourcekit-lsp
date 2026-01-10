@@ -348,4 +348,54 @@ final class InlayHintTests: SourceKitLSPTestCase {
     let resolvedHint = try await testClient.send(InlayHintResolveRequest(inlayHint: typeHint))
     XCTAssertEqual(resolvedHint.kind, .type)
   }
+
+  func testInlayHintResolveCrossModule() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/MyType.swift": """
+        public struct 1️⃣MyType {
+          public init() {}
+        }
+        """,
+        "LibB/UseType.swift": """
+        import LibA
+        let x2️⃣ = MyType()
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("UseType.swift")
+
+    let request = InlayHintRequest(textDocument: TextDocumentIdentifier(uri), range: nil)
+    let hints = try await project.testClient.send(request)
+
+    guard let typeHint = hints.first(where: { $0.kind == .type }) else {
+      XCTFail("Expected type hint for MyType")
+      return
+    }
+
+    let resolvedHint = try await project.testClient.send(InlayHintResolveRequest(inlayHint: typeHint))
+
+    guard case .parts(let parts) = resolvedHint.label,
+      let part = parts.first,
+      let location = part.location
+    else {
+      XCTFail("Expected label part to have location for go-to-definition")
+      return
+    }
+
+    // The location should point to LibA/MyType.swift where MyType is defined
+    XCTAssertEqual(location.uri, try project.uri(for: "MyType.swift"))
+    XCTAssertEqual(location.range.lowerBound, try project.position(of: "1️⃣", in: "MyType.swift"))
+  }
 }
