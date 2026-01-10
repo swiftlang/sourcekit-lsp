@@ -527,10 +527,30 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
     // into the 'guard' body preserves its original leading trivia, including the
     // \r\n. Newlines generated specifically for the 'else' block use LF.
     try await validateCodeAction(
-      input:
-        "func test() -> Int? {\r\n  1️⃣if let value = optional {\r\n    print(value)\r\n    return value\r\n  }\r\n  return nil\r\n}",
-      expectedOutput:
-        "func test() -> Int? {\r\n  guard let value = optional else {\r\n    return nil\n  }\n  print(value)\n  return value\r\n}",
+      input: """
+        func test() -> Int? {
+          1️⃣if let value = optional {
+            print(value)
+            return value
+          }
+          return nil
+        }
+        """.replacingOccurrences(of: "\n", with: "\r\n"),
+      expectedOutput: """
+        func test() -> Int? {
+          guard let value = optional else {
+            return nil
+          }
+          print(value)
+          return value
+        }
+        """.replacingOccurrences(of: "\n", with: "\r\n")
+          // 'IndentationRemover' normalizes newlines to LF for moved statements.
+          // Generated code blocks also use LF.
+          // However, original source lines and preserved leading trivia of 'return nil' retain CRLF.
+          .replacingOccurrences(of: "return nil\r\n", with: "return nil\n")
+          .replacingOccurrences(of: "  }\r\n", with: "  }\n")
+          .replacingOccurrences(of: "print(value)\r\n", with: "print(value)\n"),
       title: "Convert to guard"
     )
   }
