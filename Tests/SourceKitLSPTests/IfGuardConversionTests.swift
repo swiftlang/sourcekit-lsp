@@ -98,6 +98,15 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
     }
   }
 
+  private func context(indent: Int) -> String {
+    let spaces = String(repeating: " ", count: indent)
+    return """
+      \(spaces)print(1)
+      \(spaces)print(2)
+      \(spaces)print(3)
+      """
+  }
+
   func testConvertIfLetToGuard() async throws {
     try await validateCodeAction(
       input: """
@@ -158,6 +167,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
       input: """
         func test() -> Int? {
           1️⃣if let value = optional {
+        \(context(indent: 4))
             return value
           }
           return nil
@@ -168,6 +178,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
           guard let value = optional else {
             return nil
           }
+        \(context(indent: 2))
           return value
         }
         """,
@@ -180,6 +191,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
       input: """
         func test() throws -> Int {
           1️⃣if let value = optional {
+        \(context(indent: 4))
             throw MyError()
           }
           return 0
@@ -190,6 +202,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
           guard let value = optional else {
             return 0
           }
+        \(context(indent: 2))
           throw MyError()
         }
         """,
@@ -203,6 +216,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
         func test() {
           while true {
             1️⃣if let value = optional {
+        \(context(indent: 6))
               break
             }
             print("loop")
@@ -215,6 +229,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
             guard let value = optional else {
               print("loop")
             }
+        \(context(indent: 4))
             break
           }
         }
@@ -229,6 +244,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
         func test() {
           while true {
             1️⃣if let value = optional {
+        \(context(indent: 6))
               continue
             }
             print("loop")
@@ -241,6 +257,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
             guard let value = optional else {
               print("loop")
             }
+        \(context(indent: 4))
             continue
           }
         }
@@ -399,6 +416,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
       input: """
         func test() -> Int? {
           1️⃣if let a = optA, let b = optB, a > 0 {
+        \(context(indent: 4))
             return a + b
           }
           return nil
@@ -409,6 +427,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
           guard let a = optA, let b = optB, a > 0 else {
             return nil
           }
+        \(context(indent: 2))
           return a + b
         }
         """,
@@ -452,6 +471,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
         func test() -> Int? {
           if let outer = optA {
             1️⃣if let inner = optB {
+        \(context(indent: 6))
               return inner
             }
             return outer
@@ -465,6 +485,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
             guard let inner = optB else {
               return outer
             }
+        \(context(indent: 4))
             return inner
           }
           return nil

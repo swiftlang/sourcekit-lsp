@@ -67,7 +67,7 @@ import SwiftSyntaxBuilder
     }
 
     let baseIndentation = ifExpr.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
-    let indentStep = BasicFormat.inferIndentation(of: ifExpr.body) ?? .spaces(2)
+    let indentStep = BasicFormat.inferIndentation(of: ifExpr.body) ?? .spaces(4)
 
     let guardStmt = buildGuardStatement(
       from: ifExpr,
