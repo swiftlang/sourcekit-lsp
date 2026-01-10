@@ -210,21 +210,12 @@ import SwiftSyntaxBuilder
   ) -> GuardStmtSyntax {
     let elseStatements = CodeBlockItemListSyntax(
       elseBody.enumerated().map { index, stmt in
-        var adjusted = stmt.indented(by: indentStep)
-        if index == 0 {
-          // Strip the first newline from the first statement since CodeBlockSyntax provides it
-          var pieces = Array(adjusted.leadingTrivia)
-          if let firstNewlineIndex = pieces.firstIndex(where: { $0.isNewline }) {
-            pieces.remove(at: firstNewlineIndex)
-          }
-          adjusted = adjusted.with(\.leadingTrivia, Trivia(pieces: pieces))
-        }
-        return adjusted
+        return stmt.indented(by: indentStep)
       }
     )
 
     let elseBlock = CodeBlockSyntax(
-      leftBrace: .leftBraceToken(trailingTrivia: .newline),
+      leftBrace: .leftBraceToken(),
       statements: elseStatements,
       rightBrace: .rightBraceToken(leadingTrivia: .newline + baseIndentation)
     )
