@@ -306,6 +306,10 @@ package struct DeMorganTransformer {
       return NegatedResult(expr: mapThroughParentheses(expr, replacement: result.expr), change: result.change)
     }
 
+    if exprType == .boolean, let result = negateTryAwait(inner, exprType: exprType) {
+      return NegatedResult(expr: mapThroughParentheses(expr, replacement: result.expr), change: result.change)
+    }
+
     let negatedExpr = addNegation(to: expr, exprType: exprType)
     return NegatedResult(expr: negatedExpr, change: .negation)
   }
@@ -425,6 +429,32 @@ package struct DeMorganTransformer {
       .with(\.elseExpression, elseNegated.expr)
 
     return NegatedResult(expr: ExprSyntax(newTernary), change: .ternary)
+  }
+
+  /// Propagates negation into try/await expressions: `try a` → `try !a`, `await a` → `await !a`
+  ///
+  /// This allows negation to flow through these effect markers rather than wrapping them.
+  private func negateTryAwait(_ expr: ExprSyntax, exprType: ExprType) -> NegatedResult? {
+    // Only handle plain `try`, not `try?` or `try!`.
+    // `try?` changes the type to Optional, so negation doesn't propagate.
+    // `try!` could propagate, but for simplicity we only handle plain `try`.
+    if let tryExpr = expr.as(TryExprSyntax.self), tryExpr.questionOrExclamationMark == nil {
+      guard let negatedInner = negateExpression(tryExpr.expression, exprType: exprType) else {
+        return nil
+      }
+      let newTry = tryExpr.with(\.expression, negatedInner.expr)
+      return NegatedResult(expr: ExprSyntax(newTry), change: negatedInner.change)
+    }
+
+    if let awaitExpr = expr.as(AwaitExprSyntax.self) {
+      guard let negatedInner = negateExpression(awaitExpr.expression, exprType: exprType) else {
+        return nil
+      }
+      let newAwait = awaitExpr.with(\.expression, negatedInner.expr)
+      return NegatedResult(expr: ExprSyntax(newAwait), change: negatedInner.change)
+    }
+
+    return nil
   }
 
   /// Adds a negation prefix to an expression, wrapping in parentheses if the expression is composite.
