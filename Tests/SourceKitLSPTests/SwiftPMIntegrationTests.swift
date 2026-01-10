@@ -762,4 +762,56 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
       return try XCTUnwrap(postEditHoverResponse?.contents.markupContent?.value).contains("let x: String")
     }
   }
+
+  func testPackagePlugin() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": "",
+        "Plugins/PrintMessage/Plugin.swift": """
+        import PackagePlugin
+
+        @main
+        struct PrintMessagePlugin: CommandPlugin {
+          func performCommand(context: PluginContext, arguments: [String]) throws {
+            print("Message")
+            let x: String = 1
+          }
+        }
+        """,
+      ],
+      manifest: """
+        import PackageDescription
+
+        let package = Package(
+          name: "PrintMessage",
+          platforms: [.macOS(.v14)],
+          products: [
+            .plugin(
+              name: "PrintMessage",
+              targets: ["PrintMessage"]
+            )
+          ],
+          targets: [
+            .target(name: "MyLibrary"),
+            .plugin(
+              name: "PrintMessage",
+              capability: .command(
+                intent: .custom(
+                  verb: "print-message",
+                  description: "Prints message"
+                )
+              )
+            )
+          ]
+        )
+        """,
+      // enableBackgroundIndexing: true
+    )
+    let (uri, _) = try! project.openDocument("Plugin.swift")
+    let diags = try await project.testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      diags.fullReport?.items.map(\.message),
+      ["Cannot convert value of type 'Int' to specified type 'String'"]
+    )
+  }
 }
