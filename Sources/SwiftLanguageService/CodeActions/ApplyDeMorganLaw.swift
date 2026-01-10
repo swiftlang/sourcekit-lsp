@@ -391,7 +391,12 @@ package struct DeMorganTransformer {
       return nil
     }
 
-    let result = boolLiteral.with(\.literal, flippedValue)
+    let result = boolLiteral.with(
+      \.literal,
+      flippedValue
+        .with(\.leadingTrivia, boolLiteral.literal.leadingTrivia)
+        .with(\.trailingTrivia, boolLiteral.literal.trailingTrivia)
+    )
     return NegatedResult(expr: ExprSyntax(result), change: .substitution)
   }
 
