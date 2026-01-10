@@ -531,9 +531,9 @@ fileprivate extension ExprSyntax {
   var isComposite: Bool {
     switch self.kind {
     case .arrayExpr, .booleanLiteralExpr, .closureExpr, .declReferenceExpr, .dictionaryExpr, .discardAssignmentExpr,
-      .floatLiteralExpr, .functionCallExpr, .integerLiteralExpr, .macroExpansionExpr, .memberAccessExpr,
-      .nilLiteralExpr, .postfixOperatorExpr, .prefixOperatorExpr, .regexLiteralExpr, .stringLiteralExpr,
-      .subscriptCallExpr, .superExpr, .tupleExpr:
+      .floatLiteralExpr, .forceUnwrapExpr, .functionCallExpr, .integerLiteralExpr, .keyPathExpr, .macroExpansionExpr,
+      .memberAccessExpr, .nilLiteralExpr, .optionalChainingExpr, .postfixOperatorExpr, .prefixOperatorExpr,
+      .regexLiteralExpr, .stringLiteralExpr, .subscriptCallExpr, .superExpr, .tupleExpr:
       return false
     default:
       return true
