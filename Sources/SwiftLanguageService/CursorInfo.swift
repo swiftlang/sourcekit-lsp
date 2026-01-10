@@ -208,33 +208,36 @@ extension SwiftLanguageService {
     )
   }
 
-  /// converts a mangled type string to a USR format.
-  /// mangled types start with `$s` while USRs start with `s:`.
-  /// for instance `$sSS` becomes `s:SS` (for String type).
+  /// Because of https://github.com/swiftlang/swift/issues/86432 sourcekitd returns a mangled name instead of a USR
+  /// as the type USR. Work around this by replacing mangled names (starting with `$s`) to a USR, starting with `s:`.
+  /// We also strip the trailing `D` suffix which represents a type mangling - this may not work correctly for generic
+  /// types with type arguments.
+  // TODO: Remove once https://github.com/swiftlang/swift/issues/86432 is fixed
   private func convertMangledTypeToUSR(_ mangledType: String) -> String {
-    if mangledType.hasPrefix("$s") {
-      return "s:" + mangledType.dropFirst(2)
+    var result = mangledType
+    if result.hasPrefix("$s") {
+      result = "s:" + result.dropFirst(2)
     }
-    // already in USR format or unknown format, return as-is
-    return mangledType
+    // Strip trailing 'D' (type mangling suffix) to get declaration USR
+    if result.hasSuffix("D") {
+      result = String(result.dropLast())
+    }
+    return result
   }
 
-  /// get cursor info for a type by looking up its USR.
-  /// this takes a mangled type (from `key.typeusr`) and converts it to a proper USR
-  /// (by replacing `$s` prefix with `s:`), then queries cursorInfo with that USR.
+  /// Get cursor info for a type by looking up its USR.
   ///
-  /// - parameters:
-  ///   - mangledType: the mangled type string (e.g., `$sSS` for String)
-  ///   - uri: document URI for context (used to get compile command)
-  /// - returns: cursorInfo for the type declaration, or nil if not found
+  /// - Parameters:
+  ///   - mangledType: The mangled name of the type
+  ///   - snapshot: Document snapshot for context (used to get compile command)
+  /// - Returns: CursorInfo for the type declaration, or `nil` if not found
   func cursorInfoFromTypeUSR(
     _ mangledType: String,
-    in uri: DocumentURI
+    in snapshot: DocumentSnapshot
   ) async throws -> CursorInfo? {
     let usr = convertMangledTypeToUSR(mangledType)
 
-    let snapshot = try await self.latestSnapshot(for: uri)
-    let compileCommand = await self.compileCommand(for: uri, fallbackAfterTimeout: true)
+    let compileCommand = await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: true)
     let documentManager = try self.documentManager
 
     let keys = self.keys

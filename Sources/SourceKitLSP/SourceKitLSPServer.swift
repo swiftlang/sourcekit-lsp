@@ -1909,8 +1909,6 @@ extension SourceKitLSPServer {
   func inlayHintResolve(
     request: InlayHintResolveRequest
   ) async throws -> InlayHint {
-    // inlay hints store the uri in data for resolution
-    // extract uri from the lspany dictionary
     guard case .dictionary(let dict) = request.inlayHint.data,
       case .string(let uriString) = dict["uri"],
       let uri = try? DocumentURI(string: uriString)

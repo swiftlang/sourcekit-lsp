@@ -10,18 +10,48 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(SourceKitLSP) package import LanguageServerProtocol
 import Foundation
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
 
-
-package struct InlayHintResolveData: Codable {
-  /// the document uri containing the variable
+package struct InlayHintResolveData: LSPAnyCodable {
   package let uri: DocumentURI
-  
   package let position: Position
+  package let version: Int
+
+  package init(uri: DocumentURI, position: Position, version: Int) {
+    self.uri = uri
+    self.position = position
+    self.version = version
+  }
+
+  package init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+    guard case .string(let uriString) = dictionary["uri"],
+      let uri = try? DocumentURI(string: uriString),
+      case .dictionary(let posDict) = dictionary["position"],
+      case .int(let line) = posDict["line"],
+      case .int(let character) = posDict["character"],
+      case .int(let version) = dictionary["version"]
+    else {
+      return nil
+    }
+    self.uri = uri
+    self.position = Position(line: line, utf16index: character)
+    self.version = version
+  }
+
+  package func encodeToLSPAny() -> LSPAny {
+    return .dictionary([
+      "uri": .string(uri.stringValue),
+      "position": .dictionary([
+        "line": .int(position.line),
+        "character": .int(position.utf16index),
+      ]),
+      "version": .int(version),
+    ])
+  }
 }
 
 private class IfConfigCollector: SyntaxVisitor {
@@ -43,6 +73,9 @@ private class IfConfigCollector: SyntaxVisitor {
 extension SwiftLanguageService {
   package func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
     let uri = req.textDocument.uri
+    let snapshot = try await self.latestSnapshot(for: uri)
+    let version = snapshot.version
+
     let infos = try await variableTypeInfos(uri, req.range)
     let typeHints = infos
       .lazy
@@ -57,24 +90,16 @@ extension SwiftLanguageService {
         } else {
           textEdits = nil
         }
-        // store resolve data so we can look up type definition later
-        let data: LSPAny = .dictionary([
-          "uri": .string(uri.stringValue),
-          "position": .dictionary([
-            "line": .int(variableStart.line),
-            "character": .int(variableStart.utf16index)
-          ])
-        ])
+        let resolveData = InlayHintResolveData(uri: uri, position: variableStart, version: version)
         return InlayHint(
           position: position,
           label: .string(label),
           kind: .type,
           textEdits: textEdits,
-          data: data
+          data: resolveData.encodeToLSPAny()
         )
       }
 
-    let snapshot = try await self.latestSnapshot(for: uri)
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
     let ifConfigDecls = IfConfigCollector.collectIfConfigDecls(in: syntaxTree)
     let ifConfigHints = ifConfigDecls.compactMap { (ifConfigDecl) -> InlayHint? in

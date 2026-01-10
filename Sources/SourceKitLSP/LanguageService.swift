@@ -478,7 +478,6 @@ package extension LanguageService {
   }
 
   func inlayHintResolve(_ req: InlayHintResolveRequest) async throws -> InlayHint {
-    // default: return hint unchanged
     return req.inlayHint
   }
 

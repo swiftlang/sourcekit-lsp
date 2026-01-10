@@ -286,19 +286,20 @@ final class InlayHintTests: SourceKitLSPTestCase {
   }
 
   func testInlayHintResolve() async throws {
-    // test that resolving an inlay hint returns label parts with type location
-    let project = try await IndexedSingleSwiftFileTestProject(
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
       """
       struct 1️⃣MyType {}
       let x2️⃣ = MyType()
-      """
+      """,
+      uri: uri
     )
 
-    // get inlay hints
-    let request = InlayHintRequest(textDocument: TextDocumentIdentifier(project.fileURI), range: nil)
-    let hints = try await project.testClient.send(request)
+    let request = InlayHintRequest(textDocument: TextDocumentIdentifier(uri), range: nil)
+    let hints = try await testClient.send(request)
 
-    // find the type hint for x
     guard let typeHint = hints.first(where: { $0.kind == .type }) else {
       XCTFail("Expected type hint")
       return
@@ -306,8 +307,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
 
     XCTAssertNotNil(typeHint.data, "Expected type hint to have data for resolution")
 
-    // resolve the hint to get type location
-    let resolvedHint = try await project.testClient.send(InlayHintResolveRequest(inlayHint: typeHint))
+    let resolvedHint = try await testClient.send(InlayHintResolveRequest(inlayHint: typeHint))
 
     guard case .parts(let parts) = resolvedHint.label else {
       XCTFail("Expected resolved hint to have label parts, got: \(resolvedHint.label)")
@@ -321,7 +321,31 @@ final class InlayHintTests: SourceKitLSPTestCase {
       return
     }
 
-    XCTAssertEqual(location.uri, project.fileURI)
-    XCTAssertEqual(location.range.lowerBound, project.positions["1️⃣"])
+    XCTAssertEqual(location.uri, uri)
+    XCTAssertEqual(location.range.lowerBound, positions["1️⃣"])
+  }
+
+  func testInlayHintResolveSDKType() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    testClient.openDocument(
+      """
+      let x = "hello"
+      """,
+      uri: uri
+    )
+
+    let request = InlayHintRequest(textDocument: TextDocumentIdentifier(uri), range: nil)
+    let hints = try await testClient.send(request)
+
+    guard let typeHint = hints.first(where: { $0.kind == .type }) else {
+      XCTFail("Expected type hint for String")
+      return
+    }
+
+    // Resolve should not crash, and returns the hint (possibly without location for SDK types in test env)
+    let resolvedHint = try await testClient.send(InlayHintResolveRequest(inlayHint: typeHint))
+    XCTAssertEqual(resolvedHint.kind, .type)
   }
 }
