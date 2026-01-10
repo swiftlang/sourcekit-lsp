@@ -18,6 +18,7 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
   var result: [any SyntaxCodeActionProvider.Type] = [
     AddDocumentation.self,
     AddSeparatorsToIntegerLiteral.self,
+    ApplyDeMorganLaw.self,
     ConvertComputedPropertyToZeroParameterFunction.self,
     ConvertIntegerLiteral.self,
     ConvertJSONToCodableStruct.self,

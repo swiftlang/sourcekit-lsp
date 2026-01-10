@@ -393,7 +393,9 @@ extension ClangLanguageService {
       guard let clangd else { return }
       // Give clangd 2 seconds to shut down by itself. If it doesn't shut down within that time, terminate it.
       try await withTimeout(.seconds(2)) {
-        _ = try await clangd.send(ShutdownRequest())
+        let shutdownRequest = ShutdownRequest()
+        await self.sourceKitLSPServer?.hooks.preForwardRequestToClangd?(shutdownRequest)
+        _ = try await clangd.send(shutdownRequest)
         clangd.send(ExitNotification())
       }
     }
@@ -481,7 +483,11 @@ extension ClangLanguageService {
   }
 
   package func declaration(_ req: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse? {
-    return try await forwardRequestToClangd(req)
+    let result = try await forwardRequestToClangd(req)
+    guard let workspace = self.workspace.value else {
+      return result
+    }
+    return await workspace.buildServerManager.locationsOrLocationLinksAdjustedForCopiedFiles(result)
   }
 
   package func completion(_ req: CompletionRequest) async throws -> CompletionList {
@@ -618,7 +624,11 @@ extension ClangLanguageService {
   }
 
   package func indexedRename(_ request: IndexedRenameRequest) async throws -> WorkspaceEdit? {
-    return try await forwardRequestToClangd(request)
+    let workspaceEdit = try await forwardRequestToClangd(request)
+    guard let workspace = self.workspace.value else {
+      return workspaceEdit
+    }
+    return await workspace.buildServerManager.workspaceEditAdjustedForCopiedFiles(workspaceEdit)
   }
 
   // MARK: - Other
@@ -634,7 +644,12 @@ extension ClangLanguageService {
       position: renameRequest.position
     )
     let symbolDetail = try await forwardRequestToClangd(symbolInfoRequest).only
-    return (try await edits ?? WorkspaceEdit(), symbolDetail?.usr)
+    let workspaceEdit = try await edits ?? WorkspaceEdit()
+    guard let workspace = self.workspace.value else {
+      return (workspaceEdit, symbolDetail?.usr)
+    }
+    let remappedEdit = await workspace.buildServerManager.workspaceEditAdjustedForCopiedFiles(workspaceEdit)
+    return (remappedEdit ?? WorkspaceEdit(), symbolDetail?.usr)
   }
 
   package func syntacticDocumentTests(

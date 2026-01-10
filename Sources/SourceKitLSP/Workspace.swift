@@ -197,6 +197,11 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   /// Language service for an open document, if available.
   private let languageServices: ThreadSafeBox<[DocumentURI: [any LanguageService]]> = ThreadSafeBox(initialValue: [:])
 
+  /// All language services that are registered with this workspace.
+  var allLanguageServices: [any LanguageService] {
+    return languageServices.value.values.flatMap { $0 }
+  }
+
   /// The task that constructs the `SemanticIndexManager`, which keeps track of whose file's index is up-to-date in the
   /// workspace and schedules indexing and preparation tasks for files with out-of-date index.
   ///
@@ -456,23 +461,23 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     return languageServices(for: uri).first
   }
 
-  /// Set a language service for a document uri and returns if none exists already.
+  /// Set the language services for a document URI.
   ///
-  /// If language services already exist for this document, eg. because two requests start creating a language
-  /// service for a document and race, `newLanguageServices` is dropped and the existing language services for the
-  /// document are returned.
-  func setLanguageServices(for uri: DocumentURI, _ newLanguageService: [any LanguageService]) -> [any LanguageService] {
-    return languageServices.withLock { languageServices in
-      if let languageService = languageServices[uri] {
-        return languageService
-      }
-
-      languageServices[uri] = newLanguageService
-      return newLanguageService
+  /// This should only be called from `openDocument` to ensure there are no race conditions.
+  func setLanguageServices(for uri: DocumentURI, _ newLanguageService: [any LanguageService]) {
+    languageServices.withLock { languageServices in
+      languageServices[uri.buildSettingsFile] = newLanguageService
     }
   }
 
-  /// Handle a build settings change notification from the build serveer.
+  /// Remove the language services association for a document when it is closed.
+  func removeLanguageServices(for uri: DocumentURI) {
+    languageServices.withLock { languageServices in
+      languageServices[uri.buildSettingsFile] = nil
+    }
+  }
+
+  /// Handle a build settings change notification from the build server.
   /// This has two primary cases:
   /// - Initial settings reported for a given file, now we can fully open it
   /// - Changed settings for an already open file
