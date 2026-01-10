@@ -14,6 +14,7 @@ import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitLSP
 import SwiftBasicFormat
+import SwiftExtensions
 import SwiftSyntax
 import SwiftSyntaxBuilder
 
@@ -237,23 +238,23 @@ import SwiftSyntaxBuilder
       return conditions
     }
 
-    var pieces = Array(lastCondition.trailingTrivia)
-    while let last = pieces.last {
-      switch last {
-      case .spaces, .tabs:
-        pieces.removeLast()
-      default:
-        break
-      }
-      if case .spaces = last { continue }
-      if case .tabs = last { continue }
-      break
-    }
+    let trimmedPieces = lastCondition.trailingTrivia.droppingLast(while: { $0.isSpaceOrTab })
 
-    lastCondition = lastCondition.with(\.trailingTrivia, Trivia(pieces: pieces))
+    lastCondition = lastCondition.with(\.trailingTrivia, Trivia(pieces: Array(trimmedPieces)))
     var newConditions = Array(conditions.dropLast())
     newConditions.append(lastCondition)
     return ConditionElementListSyntax(newConditions)
+  }
+}
+
+fileprivate extension TriviaPiece {
+  var isSpaceOrTab: Bool {
+    switch self {
+    case .spaces, .tabs:
+      return true
+    default:
+      return false
+    }
   }
 }
 
