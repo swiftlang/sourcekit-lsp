@@ -341,7 +341,6 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
   func testConvertIfLetToGuardNotShownWithSwitchExit() async throws {
     // Switch statements are conservatively treated as not guaranteeing exit
     // even if all cases return, because checking exhaustiveness is complex.
-    // TODO: A future implementation could analyze switch exhaustiveness.
     try await validateCodeAction(
       input: """
         func test() -> Int? {
