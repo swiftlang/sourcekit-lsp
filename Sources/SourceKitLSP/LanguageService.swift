@@ -242,6 +242,7 @@ package protocol LanguageService: AnyObject, Sendable {
   func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse?
 
   func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse?
+  func typeDefinition(_ request: TypeDefinitionRequest) async throws -> LocationsOrLocationLinksResponse?
   func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]?
   func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]?
   func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse?
@@ -256,6 +257,7 @@ package protocol LanguageService: AnyObject, Sendable {
   func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation]
   func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse?
   func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint]
+  func inlayHintResolve(_ req: InlayHintResolveRequest) async throws -> InlayHint
   func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens]
   func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport
   func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]?
@@ -437,6 +439,10 @@ package extension LanguageService {
     throw ResponseError.requestNotImplemented(DeclarationRequest.self)
   }
 
+  func typeDefinition(_ request: TypeDefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
+    throw ResponseError.requestNotImplemented(TypeDefinitionRequest.self)
+  }
+
   func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
     throw ResponseError.requestNotImplemented(DocumentHighlightRequest.self)
   }
@@ -479,6 +485,10 @@ package extension LanguageService {
 
   func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
     throw ResponseError.requestNotImplemented(InlayHintRequest.self)
+  }
+
+  func inlayHintResolve(_ req: InlayHintResolveRequest) async throws -> InlayHint {
+    return req.inlayHint
   }
 
   func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens] {

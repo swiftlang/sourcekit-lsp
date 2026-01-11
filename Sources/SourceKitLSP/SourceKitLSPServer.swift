@@ -790,6 +790,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.declaration)
     case let request as RequestAndReply<DefinitionRequest>:
       await self.handleRequest(for: request, requestHandler: self.definition)
+    case let request as RequestAndReply<TypeDefinitionRequest>:
+      await self.handleRequest(for: request, requestHandler: self.typeDefinition)
     case let request as RequestAndReply<DoccDocumentationRequest>:
       await self.handleRequest(for: request, requestHandler: self.doccDocumentation)
     case let request as RequestAndReply<DocumentColorRequest>:
@@ -832,6 +834,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       initialized = true
     case let request as RequestAndReply<InlayHintRequest>:
       await self.handleRequest(for: request, requestHandler: self.inlayHint)
+    case let request as RequestAndReply<InlayHintResolveRequest>:
+      await request.reply { try await inlayHintResolve(request: request.params) }
     case let request as RequestAndReply<IsIndexingRequest>:
       await request.reply { try await self.isIndexing(request.params) }
     case let request as RequestAndReply<OutputPathsRequest>:
@@ -1098,7 +1102,7 @@ extension SourceKitLSPServer {
     let inlayHintOptions =
       await registry.clientHasDynamicInlayHintRegistration
       ? nil
-      : ValueOrBool.value(InlayHintOptions(resolveProvider: false))
+      : ValueOrBool.value(InlayHintOptions(resolveProvider: true))
 
     let semanticTokensOptions =
       await registry.clientHasDynamicSemanticTokensRegistration
@@ -1144,6 +1148,7 @@ extension SourceKitLSPServer {
       completionProvider: completionOptions,
       signatureHelpProvider: signatureHelpOptions,
       definitionProvider: .bool(true),
+      typeDefinitionProvider: .bool(true),
       implementationProvider: .bool(true),
       referencesProvider: .bool(true),
       documentHighlightProvider: .bool(true),
@@ -1948,6 +1953,22 @@ extension SourceKitLSPServer {
     return try await languageService.inlayHint(req)
   }
 
+  func inlayHintResolve(
+    request: InlayHintResolveRequest
+  ) async throws -> InlayHint {
+    guard case .dictionary(let dict) = request.inlayHint.data,
+      case .string(let uriString) = dict["uri"],
+      let uri = try? DocumentURI(string: uriString)
+    else {
+      return request.inlayHint
+    }
+    guard let workspace = await self.workspaceForDocument(uri: uri) else {
+      return request.inlayHint
+    }
+    let language = try documentManager.latestSnapshot(uri.buildSettingsFile).language
+    return try await primaryLanguageService(for: uri, language, in: workspace).inlayHintResolve(request)
+  }
+
   func documentDiagnostic(
     _ req: DocumentDiagnosticsRequest,
     workspace: Workspace,
@@ -2210,6 +2231,14 @@ extension SourceKitLSPServer {
     }
     let remappedLocations = await workspace.buildServerManager.locationsAdjustedForCopiedFiles(indexBasedResponse)
     return .locations(remappedLocations)
+  }
+
+  func typeDefinition(
+    _ req: TypeDefinitionRequest,
+    workspace: Workspace,
+    languageService: any LanguageService
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    return try await languageService.typeDefinition(req)
   }
 
   /// Generate the generated interface for the given module, write it to disk and return the location to which to jump

@@ -413,7 +413,7 @@ extension SwiftLanguageService {
           range: .bool(true),
           full: .bool(true)
         ),
-        inlayHintProvider: .value(InlayHintOptions(resolveProvider: false)),
+        inlayHintProvider: .value(InlayHintOptions(resolveProvider: true)),
         diagnosticProvider: DiagnosticOptions(
           interFileDependencies: true,
           workspaceDiagnostics: false
