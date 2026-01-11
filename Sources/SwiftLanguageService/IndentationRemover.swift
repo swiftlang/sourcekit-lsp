@@ -24,12 +24,16 @@ class IndentationRemover: SyntaxRewriter {
     super.init(viewMode: .sourceAccurate)
   }
 
-  private func unindentAfterNewlines(_ content: String) -> String {
+  private func unindentAfterNewlines(_ content: String, unindentFirstLine: Bool = false) -> String {
     let lines = content.components(separatedBy: .newlines)
     var result: [String] = []
 
     if let first = lines.first {
-      result.append(first)
+      if unindentFirstLine && first.hasPrefix(Trivia(pieces: indentation).description) {
+        result.append(String(first.dropFirst(Trivia(pieces: indentation).description.count)))
+      } else {
+        result.append(first)
+      }
     }
 
     let pattern = Trivia(pieces: indentation).description
@@ -67,27 +71,33 @@ class IndentationRemover: SyntaxRewriter {
       if shouldUnindent {
         if remainingPieces.starts(with: indentation) {
           remainingPieces.removeFirst(indentation.count)
+          shouldUnindent = false
         }
-        shouldUnindent = false
       }
     }
-    shouldUnindent = false
+    // We do not reset shouldUnindent to false here.
+    // Explicitly, if we end with a newline, shouldUnindent remains true.
     return Trivia(pieces: result)
   }
 
   override func visit(_ token: TokenSyntax) -> TokenSyntax {
     let indentedLeadingTrivia = unindent(token.leadingTrivia)
 
-    if case .stringSegment(let content) = token.tokenKind,
-      let last = content.last,
-      last.isNewline
-    {
-      shouldUnindent = true
+    var newToken = token.with(\.leadingTrivia, indentedLeadingTrivia)
+
+    if case .stringSegment(let content) = token.tokenKind {
+      let unindentedContent = unindentAfterNewlines(content, unindentFirstLine: shouldUnindent)
+      newToken = newToken.with(\.tokenKind, .stringSegment(unindentedContent))
+
+      if content.last?.isNewline ?? false {
+        shouldUnindent = true
+      } else {
+        shouldUnindent = false
+      }
+    } else {
+      shouldUnindent = false
     }
 
-    return
-      token
-      .with(\.leadingTrivia, indentedLeadingTrivia)
-      .with(\.trailingTrivia, unindent(token.trailingTrivia))
+    return newToken.with(\.trailingTrivia, unindent(token.trailingTrivia))
   }
 }
