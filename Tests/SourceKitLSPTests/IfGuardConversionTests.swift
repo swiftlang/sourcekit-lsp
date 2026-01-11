@@ -469,13 +469,15 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
   }
 
   func testConvertIfLetToGuardSelectsOuterWhenCursorOnOuter() async throws {
-    // When cursor is on outer if-let, only the outer one should be converted
-    // (inner doesn't qualify because it doesn't guarantee exit from outer scope)
+    // When cursor is on outer if-let, it should be converted even if it contains
+    // another if-let that is not convertible (e.g. doesn't guarantee exit).
     try await validateCodeAction(
       input: """
         func test() -> Int? {
           1️⃣if let outer = optA {
-            print(outer)
+            if let inner = optB {
+              print(inner)
+            }
             return outer
           }
           return nil
@@ -486,7 +488,9 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
           guard let outer = optA else {
             return nil
           }
-          print(outer)
+          if let inner = optB {
+            print(inner)
+          }
           return outer
         }
         """,
