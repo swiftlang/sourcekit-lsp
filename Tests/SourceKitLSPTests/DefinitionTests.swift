@@ -725,7 +725,7 @@ class DefinitionTests: SourceKitLSPTestCase {
     )
     XCTAssertTrue(definitions?.locations?.first?.uri.pseudoPath.hasSuffix("Lib.swiftinterface") ?? false)
   }
-  
+
   func testDefinitionOnLiteralsShouldReturnEmpty() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
