@@ -23,52 +23,58 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
   func testAddDocumentationRefactor() throws {
     try assertRefactor(
       """
-        1️⃣func 2️⃣refactor(syntax: DeclSyntax, in context: Void) -> DeclSyntax? { }
+        1️⃣func refactor(syntax: DeclSyntax, in context: Void) -> DeclSyntax? { }
       """,
       context: (),
       provider: AddDocumentation.self,
-      expected: [
-        SourceEdit(
-          range: AbsolutePosition(utf8Offset: 2)..<AbsolutePosition(utf8Offset: 2),
-          replacement: """
-            /// A description
-              /// - Parameters:
-              ///   - syntax:
-              ///   - context:
-              ///
-              /// - Returns:
-              \("")
-            """
-        )
-      ]
+      expected: { positions in
+        [
+          SourceEdit(
+            range: positions["1️⃣"]!..<positions["1️⃣"]!,
+            replacement: """
+              /// A description
+                /// - Parameters:
+                ///   - syntax:
+                ///   - context:
+                ///
+                /// - Returns:
+                \("")
+              """
+          )
+        ]
+      },
+      checkMarkers: ["1️⃣"]
     )
   }
 
   func testAddDocumentationRefactorSingleParameter() throws {
     try assertRefactor(
       """
-        1️⃣func 2️⃣refactor(syntax: DeclSyntax) { }
+        1️⃣func refactor(syntax: DeclSyntax) { }
       """,
       context: (),
       provider: AddDocumentation.self,
-      expected: [
-        SourceEdit(
-          range: AbsolutePosition(utf8Offset: 2)..<AbsolutePosition(utf8Offset: 2),
-          replacement: """
-            /// A description
-              /// - Parameter syntax:
-              \("")
-            """
-        )
-      ]
+      expected: { positions in
+        [
+          SourceEdit(
+            range: positions["1️⃣"]!..<positions["1️⃣"]!,
+            replacement: """
+              /// A description
+                /// - Parameter syntax:
+                \("")
+              """
+          )
+        ]
+      },
+      checkMarkers: ["1️⃣"]
     )
   }
 
   func testConvertJSONToCodableStructClosure() throws {
     try assertRefactor(
       """
-      4️⃣{1️⃣
-         2️⃣"name": "Produce",
+      1️⃣{
+         "name": "Produce",
          "shelves": [
              {
                  "name": "Discount Produce",
@@ -79,39 +85,42 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
                  }
              }
          ]
-      }
+      }2️⃣
       """,
       context: (),
       provider: ConvertJSONToCodableStruct.self,
-      expected: [
-        SourceEdit(
-          range: AbsolutePosition(utf8Offset: 0)..<AbsolutePosition(utf8Offset: 267),
-          replacement: """
-            struct JSONValue: Codable {
-                var name: String
-                var shelves: [Shelves]
+      expected: { positions in
+        [
+          SourceEdit(
+            range: positions["1️⃣"]!..<positions["2️⃣"]!,
+            replacement: """
+              struct JSONValue: Codable {
+                  var name: String
+                  var shelves: [Shelves]
 
-                struct Shelves: Codable {
-                    var name: String
-                    var product: Product
+                  struct Shelves: Codable {
+                      var name: String
+                      var product: Product
 
-                    struct Product: Codable {
-                        var description: String
-                        var name: String
-                        var points: Double
-                    }
-                }
-            }
-            """
-        )
-      ]
+                      struct Product: Codable {
+                          var description: String
+                          var name: String
+                          var points: Double
+                      }
+                  }
+              }
+              """
+          )
+        ]
+      },
+      checkMarkers: ["1️⃣"]
     )
   }
 
   func testConvertJSONToCodableStructLiteral() throws {
     try assertRefactor(
       #"""
-      """
+      1️⃣"""
         {
            "name": "Produce",
            "shelves": [
@@ -125,40 +134,43 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
                }
            ]
         }
-        """
+        """2️⃣
       """#,
       context: (),
       provider: ConvertJSONToCodableStruct.self,
-      expected: [
-        SourceEdit(
-          range: AbsolutePosition(utf8Offset: 303)..<AbsolutePosition(utf8Offset: 303),
-          replacement: """
+      expected: { positions in
+        [
+          SourceEdit(
+            range: positions["2️⃣"]!..<positions["2️⃣"]!,
+            replacement: """
 
-            struct JSONValue: Codable {
-                var name: String
-                var shelves: [Shelves]
+              struct JSONValue: Codable {
+                  var name: String
+                  var shelves: [Shelves]
 
-                struct Shelves: Codable {
-                    var name: String
-                    var product: Product
+                  struct Shelves: Codable {
+                      var name: String
+                      var product: Product
 
-                    struct Product: Codable {
-                        var description: String
-                        var name: String
-                        var points: Double
-                    }
-                }
-            }
-            """
-        )
-      ]
+                      struct Product: Codable {
+                          var description: String
+                          var name: String
+                          var points: Double
+                      }
+                  }
+              }
+              """
+          )
+        ]
+      },
+      checkMarkers: ["1️⃣"]
     )
   }
 
   func testConvertJSONToCodableStructClosureMerging() throws {
     try assertRefactor(
       """
-      {
+      1️⃣{
          "name": "Store",
          "shelves": [
              {
@@ -193,35 +205,38 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
                  }
              }
          ]
-      }
+      }2️⃣
       """,
       context: (),
       provider: ConvertJSONToCodableStruct.self,
-      expected: [
-        SourceEdit(
-          range: AbsolutePosition(utf8Offset: 0)..<AbsolutePosition(utf8Offset: 931),
-          replacement: """
-            struct JSONValue: Codable {
-                var name: String
-                var shelves: [Shelves]
+      expected: { positions in
+        [
+          SourceEdit(
+            range: positions["1️⃣"]!..<positions["2️⃣"]!,
+            replacement: """
+              struct JSONValue: Codable {
+                  var name: String
+                  var shelves: [Shelves]
 
-                struct Shelves: Codable {
-                    var name: String
-                    var product: Product
+                  struct Shelves: Codable {
+                      var name: String
+                      var product: Product
 
-                    struct Product: Codable {
-                        var categories: [String]
-                        var delicious: String
-                        var description: String?
-                        var healthy: Bool
-                        var name: String
-                        var points: Double
-                    }
-                }
-            }
-            """
-        )
-      ]
+                      struct Product: Codable {
+                          var categories: [String]
+                          var delicious: String
+                          var description: String?
+                          var healthy: Bool
+                          var name: String
+                          var points: Double
+                      }
+                  }
+              }
+              """
+          )
+        ]
+      },
+      checkMarkers: ["1️⃣"]
     )
   }
 
@@ -231,21 +246,24 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
       func test() {
           1️⃣{
               "a": 1
-          }
+          }2️⃣
       }
       """,
       context: (),
       provider: ConvertJSONToCodableStruct.self,
-      expected: [
-        SourceEdit(
-          range: AbsolutePosition(utf8Offset: 18)..<AbsolutePosition(utf8Offset: 40),
-          replacement: """
-            struct JSONValue: Codable {
-                    var a: Double
-                }
-            """
-        )
-      ]
+      expected: { positions in
+        [
+          SourceEdit(
+            range: positions["1️⃣"]!..<positions["2️⃣"]!,
+            replacement: """
+              struct JSONValue: Codable {
+                      var a: Double
+                  }
+              """
+          )
+        ]
+      },
+      checkMarkers: ["1️⃣"]
     )
   }
 
@@ -266,22 +284,25 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
         if true {
           1️⃣{
               "a": 1
-          }
+          }2️⃣
         }
       }
       """,
       context: (),
       provider: ConvertJSONToCodableStruct.self,
-      expected: [
-        SourceEdit(
-          range: AbsolutePosition(utf8Offset: 120)..<AbsolutePosition(utf8Offset: 142),
-          replacement: """
-            struct JSONValue: Codable {
-                  var a: Double
-                }
-            """
-        )
-      ]
+      expected: { positions in
+        [
+          SourceEdit(
+            range: positions["1️⃣"]!..<positions["2️⃣"]!,
+            replacement: """
+              struct JSONValue: Codable {
+                    var a: Double
+                  }
+              """
+          )
+        ]
+      },
+      checkMarkers: ["1️⃣"]
     )
   }
 
@@ -292,6 +313,27 @@ func assertRefactor<R: EditRefactoringProvider>(
   context: R.Context,
   provider: R.Type,
   expected: [SourceEdit],
+  checkMarkers: [String]? = nil,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) throws {
+  try assertRefactor(
+    input,
+    context: context,
+    provider: provider,
+    expected: { _ in expected },
+    checkMarkers: checkMarkers,
+    file: file,
+    line: line
+  )
+}
+
+func assertRefactor<R: EditRefactoringProvider>(
+  _ input: String,
+  context: R.Context,
+  provider: R.Type,
+  expected: (_ positions: [String: AbsolutePosition]) -> [SourceEdit],
+  checkMarkers: [String]? = nil,
   file: StaticString = #filePath,
   line: UInt = #line
 ) throws {
@@ -300,7 +342,19 @@ func assertRefactor<R: EditRefactoringProvider>(
   var parser = Parser(textWithoutMarkers)
   let sourceFile = SourceFileSyntax.parse(from: &parser)
 
-  let markersToCheck = markers.isEmpty ? [("1️⃣", 0)] : markers.sorted { $0.key < $1.key }
+  let markersToCheck: [(String, Int)]
+  if let checkMarkers {
+    markersToCheck = checkMarkers.map { marker in
+      guard let location = markers[marker] else {
+        fatalError("Could not find marker \(marker) in input: \(marker)")
+      }
+      return (marker, location)
+    }
+  } else if markers.isEmpty {
+    markersToCheck = [("1️⃣", 0)]
+  } else {
+    markersToCheck = markers.sorted { $0.key < $1.key }
+  }
 
   for (marker, location) in markersToCheck {
     guard let token = sourceFile.token(at: AbsolutePosition(utf8Offset: location)) else {
@@ -316,11 +370,15 @@ func assertRefactor<R: EditRefactoringProvider>(
       continue
     }
 
+    let positions = markers.reduce(into: [String: AbsolutePosition]()) { result, marker in
+      result[marker.key] = AbsolutePosition(utf8Offset: marker.value)
+    }
+
     try assertRefactor(
       input,
       context: context,
       provider: provider,
-      expected: expected,
+      expected: expected(positions),
       at: marker,
       file: file,
       line: line
