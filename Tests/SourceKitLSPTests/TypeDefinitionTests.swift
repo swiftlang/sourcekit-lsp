@@ -40,7 +40,7 @@ final class TypeDefinitionTests: SourceKitLSPTestCase {
     }
 
     XCTAssertEqual(location.uri, uri)
-    XCTAssertEqual(location.range.lowerBound, positions["1️⃣"])
+    XCTAssertEqual(location.range, Range(positions["1️⃣"]))
   }
 
   func testTypeDefinitionCrossModule() async throws {
@@ -83,7 +83,7 @@ final class TypeDefinitionTests: SourceKitLSPTestCase {
     }
 
     XCTAssertEqual(location.uri, try project.uri(for: "MyType.swift"))
-    XCTAssertEqual(location.range.lowerBound, try project.position(of: "1️⃣", in: "MyType.swift"))
+    XCTAssertEqual(location.range, try Range(project.position(of: "1️⃣", in: "MyType.swift")))
   }
 }
 
