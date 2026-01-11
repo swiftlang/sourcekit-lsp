@@ -261,7 +261,7 @@ package struct DeMorganTransformer {
     var strippedInfix = mappedInfix
     let leadingTrivia = strippedInfix.leadingTrivia
     if !leadingTrivia.isEmpty {
-      strippedInfix = strippedInfix.with(\.leadingTrivia, [])
+      strippedInfix.leadingTrivia = []
     }
 
     let innerExpr: ExprSyntax
@@ -452,7 +452,7 @@ package struct DeMorganTransformer {
       }
       var newExpr = negatedInner.expr
       // Ensure separation to prevent `try` and `!` from fusing into `try!`
-      if tryExpr.tryKeyword.trailingTrivia.isEmpty && newExpr.leadingTrivia.isEmpty {
+      if tryExpr.tryKeyword.trailingTrivia.isEmpty, newExpr.leadingTrivia.isEmpty {
         newExpr = newExpr.with(\.leadingTrivia, .spaces(1))
       }
       let newTry = tryExpr.with(\.expression, newExpr)
@@ -465,7 +465,7 @@ package struct DeMorganTransformer {
       }
       var newExpr = negatedInner.expr
       // Ensure separation for style (await! does not exist, but `await !a` is better than `await!a`)
-      if awaitExpr.awaitKeyword.trailingTrivia.isEmpty && newExpr.leadingTrivia.isEmpty {
+      if awaitExpr.awaitKeyword.trailingTrivia.isEmpty, newExpr.leadingTrivia.isEmpty {
         newExpr = newExpr.with(\.leadingTrivia, .spaces(1))
       }
       let newAwait = awaitExpr.with(\.expression, newExpr)
