@@ -30,25 +30,20 @@ package struct InlayHintResolveData: LSPAnyCodable {
   package init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard case .string(let uriString) = dictionary["uri"],
       let uri = try? DocumentURI(string: uriString),
-      case .dictionary(let posDict) = dictionary["position"],
-      case .int(let line) = posDict["line"],
-      case .int(let character) = posDict["character"],
-      case .int(let version) = dictionary["version"]
+      case .int(let version) = dictionary["version"],
+      let position = Position(fromLSPAny: dictionary["position"])
     else {
       return nil
     }
     self.uri = uri
-    self.position = Position(line: line, utf16index: character)
+    self.position = position
     self.version = version
   }
 
   package func encodeToLSPAny() -> LSPAny {
     return .dictionary([
       "uri": .string(uri.stringValue),
-      "position": .dictionary([
-        "line": .int(position.line),
-        "character": .int(position.utf16index),
-      ]),
+      "position": position.encodeToLSPAny(),
       "version": .int(version),
     ])
   }

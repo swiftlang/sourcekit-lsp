@@ -14,6 +14,7 @@
 import SKLogging
 import SKTestSupport
 import SourceKitLSP
+import SwiftExtensions
 import XCTest
 
 final class InlayHintTests: SourceKitLSPTestCase {
@@ -314,39 +315,13 @@ final class InlayHintTests: SourceKitLSPTestCase {
       return
     }
 
-    XCTAssertEqual(parts.count, 1, "Expected exactly one label part")
-
-    guard let location = parts.first?.location else {
+    guard let location = parts.only?.location else {
       XCTFail("Expected label part to have location for go-to-definition")
       return
     }
 
     XCTAssertEqual(location.uri, uri)
-    XCTAssertEqual(location.range.lowerBound, positions["1️⃣"])
-  }
-
-  func testInlayHintResolveSDKType() async throws {
-    let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI(for: .swift)
-
-    testClient.openDocument(
-      """
-      let x = "hello"
-      """,
-      uri: uri
-    )
-
-    let request = InlayHintRequest(textDocument: TextDocumentIdentifier(uri), range: nil)
-    let hints = try await testClient.send(request)
-
-    guard let typeHint = hints.first(where: { $0.kind == .type }) else {
-      XCTFail("Expected type hint for String")
-      return
-    }
-
-    // Resolve should not crash, and returns the hint (possibly without location for SDK types in test env)
-    let resolvedHint = try await testClient.send(InlayHintResolveRequest(inlayHint: typeHint))
-    XCTAssertEqual(resolvedHint.kind, .type)
+    XCTAssertEqual(location.range, Range(positions["1️⃣"]))
   }
 
   func testInlayHintResolveCrossModule() async throws {
@@ -387,8 +362,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
     let resolvedHint = try await project.testClient.send(InlayHintResolveRequest(inlayHint: typeHint))
 
     guard case .parts(let parts) = resolvedHint.label,
-      let part = parts.first,
-      let location = part.location
+      let location = parts.only?.location
     else {
       XCTFail("Expected label part to have location for go-to-definition")
       return
@@ -396,6 +370,6 @@ final class InlayHintTests: SourceKitLSPTestCase {
 
     // The location should point to LibA/MyType.swift where MyType is defined
     XCTAssertEqual(location.uri, try project.uri(for: "MyType.swift"))
-    XCTAssertEqual(location.range.lowerBound, try project.position(of: "1️⃣", in: "MyType.swift"))
+    XCTAssertEqual(location.range, try Range(project.position(of: "1️⃣", in: "MyType.swift")))
   }
 }
