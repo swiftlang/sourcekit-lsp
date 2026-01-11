@@ -1292,6 +1292,20 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testApplyDeMorganLawPreservesIndentationForPropositions() throws {
+    try assertDeMorganTransform(
+      input: "  !a || !b",
+      expected: "  !(a && b)"
+    )
+  }
+
+  func testApplyDeMorganLawPreservesTriviaForPropositions() throws {
+    try assertDeMorganTransform(
+      input: "/* c */ !a || !b",
+      expected: "/* c */ !(a && b)"
+    )
+  }
+
   func testApplyDeMorganLawNestedActionAvailability() async throws {
     try await assertCodeActions(
       """

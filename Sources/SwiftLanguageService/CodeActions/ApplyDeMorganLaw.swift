@@ -256,21 +256,29 @@ package struct DeMorganTransformer {
 
     let mappedInfix = mapThroughParentheses(expr, replacement: ExprSyntax(newInfix))
 
+    // Transfer leading trivia from the inner expression to the new negation operator
+    // so that indentation is preserved and not trapped inside.
+    var strippedInfix = mappedInfix
+    let leadingTrivia = strippedInfix.leadingTrivia
+    if !leadingTrivia.isEmpty {
+      strippedInfix = strippedInfix.with(\.leadingTrivia, [])
+    }
+
     let innerExpr: ExprSyntax
-    if mappedInfix.isParenthesized {
-      innerExpr = mappedInfix
+    if strippedInfix.isParenthesized {
+      innerExpr = strippedInfix
     } else {
       innerExpr = ExprSyntax(
         TupleExprSyntax(
-          elements: [LabeledExprSyntax(expression: mappedInfix.with(\.trailingTrivia, []))],
-          trailingTrivia: mappedInfix.trailingTrivia
+          elements: [LabeledExprSyntax(expression: strippedInfix.with(\.trailingTrivia, []))],
+          trailingTrivia: strippedInfix.trailingTrivia
         )
       )
     }
 
     return ExprSyntax(
       PrefixOperatorExprSyntax(
-        operator: exprType.negationPrefix,
+        operator: exprType.negationPrefix.with(\.leadingTrivia, leadingTrivia),
         expression: innerExpr
       )
     )
