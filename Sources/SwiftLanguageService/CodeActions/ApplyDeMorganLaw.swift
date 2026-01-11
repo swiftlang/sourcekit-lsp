@@ -450,7 +450,12 @@ package struct DeMorganTransformer {
       guard let negatedInner = negateExpression(tryExpr.expression, exprType: exprType) else {
         return nil
       }
-      let newTry = tryExpr.with(\.expression, negatedInner.expr)
+      var newExpr = negatedInner.expr
+      // Ensure separation to prevent `try` and `!` from fusing into `try!`
+      if tryExpr.tryKeyword.trailingTrivia.isEmpty && newExpr.leadingTrivia.isEmpty {
+        newExpr = newExpr.with(\.leadingTrivia, .spaces(1))
+      }
+      let newTry = tryExpr.with(\.expression, newExpr)
       return NegatedResult(expr: ExprSyntax(newTry), change: negatedInner.change)
     }
 
@@ -458,7 +463,12 @@ package struct DeMorganTransformer {
       guard let negatedInner = negateExpression(awaitExpr.expression, exprType: exprType) else {
         return nil
       }
-      let newAwait = awaitExpr.with(\.expression, negatedInner.expr)
+      var newExpr = negatedInner.expr
+      // Ensure separation for style (await! does not exist, but `await !a` is better than `await!a`)
+      if awaitExpr.awaitKeyword.trailingTrivia.isEmpty && newExpr.leadingTrivia.isEmpty {
+        newExpr = newExpr.with(\.leadingTrivia, .spaces(1))
+      }
+      let newAwait = awaitExpr.with(\.expression, newExpr)
       return NegatedResult(expr: ExprSyntax(newAwait), change: negatedInner.change)
     }
 

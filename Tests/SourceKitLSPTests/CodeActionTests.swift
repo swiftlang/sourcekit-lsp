@@ -1278,6 +1278,20 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testApplyDeMorganLawTryWithTrivia() throws {
+    try assertDeMorganTransform(
+      input: "true && try /* comment */ a",
+      expected: "!(false || try /* comment */ !a)"
+    )
+  }
+
+  func testApplyDeMorganLawTryFusionCheck() throws {
+    try assertDeMorganTransform(
+      input: "true && try(a)",
+      expected: "!(false || try !(a))"
+    )
+  }
+
   func testApplyDeMorganLawForcedUnwrapAsAtomic() throws {
     try assertDeMorganTransform(
       input: "a! && false",
