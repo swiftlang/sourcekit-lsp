@@ -73,7 +73,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
     let action = codeActions.first(where: { $0.title == title })
     if let expectedOutput {
       guard let action else {
-        let available = codeActions.map { $0.title }
+        let available = codeActions.map(\.title)
         XCTFail("Action '\(title)' not found. Available: \(available)", file: file, line: line)
         return
       }
@@ -85,10 +85,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
 
       let changes = edit.changes?[uri] ?? []
 
-      let cleanInput =
-        input
-        .replacingOccurrences(of: "1️⃣", with: "")
-        .replacingOccurrences(of: "2️⃣", with: "")
+      let cleanInput = extractMarkers(input).textWithoutMarkers
 
       let resultingText = apply(edits: changes, to: cleanInput)
 
@@ -523,33 +520,25 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
 
   func testConvertIfLetToGuardWithCRLF() async throws {
     // Test that CRLF line endings in input are handled correctly.
-    // The original document lines keep their CRLF endings. The first statement moved
-    // into the 'guard' body preserves its original leading trivia, including the
-    // \r\n. Newlines generated specifically for the 'else' block use LF.
     try await validateCodeAction(
       input: """
-        func test() -> Int? {
-          1️⃣if let value = optional {
-            print(value)
-            return value
-          }
-          return nil
+        func test() -> Int? {\r\n\
+          1️⃣if let value = optional {\r\n\
+            print(value)\r\n\
+            return value\r\n\
+          }\r\n\
+          return nil\r\n\
         }
-        """.replacingOccurrences(of: "\n", with: "\r\n"),
+        """,
       expectedOutput: """
-        func test() -> Int? {
-          guard let value = optional else {
-            return nil
-          }
-          print(value)
-          return value
+        func test() -> Int? {\r\n\
+          guard let value = optional else {\r\n\
+            return nil\n\
+          }\n\
+          print(value)\r\n\
+          return value\r\n\
         }
-        """.replacingOccurrences(of: "\n", with: "\r\n")
-          // 'IndentationRemover' faithfully preserves source line endings (CRLF).
-          // However, the generated 'guard' right brace uses default LF (from .newline).
-          // The first statement moved out of the 'if' block is also currently forced to LF.
-          .replacingOccurrences(of: "return nil\r\n", with: "return nil\n")  // LF before right brace
-          .replacingOccurrences(of: "  }\r\n", with: "  }\n"),  // LF before print
+        """,
       title: "Convert to guard"
     )
   }

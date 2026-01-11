@@ -78,9 +78,6 @@ import SwiftSyntaxBuilder
     )
     let newBodyStatements = ifExpr.body.statements
 
-    let rangeStart = ifExpr.positionAfterSkippingLeadingTrivia
-    let rangeEnd = lastStatement.endPosition
-
     var replacementText = guardStmt.description
 
     let remover = IndentationRemover(indentation: indentStep)
@@ -90,17 +87,14 @@ import SwiftSyntaxBuilder
         // The first statement moved out of the if-block should be placed on a new line
         // at the base indentation level. We strip any leading newlines and indentation
         // and replace them with a single newline + base indentation.
-        var pieces = Array(adjustedStmt.leadingTrivia)
-        while let first = pieces.first, first.isWhitespace {
-          pieces.removeFirst()
-        }
-        adjustedStmt = adjustedStmt.with(\.leadingTrivia, .newline + baseIndentation + Trivia(pieces: pieces))
+        let pieces = adjustedStmt.leadingTrivia.drop(while: \.isWhitespace)
+        adjustedStmt.leadingTrivia = .newline + baseIndentation + Trivia(pieces: Array(pieces))
       }
       replacementText += adjustedStmt.description
     }
 
     let edit = TextEdit(
-      range: scope.snapshot.absolutePositionRange(of: rangeStart..<rangeEnd),
+      range: scope.snapshot.absolutePositionRange(of: ifExpr.positionAfterSkippingLeadingTrivia..<lastStatement.endPosition),
       newText: replacementText
     )
 
@@ -129,8 +123,7 @@ import SwiftSyntaxBuilder
     return nil
   }
 
-  private static func isTopLevelInCodeBlock(_ ifExpr: IfExprSyntax?) -> Bool {
-    guard let ifExpr else { return false }
+  private static func isTopLevelInCodeBlock(_ ifExpr: IfExprSyntax) -> Bool {
     var current = Syntax(ifExpr)
     if let parent = current.parent, parent.is(ExpressionStmtSyntax.self) {
       current = parent
@@ -214,11 +207,9 @@ import SwiftSyntaxBuilder
     }
 
     if var lastStmt = elseStatementsList.last,
-      let lastPiece = lastStmt.trailingTrivia.pieces.last,
-      lastPiece.isNewline
+      lastStmt.trailingTrivia.pieces.last?.isNewline ?? false
     {
-      let newTrivia = Trivia(pieces: lastStmt.trailingTrivia.pieces.dropLast())
-      lastStmt = lastStmt.with(\.trailingTrivia, newTrivia)
+      lastStmt.trailingTrivia = Trivia(pieces: lastStmt.trailingTrivia.pieces.dropLast())
       elseStatementsList[elseStatementsList.count - 1] = lastStmt
     }
 
@@ -245,9 +236,9 @@ import SwiftSyntaxBuilder
       return conditions
     }
 
-    let trimmedPieces = lastCondition.trailingTrivia.droppingLast(while: { $0.isSpaceOrTab })
+    let trimmedPieces = lastCondition.trailingTrivia.droppingLast(while: \.isSpaceOrTab)
 
-    lastCondition = lastCondition.with(\.trailingTrivia, Trivia(pieces: Array(trimmedPieces)))
+    lastCondition.trailingTrivia = Trivia(pieces: Array(trimmedPieces))
     var newConditions = Array(conditions.dropLast())
     newConditions.append(lastCondition)
     return ConditionElementListSyntax(newConditions)
