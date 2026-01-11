@@ -207,7 +207,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
     )
   }
 
-  func testConvertIfLetToGuardShownWithBreak() async throws {
+  func testConvertIfLetToGuardNotShownWithBreakAndFallthrough() async throws {
     try await validateCodeAction(
       input: """
         func test() {
@@ -220,22 +220,12 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
           }
         }
         """,
-      expectedOutput: """
-        func test() {
-          while true {
-            guard let value = optional else {
-              print("loop")
-            }
-        \(context(indent: 4))
-            break
-          }
-        }
-        """,
+      expectedOutput: nil,
       title: "Convert to guard"
     )
   }
 
-  func testConvertIfLetToGuardShownWithContinue() async throws {
+  func testConvertIfLetToGuardNotShownWithContinueAndFallthrough() async throws {
     try await validateCodeAction(
       input: """
         func test() {
@@ -248,17 +238,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
           }
         }
         """,
-      expectedOutput: """
-        func test() {
-          while true {
-            guard let value = optional else {
-              print("loop")
-            }
-        \(context(indent: 4))
-            continue
-          }
-        }
-        """,
+      expectedOutput: nil,
       title: "Convert to guard"
     )
   }

@@ -67,6 +67,12 @@ import SwiftSyntaxBuilder
       return []
     }
 
+    // The statements following the 'if' will become the 'else' block of the 'guard'.
+    // They must guarantee an exit (return, throw, break, continue).
+    guard bodyGuaranteesExit(CodeBlockSyntax(statements: CodeBlockItemListSyntax(Array(followingStatements)))) else {
+      return []
+    }
+
     let baseIndentation = ifExpr.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
     let indentStep = BasicFormat.inferIndentation(of: ifExpr.root) ?? .spaces(4)
 
@@ -94,7 +100,9 @@ import SwiftSyntaxBuilder
     }
 
     let edit = TextEdit(
-      range: scope.snapshot.absolutePositionRange(of: ifExpr.positionAfterSkippingLeadingTrivia..<lastStatement.endPosition),
+      range: scope.snapshot.absolutePositionRange(
+        of: ifExpr.positionAfterSkippingLeadingTrivia..<lastStatement.endPosition
+      ),
       newText: replacementText
     )
 
@@ -136,14 +144,8 @@ import SwiftSyntaxBuilder
       return false
     }
 
-    for condition in ifExpr.conditions {
-      if let optionalBinding = condition.condition.as(OptionalBindingConditionSyntax.self) {
-        if optionalBinding.pattern.is(ExpressionPatternSyntax.self) {
-          return false
-        }
-      } else if condition.condition.is(MatchingPatternConditionSyntax.self) {
-        return false
-      }
+    guard ifExpr.conditions.allSatisfy(isSupportedCondition) else {
+      return false
     }
 
     // Changing if-let to guard would change the lifetime of deferred blocks.
@@ -152,6 +154,16 @@ import SwiftSyntaxBuilder
     }
 
     return bodyGuaranteesExit(ifExpr.body)
+  }
+
+  private static func isSupportedCondition(_ condition: ConditionElementSyntax) -> Bool {
+    if let optionalBinding = condition.condition.as(OptionalBindingConditionSyntax.self) {
+      return !optionalBinding.pattern.is(ExpressionPatternSyntax.self)
+    }
+    if condition.condition.is(MatchingPatternConditionSyntax.self) {
+      return false
+    }
+    return true
   }
 
   private static func bodyGuaranteesExit(_ codeBlock: CodeBlockSyntax) -> Bool {
