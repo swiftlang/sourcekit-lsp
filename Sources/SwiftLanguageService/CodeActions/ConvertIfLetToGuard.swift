@@ -245,17 +245,6 @@ import SwiftSyntaxBuilder
   }
 }
 
-fileprivate extension TriviaPiece {
-  var isSpaceOrTab: Bool {
-    switch self {
-    case .spaces, .tabs:
-      return true
-    default:
-      return false
-    }
-  }
-}
-
 private func isFunctionBoundary(_ syntax: Syntax) -> Bool {
   [.functionDecl, .initializerDecl, .accessorDecl, .subscriptDecl, .closureExpr].contains(syntax.kind)
 }
