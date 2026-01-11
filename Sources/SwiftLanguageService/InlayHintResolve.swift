@@ -62,6 +62,7 @@ extension SwiftLanguageService {
   /// Looks up the definition location for the type at the given position.
   ///
   /// This is used by inlay hint resolution to enable go-to-definition on type hints.
+  /// For SDK types, this returns a location in the generated interface.
   func lookupTypeDefinitionLocation(
     snapshot: DocumentSnapshot,
     position: Position
@@ -82,12 +83,32 @@ extension SwiftLanguageService {
       return nil
     }
 
-    if let typeInfo = try await cursorInfoFromTypeUSR(typeUsr, in: snapshot),
-      let location = typeInfo.symbolInfo.bestLocalDeclaration
-    {
+    guard let typeInfo = try await cursorInfoFromTypeUSR(typeUsr, in: snapshot) else {
+      return nil
+    }
+
+    // For local types, return the local declaration
+    if let location = typeInfo.symbolInfo.bestLocalDeclaration {
       return location
+    }
+
+    // For SDK types, fall back to generated interface
+    if typeInfo.symbolInfo.isSystem ?? false,
+      let systemModule = typeInfo.symbolInfo.systemModule
+    {
+      let interfaceDetails = try await self.openGeneratedInterface(
+        document: snapshot.uri,
+        moduleName: systemModule.moduleName,
+        groupName: systemModule.groupName,
+        symbolUSR: typeInfo.symbolInfo.usr
+      )
+      if let details = interfaceDetails {
+        let position = details.position ?? Position(line: 0, utf16index: 0)
+        return Location(uri: details.uri, range: Range(position))
+      }
     }
 
     return nil
   }
 }
+

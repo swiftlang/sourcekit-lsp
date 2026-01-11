@@ -372,4 +372,37 @@ final class InlayHintTests: SourceKitLSPTestCase {
     XCTAssertEqual(location.uri, try project.uri(for: "MyType.swift"))
     XCTAssertEqual(location.range, try Range(project.position(of: "1️⃣", in: "MyType.swift")))
   }
+
+  func testInlayHintResolveSDKType() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      let 1️⃣x = "hello"
+      """,
+      indexSystemModules: true
+    )
+
+    let request = InlayHintRequest(textDocument: TextDocumentIdentifier(project.fileURI), range: nil)
+    let hints = try await project.testClient.send(request)
+
+    guard let typeHint = hints.first(where: { $0.kind == .type }) else {
+      XCTFail("Expected type hint for String")
+      return
+    }
+
+    let resolvedHint = try await project.testClient.send(InlayHintResolveRequest(inlayHint: typeHint))
+
+    guard case .parts(let parts) = resolvedHint.label,
+      let location = parts.only?.location
+    else {
+      XCTFail("Expected label part to have location for go-to-definition")
+      return
+    }
+
+    // Should point to generated Swift interface
+    XCTAssertTrue(
+      location.uri.pseudoPath.hasSuffix(".swiftinterface"),
+      "Expected .swiftinterface file, got: \(location.uri.pseudoPath)"
+    )
+  }
 }
+
