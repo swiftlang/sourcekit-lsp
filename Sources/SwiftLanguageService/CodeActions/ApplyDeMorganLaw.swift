@@ -256,21 +256,29 @@ package struct DeMorganTransformer {
 
     let mappedInfix = mapThroughParentheses(expr, replacement: ExprSyntax(newInfix))
 
+    // Transfer leading trivia from the inner expression to the new negation operator
+    // so that indentation is preserved and not trapped inside.
+    var strippedInfix = mappedInfix
+    let leadingTrivia = strippedInfix.leadingTrivia
+    if !leadingTrivia.isEmpty {
+      strippedInfix.leadingTrivia = []
+    }
+
     let innerExpr: ExprSyntax
-    if mappedInfix.isParenthesized {
-      innerExpr = mappedInfix
+    if strippedInfix.isParenthesized {
+      innerExpr = strippedInfix
     } else {
       innerExpr = ExprSyntax(
         TupleExprSyntax(
-          elements: [LabeledExprSyntax(expression: mappedInfix.with(\.trailingTrivia, []))],
-          trailingTrivia: mappedInfix.trailingTrivia
+          elements: [LabeledExprSyntax(expression: strippedInfix.with(\.trailingTrivia, []))],
+          trailingTrivia: strippedInfix.trailingTrivia
         )
       )
     }
 
     return ExprSyntax(
       PrefixOperatorExprSyntax(
-        operator: exprType.negationPrefix,
+        operator: exprType.negationPrefix.with(\.leadingTrivia, leadingTrivia),
         expression: innerExpr
       )
     )
@@ -303,6 +311,10 @@ package struct DeMorganTransformer {
       if result.change == .negation {
         return result
       }
+      return NegatedResult(expr: mapThroughParentheses(expr, replacement: result.expr), change: result.change)
+    }
+
+    if exprType == .boolean, let result = negateTryAwait(inner, exprType: exprType) {
       return NegatedResult(expr: mapThroughParentheses(expr, replacement: result.expr), change: result.change)
     }
 
@@ -391,7 +403,12 @@ package struct DeMorganTransformer {
       return nil
     }
 
-    let result = boolLiteral.with(\.literal, flippedValue)
+    let result = boolLiteral.with(
+      \.literal,
+      flippedValue
+        .with(\.leadingTrivia, boolLiteral.literal.leadingTrivia)
+        .with(\.trailingTrivia, boolLiteral.literal.trailingTrivia)
+    )
     return NegatedResult(expr: ExprSyntax(result), change: .substitution)
   }
 
@@ -420,6 +437,42 @@ package struct DeMorganTransformer {
       .with(\.elseExpression, elseNegated.expr)
 
     return NegatedResult(expr: ExprSyntax(newTernary), change: .ternary)
+  }
+
+  /// Propagates negation into try/await expressions: `try a` → `try !a`, `await a` → `await !a`
+  ///
+  /// This allows negation to flow through these effect markers rather than wrapping them.
+  private func negateTryAwait(_ expr: ExprSyntax, exprType: ExprType) -> NegatedResult? {
+    // Only handle plain `try`, not `try?` or `try!`.
+    // `try?` changes the type to Optional, so negation doesn't propagate.
+    // `try!` could propagate, but for simplicity we only handle plain `try`.
+    if let tryExpr = expr.as(TryExprSyntax.self), tryExpr.questionOrExclamationMark == nil {
+      guard let negatedInner = negateExpression(tryExpr.expression, exprType: exprType) else {
+        return nil
+      }
+      var newExpr = negatedInner.expr
+      // Ensure separation to prevent `try` and `!` from fusing into `try!`
+      if tryExpr.tryKeyword.trailingTrivia.isEmpty, newExpr.leadingTrivia.isEmpty {
+        newExpr = newExpr.with(\.leadingTrivia, .spaces(1))
+      }
+      let newTry = tryExpr.with(\.expression, newExpr)
+      return NegatedResult(expr: ExprSyntax(newTry), change: negatedInner.change)
+    }
+
+    if let awaitExpr = expr.as(AwaitExprSyntax.self) {
+      guard let negatedInner = negateExpression(awaitExpr.expression, exprType: exprType) else {
+        return nil
+      }
+      var newExpr = negatedInner.expr
+      // Ensure separation for style (await! does not exist, but `await !a` is better than `await!a`)
+      if awaitExpr.awaitKeyword.trailingTrivia.isEmpty, newExpr.leadingTrivia.isEmpty {
+        newExpr = newExpr.with(\.leadingTrivia, .spaces(1))
+      }
+      let newAwait = awaitExpr.with(\.expression, newExpr)
+      return NegatedResult(expr: ExprSyntax(newAwait), change: negatedInner.change)
+    }
+
+    return nil
   }
 
   /// Adds a negation prefix to an expression, wrapping in parentheses if the expression is composite.
@@ -531,9 +584,9 @@ fileprivate extension ExprSyntax {
   var isComposite: Bool {
     switch self.kind {
     case .arrayExpr, .booleanLiteralExpr, .closureExpr, .declReferenceExpr, .dictionaryExpr, .discardAssignmentExpr,
-      .floatLiteralExpr, .functionCallExpr, .integerLiteralExpr, .macroExpansionExpr, .memberAccessExpr,
-      .nilLiteralExpr, .postfixOperatorExpr, .prefixOperatorExpr, .regexLiteralExpr, .stringLiteralExpr,
-      .subscriptCallExpr, .superExpr, .tupleExpr:
+      .floatLiteralExpr, .forceUnwrapExpr, .functionCallExpr, .integerLiteralExpr, .keyPathExpr, .macroExpansionExpr,
+      .memberAccessExpr, .nilLiteralExpr, .optionalChainingExpr, .postfixOperatorExpr, .prefixOperatorExpr,
+      .regexLiteralExpr, .stringLiteralExpr, .subscriptCallExpr, .superExpr, .tupleExpr:
       return false
     default:
       return true
