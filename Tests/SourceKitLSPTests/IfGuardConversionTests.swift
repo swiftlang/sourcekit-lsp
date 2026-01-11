@@ -418,9 +418,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
       input: """
         func test() -> Int? {
             1️⃣if let value = optional {
-                print(value)
-                print(value)
-                print(value)
+        \(context(indent: 8))
                 return value
             }
             return nil
@@ -431,9 +429,7 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
             guard let value = optional else {
                 return nil
             }
-            print(value)
-            print(value)
-            print(value)
+        \(context(indent: 4))
             return value
         }
         """,
