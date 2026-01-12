@@ -198,10 +198,14 @@ import SwiftSyntaxBuilder
           return bodyGuaranteesExit(block)
         case .ifExpr(let elseIf):
           return statementGuaranteesExit(CodeBlockItemSyntax.Item(elseIf))
+        @unknown default:
+          return false
         }
       }
 
     case .decl:
+      break
+    @unknown default:
       break
     }
 
@@ -248,7 +252,7 @@ import SwiftSyntaxBuilder
       return conditions
     }
 
-    let trimmedPieces = lastCondition.trailingTrivia.droppingLast(while: \.isSpaceOrTab)
+    let trimmedPieces = lastCondition.trailingTrivia.pieces.droppingLast(while: \TriviaPiece.isSpaceOrTab)
 
     lastCondition.trailingTrivia = Trivia(pieces: Array(trimmedPieces))
     var newConditions = Array(conditions.dropLast())
