@@ -405,4 +405,3 @@ final class InlayHintTests: SourceKitLSPTestCase {
     )
   }
 }
-
