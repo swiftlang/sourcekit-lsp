@@ -3,6 +3,7 @@ set(sources
   AsyncUtils.swift
   Cache.swift
   CartesianProduct.swift
+  Collection+DropLast.swift
   Collection+Only.swift
   Collection+PartitionIntoBatches.swift
   DisableSigpipe.swift
