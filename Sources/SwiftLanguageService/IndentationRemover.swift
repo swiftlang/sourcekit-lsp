@@ -71,6 +71,8 @@ class IndentationRemover: SyntaxRewriter {
       if shouldUnindent {
         if remainingPieces.starts(with: indentation) {
           remainingPieces.removeFirst(indentation.count)
+        }
+        if !remainingPieces.isEmpty {
           shouldUnindent = false
         }
       }
@@ -83,19 +85,10 @@ class IndentationRemover: SyntaxRewriter {
   override func visit(_ token: TokenSyntax) -> TokenSyntax {
     let indentedLeadingTrivia = unindent(token.leadingTrivia)
 
-    var newToken = token.with(\.leadingTrivia, indentedLeadingTrivia)
+    let newToken = token.with(\.leadingTrivia, indentedLeadingTrivia)
 
-    if case .stringSegment(let content) = token.tokenKind {
-      let unindentedContent = unindentAfterNewlines(content, unindentFirstLine: shouldUnindent)
-      newToken = newToken.with(\.tokenKind, .stringSegment(unindentedContent))
-
-      if content.last?.isNewline ?? false {
-        shouldUnindent = true
-      } else {
-        shouldUnindent = false
-      }
-    } else {
-      shouldUnindent = false
+    if token.text.last?.isNewline ?? false {
+      shouldUnindent = true
     }
 
     return newToken.with(\.trailingTrivia, unindent(token.trailingTrivia))
