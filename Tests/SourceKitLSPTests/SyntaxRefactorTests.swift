@@ -29,7 +29,7 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
   func testAddDocumentationRefactor() throws {
     try assertRefactor(
       """
-        1️⃣func refactor(syntax: DeclSyntax, in context: Void) -> DeclSyntax? { }
+        1️⃣func 2️⃣refactor(syntax: DeclSyntax, in context: Void) -> DeclSyntax? { }
       """,
       context: (),
       provider: AddDocumentation.self,
@@ -48,15 +48,14 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
               """
           )
         ]
-      },
-      checkMarkers: ["1️⃣"]
+      }
     )
   }
 
   func testAddDocumentationRefactorSingleParameter() throws {
     try assertRefactor(
       """
-        1️⃣func refactor(syntax: DeclSyntax) { }
+        1️⃣func 2️⃣refactor(syntax: DeclSyntax) { }
       """,
       context: (),
       provider: AddDocumentation.self,
@@ -71,8 +70,7 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
               """
           )
         ]
-      },
-      checkMarkers: ["1️⃣"]
+      }
     )
   }
 
@@ -80,7 +78,7 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
     try assertRefactor(
       """
       1️⃣{
-         "name": "Produce",
+         3️⃣"name": "Produce",
          "shelves": [
              {
                  "name": "Discount Produce",
@@ -119,7 +117,7 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
           )
         ]
       },
-      checkMarkers: ["1️⃣"]
+      checkMarkers: ["1️⃣", "3️⃣"]
     )
   }
 
@@ -127,7 +125,7 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
     try assertRefactor(
       #"""
       1️⃣"""
-        {
+        3️⃣{
            "name": "Produce",
            "shelves": [
                {
@@ -169,7 +167,7 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
           )
         ]
       },
-      checkMarkers: ["1️⃣"]
+      checkMarkers: ["1️⃣", "3️⃣"]
     )
   }
 
@@ -177,7 +175,7 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
     try assertRefactor(
       """
       1️⃣{
-         "name": "Store",
+         3️⃣"name": "Store",
          "shelves": [
              {
                  "name": "Discount Produce",
@@ -242,7 +240,7 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
           )
         ]
       },
-      checkMarkers: ["1️⃣"]
+      checkMarkers: ["1️⃣", "3️⃣"]
     )
   }
 
@@ -251,7 +249,7 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
       """
       func test() {
           1️⃣{
-              "a": 1
+              3️⃣"a": 1
           }2️⃣
       }
       """,
@@ -269,7 +267,7 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
           )
         ]
       },
-      checkMarkers: ["1️⃣"]
+      checkMarkers: ["1️⃣", "3️⃣"]
     )
   }
 
@@ -289,7 +287,7 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
       func test() {
         if true {
           1️⃣{
-              "a": 1
+              3️⃣"a": 1
           }2️⃣
         }
       }
@@ -308,7 +306,7 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
           )
         ]
       },
-      checkMarkers: ["1️⃣"]
+      checkMarkers: ["1️⃣", "3️⃣"]
     )
   }
 
