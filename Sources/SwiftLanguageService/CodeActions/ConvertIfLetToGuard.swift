@@ -198,15 +198,19 @@ import SwiftSyntaxBuilder
           return bodyGuaranteesExit(block)
         case .ifExpr(let elseIf):
           return statementGuaranteesExit(CodeBlockItemSyntax.Item(elseIf))
+        #if RESILIENT_LIBRARIES
         @unknown default:
           return false
+        #endif
         }
       }
 
     case .decl:
       break
+    #if RESILIENT_LIBRARIES
     @unknown default:
       break
+    #endif
     }
 
     return false
