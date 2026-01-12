@@ -608,32 +608,32 @@ final class IfGuardConversionTests: SourceKitLSPTestCase {
 
   func testConvertIfLetToGuardWithMultiLineString() async throws {
     try await validateCodeAction(
-      input: """
+      input: #"""
         func test() -> String? {
           1️⃣if let value = optional {
-            print(\"\"\"
+            print("""
               Hello
-              \\(value)
+              \(value)
               World
-              \"\"\")
+              """)
             return value
           }
           return nil
         }
-        """,
-      expectedOutput: """
+        """#,
+      expectedOutput: #"""
         func test() -> String? {
           guard let value = optional else {
             return nil
           }
-          print(\"\"\"
+          print("""
             Hello
-            \\(value)
+            \(value)
             World
-            \"\"\")
+            """)
           return value
         }
-        """,
+        """#,
       title: "Convert to guard"
     )
   }
