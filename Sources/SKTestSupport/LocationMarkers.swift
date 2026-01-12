@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+package import SwiftSyntax
+
 /// Finds all marked ranges in the given text, see `Marker`.
 private func findMarkedRanges(text: String) -> [Marker] {
   var markers = [Marker]()
@@ -52,16 +54,16 @@ private struct Marker {
   let range: Range<String.Index>
 }
 
-package func extractMarkers(_ markedText: String) -> (markers: [String: Int], textWithoutMarkers: String) {
+package func extractMarkers(_ markedText: String) -> (markers: [String: AbsolutePosition], textWithoutMarkers: String) {
   var text = ""
-  var markers = [String: Int]()
+  var markers = [String: AbsolutePosition]()
   var lastIndex = markedText.startIndex
   for marker in findMarkedRanges(text: markedText) {
     text += markedText[lastIndex..<marker.range.lowerBound]
     lastIndex = marker.range.upperBound
 
     assert(markers[String(marker.name)] == nil, "Marker names must be unique")
-    markers[String(marker.name)] = text.utf8.count
+    markers[String(marker.name)] = AbsolutePosition(utf8Offset: text.utf8.count)
   }
   text += markedText[lastIndex..<markedText.endIndex]
 

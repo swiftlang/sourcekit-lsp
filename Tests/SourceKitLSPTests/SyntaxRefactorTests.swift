@@ -19,6 +19,12 @@ import SwiftRefactor
 import SwiftSyntax
 import XCTest
 
+fileprivate extension Range where Bound == AbsolutePosition {
+  init(_ position: AbsolutePosition) {
+    self = position..<position
+  }
+}
+
 final class SyntaxRefactorTests: SourceKitLSPTestCase {
   func testAddDocumentationRefactor() throws {
     try assertRefactor(
@@ -30,7 +36,7 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
       expected: { positions in
         [
           SourceEdit(
-            range: positions["1️⃣"]!..<positions["1️⃣"]!,
+            range: Range(positions["1️⃣"]!),
             replacement: """
               /// A description
                 /// - Parameters:
@@ -57,7 +63,7 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
       expected: { positions in
         [
           SourceEdit(
-            range: positions["1️⃣"]!..<positions["1️⃣"]!,
+            range: Range(positions["1️⃣"]!),
             replacement: """
               /// A description
                 /// - Parameter syntax:
@@ -141,7 +147,7 @@ final class SyntaxRefactorTests: SourceKitLSPTestCase {
       expected: { positions in
         [
           SourceEdit(
-            range: positions["2️⃣"]!..<positions["2️⃣"]!,
+            range: Range(positions["2️⃣"]!),
             replacement: """
 
               struct JSONValue: Codable {
@@ -342,7 +348,7 @@ func assertRefactor<R: EditRefactoringProvider>(
   var parser = Parser(textWithoutMarkers)
   let sourceFile = SourceFileSyntax.parse(from: &parser)
 
-  let markersToCheck: [(String, Int)]
+  let markersToCheck: [(String, AbsolutePosition)]
   if let checkMarkers {
     markersToCheck = checkMarkers.map { marker in
       guard let location = markers[marker] else {
@@ -351,13 +357,13 @@ func assertRefactor<R: EditRefactoringProvider>(
       return (marker, location)
     }
   } else if markers.isEmpty {
-    markersToCheck = [("1️⃣", 0)]
+    markersToCheck = [("1️⃣", AbsolutePosition(utf8Offset: 0))]
   } else {
     markersToCheck = markers.sorted { $0.key < $1.key }
   }
 
   for (marker, location) in markersToCheck {
-    guard let token = sourceFile.token(at: AbsolutePosition(utf8Offset: location)) else {
+    guard let token = sourceFile.token(at: location) else {
       XCTFail("Could not find token at location \(marker)")
       continue
     }
@@ -371,7 +377,7 @@ func assertRefactor<R: EditRefactoringProvider>(
     }
 
     let positions = markers.reduce(into: [String: AbsolutePosition]()) { result, marker in
-      result[marker.key] = AbsolutePosition(utf8Offset: marker.value)
+      result[marker.key] = marker.value
     }
 
     try assertRefactor(

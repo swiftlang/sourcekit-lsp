@@ -21,7 +21,7 @@ import SKUtilities
 import SourceKitD
 package import SourceKitLSP
 import SwiftExtensions
-import SwiftSyntax
+package import SwiftSyntax
 package import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
@@ -448,7 +448,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
 package struct DocumentPositions {
   private let positions: [String: Position]
 
-  package init(markers: [String: Int], textWithoutMarkers: String) {
+  package init(markers: [String: AbsolutePosition], textWithoutMarkers: String) {
     if markers.isEmpty {
       // No need to build a line table if we don't have any markers.
       positions = [:]
@@ -457,7 +457,7 @@ package struct DocumentPositions {
 
     let lineTable = LineTable(textWithoutMarkers)
     positions = markers.mapValues { offset in
-      let (line, column) = lineTable.lineAndUTF16ColumnOf(utf8Offset: offset)
+      let (line, column) = lineTable.lineAndUTF16ColumnOf(utf8Offset: offset.utf8Offset)
       return Position(line: line, utf16index: column)
     }
   }
