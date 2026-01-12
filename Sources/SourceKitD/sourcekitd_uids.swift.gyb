@@ -111,6 +111,9 @@
     # Maintained from initializeService in Requests.cpp
     KIND('SemaEnabledNotification', 'source.notification.sema_enabled'),
     KIND('DocumentUpdateNotification', 'source.notification.editor.documentupdate'),
+
+    # Used exclusively within the SourceKit Plugin
+    KIND('DiagRemark', 'source.diagnostic.severity.remark'),
   ]
 
   TYPES_AND_KEYS = [
