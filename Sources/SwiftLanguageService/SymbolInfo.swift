@@ -18,6 +18,13 @@ extension SwiftLanguageService {
     let uri = req.textDocument.uri
     let snapshot = try documentManager.latestSnapshot(uri)
     let position = await self.adjustPositionToStartOfIdentifier(req.position, in: snapshot)
+
+    // Check if position is on a literal token - return empty if so
+    // This prevents jump-to-definition for literals like "hello", 25, true, nil, etc.
+    if await isPositionOnLiteralToken(req.position, in: uri) {
+      return []
+    }
+
     return try await cursorInfo(uri, position..<position, fallbackSettingsAfterTimeout: false)
       .cursorInfo.map { $0.symbolInfo }
   }

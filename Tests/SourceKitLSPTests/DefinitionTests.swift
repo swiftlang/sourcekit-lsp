@@ -725,4 +725,82 @@ class DefinitionTests: SourceKitLSPTestCase {
     )
     XCTAssertTrue(definitions?.locations?.first?.uri.pseudoPath.hasSuffix("Lib.swiftinterface") ?? false)
   }
+
+  func testDefinitionOnLiteralsShouldReturnEmpty() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      let message = "1️⃣Hello"
+      let count = 2️⃣25
+      let flag = 3️⃣true
+      let pi = 4️⃣3.14
+      let nothing: Int? = 5️⃣nil
+      """,
+      uri: uri
+    )
+
+    // Test string literal
+    let stringResponse = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertNil(stringResponse, "Jump-to-definition should not work on string literals")
+
+    // Test integer literal
+    let intResponse = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    XCTAssertNil(intResponse, "Jump-to-definition should not work on integer literals")
+
+    // Test boolean literal
+    let boolResponse = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+    )
+    XCTAssertNil(boolResponse, "Jump-to-definition should not work on boolean literals")
+
+    // Test float literal
+    let floatResponse = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["4️⃣"])
+    )
+    XCTAssertNil(floatResponse, "Jump-to-definition should not work on float literals")
+
+    // Test nil literal
+    let nilResponse = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["5️⃣"])
+    )
+    XCTAssertNil(nilResponse, "Jump-to-definition should not work on nil literals")
+  }
+
+  func testDefinitionInsideLiteralsShouldStillWork() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      #"""
+      let name = "Ayman"
+      let greeting = "Hello \(1️⃣name)"
+      let items = [2️⃣name, "other"]
+      """#,
+      uri: uri
+    )
+
+    // Identifier inside string interpolation - should work
+    let interpolationResponse = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertNotNil(
+      interpolationResponse,
+      "Jump-to-definition should work for identifiers inside string interpolation"
+    )
+
+    // Identifier inside array literal - should work
+    let arrayResponse = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    XCTAssertNotNil(
+      arrayResponse,
+      "Jump-to-definition should work for identifiers inside array literals"
+    )
+  }
 }
