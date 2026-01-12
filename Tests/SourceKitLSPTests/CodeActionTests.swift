@@ -1257,6 +1257,69 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testApplyDeMorganLawTryNegationPropagation() throws {
+    try assertDeMorganTransform(
+      input: "true && try a",
+      expected: "!(false || try !a)"
+    )
+  }
+
+  func testApplyDeMorganLawAwaitNegationPropagation() throws {
+    try assertDeMorganTransform(
+      input: "true && await a",
+      expected: "!(false || await !a)"
+    )
+  }
+
+  func testApplyDeMorganLawTryOptionalDoesNotPropagate() throws {
+    try assertDeMorganTransform(
+      input: "true && try? a",
+      expected: "!(false || !(try? a))"
+    )
+  }
+
+  func testApplyDeMorganLawTryWithTrivia() throws {
+    try assertDeMorganTransform(
+      input: "true && try /* comment */ a",
+      expected: "!(false || try /* comment */ !a)"
+    )
+  }
+
+  func testApplyDeMorganLawTryFusionCheck() throws {
+    try assertDeMorganTransform(
+      input: "true && try(a)",
+      expected: "!(false || try !(a))"
+    )
+  }
+
+  func testApplyDeMorganLawForcedUnwrapAsAtomic() throws {
+    try assertDeMorganTransform(
+      input: "a! && false",
+      expected: "!(!a! || true)"
+    )
+  }
+
+  func testApplyDeMorganLawTriviaPreservation() throws {
+    try assertDeMorganTransform(
+      input: "true /*a*/&& false",
+      expected: "!(false /*a*/|| true)"
+    )
+  }
+
+  func testApplyDeMorganLawPreservesIndentationForPropositions() throws {
+    try assertDeMorganTransform(
+      input: "  !a || !b",
+      expected: "  !(a && b)"
+    )
+  }
+
+  func testApplyDeMorganLawPreservesTriviaForPropositions() throws {
+    try assertDeMorganTransform(
+      input: "/* c */ !a || !b",
+      expected: "/* c */ !(a && b)"
+    )
+  }
+
   func testApplyDeMorganLawNestedActionAvailability() async throws {
     try await assertCodeActions(
       """
