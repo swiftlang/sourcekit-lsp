@@ -1024,6 +1024,14 @@ package struct sourcekitd_api_values {
   package let declAccessorInit: sourcekitd_api_uid_t
   /// `source.lang.swift.ref.function.accessor.init`
   package let refAccessorInit: sourcekitd_api_uid_t
+  /// `source.lang.swift.decl.function.accessor.mutate`
+  package let declAccessorMutate: sourcekitd_api_uid_t
+  /// `source.lang.swift.ref.function.accessor.mutate`
+  package let refAccessorMutate: sourcekitd_api_uid_t
+  /// `source.lang.swift.decl.function.accessor.borrow`
+  package let declAccessorBorrow: sourcekitd_api_uid_t
+  /// `source.lang.swift.ref.function.accessor.borrow`
+  package let refAccessorBorrow: sourcekitd_api_uid_t
   /// `source.lang.swift.decl.function.constructor`
   package let declConstructor: sourcekitd_api_uid_t
   /// `source.lang.swift.ref.function.constructor`
@@ -1248,6 +1256,8 @@ package struct sourcekitd_api_values {
   package let diagWarning: sourcekitd_api_uid_t
   /// `source.diagnostic.severity.error`
   package let diagError: sourcekitd_api_uid_t
+  /// `source.diagnostic.severity.remark`
+  package let diagRemark: sourcekitd_api_uid_t
   /// `source.diagnostic.category.deprecation`
   package let diagDeprecation: sourcekitd_api_uid_t
   /// `source.diagnostic.category.no_usage`
@@ -1352,8 +1362,6 @@ package struct sourcekitd_api_values {
   package let semaEnabledNotification: sourcekitd_api_uid_t
   /// `source.notification.editor.documentupdate`
   package let documentUpdateNotification: sourcekitd_api_uid_t
-  /// `source.diagnostic.severity.remark`
-  package let diagRemark: sourcekitd_api_uid_t
 
   package init(api: sourcekitd_api_functions_t) {
     declFunctionFree = api.uid_get_from_cstr("source.lang.swift.decl.function.free")!
@@ -1382,6 +1390,10 @@ package struct sourcekitd_api_values {
     refAccessorModify = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.modify")!
     declAccessorInit = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.init")!
     refAccessorInit = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.init")!
+    declAccessorMutate = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.mutate")!
+    refAccessorMutate = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.mutate")!
+    declAccessorBorrow = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.borrow")!
+    refAccessorBorrow = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.borrow")!
     declConstructor = api.uid_get_from_cstr("source.lang.swift.decl.function.constructor")!
     refConstructor = api.uid_get_from_cstr("source.lang.swift.ref.function.constructor")!
     declDestructor = api.uid_get_from_cstr("source.lang.swift.decl.function.destructor")!
@@ -1494,6 +1506,7 @@ package struct sourcekitd_api_values {
     diagNote = api.uid_get_from_cstr("source.diagnostic.severity.note")!
     diagWarning = api.uid_get_from_cstr("source.diagnostic.severity.warning")!
     diagError = api.uid_get_from_cstr("source.diagnostic.severity.error")!
+    diagRemark = api.uid_get_from_cstr("source.diagnostic.severity.remark")!
     diagDeprecation = api.uid_get_from_cstr("source.diagnostic.category.deprecation")!
     diagNoUsage = api.uid_get_from_cstr("source.diagnostic.category.no_usage")!
     codeCompletionEverything = api.uid_get_from_cstr("source.codecompletion.everything")!
@@ -1546,6 +1559,5 @@ package struct sourcekitd_api_values {
     semaDisabledNotification = api.uid_get_from_cstr("source.notification.sema_disabled")!
     semaEnabledNotification = api.uid_get_from_cstr("source.notification.sema_enabled")!
     documentUpdateNotification = api.uid_get_from_cstr("source.notification.editor.documentupdate")!
-    diagRemark = api.uid_get_from_cstr("source.diagnostic.severity.remark")!
   }
 }
