@@ -21,31 +21,23 @@ package import SwiftSyntax
 extension SwiftLanguageService {
   package func addMissingImports(_ request: CodeActionRequest) async throws -> [CodeAction] {
     let snapshot = try await self.latestSnapshot(for: request.textDocument.uri)
+
     guard let buildSettings = await self.compileCommand(for: request.textDocument.uri, fallbackAfterTimeout: true),
       !buildSettings.isFallback
     else {
       return []
     }
 
-    // We need the index to find where the missing types are defined.
-    // Workspace.index(checkedFor:) returns CheckedIndex.
-    let index = await self.sourceKitLSPServer?.workspaceForDocument(uri: request.textDocument.uri)?.index(
-      checkedFor: .modifiedFiles
-    )
-    guard let index else {
+    guard
+      let index = await self.sourceKitLSPServer?.workspaceForDocument(uri: request.textDocument.uri)?.index(
+        checkedFor: .modifiedFiles
+      )
+    else {
       return []
     }
 
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-
-    // Identify existing imports so we don't suggest importing something that's already there
-    let existingImports: Set<String> = Set(
-      syntaxTree.statements
-        .compactMap { $0.item.as(ImportDeclSyntax.self) }
-        .compactMap { $0.path.first?.name.text }
-    )
-
-    // Extract the current module name to avoid suggesting self-imports
+    let existingImports = Self.extractExistingImports(from: syntaxTree)
     let currentModule = Self.extractModuleName(from: buildSettings.compilerArgs)
 
     return Self.findMissingImports(
@@ -54,29 +46,12 @@ extension SwiftLanguageService {
       currentModule: currentModule,
       syntaxTree: syntaxTree,
       snapshot: snapshot,
-      uri: request.textDocument.uri
-    ) { typeName in
-      var modules: Set<String> = []
-      index.forEachCanonicalSymbolOccurrence(byName: typeName) { occurrence in
-        let validKinds: Set<IndexSymbolKind> = [.struct, .class, .enum, .protocol, .typealias]
-        if validKinds.contains(occurrence.symbol.kind) {
-          let containers = index.containerNames(of: occurrence)
-          if let firstContainer = containers.first {
-            modules.insert(firstContainer)
-          } else {
-            let moduleName = occurrence.location.moduleName
-            if !moduleName.isEmpty {
-              modules.insert(moduleName)
-            }
-          }
-        }
-        return true
-      }
-      return modules
-    }
+      uri: request.textDocument.uri,
+      lookup: { typeName in Self.findModulesDefining(typeName, in: index) }
+    )
   }
 
-  /// Internal logic for finding missing imports, separated for unit testing.
+  /// Finds missing import code actions for diagnostics.
   package static func findMissingImports(
     diagnostics: [Diagnostic],
     existingImports: Set<String>,
@@ -86,66 +61,33 @@ extension SwiftLanguageService {
     uri: DocumentURI,
     lookup: (String) -> Set<String>
   ) -> [CodeAction] {
-    // Filter for diagnostics that indicate a missing type or value.
-    // Check diagnostic code first (more reliable), fall back to string matching.
-    let missingTypeDiagnostics = diagnostics.filter { diagnostic in
-      // Primary: check for known diagnostic codes
-      if let code = diagnostic.codeString {
-        // Handle both type and value missing declarations
-        if code == "cannot_find_type_in_scope" || code == "cannot_find_in_scope" {
-          return true
-        }
-      }
-      // Fallback: string matching for older compilers or different diagnostic formats
-      // Matches both "cannot find type 'X' in scope" and "cannot find 'X' in scope"
-      return diagnostic.message.range(of: "cannot find", options: .caseInsensitive) != nil
-        && diagnostic.message.range(of: "in scope", options: .caseInsensitive) != nil
-    }
+    let missingTypeDiagnostics = diagnostics.filter(isMissingTypeOrValueDiagnostic)
+    guard !missingTypeDiagnostics.isEmpty else { return [] }
 
-    if missingTypeDiagnostics.isEmpty {
-      return []
-    }
-
-    // Calculate the proper insertion position for new imports
     let insertionPosition = importInsertionPosition(in: syntaxTree, snapshot: snapshot)
 
-    var codeActions: [CodeAction] = []
-
-    for diagnostic in missingTypeDiagnostics {
-      // Extract the missing type name from the diagnostic message.
-      guard let typeName = extractTypeName(from: diagnostic.message) else {
-        continue
-      }
-
-      let modulesDefiningType = lookup(typeName)
-
-      for module in modulesDefiningType.sorted() {
-        // Skip if already imported
-        if existingImports.contains(module) { continue }
-
-        // Skip if this is the current module (avoid self-import)
-        if let currentModule, module == currentModule { continue }
-
-        let newImportText = "import \(module)\n"
-        let edit = WorkspaceEdit(changes: [
-          uri: [
-            TextEdit(range: insertionPosition..<insertionPosition, newText: newImportText)
-          ]
-        ])
-
-        codeActions.append(
-          CodeAction(title: "Import \(module)", kind: .quickFix, diagnostics: [diagnostic], edit: edit)
-        )
-      }
+    return missingTypeDiagnostics.flatMap { diagnostic in
+      createImportActions(
+        for: diagnostic,
+        lookup: lookup,
+        existingImports: existingImports,
+        currentModule: currentModule,
+        insertionPosition: insertionPosition,
+        uri: uri
+      )
     }
+  }
 
-    return codeActions
+  /// Extracts existing imports from the syntax tree.
+  private static func extractExistingImports(from syntaxTree: SourceFileSyntax) -> Set<String> {
+    Set(
+      syntaxTree.statements
+        .compactMap { $0.item.as(ImportDeclSyntax.self) }
+        .compactMap { $0.path.first?.name.text }
+    )
   }
 
   /// Extracts the module name from Swift compiler arguments.
-  ///
-  /// - Parameter compilerArgs: The compiler arguments from build settings.
-  /// - Returns: The module name if found, otherwise `nil`.
   private static func extractModuleName(from compilerArgs: [String]) -> String? {
     guard let moduleNameIndex = compilerArgs.lastIndex(of: "-module-name"),
       moduleNameIndex + 1 < compilerArgs.count
@@ -155,83 +97,109 @@ extension SwiftLanguageService {
     return compilerArgs[moduleNameIndex + 1]
   }
 
-  /// Calculates the position where a new import should be inserted.
-  ///
-  /// The insertion logic follows this priority:
-  /// 1. If imports exist, insert after the last import declaration.
-  /// 2. If no imports exist, insert at the beginning of the file (before first declaration).
-  ///
-  /// - Parameters:
-  ///   - syntaxTree: The syntax tree of the source file.
-  ///   - snapshot: The document snapshot for position conversion.
-  /// - Returns: The position where the import should be inserted.
+  /// Finds all modules that define a given type by querying the index.
+  /// This abstracts away the slow index lookup operation.
+  private static func findModulesDefining(_ typeName: String, in index: CheckedIndex) -> Set<String> {
+    var modules: Set<String> = []
+    index.forEachCanonicalSymbolOccurrence(byName: typeName) { occurrence in
+      guard IndexSymbolKind.typeKinds.contains(occurrence.symbol.kind) else {
+        return true
+      }
+
+      // Prefer container name (module), fall back to location module name
+      let moduleName = index.containerNames(of: occurrence).first ?? occurrence.location.moduleName
+      if !moduleName.isEmpty {
+        modules.insert(moduleName)
+      }
+      return true
+    }
+    return modules
+  }
+
+  /// Calculates where to insert a new import statement.
+  /// Inserts after the last import if any exist, otherwise at the file start.
   private static func importInsertionPosition(
     in syntaxTree: SourceFileSyntax,
     snapshot: DocumentSnapshot
   ) -> Position {
-    // Find all import declarations
     let importDecls = syntaxTree.statements.compactMap { $0.item.as(ImportDeclSyntax.self) }
 
     if let lastImport = importDecls.last {
-      // Insert after the last import
-      let positionAfterImport = lastImport.endPosition
-      return snapshot.position(of: positionAfterImport)
-    } else {
-      // No imports exist - insert at the beginning of the file
-      // This will be after any leading trivia (comments, headers, etc.)
-      if let firstStatement = syntaxTree.statements.first {
-        let firstStatementPosition = firstStatement.position
-        return snapshot.position(of: firstStatementPosition)
-      } else {
-        // Empty file - insert at line 0
-        return Position(line: 0, utf16index: 0)
-      }
+      return snapshot.position(of: lastImport.endPosition)
     }
+
+    let startPosition = syntaxTree.statements.first?.position ?? AbsolutePosition(utf8Offset: 0)
+    return snapshot.position(of: startPosition)
   }
 
   /// Extracts the type name from a diagnostic message.
-  ///
-  /// - Parameter message: The diagnostic message.
-  /// - Returns: The extracted type name, or `nil` if parsing fails.
   private static func extractTypeName(from message: String) -> String? {
-    // Handle both "cannot find type 'X' in scope" and "cannot find 'X' in scope"
-    if let range = message.range(of: "cannot find type '", options: .caseInsensitive),
-      let endRange = message.range(
-        of: "' in scope",
-        options: .caseInsensitive,
-        range: range.upperBound..<message.endIndex
-      )
-    {
-      return String(message[range.upperBound..<endRange.lowerBound])
+    for prefix in ["cannot find type '", "cannot find '"] {
+      if let typeName = extractQuotedText(from: message, after: prefix, before: "' in scope") {
+        return typeName
+      }
     }
-
-    // Fallback to non-type variant
-    if let range = message.range(of: "cannot find '", options: .caseInsensitive),
-      let endRange = message.range(
-        of: "' in scope",
-        options: .caseInsensitive,
-        range: range.upperBound..<message.endIndex
-      )
-    {
-      return String(message[range.upperBound..<endRange.lowerBound])
-    }
-
     return nil
+  }
+
+  /// Extracts text between two markers in a string.
+  private static func extractQuotedText(from text: String, after prefix: String, before suffix: String) -> String? {
+    guard let prefixRange = text.range(of: prefix, options: .caseInsensitive),
+      let suffixRange = text.range(of: suffix, options: .caseInsensitive, range: prefixRange.upperBound..<text.endIndex)
+    else {
+      return nil
+    }
+    return String(text[prefixRange.upperBound..<suffixRange.lowerBound])
+  }
+
+  /// Checks if a diagnostic indicates a missing type or value.
+  private static func isMissingTypeOrValueDiagnostic(_ diagnostic: Diagnostic) -> Bool {
+    if let code = diagnostic.codeString {
+      return code == "cannot_find_type_in_scope" || code == "cannot_find_in_scope"
+    }
+    return diagnostic.message.localizedCaseInsensitiveContains("cannot find")
+      && diagnostic.message.localizedCaseInsensitiveContains("in scope")
+  }
+
+  /// Creates import code actions for a diagnostic.
+  private static func createImportActions(
+    for diagnostic: Diagnostic,
+    lookup: (String) -> Set<String>,
+    existingImports: Set<String>,
+    currentModule: String?,
+    insertionPosition: Position,
+    uri: DocumentURI
+  ) -> [CodeAction] {
+    guard let typeName = extractTypeName(from: diagnostic.message) else {
+      return []
+    }
+
+    return lookup(typeName)
+      .sorted()
+      .filter { module in
+        !existingImports.contains(module) && module != currentModule
+      }
+      .map { module in
+        let edit = WorkspaceEdit(changes: [
+          uri: [TextEdit(range: insertionPosition..<insertionPosition, newText: "import \(module)\n")]
+        ])
+        return CodeAction(title: "Import \(module)", kind: .quickFix, diagnostics: [diagnostic], edit: edit)
+      }
   }
 }
 
-// MARK: - Diagnostic Extensions
+// MARK: - Extensions
+
+private extension IndexSymbolKind {
+  static let typeKinds: Set<IndexSymbolKind> = [.struct, .class, .enum, .protocol, .typealias]
+}
 
 private extension Diagnostic {
-  /// Extracts the diagnostic code as a string.
   var codeString: String? {
     switch code {
-    case .string(let code):
-      return code
-    case .number(let code):
-      return String(code)
-    case nil:
-      return nil
+    case .string(let code): return code
+    case .number(let code): return String(code)
+    case nil: return nil
     }
   }
 }
