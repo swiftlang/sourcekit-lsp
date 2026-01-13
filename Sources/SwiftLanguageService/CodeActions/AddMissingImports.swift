@@ -14,9 +14,9 @@ import Foundation
 import IndexStoreDB
 package import LanguageServerProtocol
 import SemanticIndex
-import SourceKitLSP
+package import SourceKitLSP
 import SwiftExtensions
-import SwiftSyntax
+package import SwiftSyntax
 
 extension SwiftLanguageService {
   package func addMissingImports(_ request: CodeActionRequest) async throws -> [CodeAction] {

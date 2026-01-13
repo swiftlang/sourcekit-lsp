@@ -221,6 +221,7 @@ class AddMissingImportsUnitTests: XCTestCase {
     let diagnostic = Diagnostic(
       range: Position(line: 13, utf16index: 10)..<Position(line: 13, utf16index: 19),
       severity: .error,
+      source: "sourcekitd",
       message: "cannot find 'LibStruct' in scope"
     )
 
@@ -254,6 +255,7 @@ class AddMissingImportsUnitTests: XCTestCase {
     let diagnostic = Diagnostic(
       range: Position(line: 0, utf16index: 26)..<Position(line: 0, utf16index: 35),
       severity: .error,
+      source: "sourcekitd",
       message: "cannot find 'LibStruct' in scope"
     )
 
@@ -291,6 +293,7 @@ class AddMissingImportsUnitTests: XCTestCase {
     let diagnostic = Diagnostic(
       range: Position(line: 2, utf16index: 8)..<Position(line: 2, utf16index: 17),
       severity: .error,
+      source: "sourcekitd",
       message: "cannot find 'LibStruct' in scope"
     )
 
@@ -324,6 +327,7 @@ class AddMissingImportsUnitTests: XCTestCase {
     let diagnostic = Diagnostic(
       range: Position(line: 0, utf16index: 8)..<Position(line: 0, utf16index: 14),
       severity: .error,
+      source: "sourcekitd",
       message: "cannot find 'MyType' in scope"
     )
 
@@ -359,6 +363,7 @@ class AddMissingImportsUnitTests: XCTestCase {
       range: Position(line: 0, utf16index: 8)..<Position(line: 0, utf16index: 17),
       severity: .error,
       code: .string("cannot_find_in_scope"),
+      source: "sourcekitd",
       message: "cannot find 'LibStruct' in scope"
     )
 
@@ -386,6 +391,7 @@ class AddMissingImportsUnitTests: XCTestCase {
     let diagnostic = Diagnostic(
       range: Position(line: 0, utf16index: 8)..<Position(line: 0, utf16index: 17),
       severity: .error,
+      source: "sourcekitd",
       message: "cannot find 'LibStruct' in scope"
     )
 
