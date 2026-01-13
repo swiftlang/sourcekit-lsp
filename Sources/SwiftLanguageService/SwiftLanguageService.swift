@@ -898,6 +898,7 @@ extension SwiftLanguageService {
       (retrieveSyntaxCodeActions, nil),
       (retrieveRefactorCodeActions, .refactor),
       (retrieveQuickFixCodeActions, .quickFix),
+      (addMissingImports, .quickFix),
       (retrieveRemoveUnusedImportsCodeAction, .sourceOrganizeImports),
     ]
     let wantedActionKinds = req.context.only
