@@ -347,7 +347,7 @@ var targets: [Target] = [
       .product(name: "SKLogging", package: "swift-tools-protocols"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
-    ],
+    ] + swiftSyntaxDependencies(["SwiftSyntax"]),
     resources: [.copy("INPUTS")],
   ),
 
