@@ -4,6 +4,7 @@ add_library(SwiftLanguageService STATIC
   ClosureCompletionFormat.swift
   CodeActions/AddDocumentation.swift
   CodeActions/ApplyDeMorganLaw.swift
+  CodeActions/ConvertIfLetToGuard.swift
   CodeActions/ConvertIntegerLiteral.swift
   CodeActions/ConvertJSONToCodableStruct.swift
   CodeActions/ConvertStringConcatenationToStringInterpolation.swift
@@ -23,6 +24,7 @@ add_library(SwiftLanguageService STATIC
   ExpandMacroCommand.swift
   FoldingRange.swift
   GeneratedInterfaceManager.swift
+  IndentationRemover.swift
   InlayHints.swift
   MacroExpansion.swift
   OpenInterface.swift

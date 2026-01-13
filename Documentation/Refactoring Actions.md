@@ -36,7 +36,7 @@ The specific refactorings available depend on what code is selected or where the
 | **Convert To Do/Catch** | Cursor on the `try` keyword of a `try!` expression |
 | **Expand Ternary Expression** | Select an assignment where the right-hand side is a ternary expression |
 | **Convert To Ternary Expression** | Select an if/else that assigns or returns a value |
-| **Convert To Guard Expression** | Select an if-let statement |
+| **Convert to guard** | Cursor on an `if-let` statement that guarantees an exit from the `if` block |
 | **Convert To IfLet Expression** | Select a guard-let statement |
 | **Convert To Switch Statement** | Select an if/else-if chain comparing the same value |
 | **Migrate to shorthand 'if let' syntax** | Cursor on `if let x = x` |
