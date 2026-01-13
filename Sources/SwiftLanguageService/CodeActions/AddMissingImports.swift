@@ -19,6 +19,11 @@ import SwiftExtensions
 package import SwiftSyntax
 
 extension SwiftLanguageService {
+  /// Generates code actions to add missing imports for unresolved type references.
+  ///
+  /// This method queries the semantic index to find which modules define the missing types,
+  /// then creates code actions to import those modules. It filters out already-imported modules
+  /// and self-imports to avoid redundant or invalid suggestions.
   package func addMissingImports(_ request: CodeActionRequest) async throws -> [CodeAction] {
     let snapshot = try await self.latestSnapshot(for: request.textDocument.uri)
 
@@ -51,7 +56,11 @@ extension SwiftLanguageService {
     )
   }
 
-  /// Finds missing import code actions for diagnostics.
+  /// Finds missing import code actions for diagnostics indicating unresolved types.
+  ///
+  /// This is the core logic separated from async/index dependencies for unit testing.
+  /// Filters diagnostics, extracts type names, looks up defining modules, and generates
+  /// code actions with proper import insertion positions.
   package static func findMissingImports(
     diagnostics: [Diagnostic],
     existingImports: Set<String>,
@@ -87,7 +96,7 @@ extension SwiftLanguageService {
     )
   }
 
-  /// Extracts the module name from Swift compiler arguments.
+  /// Extracts the module name from compiler arguments by finding the `-module-name` flag.
   private static func extractModuleName(from compilerArgs: [String]) -> String? {
     guard let moduleNameIndex = compilerArgs.lastIndex(of: "-module-name"),
       moduleNameIndex + 1 < compilerArgs.count
@@ -97,8 +106,10 @@ extension SwiftLanguageService {
     return compilerArgs[moduleNameIndex + 1]
   }
 
-  /// Finds all modules that define a given type by querying the index.
-  /// This abstracts away the slow index lookup operation.
+  /// Finds all modules that define a given type by querying the semantic index.
+  ///
+  /// This abstracts away the slow index lookup operation, isolating it for better
+  /// testability and clarity. Only considers type-like symbols.
   private static func findModulesDefining(_ typeName: String, in index: CheckedIndex) -> Set<String> {
     var modules: Set<String> = []
     index.forEachCanonicalSymbolOccurrence(byName: typeName) { occurrence in
@@ -117,7 +128,9 @@ extension SwiftLanguageService {
   }
 
   /// Calculates where to insert a new import statement.
-  /// Inserts after the last import if any exist, otherwise at the file start.
+  ///
+  /// Inserts after the last existing import if any exist, otherwise at the file start
+  /// (after any leading trivia like file headers).
   private static func importInsertionPosition(
     in syntaxTree: SourceFileSyntax,
     snapshot: DocumentSnapshot
@@ -132,7 +145,7 @@ extension SwiftLanguageService {
     return snapshot.position(of: startPosition)
   }
 
-  /// Extracts the type name from a diagnostic message.
+  /// Extracts the type name from a diagnostic message like "cannot find 'Foo' in scope".
   private static func extractTypeName(from message: String) -> String? {
     for prefix in ["cannot find type '", "cannot find '"] {
       if let typeName = extractQuotedText(from: message, after: prefix, before: "' in scope") {
@@ -142,7 +155,7 @@ extension SwiftLanguageService {
     return nil
   }
 
-  /// Extracts text between two markers in a string.
+  /// Extracts text between two markers in a string (case-insensitive).
   private static func extractQuotedText(from text: String, after prefix: String, before suffix: String) -> String? {
     guard let prefixRange = text.range(of: prefix, options: .caseInsensitive),
       let suffixRange = text.range(of: suffix, options: .caseInsensitive, range: prefixRange.upperBound..<text.endIndex)
@@ -152,7 +165,7 @@ extension SwiftLanguageService {
     return String(text[prefixRange.upperBound..<suffixRange.lowerBound])
   }
 
-  /// Checks if a diagnostic indicates a missing type or value.
+  /// Checks if a diagnostic indicates a missing type or value in scope.
   private static func isMissingTypeOrValueDiagnostic(_ diagnostic: Diagnostic) -> Bool {
     if let code = diagnostic.codeString {
       return code == "cannot_find_type_in_scope" || code == "cannot_find_in_scope"
@@ -161,7 +174,10 @@ extension SwiftLanguageService {
       && diagnostic.message.localizedCaseInsensitiveContains("in scope")
   }
 
-  /// Creates import code actions for a diagnostic.
+  /// Creates import code actions for a single diagnostic.
+  ///
+  /// Looks up all modules defining the missing type, filters out already-imported
+  /// and self-imports, then generates a code action for each valid module.
   private static func createImportActions(
     for diagnostic: Diagnostic,
     lookup: (String) -> Set<String>,
@@ -187,8 +203,6 @@ extension SwiftLanguageService {
       }
   }
 }
-
-// MARK: - Extensions
 
 private extension IndexSymbolKind {
   static let typeKinds: Set<IndexSymbolKind> = [.struct, .class, .enum, .protocol, .typealias]
