@@ -86,14 +86,18 @@ extension SwiftLanguageService {
     uri: DocumentURI,
     lookup: (String) -> Set<String>
   ) -> [CodeAction] {
-    // Filter for diagnostics that indicate a missing type.
+    // Filter for diagnostics that indicate a missing type or value.
     // Check diagnostic code first (more reliable), fall back to string matching.
     let missingTypeDiagnostics = diagnostics.filter { diagnostic in
-      // Primary: check for known diagnostic code
-      if let code = diagnostic.codeString, code == "cannot_find_in_scope" {
-        return true
+      // Primary: check for known diagnostic codes
+      if let code = diagnostic.codeString {
+        // Handle both type and value missing declarations
+        if code == "cannot_find_type_in_scope" || code == "cannot_find_in_scope" {
+          return true
+        }
       }
       // Fallback: string matching for older compilers or different diagnostic formats
+      // Matches both "cannot find type 'X' in scope" and "cannot find 'X' in scope"
       return diagnostic.message.range(of: "cannot find", options: .caseInsensitive) != nil
         && diagnostic.message.range(of: "in scope", options: .caseInsensitive) != nil
     }
@@ -190,16 +194,29 @@ extension SwiftLanguageService {
   /// - Parameter message: The diagnostic message.
   /// - Returns: The extracted type name, or `nil` if parsing fails.
   private static func extractTypeName(from message: String) -> String? {
-    guard let range = message.range(of: "cannot find '", options: .caseInsensitive),
+    // Handle both "cannot find type 'X' in scope" and "cannot find 'X' in scope"
+    if let range = message.range(of: "cannot find type '", options: .caseInsensitive),
       let endRange = message.range(
         of: "' in scope",
         options: .caseInsensitive,
         range: range.upperBound..<message.endIndex
       )
-    else {
-      return nil
+    {
+      return String(message[range.upperBound..<endRange.lowerBound])
     }
-    return String(message[range.upperBound..<endRange.lowerBound])
+
+    // Fallback to non-type variant
+    if let range = message.range(of: "cannot find '", options: .caseInsensitive),
+      let endRange = message.range(
+        of: "' in scope",
+        options: .caseInsensitive,
+        range: range.upperBound..<message.endIndex
+      )
+    {
+      return String(message[range.upperBound..<endRange.lowerBound])
+    }
+
+    return nil
   }
 }
 

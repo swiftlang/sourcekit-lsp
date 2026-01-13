@@ -411,4 +411,33 @@ class AddMissingImportsUnitTests: XCTestCase {
 
     XCTAssertEqual(actions.count, 1, "Should match diagnostic by string fallback when code is absent")
   }
+
+  func testDiagnosticMatchingWithTypeCode() {
+    let source = "let x: LibStruct = LibStruct()"
+    let uri = try! DocumentURI(string: "file:///main.swift")
+    let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: source, uri: uri)
+
+    // Diagnostic with 'cannot_find_type_in_scope' code (used for types in type positions)
+    let diagnostic = Diagnostic(
+      range: Position(line: 0, utf16index: 7)..<Position(line: 0, utf16index: 16),
+      severity: .error,
+      code: .string("cannot_find_type_in_scope"),
+      source: "sourcekitd",
+      message: "cannot find type 'LibStruct' in scope"
+    )
+
+    let lookup: (String) -> Set<String> = { _ in ["Lib"] }
+
+    let actions = SwiftLanguageService.findMissingImports(
+      diagnostics: [diagnostic],
+      existingImports: [],
+      currentModule: nil,
+      syntaxTree: syntaxTree,
+      snapshot: snapshot,
+      uri: uri,
+      lookup: lookup
+    )
+
+    XCTAssertEqual(actions.count, 1, "Should match diagnostic by cannot_find_type_in_scope code")
+  }
 }
