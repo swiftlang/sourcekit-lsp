@@ -23,6 +23,7 @@ add_library(SwiftLanguageService STATIC
   FoldingRange.swift
   GeneratedInterfaceManager.swift
   InlayHints.swift
+  InlayHintResolve.swift
   MacroExpansion.swift
   OpenInterface.swift
   PlaygroundDiscovery.swift
