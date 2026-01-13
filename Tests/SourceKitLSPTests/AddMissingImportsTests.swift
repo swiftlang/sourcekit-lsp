@@ -40,7 +40,7 @@ class AddMissingImportsTests: SourceKitLSPTestCase {
         """,
         "Exec/main.swift": """
         func test() {
-          let a = 1️⃣LibStruct()
+          _ = 1️⃣LibStruct()
         }
         """,
       ],
@@ -97,7 +97,8 @@ class AddMissingImportsTests: SourceKitLSPTestCase {
     )
 
     var codeAction: CodeAction?
-    for _ in 0..<5 {
+    // Try for up to 30 seconds to match diagnostic polling timeout
+    for _ in 0..<30 {
       let response = try await project.testClient.send(request)
       if case .codeActions(let actions) = response {
         if let action = actions.first(where: { $0.title == "Import Lib" }) {

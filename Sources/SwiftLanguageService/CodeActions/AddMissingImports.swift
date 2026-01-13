@@ -131,18 +131,21 @@ extension SwiftLanguageService {
   ///
   /// Inserts after the last existing import if any exist, otherwise at the file start
   /// (after any leading trivia like file headers).
+  ///
+  /// - Returns: A tuple containing the insertion position and a boolean indicating
+  ///   whether imports already exist (true if inserting after existing imports).
   private static func importInsertionPosition(
     in syntaxTree: SourceFileSyntax,
     snapshot: DocumentSnapshot
-  ) -> Position {
+  ) -> (position: Position, hasExistingImports: Bool) {
     let importDecls = syntaxTree.statements.compactMap { $0.item.as(ImportDeclSyntax.self) }
 
     if let lastImport = importDecls.last {
-      return snapshot.position(of: lastImport.endPosition)
+      return (snapshot.position(of: lastImport.endPosition), true)
     }
 
     let startPosition = syntaxTree.statements.first?.position ?? AbsolutePosition(utf8Offset: 0)
-    return snapshot.position(of: startPosition)
+    return (snapshot.position(of: startPosition), false)
   }
 
   /// Extracts the type name from a diagnostic message like "cannot find 'Foo' in scope".
@@ -183,7 +186,7 @@ extension SwiftLanguageService {
     lookup: (String) -> Set<String>,
     existingImports: Set<String>,
     currentModule: String?,
-    insertionPosition: Position,
+    insertionPosition: (position: Position, hasExistingImports: Bool),
     uri: DocumentURI
   ) -> [CodeAction] {
     guard let typeName = extractTypeName(from: diagnostic.message) else {
@@ -196,8 +199,9 @@ extension SwiftLanguageService {
         !existingImports.contains(module) && module != currentModule
       }
       .map { module in
+        let importText = insertionPosition.hasExistingImports ? "\nimport \(module)\n" : "import \(module)\n"
         let edit = WorkspaceEdit(changes: [
-          uri: [TextEdit(range: insertionPosition..<insertionPosition, newText: "import \(module)\n")]
+          uri: [TextEdit(range: insertionPosition.position..<insertionPosition.position, newText: importText)]
         ])
         return CodeAction(title: "Import \(module)", kind: .quickFix, diagnostics: [diagnostic], edit: edit)
       }

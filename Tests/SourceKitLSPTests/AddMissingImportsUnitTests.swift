@@ -21,8 +21,6 @@ import XCTest
 
 class AddMissingImportsUnitTests: XCTestCase {
 
-  // MARK: - Helper Methods
-
   /// Creates a syntax tree and snapshot from source code for testing.
   private func makeSyntaxTreeAndSnapshot(from source: String, uri: DocumentURI) -> (SourceFileSyntax, DocumentSnapshot)
   {
@@ -30,8 +28,6 @@ class AddMissingImportsUnitTests: XCTestCase {
     let snapshot = DocumentSnapshot(uri: uri, language: .swift, version: 0, lineTable: LineTable(source))
     return (syntaxTree, snapshot)
   }
-
-  // MARK: - Basic Functionality Tests
 
   func testAddMissingImports() {
     let diagnostic = Diagnostic(
@@ -146,8 +142,6 @@ class AddMissingImportsUnitTests: XCTestCase {
     let titles = actions.map { $0.title }.sorted()
     XCTAssertEqual(titles, ["Import ModuleA", "Import ModuleB"])
   }
-
-  // MARK: - Edge Case Regression Tests
 
   func testImportInsertionAfterFileHeader() {
     let diagnostic = Diagnostic(
@@ -316,9 +310,16 @@ class AddMissingImportsUnitTests: XCTestCase {
       return
     }
 
-    // Import should be inserted at the beginning (line 0) since Foundation import is on line 0
-    // and we insert after the last import
+    // Import should be inserted at the end of the Foundation import (line 0)
     XCTAssertEqual(changes.first?.range.lowerBound.line, 0)
+
+    // When inserting after existing imports, the new text should have a prepended newline
+    // to avoid concatenation like "import Foundationimport Lib"
+    XCTAssertEqual(
+      changes.first?.newText,
+      "\nimport Lib\n",
+      "Should prepend newline when inserting after existing imports"
+    )
   }
 
   func testDoNotSuggestCurrentModule() {
