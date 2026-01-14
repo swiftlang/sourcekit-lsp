@@ -1071,7 +1071,53 @@ final class CodeActionTests: SourceKitLSPTestCase {
               uri: [
                 TextEdit(
                   range: positions["1️⃣"]..<positions["2️⃣"],
-                  newText: "\"\"\"I\nam\na\n\\( value )multi-line\nstring\nliteral\n\"\"\""
+                  newText: #"""
+                    """
+                    I
+                    am
+                    a\(value)multi-line
+                    string
+                    literal
+                    """
+                    """#
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertStringConcatenationToStringInterpolationDifferentIndentation() async throws {
+    try await assertCodeActions(
+      ###"""
+      1️⃣"""
+      a
+      b
+      """ + """
+        c
+        d
+        """2️⃣
+      """###,
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert String Concatenation to String Interpolation",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: #"""
+                    """
+                    a
+                    bc
+                    d
+                    """
+                    """#
                 )
               ]
             ]
