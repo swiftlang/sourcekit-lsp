@@ -139,6 +139,11 @@
           "markdownDescription" : "Path remappings for remapping index data for local use.",
           "type" : "object"
         },
+        "swiftModuleCachePath" : {
+          "description" : "Path to the Swift module cache for background preparation. If `nil` (default), SourceKit-LSP uses a global module cache at `~/.cache/sourcekit-lsp/module-cache`. Set to empty string to disable module cache sharing.",
+          "markdownDescription" : "Path to the Swift module cache for background preparation. If `nil` (default), SourceKit-LSP uses a global module cache at `~/.cache/sourcekit-lsp/module-cache`. Set to empty string to disable module cache sharing.",
+          "type" : "string"
+        },
         "updateIndexStoreTimeout" : {
           "description" : "Number of seconds to wait for an update index store task to finish before terminating it.",
           "markdownDescription" : "Number of seconds to wait for an update index store task to finish before terminating it.",
