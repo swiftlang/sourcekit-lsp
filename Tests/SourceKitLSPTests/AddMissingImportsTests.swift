@@ -61,15 +61,13 @@ class AddMissingImportsTests: SourceKitLSPTestCase {
 
     let (uri, positions) = try project.openDocument("main.swift")
 
-    // Wait for the diagnostic to appear
+    // Get the diagnostics
     var diagnostic: Diagnostic?
-    try await repeatUntilExpectedResult {
-      let diags = try await project.testClient.send(
-        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
-      )
-      diagnostic = diags.fullReport?.items.first { $0.message.contains("LibStruct") }
-      return diagnostic != nil
-    }
+    let diags = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    diagnostic = diags.fullReport?.items.first { $0.message.contains("LibStruct") }
+    XCTAssert(diagnostic != nil)
 
     let foundDiagnostic = try XCTUnwrap(diagnostic)
 
