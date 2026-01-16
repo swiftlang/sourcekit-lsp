@@ -14,6 +14,7 @@
 import SKLogging
 import SKTestSupport
 import SourceKitLSP
+import SwiftExtensions
 import XCTest
 
 final class InlayHintTests: SourceKitLSPTestCase {
@@ -59,6 +60,23 @@ final class InlayHintTests: SourceKitLSPTestCase {
     )
   }
 
+  /// compares hints ignoring the data field (which contains implementation-specific resolve data)
+  private func assertHintsEqual(
+    _ actual: [InlayHint],
+    _ expected: [InlayHint],
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) {
+    XCTAssertEqual(actual.count, expected.count, "Hint count mismatch", file: file, line: line)
+    for (actualHint, expectedHint) in zip(actual, expected) {
+      XCTAssertEqual(actualHint.position, expectedHint.position, file: file, line: line)
+      XCTAssertEqual(actualHint.label, expectedHint.label, file: file, line: line)
+      XCTAssertEqual(actualHint.kind, expectedHint.kind, file: file, line: line)
+      XCTAssertEqual(actualHint.textEdits, expectedHint.textEdits, file: file, line: line)
+      XCTAssertEqual(actualHint.tooltip, expectedHint.tooltip, file: file, line: line)
+    }
+  }
+
   // MARK: - Tests
 
   func testEmpty() async throws {
@@ -73,7 +91,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
         var y2️⃣ = "test" + "123"
         """
     )
-    XCTAssertEqual(
+    assertHintsEqual(
       hints,
       [
         makeInlayHint(
@@ -106,7 +124,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
         """,
       range: ("1️⃣", "4️⃣")
     )
-    XCTAssertEqual(
+    assertHintsEqual(
       hints,
       [
         makeInlayHint(
@@ -141,7 +159,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
         }
         """
     )
-    XCTAssertEqual(
+    assertHintsEqual(
       hints,
       [
         makeInlayHint(
@@ -198,7 +216,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
         }
         """
     )
-    XCTAssertEqual(
+    assertHintsEqual(
       hints,
       [
         makeInlayHint(
@@ -266,5 +284,124 @@ final class InlayHintTests: SourceKitLSPTestCase {
         """
     )
     XCTAssertEqual(hints, [])
+  }
+
+  func testInlayHintResolve() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      struct 1️⃣MyType {}
+      let x2️⃣ = MyType()
+      """,
+      uri: uri
+    )
+
+    let request = InlayHintRequest(textDocument: TextDocumentIdentifier(uri), range: nil)
+    let hints = try await testClient.send(request)
+
+    guard let typeHint = hints.first(where: { $0.kind == .type }) else {
+      XCTFail("Expected type hint")
+      return
+    }
+
+    XCTAssertNotNil(typeHint.data, "Expected type hint to have data for resolution")
+
+    let resolvedHint = try await testClient.send(InlayHintResolveRequest(inlayHint: typeHint))
+
+    guard case .parts(let parts) = resolvedHint.label else {
+      XCTFail("Expected resolved hint to have label parts, got: \(resolvedHint.label)")
+      return
+    }
+
+    guard let location = parts.only?.location else {
+      XCTFail("Expected label part to have location for go-to-definition")
+      return
+    }
+
+    XCTAssertEqual(location.uri, uri)
+    XCTAssertEqual(location.range, Range(positions["1️⃣"]))
+  }
+
+  func testInlayHintResolveCrossModule() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/MyType.swift": """
+        public struct 1️⃣MyType {
+          public init() {}
+        }
+        """,
+        "LibB/UseType.swift": """
+        import LibA
+        let x2️⃣ = MyType()
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("UseType.swift")
+
+    let request = InlayHintRequest(textDocument: TextDocumentIdentifier(uri), range: nil)
+    let hints = try await project.testClient.send(request)
+
+    guard let typeHint = hints.first(where: { $0.kind == .type }) else {
+      XCTFail("Expected type hint for MyType")
+      return
+    }
+
+    let resolvedHint = try await project.testClient.send(InlayHintResolveRequest(inlayHint: typeHint))
+
+    guard case .parts(let parts) = resolvedHint.label,
+      let location = parts.only?.location
+    else {
+      XCTFail("Expected label part to have location for go-to-definition")
+      return
+    }
+
+    // The location should point to LibA/MyType.swift where MyType is defined
+    XCTAssertEqual(location.uri, try project.uri(for: "MyType.swift"))
+    XCTAssertEqual(location.range, try Range(project.position(of: "1️⃣", in: "MyType.swift")))
+  }
+
+  func testInlayHintResolveSDKType() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      let 1️⃣x = "hello"
+      """,
+      indexSystemModules: true
+    )
+
+    let request = InlayHintRequest(textDocument: TextDocumentIdentifier(project.fileURI), range: nil)
+    let hints = try await project.testClient.send(request)
+
+    guard let typeHint = hints.first(where: { $0.kind == .type }) else {
+      XCTFail("Expected type hint for String")
+      return
+    }
+
+    let resolvedHint = try await project.testClient.send(InlayHintResolveRequest(inlayHint: typeHint))
+
+    guard case .parts(let parts) = resolvedHint.label,
+      let location = parts.only?.location
+    else {
+      XCTFail("Expected label part to have location for go-to-definition")
+      return
+    }
+
+    // Should point to generated Swift interface
+    XCTAssertTrue(
+      location.uri.pseudoPath.hasSuffix(".swiftinterface"),
+      "Expected .swiftinterface file, got: \(location.uri.pseudoPath)"
+    )
   }
 }

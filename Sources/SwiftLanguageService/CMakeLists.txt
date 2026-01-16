@@ -26,6 +26,7 @@ add_library(SwiftLanguageService STATIC
   GeneratedInterfaceManager.swift
   IndentationRemover.swift
   InlayHints.swift
+  InlayHintResolve.swift
   MacroExpansion.swift
   OpenInterface.swift
   PlaygroundDiscovery.swift

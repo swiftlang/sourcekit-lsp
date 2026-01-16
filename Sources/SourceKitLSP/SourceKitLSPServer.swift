@@ -832,6 +832,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       initialized = true
     case let request as RequestAndReply<InlayHintRequest>:
       await self.handleRequest(for: request, requestHandler: self.inlayHint)
+    case let request as RequestAndReply<InlayHintResolveRequest>:
+      await request.reply { try await inlayHintResolve(request: request.params) }
     case let request as RequestAndReply<IsIndexingRequest>:
       await request.reply { try await self.isIndexing(request.params) }
     case let request as RequestAndReply<OutputPathsRequest>:
@@ -1098,7 +1100,7 @@ extension SourceKitLSPServer {
     let inlayHintOptions =
       await registry.clientHasDynamicInlayHintRegistration
       ? nil
-      : ValueOrBool.value(InlayHintOptions(resolveProvider: false))
+      : ValueOrBool.value(InlayHintOptions(resolveProvider: true))
 
     let semanticTokensOptions =
       await registry.clientHasDynamicSemanticTokensRegistration
@@ -1946,6 +1948,22 @@ extension SourceKitLSPServer {
     languageService: any LanguageService
   ) async throws -> [InlayHint] {
     return try await languageService.inlayHint(req)
+  }
+
+  func inlayHintResolve(
+    request: InlayHintResolveRequest
+  ) async throws -> InlayHint {
+    guard case .dictionary(let dict) = request.inlayHint.data,
+      case .string(let uriString) = dict["uri"],
+      let uri = try? DocumentURI(string: uriString)
+    else {
+      return request.inlayHint
+    }
+    guard let workspace = await self.workspaceForDocument(uri: uri) else {
+      return request.inlayHint
+    }
+    let language = try documentManager.latestSnapshot(uri.buildSettingsFile).language
+    return try await primaryLanguageService(for: uri, language, in: workspace).inlayHintResolve(request)
   }
 
   func documentDiagnostic(
