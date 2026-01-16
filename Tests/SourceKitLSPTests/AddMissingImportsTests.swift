@@ -29,7 +29,6 @@ class AddMissingImportsTests: SourceKitLSPTestCase {
   }
 
   func testAddMissingImport() async throws {
-
     // This test relies on the index, so it needs to run where we can build and index.
     try SkipUnless.longTestsEnabled()
 
@@ -39,8 +38,8 @@ class AddMissingImportsTests: SourceKitLSPTestCase {
         public struct LibStruct {}
         """,
         "Exec/main.swift": """
-        func test() {
-          _ = 1️⃣LibStruct()
+        1️⃣func test() {
+          _ = 2️⃣LibStruct()
         }
         """,
       ],
@@ -57,66 +56,53 @@ class AddMissingImportsTests: SourceKitLSPTestCase {
         )
         """,
       capabilities: clientCapabilitiesWithCodeActionSupport,
-      enableBackgroundIndexing: false
+      enableBackgroundIndexing: true
     )
 
     let (uri, positions) = try project.openDocument("main.swift")
 
-    // We build only `Lib` so that we get the index for it, but don't fail because `Exec` doesn't build.
-    try await SwiftPMTestProject.build(
-      at: project.scratchDirectory,
-      buildTests: false,
-      extraArguments: ["--target", "Lib"]
-    )
-
-    try await project.testClient.send(SynchronizeRequest(index: true))
-
-    // Wait for the diagnostic to appear. The compiler should complain about missing LibStruct.
-    var foundDiagnostic: Diagnostic?
-    // Try for up to 30 seconds
-    for _ in 0..<30 {
+    // Wait for the diagnostic to appear
+    var diagnostic: Diagnostic?
+    try await repeatUntilExpectedResult {
       let diags = try await project.testClient.send(
         DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
       )
-      if let d = diags.fullReport?.items.first(where: { $0.message.contains("Cannot find 'LibStruct' in scope") }) {
-        foundDiagnostic = d
-        break
-      }
-      try await Task.sleep(for: .seconds(1))
+      diagnostic = diags.fullReport?.items.first { $0.message.contains("LibStruct") }
+      return diagnostic != nil
     }
 
-    guard let diagnostic = foundDiagnostic else {
-      XCTFail("Did not find expected diagnostic check 'Cannot find LibStruct in scope' after polling")
-      return
-    }
+    let foundDiagnostic = try XCTUnwrap(diagnostic)
 
     let request = CodeActionRequest(
-      range: Range(positions["1️⃣"]),
-      context: CodeActionContext(diagnostics: [diagnostic], only: [.quickFix]),
+      range: Range(positions["2️⃣"]),
+      context: CodeActionContext(diagnostics: [foundDiagnostic], only: [.quickFix]),
       textDocument: TextDocumentIdentifier(uri)
     )
 
-    var codeAction: CodeAction?
-    // Try for up to 30 seconds to match diagnostic polling timeout
-    for _ in 0..<30 {
-      let response = try await project.testClient.send(request)
-      if case .codeActions(let actions) = response {
-        if let action = actions.first(where: { $0.title == "Import Lib" }) {
-          codeAction = action
-          break
-        }
-      }
-      try await Task.sleep(for: .seconds(1))
+    let response = try await project.testClient.send(request)
+    guard case .codeActions(let actions) = response else {
+      XCTFail("Expected code actions response")
+      return
     }
 
-    XCTAssertNotNil(codeAction)
+    let codeAction = try XCTUnwrap(actions.first { $0.title == "Import Lib" })
+    let command = try XCTUnwrap(codeAction.command)
 
-    if let codeAction {
-      guard let changes = codeAction.edit?.changes?[uri] else {
-        XCTFail("No edit changes found")
-        return
-      }
-      XCTAssertTrue(changes.contains { $0.newText.contains("import Lib") })
+    // Validate the edit inline when executing the command
+    project.testClient.handleSingleRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
+      XCTAssertEqual(
+        request.edit.changes,
+        [
+          uri: [
+            TextEdit(range: Range(positions["1️⃣"]), newText: "import Lib\n")
+          ]
+        ]
+      )
+      return ApplyEditResponse(applied: true, failureReason: nil)
     }
+
+    _ = try await project.testClient.send(
+      ExecuteCommandRequest(command: command.command, arguments: command.arguments)
+    )
   }
 }
