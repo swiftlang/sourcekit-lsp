@@ -619,7 +619,8 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       guard let swiftPMTarget = self.swiftPMTargets[target] else {
         continue
       }
-      var sources = swiftPMTarget.sources.map { sourceItem in
+      var sources: [SourceItem] = []
+      for sourceItem in swiftPMTarget.sources {
         let outputPath: String? =
           if let outputFile = sourceItem.outputFile {
             orLog("Getting file path of output file") { try outputFile.filePath }
@@ -628,37 +629,42 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
           } else {
             nil
           }
-        return SourceItem(
-          uri: DocumentURI(sourceItem.sourceFile),
-          kind: .file,
-          generated: false,
-          dataKind: .sourceKit,
-          data: SourceKitSourceItemData(outputPath: outputPath).encodeToLSPAny()
+        sources.append(
+          SourceItem(
+            uri: DocumentURI(sourceItem.sourceFile),
+            kind: .file,
+            generated: false,
+            dataKind: .sourceKit,
+            data: SourceKitSourceItemData(outputPath: outputPath).encodeToLSPAny()
+          )
         )
       }
-      sources += swiftPMTarget.headers.map {
-        SourceItem(
-          uri: DocumentURI($0),
-          kind: .file,
-          generated: false,
-          dataKind: .sourceKit,
-          data: SourceKitSourceItemData(kind: .header).encodeToLSPAny()
+      for url in swiftPMTarget.headers {
+        sources.append(
+          SourceItem(
+            uri: DocumentURI(url),
+            kind: .file,
+            generated: false,
+            dataKind: .sourceKit,
+            data: SourceKitSourceItemData(kind: .header).encodeToLSPAny()
+          )
         )
       }
-      sources += (swiftPMTarget.resources + swiftPMTarget.ignored + swiftPMTarget.others)
-        .map { (url: URL) -> SourceItem in
-          var data: SourceKitSourceItemData? = nil
-          if url.isDirectory, url.pathExtension == "docc" {
-            data = SourceKitSourceItemData(kind: .doccCatalog)
-          }
-          return SourceItem(
+      for url in (swiftPMTarget.resources + swiftPMTarget.ignored + swiftPMTarget.others) {
+        var data: SourceKitSourceItemData? = nil
+        if url.isDirectory, url.pathExtension == "docc" {
+          data = SourceKitSourceItemData(kind: .doccCatalog)
+        }
+        sources.append(
+          SourceItem(
             uri: DocumentURI(url),
             kind: url.isDirectory ? .directory : .file,
             generated: false,
             dataKind: data != nil ? .sourceKit : nil,
             data: data?.encodeToLSPAny()
           )
-        }
+        )
+      }
       result.append(SourcesItem(target: target, sources: sources))
     }
     return BuildTargetSourcesResponse(items: result)
