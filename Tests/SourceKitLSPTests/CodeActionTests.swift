@@ -671,8 +671,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
           diagnostics: nil,
           edit: WorkspaceEdit(
             changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "0b10000")]]
-          ),
-          command: nil
+          )
         ),
         CodeAction(
           title: "Convert 16 to 0o20",
@@ -680,8 +679,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
           diagnostics: nil,
           edit: WorkspaceEdit(
             changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "0o20")]]
-          ),
-          command: nil
+          )
         ),
         CodeAction(
           title: "Convert 16 to 0x10",
@@ -689,8 +687,51 @@ final class CodeActionTests: SourceKitLSPTestCase {
           diagnostics: nil,
           edit: WorkspaceEdit(
             changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "0x10")]]
-          ),
-          command: nil
+          )
+        ),
+      ]
+    }
+  }
+
+  func testAddSeparatorsToIntegerLiteral() async throws {
+    try await assertCodeActions(
+      """
+      let x = 1️⃣10002️⃣
+      """,
+      markers: ["1️⃣"]
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add digit separators",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "1_000")]]
+          )
+        ),
+        CodeAction(
+          title: "Convert 1000 to 0b1111101000",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "0b1111101000")]]
+          )
+        ),
+        CodeAction(
+          title: "Convert 1000 to 0o1750",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "0o1750")]]
+          )
+        ),
+        CodeAction(
+          title: "Convert 1000 to 0x3e8",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "0x3e8")]]
+          )
         ),
       ]
     }
@@ -711,8 +752,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
           diagnostics: nil,
           edit: WorkspaceEdit(
             changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: #""Hello world""#)]]
-          ),
-          command: nil
+          )
         )
       ]
     }
@@ -742,8 +782,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
                 )
               ]
             ]
-          ),
-          command: nil
+          )
         )
       ]
     }
@@ -781,8 +820,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
                 )
               ]
             ]
-          ),
-          command: nil
+          )
         )
       ]
     }
@@ -823,8 +861,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
                 )
               ]
             ]
-          ),
-          command: nil
+          )
         )
       ]
     }
@@ -874,8 +911,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
                 )
               ]
             ]
-          ),
-          command: nil
+          )
         )
       ]
     }
@@ -909,8 +945,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
                 )
               ]
             ]
-          ),
-          command: nil
+          )
         )
       ]
     }
@@ -942,8 +977,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
                 )
               ]
             ]
-          ),
-          command: nil
+          )
         )
       ]
     }
@@ -1549,8 +1583,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
             )
           ]
         ]
-      ),
-      command: nil
+      )
     )
 
     XCTAssertTrue(codeActions.contains(expectedCodeAction))
@@ -1642,8 +1675,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
             )
           ]
         ]
-      ),
-      command: nil
+      )
     )
 
     XCTAssertTrue(codeActions.contains(expectedCodeAction))

@@ -35,3 +35,7 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
   #endif
   return result
 }()
+
+let supersededSourcekitdRefactoringActions: Set<String> = [
+  "source.refactoring.kind.simplify.long.number.literal"  // Superseded by AddSeparatorsToIntegerLiteral
+]
