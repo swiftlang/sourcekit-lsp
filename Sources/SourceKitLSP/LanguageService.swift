@@ -209,6 +209,9 @@ package protocol LanguageService: AnyObject, Sendable {
   func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse
   func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails]
 
+  /// Returns the type's symbol details for a symbol at the given position.
+  func typeSymbolInfo(_ request: TypeDefinitionRequest) async throws -> SymbolDetails?
+
   /// Retrieve the symbol graph for the given position in the given snapshot, including the USR of the symbol at the
   /// given position and the doc comments of the symbol at that position.
   func symbolGraph(
@@ -405,6 +408,10 @@ package extension LanguageService {
 
   func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails] {
     throw ResponseError.requestNotImplemented(SymbolInfoRequest.self)
+  }
+
+  func typeSymbolInfo(_ request: TypeDefinitionRequest) async throws -> SymbolDetails? {
+    return nil
   }
 
   func symbolGraph(

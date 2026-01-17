@@ -2011,7 +2011,22 @@ extension SourceKitLSPServer {
     workspace: Workspace,
     languageService: any LanguageService
   ) async throws -> LocationsOrLocationLinksResponse? {
-    return try await languageService.typeDefinition(req)
+    guard let symbol = try await languageService.typeSymbolInfo(req) else {
+      return nil
+    }
+
+    let locations = try await definitionLocations(
+      for: symbol,
+      in: req.textDocument.uri,
+      languageService: languageService
+    )
+
+    if locations.isEmpty {
+      return nil
+    }
+
+    let remappedLocations = await workspace.buildServerManager.locationsAdjustedForCopiedFiles(locations)
+    return .locations(remappedLocations)
   }
 
   /// Return the locations for jump to definition from the given `SymbolDetails`.

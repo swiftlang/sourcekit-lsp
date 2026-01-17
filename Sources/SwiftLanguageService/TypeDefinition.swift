@@ -17,11 +17,8 @@ import SourceKitD
 import SourceKitLSP
 
 extension SwiftLanguageService {
-  /// Handles the textDocument/typeDefinition request.
-  ///
-  /// Given a source location, finds the type of the symbol at that position
-  /// and returns the location of that type's definition.
-  package func typeDefinition(_ request: TypeDefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
+  /// Returns the type's symbol details for a symbol at the given position.
+  package func typeSymbolInfo(_ request: TypeDefinitionRequest) async throws -> SymbolDetails? {
     let uri = request.textDocument.uri
     let position = request.position
 
@@ -42,12 +39,7 @@ extension SwiftLanguageService {
       return nil
     }
 
-    if let typeInfo = try await cursorInfoFromTypeUSR(typeUsr, in: snapshot),
-      let location = typeInfo.symbolInfo.bestLocalDeclaration
-    {
-      return .locations([location])
-    }
-
-    return nil
+    let typeInfo = try await cursorInfoFromTypeUSR(typeUsr, in: snapshot)
+    return typeInfo?.symbolInfo
   }
 }
