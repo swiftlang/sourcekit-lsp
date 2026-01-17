@@ -258,9 +258,11 @@ private enum AddMissingImportsHelper {
     } else if let lastImport = importDecls.last {
       return snapshot.position(of: lastImport.endPosition)
     }
-
-    let startPosition = syntaxTree.statements.first?.position ?? AbsolutePosition(utf8Offset: 0)
-    return snapshot.position(of: startPosition)
+    // No existing imports - insert before first statement but after its leading trivia (header comments)
+    if let firstStatement = syntaxTree.statements.first {
+      return snapshot.position(of: firstStatement.positionAfterSkippingLeadingTrivia)
+    }
+    return snapshot.position(of: AbsolutePosition(utf8Offset: 0))
   }
 }
 

@@ -116,8 +116,64 @@ class AddMissingImportsUnitTests: XCTestCase {
     ) { _ in ["ModuleA", "ModuleB"] }
 
     XCTAssertEqual(actions.count, 2)
-    let titles = actions.map { $0.title }.sorted()
-    XCTAssertEqual(titles, ["Import ModuleA", "Import ModuleB"])
+    let sortedActions = actions.sorted(by: { $0.title < $1.title })
+    XCTAssertEqual(sortedActions.map { $0.title }, ["Import ModuleA", "Import ModuleB"])
+
+    for (action, module) in zip(sortedActions, ["ModuleA", "ModuleB"]) {
+      let edits = try XCTUnwrap(action.edit?.changes?[uri])
+      let result = apply(edits: edits, to: text)
+      XCTAssertEqual(result, "import \(module)\nlet x = CommonType()")
+    }
+  }
+
+  func testImportInsertionAfterFileHeader() throws {
+    let source = """
+      //===----------------------------------------------------------------------===//
+      //
+      // This source file is part of the Swift.org open source project
+      //
+      //===----------------------------------------------------------------------===//
+
+      1️⃣let x = LibStruct()2️⃣
+      """
+    let (positions, text) = DocumentPositions.extract(from: source)
+    let uri = DocumentURI(for: .swift)
+    let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: text, uri: uri)
+
+    let diagnostic = Diagnostic(
+      range: positions["1️⃣"]..<positions["2️⃣"],
+      severity: .error,
+      code: .string("cannot_find_in_scope"),
+      source: "sourcekitd",
+      message: "cannot find 'LibStruct' in scope"
+    )
+
+    let action = try XCTUnwrap(
+      SwiftLanguageService.findMissingImports(
+        diagnostics: [diagnostic],
+        existingImports: [],
+        currentModule: nil,
+        syntaxTree: syntaxTree,
+        snapshot: snapshot,
+        uri: uri
+      ) { _ in ["Lib"] }.only
+    )
+
+    let edits = try XCTUnwrap(action.edit?.changes?[uri])
+    let result = apply(edits: edits, to: text)
+    XCTAssertEqual(
+      result,
+      """
+      //===----------------------------------------------------------------------===//
+      //
+      // This source file is part of the Swift.org open source project
+      //
+      //===----------------------------------------------------------------------===//
+
+      import Lib
+      let x = LibStruct()
+      """
+    )
   }
 
   func testImportInsertionAfterExistingImports() throws {
@@ -215,6 +271,9 @@ class AddMissingImportsUnitTests: XCTestCase {
     )
 
     XCTAssertEqual(action.title, "Import Lib")
+    let edits = try XCTUnwrap(action.edit?.changes?[uri])
+    let result = apply(edits: edits, to: text)
+    XCTAssertEqual(result, "import Lib\nlet x = LibStruct()")
   }
 
   func testDiagnosticMatchingWithTypeCode() throws {
@@ -244,5 +303,40 @@ class AddMissingImportsUnitTests: XCTestCase {
     )
 
     XCTAssertEqual(action.title, "Import Lib")
+    let edits = try XCTUnwrap(action.edit?.changes?[uri])
+    let result = apply(edits: edits, to: text)
+    XCTAssertEqual(result, "import Lib\nlet x: LibStruct = LibStruct()")
+  }
+
+  func testDiagnosticMatchingWithNilCode() throws {
+    let source = "let x = 1️⃣LibStruct()2️⃣"
+    let (positions, text) = DocumentPositions.extract(from: source)
+    let uri = DocumentURI(for: .swift)
+    let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: text, uri: uri)
+
+    // Diagnostic with nil code - should fall back to message matching
+    let diagnostic = Diagnostic(
+      range: positions["1️⃣"]..<positions["2️⃣"],
+      severity: .error,
+      code: nil,
+      source: "sourcekitd",
+      message: "Cannot find 'LibStruct' in scope"
+    )
+
+    let action = try XCTUnwrap(
+      SwiftLanguageService.findMissingImports(
+        diagnostics: [diagnostic],
+        existingImports: [],
+        currentModule: nil,
+        syntaxTree: syntaxTree,
+        snapshot: snapshot,
+        uri: uri
+      ) { _ in ["Lib"] }.only
+    )
+
+    XCTAssertEqual(action.title, "Import Lib")
+    let edits = try XCTUnwrap(action.edit?.changes?[uri])
+    let result = apply(edits: edits, to: text)
+    XCTAssertEqual(result, "import Lib\nlet x = LibStruct()")
   }
 }
