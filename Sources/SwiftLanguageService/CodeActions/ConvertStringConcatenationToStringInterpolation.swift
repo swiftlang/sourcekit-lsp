@@ -28,10 +28,8 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
       let isLastComponent = index == componentsOnly.count - 1
 
       guard let stringLiteral = component.as(StringLiteralExprSyntax.self) else {
-        let expression =
-          hasMultilineString
-          ? component.with(\.leadingTrivia, []).with(\.trailingTrivia, [])
-          : component.singleLineTrivia
+        // preserve comments as block comments
+        let expression = component.singleLineTrivia
         let exprSeg = ExpressionSegmentSyntax(
           pounds: commonPounds,
           expressions: [
@@ -44,26 +42,29 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
 
       var literalSegments = stringLiteral.segments
 
-      // strip base indentation for multiline strings
-      if hasMultilineString && !stringLiteral.isSingleLine {
+      // strip base indentation
+      if hasMultilineString, !stringLiteral.isSingleLine {
         let baseIndent = stringLiteral.closingQuote.indentationOfLine
         literalSegments = stripIndentation(from: literalSegments, baseIndent: baseIndent)
       }
 
-      if hasMultilineString && !isLastComponent && !stringLiteral.isSingleLine {
-        if let lastSeg = literalSegments.last, case let .stringSegment(s) = lastSeg {
-          let strippedContent = s.content.with(\.trailingTrivia, [])
-          let strippedSeg = s.with(\.content, strippedContent)
+      // strip trailing newline for non-last multiline segments
+      if hasMultilineString, !isLastComponent, !stringLiteral.isSingleLine {
+        if case let .stringSegment(stringSeg) = literalSegments.last {
+          var text = stringSeg.content.text
+          if text.hasSuffix("\n") {
+            text = String(text.dropLast())
+          }
+          let newSeg = stringSeg.with(\.content, .stringSegment(text))
           literalSegments = StringLiteralSegmentListSyntax(
-            literalSegments.dropLast() + [.stringSegment(strippedSeg)]
+            literalSegments.dropLast() + [.stringSegment(newSeg)]
           )
         }
       }
 
-      // process segments with possible merging for multiline strings
-      var segmentsToAdd = literalSegments
+      // normalize pounds
       if let commonPounds, stringLiteral.openingPounds?.tokenKind != commonPounds.tokenKind {
-        segmentsToAdd = StringLiteralSegmentListSyntax(
+        literalSegments = StringLiteralSegmentListSyntax(
           literalSegments.map { segment in
             if case let .expressionSegment(exprSegment) = segment {
               .expressionSegment(exprSegment.with(\.pounds, commonPounds))
@@ -74,33 +75,15 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
         )
       }
 
-      // merge segments across string boundaries for multiline strings
-      if hasMultilineString,
-        let lastSeg = segments.last,
-        case let .stringSegment(lastStrSeg) = lastSeg,
-        !lastStrSeg.content.text.hasSuffix("\n"),
-        let firstSeg = segmentsToAdd.first,
-        case let .stringSegment(firstStrSeg) = firstSeg
-      {
-        // merge last of previous with first of current
-        let merged = lastStrSeg.content.text + firstStrSeg.content.text
-        let mergedSeg = StringSegmentSyntax(content: .stringSegment(merged))
-        segments = StringLiteralSegmentListSyntax(segments.dropLast() + [.stringSegment(mergedSeg)])
-        segmentsToAdd = StringLiteralSegmentListSyntax(segmentsToAdd.dropFirst())
-      }
-
-      segments += segmentsToAdd
+      segments += literalSegments
     }
 
-    // ensure trailing newline for multiline strings
-    if hasMultilineString,
-      let lastSeg = segments.last,
-      case let .stringSegment(lastStrSeg) = lastSeg,
-      !lastStrSeg.content.text.hasSuffix("\n")
-    {
-      let newText = lastStrSeg.content.text + "\n"
-      let newSeg = StringSegmentSyntax(content: .stringSegment(newText))
-      segments = StringLiteralSegmentListSyntax(segments.dropLast() + [.stringSegment(newSeg)])
+    // add trailing newline for multiline
+    if hasMultilineString {
+      if var lastSegment = segments.last {
+        lastSegment.trailingTrivia = .newline
+        segments = StringLiteralSegmentListSyntax(segments.dropLast() + [lastSegment])
+      }
     }
 
     let quoteToken: TokenSyntax =
@@ -264,9 +247,7 @@ private func stripIndentation(
     }
 
     var text = stringSeg.content.text
-    // strip indentation from start of each line (after each newline)
     text = text.replacing("\n" + indentString, with: "\n")
-    // also strip from the very beginning if segment starts with indentation
     if text.hasPrefix(indentString) {
       text = String(text.dropFirst(indentString.count))
     }
