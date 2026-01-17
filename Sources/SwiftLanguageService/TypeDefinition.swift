@@ -42,7 +42,6 @@ extension SwiftLanguageService {
       return nil
     }
 
-    // Try cursorInfo with USR lookup first - it knows the current in-memory state
     if let typeInfo = try await cursorInfoFromTypeUSR(typeUsr, in: snapshot),
       let location = typeInfo.symbolInfo.bestLocalDeclaration
     {
