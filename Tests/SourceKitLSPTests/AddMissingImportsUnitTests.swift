@@ -34,13 +34,13 @@ class AddMissingImportsUnitTests: XCTestCase {
   }
 
   func testAddMissingImports() throws {
-    let markedSource = "let x = 1️⃣LibStruct()"
-    let (positions, source) = extractMarkers(markedSource)
+    let source = "let x = 1️⃣LibStruct()2️⃣"
+    let (positions, text) = DocumentPositions.extract(from: source)
     let uri = DocumentURI(for: .swift)
-    let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: source, uri: uri)
+    let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: text, uri: uri)
 
     let diagnostic = Diagnostic(
-      range: Range(snapshot.position(of: positions["1️⃣"]!)),
+      range: positions["1️⃣"]..<positions["2️⃣"],
       severity: .error,
       code: .string("cannot_find_in_scope"),
       source: "sourcekitd",
@@ -61,17 +61,18 @@ class AddMissingImportsUnitTests: XCTestCase {
     XCTAssertEqual(action.title, "Import Lib")
 
     let edits = try XCTUnwrap(action.edit?.changes?[uri])
-    let result = apply(edits: edits, to: source)
+    let result = apply(edits: edits, to: text)
     XCTAssertEqual(result, "import Lib\nlet x = LibStruct()")
   }
 
   func testDoNotImportIfAlreadyImported() {
-    let source = "let x = LibStruct()"
+    let source = "let x = 1️⃣LibStruct()2️⃣"
+    let (positions, text) = DocumentPositions.extract(from: source)
     let uri = DocumentURI(for: .swift)
-    let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: source, uri: uri)
+    let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: text, uri: uri)
 
     let diagnostic = Diagnostic(
-      range: Position(line: 0, utf16index: 8)..<Position(line: 0, utf16index: 17),
+      range: positions["1️⃣"]..<positions["2️⃣"],
       severity: .error,
       code: .string("cannot_find_in_scope"),
       source: "sourcekitd",
@@ -92,12 +93,13 @@ class AddMissingImportsUnitTests: XCTestCase {
   }
 
   func testMultipleCandidates() throws {
-    let source = "let x = CommonType()"
+    let source = "let x = 1️⃣CommonType()2️⃣"
+    let (positions, text) = DocumentPositions.extract(from: source)
     let uri = DocumentURI(for: .swift)
-    let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: source, uri: uri)
+    let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: text, uri: uri)
 
     let diagnostic = Diagnostic(
-      range: Position(line: 0, utf16index: 8)..<Position(line: 0, utf16index: 18),
+      range: positions["1️⃣"]..<positions["2️⃣"],
       severity: .error,
       code: .string("cannot_find_in_scope"),
       source: "sourcekitd",
@@ -122,13 +124,13 @@ class AddMissingImportsUnitTests: XCTestCase {
     let source = """
       import Foundation
 
-      let x = LibStruct()
+      let x = 1️⃣LibStruct()2️⃣
       """
+    let (positions, text) = DocumentPositions.extract(from: source)
     let uri = DocumentURI(for: .swift)
-    let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: source, uri: uri)
-
+    let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: text, uri: uri)
     let diagnostic = Diagnostic(
-      range: Position(line: 2, utf16index: 8)..<Position(line: 2, utf16index: 17),
+      range: positions["1️⃣"]..<positions["2️⃣"],
       severity: .error,
       code: .string("cannot_find_in_scope"),
       source: "sourcekitd",
@@ -147,7 +149,7 @@ class AddMissingImportsUnitTests: XCTestCase {
     )
 
     let edits = try XCTUnwrap(action.edit?.changes?[uri])
-    let result = apply(edits: edits, to: source)
+    let result = apply(edits: edits, to: text)
     XCTAssertEqual(
       result,
       """
@@ -160,12 +162,13 @@ class AddMissingImportsUnitTests: XCTestCase {
   }
 
   func testDoNotSuggestCurrentModule() {
-    let source = "let x = MyType()"
+    let source = "let x = 1️⃣MyType()2️⃣"
+    let (positions, text) = DocumentPositions.extract(from: source)
     let uri = DocumentURI(for: .swift)
-    let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: source, uri: uri)
+    let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: text, uri: uri)
 
     let diagnostic = Diagnostic(
-      range: Position(line: 0, utf16index: 8)..<Position(line: 0, utf16index: 14),
+      range: positions["1️⃣"]..<positions["2️⃣"],
       severity: .error,
       code: .string("cannot_find_in_scope"),
       source: "sourcekitd",
@@ -186,13 +189,14 @@ class AddMissingImportsUnitTests: XCTestCase {
   }
 
   func testDiagnosticMatchingWithCode() throws {
-    let source = "let x = LibStruct()"
+    let source = "let x = 1️⃣LibStruct()2️⃣"
+    let (positions, text) = DocumentPositions.extract(from: source)
     let uri = DocumentURI(for: .swift)
-    let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: source, uri: uri)
+    let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: text, uri: uri)
 
     // Diagnostic with proper code
     let diagnostic = Diagnostic(
-      range: Position(line: 0, utf16index: 8)..<Position(line: 0, utf16index: 17),
+      range: positions["1️⃣"]..<positions["2️⃣"],
       severity: .error,
       code: .string("cannot_find_in_scope"),
       source: "sourcekitd",
@@ -214,13 +218,14 @@ class AddMissingImportsUnitTests: XCTestCase {
   }
 
   func testDiagnosticMatchingWithTypeCode() throws {
-    let source = "let x: LibStruct = LibStruct()"
+    let source = "let x: 1️⃣LibStruct2️⃣ = LibStruct()"
+    let (positions, text) = DocumentPositions.extract(from: source)
     let uri = DocumentURI(for: .swift)
-    let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: source, uri: uri)
+    let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: text, uri: uri)
 
     // Diagnostic with 'cannot_find_type_in_scope' code (used for types in type positions)
     let diagnostic = Diagnostic(
-      range: Position(line: 0, utf16index: 7)..<Position(line: 0, utf16index: 16),
+      range: positions["1️⃣"]..<positions["2️⃣"],
       severity: .error,
       code: .string("cannot_find_type_in_scope"),
       source: "sourcekitd",
