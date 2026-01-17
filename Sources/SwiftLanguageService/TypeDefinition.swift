@@ -34,7 +34,19 @@ extension SwiftLanguageService {
     ])
 
     let dict = try await send(sourcekitdRequest: \.cursorInfo, skreq, snapshot: snapshot)
+    let documentManager = try self.documentManager
 
+    // if cursor is on a type symbol itself, use its USR directly
+    if let cursorInfo = CursorInfo(dict, snapshot: snapshot, documentManager: documentManager, sourcekitd: sourcekitd) {
+      switch cursorInfo.symbolInfo.kind {
+      case .class, .struct, .enum, .interface, .typeParameter:
+        return cursorInfo.symbolInfo
+      default:
+        break
+      }
+    }
+
+    // otherwise get the type of the symbol at this position
     guard let typeUsr: String = dict[keys.typeUsr] else {
       return nil
     }

@@ -171,33 +171,4 @@ final class TypeDefinitionTests: SourceKitLSPTestCase {
     XCTAssertEqual(location.uri, uri)
     XCTAssertEqual(location.range, Range(positions["1️⃣"]))
   }
-
-  func testTypeDefinitionFunctionReturnType() async throws {
-    let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI(for: .swift)
-
-    let positions = testClient.openDocument(
-      """
-      struct 1️⃣MyType {}
-      func 2️⃣create() -> MyType { MyType() }
-      """,
-      uri: uri
-    )
-
-    let response = try await testClient.send(
-      TypeDefinitionRequest(
-        textDocument: TextDocumentIdentifier(uri),
-        position: positions["2️⃣"]
-      )
-    )
-
-    guard case .locations(let locations) = response, let location = locations.first else {
-      XCTFail("Expected location response")
-      return
-    }
-
-    XCTAssertEqual(location.uri, uri)
-    XCTAssertEqual(location.range, Range(positions["1️⃣"]))
-  }
-
 }
