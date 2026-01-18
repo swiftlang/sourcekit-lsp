@@ -308,13 +308,14 @@ class AddMissingImportsUnitTests: XCTestCase {
     XCTAssertEqual(result, "import Lib\nlet x: LibStruct = LibStruct()")
   }
 
-  func testDiagnosticMatchingWithNilCode() throws {
+  func testDiagnosticMatchingWithNilCode() {
     let source = "let x = 1️⃣LibStruct()2️⃣"
     let (positions, text) = DocumentPositions.extract(from: source)
     let uri = DocumentURI(for: .swift)
     let (syntaxTree, snapshot) = makeSyntaxTreeAndSnapshot(from: text, uri: uri)
 
-    // Diagnostic with nil code - should fall back to message matching
+    // Diagnostic with nil code - should NOT produce any code actions
+    // (we now require proper diagnostic codes from SourceKit)
     let diagnostic = Diagnostic(
       range: positions["1️⃣"]..<positions["2️⃣"],
       severity: .error,
@@ -323,20 +324,15 @@ class AddMissingImportsUnitTests: XCTestCase {
       message: "Cannot find 'LibStruct' in scope"
     )
 
-    let action = try XCTUnwrap(
-      SwiftLanguageService.findMissingImports(
-        diagnostics: [diagnostic],
-        existingImports: [],
-        currentModule: nil,
-        syntaxTree: syntaxTree,
-        snapshot: snapshot,
-        uri: uri
-      ) { _ in ["Lib"] }.only
-    )
+    let actions = SwiftLanguageService.findMissingImports(
+      diagnostics: [diagnostic],
+      existingImports: [],
+      currentModule: nil,
+      syntaxTree: syntaxTree,
+      snapshot: snapshot,
+      uri: uri
+    ) { _ in ["Lib"] }
 
-    XCTAssertEqual(action.title, "Import Lib")
-    let edits = try XCTUnwrap(action.edit?.changes?[uri])
-    let result = apply(edits: edits, to: text)
-    XCTAssertEqual(result, "import Lib\nlet x = LibStruct()")
+    XCTAssertTrue(actions.isEmpty, "Diagnostics without codes should not produce code actions")
   }
 }

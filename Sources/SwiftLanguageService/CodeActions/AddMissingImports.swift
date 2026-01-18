@@ -217,11 +217,10 @@ private enum AddMissingImportsHelper {
 
   /// Checks if a diagnostic indicates a missing type or value in scope.
   static func isMissingTypeOrValueDiagnostic(_ diagnostic: Diagnostic) -> Bool {
-    if let code = diagnostic.codeString {
-      return missingSymbolDiagnosticCodes.contains(code)
+    guard let code = diagnostic.codeString else {
+      return false
     }
-    // Fallback to message matching when code is unavailable
-    return diagnostic.message.firstMatch(of: symbolNameRegex) != nil
+    return missingSymbolDiagnosticCodes.contains(code)
   }
 
   /// Finds all modules that define a given symbol by querying the semantic index.
