@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2025 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -18,6 +18,7 @@ package import LanguageServerProtocol
 import SourceKitD
 import SourceKitLSP
 import SwiftExtensions
+import SwiftIfConfig
 import SwiftSyntax
 
 /// The remove unused imports command tries to remove unnecessary imports in a file on a best-effort basis by deleting
@@ -197,9 +198,12 @@ extension SwiftLanguageService {
         throw ResponseError.unknown("Failed to remove unused imports because the document currently contains errors")
       }
 
-      // Only consider import declarations at the top level and ignore ones eg. inside `#if` clauses since those might
-      // be inactive in the current build configuration and thus we can't reliably check if they are needed.
-      let importDecls = syntaxTree.statements.compactMap { $0.item.as(ImportDeclSyntax.self) }
+      // Create a build configuration based on the compiler arguments to evaluate #if clauses.
+      let buildConfiguration = SourceKitLSPBuildConfiguration(compilerArgs: compileCommand.compilerArgs)
+
+      // Collect import declarations from the top level and from active #if clauses,
+      // while respecting the build configuration.
+      let importDecls = collectImportDecls(from: syntaxTree, buildConfiguration: buildConfiguration)
 
       var declsToRemove: [ImportDeclSyntax] = []
 
@@ -300,5 +304,48 @@ extension SwiftLanguageService {
         _ = try await self.send(sourcekitdRequest: \.editorClose, req, snapshot: nil)
       }
     }
+  }
+
+  /// Collects all import declarations that are accessible in the current build configuration.
+  /// This includes top-level imports and imports from active #if clauses.
+  ///
+  /// - Parameters:
+  ///   - syntaxTree: The root syntax tree to traverse.
+  ///   - buildConfiguration: The build configuration used to determine active #if clauses.
+  /// - Returns: An array of accessible import declarations.
+  private func collectImportDecls(
+    from syntaxTree: SourceFileSyntax,
+    buildConfiguration: some BuildConfiguration
+  ) -> [ImportDeclSyntax] {
+    let visitor = ImportCollectorVisitor(buildConfiguration: buildConfiguration)
+    visitor.walk(syntaxTree)
+    return visitor.collectedImports
+  }
+}
+
+/// A syntax visitor that collects import declarations from both top-level and active #if clauses.
+private class ImportCollectorVisitor: SyntaxVisitor {
+  private let buildConfiguration: any BuildConfiguration
+  private(set) var collectedImports: [ImportDeclSyntax] = []
+
+  init(buildConfiguration: some BuildConfiguration) {
+    self.buildConfiguration = buildConfiguration
+    super.init(viewMode: .sourceAccurate)
+  }
+
+  override func visit(_ node: ImportDeclSyntax) -> SyntaxVisitorContinueKind {
+    collectedImports.append(node)
+    return .skipChildren
+  }
+
+  override func visit(_ node: IfConfigDeclSyntax) -> SyntaxVisitorContinueKind {
+    // Use SwiftIfConfig's API to determine the active clause
+    let (activeClause, _) = node.activeClause(in: buildConfiguration)
+
+    if let activeClause = activeClause {
+      // Visit the clause - it's a SyntaxNode, so walk its children
+      walk(activeClause)
+    }
+    return .skipChildren
   }
 }

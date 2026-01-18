@@ -508,7 +508,7 @@ var targets: [Target] = [
         "SwiftBasicFormat",
         "SwiftDiagnostics",
         "SwiftIDEUtils",
-        "SwiftOperators",
+        "SwiftIfConfig",
         "SwiftParser",
         "SwiftParserDiagnostics",
         "SwiftRefactor",

@@ -4,6 +4,7 @@ add_library(SwiftLanguageService STATIC
   ClosureCompletionFormat.swift
   CodeActions/AddDocumentation.swift
   CodeActions/ApplyDeMorganLaw.swift
+  CodeActions/BuildConfiguration.swift
   CodeActions/ConvertIfLetToGuard.swift
   CodeActions/ConvertIntegerLiteral.swift
   CodeActions/ConvertJSONToCodableStruct.swift
@@ -83,6 +84,7 @@ target_link_libraries(SwiftLanguageService PRIVATE
   TSCBasic
   SwiftSyntax::SwiftDiagnostics
   SwiftSyntax::SwiftIDEUtils
+  SwiftSyntax::SwiftIfConfig
   SwiftSyntax::SwiftOperators
   SwiftSyntax::SwiftParser
   SwiftSyntax::SwiftParserDiagnostics
