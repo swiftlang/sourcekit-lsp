@@ -61,7 +61,6 @@ class AddMissingImportsTests: SourceKitLSPTestCase {
 
     let (uri, positions) = try project.openDocument("main.swift")
 
-    // Get the diagnostics
     var diagnostic: Diagnostic?
     let diags = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))

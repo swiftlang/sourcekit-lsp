@@ -101,13 +101,11 @@ extension SwiftLanguageService {
         .compactMap { $0.path.first?.name.text }
     )
 
-    // Get current module name
     var currentModule: String? = nil
     if let canonicalTarget = await workspace.buildServerManager.canonicalTarget(for: request.textDocument.uri) {
       currentModule = await workspace.buildServerManager.moduleName(for: request.textDocument.uri, in: canonicalTarget)
     }
 
-    // Find candidate modules and create commands
     var codeActions: [CodeAction] = []
 
     for diagnostic in relevantDiagnostics {
@@ -148,26 +146,23 @@ extension SwiftLanguageService {
     let snapshot = try await self.latestSnapshot(for: command.textDocument.uri)
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
 
+    let allImportDecls = syntaxTree.statements.compactMap { $0.item.as(ImportDeclSyntax.self) }
     let insertPosition = AddMissingImportsHelper.importInsertionPosition(
       for: command.moduleName,
       in: syntaxTree,
       snapshot: snapshot
     )
 
-    let hasExistingImports = !syntaxTree.statements.compactMap { $0.item.as(ImportDeclSyntax.self) }.isEmpty
-
-    let importText: String
-    if hasExistingImports {
-      let allImportDecls = syntaxTree.statements.compactMap { $0.item.as(ImportDeclSyntax.self) }
-      let lastImportEnd = allImportDecls.last.map { snapshot.position(of: $0.endPosition) }
+    // Determine import text based on insertion position:
+    // - If inserting at end of last import: prepend newline
+    // - Otherwise (before import or no imports): append newline
+    let lastImportEnd = allImportDecls.last.map { snapshot.position(of: $0.endPosition) }
+    let importText =
       if lastImportEnd == insertPosition {
-        importText = "\nimport \(command.moduleName)"
+        "\nimport \(command.moduleName)"
       } else {
-        importText = "import \(command.moduleName)\n"
+        "import \(command.moduleName)\n"
       }
-    } else {
-      importText = "import \(command.moduleName)\n"
-    }
 
     guard let sourceKitLSPServer else {
       throw ResponseError.unknown("Connection to the editor closed")
@@ -252,7 +247,6 @@ private enum AddMissingImportsHelper {
 
     let importNames = importDecls.compactMap { $0.path.first?.name.text }
 
-    // Check if existing imports are already sorted
     let isSorted = zip(importNames, importNames.dropFirst()).allSatisfy { $0 <= $1 }
 
     if isSorted,
@@ -261,21 +255,16 @@ private enum AddMissingImportsHelper {
         return firstPath > newModule
       })
     {
-      // Insert before the first import that is lexicographically after the new module
       return snapshot.position(of: insertBeforeImport.position)
     } else if let lastImport = importDecls.last {
-      // Not sorted or new module is alphabetically last - insert after last import
       return snapshot.position(of: lastImport.endPosition)
     }
-    // No existing imports - insert before first statement but after its leading trivia (header comments)
     if let firstStatement = syntaxTree.statements.first {
       return snapshot.position(of: firstStatement.positionAfterSkippingLeadingTrivia)
     }
     return snapshot.position(of: AbsolutePosition(utf8Offset: 0))
   }
 }
-
-// MARK: - Diagnostic Extension
 
 private extension Diagnostic {
   var codeString: String? {

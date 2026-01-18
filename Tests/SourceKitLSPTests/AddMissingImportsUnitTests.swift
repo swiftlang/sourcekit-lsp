@@ -23,7 +23,6 @@ import XCTest
 
 class AddMissingImportsUnitTests: XCTestCase {
 
-  /// Creates a syntax tree and snapshot from source code for testing.
   private func makeSyntaxTreeAndSnapshot(
     from source: String,
     uri: DocumentURI
@@ -234,7 +233,7 @@ class AddMissingImportsUnitTests: XCTestCase {
     let actions = SwiftLanguageService.findMissingImports(
       diagnostics: [diagnostic],
       existingImports: [],
-      currentModule: "MyModule",  // This is the current module
+      currentModule: "MyModule",
       syntaxTree: syntaxTree,
       snapshot: snapshot,
       uri: uri
