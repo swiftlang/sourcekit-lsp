@@ -207,4 +207,51 @@ extension SwiftLanguageService {
       additionalParameters: appendAdditionalParameters
     )
   }
+
+  /// Because of https://github.com/swiftlang/swift/issues/86432 sourcekitd returns a mangled name instead of a USR
+  /// as the type USR. Work around this by replacing mangled names (starting with `$s`) to a USR, starting with `s:`.
+  /// We also strip the trailing `D` suffix which represents a type mangling - this may not work correctly for generic
+  /// types with type arguments.
+  // TODO: Remove once https://github.com/swiftlang/swift/issues/86432 is fixed
+  private func convertMangledTypeToUSR(_ mangledType: String) -> String {
+    var result = mangledType
+    if result.hasPrefix("$s") {
+      result = "s:" + result.dropFirst(2)
+    }
+    // Strip trailing 'D' (type mangling suffix) to get declaration USR
+    if result.hasSuffix("D") {
+      result = String(result.dropLast())
+    }
+    return result
+  }
+
+  /// Get cursor info for a type by looking up its USR.
+  ///
+  /// - Parameters:
+  ///   - mangledType: The mangled name of the type
+  ///   - snapshot: Document snapshot for context (used to get compile command)
+  /// - Returns: CursorInfo for the type declaration, or `nil` if not found
+  func cursorInfoFromTypeUSR(
+    _ mangledType: String,
+    in snapshot: DocumentSnapshot
+  ) async throws -> CursorInfo? {
+    let usr = convertMangledTypeToUSR(mangledType)
+
+    let compileCommand = await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: true)
+    let documentManager = try self.documentManager
+
+    let keys = self.keys
+
+    let skreq = sourcekitd.dictionary([
+      keys.cancelOnSubsequentRequest: 0,
+      keys.usr: usr,
+      keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
+      keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
+      keys.compilerArgs: compileCommand?.compilerArgs as [any SKDRequestValue]?,
+    ])
+
+    let dict = try await send(sourcekitdRequest: \.cursorInfo, skreq, snapshot: snapshot)
+
+    return CursorInfo(dict, snapshot: snapshot, documentManager: documentManager, sourcekitd: sourcekitd)
+  }
 }

@@ -16,6 +16,7 @@ import Foundation
 import SKTestSupport
 import SourceKitD
 import SwiftExtensions
+import SwiftSyntax
 import ToolchainRegistry
 import XCTest
 
@@ -256,7 +257,7 @@ private func assertReduceSourceKitD(
     let request =
       request
       .replacingOccurrences(of: "$FILE", with: testFilePath.replacing(#"\"#, with: #"\\"#))
-      .replacingOccurrences(of: "$OFFSET", with: String(markerOffset))
+      .replacingOccurrences(of: "$OFFSET", with: String(markerOffset.utf8Offset))
 
     let requestInfo = try RequestInfo(request: request)
     var lastProgress = 0.0

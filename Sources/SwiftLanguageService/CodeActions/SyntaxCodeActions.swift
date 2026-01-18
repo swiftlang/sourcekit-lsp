@@ -18,7 +18,9 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
   var result: [any SyntaxCodeActionProvider.Type] = [
     AddDocumentation.self,
     AddSeparatorsToIntegerLiteral.self,
+    ApplyDeMorganLaw.self,
     ConvertComputedPropertyToZeroParameterFunction.self,
+    ConvertIfLetToGuard.self,
     ConvertIntegerLiteral.self,
     ConvertJSONToCodableStruct.self,
     ConvertStringConcatenationToStringInterpolation.self,
@@ -33,3 +35,7 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
   #endif
   return result
 }()
+
+let supersededSourcekitdRefactoringActions: Set<String> = [
+  "source.refactoring.kind.simplify.long.number.literal"  // Superseded by AddSeparatorsToIntegerLiteral
+]

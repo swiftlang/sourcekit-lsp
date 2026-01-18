@@ -126,6 +126,14 @@ package protocol LanguageService: AnyObject, Sendable {
   /// Experimental capabilities that should be reported to the client if this language service is enabled.
   static var experimentalCapabilities: [String: LSPAny] { get }
 
+  /// Whether this language service should be kept alive when its workspace is closed.
+  ///
+  /// When `true`, the language service will not be shut down even if all workspaces referencing it are closed.
+  /// This is useful for language services that use global state (like sourcekitd) where shutting down and
+  /// restarting would cause unnecessary overhead since the new instance will just reinitialize the same
+  /// global state.
+  static var isImmortal: Bool { get }
+
   // MARK: - Lifetime
 
   func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult
@@ -248,6 +256,7 @@ package protocol LanguageService: AnyObject, Sendable {
   func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation]
   func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse?
   func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint]
+  func inlayHintResolve(_ req: InlayHintResolveRequest) async throws -> InlayHint
   func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens]
   func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport
   func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]?
@@ -350,6 +359,8 @@ package extension LanguageService {
   static var builtInCommands: [String] { [] }
 
   static var experimentalCapabilities: [String: LSPAny] { [:] }
+
+  static var isImmortal: Bool { false }
 
   func clientInitialized(_ initialized: InitializedNotification) async {}
 
@@ -469,6 +480,10 @@ package extension LanguageService {
 
   func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
     throw ResponseError.requestNotImplemented(InlayHintRequest.self)
+  }
+
+  func inlayHintResolve(_ req: InlayHintResolveRequest) async throws -> InlayHint {
+    return req.inlayHint
   }
 
   func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens] {

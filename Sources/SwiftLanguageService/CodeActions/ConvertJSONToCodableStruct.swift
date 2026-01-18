@@ -99,10 +99,21 @@ package struct ConvertJSONToCodableStruct: EditRefactoringProvider {
     let topLevelObject = JSONObject(dictionary: dictionary)
 
     // Render the top-level object as a struct.
-    let indentation = BasicFormat.inferIndentation(of: syntax)
-    let format = BasicFormat(indentationWidth: indentation)
-    let decls = topLevelObject.asDeclSyntax(name: "JSONValue")
+    // Infer indentation from the entire file to match the source file's style.
+    let indentation = BasicFormat.inferIndentation(of: Syntax(syntax.root))
+    let jsonNode: Syntax
+    switch preflight {
+    case .closure(let closure): jsonNode = Syntax(closure)
+    case .endingClosure(let closure, _): jsonNode = Syntax(closure)
+    case .stringLiteral(let literal, _): jsonNode = Syntax(literal)
+    }
+    let baseIndentation = jsonNode.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
+
+    let format = BasicFormat(indentationWidth: indentation, initialIndentation: baseIndentation)
+    var formattedDecls = topLevelObject.asDeclSyntax(name: "JSONValue")
       .formatted(using: format)
+    formattedDecls.leadingTrivia = []
+    let indentedDecls = formattedDecls.description
 
     // Render the change into a set of source edits.
     switch preflight {
@@ -110,7 +121,7 @@ package struct ConvertJSONToCodableStruct: EditRefactoringProvider {
       // Closures are replaced entirely, since they were invalid code to
       // start with.
       return [
-        SourceEdit(range: closure.trimmedRange, replacement: decls.description)
+        SourceEdit(range: closure.trimmedRange, replacement: indentedDecls)
       ]
     case .endingClosure(let closure, let unexpected):
       // Closures are replaced entirely, since they were invalid code to
@@ -118,7 +129,7 @@ package struct ConvertJSONToCodableStruct: EditRefactoringProvider {
       return [
         SourceEdit(
           range: closure.positionAfterSkippingLeadingTrivia..<unexpected.endPosition,
-          replacement: decls.description
+          replacement: indentedDecls
         )
       ]
     case .stringLiteral(let literal, _):
@@ -127,7 +138,7 @@ package struct ConvertJSONToCodableStruct: EditRefactoringProvider {
       return [
         SourceEdit(
           range: literal.endPosition..<literal.endPosition,
-          replacement: "\n" + decls.description
+          replacement: "\n" + indentedDecls
         )
       ]
     }
@@ -271,7 +282,7 @@ private struct JSONObject {
 
     return """
       struct \(raw: name): Codable {
-        \(members.trimmed)
+      \(members.trimmed)
       }
       """
   }

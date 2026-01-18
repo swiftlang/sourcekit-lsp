@@ -3,6 +3,8 @@ add_library(SwiftLanguageService STATIC
   AdjustPositionToStartOfIdentifier.swift
   ClosureCompletionFormat.swift
   CodeActions/AddDocumentation.swift
+  CodeActions/ApplyDeMorganLaw.swift
+  CodeActions/ConvertIfLetToGuard.swift
   CodeActions/ConvertIntegerLiteral.swift
   CodeActions/ConvertJSONToCodableStruct.swift
   CodeActions/ConvertStringConcatenationToStringInterpolation.swift
@@ -22,7 +24,9 @@ add_library(SwiftLanguageService STATIC
   ExpandMacroCommand.swift
   FoldingRange.swift
   GeneratedInterfaceManager.swift
+  IndentationRemover.swift
   InlayHints.swift
+  InlayHintResolve.swift
   MacroExpansion.swift
   OpenInterface.swift
   PlaygroundDiscovery.swift
@@ -79,6 +83,7 @@ target_link_libraries(SwiftLanguageService PRIVATE
   TSCBasic
   SwiftSyntax::SwiftDiagnostics
   SwiftSyntax::SwiftIDEUtils
+  SwiftSyntax::SwiftOperators
   SwiftSyntax::SwiftParser
   SwiftSyntax::SwiftParserDiagnostics
   SwiftSyntax::SwiftRefactor

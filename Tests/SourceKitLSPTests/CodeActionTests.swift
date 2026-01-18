@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -15,7 +15,10 @@ import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
-import SwiftLanguageService
+@_spi(Testing) import SwiftLanguageService
+import SwiftParser
+import SwiftSyntax
+import SwiftSyntaxBuilder
 import XCTest
 
 private typealias CodeActionCapabilities = TextDocumentClientCapabilities.CodeAction
@@ -370,7 +373,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
     let expectedCodeAction = CodeAction(
       title: "Extract Method",
-      kind: .refactor,
+      kind: .refactorExtract,
       command: expectedCommand
     )
     var resultActions = try XCTUnwrap(result?.codeActions)
@@ -668,8 +671,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
           diagnostics: nil,
           edit: WorkspaceEdit(
             changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "0b10000")]]
-          ),
-          command: nil
+          )
         ),
         CodeAction(
           title: "Convert 16 to 0o20",
@@ -677,8 +679,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
           diagnostics: nil,
           edit: WorkspaceEdit(
             changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "0o20")]]
-          ),
-          command: nil
+          )
         ),
         CodeAction(
           title: "Convert 16 to 0x10",
@@ -686,8 +687,51 @@ final class CodeActionTests: SourceKitLSPTestCase {
           diagnostics: nil,
           edit: WorkspaceEdit(
             changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "0x10")]]
-          ),
-          command: nil
+          )
+        ),
+      ]
+    }
+  }
+
+  func testAddSeparatorsToIntegerLiteral() async throws {
+    try await assertCodeActions(
+      """
+      let x = 1️⃣10002️⃣
+      """,
+      markers: ["1️⃣"]
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add digit separators",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "1_000")]]
+          )
+        ),
+        CodeAction(
+          title: "Convert 1000 to 0b1111101000",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "0b1111101000")]]
+          )
+        ),
+        CodeAction(
+          title: "Convert 1000 to 0o1750",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "0o1750")]]
+          )
+        ),
+        CodeAction(
+          title: "Convert 1000 to 0x3e8",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "0x3e8")]]
+          )
         ),
       ]
     }
@@ -708,8 +752,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
           diagnostics: nil,
           edit: WorkspaceEdit(
             changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: #""Hello world""#)]]
-          ),
-          command: nil
+          )
         )
       ]
     }
@@ -739,8 +782,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
                 )
               ]
             ]
-          ),
-          command: nil
+          )
         )
       ]
     }
@@ -778,8 +820,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
                 )
               ]
             ]
-          ),
-          command: nil
+          )
         )
       ]
     }
@@ -820,8 +861,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
                 )
               ]
             ]
-          ),
-          command: nil
+          )
         )
       ]
     }
@@ -864,15 +904,14 @@ final class CodeActionTests: SourceKitLSPTestCase {
                   range: positions["1️⃣"]..<positions["5️⃣"],
                   newText: """
                     struct JSONValue: Codable {
-                      var id: Double
-                      var values: [String]
+                        var id: Double
+                        var values: [String]
                     }
                     """
                 )
               ]
             ]
-          ),
-          command: nil
+          )
         )
       ]
     }
@@ -906,8 +945,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
                 )
               ]
             ]
-          ),
-          command: nil
+          )
         )
       ]
     }
@@ -939,8 +977,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
                 )
               ]
             ]
-          ),
-          command: nil
+          )
         )
       ]
     }
@@ -1238,6 +1275,334 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testApplyDeMorganLawNegatedAnd() async throws {
+    try await assertCodeActions(
+      """
+      let x = 1️⃣!(a && b)2️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Apply De Morgan's law, converting '!(a && b)' to '(!a || !b)'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "(!a || !b)"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testApplyDeMorganLawNegatedOr() throws {
+    try assertDeMorganTransform(
+      input: "!(a || b)",
+      expected: "(!a && !b)"
+    )
+  }
+
+  func testApplyDeMorganLawDoubleNegation() throws {
+    try assertDeMorganTransform(
+      input: "!(!a && !b)",
+      expected: "(a || b)"
+    )
+  }
+
+  func testApplyDeMorganLawComparisonFlip() throws {
+    try assertDeMorganTransform(
+      input: "!(a < b)",
+      expected: "(a >= b)"
+    )
+  }
+
+  func testApplyDeMorganLawPrecedencePreservation() throws {
+    try assertDeMorganTransform(
+      input: "!(a && b || c)",
+      expected: "((!a || !b) && !c)"
+    )
+  }
+
+  func testApplyDeMorganLawBitwise() throws {
+    try assertDeMorganTransform(
+      input: "~(a | b)",
+      expected: "(~a & ~b)"
+    )
+  }
+
+  func testApplyDeMorganLawPropositionsToNegation() throws {
+    try assertDeMorganTransform(
+      input: "!a || !b",
+      expected: "!(a && b)"
+    )
+  }
+
+  func testApplyDeMorganLawNestedNegation() throws {
+    try assertDeMorganTransform(
+      input: "!(!(a && b) || c)",
+      expected: "((a && b) && !c)"
+    )
+  }
+
+  func testApplyDeMorganLawOrToAnd() throws {
+    try assertDeMorganTransform(
+      input: "!((a || b) && c)",
+      expected: "((!a && !b) || !c)"
+    )
+  }
+
+  func testApplyDeMorganLawTernaryPropagation() throws {
+    try assertDeMorganTransform(
+      input: "!(a ? !b : c)",
+      expected: "(a ? b : !c)"
+    )
+  }
+
+  func testApplyDeMorganLawWithIsExpression() throws {
+    try assertDeMorganTransform(
+      input: "!a || !(s is String)",
+      expected: "!(a && (s is String))"
+    )
+  }
+
+  func testApplyDeMorganLawReducedBoolean() throws {
+    try assertDeMorganTransform(
+      input: "((((((a !== !(b || c)))) && !d)))",
+      expected: "!((((((a === !(b || c)))) || d)))"
+    )
+  }
+
+  func testApplyDeMorganLawReducedBooleanNonNested() throws {
+    try assertDeMorganTransform(
+      input: "!a || ((!((b)))) || s is String || c != d",
+      expected: "!(a && ((((b)))) && !(s is String) && c == d)"
+    )
+  }
+
+  func testApplyDeMorganLawSpreadBitwise() throws {
+    try assertDeMorganTransform(
+      input: "~((b | ((c)) | d | e & ~f | (~g & h)))",
+      expected: "((~b & ~((c)) & ~d & (~e | f) & (g | ~h)))"
+    )
+  }
+
+  func testApplyDeMorganLawTernaryExpansion() throws {
+    try assertDeMorganTransform(
+      input: "!((a ? b : !c) || (!d ? !e : f) && (g ? h : i))",
+      expected: "((a ? !b : c) && ((!d ? e : !f) || !(g ? h : i)))"
+    )
+  }
+
+  func testApplyDeMorganLawTernaryNoPropagation() throws {
+    // Negating the ternary (b ? !c : !d) adds complexity (2 negations) vs wrapping (1 negation).
+    // So we expect the ternary to be wrapped in parens and negated.
+    try assertDeMorganTransform(
+      input: "!(a && (b ? c : d))",
+      expected: "(!a || !(b ? c : d))"
+    )
+  }
+
+  func testApplyDeMorganLawBooleanLiteral() throws {
+    // !true -> false
+    try assertDeMorganTransform(
+      input: "!true",
+      expected: "false"
+    )
+
+    // !(a && false) -> !a || true
+    try assertDeMorganTransform(
+      input: "!(a && false)",
+      expected: "(!a || true)"
+    )
+  }
+
+  func testApplyDeMorganLawTrivia() throws {
+    // /*c1*/!(/*c2*/a /*c3*/&& /*c4*/b/*c5*/)/*c6*/
+    // Note: Comments attached to the removed '!' (/*c1*/) are dropped.
+    // Comment between '!' and '(' is illegal in swift.
+    try assertDeMorganTransform(
+      input: "/*c1*/!(/*c2*/a /*c3*/&& /*c4*/b/*c5*/)/*c6*/",
+      expected: "(/*c2*/!a /*c3*/|| /*c4*/!b/*c5*/)/*c6*/"
+    )
+  }
+
+  func testApplyDeMorganLawAdvancedTrivia() throws {
+    // Multiline preservation
+    try assertDeMorganTransform(
+      input: """
+        !(
+          a
+          &&
+          b
+        )
+        """,
+      expected: """
+        (
+          !a
+          ||
+          !b
+        )
+        """
+    )
+
+    // Line comments
+    try assertDeMorganTransform(
+      input: """
+        !(a && b // check
+        )
+        """,
+      expected: """
+        (!a || !b // check
+        )
+        """
+    )
+
+    // Comments attached to inner operators
+    try assertDeMorganTransform(
+      input: "!(a /*op*/ && b)",
+      expected: "(!a /*op*/ || !b)"
+    )
+  }
+
+  func testApplyDeMorganLawTryNegationPropagation() throws {
+    try assertDeMorganTransform(
+      input: "true && try a",
+      expected: "!(false || try !a)"
+    )
+  }
+
+  func testApplyDeMorganLawAwaitNegationPropagation() throws {
+    try assertDeMorganTransform(
+      input: "true && await a",
+      expected: "!(false || await !a)"
+    )
+  }
+
+  func testApplyDeMorganLawTryOptionalDoesNotPropagate() throws {
+    try assertDeMorganTransform(
+      input: "true && try? a",
+      expected: "!(false || !(try? a))"
+    )
+  }
+
+  func testApplyDeMorganLawTryWithTrivia() throws {
+    try assertDeMorganTransform(
+      input: "true && try /* comment */ a",
+      expected: "!(false || try /* comment */ !a)"
+    )
+  }
+
+  func testApplyDeMorganLawTryFusionCheck() throws {
+    try assertDeMorganTransform(
+      input: "true && try(a)",
+      expected: "!(false || try !(a))"
+    )
+  }
+
+  func testApplyDeMorganLawForcedUnwrapAsAtomic() throws {
+    try assertDeMorganTransform(
+      input: "a! && false",
+      expected: "!(!a! || true)"
+    )
+  }
+
+  func testApplyDeMorganLawTriviaPreservation() throws {
+    try assertDeMorganTransform(
+      input: "true /*a*/&& false",
+      expected: "!(false /*a*/|| true)"
+    )
+  }
+
+  func testApplyDeMorganLawPreservesIndentationForPropositions() throws {
+    try assertDeMorganTransform(
+      input: "  !a || !b",
+      expected: "  !(a && b)"
+    )
+  }
+
+  func testApplyDeMorganLawPreservesTriviaForPropositions() throws {
+    try assertDeMorganTransform(
+      input: "/* c */ !a || !b",
+      expected: "/* c */ !(a && b)"
+    )
+  }
+
+  func testApplyDeMorganLawNestedActionAvailability() async throws {
+    try await assertCodeActions(
+      """
+      let x = 1️⃣!2️⃣(3️⃣!(4️⃣a && b) 5️⃣|| c6️⃣)7️⃣
+      """,
+      markers: ["4️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Apply De Morgan's law, converting '!(a && b) ' to '(!a || !b) '",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["5️⃣"],
+                  newText: "(!a || !b) "
+                )
+              ]
+            ]
+          )
+        ),
+        CodeAction(
+          title: "Apply De Morgan's law, converting '!(a && b) || c' to '!((a && b) && !c)'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["6️⃣"],
+                  newText: "!((a && b) && !c)"
+                )
+              ]
+            ]
+          )
+        ),
+        CodeAction(
+          title: "Apply De Morgan's law, converting '(!(a && b) || c)' to '!((a && b) && !c)'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["7️⃣"],
+                  newText: "!((a && b) && !c)"
+                )
+              ]
+            ]
+          )
+        ),
+        CodeAction(
+          title: "Apply De Morgan's law, converting '!(!(a && b) || c)' to '((a && b) && !c)'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["7️⃣"],
+                  newText: "((a && b) && !c)"
+                )
+              ]
+            ]
+          )
+        ),
+      ]
+    }
+  }
+
   func testRemoveUnusedImports() async throws {
     let project = try await SwiftPMTestProject(
       files: [
@@ -1398,8 +1763,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
             )
           ]
         ]
-      ),
-      command: nil
+      )
     )
 
     XCTAssertTrue(codeActions.contains(expectedCodeAction))
@@ -1418,6 +1782,41 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testConvertZeroParameterFunctionToComputedPropertyNotOfferedForImplicitVoid() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣func test()2️⃣ { }3️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { _, _ in
+      []
+    }
+  }
+
+  func testConvertZeroParameterFunctionToComputedPropertyNotOfferedForExplicitVoid() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣func test() -> Void2️⃣ { }3️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { _, _ in
+      []
+    }
+  }
+
+  func testConvertZeroParameterFunctionToComputedPropertyNotOfferedForEmptyTuple() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣func test() -> ()2️⃣ { }3️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { _, _ in
+      []
+    }
+  }
   func testConvertComputedPropertyToZeroParameterFunction() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI(for: .swift)
@@ -1456,8 +1855,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
             )
           ]
         ]
-      ),
-      command: nil
+      )
     )
 
     XCTAssertTrue(codeActions.contains(expectedCodeAction))
@@ -1547,4 +1945,22 @@ private extension CodeActionRequestResponse {
     }
     return actions
   }
+}
+
+/// Tests De Morgan transformation directly without LSP overhead.
+private func assertDeMorganTransform(
+  input: String,
+  expected: String,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) throws {
+  let expr = ExprSyntax("\(raw: input)")
+
+  let transformer = DeMorganTransformer()
+  guard let result = transformer.computeComplement(of: expr) else {
+    XCTFail("Failed to compute De Morgan complement", file: file, line: line)
+    return
+  }
+
+  XCTAssertEqual(result.description, expected, file: file, line: line)
 }

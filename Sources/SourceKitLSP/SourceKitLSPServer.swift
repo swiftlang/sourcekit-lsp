@@ -592,7 +592,7 @@ package actor SourceKitLSPServer {
       """
     )
 
-    return workspace.setLanguageServices(for: uri, languageServices)
+    return languageServices
   }
 
   /// The language service with the highest precedence that can handle the given document.
@@ -832,6 +832,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       initialized = true
     case let request as RequestAndReply<InlayHintRequest>:
       await self.handleRequest(for: request, requestHandler: self.inlayHint)
+    case let request as RequestAndReply<InlayHintResolveRequest>:
+      await request.reply { try await inlayHintResolve(request: request.params) }
     case let request as RequestAndReply<IsIndexingRequest>:
       await request.reply { try await self.isIndexing(request.params) }
     case let request as RequestAndReply<OutputPathsRequest>:
@@ -1098,7 +1100,7 @@ extension SourceKitLSPServer {
     let inlayHintOptions =
       await registry.clientHasDynamicInlayHintRegistration
       ? nil
-      : ValueOrBool.value(InlayHintOptions(resolveProvider: false))
+      : ValueOrBool.value(InlayHintOptions(resolveProvider: true))
 
     let semanticTokensOptions =
       await registry.clientHasDynamicSemanticTokensRegistration
@@ -1350,6 +1352,7 @@ extension SourceKitLSPServer {
     let language = textDocument.language
 
     let languageServices = await languageServices(for: uri, language, in: workspace)
+    workspace.setLanguageServices(for: uri, languageServices)
 
     if languageServices.isEmpty {
       // If we can't create a service, this document is unsupported and we can bail here.
@@ -1403,6 +1406,8 @@ extension SourceKitLSPServer {
     for languageService in workspace.languageServices(for: uri) {
       await languageService.closeDocument(notification)
     }
+
+    workspace.removeLanguageServices(for: uri)
 
     workspaceQueue.async {
       self.workspaceForUri[notification.textDocument.uri] = nil
@@ -1526,6 +1531,50 @@ extension SourceKitLSPServer {
         self.workspacesAndIsImplicit += newWorkspaces.map { (workspace: $0, isImplicit: false) }
       }
     }.value
+
+    // Shut down any language services that are no longer referenced by any workspace.
+    await self.shutdownOrphanedLanguageServices()
+  }
+
+  /// Shuts down any language services that are no longer referenced by any open workspace.
+  ///
+  /// This method gathers all language services that are currently referenced by open workspaces
+  /// and shuts down any language services that are not in that set.
+  private func shutdownOrphanedLanguageServices() async {
+    // Gather all language services referenced by open workspaces
+    var referencedServices: Set<ObjectIdentifier> = []
+    for workspace in workspaces {
+      for languageService in workspace.allLanguageServices {
+        referencedServices.insert(ObjectIdentifier(languageService))
+      }
+    }
+
+    // Find and remove orphaned language services, skipping immortal ones
+    var orphanedServices: [any LanguageService] = []
+    for (serviceType, services) in languageServices {
+      var remainingServices: [any LanguageService] = []
+      for service in services {
+        if referencedServices.contains(ObjectIdentifier(service)) || type(of: service).isImmortal {
+          remainingServices.append(service)
+        } else {
+          orphanedServices.append(service)
+        }
+      }
+      if remainingServices.count != services.count {
+        languageServices[serviceType] = remainingServices.isEmpty ? nil : remainingServices
+      }
+    }
+
+    // Shut down orphaned services in a background task to avoid blocking other requests.
+
+    if !orphanedServices.isEmpty {
+      Task {
+        for service in orphanedServices {
+          logger.info("Shutting down orphaned language service: \(type(of: service))")
+          await service.shutdown()
+        }
+      }
+    }
   }
 
   func didChangeWatchedFiles(_ notification: DidChangeWatchedFilesNotification) async {
@@ -1901,6 +1950,22 @@ extension SourceKitLSPServer {
     return try await languageService.inlayHint(req)
   }
 
+  func inlayHintResolve(
+    request: InlayHintResolveRequest
+  ) async throws -> InlayHint {
+    guard case .dictionary(let dict) = request.inlayHint.data,
+      case .string(let uriString) = dict["uri"],
+      let uri = try? DocumentURI(string: uriString)
+    else {
+      return request.inlayHint
+    }
+    guard let workspace = await self.workspaceForDocument(uri: uri) else {
+      return request.inlayHint
+    }
+    let language = try documentManager.latestSnapshot(uri.buildSettingsFile).language
+    return try await primaryLanguageService(for: uri, language, in: workspace).inlayHintResolve(request)
+  }
+
   func documentDiagnostic(
     _ req: DocumentDiagnosticsRequest,
     workspace: Workspace,
@@ -2022,8 +2087,23 @@ extension SourceKitLSPServer {
       }
     }
 
-    if occurrences.isEmpty, let bestLocalDeclaration = symbol.bestLocalDeclaration {
-      return [bestLocalDeclaration]
+    if occurrences.isEmpty {
+      if let bestLocalDeclaration = symbol.bestLocalDeclaration {
+        return [bestLocalDeclaration]
+      }
+      // Fallback: The symbol was not found in the index. This often happens with
+      // third-party binary frameworks or libraries where indexing data is missing.
+      // If module info is available, fallback to generating the textual interface.
+      if let systemModule = symbol.systemModule {
+        let location = try await self.definitionInInterface(
+          moduleName: systemModule.moduleName,
+          groupName: systemModule.groupName,
+          symbolUSR: symbol.usr,
+          originatorUri: uri,
+          languageService: languageService
+        )
+        return [location]
+      }
     }
 
     return occurrences.compactMap { indexToLSPLocation($0.location) }.sorted()

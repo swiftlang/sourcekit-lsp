@@ -22,6 +22,7 @@ import SourceKitD
 import SourceKitLSP
 import SwiftExtensions
 import SwiftLanguageService
+import SwiftSyntax
 import TSCExtensions
 import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
@@ -483,11 +484,11 @@ package actor SkipUnless {
         let testURL = scratchDirectory.appending(component: "test.swift")
         try source.write(to: testURL, atomically: false, encoding: .utf8)
 
-        let offset = positions["1️⃣"]
+        let offset = positions["1️⃣"]!
         let sourceFile = try testURL.filePath
 
         let skreq = sourcekitd.dictionary([
-          sourcekitd.keys.offset: offset,
+          sourcekitd.keys.offset: offset.utf8Offset,
           sourcekitd.keys.sourceFile: sourceFile,
           sourcekitd.keys.compilerArgs: [sourceFile],
         ])

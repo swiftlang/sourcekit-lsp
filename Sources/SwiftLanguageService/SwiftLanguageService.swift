@@ -413,7 +413,7 @@ extension SwiftLanguageService {
           range: .bool(true),
           full: .bool(true)
         ),
-        inlayHintProvider: .value(InlayHintOptions(resolveProvider: false)),
+        inlayHintProvider: .value(InlayHintOptions(resolveProvider: true)),
         diagnosticProvider: DiagnosticOptions(
           interFileDependencies: true,
           workspaceDiagnostics: false
@@ -968,7 +968,7 @@ extension SwiftLanguageService {
         canInlineMacro = $0.actionString == "source.refactoring.kind.inline.macro"
       }
 
-      return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
+      return CodeAction(title: $0.title, kind: $0.lspKind, command: lspCommand)
     }
 
     if canInlineMacro {
@@ -1291,5 +1291,67 @@ extension sourcekitd_api_uid_t {
     default:
       return nil
     }
+  }
+}
+
+// MARK: - Literal Detection
+
+extension SwiftLanguageService {
+  /// Determines whether the given document position is on (or immediately after)
+  /// a literal value token.
+  ///
+  /// This check is used to disable jump-to-definition on values that do not have
+  /// a meaningful definition location in source code.
+  ///
+  /// The function returns `true` when the position resolves to:
+  /// - A literal token at the exact position, or
+  /// - A literal token immediately preceding the position (to handle cursor
+  ///   placements just after the literal).
+  ///
+  /// Supported literal kinds:
+  /// - String segments
+  /// - Integer literals
+  /// - Floating-point literals
+  /// - Boolean keywords (`true`, `false`)
+  /// - The `nil` keyword
+  ///
+  /// If the document snapshot or syntax tree cannot be resolved, the function
+  /// conservatively returns `false`.
+  package func isPositionOnLiteralToken(
+    _ position: Position,
+    in uri: DocumentURI
+  ) async -> Bool {
+    guard let snapshot = try? await latestSnapshot(for: uri) else {
+      return false
+    }
+
+    let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    let absolutePosition = snapshot.absolutePosition(of: position)
+
+    func isLiteralTokenKind(_ token: TokenSyntax) -> Bool {
+      switch token.tokenKind {
+      case .stringSegment,
+        .integerLiteral,
+        .floatLiteral,
+        .keyword(.true), .keyword(.false), .keyword(.nil):
+        return true
+      default:
+        return false
+      }
+    }
+
+    if let token = tree.token(at: absolutePosition) {
+      if isLiteralTokenKind(token) {
+        return true
+      }
+
+      if let tokenBefore = token.previousToken(viewMode: .sourceAccurate),
+        isLiteralTokenKind(tokenBefore)
+      {
+        return true
+      }
+    }
+
+    return false
   }
 }

@@ -554,10 +554,6 @@ private func assertNotContains<Element>(
 // MARK: - Collection utilities
 
 fileprivate extension Collection {
-  func dropLast(while predicate: (Element) -> Bool) -> [Element] {
-    return Array(self.reversed().drop(while: predicate).reversed())
-  }
-
   func count(where predicate: (Element) -> Bool) -> Int {
     return self.filter(predicate).count
   }
