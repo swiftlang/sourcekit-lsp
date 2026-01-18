@@ -651,6 +651,7 @@ var targets: [Target] = [
 do {
   var globalSwiftSettings: [SwiftSetting] = [
     // Swift 7 mode upcoming features. These must be compatible with swift-tools-version.
+    // When updating these, also update CMakeLists.txt accordingly.
     .enableUpcomingFeature("InternalImportsByDefault"),
     .enableUpcomingFeature("MemberImportVisibility"),
     .enableUpcomingFeature("InferIsolatedConformances"),
