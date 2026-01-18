@@ -236,7 +236,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
       textDocument: TextDocumentIdentifier(uri)
     )
     let result = try await testClient.send(request)
-    XCTAssertEqual(result?.codeActions?.map(\.title), ["Add documentation"])
+    XCTAssertEqual(result?.codeActions?.map(\.title), ["Add documentation", "Convert to computed property"])
   }
 
   func testSemanticRefactorLocationCodeActionResult() async throws {
@@ -662,7 +662,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
       """
       let x = 1️⃣12️⃣63️⃣
       """,
-      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "3️⃣")]
+      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "3️⃣")],
+      ignoringCodeActions: ["Convert to computed property"]
     ) { uri, positions in
       [
         CodeAction(
@@ -698,7 +699,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
       """
       let x = 1️⃣10002️⃣
       """,
-      markers: ["1️⃣"]
+      markers: ["1️⃣"],
+      ignoringCodeActions: ["Convert to computed property"]
     ) { uri, positions in
       [
         CodeAction(
@@ -792,7 +794,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
     try await assertCodeActions(
       ##"""
       let x = #"Hello \#(n1️⃣ame)"#
-      """##
+      """##,
+      ignoringCodeActions: ["Convert to computed property"]
     ) { uri, positions in
       []
     }
@@ -874,7 +877,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
         2️⃣print("x")
       }3️⃣
       """##,
-      exhaustive: false
+      ignoringCodeActions: ["Add documentation"]
     ) { uri, positions in
       []
     }
@@ -987,7 +990,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
     try await assertCodeActions(
       """
       var x = 1; var 1️⃣y = 2
-      """
+      """,
+      ignoringCodeActions: ["Convert to computed property"]
     ) { uri, positions in
       []
     }
@@ -1596,7 +1600,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
         2️⃣return ""
       }3️⃣
       """##,
-      exhaustive: false
+      ignoringCodeActions: ["Add documentation"]
     ) { uri, positions in
       []
     }
@@ -1608,7 +1612,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
       1️⃣func test()2️⃣ { }3️⃣
       """,
       ranges: [("1️⃣", "2️⃣")],
-      exhaustive: false
+      ignoringCodeActions: ["Add documentation"]
     ) { _, _ in
       []
     }
@@ -1620,7 +1624,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
       1️⃣func test() -> Void2️⃣ { }3️⃣
       """,
       ranges: [("1️⃣", "2️⃣")],
-      exhaustive: false
+      ignoringCodeActions: ["Add documentation"]
     ) { _, _ in
       []
     }
@@ -1632,11 +1636,12 @@ final class CodeActionTests: SourceKitLSPTestCase {
       1️⃣func test() -> ()2️⃣ { }3️⃣
       """,
       ranges: [("1️⃣", "2️⃣")],
-      exhaustive: false
+      ignoringCodeActions: ["Add documentation"]
     ) { _, _ in
       []
     }
   }
+
   func testConvertComputedPropertyToZeroParameterFunction() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI(for: .swift)
@@ -1684,13 +1689,99 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testConvertComputedPropertyToZeroParameterFunctionIsNotShownFromTheBody() async throws {
     try await assertCodeActions(
       ##"""
-      var someFunction: String 1️⃣{
-        2️⃣return ""
-      }3️⃣
-      """##,
-      exhaustive: false
+      var someFunction: String {
+        1️⃣return ""
+      }
+      """##
     ) { uri, positions in
       []
+    }
+  }
+
+  func testConvertStoredToComputedProperty() async throws {
+    try await assertCodeActions(
+      ##"""
+      1️⃣var 2️⃣foo: String = "abc"3️⃣
+      """##,
+      markers: ["2️⃣"],
+      ignoringCodeActions: ["Add documentation"]
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert to computed property",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["3️⃣"],
+                  newText: """
+                    var foo: String { "abc" }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertStoredToComputedPropertyWithoutTypeAnnotation() async throws {
+    try await assertCodeActions(
+      ##"""
+      1️⃣var 2️⃣foo = "abc"3️⃣
+      """##,
+      markers: ["2️⃣"],
+      ignoringCodeActions: ["Add documentation"]
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert to computed property",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["3️⃣"],
+                  newText: """
+                    var foo { "abc" }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertComputeToStoredProperty() async throws {
+    try await assertCodeActions(
+      ##"""
+      1️⃣var 2️⃣foo: String { "abc" }3️⃣
+      """##,
+      markers: ["2️⃣"],
+      ignoringCodeActions: ["Add documentation", "Convert to zero parameter function"]
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert to stored property",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["3️⃣"],
+                  newText: """
+                    let foo: String = "abc"
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
     }
   }
 
@@ -1701,6 +1792,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
   ///   - markers: The list of markers to retrieve code actions at. If `nil` code actions will be retrieved for all
   ///     markers in `markedText`
   ///   - ranges: If specified, code actions are also requested for selection ranges between these markers.
+  ///   - ignoringCodeActions: Ignore code actions with this title for exhaustiveness checking
   ///   - exhaustive: Whether `expected` is expected to be a subset of the returned code actions or whether it is
   ///     expected to exhaustively match all code actions.
   ///   - expected: A closure that returns the list of expected code actions, given the URI of the test document and the
@@ -1709,6 +1801,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
     _ markedText: String,
     markers: [String]? = nil,
     ranges: [(String, String)] = [],
+    ignoringCodeActions: [String] = [],
     exhaustive: Bool = true,
     expected: (_ uri: DocumentURI, _ positions: DocumentPositions) -> [CodeAction],
     testName: String = #function,
@@ -1734,18 +1827,28 @@ final class CodeActionTests: SourceKitLSPTestCase {
           textDocument: TextDocumentIdentifier(uri)
         )
       )
-      let codeActions = try XCTUnwrap(result?.codeActions, file: file, line: line)
+      let codeActions = try XCTUnwrap(result?.codeActions, file: file, line: line).filter {
+        !ignoringCodeActions.contains($0.title)
+      }
+      let expected = expected(uri, positions)
       if exhaustive {
         XCTAssertEqual(
           codeActions,
-          expected(uri, positions),
+          expected,
           "Found unexpected code actions at range \(startMarker)-\(endMarker)",
           file: file,
           line: line
         )
       } else {
+        if expected.isEmpty {
+          XCTFail(
+            "exhaustive: false is incompatible with an empty list of expected code actions",
+            file: file,
+            line: line
+          )
+        }
         XCTAssert(
-          codeActions.contains(expected(uri, positions)),
+          codeActions.contains(expected),
           """
           Code actions did not contain expected at range \(startMarker)-\(endMarker):
           \(codeActions)
