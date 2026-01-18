@@ -17,8 +17,8 @@ import SourceKitD
 import SourceKitLSP
 
 extension SwiftLanguageService {
-  /// Returns the type's symbol details for a symbol at the given position.
-  package func typeSymbolInfo(_ request: TypeDefinitionRequest) async throws -> SymbolDetails? {
+  /// handles the textDocument/typeDefinition request
+  package func typeDefinition(_ request: TypeDefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
     let uri = request.textDocument.uri
     let position = request.position
 
@@ -37,21 +37,47 @@ extension SwiftLanguageService {
     let documentManager = try self.documentManager
 
     // if cursor is on a type symbol itself, use its USR directly
+    var symbol: SymbolDetails?
     if let cursorInfo = CursorInfo(dict, snapshot: snapshot, documentManager: documentManager, sourcekitd: sourcekitd) {
       switch cursorInfo.symbolInfo.kind {
       case .class, .struct, .enum, .interface, .typeParameter:
-        return cursorInfo.symbolInfo
+        symbol = cursorInfo.symbolInfo
       default:
         break
       }
     }
 
     // otherwise get the type of the symbol at this position
-    guard let typeUsr: String = dict[keys.typeUsr] else {
+    if symbol == nil {
+      guard let typeUsr: String = dict[keys.typeUsr] else {
+        return nil
+      }
+      let typeInfo = try await cursorInfoFromTypeUSR(typeUsr, in: snapshot)
+      symbol = typeInfo?.symbolInfo
+    }
+
+    guard let symbol else {
       return nil
     }
 
-    let typeInfo = try await cursorInfoFromTypeUSR(typeUsr, in: snapshot)
-    return typeInfo?.symbolInfo
+    let locations = try await SourceKitLSP.definitionLocations(
+      for: symbol,
+      originatorUri: uri,
+      index: nil,
+      openGeneratedInterface: { document, moduleName, groupName, symbolUSR in
+        try await self.openGeneratedInterface(
+          document: document,
+          moduleName: moduleName,
+          groupName: groupName,
+          symbolUSR: symbolUSR
+        )
+      }
+    )
+
+    if locations.isEmpty {
+      return nil
+    }
+
+    return .locations(locations)
   }
 }
