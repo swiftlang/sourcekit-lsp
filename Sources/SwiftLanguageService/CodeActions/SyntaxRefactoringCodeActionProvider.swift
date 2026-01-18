@@ -23,17 +23,19 @@ protocol SyntaxRefactoringCodeActionProvider: SyntaxCodeActionProvider, EditRefa
   /// Returns the node that the syntax refactoring should be performed on, if code actions are requested for the given
   /// scope.
   static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input?
+
+  static func refactoringContext(for scope: SyntaxCodeActionScope) -> Context
 }
 
 /// SyntaxCodeActionProviders with a \c Void context can automatically be
 /// adapted provide a code action based on their refactoring operation.
-extension SyntaxRefactoringCodeActionProvider where Self.Context == Void {
+extension SyntaxRefactoringCodeActionProvider {
   static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
     guard let node = nodeToRefactor(in: scope) else {
       return []
     }
 
-    guard let sourceEdits = try? Self.textRefactor(syntax: node) else {
+    guard let sourceEdits = try? Self.textRefactor(syntax: node, in: refactoringContext(for: scope)) else {
       return []
     }
 
@@ -51,7 +53,13 @@ extension SyntaxRefactoringCodeActionProvider where Self.Context == Void {
   }
 }
 
-// Adapters for specific refactoring provides in swift-syntax.
+extension SyntaxRefactoringCodeActionProvider where Context == Void {
+  static func refactoringContext(for scope: SyntaxCodeActionScope) -> Context {
+    return ()
+  }
+}
+
+// MARK: Adapters for specific refactoring provides in swift-syntax.
 
 extension AddSeparatorsToIntegerLiteral: SyntaxRefactoringCodeActionProvider {
   package static var title: String { "Add digit separators" }
@@ -149,6 +157,13 @@ extension ConvertComputedPropertyToZeroParameterFunction: SyntaxRefactoringCodeA
     )
   }
 }
+
+//==========================================================================//
+// IMPORTANT: If you are tempted to add a new refactoring action here       //
+// please insert it in alphabetical order above                             //
+//==========================================================================//
+
+// MARK: Utilities
 
 extension SyntaxProtocol {
   /// Finds the innermost parent of the given type that satisfies `matching`,
