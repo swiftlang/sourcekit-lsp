@@ -240,6 +240,7 @@ private enum AddMissingImportsHelper {
   }
 
   /// Calculates where to insert a new import statement for alphabetical ordering.
+  /// If existing imports are not sorted alphabetically, falls back to inserting at the end.
   static func importInsertionPosition(
     for newModule: String,
     in syntaxTree: SourceFileSyntax,
@@ -249,12 +250,21 @@ private enum AddMissingImportsHelper {
       .compactMap { $0.item.as(ImportDeclSyntax.self) }
       .filter { $0.importKindSpecifier == nil && $0.path.count == 1 }
 
-    if let insertBeforeImport = importDecls.first(where: { importDecl in
-      guard let firstPath = importDecl.path.first?.name.text else { return false }
-      return firstPath > newModule
-    }) {
+    let importNames = importDecls.compactMap { $0.path.first?.name.text }
+
+    // Check if existing imports are already sorted
+    let isSorted = zip(importNames, importNames.dropFirst()).allSatisfy { $0 <= $1 }
+
+    if isSorted,
+      let insertBeforeImport = importDecls.first(where: { importDecl in
+        guard let firstPath = importDecl.path.first?.name.text else { return false }
+        return firstPath > newModule
+      })
+    {
+      // Insert before the first import that is lexicographically after the new module
       return snapshot.position(of: insertBeforeImport.position)
     } else if let lastImport = importDecls.last {
+      // Not sorted or new module is alphabetically last - insert after last import
       return snapshot.position(of: lastImport.endPosition)
     }
     // No existing imports - insert before first statement but after its leading trivia (header comments)
