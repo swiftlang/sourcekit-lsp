@@ -15,21 +15,28 @@ import IndexStoreDB
 @_spi(SourceKitLSP) import SKLogging
 package import SemanticIndex
 
-/// converts a symbol index location to an LSP location
-func indexToLSPLocation(_ location: SymbolLocation) -> Location? {
+/// Converts a location from the symbol index to an LSP location.
+///
+/// - Parameter location: The symbol index location
+/// - Returns: The LSP location
+private func indexToLSPLocation(_ location: SymbolLocation) -> Location? {
   guard !location.path.isEmpty else { return nil }
   return Location(
     uri: location.documentUri,
     range: Range(
       Position(
+        // 1-based -> 0-based
+        // Note that we still use max(0, ...) as a fallback if the location is zero.
         line: max(0, location.line - 1),
+        // Technically we would need to convert the UTF-8 column to a UTF-16 column. This would require reading the
+        // file. In practice they almost always coincide, so we accept the incorrectness here to avoid the file read.
         utf16index: max(0, location.utf8Column - 1)
       )
     )
   )
 }
 
-/// returns the definition location for a symbol, handling generated interfaces for SDK types
+/// Return the locations for jump to definition from the given `SymbolDetails`.
 package func definitionLocations(
   for symbol: SymbolDetails,
   originatorUri: DocumentURI,
@@ -112,7 +119,11 @@ package func definitionLocations(
   return occurrences.compactMap { indexToLSPLocation($0.location) }.sorted()
 }
 
-/// generates a swift interface and returns location for the given symbol
+/// Generate the generated interface for the given module, write it to disk and return the location to which to jump
+/// to get to the definition of `symbolUSR`.
+///
+/// `originatorUri` is the URI of the file from which the definition request is performed. It is used to determine the
+/// compiler arguments to generate the generated interface.
 package func definitionInInterface(
   moduleName: String,
   groupName: String?,

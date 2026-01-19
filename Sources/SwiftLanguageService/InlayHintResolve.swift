@@ -16,6 +16,7 @@ import IndexStoreDB
 import SemanticIndex
 import SourceKitD
 import SourceKitLSP
+import SwiftExtensions
 
 extension SwiftLanguageService {
   /// Resolves an inlay hint by looking up the type definition location.
@@ -59,7 +60,10 @@ extension SwiftLanguageService {
     return hint
   }
 
-  /// looks up the definition location for the type at the given position
+  /// Looks up the definition location for the type at the given position.
+  ///
+  /// This is used by inlay hint resolution to enable go-to-definition on type hints.
+  /// For SDK types, this returns a location in the generated interface.
   func lookupTypeDefinitionLocation(
     snapshot: DocumentSnapshot,
     position: Position
@@ -98,6 +102,6 @@ extension SwiftLanguageService {
       }
     )
 
-    return locations.first
+    return locations.only
   }
 }

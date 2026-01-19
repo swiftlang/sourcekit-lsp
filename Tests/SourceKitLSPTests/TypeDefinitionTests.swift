@@ -12,6 +12,7 @@
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SKTestSupport
+import SwiftExtensions
 import XCTest
 
 final class TypeDefinitionTests: SourceKitLSPTestCase {
@@ -170,5 +171,36 @@ final class TypeDefinitionTests: SourceKitLSPTestCase {
 
     XCTAssertEqual(location.uri, uri)
     XCTAssertEqual(location.range, Range(positions["1️⃣"]))
+  }
+
+  func testTypeDefinitionGeneratedInterface() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      let 1️⃣x = "hello"
+      """,
+      uri: uri
+    )
+
+    let response = try await testClient.send(
+      TypeDefinitionRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        position: positions["1️⃣"]
+      )
+    )
+
+    guard case .locations(let locations) = response, let location = locations.only else {
+      XCTFail("Expected single location response")
+      return
+    }
+
+    // Should jump to String in the generated Swift interface
+    XCTAssertTrue(
+      location.uri.pseudoPath.hasSuffix(".swiftinterface"),
+      "Expected swiftinterface file, got: \(location.uri.pseudoPath)"
+    )
+    assertContains(location.uri.pseudoPath, "String")
   }
 }

@@ -17,7 +17,7 @@ import SourceKitD
 import SourceKitLSP
 
 extension SwiftLanguageService {
-  /// handles the textDocument/typeDefinition request
+  /// Handles the textDocument/typeDefinition request.
   package func typeDefinition(_ request: TypeDefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
     let uri = request.textDocument.uri
     let position = request.position
@@ -36,28 +36,35 @@ extension SwiftLanguageService {
     let dict = try await send(sourcekitdRequest: \.cursorInfo, skreq, snapshot: snapshot)
     let documentManager = try self.documentManager
 
-    // if cursor is on a type symbol itself, use its USR directly
-    var symbol: SymbolDetails?
+    // Helper to get symbol from typeUsr
+    func symbolFromTypeUsr() async throws -> SymbolDetails? {
+      guard let typeUsr: String = dict[keys.typeUsr] else {
+        return nil
+      }
+      guard let typeInfo = try await cursorInfoFromTypeUSR(typeUsr, in: snapshot) else {
+        return nil
+      }
+      return typeInfo.symbolInfo
+    }
+
+    // If the cursor is on a type symbol itself, use its USR directly.
+    // Otherwise get the type of the symbol at this position.
+    let symbol: SymbolDetails
     if let cursorInfo = CursorInfo(dict, snapshot: snapshot, documentManager: documentManager, sourcekitd: sourcekitd) {
       switch cursorInfo.symbolInfo.kind {
       case .class, .struct, .enum, .interface, .typeParameter:
         symbol = cursorInfo.symbolInfo
       default:
-        break
+        guard let typeSymbol = try await symbolFromTypeUsr() else {
+          return nil
+        }
+        symbol = typeSymbol
       }
-    }
-
-    // otherwise get the type of the symbol at this position
-    if symbol == nil {
-      guard let typeUsr: String = dict[keys.typeUsr] else {
+    } else {
+      guard let typeSymbol = try await symbolFromTypeUsr() else {
         return nil
       }
-      let typeInfo = try await cursorInfoFromTypeUSR(typeUsr, in: snapshot)
-      symbol = typeInfo?.symbolInfo
-    }
-
-    guard let symbol else {
-      return nil
+      symbol = typeSymbol
     }
 
     let locations = try await SourceKitLSP.definitionLocations(
