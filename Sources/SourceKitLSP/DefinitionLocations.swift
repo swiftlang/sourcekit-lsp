@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import IndexStoreDB
+package import IndexStoreDB
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
 package import SemanticIndex
@@ -19,7 +19,7 @@ package import SemanticIndex
 ///
 /// - Parameter location: The symbol index location
 /// - Returns: The LSP location
-private func indexToLSPLocation(_ location: SymbolLocation) -> Location? {
+package func indexToLSPLocation(_ location: SymbolLocation) -> Location? {
   guard !location.path.isEmpty else { return nil }
   return Location(
     uri: location.documentUri,

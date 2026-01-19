@@ -1977,27 +1977,6 @@ extension SourceKitLSPServer {
     return try await languageService.documentDiagnostic(req)
   }
 
-  /// Converts a location from the symbol index to an LSP location.
-  ///
-  /// - Parameter location: The symbol index location
-  /// - Returns: The LSP location
-  private nonisolated func indexToLSPLocation(_ location: SymbolLocation) -> Location? {
-    guard !location.path.isEmpty else { return nil }
-    return Location(
-      uri: location.documentUri,
-      range: Range(
-        Position(
-          // 1-based -> 0-based
-          // Note that we still use max(0, ...) as a fallback if the location is zero.
-          line: max(0, location.line - 1),
-          // Technically we would need to convert the UTF-8 column to a UTF-16 column. This would require reading the
-          // file. In practice they almost always coincide, so we accept the incorrectness here to avoid the file read.
-          utf16index: max(0, location.utf8Column - 1)
-        )
-      )
-    )
-  }
-
   func declaration(
     _ req: DeclarationRequest,
     workspace: Workspace,
@@ -2036,23 +2015,37 @@ extension SourceKitLSPServer {
         return []
       }
 
-      let interfaceLocation = try await self.definitionInInterface(
+      let interfaceLocation = try await definitionInInterface(
         moduleName: moduleName,
         groupName: groupName,
         symbolUSR: nil,
         originatorUri: uri,
-        languageService: languageService
+        openGeneratedInterface: { document, moduleName, groupName, symbolUSR in
+          try await languageService.openGeneratedInterface(
+            document: document,
+            moduleName: moduleName,
+            groupName: groupName,
+            symbolUSR: symbolUSR
+          )
+        }
       )
       return [interfaceLocation]
     }
 
     if symbol.isSystem ?? false, let systemModule = symbol.systemModule {
-      let location = try await self.definitionInInterface(
+      let location = try await definitionInInterface(
         moduleName: systemModule.moduleName,
         groupName: systemModule.groupName,
         symbolUSR: symbol.usr,
         originatorUri: uri,
-        languageService: languageService
+        openGeneratedInterface: { document, moduleName, groupName, symbolUSR in
+          try await languageService.openGeneratedInterface(
+            document: document,
+            moduleName: moduleName,
+            groupName: groupName,
+            symbolUSR: symbolUSR
+          )
+        }
       )
       return [location]
     }
@@ -2106,12 +2099,19 @@ extension SourceKitLSPServer {
       // third-party binary frameworks or libraries where indexing data is missing.
       // If module info is available, fallback to generating the textual interface.
       if let systemModule = symbol.systemModule {
-        let location = try await self.definitionInInterface(
+        let location = try await definitionInInterface(
           moduleName: systemModule.moduleName,
           groupName: systemModule.groupName,
           symbolUSR: symbol.usr,
           originatorUri: uri,
-          languageService: languageService
+          openGeneratedInterface: { document, moduleName, groupName, symbolUSR in
+            try await languageService.openGeneratedInterface(
+              document: document,
+              moduleName: moduleName,
+              groupName: groupName,
+              symbolUSR: symbolUSR
+            )
+          }
         )
         return [location]
       }
@@ -2239,36 +2239,6 @@ extension SourceKitLSPServer {
     }
     let remappedLocations = await workspace.buildServerManager.locationsAdjustedForCopiedFiles(indexBasedResponse)
     return .locations(remappedLocations)
-  }
-
-  /// Generate the generated interface for the given module, write it to disk and return the location to which to jump
-  /// to get to the definition of `symbolUSR`.
-  ///
-  /// `originatorUri` is the URI of the file from which the definition request is performed. It is used to determine the
-  /// compiler arguments to generate the generated interface.
-  func definitionInInterface(
-    moduleName: String,
-    groupName: String?,
-    symbolUSR: String?,
-    originatorUri: DocumentURI,
-    languageService: any LanguageService
-  ) async throws -> Location {
-    // Let openGeneratedInterface handle all the logic, including checking if we're already in the right interface
-    let documentForBuildSettings = originatorUri.buildSettingsFile
-
-    guard
-      let interfaceDetails = try await languageService.openGeneratedInterface(
-        document: documentForBuildSettings,
-        moduleName: moduleName,
-        groupName: groupName,
-        symbolUSR: symbolUSR
-      )
-    else {
-      throw ResponseError.unknown("Could not generate Swift Interface for \(moduleName)")
-    }
-    let position = interfaceDetails.position ?? Position(line: 0, utf16index: 0)
-    let loc = Location(uri: interfaceDetails.uri, range: Range(position))
-    return loc
   }
 
   func implementation(
@@ -2445,7 +2415,7 @@ extension SourceKitLSPServer {
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
-      return self.indexToLSPLocation(location)
+      return indexToLSPLocation(location)
     }
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
@@ -2489,7 +2459,7 @@ extension SourceKitLSPServer {
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
-      return self.indexToLSPLocation(location)
+      return indexToLSPLocation(location)
     }
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
@@ -2611,7 +2581,7 @@ extension SourceKitLSPServer {
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
-      return self.indexToLSPLocation(location)
+      return indexToLSPLocation(location)
     }
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
