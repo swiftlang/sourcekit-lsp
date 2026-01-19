@@ -1151,8 +1151,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
                   newText: #"""
                     """
                     a
-                    bc
-                    d
+                    b  c
+                      d
                     """
                     """#
                 )
@@ -1236,6 +1236,43 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testConvertStringConcatenationMultilineSinglelineMultiline() async throws {
+    // multiline + single-line + multiline
+    try await assertCodeActions(
+      ###"""
+      1️⃣"""
+      a
+      b
+      """ + "c" + """
+      d
+      """2️⃣
+      """###,
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert String Concatenation to String Interpolation",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: #"""
+                    """
+                    a
+                    bcd
+                    """
+                    """#
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
   func testConvertStringConcatenationNestedIndentation() async throws {
     // multiline strings with different base indentations
     try await assertCodeActions(
@@ -1262,8 +1299,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
                   newText: #"""
                     """
                     a
-                    bc
-                    d
+                    b  c
+                      d
                     """
                     """#
                 )
@@ -1276,6 +1313,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
   }
 
   func testApplyDeMorganLawNegatedAnd() async throws {
+
     try await assertCodeActions(
       """
       let x = 1️⃣!(a && b)2️⃣

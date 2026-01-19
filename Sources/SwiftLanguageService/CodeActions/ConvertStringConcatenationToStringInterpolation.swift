@@ -42,27 +42,26 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
 
       var literalSegments = stringLiteral.segments
 
-      // strip base indentation
+      // strip base indentation for multiline strings using IndentationRemover
       if hasMultilineString, !stringLiteral.isSingleLine {
         let baseIndent = stringLiteral.closingQuote.indentationOfLine
-        literalSegments = stripIndentation(from: literalSegments, baseIndent: baseIndent)
+        let remover = IndentationRemover(indentation: baseIndent, indentFirstLine: true)
+        literalSegments = StringLiteralSegmentListSyntax(
+          literalSegments.map { remover.rewrite($0).cast(StringLiteralSegmentListSyntax.Element.self) }
+        )
       }
 
-      // strip trailing newline for non-last multiline segments
+      // In multiline strings, the last newline before closing """ is stored as
+      // trivia on the last segment. For non-final components, remove this trivia
+      // so segments from different string literals merge on the same line.
       if hasMultilineString, !isLastComponent, !stringLiteral.isSingleLine {
-        if case let .stringSegment(stringSeg) = literalSegments.last {
-          var text = stringSeg.content.text
-          if text.hasSuffix("\n") {
-            text = String(text.dropLast())
-          }
-          let newSeg = stringSeg.with(\.content, .stringSegment(text))
-          literalSegments = StringLiteralSegmentListSyntax(
-            literalSegments.dropLast() + [.stringSegment(newSeg)]
-          )
+        if var lastSegment = literalSegments.last {
+          lastSegment.trailingTrivia = []
+          literalSegments = StringLiteralSegmentListSyntax(literalSegments.dropLast() + [lastSegment])
         }
       }
 
-      // normalize pounds
+      // normalize pounds to use longest common pound count
       if let commonPounds, stringLiteral.openingPounds?.tokenKind != commonPounds.tokenKind {
         literalSegments = StringLiteralSegmentListSyntax(
           literalSegments.map { segment in
@@ -78,7 +77,7 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
       segments += literalSegments
     }
 
-    // add trailing newline for multiline
+    // add trailing newline trivia for multiline output
     if hasMultilineString {
       if var lastSegment = segments.last {
         lastSegment.trailingTrivia = .newline
@@ -161,7 +160,7 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
 
     while let concat = iter.next(), let stringComponent = iter.next() {
       guard let concat = concat.as(BinaryOperatorExprSyntax.self),
-        concat.operator.tokenKind == .binaryOperator("+") && !stringComponent.is(MissingExprSyntax.self)
+        concat.operator.tokenKind == .binaryOperator("+"), !stringComponent.is(MissingExprSyntax.self)
       else {
         return nil
       }
@@ -182,7 +181,7 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
       )
     }
 
-    guard hasStringComponents && componentsOnly.count > 1 else {
+    guard hasStringComponents, componentsOnly.count > 1 else {
       return nil
     }
 
@@ -219,44 +218,6 @@ private extension StringLiteralExprSyntax {
   var isSingleLine: Bool {
     openingQuote.tokenKind == .stringQuote
   }
-}
-
-/// strips base indentation from multiline string segments
-private func stripIndentation(
-  from segments: StringLiteralSegmentListSyntax,
-  baseIndent: Trivia
-) -> StringLiteralSegmentListSyntax {
-  let indentString = baseIndent.reduce(into: "") { result, piece in
-    switch piece {
-    case .spaces(let count):
-      result += String(repeating: " ", count: count)
-    case .tabs(let count):
-      result += String(repeating: "\t", count: count)
-    default:
-      break
-    }
-  }
-
-  guard !indentString.isEmpty else { return segments }
-
-  var result = [StringLiteralSegmentListSyntax.Element]()
-  for segment in segments {
-    guard case let .stringSegment(stringSeg) = segment else {
-      result.append(segment)
-      continue
-    }
-
-    var text = stringSeg.content.text
-    text = text.replacing("\n" + indentString, with: "\n")
-    if text.hasPrefix(indentString) {
-      text = String(text.dropFirst(indentString.count))
-    }
-
-    let newSegment = stringSeg.with(\.content, .stringSegment(text))
-    result.append(.stringSegment(newSegment))
-  }
-
-  return StringLiteralSegmentListSyntax(result)
 }
 
 private extension SyntaxProtocol {
