@@ -18,7 +18,6 @@ package import LanguageServerProtocol
 import SourceKitD
 import SourceKitLSP
 import SwiftExtensions
-import SwiftIfConfig
 import SwiftSyntax
 
 /// The remove unused imports command tries to remove unnecessary imports in a file on a best-effort basis by deleting
@@ -198,12 +197,14 @@ extension SwiftLanguageService {
         throw ResponseError.unknown("Failed to remove unused imports because the document currently contains errors")
       }
 
-      // Create a build configuration based on the compiler arguments to evaluate #if clauses.
-      let buildConfiguration = SourceKitLSPBuildConfiguration(compilerArgs: compileCommand.compilerArgs)
+      // Fetch active regions from sourcekitd before collecting imports
+      let activeRegions = try await fetchActiveRegions(snapshot: snapshot, compileCommand: compileCommand)
 
-      // Collect import declarations from the top level and from active #if clauses,
-      // while respecting the build configuration.
-      let importDecls = collectImportDecls(from: syntaxTree, buildConfiguration: buildConfiguration)
+      let importDecls = try await collectImportDecls(
+        from: syntaxTree,
+        snapshot: snapshot,
+        activeRegions: activeRegions ?? []
+      )
 
       var declsToRemove: [ImportDeclSyntax] = []
 
@@ -306,46 +307,154 @@ extension SwiftLanguageService {
     }
   }
 
-  /// Collects all import declarations that are accessible in the current build configuration.
-  /// This includes top-level imports and imports from active #if clauses.
+  /// Fetches active regions from sourcekitd for the given file and extracts the byte ranges.
+  ///
+  /// - Parameters:
+  ///   - snapshot: The document snapshot.
+  ///   - compileCommand: The compile command for the file.
+  /// - Returns: An array of source ranges representing active regions, or nil if the API doesn't return usable data.
+  private func fetchActiveRegions(
+    snapshot: DocumentSnapshot,
+    compileCommand: SwiftCompileCommand
+  ) async throws -> [SourceRange]? {
+    let skreq = sourcekitd.dictionary([
+      keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
+      keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
+      keys.compilerArgs: compileCommand.compilerArgs as [any SKDRequestValue],
+    ])
+
+    let dict = try await send(sourcekitdRequest: \.activeRegions, skreq, snapshot: snapshot)
+
+    guard let ranges = dict[keys.ranges] as SKDResponseArray? else {
+      // No ranges in response - return nil to indicate we should use a fallback strategy
+      return nil
+    }
+
+    var activeRegions: [SourceRange] = []
+    var hasAnyActiveFlag = false
+    
+    ranges.forEach { _, rangeDict in
+      guard let offset = rangeDict[keys.offset] as Int?,
+        let length = rangeDict[keys.length] as Int?
+      else {
+        return true
+      }
+      
+      // Check if is_active flag exists
+      if let isActiveValue = rangeDict[keys.isActive] as Int? {
+        hasAnyActiveFlag = true
+        // Only include regions that are explicitly marked as active
+        if isActiveValue != 0 {
+          activeRegions.append(SourceRange(start: offset, end: offset + length))
+        }
+      } else {
+        // If no is_active flag, include the region (conservative approach)
+        activeRegions.append(SourceRange(start: offset, end: offset + length))
+      }
+      return true
+    }
+
+    // If we found ranges but none were active, return empty array (not nil)
+    // If we found no is_active flags at all, return all ranges collected
+    return activeRegions
+  }
+
+  /// Collects all import declarations that are accessible.
+  /// This includes top-level imports and imports from #if clauses.
   ///
   /// - Parameters:
   ///   - syntaxTree: The root syntax tree to traverse.
-  ///   - buildConfiguration: The build configuration used to determine active #if clauses.
-  /// - Returns: An array of accessible import declarations.
+  ///   - snapshot: The document snapshot.
+  ///   - activeRegions: Array of source ranges representing active #if regions.
+  /// - Returns: An array of import declarations.
   private func collectImportDecls(
     from syntaxTree: SourceFileSyntax,
-    buildConfiguration: some BuildConfiguration
-  ) -> [ImportDeclSyntax] {
-    let visitor = ImportCollectorVisitor(buildConfiguration: buildConfiguration)
+    snapshot: DocumentSnapshot,
+    activeRegions: [SourceRange]
+  ) async throws -> [ImportDeclSyntax] {
+    let visitor = ImportCollectorVisitor(activeRegions: activeRegions, snapshot: snapshot)
     visitor.walk(syntaxTree)
     return visitor.collectedImports
   }
 }
 
-/// A syntax visitor that collects import declarations from both top-level and active #if clauses.
+/// A syntax visitor that collects import declarations from both top-level and #if clauses.
+/// Uses activeRegions from sourcekitd to determine which #if clauses are active.
 private class ImportCollectorVisitor: SyntaxVisitor {
-  private let buildConfiguration: any BuildConfiguration
   private(set) var collectedImports: [ImportDeclSyntax] = []
+  private let activeRegions: [SourceRange]
+  private let snapshot: DocumentSnapshot
+  /// Track the depth of #if nesting - 0 means we're at the top level
+  private var ifConfigDepth = 0
+  /// Track whether the current #if context is active
+  private var inActiveClause = false
 
-  init(buildConfiguration: some BuildConfiguration) {
-    self.buildConfiguration = buildConfiguration
-    super.init(viewMode: .sourceAccurate)
+  init(activeRegions: [SourceRange], snapshot: DocumentSnapshot, viewMode: SyntaxTreeViewMode = .sourceAccurate) {
+    self.activeRegions = activeRegions
+    self.snapshot = snapshot
+    super.init(viewMode: viewMode)
   }
 
   override func visit(_ node: ImportDeclSyntax) -> SyntaxVisitorContinueKind {
-    collectedImports.append(node)
+    // Collect imports if:
+    // 1. We're at the top level (ifConfigDepth == 0), OR
+    // 2. We're in an active #if clause (inActiveClause == true)
+    if ifConfigDepth == 0 || inActiveClause {
+      collectedImports.append(node)
+    }
     return .skipChildren
   }
 
   override func visit(_ node: IfConfigDeclSyntax) -> SyntaxVisitorContinueKind {
-    // Use SwiftIfConfig's API to determine the active clause
-    let (activeClause, _) = node.activeClause(in: buildConfiguration)
-
-    if let activeClause = activeClause {
-      // Visit the clause - it's a SyntaxNode, so walk its children
-      walk(activeClause)
+    // Increment depth to indicate we're inside an #if
+    ifConfigDepth += 1
+    
+    // For each clause, check if it's in an active region
+    for clause in node.clauses {
+      if isClauseActive(clause) {
+        // This clause is active - walk its contents with inActiveClause = true
+        let wasInActiveClause = inActiveClause
+        inActiveClause = true
+        
+        if let elements = clause.elements {
+          walk(elements)
+        }
+        
+        inActiveClause = wasInActiveClause
+      }
     }
+    
+    // Decrement depth as we leave the #if
+    ifConfigDepth -= 1
+    
+    // Return skipChildren since we've manually walked the active clauses
     return .skipChildren
   }
+
+  /// Checks if a clause is in an active region by checking if the clause intersects with any active region.
+  private func isClauseActive(_ clause: IfConfigClauseSyntax) -> Bool {
+    // If there are no active regions, no #if clauses are active
+    guard !activeRegions.isEmpty else {
+      return false
+    }
+    
+    // Use the full clause range (including the condition like #if, #elseif, #else)
+    let startOffset = snapshot.utf8Offset(of: snapshot.position(of: clause.position))
+    let endOffset = snapshot.utf8Offset(of: snapshot.position(of: clause.endPosition))
+
+    for region in activeRegions {
+      // Check if the clause overlaps with this active region
+      // Two ranges overlap if: start1 < end2 && end1 > start2
+      if startOffset < region.end && endOffset > region.start {
+        return true
+      }
+    }
+    return false
+  }
+}
+
+/// Represents a source range with start and end byte offsets.
+private struct SourceRange {
+  let start: Int
+  let end: Int
 }

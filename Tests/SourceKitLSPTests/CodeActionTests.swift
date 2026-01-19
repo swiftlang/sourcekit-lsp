@@ -1521,7 +1521,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
         let package = Package(
           name: "MyLibrary",
           targets: [
-            .target(name: "Test", swiftSettings: [.enableUpcomingFeature("MemberImportVisibility")]c)
+            .target(name: "Test", swiftSettings: [.enableUpcomingFeature("MemberImportVisibility")])
           ]
         )
         """,
