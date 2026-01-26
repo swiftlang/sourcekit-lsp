@@ -205,6 +205,7 @@ extension SwiftLanguageService {
         snapshot: snapshot,
         activeRegions: activeRegions ?? []
       )
+      logger.debug("remove-unused-imports: collected import decls count = \(importDecls.count)")
 
       var declsToRemove: [ImportDeclSyntax] = []
 
@@ -307,7 +308,11 @@ extension SwiftLanguageService {
     }
   }
 
-  /// Fetches active regions from sourcekitd for the given file and extracts the byte ranges.
+  /// Fetches active regions from sourcekitd for the given file and constructs byte ranges
+  /// for active code within conditional compilation blocks. The activeRegions request
+  /// returns a list of entries in `results` containing `offset` and an optional
+  /// `is_active` flag. Each entry marks the start of a region; the next entry’s offset
+  /// is the end boundary.
   ///
   /// - Parameters:
   ///   - snapshot: The document snapshot.
@@ -325,38 +330,49 @@ extension SwiftLanguageService {
 
     let dict = try await send(sourcekitdRequest: \.activeRegions, skreq, snapshot: snapshot)
 
-    guard let ranges = dict[keys.ranges] as SKDResponseArray? else {
-      // No ranges in response - return nil to indicate we should use a fallback strategy
+    // Newer sourcekitd returns `results` with entries that include an `offset` and optional `is_active`.
+    // Build ranges by pairing each entry with the next entry's offset; include only active ones.
+    guard let results = dict[keys.results] as SKDResponseArray? else {
       return nil
     }
 
-    var activeRegions: [SourceRange] = []
-    var hasAnyActiveFlag = false
-    
-    ranges.forEach { _, rangeDict in
-      guard let offset = rangeDict[keys.offset] as Int?,
-        let length = rangeDict[keys.length] as Int?
-      else {
-        return true
-      }
-      
-      // Check if is_active flag exists
-      if let isActiveValue = rangeDict[keys.isActive] as Int? {
-        hasAnyActiveFlag = true
-        // Only include regions that are explicitly marked as active
-        if isActiveValue != 0 {
-          activeRegions.append(SourceRange(start: offset, end: offset + length))
-        }
-      } else {
-        // If no is_active flag, include the region (conservative approach)
-        activeRegions.append(SourceRange(start: offset, end: offset + length))
+    // Collect entries into an ordered array
+    var entries: [(offset: Int, isActive: Bool?)] = []
+    results.forEach { _, entry in
+      let off = entry[keys.offset] as Int?
+      let activeBool = entry[keys.isActive] as Bool?
+      let activeInt = entry[keys.isActive] as Int?
+      if let off {
+        entries.append((offset: off, isActive: activeBool ?? activeInt.map { $0 != 0 }))
       }
       return true
     }
+    guard !entries.isEmpty else { return [] }
+    entries.sort { $0.offset < $1.offset }
 
-    // If we found ranges but none were active, return empty array (not nil)
-    // If we found no is_active flags at all, return all ranges collected
-    return activeRegions
+    var ranges: [SourceRange] = []
+    let fileEnd = snapshot.text.utf8.count
+    // sourcekitd omits `is_active` for inactive regions; default to inactive when it is missing.
+    var currentIsActive = entries.first?.isActive ?? false
+    for i in 0..<entries.count {
+      let start = entries[i].offset
+      let end = i + 1 < entries.count ? entries[i + 1].offset : fileEnd
+      if let explicit = entries[i].isActive {
+        currentIsActive = explicit
+      } else {
+        currentIsActive = false
+      }
+
+      logger.debug(
+        "activeRegions: entry offset=\(start) isActive=\(String(describing: entries[i].isActive)) end=\(end)"
+      )
+
+      if currentIsActive, start < end {
+        ranges.append(SourceRange(start: start, end: end))
+      }
+    }
+    logger.debug("activeRegions: computed \(ranges.count) active ranges")
+    return ranges
   }
 
   /// Collects all import declarations that are accessible.
@@ -386,8 +402,6 @@ private class ImportCollectorVisitor: SyntaxVisitor {
   private let snapshot: DocumentSnapshot
   /// Track the depth of #if nesting - 0 means we're at the top level
   private var ifConfigDepth = 0
-  /// Track whether the current #if context is active
-  private var inActiveClause = false
 
   init(activeRegions: [SourceRange], snapshot: DocumentSnapshot, viewMode: SyntaxTreeViewMode = .sourceAccurate) {
     self.activeRegions = activeRegions
@@ -396,56 +410,25 @@ private class ImportCollectorVisitor: SyntaxVisitor {
   }
 
   override func visit(_ node: ImportDeclSyntax) -> SyntaxVisitorContinueKind {
-    // Collect imports if:
-    // 1. We're at the top level (ifConfigDepth == 0), OR
-    // 2. We're in an active #if clause (inActiveClause == true)
-    if ifConfigDepth == 0 || inActiveClause {
+    let startOffset = snapshot.utf8Offset(of: snapshot.position(of: node.positionAfterSkippingLeadingTrivia))
+    if ifConfigDepth == 0 || isOffsetInActiveRegion(startOffset) {
       collectedImports.append(node)
     }
     return .skipChildren
   }
 
   override func visit(_ node: IfConfigDeclSyntax) -> SyntaxVisitorContinueKind {
-    // Increment depth to indicate we're inside an #if
     ifConfigDepth += 1
-    
-    // For each clause, check if it's in an active region
-    for clause in node.clauses {
-      if isClauseActive(clause) {
-        // This clause is active - walk its contents with inActiveClause = true
-        let wasInActiveClause = inActiveClause
-        inActiveClause = true
-        
-        if let elements = clause.elements {
-          walk(elements)
-        }
-        
-        inActiveClause = wasInActiveClause
-      }
-    }
-    
-    // Decrement depth as we leave the #if
-    ifConfigDepth -= 1
-    
-    // Return skipChildren since we've manually walked the active clauses
-    return .skipChildren
+    return .visitChildren
   }
 
-  /// Checks if a clause is in an active region by checking if the clause intersects with any active region.
-  private func isClauseActive(_ clause: IfConfigClauseSyntax) -> Bool {
-    // If there are no active regions, no #if clauses are active
-    guard !activeRegions.isEmpty else {
-      return false
-    }
-    
-    // Use the full clause range (including the condition like #if, #elseif, #else)
-    let startOffset = snapshot.utf8Offset(of: snapshot.position(of: clause.position))
-    let endOffset = snapshot.utf8Offset(of: snapshot.position(of: clause.endPosition))
+  override func visitPost(_ node: IfConfigDeclSyntax) {
+    ifConfigDepth -= 1
+  }
 
+  private func isOffsetInActiveRegion(_ offset: Int) -> Bool {
     for region in activeRegions {
-      // Check if the clause overlaps with this active region
-      // Two ranges overlap if: start1 < end2 && end1 > start2
-      if startOffset < region.end && endOffset > region.start {
+      if region.contains(offset) {
         return true
       }
     }
@@ -457,4 +440,10 @@ private class ImportCollectorVisitor: SyntaxVisitor {
 private struct SourceRange {
   let start: Int
   let end: Int
+}
+
+private extension SourceRange {
+  func contains(_ offset: Int) -> Bool {
+    start <= offset && offset < end
+  }
 }
