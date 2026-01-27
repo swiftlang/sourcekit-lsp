@@ -27,6 +27,7 @@ add_library(SwiftLanguageService STATIC
   IndentationRemover.swift
   InlayHints.swift
   InlayHintResolve.swift
+  TrailingClosureInlayHints.swift
   MacroExpansion.swift
   OpenInterface.swift
   PlaygroundDiscovery.swift
