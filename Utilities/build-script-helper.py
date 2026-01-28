@@ -141,7 +141,9 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace, suppress_verb
         # pkg installs packages to /usr/local/include on FreeBSD
         # Required for SwiftPM to find sqlite
         swiftpm_args += ['-Xcxx', '-I', '-Xcxx', '/usr/local/include',
-                         '-Xswiftc', '-I', '-Xswiftc', '/usr/local/include']
+                         '-Xswiftc', '-I', '-Xswiftc', '/usr/local/include',
+                         '-Xlinker', '-rpath', '-Xlinker', '$ORIGIN/../lib/swift/freebsd',
+                         ]
     elif not build_os.startswith('macosx'):
         # Library rpath for swift, dispatch, Foundation, etc. when installing
         swiftpm_args += [
