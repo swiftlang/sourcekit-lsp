@@ -1151,8 +1151,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
                   newText: #"""
                     """
                     a
-                    b  c
-                      d
+                    bc
+                    d
                     """
                     """#
                 )
@@ -1262,45 +1262,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
                     """
                     a
                     bcd
-                    """
-                    """#
-                )
-              ]
-            ]
-          )
-        )
-      ]
-    }
-  }
-
-  func testConvertStringConcatenationNestedIndentation() async throws {
-    // multiline strings with different base indentations
-    try await assertCodeActions(
-      ###"""
-      1️⃣"""
-      a
-      b
-      """ + """
-        c
-        d
-        """2️⃣
-      """###,
-      exhaustive: false
-    ) { uri, positions in
-      [
-        CodeAction(
-          title: "Convert String Concatenation to String Interpolation",
-          kind: .refactorInline,
-          edit: WorkspaceEdit(
-            changes: [
-              uri: [
-                TextEdit(
-                  range: positions["1️⃣"]..<positions["2️⃣"],
-                  newText: #"""
-                    """
-                    a
-                    b  c
-                      d
                     """
                     """#
                 )

@@ -28,7 +28,6 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
       let isLastComponent = index == componentsOnly.count - 1
 
       guard let stringLiteral = component.as(StringLiteralExprSyntax.self) else {
-        // preserve comments as block comments
         let expression = component.singleLineTrivia
         let exprSeg = ExpressionSegmentSyntax(
           pounds: commonPounds,
@@ -42,12 +41,34 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
 
       var literalSegments = stringLiteral.segments
 
-      // strip base indentation for multiline strings using IndentationRemover
+      // strip base indentation for multiline strings
       if hasMultilineString, !stringLiteral.isSingleLine {
         let baseIndent = stringLiteral.closingQuote.indentationOfLine
+        let indentPattern = baseIndent.description
+        // use IndentationRemover for trivia
         let remover = IndentationRemover(indentation: baseIndent, indentFirstLine: true)
         literalSegments = StringLiteralSegmentListSyntax(
-          literalSegments.map { remover.rewrite($0).cast(StringLiteralSegmentListSyntax.Element.self) }
+          literalSegments.map { segment in
+            var rewritten = remover.rewrite(segment).cast(StringLiteralSegmentListSyntax.Element.self)
+            // also strip base indentation from string segment text
+            if case var .stringSegment(strSeg) = rewritten {
+              var text = strSeg.content.text
+              // remove indentation after each newline in the text
+              text = text.split(separator: "\n", omittingEmptySubsequences: false)
+                .enumerated()
+                .map { index, line in
+                  // strip indentation from lines after the first that start with the pattern
+                  if index > 0, line.hasPrefix(indentPattern) {
+                    return String(line.dropFirst(indentPattern.count))
+                  }
+                  return String(line)
+                }
+                .joined(separator: "\n")
+              strSeg = strSeg.with(\.content, .stringSegment(text))
+              rewritten = .stringSegment(strSeg)
+            }
+            return rewritten
+          }
         )
       }
 
