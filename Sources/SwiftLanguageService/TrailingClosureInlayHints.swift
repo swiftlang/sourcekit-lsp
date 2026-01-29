@@ -83,7 +83,7 @@ extension SwiftLanguageService {
         // Check if the closure is within the requested range
         if let range {
           let openingBracePosition = snapshot.position(
-            of: closureInfo.openingBrace.endPositionBeforeTrailingTrivia
+            of: closureInfo.openingBrace.positionAfterSkippingLeadingTrivia
           )
           guard openingBracePosition >= range.lowerBound && openingBracePosition < range.upperBound else {
             continue
@@ -95,7 +95,7 @@ extension SwiftLanguageService {
           for: closureInfo.functionCall,
           in: snapshot
         ) {
-          let hintPosition = snapshot.position(of: closureInfo.openingBrace.endPositionBeforeTrailingTrivia)
+          let hintPosition = snapshot.position(of: closureInfo.openingBrace.positionAfterSkippingLeadingTrivia)
           let label = ": \(parameterLabel)"
 
           let hint = InlayHint(
@@ -118,8 +118,9 @@ extension SwiftLanguageService {
 
   /// Retrieves the parameter label for a trailing closure in a function call.
   ///
-  /// This queries sourcekitd to determine the function's signature and identifies
-  /// the parameter that the trailing closure satisfies.
+  /// Uses sourcekitd's signatureHelp to get structured parameter information,
+  /// then determines which parameter the trailing closure satisfies based on
+  /// the number of labeled arguments.
   ///
   /// - Parameters:
   ///   - functionCall: The function call expression containing the trailing closure.
@@ -132,98 +133,64 @@ extension SwiftLanguageService {
   ) async -> String? {
     let compileCommand = await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: false)
 
-    // Query sourcekitd at the position of the function call to get information about the called function
+    // Use signatureHelp request at the position just before the trailing closure
+    // This gives us structured parameter information
     do {
-      let calleePosition = snapshot.position(of: functionCall.calledExpression.endPositionBeforeTrailingTrivia)
-      let calleeOffset = snapshot.utf8Offset(of: calleePosition)
+      // Position the query at the opening parenthesis or just before the trailing closure
+      let queryPosition: AbsolutePosition
+      if let leftParen = functionCall.leftParen {
+        queryPosition = leftParen.endPosition
+      } else {
+        // For calls without parentheses, use the end of the called expression
+        queryPosition = functionCall.calledExpression.endPosition
+      }
+
+      let position = snapshot.position(of: queryPosition)
+      let offset = snapshot.utf8Offset(of: position)
+
       let skreq = sourcekitd.dictionary([
-        keys.cancelOnSubsequentRequest: 0,
-        keys.offset: calleeOffset,
+        keys.offset: offset,
         keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
         keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
         keys.compilerArgs: compileCommand?.compilerArgs as [any SKDRequestValue]?,
       ])
 
-      let dict = try await send(sourcekitdRequest: \.cursorInfo, skreq, snapshot: snapshot)
+      let dict = try await send(sourcekitdRequest: \.signatureHelp, skreq, snapshot: snapshot)
 
-      // Get the function signature and identify the trailing closure parameter
-      // Try docFullAsXML first, then fallback to annotatedDecl
-      var signature: String?
-      if let xmlSig: String = dict[keys.docFullAsXML] {
-        signature = xmlSig
-      } else if let annotDecl: String = dict[keys.annotatedDecl] {
-        signature = annotDecl
+      // Extract parameter information from the signature help response
+      guard let signatures: SKDResponseArray = dict[keys.signatures],
+        signatures.count > 0,
+        let firstSignature = signatures[0] as? SKDResponseDictionary,
+        let parameters: SKDResponseArray = firstSignature[keys.parameters]
+      else {
+        return nil
       }
 
-      if let signature {
-        return extractTrailingClosureParameterName(from: signature)
+      // Count the number of labeled arguments provided before the trailing closure
+      let labeledArgsCount = functionCall.arguments.count
+
+      // The trailing closure satisfies the parameter at index = labeledArgsCount
+      guard labeledArgsCount < parameters.count else {
+        return nil
       }
 
-      return nil
+      // Get the parameter at the trailing closure's position
+      guard let parameter = parameters[labeledArgsCount] as? SKDResponseDictionary,
+        let paramName: String = parameter[keys.name]
+      else {
+        return nil
+      }
+
+      // Extract just the external parameter name (before any colon)
+      // signatureHelp returns full parameter syntax like "content: () -> Content"
+      if let colonIndex = paramName.firstIndex(of: ":") {
+        let extracted = String(paramName[..<colonIndex])
+        return extracted.trimmingCharacters(in: CharacterSet.whitespaces)
+      }
+
+      return paramName.trimmingCharacters(in: CharacterSet.whitespaces)
     } catch {
-      // If sourcekitd query fails, we can't determine the parameter label
       return nil
     }
-  }
-
-  /// Extracts the trailing closure parameter name from a function signature.
-  ///
-  /// - Parameter signature: The function signature string (may be XML or plain text).
-  /// - Returns: The parameter name if it can be determined.
-  private func extractTrailingClosureParameterName(from signature: String) -> String? {
-    // Common trailing closure parameter names in order of likelihood
-    let commonNames = [
-      "content",  // SwiftUI views
-      "label",  // SwiftUI controls
-      "body",  // View bodies
-      "completion",  // Async operations
-      "handler",  // Event handlers
-      "onComplete",  // Callbacks
-      "onSuccess",  // Async results
-      "onFailure",  // Error handlers
-    ]
-
-    // Check for these common names in the signature
-    for name in commonNames {
-      // Look for parameter pattern: name: @escaping? (args) -> ReturnType
-      let patterns = [
-        "\\b\(name)\\s*:\\s*@escaping\\s*\\(",  // @escaping version
-        "\\b\(name)\\s*:\\s*\\([^)]*\\)\\s*->",  // non-escaping version
-        "\\b\(name)\\s*:\\s*@\\w+\\s*\\(\\)",  // simple closure
-      ]
-
-      for pattern in patterns {
-        if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
-          let range = NSRange(signature.startIndex..., in: signature)
-          if regex.firstMatch(in: signature, options: [], range: range) != nil {
-            return name
-          }
-        }
-      }
-    }
-
-    // Try to extract any closure parameter name using a more generic pattern
-    // Look for: word: (something) -> or word: @escaping (something) ->
-    let genericPattern = "\\b([a-zA-Z_]\\w*)\\s*:\\s*(?:@escaping\\s+)?\\([^)]*\\)\\s*->"
-    if let regex = try? NSRegularExpression(pattern: genericPattern, options: []) {
-      let range = NSRange(signature.startIndex..., in: signature)
-      if let match = regex.firstMatch(in: signature, options: [], range: range),
-        match.numberOfRanges > 1,
-        let paramRange = Range(match.range(at: 1), in: signature)
-      {
-        let paramName = String(signature[paramRange])
-        return paramName
-      }
-    }
-
-    return nil
-  }
-}
-
-
-func testHint() {
-  let numbers = [1, 2]
-  numbers.forEach { number in  
-    print(number)
   }
 }

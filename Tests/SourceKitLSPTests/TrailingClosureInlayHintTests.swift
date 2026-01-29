@@ -57,7 +57,8 @@ final class TrailingClosureInlayHintTests: SourceKitLSPTestCase {
     )
   }
 
-  /// Compares hints ignoring the data field (which contains implementation-specific resolve data)
+  /// Compares hints ignoring the data field (which contains implementation-specific resolve data).
+  /// Position is verified to be at the opening brace of the trailing closure (positionAfterSkippingLeadingTrivia).
   private func assertHintsEqual(
     _ actual: [InlayHint],
     _ expected: [InlayHint],
@@ -66,7 +67,13 @@ final class TrailingClosureInlayHintTests: SourceKitLSPTestCase {
   ) {
     XCTAssertEqual(actual.count, expected.count, "Hint count mismatch", file: file, line: line)
     for (actualHint, expectedHint) in zip(actual, expected) {
-      XCTAssertEqual(actualHint.position, expectedHint.position, file: file, line: line)
+      XCTAssertEqual(
+        actualHint.position,
+        expectedHint.position,
+        "Hint position mismatch (should be at opening brace)",
+        file: file,
+        line: line
+      )
       XCTAssertEqual(actualHint.label, expectedHint.label, file: file, line: line)
       XCTAssertEqual(actualHint.kind, expectedHint.kind, file: file, line: line)
     }
@@ -75,6 +82,7 @@ final class TrailingClosureInlayHintTests: SourceKitLSPTestCase {
   // MARK: - Tests
 
   /// Test 1: Standard SwiftUI pattern with content closure
+  /// Verifies that the hint appears at positionAfterSkippingLeadingTrivia of the opening brace.
   func testStandardSwiftUIContent() async throws {
     let (positions, hints) = try await performInlayHintRequest(
       markedText: """
@@ -95,18 +103,25 @@ final class TrailingClosureInlayHintTests: SourceKitLSPTestCase {
 
     let trailingClosureHints = hints.filter { $0.kind == .parameter }
 
-    // We expect one parameter hint for the trailing closure (if the feature correctly identifies "content")
-    // Note: The exact parameter name depends on successful sourcekitd lookup
+    // We expect one parameter hint for the trailing closure (identifies "content" parameter)
+    // The hint position should be at the opening brace (positionAfterSkippingLeadingTrivia)
     XCTAssertTrue(
       trailingClosureHints.isEmpty || trailingClosureHints.count == 1,
       "Expected 0 or 1 trailing closure hints"
     )
 
     if let hint = trailingClosureHints.first {
-      XCTAssertEqual(hint.position, positions["1️⃣"])
+      // Position should be exactly at the opening brace marker
+      XCTAssertEqual(hint.position, positions["1️⃣"], "Hint should be positioned at the opening brace")
       // The label should contain a colon followed by parameter name
       if case .string(let label) = hint.label {
         XCTAssertTrue(label.starts(with: ":"), "Label should start with colon")
+        // Verify it extracted a parameter name (not empty after colon)
+        let afterColon = label.dropFirst()
+        XCTAssertFalse(
+          afterColon.trimmingCharacters(in: .whitespaces).isEmpty,
+          "Should have parameter name after colon"
+        )
       }
     }
   }
