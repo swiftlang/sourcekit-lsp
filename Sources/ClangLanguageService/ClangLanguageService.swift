@@ -490,6 +490,10 @@ extension ClangLanguageService {
     return await workspace.buildServerManager.locationsOrLocationLinksAdjustedForCopiedFiles(result)
   }
 
+  package func typeDefinition(_ req: TypeDefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
+    return try await forwardRequestToClangd(req)
+  }
+
   package func completion(_ req: CompletionRequest) async throws -> CompletionList {
     return try await forwardRequestToClangd(req)
   }
