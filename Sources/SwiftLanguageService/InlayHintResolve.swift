@@ -92,14 +92,7 @@ extension SwiftLanguageService {
       for: typeInfo.symbolInfo,
       originatorUri: snapshot.uri,
       index: nil,
-      openGeneratedInterface: { document, moduleName, groupName, symbolUSR in
-        try await self.openGeneratedInterface(
-          document: document,
-          moduleName: moduleName,
-          groupName: groupName,
-          symbolUSR: symbolUSR
-        )
-      }
+      languageService: self
     )
 
     return locations.only

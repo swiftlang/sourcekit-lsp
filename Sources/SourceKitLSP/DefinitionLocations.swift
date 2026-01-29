@@ -41,16 +41,11 @@ package func definitionLocations(
   for symbol: SymbolDetails,
   originatorUri: DocumentURI,
   index: CheckedIndex?,
-  openGeneratedInterface:
-    @escaping (
-      _ document: DocumentURI,
-      _ moduleName: String,
-      _ groupName: String?,
-      _ symbolUSR: String?
-    ) async throws -> GeneratedInterfaceDetails?
+  languageService: any LanguageService
 ) async throws -> [Location] {
-  // module symbols generate a textual interface
+  // If this symbol is a module then generate a textual interface
   if symbol.kind == .module {
+    // For module symbols, prefer using systemModule information if available
     let moduleName: String
     let groupName: String?
 
@@ -69,24 +64,24 @@ package func definitionLocations(
       groupName: groupName,
       symbolUSR: nil,
       originatorUri: originatorUri,
-      openGeneratedInterface: openGeneratedInterface
+      languageService: languageService
     )
     return [location]
   }
 
-  // system symbols use generated interface
+  // System symbols use generated interface
   if symbol.isSystem ?? false, let systemModule = symbol.systemModule {
     let location = try await definitionInInterface(
       moduleName: systemModule.moduleName,
       groupName: systemModule.groupName,
       symbolUSR: symbol.usr,
       originatorUri: originatorUri,
-      openGeneratedInterface: openGeneratedInterface
+      languageService: languageService
     )
     return [location]
   }
 
-  // try local declaration first
+  // Try local declaration first
   guard let index else {
     if let bestLocalDeclaration = symbol.bestLocalDeclaration {
       return [bestLocalDeclaration]
@@ -103,14 +98,16 @@ package func definitionLocations(
     if let bestLocalDeclaration = symbol.bestLocalDeclaration {
       return [bestLocalDeclaration]
     }
-    // fallback to generated interface for SDK types without index data
+    // Fallback: The symbol was not found in the index. This often happens with
+    // third-party binary frameworks or libraries where indexing data is missing.
+    // If module info is available, fallback to generating the textual interface.
     if let systemModule = symbol.systemModule {
       let location = try await definitionInInterface(
         moduleName: systemModule.moduleName,
         groupName: systemModule.groupName,
         symbolUSR: symbol.usr,
         originatorUri: originatorUri,
-        openGeneratedInterface: openGeneratedInterface
+        languageService: languageService
       )
       return [location]
     }
@@ -129,22 +126,16 @@ package func definitionInInterface(
   groupName: String?,
   symbolUSR: String?,
   originatorUri: DocumentURI,
-  openGeneratedInterface:
-    @escaping (
-      _ document: DocumentURI,
-      _ moduleName: String,
-      _ groupName: String?,
-      _ symbolUSR: String?
-    ) async throws -> GeneratedInterfaceDetails?
+  languageService: any LanguageService
 ) async throws -> Location {
   let documentForBuildSettings = originatorUri.buildSettingsFile
 
   guard
-    let interfaceDetails = try await openGeneratedInterface(
-      documentForBuildSettings,
-      moduleName,
-      groupName,
-      symbolUSR
+    let interfaceDetails = try await languageService.openGeneratedInterface(
+      document: documentForBuildSettings,
+      moduleName: moduleName,
+      groupName: groupName,
+      symbolUSR: symbolUSR
     )
   else {
     throw ResponseError.unknown("Could not generate Swift Interface for \(moduleName)")

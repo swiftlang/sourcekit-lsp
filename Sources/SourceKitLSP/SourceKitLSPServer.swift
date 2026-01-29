@@ -2020,14 +2020,7 @@ extension SourceKitLSPServer {
         groupName: groupName,
         symbolUSR: nil,
         originatorUri: uri,
-        openGeneratedInterface: { document, moduleName, groupName, symbolUSR in
-          try await languageService.openGeneratedInterface(
-            document: document,
-            moduleName: moduleName,
-            groupName: groupName,
-            symbolUSR: symbolUSR
-          )
-        }
+        languageService: languageService
       )
       return [interfaceLocation]
     }
@@ -2038,14 +2031,7 @@ extension SourceKitLSPServer {
         groupName: systemModule.groupName,
         symbolUSR: symbol.usr,
         originatorUri: uri,
-        openGeneratedInterface: { document, moduleName, groupName, symbolUSR in
-          try await languageService.openGeneratedInterface(
-            document: document,
-            moduleName: moduleName,
-            groupName: groupName,
-            symbolUSR: symbolUSR
-          )
-        }
+        languageService: languageService
       )
       return [location]
     }
@@ -2104,14 +2090,7 @@ extension SourceKitLSPServer {
           groupName: systemModule.groupName,
           symbolUSR: symbol.usr,
           originatorUri: uri,
-          openGeneratedInterface: { document, moduleName, groupName, symbolUSR in
-            try await languageService.openGeneratedInterface(
-              document: document,
-              moduleName: moduleName,
-              groupName: groupName,
-              symbolUSR: symbolUSR
-            )
-          }
+          languageService: languageService
         )
         return [location]
       }

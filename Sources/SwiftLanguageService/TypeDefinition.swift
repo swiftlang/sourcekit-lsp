@@ -71,14 +71,7 @@ extension SwiftLanguageService {
       for: symbol,
       originatorUri: uri,
       index: nil,
-      openGeneratedInterface: { document, moduleName, groupName, symbolUSR in
-        try await self.openGeneratedInterface(
-          document: document,
-          moduleName: moduleName,
-          groupName: groupName,
-          symbolUSR: symbolUSR
-        )
-      }
+      languageService: self
     )
 
     if locations.isEmpty {
