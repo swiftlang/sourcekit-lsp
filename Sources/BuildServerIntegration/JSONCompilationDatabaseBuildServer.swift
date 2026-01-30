@@ -172,6 +172,7 @@ package actor JSONCompilationDatabaseBuildServer: BuiltInBuildServer {
     }
     if notification.changes.contains(where: { $0.uri.fileURL?.lastPathComponent == ".swift-version" }) {
       await toolchainResolver.clearCache()
+      await toolchainRegistry.clearXcrunCache()
       connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
     }
   }

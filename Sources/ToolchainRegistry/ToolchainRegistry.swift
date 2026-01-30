@@ -21,6 +21,42 @@ package import enum TSCBasic.ProcessEnv
 package import struct TSCBasic.ProcessEnvironmentKey
 package import func TSCBasic.getEnvSearchPaths
 
+/// Caches xcrun resolutions for /usr/bin compiler shims.
+/// Uses background tasks since ToolchainRegistry methods are synchronous.
+private final class XcrunResolverCache: Sendable {
+  private let cache: ThreadSafeBox<[URL: URL?]> = ThreadSafeBox(initialValue: [:])
+  private let inflightTasks: ThreadSafeBox<[URL: Task<URL?, Never>]> = ThreadSafeBox(initialValue: [:])
+
+  func getCached(_ compiler: URL) -> URL? {
+    return cache.withLock { $0[compiler] ?? nil }
+  }
+
+  func triggerResolution(_ compiler: URL) {
+    let hasTask = inflightTasks.withLock { $0[compiler] != nil }
+    if hasTask { return }
+
+    let task = Task {
+      let resolved = await orLog("Resolving /usr/bin compiler via xcrun") {
+        let result = try await Process.run(
+          arguments: ["xcrun", "-f", compiler.lastPathComponent],
+          workingDirectory: nil
+        )
+        let path = try result.utf8Output().trimmingCharacters(in: .whitespacesAndNewlines)
+        let url = URL(fileURLWithPath: path)
+        return FileManager.default.fileExists(at: url) ? url : nil
+      }
+      self.cache.withLock { $0[compiler] = resolved }
+      _ = self.inflightTasks.withLock { $0.removeValue(forKey: compiler) }
+      return resolved
+    }
+    inflightTasks.withLock { $0[compiler] = task }
+  }
+
+  func clearCache() {
+    cache.withLock { $0.removeAll() }
+  }
+}
+
 /// Set of known toolchains.
 ///
 /// Most users will use the `shared` ToolchainRegistry, although it's possible to create more. A
@@ -67,6 +103,9 @@ package final actor ToolchainRegistry {
   /// This allows us to find the toolchain that should be used for semantic functionality based on which compiler it is
   /// built with in the `compile_commands.json`.
   private var toolchainsByCompiler: [URL: Toolchain]
+
+  /// Cache for xcrun resolution of /usr/bin compiler shims.
+  private let xcrunResolverCache = XcrunResolverCache()
 
   /// The currently selected toolchain identifier on Darwin.
   package let darwinToolchainOverride: String?
@@ -295,15 +334,35 @@ package final actor ToolchainRegistry {
     let resolvedPath = orLog("Compiler realpath") {
       try compiler.deletingLastPathComponent().realpath
     }?.appending(component: compiler.lastPathComponent)
-    guard let resolvedPath,
-      let toolchain = toolchainsByCompiler[resolvedPath]
-    else {
-      return nil
+
+    if let resolvedPath, let toolchain = toolchainsByCompiler[resolvedPath] {
+      toolchainsByCompiler[compiler] = toolchain
+      return toolchain
     }
 
-    // Cache mapping of non-realpath to the realpath toolchain for faster subsequent lookups
-    toolchainsByCompiler[compiler] = toolchain
-    return toolchain
+    // Handle /usr/bin shims on Darwin
+    #if canImport(Darwin)
+    if compiler.deletingLastPathComponent() == URL(filePath: "/usr/bin/") {
+      // Check cache from previous xcrun call
+      if let cachedResolved = xcrunResolverCache.getCached(compiler),
+        let toolchain = toolchainsByCompiler[cachedResolved]
+      {
+        toolchainsByCompiler[compiler] = toolchain
+        return toolchain
+      }
+      // Trigger background resolution for next call
+      xcrunResolverCache.triggerResolution(compiler)
+      // Immediate fallback based on compiler type
+      let name = compiler.lastPathComponent
+      if name.contains("swift") {
+        return preferredToolchain(containing: [\.swift, \.swiftc])
+      } else if name.contains("clang") {
+        return preferredToolchain(containing: [\.clang])
+      }
+    }
+    #endif
+
+    return nil
   }
 
   /// If we have a toolchain in the toolchain registry with the given URL, return it. Otherwise, return `nil`.
@@ -324,6 +383,11 @@ package final actor ToolchainRegistry {
     // Cache mapping of non-realpath to the realpath toolchain for faster subsequent lookups
     toolchainsByPath[path] = toolchain
     return toolchain
+  }
+
+  /// Clears the xcrun resolution cache.
+  package func clearXcrunCache() {
+    xcrunResolverCache.clearCache()
   }
 }
 
