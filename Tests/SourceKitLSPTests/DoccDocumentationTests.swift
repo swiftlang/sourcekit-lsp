@@ -885,6 +885,59 @@ final class DoccDocumentationTests: SourceKitLSPTestCase {
     )
   }
 
+  func testMarkdownExtensionTopics() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/Foo.swift": """
+          public struct  1️⃣2️⃣3️⃣4️⃣5️⃣ Foo {
+            public func methodA() {}
+            public func methodB() {}
+          }
+        """,
+
+        "MyLibrary/MyLibrary.docc/Extensions/Foo.md": """
+        # ``MyLibrary/Foo``
+        Overview for Foo.
+
+        ## Topics
+        ### Group One
+        - ``methodA()``
+
+        ### Group Two
+        - ``methodB()``
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+
+    try await renderDocumentation(
+      fileName: "Foo.swift",
+      project: project,
+      expectedResponses: [
+        "1️⃣": .renderNode(
+          kind: .symbol,
+          containing: "Overview for Foo."
+        ),
+        "2️⃣": .renderNode(
+          kind: .symbol,
+          containing: "Group One"
+        ),
+        "3️⃣": .renderNode(
+          kind: .symbol,
+          containing: "Group Two"
+        ),
+        "4️⃣": .renderNode(
+          kind: .symbol,
+          containing: "methodA()"
+        ),
+        "5️⃣": .renderNode(
+          kind: .symbol,
+          containing: "methodB()"
+        ),
+      ]
+    )
+  }
+
   // MARK: Tutorials
 
   func testTutorial() async throws {
