@@ -4,6 +4,7 @@ add_library(SourceKitLSP STATIC
   DocumentManager.swift
   DocumentSnapshot+FromFileContents.swift
   DocumentSnapshot+PositionConversions.swift
+  DefinitionLocations.swift
   GeneratedInterfaceDocumentURLData.swift
   Hooks.swift
   IndexProgressManager.swift
