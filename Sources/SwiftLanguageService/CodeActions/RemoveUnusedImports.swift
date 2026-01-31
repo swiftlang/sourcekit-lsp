@@ -205,7 +205,6 @@ extension SwiftLanguageService {
         snapshot: snapshot,
         activeRegions: activeRegions ?? []
       )
-      logger.debug("remove-unused-imports: collected import decls count = \(importDecls.count)")
 
       var declsToRemove: [ImportDeclSyntax] = []
 
@@ -330,52 +329,44 @@ extension SwiftLanguageService {
 
     let dict = try await send(sourcekitdRequest: \.activeRegions, skreq, snapshot: snapshot)
 
-    // Newer sourcekitd returns `results` with entries that include an `offset` and optional `is_active`.
     // Build ranges by pairing each entry with the next entry's offset; include only active ones.
     guard let results = dict[keys.results] as SKDResponseArray? else {
       return nil
     }
 
-    // Collect entries into an ordered array
-    var entries: [(offset: Int, isActive: Bool?)] = []
-    results.forEach { _, entry in
-      let off = entry[keys.offset] as Int?
+    let entries: [(offset: Int, isActive: Bool?)] = results.compactMap { entry in
+      guard let off = entry[keys.offset] as Int? else {
+        return nil
+      }
       let activeBool = entry[keys.isActive] as Bool?
       let activeInt = entry[keys.isActive] as Int?
-      if let off {
-        entries.append((offset: off, isActive: activeBool ?? activeInt.map { $0 != 0 }))
-      }
-      return true
+      return (offset: off, isActive: activeBool ?? activeInt.map { $0 != 0 })
     }
     guard !entries.isEmpty else { return [] }
-    entries.sort { $0.offset < $1.offset }
+    let sortedEntries = entries.sorted { $0.offset < $1.offset }
 
     var ranges: [SourceRange] = []
     let fileEnd = snapshot.text.utf8.count
-    // sourcekitd omits `is_active` for inactive regions; default to inactive when it is missing.
-    var currentIsActive = entries.first?.isActive ?? false
-    for i in 0..<entries.count {
-      let start = entries[i].offset
-      let end = i + 1 < entries.count ? entries[i + 1].offset : fileEnd
-      if let explicit = entries[i].isActive {
-        currentIsActive = explicit
-      } else {
-        currentIsActive = false
-      }
-
-      logger.debug(
-        "activeRegions: entry offset=\(start) isActive=\(String(describing: entries[i].isActive)) end=\(end)"
-      )
-
-      if currentIsActive, start < end {
-        ranges.append(SourceRange(start: start, end: end))
+    for (current, next) in zip(sortedEntries, sortedEntries.dropFirst()) {
+      let start = current.offset
+      let end = next.offset
+      let isActive = current.isActive ?? false
+      if isActive, start < end {
+        ranges.append(AbsolutePosition(utf8Offset: start)..<AbsolutePosition(utf8Offset: end))
       }
     }
-    logger.debug("activeRegions: computed \(ranges.count) active ranges")
+    if let last = sortedEntries.last {
+      let start = last.offset
+      let end = fileEnd
+      let isActive = last.isActive ?? false
+      if isActive, start < end {
+        ranges.append(AbsolutePosition(utf8Offset: start)..<AbsolutePosition(utf8Offset: end))
+      }
+    }
     return ranges
   }
 
-  /// Collects all import declarations that are accessible.
+  /// Collects all import declarations that are active.
   /// This includes top-level imports and imports from #if clauses.
   ///
   /// - Parameters:
@@ -400,8 +391,6 @@ private class ImportCollectorVisitor: SyntaxVisitor {
   private(set) var collectedImports: [ImportDeclSyntax] = []
   private let activeRegions: [SourceRange]
   private let snapshot: DocumentSnapshot
-  /// Track the depth of #if nesting - 0 means we're at the top level
-  private var ifConfigDepth = 0
 
   init(activeRegions: [SourceRange], snapshot: DocumentSnapshot, viewMode: SyntaxTreeViewMode = .sourceAccurate) {
     self.activeRegions = activeRegions
@@ -411,39 +400,21 @@ private class ImportCollectorVisitor: SyntaxVisitor {
 
   override func visit(_ node: ImportDeclSyntax) -> SyntaxVisitorContinueKind {
     let startOffset = snapshot.utf8Offset(of: snapshot.position(of: node.positionAfterSkippingLeadingTrivia))
-    if ifConfigDepth == 0 || isOffsetInActiveRegion(startOffset) {
+    let isInIfConfig =
+      node.findParentOfSelf(ofType: IfConfigDeclSyntax.self, stoppingIf: { _ in false }) != nil
+    if !isInIfConfig || isOffsetInActiveRegion(startOffset) {
       collectedImports.append(node)
     }
     return .skipChildren
   }
 
-  override func visit(_ node: IfConfigDeclSyntax) -> SyntaxVisitorContinueKind {
-    ifConfigDepth += 1
-    return .visitChildren
-  }
-
-  override func visitPost(_ node: IfConfigDeclSyntax) {
-    ifConfigDepth -= 1
-  }
-
   private func isOffsetInActiveRegion(_ offset: Int) -> Bool {
-    for region in activeRegions {
-      if region.contains(offset) {
-        return true
-      }
+    guard !activeRegions.isEmpty else {
+      return true
     }
-    return false
+    let position = AbsolutePosition(utf8Offset: offset)
+    return activeRegions.contains { $0.contains(position) }
   }
 }
 
-/// Represents a source range with start and end byte offsets.
-private struct SourceRange {
-  let start: Int
-  let end: Int
-}
-
-private extension SourceRange {
-  func contains(_ offset: Int) -> Bool {
-    start <= offset && offset < end
-  }
-}
+private typealias SourceRange = Range<AbsolutePosition>

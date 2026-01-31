@@ -1610,15 +1610,24 @@ final class CodeActionTests: SourceKitLSPTestCase {
       // Verify we have 3 edits (Darwin, LibA, LibB)
       XCTAssertEqual(changes.count, 3, "Expected 3 import removals")
 
-      // Verify Glibc import range is NOT in the edits
-      // Glibc should be between positions 2️⃣ and 3️⃣
-      let glibcRange = positions["2️⃣"]..<positions["3️⃣"]
-      for edit in changes {
-        XCTAssertFalse(
-          edit.range.contains(glibcRange.lowerBound),
-          "Glibc import should not be removed (it's in an inactive clause)"
+      let expectedPositions = [
+        positions["1️⃣"],
+        positions["4️⃣"],
+        positions["5️⃣"],
+      ]
+
+      for expected in expectedPositions {
+        XCTAssertTrue(
+          changes.contains(where: { $0.range.contains(expected) }),
+          "Expected an edit containing \(expected)"
         )
       }
+
+      // Verify Glibc import range is NOT in the edits
+      XCTAssertFalse(
+        changes.contains(where: { $0.range.contains(positions["2️⃣"]) }),
+        "Glibc import should not be removed (it's in an inactive clause)"
+      )
 
       return ApplyEditResponse(applied: true, failureReason: nil)
     }
