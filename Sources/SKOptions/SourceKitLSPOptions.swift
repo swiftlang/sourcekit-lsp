@@ -382,7 +382,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   public var cancelTextDocumentRequestsOnEditAndClose: Bool? = nil
 
   public var cancelTextDocumentRequestsOnEditAndCloseOrDefault: Bool {
-    return cancelTextDocumentRequestsOnEditAndClose ?? true
+    return cancelTextDocumentRequestsOnEditAndClose ?? false
   }
 
   /// Experimental features that are enabled.
