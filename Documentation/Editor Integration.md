@@ -46,6 +46,12 @@ Image Variants
 
 The `theia-swift-docker` source is located at [theia-apps](https://github.com/theia-ide/theia-apps).
 
+## JetBrains IDEs
+
+[Noctule](https://noctule.dev) is a 3rd-party extension to provide cross-platform support for Swift.
+
+By default, Noctule will try to detect `sourcekit-lsp` on a system. But you can configure the toolchain to use in the settings. Please [refer to Noctule's website](https://noctule.dev/docs/configuration/) to learn how to do that.
+
 ## Other Editors
 
 SourceKit-LSP should work with any editor that supports the [Language Server Protocol](https://microsoft.github.io/language-server-protocol/) (LSP). Each editor has its own mechanism for configuring an LSP server, so consult your editor's documentation for the specifics. In general, you can configure your editor to use SourceKit-LSP for Swift, C, C++, Objective-C and Objective-C++ files; the editor will need to be configured to find the `sourcekit-lsp` executable from your installed Swift toolchain, which expects to communicate with the editor over `stdin` and `stdout`.
