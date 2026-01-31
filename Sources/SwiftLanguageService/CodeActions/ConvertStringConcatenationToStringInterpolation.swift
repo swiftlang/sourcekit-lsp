@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
+import SwiftBasicFormat
 import SwiftRefactor
 import SwiftSyntax
 
@@ -18,38 +19,102 @@ import SwiftSyntax
 /// string interpolation.
 struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvider {
   static func refactor(syntax: SequenceExprSyntax, in context: Void) throws -> SequenceExprSyntax {
-    guard let (componentsOnly, commonPounds) = preflight(exprList: syntax.elements) else {
+    guard let (componentsOnly, commonPounds, hasMultilineString) = preflight(exprList: syntax.elements) else {
       throw RefactoringNotApplicableError("unsupported expression")
     }
 
     var segments: StringLiteralSegmentListSyntax = []
-    for component in componentsOnly {
+    for (index, component) in componentsOnly.enumerated() {
+      let isLastComponent = index == componentsOnly.count - 1
+
       guard let stringLiteral = component.as(StringLiteralExprSyntax.self) else {
-        segments.append(
-          .expressionSegment(
-            ExpressionSegmentSyntax(
-              pounds: commonPounds,
-              expressions: [
-                LabeledExprSyntax(expression: component.singleLineTrivia)
-              ]
-            )
-          )
+        let expression = component.singleLineTrivia
+        let exprSeg = ExpressionSegmentSyntax(
+          pounds: commonPounds,
+          expressions: [
+            LabeledExprSyntax(expression: expression)
+          ]
         )
+        segments.append(.expressionSegment(exprSeg))
         continue
       }
 
-      if let commonPounds, stringLiteral.openingPounds?.tokenKind != commonPounds.tokenKind {
-        segments += stringLiteral.segments.map { segment in
-          if case let .expressionSegment(exprSegment) = segment {
-            .expressionSegment(exprSegment.with(\.pounds, commonPounds))
-          } else {
-            segment
+      var literalSegments = stringLiteral.segments
+
+      // strip base indentation for multiline strings
+      if hasMultilineString, !stringLiteral.isSingleLine {
+        let baseIndent = stringLiteral.closingQuote.indentationOfLine
+        let indentPattern = baseIndent.description
+        // use IndentationRemover for trivia
+        let remover = IndentationRemover(indentation: baseIndent, indentFirstLine: true)
+        literalSegments = StringLiteralSegmentListSyntax(
+          literalSegments.map { segment in
+            var rewritten = remover.rewrite(segment).cast(StringLiteralSegmentListSyntax.Element.self)
+            // also strip base indentation from string segment text
+            if case var .stringSegment(strSeg) = rewritten {
+              var text = strSeg.content.text
+              // remove indentation after each newline in the text
+              text = text.split(separator: "\n", omittingEmptySubsequences: false)
+                .enumerated()
+                .map { index, line in
+                  // strip indentation from lines after the first that start with the pattern
+                  if index > 0, line.hasPrefix(indentPattern) {
+                    return String(line.dropFirst(indentPattern.count))
+                  }
+                  return String(line)
+                }
+                .joined(separator: "\n")
+              strSeg = strSeg.with(\.content, .stringSegment(text))
+              rewritten = .stringSegment(strSeg)
+            }
+            return rewritten
           }
+        )
+      }
+
+      // In multiline strings, the last newline before closing """ is stored as
+      // trivia on the last segment. For non-final components, remove this trivia
+      // so segments from different string literals merge on the same line.
+      if hasMultilineString, !isLastComponent, !stringLiteral.isSingleLine {
+        if var lastSegment = literalSegments.last {
+          lastSegment.trailingTrivia = []
+          literalSegments = StringLiteralSegmentListSyntax(literalSegments.dropLast() + [lastSegment])
         }
-      } else {
-        segments += stringLiteral.segments
+      }
+
+      // normalize pounds to use longest common pound count
+      if let commonPounds, stringLiteral.openingPounds?.tokenKind != commonPounds.tokenKind {
+        literalSegments = StringLiteralSegmentListSyntax(
+          literalSegments.map { segment in
+            if case let .expressionSegment(exprSegment) = segment {
+              .expressionSegment(exprSegment.with(\.pounds, commonPounds))
+            } else {
+              segment
+            }
+          }
+        )
+      }
+
+      segments += literalSegments
+    }
+
+    // add trailing newline trivia for multiline output
+    if hasMultilineString {
+      if var lastSegment = segments.last {
+        lastSegment.trailingTrivia = .newline
+        segments = StringLiteralSegmentListSyntax(segments.dropLast() + [lastSegment])
       }
     }
+
+    let quoteToken: TokenSyntax =
+      hasMultilineString
+      ? .multilineStringQuoteToken()
+      : .stringQuoteToken()
+
+    let openingQuote: TokenSyntax =
+      hasMultilineString
+      ? quoteToken.with(\.trailingTrivia, .newline)
+      : quoteToken
 
     return syntax.with(
       \.elements,
@@ -58,9 +123,9 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
           StringLiteralExprSyntax(
             leadingTrivia: syntax.leadingTrivia,
             openingPounds: commonPounds,
-            openingQuote: .stringQuoteToken(),
+            openingQuote: openingQuote,
             segments: segments,
-            closingQuote: .stringQuoteToken(),
+            closingQuote: quoteToken,
             closingPounds: commonPounds,
             trailingTrivia: componentsOnly.last?.kind == .stringLiteralExpr ? syntax.trailingTrivia : nil
           )
@@ -70,63 +135,60 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
   }
 
   /// If `exprList` is a valid string concatenation, returns 1) all elements in `exprList` with concat operators
-  /// stripped and 2) the longest pounds amongst all string literals, otherwise returns nil.
+  /// stripped, 2) the longest pounds amongst all string literals, and 3) whether any string literal is multi-line,
+  /// otherwise returns nil.
   ///
   /// `exprList` as a valid string concatenation must contain n >= 3 children where n is an odd number with a concat
-  /// operator `+` separating every other child, which must either be a single-line string literal or a valid
+  /// operator `+` separating every other child, which must either be a string literal or a valid
   /// expression for string interpolation. `exprList` must also contain at least one string literal child.
   ///
-  /// The following is a valid string concatenation.
+  /// The following are valid string concatenations.
   /// ``` swift
   /// "Hello " + aString + "\(1)World"
+  ///
+  /// """
+  /// Hello
+  /// """ + """
+  /// World
+  /// """
   /// ```
   /// The following are invalid string concatenations.
   /// ``` swift
   /// aString + bString // no string literals
   ///
   /// "Hello " * aString - "World" // non `+` operators
-  ///
-  /// """
-  /// Hello
-  /// """
-  /// + """
-  /// World
-  /// """ // multi-line string literals
   /// ```
   private static func preflight(
     exprList: ExprListSyntax
-  ) -> (componentsOnly: [ExprListSyntax.Element], longestPounds: TokenSyntax?)? {
+  ) -> (componentsOnly: [ExprListSyntax.Element], longestPounds: TokenSyntax?, hasMultilineString: Bool)? {
     var iter = exprList.makeIterator()
     guard let first = iter.next() else {
       return nil
     }
 
     var hasStringComponents = false
+    var hasMultilineString = false
     var longestPounds: TokenSyntax?
     var componentsOnly = [ExprListSyntax.Element]()
     componentsOnly.reserveCapacity(exprList.count / 2 + 1)
 
     if let stringLiteral = first.as(StringLiteralExprSyntax.self) {
-      guard stringLiteral.isSingleLine else {
-        return nil
-      }
       hasStringComponents = true
+      hasMultilineString = hasMultilineString || !stringLiteral.isSingleLine
       longestPounds = stringLiteral.openingPounds
     }
     componentsOnly.append(first)
 
     while let concat = iter.next(), let stringComponent = iter.next() {
       guard let concat = concat.as(BinaryOperatorExprSyntax.self),
-        concat.operator.tokenKind == .binaryOperator("+") && !stringComponent.is(MissingExprSyntax.self)
+        concat.operator.tokenKind == .binaryOperator("+"), !stringComponent.is(MissingExprSyntax.self)
       else {
         return nil
       }
 
       if let stringLiteral = stringComponent.as(StringLiteralExprSyntax.self) {
-        guard stringLiteral.isSingleLine else {
-          return nil
-        }
         hasStringComponents = true
+        hasMultilineString = hasMultilineString || !stringLiteral.isSingleLine
         if let pounds = stringLiteral.openingPounds,
           pounds.trimmedLength > (longestPounds?.trimmedLength ?? SourceLength(utf8Length: 0))
         {
@@ -140,11 +202,11 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
       )
     }
 
-    guard hasStringComponents && componentsOnly.count > 1 else {
+    guard hasStringComponents, componentsOnly.count > 1 else {
       return nil
     }
 
-    return (componentsOnly, longestPounds)
+    return (componentsOnly, longestPounds, hasMultilineString)
   }
 }
 
