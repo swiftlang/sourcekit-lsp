@@ -244,6 +244,7 @@ package protocol LanguageService: AnyObject, Sendable {
   func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse?
   func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]?
   func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]?
+  func selectionRange(_ req: SelectionRangeRequest) async throws -> [SelectionRange]
   func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse?
   func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation]
   func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse?
@@ -444,6 +445,10 @@ package extension LanguageService {
 
   func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
     throw ResponseError.requestNotImplemented(FoldingRangeRequest.self)
+  }
+
+  func selectionRange(_ req: SelectionRangeRequest) async throws -> [SelectionRange] {
+    throw ResponseError.requestNotImplemented(SelectionRangeRequest.self)
   }
 
   func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {

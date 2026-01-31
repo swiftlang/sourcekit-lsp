@@ -417,7 +417,8 @@ extension SwiftLanguageService {
         diagnosticProvider: DiagnosticOptions(
           interFileDependencies: true,
           workspaceDiagnostics: false
-        )
+        ),
+        selectionRangeProvider: .bool(true)
       )
     )
   }

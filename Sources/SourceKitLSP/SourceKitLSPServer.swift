@@ -818,6 +818,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await request.reply { try await executeCommand(request.params) }
     case let request as RequestAndReply<FoldingRangeRequest>:
       await self.handleRequest(for: request, requestHandler: self.foldingRange)
+    case let request as RequestAndReply<SelectionRangeRequest>:
+      await self.handleRequest(for: request, requestHandler: self.selectionRange)
     case let request as RequestAndReply<GetReferenceDocumentRequest>:
       await request.reply { try await getReferenceDocument(request.params) }
     case let request as RequestAndReply<HoverRequest>:
@@ -1177,6 +1179,7 @@ extension SourceKitLSPServer {
       typeHierarchyProvider: .bool(true),
       semanticTokensProvider: semanticTokensOptions,
       inlayHintProvider: inlayHintOptions,
+      selectionRangeProvider: .bool(true),
       experimental: .dictionary(experimentalCapabilities)
     )
   }
@@ -1801,6 +1804,14 @@ extension SourceKitLSPServer {
     languageService: any LanguageService
   ) async throws -> [FoldingRange]? {
     return try await languageService.foldingRange(req)
+  }
+
+  func selectionRange(
+    _ req: SelectionRangeRequest,
+    workspace: Workspace,
+    languageService: any LanguageService
+  ) async throws -> [SelectionRange] {
+    return try await languageService.selectionRange(req)
   }
 
   func documentSymbol(
