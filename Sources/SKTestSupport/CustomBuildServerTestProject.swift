@@ -92,7 +92,7 @@ package protocol CustomBuildServer: MessageHandler {
   func textDocumentSourceKitOptionsRequest(
     _ request: TextDocumentSourceKitOptionsRequest
   ) async throws -> TextDocumentSourceKitOptionsResponse?
-  func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse
+  func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse
   func waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse
   nonisolated func onWatchedFilesDidChange(_ notification: OnWatchedFilesDidChangeNotification) throws
   func workspaceWaitForBuildSystemUpdatesRequest(
@@ -243,8 +243,8 @@ package extension CustomBuildServer {
     ])
   }
 
-  func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse {
-    return VoidResponse()
+  func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
+    return BuildTargetPrepareResponse()
   }
 
   func waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest) async -> VoidResponse {
