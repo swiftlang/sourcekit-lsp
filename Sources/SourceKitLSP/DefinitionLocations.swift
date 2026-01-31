@@ -81,7 +81,6 @@ package func definitionLocations(
     return [location]
   }
 
-  // Try local declaration first
   guard let index else {
     if let bestLocalDeclaration = symbol.bestLocalDeclaration {
       return [bestLocalDeclaration]

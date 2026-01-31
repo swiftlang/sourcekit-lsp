@@ -1993,112 +1993,6 @@ extension SourceKitLSPServer {
     return try await languageService.typeDefinition(req)
   }
 
-  /// Return the locations for jump to definition from the given `SymbolDetails`.
-  private func definitionLocations(
-    for symbol: SymbolDetails,
-    in uri: DocumentURI,
-    languageService: any LanguageService
-  ) async throws -> [Location] {
-    // If this symbol is a module then generate a textual interface
-    if symbol.kind == .module {
-      // For module symbols, prefer using systemModule information if available
-      let moduleName: String
-      let groupName: String?
-
-      if let systemModule = symbol.systemModule {
-        moduleName = systemModule.moduleName
-        groupName = systemModule.groupName
-      } else if let name = symbol.name {
-        moduleName = name
-        groupName = nil
-      } else {
-        return []
-      }
-
-      let interfaceLocation = try await definitionInInterface(
-        moduleName: moduleName,
-        groupName: groupName,
-        symbolUSR: nil,
-        originatorUri: uri,
-        languageService: languageService
-      )
-      return [interfaceLocation]
-    }
-
-    if symbol.isSystem ?? false, let systemModule = symbol.systemModule {
-      let location = try await definitionInInterface(
-        moduleName: systemModule.moduleName,
-        groupName: systemModule.groupName,
-        symbolUSR: symbol.usr,
-        originatorUri: uri,
-        languageService: languageService
-      )
-      return [location]
-    }
-
-    guard let index = await self.workspaceForDocument(uri: uri)?.index(checkedFor: .deletedFiles) else {
-      if let bestLocalDeclaration = symbol.bestLocalDeclaration {
-        return [bestLocalDeclaration]
-      } else {
-        return []
-      }
-    }
-    guard let usr = symbol.usr else { return [] }
-    logger.info("Performing indexed jump-to-definition with USR \(usr)")
-    var occurrences = index.definitionOrDeclarationOccurrences(ofUSR: usr)
-    if symbol.isDynamic ?? true {
-      lazy var transitiveReceiverUsrs: [String]? = {
-        if let receiverUsrs = symbol.receiverUsrs {
-          return transitiveSubtypeClosure(
-            ofUsrs: receiverUsrs,
-            index: index
-          )
-        } else {
-          return nil
-        }
-      }()
-      occurrences += occurrences.flatMap {
-        let overriddenUsrs = index.occurrences(relatedToUSR: $0.symbol.usr, roles: .overrideOf).map(\.symbol.usr)
-        let overriddenSymbolDefinitions = overriddenUsrs.compactMap {
-          index.primaryDefinitionOrDeclarationOccurrence(ofUSR: $0)
-        }
-        // Only contain overrides that are children of one of the receiver types or their subtypes or extensions.
-        return overriddenSymbolDefinitions.filter { override in
-          override.relations.contains(where: {
-            guard $0.roles.contains(.childOf) else {
-              return false
-            }
-            if let transitiveReceiverUsrs, !transitiveReceiverUsrs.contains($0.symbol.usr) {
-              return false
-            }
-            return true
-          })
-        }
-      }
-    }
-
-    if occurrences.isEmpty {
-      if let bestLocalDeclaration = symbol.bestLocalDeclaration {
-        return [bestLocalDeclaration]
-      }
-      // Fallback: The symbol was not found in the index. This often happens with
-      // third-party binary frameworks or libraries where indexing data is missing.
-      // If module info is available, fallback to generating the textual interface.
-      if let systemModule = symbol.systemModule {
-        let location = try await definitionInInterface(
-          moduleName: systemModule.moduleName,
-          groupName: systemModule.groupName,
-          symbolUSR: symbol.usr,
-          originatorUri: uri,
-          languageService: languageService
-        )
-        return [location]
-      }
-    }
-
-    return occurrences.compactMap { indexToLSPLocation($0.location) }.sorted()
-  }
-
   /// Returns the result of a `DefinitionRequest` by running a `SymbolInfoRequest`, inspecting
   /// its result and doing index lookups, if necessary.
   ///
@@ -2142,11 +2036,47 @@ extension SourceKitLSPServer {
         // jump to the function's declaration).
         locations = [bestLocalDeclaration]
       } else {
-        locations = try await self.definitionLocations(
+        let index = await workspace.index(checkedFor: .deletedFiles)
+        locations = try await definitionLocations(
           for: symbol,
-          in: req.textDocument.uri,
+          originatorUri: req.textDocument.uri,
+          index: index,
           languageService: languageService
         )
+        // For dynamic symbols, also include overridden definitions
+        if let index, let usr = symbol.usr, symbol.isDynamic ?? true {
+          lazy var transitiveReceiverUsrs: [String]? = {
+            if let receiverUsrs = symbol.receiverUsrs {
+              return transitiveSubtypeClosure(
+                ofUsrs: receiverUsrs,
+                index: index
+              )
+            } else {
+              return nil
+            }
+          }()
+          let additionalOccurrences = index.definitionOrDeclarationOccurrences(ofUSR: usr)
+          let overriddenLocations = additionalOccurrences.flatMap { occurrence -> [Location] in
+            let overriddenUsrs = index.occurrences(relatedToUSR: occurrence.symbol.usr, roles: .overrideOf)
+              .map(\.symbol.usr)
+            let overriddenSymbolDefinitions = overriddenUsrs.compactMap {
+              index.primaryDefinitionOrDeclarationOccurrence(ofUSR: $0)
+            }
+            // Only contain overrides that are children of one of the receiver types or their subtypes or extensions.
+            return overriddenSymbolDefinitions.filter { override in
+              override.relations.contains(where: {
+                guard $0.roles.contains(.childOf) else {
+                  return false
+                }
+                if let transitiveReceiverUsrs, !transitiveReceiverUsrs.contains($0.symbol.usr) {
+                  return false
+                }
+                return true
+              })
+            }.compactMap { indexToLSPLocation($0.location) }
+          }
+          locations += overriddenLocations
+        }
       }
 
       // If the symbol's location is is where we initiated rename from, also show the declarations that the symbol
