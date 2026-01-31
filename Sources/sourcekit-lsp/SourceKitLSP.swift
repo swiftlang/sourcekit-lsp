@@ -279,10 +279,10 @@ struct SourceKitLSP: AsyncParsableCommand {
     let clientConnection = JSONRPCConnection(
       name: "client",
       protocol: MessageRegistry.lspProtocol,
-      inFD: FileHandle.standardInput,
-      outFD: realStdoutHandle,
-      inputMirrorFile: inputMirror,
-      outputMirrorFile: outputMirror
+      receiveFD: FileHandle.standardInput,
+      sendFD: realStdoutHandle,
+      receiveMirrorFile: inputMirror,
+      sendMirrorFile: outputMirror
     )
 
     // For reasons that are completely oblivious to me, `DispatchIO.write`, which is used to write LSP responses to

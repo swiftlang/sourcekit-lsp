@@ -349,7 +349,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
       enableBackgroundIndexing: true
     )
 
-    let (uri, positions) = try project.openDocument("UseType.swift")
+    let (uri, _) = try project.openDocument("UseType.swift")
 
     let request = InlayHintRequest(textDocument: TextDocumentIdentifier(uri), range: nil)
     let hints = try await project.testClient.send(request)
