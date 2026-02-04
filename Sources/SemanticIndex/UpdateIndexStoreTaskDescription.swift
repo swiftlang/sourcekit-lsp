@@ -261,7 +261,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         mainFile: fileInfo.mainFile,
         outputPath: fileInfo.outputPath
       )
-      if !hasUpToDateUnit {
+      if hasUpToDateUnit {
         logger.debug("Not indexing \(fileInfo.file.forLogging) because index has an up-to-date unit")
         // We consider a file's index up-to-date if we have any up-to-date unit. Changing build settings does not
         // invalidate the up-to-date status of the index.
