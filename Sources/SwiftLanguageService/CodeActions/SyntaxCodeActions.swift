@@ -19,6 +19,7 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
     AddDocumentation.self,
     AddSeparatorsToIntegerLiteral.self,
     ApplyDeMorganLaw.self,
+    CollapseNestedIf.self,
     ConvertComputedPropertyToZeroParameterFunction.self,
     ConvertIfLetToGuard.self,
     ConvertIntegerLiteral.self,
