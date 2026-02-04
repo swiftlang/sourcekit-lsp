@@ -1,6 +1,7 @@
 name: Bug Report
 description: Something isn't working as expected
-labels: [bug]
+labels: []
+type: Bug
 body:
   - type: input
     id: version
