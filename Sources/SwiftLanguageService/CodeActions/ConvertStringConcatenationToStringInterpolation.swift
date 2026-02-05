@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
-import SwiftBasicFormat
 import SwiftRefactor
 import SwiftSyntax
 
@@ -41,33 +40,16 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
 
       var literalSegments = stringLiteral.segments
 
-      // strip base indentation for multiline strings
+      // For multiline strings, strip base indentation (trivia only).
+      // In multiline string literals, each segment's leading trivia contains
+      // exactly the base indentation (matching the closing """), so we clear it.
+      // Do not modify content - only trivia.
       if hasMultilineString, !stringLiteral.isSingleLine {
-        let baseIndent = stringLiteral.closingQuote.indentationOfLine
-        let indentPattern = baseIndent.description
-        // use IndentationRemover for trivia
-        let remover = IndentationRemover(indentation: baseIndent, indentFirstLine: true)
         literalSegments = StringLiteralSegmentListSyntax(
           literalSegments.map { segment in
-            var rewritten = remover.rewrite(segment).cast(StringLiteralSegmentListSyntax.Element.self)
-            // also strip base indentation from string segment text
-            if case var .stringSegment(strSeg) = rewritten {
-              var text = strSeg.content.text
-              // remove indentation after each newline in the text
-              text = text.split(separator: "\n", omittingEmptySubsequences: false)
-                .enumerated()
-                .map { index, line in
-                  // strip indentation from lines after the first that start with the pattern
-                  if index > 0, line.hasPrefix(indentPattern) {
-                    return String(line.dropFirst(indentPattern.count))
-                  }
-                  return String(line)
-                }
-                .joined(separator: "\n")
-              strSeg = strSeg.with(\.content, .stringSegment(text))
-              rewritten = .stringSegment(strSeg)
-            }
-            return rewritten
+            var updated = segment
+            updated.leadingTrivia = []
+            return updated
           }
         )
       }
