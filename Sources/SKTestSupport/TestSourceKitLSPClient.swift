@@ -120,6 +120,10 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   /// This allows e.g. a `IndexedSingleSwiftFileTestProject` to delete its temporary files when they are no longer needed.
   private let cleanUp: @Sendable () -> Void
 
+  /// The starting working directory for the process. This is expected to
+  /// never change.
+  private let workingDirectory: String
+
   /// - Parameters:
   ///   - serverOptions: The equivalent of the command line options with which sourcekit-lsp should be started
   ///   - useGlobalModuleCache: If `false`, the server will use its own module
@@ -163,6 +167,8 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     if options.sourcekitdRequestTimeout == nil {
       options.sourcekitdRequestTimeout = defaultTimeout
     }
+
+    self.workingDirectory = FileManager.default.currentDirectoryPath
 
     self.notifications = PendingNotifications()
 
@@ -239,6 +245,11 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
       flushSemaphore.signal()
     }
     flushSemaphore.waitOrXCTFail()
+
+    // Make sure the working directory hasn't changed. This guards against
+    // an in-process sourcekitd setting the scratch directory as the current
+    // working directory, which will break subsequent tests.
+    XCTAssertEqual(self.workingDirectory, FileManager.default.currentDirectoryPath)
   }
 
   // MARK: - Sending messages
