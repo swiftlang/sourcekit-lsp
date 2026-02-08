@@ -45,14 +45,16 @@ extension SwiftLanguageService {
         symbol = cursorInfo.symbolInfo
       default:
         guard let typeUsr: String = dict[keys.typeUsr],
-              let typeSymbol = try await cursorInfoFromTypeUSR(typeUsr, in: snapshot)?.symbolInfo else {
+          let typeSymbol = try await cursorInfoFromTypeUSR(typeUsr, in: snapshot)?.symbolInfo
+        else {
           return nil
         }
         symbol = typeSymbol
       }
     } else {
       guard let typeUsr: String = dict[keys.typeUsr],
-            let typeSymbol = try await cursorInfoFromTypeUSR(typeUsr, in: snapshot)?.symbolInfo else {
+        let typeSymbol = try await cursorInfoFromTypeUSR(typeUsr, in: snapshot)?.symbolInfo
+      else {
         return nil
       }
       symbol = typeSymbol
