@@ -141,27 +141,27 @@ extension SyntaxClassification {
     case .editorPlaceholder:
       return nil
     case .keyword:
-      return (.keyword, [])
+      return nil
     case .identifier, .type, .dollarIdentifier:
       return (.identifier, [])
     case .operator:
-      return (.operator, [])
+      return nil
     case .integerLiteral, .floatLiteral:
-      return (.number, [])
+      return nil
     case .stringLiteral:
-      return (.string, [])
+      return nil
     case .regexLiteral:
-      return (.regexp, [])
+      return nil
     case .ifConfigDirective:
-      return (.macro, [])
+      return nil
     case .attribute:
       return (.modifier, [])
     case .lineComment, .blockComment:
-      return (.comment, [])
+      return nil
     case .docLineComment, .docBlockComment:
-      return (.comment, .documentation)
+      return nil
     case .argumentLabel:
-      return (.function, .parameterLabel)
+      return nil
     #if RESILIENT_LIBRARIES
     @unknown default:
       fatalError("Unknown case")
