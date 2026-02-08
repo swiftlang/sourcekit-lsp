@@ -3,6 +3,7 @@
 Most modern text editors support the [Language Server Protocol](https://microsoft.github.io/language-server-protocol/) (LSP) and many have support for Swift through SourceKit-LSP. https://www.swift.org/tools has a list of some popular editors and how to set them up. This page covers any editors not listed there.
 
 <!-- Editors are sorted alphabetically followed by the generic other editor section -->
+<!-- All editors included in this list should offer at least basic functionality free of charge -->
 
 ## BBEdit
 
