@@ -36,13 +36,26 @@ package func indexToLSPLocation(_ location: SymbolLocation) -> Location? {
   )
 }
 
+/// The result of looking up definition locations for a symbol.
+package struct DefinitionLocationsResult {
+  /// The locations of the symbol's definition.
+  package let locations: [Location]
+  /// The occurrences from the index lookup, if any. Can be used by callers to avoid duplicate index lookups.
+  package let indexOccurrences: [SymbolOccurrence]
+
+  package init(locations: [Location], indexOccurrences: [SymbolOccurrence] = []) {
+    self.locations = locations
+    self.indexOccurrences = indexOccurrences
+  }
+}
+
 /// Return the locations for jump to definition from the given `SymbolDetails`.
 package func definitionLocations(
   for symbol: SymbolDetails,
   originatorUri: DocumentURI,
   index: CheckedIndex?,
   languageService: any LanguageService
-) async throws -> [Location] {
+) async throws -> DefinitionLocationsResult {
   // If this symbol is a module then generate a textual interface
   if symbol.kind == .module {
     // For module symbols, prefer using systemModule information if available
@@ -56,7 +69,7 @@ package func definitionLocations(
       moduleName = name
       groupName = nil
     } else {
-      return []
+      return DefinitionLocationsResult(locations: [])
     }
 
     let location = try await definitionInInterface(
@@ -66,7 +79,7 @@ package func definitionLocations(
       originatorUri: originatorUri,
       languageService: languageService
     )
-    return [location]
+    return DefinitionLocationsResult(locations: [location])
   }
 
   // System symbols use generated interface
@@ -78,24 +91,24 @@ package func definitionLocations(
       originatorUri: originatorUri,
       languageService: languageService
     )
-    return [location]
+    return DefinitionLocationsResult(locations: [location])
   }
 
   guard let index else {
     if let bestLocalDeclaration = symbol.bestLocalDeclaration {
-      return [bestLocalDeclaration]
+      return DefinitionLocationsResult(locations: [bestLocalDeclaration])
     }
-    return []
+    return DefinitionLocationsResult(locations: [])
   }
 
-  guard let usr = symbol.usr else { return [] }
+  guard let usr = symbol.usr else { return DefinitionLocationsResult(locations: []) }
   logger.info("Performing indexed jump-to-definition with USR \(usr)")
 
   let occurrences = index.definitionOrDeclarationOccurrences(ofUSR: usr)
 
   if occurrences.isEmpty {
     if let bestLocalDeclaration = symbol.bestLocalDeclaration {
-      return [bestLocalDeclaration]
+      return DefinitionLocationsResult(locations: [bestLocalDeclaration])
     }
     // Fallback: The symbol was not found in the index. This often happens with
     // third-party binary frameworks or libraries where indexing data is missing.
@@ -108,11 +121,14 @@ package func definitionLocations(
         originatorUri: originatorUri,
         languageService: languageService
       )
-      return [location]
+      return DefinitionLocationsResult(locations: [location])
     }
   }
 
-  return occurrences.compactMap { indexToLSPLocation($0.location) }.sorted()
+  return DefinitionLocationsResult(
+    locations: occurrences.compactMap { indexToLSPLocation($0.location) }.sorted(),
+    indexOccurrences: occurrences
+  )
 }
 
 /// Generate the generated interface for the given module, write it to disk and return the location to which to jump

@@ -36,17 +36,6 @@ extension SwiftLanguageService {
     let dict = try await send(sourcekitdRequest: \.cursorInfo, skreq, snapshot: snapshot)
     let documentManager = try self.documentManager
 
-    // Helper to get symbol from typeUsr
-    func symbolFromTypeUsr() async throws -> SymbolDetails? {
-      guard let typeUsr: String = dict[keys.typeUsr] else {
-        return nil
-      }
-      guard let typeInfo = try await cursorInfoFromTypeUSR(typeUsr, in: snapshot) else {
-        return nil
-      }
-      return typeInfo.symbolInfo
-    }
-
     // If the cursor is on a type symbol itself, use its USR directly.
     // Otherwise get the type of the symbol at this position.
     let symbol: SymbolDetails
@@ -55,24 +44,27 @@ extension SwiftLanguageService {
       case .class, .struct, .enum, .interface, .typeParameter:
         symbol = cursorInfo.symbolInfo
       default:
-        guard let typeSymbol = try await symbolFromTypeUsr() else {
+        guard let typeUsr: String = dict[keys.typeUsr],
+              let typeSymbol = try await cursorInfoFromTypeUSR(typeUsr, in: snapshot)?.symbolInfo else {
           return nil
         }
         symbol = typeSymbol
       }
     } else {
-      guard let typeSymbol = try await symbolFromTypeUsr() else {
+      guard let typeUsr: String = dict[keys.typeUsr],
+            let typeSymbol = try await cursorInfoFromTypeUSR(typeUsr, in: snapshot)?.symbolInfo else {
         return nil
       }
       symbol = typeSymbol
     }
 
+    let index = await sourceKitLSPServer?.workspaceForDocument(uri: uri)?.index(checkedFor: .deletedFiles)
     let locations = try await SourceKitLSP.definitionLocations(
       for: symbol,
       originatorUri: uri,
-      index: nil,
+      index: index,
       languageService: self
-    )
+    ).locations
 
     if locations.isEmpty {
       return nil

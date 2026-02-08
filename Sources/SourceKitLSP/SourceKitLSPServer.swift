@@ -2037,14 +2037,15 @@ extension SourceKitLSPServer {
         locations = [bestLocalDeclaration]
       } else {
         let index = await workspace.index(checkedFor: .deletedFiles)
-        locations = try await definitionLocations(
+        let definitionResult = try await definitionLocations(
           for: symbol,
           originatorUri: req.textDocument.uri,
           index: index,
           languageService: languageService
         )
+        locations = definitionResult.locations
         // For dynamic symbols, also include overridden definitions
-        if let index, let usr = symbol.usr, symbol.isDynamic ?? true {
+        if let index, symbol.isDynamic ?? true, !definitionResult.indexOccurrences.isEmpty {
           lazy var transitiveReceiverUsrs: [String]? = {
             if let receiverUsrs = symbol.receiverUsrs {
               return transitiveSubtypeClosure(
@@ -2055,8 +2056,8 @@ extension SourceKitLSPServer {
               return nil
             }
           }()
-          let additionalOccurrences = index.definitionOrDeclarationOccurrences(ofUSR: usr)
-          let overriddenLocations = additionalOccurrences.flatMap { occurrence -> [Location] in
+          // Use the occurrences already retrieved by definitionLocations to avoid duplicate index lookup
+          let overriddenLocations = definitionResult.indexOccurrences.flatMap { occurrence -> [Location] in
             let overriddenUsrs = index.occurrences(relatedToUSR: occurrence.symbol.usr, roles: .overrideOf)
               .map(\.symbol.usr)
             let overriddenSymbolDefinitions = overriddenUsrs.compactMap {
