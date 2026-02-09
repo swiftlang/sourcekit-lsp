@@ -1153,7 +1153,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
                     a
                     bc
                     d
-                    """
+                      """
                     """#
                 )
               ]
@@ -1237,7 +1237,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
   }
 
   func testApplyDeMorganLawNegatedAnd() async throws {
-
     try await assertCodeActions(
       """
       let x = 1️⃣!(a && b)2️⃣

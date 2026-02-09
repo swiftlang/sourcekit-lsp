@@ -18,7 +18,9 @@ import SwiftSyntax
 /// string interpolation.
 struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvider {
   static func refactor(syntax: SequenceExprSyntax, in context: Void) throws -> SequenceExprSyntax {
-    guard let (componentsOnly, commonPounds, hasMultilineString) = preflight(exprList: syntax.elements) else {
+    guard
+      let (componentsOnly, commonPounds, hasMultilineString, closingQuoteTrivia) = preflight(exprList: syntax.elements)
+    else {
       throw RefactoringNotApplicableError("unsupported expression")
     }
 
@@ -47,9 +49,7 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
       if hasMultilineString, !stringLiteral.isSingleLine {
         literalSegments = StringLiteralSegmentListSyntax(
           literalSegments.map { segment in
-            var updated = segment
-            updated.leadingTrivia = []
-            return updated
+            segment.with(\.leadingTrivia, [])
           }
         )
       }
@@ -98,6 +98,11 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
       ? quoteToken.with(\.trailingTrivia, .newline)
       : quoteToken
 
+    let closingQuote: TokenSyntax =
+      hasMultilineString
+      ? quoteToken.with(\.leadingTrivia, closingQuoteTrivia)
+      : quoteToken
+
     return syntax.with(
       \.elements,
       [
@@ -107,7 +112,7 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
             openingPounds: commonPounds,
             openingQuote: openingQuote,
             segments: segments,
-            closingQuote: quoteToken,
+            closingQuote: closingQuote,
             closingPounds: commonPounds,
             trailingTrivia: componentsOnly.last?.kind == .stringLiteralExpr ? syntax.trailingTrivia : nil
           )
@@ -117,8 +122,8 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
   }
 
   /// If `exprList` is a valid string concatenation, returns 1) all elements in `exprList` with concat operators
-  /// stripped, 2) the longest pounds amongst all string literals, and 3) whether any string literal is multi-line,
-  /// otherwise returns nil.
+  /// stripped, 2) the longest pounds amongst all string literals, 3) whether any string literal is multi-line,
+  /// and 4) the leading trivia of the last multi-line string literal's closing quote, otherwise returns nil.
   ///
   /// `exprList` as a valid string concatenation must contain n >= 3 children where n is an odd number with a concat
   /// operator `+` separating every other child, which must either be a string literal or a valid
@@ -142,7 +147,10 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
   /// ```
   private static func preflight(
     exprList: ExprListSyntax
-  ) -> (componentsOnly: [ExprListSyntax.Element], longestPounds: TokenSyntax?, hasMultilineString: Bool)? {
+  ) -> (
+    componentsOnly: [ExprListSyntax.Element], longestPounds: TokenSyntax?, hasMultilineString: Bool,
+    closingQuoteTrivia: Trivia
+  )? {
     var iter = exprList.makeIterator()
     guard let first = iter.next() else {
       return nil
@@ -151,12 +159,16 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
     var hasStringComponents = false
     var hasMultilineString = false
     var longestPounds: TokenSyntax?
+    var closingQuoteTrivia: Trivia = []
     var componentsOnly = [ExprListSyntax.Element]()
     componentsOnly.reserveCapacity(exprList.count / 2 + 1)
 
     if let stringLiteral = first.as(StringLiteralExprSyntax.self) {
       hasStringComponents = true
-      hasMultilineString = hasMultilineString || !stringLiteral.isSingleLine
+      if !stringLiteral.isSingleLine {
+        hasMultilineString = true
+        closingQuoteTrivia = stringLiteral.closingQuote.leadingTrivia
+      }
       longestPounds = stringLiteral.openingPounds
     }
     componentsOnly.append(first)
@@ -170,7 +182,10 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
 
       if let stringLiteral = stringComponent.as(StringLiteralExprSyntax.self) {
         hasStringComponents = true
-        hasMultilineString = hasMultilineString || !stringLiteral.isSingleLine
+        if !stringLiteral.isSingleLine {
+          hasMultilineString = true
+          closingQuoteTrivia = stringLiteral.closingQuote.leadingTrivia
+        }
         if let pounds = stringLiteral.openingPounds,
           pounds.trimmedLength > (longestPounds?.trimmedLength ?? SourceLength(utf8Length: 0))
         {
@@ -188,7 +203,7 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
       return nil
     }
 
-    return (componentsOnly, longestPounds, hasMultilineString)
+    return (componentsOnly, longestPounds, hasMultilineString, closingQuoteTrivia)
   }
 }
 
