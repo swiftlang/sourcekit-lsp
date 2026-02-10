@@ -244,6 +244,7 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
 
     with tempfile.TemporaryDirectory() as test_module_cache:
         additional_env['SOURCEKIT_LSP_TEST_MODULE_CACHE'] = f"{test_module_cache}/module-cache"
+        additional_env['LLVM_SYMBOLIZER_PATH'] = "/home/build-user/build/buildbot_linux/llvm-linux-x86_64/bin/llvm-symbolizer"
         # Try running tests in parallel. If that fails, run tests in serial to get capture more readable output.
         try:
             check_call(cmd + ['--parallel'], additional_env=additional_env, verbose=args.verbose)
