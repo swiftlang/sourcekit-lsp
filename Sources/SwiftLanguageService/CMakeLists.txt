@@ -52,6 +52,7 @@ add_library(SwiftLanguageService STATIC
   SyntaxHighlightingTokens.swift
   SyntaxTreeManager.swift
   TestDiscovery.swift
+  TypeDefinition.swift
   VariableTypeInfo.swift
 )
 set_target_properties(SwiftLanguageService PROPERTIES
