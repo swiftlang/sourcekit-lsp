@@ -266,7 +266,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       position: positions["1️⃣"],
       testClient: testClient,
       swiftInterfaceFile: "Swift.Collection.Array.swiftinterface",
-      linePrefix: "@inlinable public func filter(_ isIncluded: (Element) throws -> Bool) rethrows -> [Element]"
+      linePrefix: "public consuming func filter<E>(_ isIncluded: (Element) throws(E) -> Bool) throws(E) -> [Element]"
     )
   }
 
@@ -285,7 +285,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       position: project.positions["1️⃣"],
       testClient: project.testClient,
       swiftInterfaceFile: "Swift.Collection.Array.swiftinterface",
-      linePrefix: "@inlinable public func filter(_ isIncluded: (Element) throws -> Bool) rethrows -> [Element]"
+      linePrefix: "public consuming func filter<E>(_ isIncluded: (Element) throws(E) -> Bool) throws(E) -> [Element]"
     )
   }
 
